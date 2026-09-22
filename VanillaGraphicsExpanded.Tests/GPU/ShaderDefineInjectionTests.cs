@@ -352,7 +352,7 @@ public class ShaderDefineInjectionTests
             ["VGE_LUMON_RAY_STEPS"] = raySteps,
         };
 
-        var result = helper.CompileAndLink("lumon_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh", defines);
+        var result = helper.CompileProgram("tests/trace_probe_anchor", defines);
         Assert.True(result.IsSuccess, result.ErrorMessage);
     }
 

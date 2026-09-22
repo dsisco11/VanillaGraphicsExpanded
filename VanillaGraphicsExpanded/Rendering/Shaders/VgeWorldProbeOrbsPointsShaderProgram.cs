@@ -9,26 +9,29 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
-public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
+public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private readonly VgeWorldProbeOrbsPointsParamsUbo paramsUbo = new();
 
     public VgeWorldProbeOrbsPointsShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("vge_worldprobe_orbs_points"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     public static void Register(ICoreClientAPI api)
     {
         var instance = new VgeWorldProbeOrbsPointsShaderProgram
         {
-            PassName = "vge_worldprobe_orbs_points",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
 
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("vge_worldprobe_orbs_points", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     public float[] ModelViewProjectionMatrix
@@ -107,14 +110,8 @@ public sealed class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
         }
 
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeAtlasTexelsPerUpdate, worldProbeAtlasTexelsPerUpdate.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride).ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeBindRadianceAtlas, enabled ? "1" : "0");
         return !changed;
     }
 

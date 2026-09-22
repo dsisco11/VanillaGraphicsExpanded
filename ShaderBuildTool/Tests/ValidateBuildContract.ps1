@@ -25,10 +25,11 @@ Copy-Item -Path "$packageCache/dotnet-shaderc/$compilerVersion/*" -Destination $
 try {
 $env:NUGET_PACKAGES = Join-Path $root 'packages'
 $rows = [Collections.Generic.List[object]]::new()
+$registryScope = "build-validation"
 <# .SYNOPSIS Runs the copied build tool against bounded isolated fixture inputs. #>
 function Invoke-ProbeBuild([string]$Name,[string]$WorkingDirectory = $root) {
     $watch = [Diagnostics.Stopwatch]::StartNew()
-    $log = & dotnet "$tool/ShaderBuildTool.dll" --assetsRoot $assets --outputRoot $output --workingDir $WorkingDirectory --clean --incremental 2>&1
+    $log = & dotnet "$tool/ShaderBuildTool.dll" --assetsRoot $assets --outputRoot $output --workingDir $WorkingDirectory --registry $registryScope --clean --incremental 2>&1
     $status = $LASTEXITCODE
     $log | Set-Content "$root/$Name.log"
     if ($status -ne 0) { throw "Build $Name failed: $($log -join [Environment]::NewLine)" }
@@ -119,6 +120,7 @@ Assert-Probe ((Get-Item -LiteralPath $binary).Length -gt 7) 'Corrupted binary no
 Invoke-ProbeBuild 'extra-output' | Out-Null
 Assert-Probe (!(Test-Path "$output/vanillagraphicsexpanded/shaders/stale.spv")) 'Stale output retained'
 Remove-Item -LiteralPath "$shaders/fixture.csh"
+$registryScope = "build-validation-graphics"
 Invoke-ProbeBuild 'removed-source' | Out-Null
 Assert-Probe (!(Test-Path "$output/vanillagraphicsexpanded/shaders/fixture.csh.spv")) 'Removed compute alias retained'
 # A harmless extra DLL exercises the tool-content input set without corrupting dependencies.
@@ -149,7 +151,7 @@ Assert-Probe (!(Get-ChildItem $package -Filter '*.spirv.json' -Recurse)) 'Runtim
 $resolvedShaders = [IO.Path]::GetFullPath($shaders)
 if (!$resolvedShaders.StartsWith($root + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe fixture path' }
 Move-Item -LiteralPath $resolvedShaders -Destination (Join-Path $root 'removed-shaders')
-$missingLog = & dotnet "$tool/ShaderBuildTool.dll" --assetsRoot $assets --outputRoot $output --workingDir $root --clean --incremental 2>&1
+$missingLog = & dotnet "$tool/ShaderBuildTool.dll" --assetsRoot $assets --outputRoot $output --workingDir $root --registry $registryScope --clean --incremental 2>&1
 $missingStatus = $LASTEXITCODE
 $missingLog | Set-Content "$root/removed-directory.log"
 Assert-Probe ($missingStatus -ne 0) 'Missing shader directory incorrectly succeeded'

@@ -11,13 +11,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program that resolves CPU-produced world-probe per-probe scalar outputs into clipmap textures.
 /// Implementation strategy: render 1px points into an MRT FBO, one point per probe update.
 /// </summary>
-public sealed class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram
+public sealed partial class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnWorldProbeResolveParamsUbo? paramsUbo;
 
     public LumOnWorldProbeClipmapResolveShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_worldprobe_clipmap_resolve"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
 
     }
 
@@ -29,7 +32,7 @@ public sealed class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram
     {
         var instance = new LumOnWorldProbeClipmapResolveShaderProgram
         {
-            PassName = "lumon_worldprobe_clipmap_resolve",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
 

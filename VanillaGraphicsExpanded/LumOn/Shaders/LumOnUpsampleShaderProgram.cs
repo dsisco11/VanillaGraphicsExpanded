@@ -14,13 +14,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn Upsample pass.
 /// Bilateral upsamples half-res indirect diffuse to full resolution.
 /// </summary>
-public class LumOnUpsampleShaderProgram : GpuProgram
+public partial class LumOnUpsampleShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnUpsampleParamsUbo? paramsUbo;
 
     public LumOnUpsampleShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_upsample"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     private LumOnUpsampleParamsUbo Params => paramsUbo ??= new LumOnUpsampleParamsUbo();
@@ -31,12 +34,12 @@ public class LumOnUpsampleShaderProgram : GpuProgram
     {
         var instance = new LumOnUpsampleShaderProgram
         {
-            PassName = "lumon_upsample",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_upsample", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

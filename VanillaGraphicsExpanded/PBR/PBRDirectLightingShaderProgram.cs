@@ -17,8 +17,11 @@ namespace VanillaGraphicsExpanded.PBR;
 /// - MRT1: Direct specular
 /// - MRT2: Emissive
 /// </summary>
-public sealed class PBRDirectLightingShaderProgram : GpuProgram
+public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     // Cached state for compound properties
     private float _zNear, _zFar, _shadowRangeNear, _shadowRangeFar;
     private float _shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity;
@@ -33,13 +36,13 @@ public sealed class PBRDirectLightingShaderProgram : GpuProgram
     {
         var instance = new PBRDirectLightingShaderProgram
         {
-            PassName = "pbr_direct_lighting",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
 
-        api.Shader.RegisterMemoryShaderProgram("pbr_direct_lighting", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

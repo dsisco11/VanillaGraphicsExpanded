@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 
 using Vintagestory.API.Client;
 
@@ -21,23 +23,7 @@ internal static class LumOnDebugShaderProgramFamily
 
     private static readonly Dictionary<string, LumOnDebugShaderProgram> ProgramsByName = new(StringComparer.Ordinal);
 
-    private static readonly string[] ProgramNames =
-    [
-        // Legacy dispatcher (kept for compatibility)
-        "lumon_debug",
-
-        // Per-program-kind entrypoints
-        "lumon_debug_probe_anchors",
-        "lumon_debug_gbuffer",
-        "lumon_debug_temporal",
-        "lumon_debug_sh",
-        "lumon_debug_indirect",
-        "lumon_debug_probe_atlas",
-        "lumon_debug_composite",
-        "lumon_debug_direct",
-        "lumon_debug_velocity",
-        "lumon_debug_worldprobe",
-    ];
+    private static readonly string[] ProgramNames = LumOnDebugShaderProgram.Contracts.Select(contract => contract.Identity).ToArray();
 
     public static void Register(ICoreClientAPI api)
     {
@@ -81,9 +67,9 @@ internal static class LumOnDebugShaderProgramFamily
 
     public static void ApplyCompositeDefines(bool enablePbrComposite, bool enableAo, bool enableShortRangeAo)
     {
-        // Defines are compile-time; apply consistently to all programs.
+        // Apply only to programs explicitly accepting the composite settings group.
         // We intentionally do not gate rendering if this triggers recompiles; these toggles are rare.
-        foreach (var program in GetAll())
+        foreach (var program in GetAll().Where(p => p.ProgramContract.Groups.Contains(LumOnShaderGroups.Composite)))
         {
             program.SetDefine(VgeShaderDefines.LumOnPbrComposite, enablePbrComposite ? "1" : "0");
             program.SetDefine(VgeShaderDefines.LumOnEnableAo, enableAo ? "1" : "0");
@@ -117,11 +103,11 @@ internal static class LumOnDebugShaderProgramFamily
 
         bool activeStable = true;
 
-        foreach (var program in GetAll())
+        foreach (var program in GetAll().Where(p => p.ProgramContract.Groups.Contains(LumOnShaderGroups.World)))
         {
             bool stable = true;
 
-            // Apply the same define set to every program.
+            // Apply the topology settings to their declared consumers.
             // For the currently used program we additionally return whether this queued a recompile.
             bool changed = false;
             changed |= program.SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabledStr);

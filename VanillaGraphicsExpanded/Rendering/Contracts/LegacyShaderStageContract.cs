@@ -7,59 +7,81 @@ using System.Text;
 
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
-/// <summary>Preserves the existing builder/loader configuration API until their typed-contract migration.</summary>
+/// <summary>Projects immutable registry declarations into the existing builder and stage-loader API.</summary>
 internal sealed class LegacyShaderStageContract
 {
-    /// <summary>A numeric constant and the structural choices under which its declaration is emitted.</summary>
-    public sealed record Specialization(int Id, string Name, string Type, string Default,
-        Func<IReadOnlyDictionary<string, string?>?, bool>? Enabled = null);
-    public Dictionary<string, string> StructuralDefaults { get; } = new(StringComparer.Ordinal);
-    public List<Specialization> Specializations { get; } = [];
+    /// <summary>A compatibility view of one typed numeric declaration.</summary>
+    public sealed record Specialization(int Id, string Name, string Type, string Default);
+    private readonly ShaderStageContract stage;
+    public IReadOnlyDictionary<string, string> StructuralDefaults { get; }
 
-    #region Variant selection
-    /// <summary>Normalizes a setting, retaining the supported legacy AO alias.</summary>
+    #region Registry adaptation
+    /// <summary>Adapts a known declaration without maintaining another stage or option catalog.</summary>
+    public LegacyShaderStageContract(ShaderStageContract stage)
+    {
+        this.stage = stage;
+        StructuralDefaults = stage.Structural.ToDictionary(o => o.Name, o => o.Default.Canonical, StringComparer.Ordinal);
+    }
+
+    /// <summary>Normalizes known options through typed declarations for the existing numeric loader.</summary>
     public static string Value(string name, string fallback, IReadOnlyDictionary<string, string?>? overrides)
     {
-        string? value = null;
-        overrides?.TryGetValue(name, out value);
-        if (value == null && name == "VGE_LUMON_ENABLE_SHORT_RANGE_AO")
-            overrides?.TryGetValue("VGE_LUMON_ENABLE_BENT_NORMAL", out value);
-        return double.Parse(value ?? fallback, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
+        var option = GpuShaderContracts.Registry.Programs.Values.SelectMany(p => p.Options)
+            .FirstOrDefault(o => o.Name == name || o.Aliases.Contains(name))
+            ?? throw new ArgumentException($"Unknown shader option '{name}'.");
+        return Read(option, overrides, option.Parse(fallback)).Canonical;
     }
 
-    /// <summary>Produces the same finite configuration identity in the builder and loader.</summary>
-    public string VariantKey(IReadOnlyDictionary<string, string?>? overrides)
+    /// <summary>Accepts equivalent aliases and rejects conflicting values while ignoring other stage inputs.</summary>
+    private static ShaderScalar Read(ShaderOption option, IReadOnlyDictionary<string, string?>? values, ShaderScalar fallback)
     {
-        return string.Join(";", StructuralDefaults.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p =>
+        ShaderScalar? selected = null;
+        foreach (string name in option.Aliases.Prepend(option.Name))
         {
-            string value = Value(p.Key, p.Value, overrides);
-            if (value is not ("0" or "1")) throw new ArgumentOutOfRangeException(p.Key, "Expected a binary shader option.");
-            return p.Key + "=" + value;
-        }));
+            if (values == null || !values.TryGetValue(name, out var text) || text == null) continue;
+            var value = option.Parse(text);
+            if (selected.HasValue && selected.Value != value)
+                throw new ArgumentException($"Option '{option.Name}' has conflicting alias values.");
+            selected = value;
+        }
+        return selected ?? fallback;
     }
 
-    /// <summary>Addresses the default binary directly and other finite choices by their canonical key.</summary>
+    /// <summary>Projects only this stage's inputs; program-wide validation belongs to its settings owner.</summary>
+    private Dictionary<string, ShaderScalar> Values(IReadOnlyDictionary<string, string?>? overrides) =>
+        stage.Structural.Concat(stage.Specializations.Select(s => s.Option))
+            .ToDictionary(o => o.Name, o => Read(o, overrides, o.Default), StringComparer.Ordinal);
+
+    /// <summary>Uses typed canonical stage identity for the transitional callers.</summary>
+    public string VariantKey(IReadOnlyDictionary<string, string?>? overrides) =>
+        new ShaderStageSelection(stage, Values(overrides)).Key;
+
+    /// <summary>Selects the immutable stage's default or keyed output path.</summary>
     public string BinaryPath(string source, IReadOnlyDictionary<string, string?>? overrides)
     {
-        string key = VariantKey(overrides);
-        return key == VariantKey(null) ? source + ".spv" : "variants/" + source + "/" + Hash(key) + ".spv";
+        if (source != stage.Identity) throw new ArgumentException($"Stage '{stage.Identity}' cannot load '{source}'.");
+        return new ShaderStageSelection(stage, Values(overrides)).BinaryPath;
     }
 
-    /// <summary>Enumerates the declared preprocessing configurations for offline compilation and tests.</summary>
+    /// <summary>Enumerates the stage's declared finite domains for the transitional build loop.</summary>
     public IEnumerable<Dictionary<string, string?>> Variants()
     {
         IEnumerable<Dictionary<string, string?>> rows = [new(StringComparer.Ordinal)];
-        foreach (string name in StructuralDefaults.Keys.Order(StringComparer.Ordinal))
-            rows = rows.SelectMany(row => new[] { "0", "1" }.Select(value =>
-                new Dictionary<string, string?>(row, StringComparer.Ordinal) { [name] = value })).ToArray();
+        foreach (var option in stage.Structural)
+            rows = rows.SelectMany(row => option.Domain!.Select(value =>
+                new Dictionary<string, string?>(row, StringComparer.Ordinal) { [option.Name] = value.Canonical })).ToArray();
         return rows;
     }
 
-    /// <summary>Selects only constants declared by this structural configuration.</summary>
-    public IEnumerable<Specialization> Constants(IReadOnlyDictionary<string, string?>? overrides) =>
-        Specializations.Where(s => s.Enabled?.Invoke(overrides) ?? true);
+    /// <summary>Evaluates the registry condition shared with typed runtime selection.</summary>
+    public IEnumerable<Specialization> Constants(IReadOnlyDictionary<string, string?>? overrides)
+    {
+        var values = Values(overrides);
+        return stage.Specializations.Where(s => s.Condition?.Evaluate(values) ?? true)
+            .Select(s => new Specialization((int)s.Id, s.Option.Name, s.Option.Default.GlslType, s.Option.Default.GlslLiteral));
+    }
 
-    /// <summary>Produces a stable filename component for a canonical variant key.</summary>
+    /// <summary>Retains the existing deterministic compiler scratch-file naming.</summary>
     public static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
     #endregion
 }

@@ -1,5 +1,7 @@
 using System;
 using System.Globalization;
+using System.Linq;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System.Collections.Generic;
 
 using Vintagestory.API.Client;
@@ -18,8 +20,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn debug visualization overlay.
 /// Renders probe grid, depth, normals, and other debug views.
 /// </summary>
-public class LumOnDebugShaderProgram : GpuProgram
+public partial class LumOnDebugShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => System.Linq.Enumerable.Single(Contracts, contract => contract.Identity == PassName);
+
     internal LumOnNearFieldVisibilityBindings NearFieldVisibility => ((LumOnDebugProgramLayout)ProgramLayout).NearFieldVisibility;
 
     protected override GpuProgramLayout CreateLayout() => new LumOnDebugProgramLayout();
@@ -42,6 +47,7 @@ public class LumOnDebugShaderProgram : GpuProgram
 
     public int WorldProbeEnabled { set => SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, value != 0 ? "1" : "0"); }
 
+    /// <summary>Updates topology only for debug programs declaring world-probe sampling.</summary>
     public bool EnsureWorldProbeClipmapDefines(
         bool enabled,
         float baseSpacing,
@@ -51,6 +57,8 @@ public class LumOnDebugShaderProgram : GpuProgram
         int worldProbeAtlasTexelsPerUpdate,
         int worldProbeDiffuseStride)
     {
+        // The renderer shares this owner type across debug programs with different memberships.
+        if (!ProgramContract.Groups.Contains(LumOnShaderGroups.World)) return true;
         if (!enabled)
         {
             baseSpacing = 0;
@@ -67,9 +75,7 @@ public class LumOnDebugShaderProgram : GpuProgram
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeAtlasTexelsPerUpdate, worldProbeAtlasTexelsPerUpdate.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride).ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeBindRadianceAtlas, enabled ? "1" : "0");
         return !changed;
     }
 

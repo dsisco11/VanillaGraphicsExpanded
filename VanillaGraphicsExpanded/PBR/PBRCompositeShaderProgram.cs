@@ -13,8 +13,11 @@ namespace VanillaGraphicsExpanded.PBR;
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
 /// applying fog once and writing to the primary framebuffer.
 /// </summary>
-public sealed class PBRCompositeShaderProgram : GpuProgram
+public sealed partial class PBRCompositeShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     // Cached state for compound properties
     private float _fogDensity, _fogMin;
     private System.Numerics.Vector3 _indirectTint;
@@ -31,13 +34,13 @@ public sealed class PBRCompositeShaderProgram : GpuProgram
     {
         var instance = new PBRCompositeShaderProgram
         {
-            PassName = "pbr_composite",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
 
-        api.Shader.RegisterMemoryShaderProgram("pbr_composite", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion
@@ -150,7 +153,6 @@ public sealed class PBRCompositeShaderProgram : GpuProgram
 
     public bool EnablePbrComposite { set => SetDefine(VgeShaderDefines.LumOnPbrComposite, value ? "1" : "0"); }
 
-    public bool EnableAO { set => SetDefine(VgeShaderDefines.LumOnEnableAo, value ? "1" : "0"); }
 
     public bool EnableShortRangeAo { set => SetDefine(VgeShaderDefines.LumOnEnableShortRangeAo, value ? "1" : "0"); }
 
@@ -177,7 +179,6 @@ public sealed class PBRCompositeShaderProgram : GpuProgram
         }
     }
 
-    public int DebugViewMode { set => SetDefine(VgeShaderDefines.PbrDebugViewMode, value.ToString()); }
 
     #endregion
 }

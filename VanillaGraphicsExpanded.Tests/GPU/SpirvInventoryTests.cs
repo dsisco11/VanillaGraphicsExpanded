@@ -144,17 +144,10 @@ public sealed class SpirvInventoryTests : IDisposable
         }
     }
 
-    /// <summary>Uses matching stage names except for the explicitly shared production and test vertex programs.</summary>
-    internal static string VertexFor(string fragment) => fragment switch
-    {
-        "lumon_probe_atlas_pis_mask.fsh" => "lumon_probe_atlas_trace.vsh",
-        "tests/GlStateCacheUnbindIntegrationTests_2.fsh" => "tests/GlStateCacheUnbindIntegrationTests_1.vsh",
-        "tests/PbrMaterialParamsTextureSmokeTests_2.fsh" => "tests/PbrMaterialParamsTextureSmokeTests_1.vsh",
-        "tests/framebuffer_blend.fsh" => "tests/GpuFramebufferBlendStateIntegrationTests_1.vsh",
-        _ when fragment.StartsWith("pbr_heightbake_", StringComparison.Ordinal) => "pbr_heightbake_fullscreen.vsh",
-        _ => Path.ChangeExtension(fragment, "vsh")
-    };
-
+    /// <summary>Uses the ordinary program's explicit vertex declaration from the shared registry.</summary>
+    internal static string VertexFor(string fragment) =>
+        VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(Path.ChangeExtension(fragment, null))
+            .Stages.Single(s => s.Kind == VanillaGraphicsExpanded.Rendering.Contracts.ShaderStageKind.Vertex).Source;
     /// <summary>Reads the same copied build assets that normal production-style tests use.</summary>
     private static ReadOnlySpan<byte> Read(string path) => File.ReadAllBytes(Path.Combine(Root, path));
 

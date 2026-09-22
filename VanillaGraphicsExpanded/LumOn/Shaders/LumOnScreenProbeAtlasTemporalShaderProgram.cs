@@ -18,13 +18,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Only blends texels traced this frame; preserves non-traced texels.
 /// Uses hit-distance delta for disocclusion detection.
 /// </summary>
-public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnProbeParamsUbo? paramsUbo;
 
     public LumOnScreenProbeAtlasTemporalShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_temporal"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
@@ -35,34 +38,25 @@ public class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     {
         var instance = new LumOnScreenProbeAtlasTemporalShaderProgram
         {
-            PassName = "lumon_probe_atlas_temporal",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_temporal", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion
 
     #region Product Importance Sampling Defines (Phase 10)
 
+    /// <summary>Updates the importance-sampling switches consumed by this pass.</summary>
     public bool EnsureProbePisDefines(
         bool enabled,
-        float exploreFraction,
-        int exploreCount,
-        float minConfidenceWeight,
-        float weightEpsilon,
-        bool forceUniformMask,
         bool forceBatchSlicing)
     {
         bool changed = false;
         changed |= SetDefine(VgeShaderDefines.LumOnProbePisEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreFraction, exploreFraction.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreCount, exploreCount.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisMinConfidenceWeight, minConfidenceWeight.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisWeightEpsilon, weightEpsilon.ToString("0.0########", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceUniformMask, forceUniformMask ? "1" : "0");
         changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceBatchSlicing, forceBatchSlicing ? "1" : "0");
         return !changed;
     }

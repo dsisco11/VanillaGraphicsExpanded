@@ -566,9 +566,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         capi.Render.GlToggleBlend(false);
 
-        // Emissive GI scaling is a compile-time define to avoid extra uniform plumbing.
-        // Ensure we emit a float literal (e.g., 2.0) to keep GLSL typing happy.
-        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
 
         if (!shader.TryUse())
         {
@@ -748,11 +745,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
         if (!shader.EnsureProbePisDefines(
             enabled: pisEnabled,
-            exploreFraction: config.LumOn.ProbePISExploreFraction,
-            exploreCount: config.LumOn.ProbePISExploreCount,
-            minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,
-            weightEpsilon: config.LumOn.ProbePISWeightEpsilon,
-            forceUniformMask: config.LumOn.ForceUniformMask,
             forceBatchSlicing: config.LumOn.ForceBatchSlicing))
         {
             lightingPassesComplete = false;
@@ -967,11 +959,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
         if (!shader.EnsureProbePisDefines(
             enabled: pisEnabled,
-            exploreFraction: config.LumOn.ProbePISExploreFraction,
-            exploreCount: config.LumOn.ProbePISExploreCount,
-            minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,
-            weightEpsilon: config.LumOn.ProbePISWeightEpsilon,
-            forceUniformMask: config.LumOn.ForceUniformMask,
             forceBatchSlicing: config.LumOn.ForceBatchSlicing))
         {
             lightingPassesComplete = false;

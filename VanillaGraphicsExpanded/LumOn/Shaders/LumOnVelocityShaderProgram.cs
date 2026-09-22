@@ -11,11 +11,14 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn velocity generation pass.
 /// Produces a per-pixel screen-space velocity (UV delta per frame) and packed reprojection flags.
 /// </summary>
-public class LumOnVelocityShaderProgram : GpuProgram
+public partial class LumOnVelocityShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     public LumOnVelocityShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_velocity"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     #region Static
@@ -24,13 +27,13 @@ public class LumOnVelocityShaderProgram : GpuProgram
     {
         var instance = new LumOnVelocityShaderProgram
         {
-            PassName = "lumon_velocity",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
 
-        api.Shader.RegisterMemoryShaderProgram("lumon_velocity", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

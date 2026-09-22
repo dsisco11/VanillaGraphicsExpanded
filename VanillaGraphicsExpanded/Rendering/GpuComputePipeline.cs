@@ -200,7 +200,12 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
                 "main", [], out var module, out infoLog, debugName) || module == null) return false;
             using (module)
             {
-                module.BindingContract = Contracts.GpuShaderContracts.Create(Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(spirvBinaryPath)));
+                // Transitional file API: resolve only an explicitly registered, unambiguous compute source.
+                // The asset-based API already carries the full stage identity.
+                string sourceName = Path.GetFileNameWithoutExtension(spirvBinaryPath);
+                var declaration = Contracts.GpuShaderContracts.Registry.Stages.Values.Single(stage =>
+                    stage.Kind == Contracts.ShaderStageKind.Compute && Path.GetFileName(stage.Source) == sourceName);
+                module.BindingContract = declaration.Bindings;
                 return TryCreate(module, out pipeline, out infoLog, debugName, layout: layout, warn: warn);
             }
         }

@@ -179,6 +179,17 @@ public sealed class ShaderTestHelper : IDisposable
         }
     }
 
+    /// <summary>Loads a registered graphics combination, validating its program settings before stage preparation.</summary>
+    internal ProgramLinkResult CompileProgram(string identity, IReadOnlyDictionary<string, string?>? defines = null)
+    {
+        var registry = VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry;
+        var settings = new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(registry.FindProgram(identity), defines);
+        var stages = registry.Resolve(settings);
+        var vertex = stages.Single(s => s.Stage.Kind == VanillaGraphicsExpanded.Rendering.Contracts.ShaderStageKind.Vertex);
+        var fragment = stages.Single(s => s.Stage.Kind == VanillaGraphicsExpanded.Rendering.Contracts.ShaderStageKind.Fragment);
+        return CompileAndLink(vertex.Stage.Source, fragment.Stage.Source,
+            settings.Values.ToDictionary(p => p.Key, p => (string?)p.Value.Canonical));
+    }
     /// <summary>
     /// Compiles and links a shader program from vertex and fragment shader files.
     /// </summary>

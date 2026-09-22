@@ -14,13 +14,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for the LumOn screen-probe atlas filter pass.
 /// Performs an edge-stopped denoise within each probe's octahedral tile.
 /// </summary>
-public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnProbeParamsUbo? paramsUbo;
 
     public LumOnScreenProbeAtlasFilterShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_filter"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
@@ -31,12 +34,12 @@ public class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
     {
         var instance = new LumOnScreenProbeAtlasFilterShaderProgram
         {
-            PassName = "lumon_probe_atlas_filter",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_filter", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

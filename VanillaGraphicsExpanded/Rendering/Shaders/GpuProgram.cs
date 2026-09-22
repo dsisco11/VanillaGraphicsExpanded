@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Linq;
 
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
@@ -78,20 +79,22 @@ public abstract partial class GpuProgram : ShaderProgram
     /// </summary>
     protected string ShaderName => PassName;
 
-    /// <summary>
-    /// Base name for the vertex stage source (without extension).
-    /// Defaults to <see cref="ShaderName"/>.
-    /// </summary>
-    protected virtual string VertexStageShaderName => ShaderName;
+    /// <summary>Supplies the shader declaration; generic fixture owners may resolve an explicit catalog identity.</summary>
+    internal virtual Contracts.GpuShaderContract ProgramContract => Contracts.GpuShaderContracts.Registry.FindProgram(ShaderName);
+
+    /// <summary>Base name of the vertex stage in this shader class's contract.</summary>
+    protected virtual string VertexStageShaderName => System.IO.Path.ChangeExtension(
+        ProgramContract.Stages.First(s => s.Kind == Contracts.ShaderStageKind.Vertex).Source, null);
 
     /// <summary>
     /// Base name for the fragment stage source (without extension).
-    /// Defaults to <see cref="ShaderName"/>.
+    /// Resolved from the explicitly registered program stage.
     /// </summary>
-    protected virtual string FragmentStageShaderName => ShaderName;
+    protected virtual string FragmentStageShaderName => System.IO.Path.ChangeExtension(
+        ProgramContract.Stages.First(s => s.Kind == Contracts.ShaderStageKind.Fragment).Source, null);
 
     /// <summary>
-    /// Base name for the geometry stage source (without extension).
+    /// Base name for the optional geometry stage source (without extension).
     /// Defaults to <see cref="ShaderName"/>.
     /// </summary>
     protected virtual string GeometryStageShaderName => ShaderName;

@@ -24,13 +24,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// - Edge detection via depth discontinuity (reduces temporal weight)
 /// - Invalid normal rejection
 /// </summary>
-public class LumOnProbeAnchorShaderProgram : GpuProgram
+public partial class LumOnProbeAnchorShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnProbeParamsUbo? paramsUbo;
 
     public LumOnProbeAnchorShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_anchor"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
@@ -41,12 +44,12 @@ public class LumOnProbeAnchorShaderProgram : GpuProgram
     {
         var instance = new LumOnProbeAnchorShaderProgram
         {
-            PassName = "lumon_probe_anchor",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_anchor", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

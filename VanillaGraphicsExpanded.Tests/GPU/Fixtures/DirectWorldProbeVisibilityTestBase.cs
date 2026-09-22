@@ -46,7 +46,9 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         string key = shader + string.Join(";", defines.Select(pair => pair.Key + "=" + pair.Value));
         if (!visibilityPrograms.TryGetValue(key, out int program))
         {
-            program = CompileShaderWithDefines(debug ? "lumon_debug.vsh" : shader + ".vsh", shader + ".fsh", defines);
+            var declaration = VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(
+                debug ? "tests/worldprobe_debug" : shader);
+            program = CompileShaderWithDefines(declaration.Stages[0].Source, declaration.Stages[1].Source, defines);
             visibilityPrograms.Add(key, program);
         }
         var textures = new List<DynamicTexture2D>();

@@ -11,13 +11,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for downsampling an HZB mip level into the next mip.
 /// Uses MIN depth over a 2x2 block.
 /// </summary>
-public sealed class LumOnHzbDownsampleShaderProgram : GpuProgram
+public sealed partial class LumOnHzbDownsampleShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnHzbDownsampleParamsUbo? paramsUbo;
 
     public LumOnHzbDownsampleShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_hzb_downsample"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     private LumOnHzbDownsampleParamsUbo Params => paramsUbo ??= new LumOnHzbDownsampleParamsUbo();
@@ -26,13 +29,13 @@ public sealed class LumOnHzbDownsampleShaderProgram : GpuProgram
     {
         var instance = new LumOnHzbDownsampleShaderProgram
         {
-            PassName = "lumon_hzb_downsample",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
 
-        api.Shader.RegisterMemoryShaderProgram("lumon_hzb_downsample", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     /// <summary>

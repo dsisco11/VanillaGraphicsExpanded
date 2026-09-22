@@ -17,8 +17,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Implementation detail: integrates radiance from an octahedral-mapped probe atlas.
 /// This is the default screen-probe gather path.
 /// </summary>
-public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnProbeParamsUbo? paramsUbo;
 
     internal LumOnNearFieldVisibilityBindings NearFieldVisibility => ((LumOnScreenProbeAtlasGatherProgramLayout)ProgramLayout).NearFieldVisibility;
@@ -64,7 +67,7 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
     {
         var instance = new LumOnScreenProbeAtlasGatherShaderProgram
         {
-            PassName = "lumon_probe_atlas_gather",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
@@ -73,7 +76,7 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
         instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, "0");
         instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, "0.0");
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_gather", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion
@@ -199,9 +202,7 @@ public class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeAtlasTexelsPerUpdate, worldProbeAtlasTexelsPerUpdate.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride).ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeBindRadianceAtlas, enabled ? "1" : "0");
         return !changed;
     }
 

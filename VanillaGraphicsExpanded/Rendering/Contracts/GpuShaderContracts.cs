@@ -1,58 +1,31 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
+
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
-/// <summary>Creates the same resource declarations for runtime layouts and offline shader compilation.</summary>
+/// <summary>The shared catalog of explicitly declared owned programs and stages.</summary>
 internal static partial class GpuShaderContracts
 {
-    #region Construction
-    /// <summary>Builds a program contract; shaders without runtime declarations retain their explicit source bindings.</summary>
-    public static GpuBindingContract Create(string shader)
+    private static readonly Lazy<ShaderVariantResolver> registry = new(BuildRegistry);
+    public static ShaderVariantResolver Registry => registry.Value;
+
+    #region Registry construction
+    /// <summary>Discovers shader-owned declarations in this assembly and validates their shared stages.</summary>
+    private static ShaderVariantResolver BuildRegistry() =>
+        new(ShaderContractDiscovery.Discover(typeof(GpuShaderContracts).Assembly.GetTypes()));
+    #endregion
+
+    #region Compatibility access
+    /// <summary>Provides a temporary registry-derived stage adapter to unmigrated consumers.</summary>
+    public static LegacyShaderStageContract CreateStage(string identity) => new(Registry.FindStage(identity));
+
+    /// <summary>Retains resource-layout access for existing owners, including two named layout aliases.</summary>
+    public static GpuBindingContract Create(string identity)
     {
-        var contract = new GpuBindingContract();
-        DeclareLocations(contract);
-        if (shader.StartsWith("lumon_debug_", StringComparison.Ordinal)) shader = "lumon_debug";
-        if (shader.StartsWith("pbr_heightbake_", StringComparison.Ordinal)) shader = "pbr_heightbake";
-        switch (shader)
-        {
-            case "pbr_normaldepth_bake": contract.RegisterUniformBlockBinding("VgePbrNormalDepthBakeParamsUBO", GpuBindingRegistry.Ubo.Object); break;
-            case "GpuUniformRingBufferIntegrationTests_1":
-            case "tests/GpuUniformRingBufferIntegrationTests_1": contract.RegisterUniformBlockBinding("TestParams", 0); break;
-            case "lumon_combine": LumOnCombine(contract); break;
-            case "lumon_debug": LumOnDebug(contract); break;
-            case "lumon_probe_atlas_trace": LumOnTrace(contract); break;
-            case "lumon_probe_atlas_gather": LumOnGather(contract); break;
-            case "lumon_probe_sh9_gather": LumOnSh9Gather(contract); break;
-            case "pbr_composite": PbrComposite(contract); break;
-            case "pbr_direct_lighting": PbrDirectLighting(contract); break;
-            case "pbr_heightbake": PbrHeightBake(contract); break;
-            case "lumon_hzb_copy": LumOnHzbCopy(contract); break;
-            case "lumon_hzb_downsample": LumOnHzbDownsample(contract); break;
-            case "lumon_probe_anchor": LumOnProbeAnchor(contract); break;
-            case "lumon_probe_atlas_pis_mask": LumOnProbeAtlasPisMask(contract); break;
-            case "lumon_probe_atlas_filter": LumOnScreenProbeAtlasFilter(contract); break;
-            case "lumon_probe_atlas_project_sh9": LumOnScreenProbeAtlasProjectSh9(contract); break;
-            case "lumon_probe_atlas_project_sh": LumOnScreenProbeAtlasProjectSH(contract); break;
-            case "lumon_probe_atlas_temporal": LumOnScreenProbeAtlasTemporal(contract); break;
-            case "lumon_upsample": LumOnUpsample(contract); break;
-            case "lumon_velocity": LumOnVelocity(contract); break;
-            case "lumon_worldprobe_clipmap_resolve": LumOnWorldProbeClipmapResolve(contract); break;
-            case "lumon_worldprobe_radiance_tile_resolve": LumOnWorldProbeRadianceTileResolve(contract); break;
-            case "vge_debug_lines": VgeDebugLines(contract); break;
-            case "vge_worldprobe_orbs_points": VgeWorldProbeOrbsPoints(contract); break;
-            case "lumonscene_feedback_mark_pages": FeedbackMarkPages(contract); break;
-            case "lumonscene_feedback_compact_pages": FeedbackCompactPages(contract); break;
-            case "lumonscene_feedback_gather": FeedbackGather(contract); break;
-            case "lumonscene_capture_voxel": CaptureVoxel(contract); break;
-            case "lumonscene_capture_meshcard": CaptureMeshCard(contract); break;
-            case "lumonscene_relight_voxel_dda": RelightVoxelDda(contract); break;
-        }
-        // Shared includes declare these blocks even when a variant eliminates all uses.
-        contract.UniformBlocks.TryAdd("LumOnFrameUBO", new(GpuBindingRegistry.Ubo.Frame, false));
-        contract.UniformBlocks.TryAdd("LumOnWorldProbeUBO", new(GpuBindingRegistry.Ubo.WorldProbe, false));
-        contract.UniformBlocks.TryAdd("LumOnNearFieldUBO", new(GpuBindingRegistry.Ubo.Material, false));
-        contract.UniformBlocks.TryAdd("LumOnTerrainBridgeUBO", new(GpuBindingRegistry.Ubo.TerrainBridge, false));
-        return contract;
+        if (identity == "pbr_heightbake") identity = "pbr_heightbake_combine";
+        if (identity == "GpuUniformRingBufferIntegrationTests_1") identity = "tests/GpuUniformRingBufferIntegrationTests_1";
+        var program = Registry.FindProgram(identity);
+        return program.Stages.FirstOrDefault(s => s.Kind == ShaderStageKind.Fragment)?.Bindings ?? program.Stages[0].Bindings;
     }
     #endregion
 }

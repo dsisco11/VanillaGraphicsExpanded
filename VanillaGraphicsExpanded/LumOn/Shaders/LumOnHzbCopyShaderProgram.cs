@@ -10,11 +10,14 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for building HZB mip 0 from the primary depth texture.
 /// Outputs raw depth (0..1) into an R32F render target.
 /// </summary>
-public sealed class LumOnHzbCopyShaderProgram : GpuProgram
+public sealed partial class LumOnHzbCopyShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     public LumOnHzbCopyShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_hzb_copy"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
 
     }
 
@@ -22,12 +25,12 @@ public sealed class LumOnHzbCopyShaderProgram : GpuProgram
     {
         var instance = new LumOnHzbCopyShaderProgram
         {
-            PassName = "lumon_hzb_copy",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_hzb_copy", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     /// <summary>

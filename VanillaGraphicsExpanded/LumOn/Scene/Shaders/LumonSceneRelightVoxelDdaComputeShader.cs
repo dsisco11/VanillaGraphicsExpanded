@@ -11,9 +11,9 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 
-internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
+internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : IDisposable
 {
-    public const string ShaderName = "lumonscene_relight_voxel_dda";
+    public static string ShaderName => Contract.Identity;
 
     private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
     private const int ParamsUboSizeBytes = 80; // uvec4 + uvec4 + ivec4 + ivec4 + ivec4

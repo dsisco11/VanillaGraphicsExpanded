@@ -42,7 +42,6 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         nonDefaultMask: default);
 
     // Shader asset names (without extension).
-    private const string Vsh = "pbr_heightbake_fullscreen";
     private const string FshLuminance = "pbr_heightbake_luminance";
     private const string FshGauss1D = "pbr_heightbake_gauss1d";
     private const string FshSub = "pbr_heightbake_sub";
@@ -95,7 +94,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private static PbrHeightBakeParamsUbo Params => paramsUbo ??= new PbrHeightBakeParamsUbo();
 
-    private static void UploadAndBindParamsUbo(VgeStageNamedShaderProgram prog)
+    private static void UploadAndBindParamsUbo(PbrHeightBakeShaderProgram prog)
     {
         Params.BindTo(prog, PbrHeightBakeParamsUbo.BlockName, "VGE.HeightBake.Params");
     }
@@ -759,19 +758,19 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
         // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.
         // PbrHeightBakeShaderProgram automatically registers the shared params UBO binding.
-        progLuminance = new PbrHeightBakeShaderProgram(FshLuminance, Vsh, FshLuminance, Domain);
-        progGauss1D = new PbrHeightBakeShaderProgram(FshGauss1D, Vsh, FshGauss1D, Domain);
-        progSub = new PbrHeightBakeShaderProgram(FshSub, Vsh, FshSub, Domain);
-        progCombine = new PbrHeightBakeShaderProgram(FshCombine, Vsh, FshCombine, Domain);
-        progGradient = new PbrHeightBakeShaderProgram(FshGradient, Vsh, FshGradient, Domain);
-        progDivergence = new PbrHeightBakeShaderProgram(FshDivergence, Vsh, FshDivergence, Domain);
-        progJacobi = new PbrHeightBakeShaderProgram(FshJacobi, Vsh, FshJacobi, Domain);
-        progResidual = new PbrHeightBakeShaderProgram(FshResidual, Vsh, FshResidual, Domain);
-        progRestrict = new PbrHeightBakeShaderProgram(FshRestrict, Vsh, FshRestrict, Domain);
-        progProlongateAdd = new PbrHeightBakeShaderProgram(FshProlongateAdd, Vsh, FshProlongateAdd, Domain);
-        progNormalize = new PbrHeightBakeShaderProgram(FshNormalize, Vsh, FshNormalize, Domain);
-        progPackToAtlas = new PbrHeightBakeShaderProgram(FshPackToAtlas, Vsh, FshPackToAtlas, Domain);
-        progCopy = new PbrHeightBakeShaderProgram(FshCopy, Vsh, FshCopy, Domain);
+        progLuminance = new PbrHeightBakeShaderProgram(FshLuminance, Domain);
+        progGauss1D = new PbrHeightBakeShaderProgram(FshGauss1D, Domain);
+        progSub = new PbrHeightBakeShaderProgram(FshSub, Domain);
+        progCombine = new PbrHeightBakeShaderProgram(FshCombine, Domain);
+        progGradient = new PbrHeightBakeShaderProgram(FshGradient, Domain);
+        progDivergence = new PbrHeightBakeShaderProgram(FshDivergence, Domain);
+        progJacobi = new PbrHeightBakeShaderProgram(FshJacobi, Domain);
+        progResidual = new PbrHeightBakeShaderProgram(FshResidual, Domain);
+        progRestrict = new PbrHeightBakeShaderProgram(FshRestrict, Domain);
+        progProlongateAdd = new PbrHeightBakeShaderProgram(FshProlongateAdd, Domain);
+        progNormalize = new PbrHeightBakeShaderProgram(FshNormalize, Domain);
+        progPackToAtlas = new PbrHeightBakeShaderProgram(FshPackToAtlas, Domain);
+        progCopy = new PbrHeightBakeShaderProgram(FshCopy, Domain);
 
         progLuminance.Initialize(capi);
         progGauss1D.Initialize(capi);
@@ -804,7 +803,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         initialized = true;
     }
 
-    private static void CompileOrThrow(VgeStageNamedShaderProgram program)
+    private static void CompileOrThrow(PbrHeightBakeShaderProgram program)
     {
         if (!program.CompileAndLink())
         {
@@ -846,13 +845,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.Viewport(x, y, w, h);
     }
 
-    private static void BindSampler2D(VgeStageNamedShaderProgram prog, string uniformName, int unit, GpuTexture texture)
+    private static void BindSampler2D(PbrHeightBakeShaderProgram prog, string uniformName, int unit, GpuTexture texture)
     {
         prog.Uniform(uniformName, unit);
         texture.Bind(unit);
     }
 
-    private static void BindSampler2D(VgeStageNamedShaderProgram prog, string uniformName, int unit, int textureId, GpuSampler sampler)
+    private static void BindSampler2D(PbrHeightBakeShaderProgram prog, string uniformName, int unit, int textureId, GpuSampler sampler)
     {
         prog.Uniform(uniformName, unit);
         GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, textureId, sampler);

@@ -25,7 +25,7 @@ internal static class SpirvStageLoader
         };
         if (!source.EndsWith(extension, StringComparison.Ordinal)) throw new ArgumentException("Shader stage mismatch.", nameof(source));
         var stage = GpuShaderContracts.CreateStage(source);
-        var contract = GpuShaderContracts.Create(source[..^extension.Length]);
+        var contract = GpuShaderContracts.Registry.FindStage(source).Bindings;
         var constants = stage.Constants(defines).Select(s => new GpuShaderModule.SpirvSpecializationConstant(s.Id,
             s.Type == "float" ? BitConverter.SingleToInt32Bits(float.Parse(LegacyShaderStageContract.Value(s.Name, s.Default, defines), CultureInfo.InvariantCulture)) :
             int.Parse(LegacyShaderStageContract.Value(s.Name, s.Default, defines), CultureInfo.InvariantCulture))).ToArray();

@@ -9,9 +9,9 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 
-internal sealed class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
+internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
 {
-    public const string ShaderName = "lumonscene_feedback_mark_pages";
+    public static string ShaderName => Contract.Identity;
 
     private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
     private const int ParamsUboSizeBytes = 16; // uvec4

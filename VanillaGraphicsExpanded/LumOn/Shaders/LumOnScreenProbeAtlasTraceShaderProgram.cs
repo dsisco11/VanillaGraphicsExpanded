@@ -19,6 +19,9 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnProbeParamsUbo? paramsUbo;
 
     protected override GpuProgramLayout CreateLayout() => new LumOnScreenProbeAtlasTraceProgramLayout();
@@ -47,34 +50,25 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     {
         var instance = new LumOnScreenProbeAtlasTraceShaderProgram
         {
-            PassName = "lumon_probe_atlas_trace",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_trace", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion
 
     #region Product Importance Sampling Defines (Phase 10)
 
+    /// <summary>Updates the importance-sampling switches consumed by this pass.</summary>
     public bool EnsureProbePisDefines(
         bool enabled,
-        float exploreFraction,
-        int exploreCount,
-        float minConfidenceWeight,
-        float weightEpsilon,
-        bool forceUniformMask,
         bool forceBatchSlicing)
     {
         bool changed = false;
         changed |= SetDefine(VgeShaderDefines.LumOnProbePisEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreFraction, exploreFraction.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreCount, exploreCount.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisMinConfidenceWeight, minConfidenceWeight.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisWeightEpsilon, weightEpsilon.ToString("0.0########", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceUniformMask, forceUniformMask ? "1" : "0");
         changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceBatchSlicing, forceBatchSlicing ? "1" : "0");
         return !changed;
     }
@@ -226,9 +220,6 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
         changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeAtlasTexelsPerUpdate, worldProbeAtlasTexelsPerUpdate.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride).ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeBindRadianceAtlas, enabled ? "1" : "0");
         return !changed;
     }
 

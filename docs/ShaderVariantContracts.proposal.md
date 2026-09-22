@@ -31,11 +31,25 @@ The following names describe the intended responsibilities; exact API spelling c
 
 Contracts are constructed once and exposed as immutable declarations. Mutable builders, if useful, are confined to contract construction. Runtime settings remain separate so changing one program instance cannot change another program's defaults.
 
-`GpuShaderContracts` becomes a small registry/composition root. Domain files own related program declarations and reusable option groups. Each model and resolver has its own file under `Rendering/Contracts`; shader loading remains under `Rendering/Spirv`. The build tool consumes the same engine-independent declarations. This does not require another project or a general-purpose configuration framework.
+Each shader class owns and exposes its immutable static contract. An adjacent `*.ShaderContract.cs` partial file contains the declaration, allowing the offline build tool to compile that same part of the shader class without its game/GL-dependent runtime implementation. Classes representing several programs, such as debug views and height-bake passes, expose a named static contract for each owned program. Shared option groups remain reusable declarations.
+
+`GpuShaderContracts` discovers those shader-owned instances once and caches the validated lookup. Discovery examines only the containing assembly's declared static get-only properties and readonly fields whose exact type is `GpuShaderContract`; it does not infer settings, pairings or budgets. Compiler-generated backing fields, inherited members and collection helpers are not extra declarations. No manually maintained program list or per-shader registration marker is required. Isolated validation-only shader owners explicitly opt out with `ExcludeFromShaderCatalog` and remain available to their dedicated test scope. Each model and resolver has its own file under `Rendering/Contracts`; shader loading remains under `Rendering/Spirv`. These ownership and automatic-discovery corrections were requested after the initial registry implementation. They require no additional project or general-purpose configuration framework.
+
+## Shader declaration generator
+
+**Approved direction — 2026-09-22:** replace the handwritten contract partial-file requirement and reflection discovery described above with a small Roslyn incremental source generator. The existing implementation remains the migration baseline, not the final authoring model.
+
+Shader classes declare program metadata through attributes and configurable options through attributed typed accessors. Prefer partial properties for generated runtime getters/setters so writes can invoke validation and reload scheduling; plain mutable fields cannot intercept assignments. Keep GLSL names explicit. Attributes reference shared typed definitions where appropriate, preserving one source for option defaults, domains and aliases. Exact attribute syntax and a readable representation of structural conditions must be settled against the full inventory before implementation.
+
+Generate each shader class's immutable static contract, typed option keys, accessor implementations and deterministic automatic enumeration. Reuse the existing contract models, condition semantics and settings logic. Support graphics/compute stages, multi-program classes, shared stages and isolated validator fixtures. Emit useful compiler diagnostics for invalid declarations. No manually maintained registry entries, per-frame discovery or additional runtime manifests are required.
+
+The offline shader compiler must consume the same generated declarations without depending on the completed mod assembly. Establish and verify an acyclic clean-build pipeline; a source generator alone does not solve that dependency. A focused generator project is permitted if required by analyzer integration, but this is not a general configuration framework. Runtime accessor generation uses a shared settings-update hook; the remaining coherent stage loading, effective-change detection and replacement ownership work remains in the runtime migration.
+
+Implement the generator and representative fixtures first, then migrate all production and test shaders and remove the superseded partial-file/discovery machinery. The detailed contracts and completion gates are subphases 3.1 and 3.2 of the task list.
 
 ## Programs and stages
 
-Every owned graphics or compute program has an explicit registry entry, including GPU fixtures. A graphics program lists its vertex and fragment stages and any optional geometry/tessellation stages. A compute program lists its compute stage. Shared fullscreen vertex stages are referenced by identity instead of being paired through filename heuristics in tests.
+Every owned graphics or compute program has an explicit shader-owned contract, including GPU fixtures. The catalog discovers these contracts automatically. A graphics program lists its vertex and fragment stages and any optional geometry/tessellation stages. A compute program lists its compute stage. Shared fullscreen vertex stages are referenced by identity instead of being paired through filename heuristics in tests.
 
 An empty settings list is a valid explicit declaration. An unknown program or stage is an error, rather than an implicit empty contract. Build source enumeration can report an owned shader asset missing a registry entry, but must not invent that entry or discover options from its text. Include files are not entry points.
 

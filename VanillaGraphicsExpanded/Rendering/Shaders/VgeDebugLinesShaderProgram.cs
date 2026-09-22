@@ -8,13 +8,16 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// <summary>
 /// Minimal shader program for debug line rendering in clip space.
 /// </summary>
-public sealed class VgeDebugLinesShaderProgram : GpuProgram
+public sealed partial class VgeDebugLinesShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private readonly VgeDebugLinesParamsUbo paramsUbo = new();
 
     public VgeDebugLinesShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("vge_debug_lines"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
 
     }
 
@@ -22,13 +25,13 @@ public sealed class VgeDebugLinesShaderProgram : GpuProgram
     {
         var instance = new VgeDebugLinesShaderProgram
         {
-            PassName = "vge_debug_lines",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
 
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("vge_debug_lines", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     public float[] ModelViewProjectionMatrix

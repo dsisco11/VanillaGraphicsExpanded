@@ -11,11 +11,14 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for projecting the screen-probe atlas into packed SH L1 coefficients.
 /// Used for Phase 12 Option B (cheap gather).
 /// </summary>
-public class LumOnScreenProbeAtlasProjectSHShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasProjectSHShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     public LumOnScreenProbeAtlasProjectSHShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_project_sh"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
     #region Static
@@ -24,12 +27,12 @@ public class LumOnScreenProbeAtlasProjectSHShaderProgram : GpuProgram
     {
         var instance = new LumOnScreenProbeAtlasProjectSHShaderProgram
         {
-            PassName = "lumon_probe_atlas_project_sh",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_project_sh", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

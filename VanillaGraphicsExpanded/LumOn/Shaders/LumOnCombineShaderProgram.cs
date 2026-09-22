@@ -15,8 +15,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Combines indirect diffuse lighting with direct lighting and applies
 /// proper material modulation (albedo, metallic rejection).
 /// </summary>
-public class LumOnCombineShaderProgram : GpuProgram
+public partial class LumOnCombineShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     protected override GpuProgramLayout CreateLayout() => new LumOnCombineProgramLayout();
 
     private LumOnCombineProgramLayout Layout => (LumOnCombineProgramLayout)ProgramLayout;
@@ -29,13 +32,13 @@ public class LumOnCombineShaderProgram : GpuProgram
     {
         var instance = new LumOnCombineShaderProgram
         {
-            PassName = "lumon_combine",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
         instance.CompileAndLink();
 
-        api.Shader.RegisterMemoryShaderProgram("lumon_combine", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

@@ -24,7 +24,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
         var scene = traceGeometry?.PrepareScene();
         long revision = scene?.InvalidationRevision ?? -1;
         if (ReferenceEquals(historyGeometry, scene) && historyInvalidation == revision && historyAtlas == atlas.TextureId) return true;
-        if (resetIrradiance == null && !GpuComputePipeline.TryCreateFromAssets(capi, "lumonscene_reset_irradiance",
+        if (resetIrradiance == null && !GpuComputePipeline.TryCreateFromAssets(capi, Shaders.LumonSceneResetIrradianceComputeShader.Contract.Identity,
             out resetIrradiance, out _, out var log, preferSpirv: true))
         { capi.Logger.Warning("[VGE] Cannot invalidate surface lighting: {0}", log); return false; }
         using (resetIrradiance!.UseScope())

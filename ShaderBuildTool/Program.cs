@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 
 using ShaderBuildTool.Spirv;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 
 using TinyPreprocessor;
 using TinyPreprocessor.Core;
@@ -48,8 +49,15 @@ internal static class Program
                 throw new DirectoryNotFoundException("Shader input directory is missing: " + domainShadersRoot);
             }
 
+            ShaderVariantResolver registry = options.RegistryScope switch
+            {
+                "production" => GpuShaderContracts.Registry,
+                "build-validation" => BuildValidationShaderPrograms.Create(),
+                "build-validation-graphics" => BuildValidationShaderPrograms.Create(includeCompute: false),
+                _ => throw new OptionsException("Unknown registry scope: " + options.RegistryScope)
+            };
             string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain,
-                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors);
+                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors) + "|" + options.RegistryScope;
             if (options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
             {
                 Console.WriteLine("[SPIR-V] All shader binaries and contracts are current.");
@@ -62,7 +70,7 @@ internal static class Program
 
             Directory.CreateDirectory(outputRoot);
 
-            ShaderVariantBuild.Run(assetsRoot, outputRoot, domain, options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors);
+            ShaderVariantBuild.Run(assetsRoot, outputRoot, domain, options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, registry);
             ShaderBuildReceipt.Publish(outputRoot, fingerprint);
             return 0;
         }
@@ -163,6 +171,7 @@ internal static class Program
         public bool Clean { get; private init; }
         public bool Incremental { get; private init; }
         public string? WorkingDirectory { get; private init; }
+        public string RegistryScope { get; private init; } = "production";
 
         public static Options Parse(string[] args)
         {
@@ -230,6 +239,7 @@ internal static class Program
                 WarningsAsErrors = flags.Contains("warningsAsErrors"),
                 Clean = flags.Contains("clean"),
                 Incremental = flags.Contains("incremental"),
+                RegistryScope = dict.TryGetValue("registry", out var scope) ? scope ?? "production" : "production",
                 WorkingDirectory = dict.TryGetValue("workingDir", out var wd) ? wd : null
             };
         }
@@ -242,6 +252,7 @@ internal static class Program
             Console.WriteLine("  --assetsRoot <path>   Path to the mod's assets directory (contains <domain>/shaders/...) ");
             Console.WriteLine("  --outputRoot <path>   Output root for artifacts (e.g. <project>/artifacts/spirv)");
             Console.WriteLine("\nOptional:");
+            Console.WriteLine("  --registry <scope>   production, build-validation, or build-validation-graphics");
             Console.WriteLine("  --domain <name>       Asset domain (default: vanillagraphicsexpanded)");
             Console.WriteLine("  --targetEnv <env>     shaderc target env (default: opengl4.5)");
             Console.WriteLine("  --warningsAsErrors    Pass -Werror to compiler");

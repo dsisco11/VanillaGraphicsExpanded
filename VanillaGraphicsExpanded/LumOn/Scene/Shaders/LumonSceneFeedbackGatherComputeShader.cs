@@ -9,9 +9,9 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 
-internal sealed class LumonSceneFeedbackGatherComputeShader : IDisposable
+internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposable
 {
-    public const string ShaderName = "lumonscene_feedback_gather";
+    public static string ShaderName => Contract.Identity;
 
     private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
     private const int ParamsUboSizeBytes = 32; // uvec4 + uvec4

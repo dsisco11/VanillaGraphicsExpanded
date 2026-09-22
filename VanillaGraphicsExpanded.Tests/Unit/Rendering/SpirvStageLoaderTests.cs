@@ -20,9 +20,9 @@ public sealed class SpirvStageLoaderTests
             return new byte[20]; // Invalid header stops before any graphics-context access.
         });
         var error = Assert.Throws<InvalidOperationException>(() => SpirvStageLoader.Load(
-            "fixture.fsh", ShaderType.FragmentShader, null, assets.Read));
+            "tests/render_infrastructure.fsh", ShaderType.FragmentShader, null, assets.Read));
         Assert.Contains("Invalid SPIR-V binary header", error.Message);
-        Assert.Equal(new[] { "fixture.fsh.spv" }, requests);
+        Assert.Equal(new[] { "tests/render_infrastructure.fsh.spv" }, requests);
         assets.AssertUnchanged();
     }
 
@@ -41,7 +41,7 @@ public sealed class SpirvStageLoaderTests
     [Fact]
     public void UnsupportedStructuralValueFailsBeforeRead()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => SpirvStageLoader.Load("lumon_combine.fsh", ShaderType.FragmentShader,
+        Assert.Throws<ArgumentException>(() => SpirvStageLoader.Load("lumon_combine.fsh", ShaderType.FragmentShader,
             new Dictionary<string, string?> { ["VGE_LUMON_ENABLED"] = "2" }, _ => throw new Exception("Unexpected asset read")));
     }
 
@@ -49,7 +49,7 @@ public sealed class SpirvStageLoaderTests
     [Fact]
     public void MismatchedStageFailsBeforeRead()
     {
-        Assert.Throws<ArgumentException>(() => SpirvStageLoader.Load("fixture.fsh", ShaderType.VertexShader,
+        Assert.Throws<ArgumentException>(() => SpirvStageLoader.Load("tests/render_infrastructure.fsh", ShaderType.VertexShader,
             null, _ => throw new Exception("Unexpected asset read")));
     }
 

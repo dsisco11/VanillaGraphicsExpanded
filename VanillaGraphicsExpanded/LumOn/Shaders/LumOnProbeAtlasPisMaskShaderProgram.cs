@@ -12,14 +12,17 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for the LumOn probe-resolution PIS mask pass.
 /// Writes a per-probe 64-bit mask (packed into RG32F) selecting which atlas texels to trace.
 /// </summary>
-public sealed class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
+public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     public LumOnProbeAtlasPisMaskShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_pis_mask"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
-    protected override string VertexStageShaderName => "lumon_probe_atlas_trace";
+
 
     #region Static
 
@@ -27,13 +30,13 @@ public sealed class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
     {
         var instance = new LumOnProbeAtlasPisMaskShaderProgram
         {
-            PassName = "lumon_probe_atlas_pis_mask",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
 
         instance.Initialize(api);
         instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram("lumon_probe_atlas_pis_mask", instance);
+        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
 
     #endregion

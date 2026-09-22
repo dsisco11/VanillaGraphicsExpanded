@@ -9,9 +9,9 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 
-internal sealed class LumonSceneCaptureMeshCardComputeShader : IDisposable
+internal sealed partial class LumonSceneCaptureMeshCardComputeShader : IDisposable
 {
-    public const string ShaderName = "lumonscene_capture_meshcard";
+    public static string ShaderName => Contract.Identity;
 
     private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
     private const int ParamsUboSizeBytes = 32; // uvec4 + vec4

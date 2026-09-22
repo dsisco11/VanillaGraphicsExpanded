@@ -7,8 +7,9 @@ internal static class ShaderVariantBuild
 {
     #region Build and publication
     /// <summary>Publishes compiler output unchanged; no binary reflection or runtime metadata is generated.</summary>
-    public static void Run(string assetsRoot, string outputRoot, string domain, string workingDirectory, string target, bool warningsAsErrors)
+    public static void Run(string assetsRoot, string outputRoot, string domain, string workingDirectory, string target, bool warningsAsErrors, ShaderVariantResolver? registry = null)
     {
+        registry ??= GpuShaderContracts.Registry;
         string sourceRoot = Path.Combine(assetsRoot, domain, "shaders");
         var sources = new ShaderVariantSource(assetsRoot, domain);
         int stageCount = 0, variantCount = 0;
@@ -19,8 +20,9 @@ internal static class ShaderVariantBuild
             string relative = Path.GetRelativePath(sourceRoot, file).Replace('\\', '/');
             string expanded = sources.Expand(relative);
             string stage = Path.GetExtension(relative)[1..];
-            var choices = GpuShaderContracts.CreateStage(relative);
-            var bindings = GpuShaderContracts.Create(Path.ChangeExtension(relative, null));
+            var declared = registry.FindStage(relative);
+            var choices = new LegacyShaderStageContract(declared);
+            var bindings = declared.Bindings;
             int count = 0;
             foreach (var configuration in choices.Variants())
             {

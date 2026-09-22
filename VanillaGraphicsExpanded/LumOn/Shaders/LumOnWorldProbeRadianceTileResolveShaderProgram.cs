@@ -11,13 +11,16 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program that resolves CPU-produced world-probe radiance tile samples into the radiance atlas.
 /// Implementation strategy: render 1px points into the radiance FBO, one point per traced texel.
 /// </summary>
-public sealed class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram
+public sealed partial class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram
 {
+    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
+    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+
     private LumOnWorldProbeResolveParamsUbo? paramsUbo;
 
     public LumOnWorldProbeRadianceTileResolveShaderProgram()
     {
-        ProgramLayout.RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_worldprobe_radiance_tile_resolve"));
+        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
 
     }
 
@@ -29,7 +32,7 @@ public sealed class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram
     {
         var instance = new LumOnWorldProbeRadianceTileResolveShaderProgram
         {
-            PassName = "lumon_worldprobe_radiance_tile_resolve",
+            PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
 

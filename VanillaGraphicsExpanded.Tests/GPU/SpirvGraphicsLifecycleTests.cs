@@ -111,9 +111,6 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             FragmentShader = new Vintagestory.Client.NoObf.Shader();
         }
 
-        /// <summary>Pairs shared production/test vertex stages with their actual fragment entrypoints.</summary>
-        protected override string VertexStageShaderName => Path.ChangeExtension(SpirvInventoryTests.VertexFor(PassName + ".fsh"), null);
-
         /// <summary>Uses the shared declarations for production resource lookup.</summary>
         protected override VanillaGraphicsExpanded.Rendering.GpuProgramLayout CreateLayout()
         {
