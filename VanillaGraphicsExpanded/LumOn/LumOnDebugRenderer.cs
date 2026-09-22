@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 using System.Collections.Generic;
@@ -774,7 +775,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe ||
             mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview or LumOnDebugMode.TraceSceneDdaDistanceL0;
-        if (usesNearFieldVisibility && shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1")) return;
+        if (usesNearFieldVisibility && shader.SetShaderOption(LumOnShaderOptions.DirectVisibility, true)) return;
         var nearFieldVisibilityScene = usesNearFieldVisibility
             ? nearFieldProvider?.PrepareScene() : null;
 

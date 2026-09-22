@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -728,7 +729,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.SetDefine(VgeShaderDefines.LumOnEmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost).ToString("0.0####", CultureInfo.InvariantCulture));
+        shader.SetShaderOption(LumOnShaderOptions.EmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost));
         if (!shader.EnsureNearFieldDefines())
         {
             lightingPassesComplete = false;
@@ -1111,7 +1112,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1"))
+        if (shader.SetShaderOption(LumOnShaderOptions.DirectVisibility, true))
         {
             lightingPassesComplete = false;
             return;
@@ -1212,7 +1213,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1"))
+        if (shader.SetShaderOption(LumOnShaderOptions.DirectVisibility, true))
         {
             lightingPassesComplete = false;
             return;

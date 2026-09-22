@@ -47,7 +47,7 @@ internal static class DeclarationEmitter
         text.Append("#endregion\n}\n");
         return text.ToString();
     }
-    /// <summary>Generates deterministic scope lookup and a temporary owner filter for the legacy discovery bridge.</summary>
+    /// <summary>Generates deterministic scope lookup using direct references to declared owners.</summary>
     public static string Catalog(IEnumerable<OwnerDeclaration> owners)
     {
         var ordered = owners.OrderBy(o => o.Name, StringComparer.Ordinal).ToArray();
@@ -56,9 +56,7 @@ internal static class DeclarationEmitter
         foreach (var scope in programs.GroupBy(p => p.Program.Scope).OrderBy(g => g.Key, StringComparer.Ordinal))
             text.Append(Quote(scope.Key)).Append(" => System.Array.AsReadOnly(new GpuShaderContract[] { ")
                 .Append(string.Join(", ", scope.OrderBy(p => p.Program.Model.Identity, StringComparer.Ordinal).Select(p => p.Owner.Name + "." + p.Program.Member))).Append(" }),\n");
-        text.Append("_ => System.Array.Empty<GpuShaderContract>()\n};\n/// <summary>Excludes generated owners from transitional reflection discovery.</summary>\ninternal static bool Owns(System.Type type) => ")
-            .Append(ordered.Length == 0 ? "false" : string.Join(" || ", ordered.Select(o => "type == typeof(" + o.Name + ")")))
-            .Append(";\n#endregion\n}\n");
+        text.Append("_ => System.Array.Empty<GpuShaderContract>()\n};\n#endregion\n}\n");
         return text.ToString();
     }
     /// <summary>Copies only the referenced enum's semantic names and constants into offline build input.</summary>

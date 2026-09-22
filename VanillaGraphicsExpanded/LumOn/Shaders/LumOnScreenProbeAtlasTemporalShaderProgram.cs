@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Globalization;
 
@@ -18,8 +19,26 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Only blends texels traced this frame; preserves non-traced texels.
 /// Uses hit-distance delta for disocclusion detection.
 /// </summary>
+[ShaderProgram("Contract", "lumon_probe_atlas_temporal", 4)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_temporal.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_temporal.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Pis")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "AtlasUpdate")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(TexelsPerFrame), SpecializationId = 1)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(BatchSlicing))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ImportanceSampling))]
 public partial class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
 {
+    #region Shader options
+    /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.BatchSlicing))]
+    public partial bool BatchSlicing { get; set; }
+
+    /// <summary>Gets or sets the declared ImportanceSampling shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ImportanceSampling))]
+    public partial bool ImportanceSampling { get; set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -56,8 +75,8 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
         bool forceBatchSlicing)
     {
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceBatchSlicing, forceBatchSlicing ? "1" : "0");
+        changed |= SetShaderOption(LumOnShaderOptions.ImportanceSampling, enabled);
+        changed |= SetShaderOption(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
         return !changed;
     }
 
@@ -122,7 +141,9 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
     /// With 64 total texels and 8 per frame, full coverage takes 8 frames.
     /// Compile-time define for temporal distribution.
     /// </summary>
-    public int TexelsPerFrame { set => SetDefine(VgeShaderDefines.LumOnAtlasTexelsPerFrame, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared AtlasTexelsPerFrame shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.AtlasTexelsPerFrame))]
+    public partial int TexelsPerFrame { get; set; }
 
     #endregion
 

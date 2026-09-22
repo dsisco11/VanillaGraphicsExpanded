@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 
 using Vintagestory.API.Client;
@@ -24,8 +25,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// - Edge detection via depth discontinuity (reduces temporal weight)
 /// - Invalid normal rejection
 /// </summary>
+[ShaderProgram("Contract", "lumon_probe_anchor", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_anchor.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_anchor.fsh")]
 public partial class LumOnProbeAnchorShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
@@ -8,8 +9,12 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// <summary>
 /// Minimal shader program for debug line rendering in clip space.
 /// </summary>
+[ShaderProgram("Contract", "vge_debug_lines", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "vge_debug_lines.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "vge_debug_lines.fsh")]
 public sealed partial class VgeDebugLinesShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 

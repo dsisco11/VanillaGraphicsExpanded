@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
@@ -11,8 +12,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for downsampling an HZB mip level into the next mip.
 /// Uses MIN depth over a 2x2 block.
 /// </summary>
+[ShaderProgram("Contract", "lumon_hzb_downsample", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_hzb_downsample.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_hzb_downsample.fsh")]
 public sealed partial class LumOnHzbDownsampleShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 

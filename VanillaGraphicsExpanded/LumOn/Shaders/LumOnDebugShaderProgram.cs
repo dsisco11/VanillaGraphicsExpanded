@@ -20,8 +20,103 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn debug visualization overlay.
 /// Renders probe grid, depth, normals, and other debug views.
 /// </summary>
+[ShaderProgram("CompositeContract", "lumon_debug_composite", 16)]
+[ShaderStage("CompositeContract", ShaderStageKind.Vertex, "lumon_debug_composite.vsh")]
+[ShaderStage("CompositeContract", ShaderStageKind.Fragment, "lumon_debug_composite.fsh")]
+[ShaderAcceptGroup("CompositeContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderAcceptGroup("CompositeContract", typeof(LumOnShaderGroups), "Composite")]
+[ShaderAcceptGroup("CompositeContract", typeof(LumOnShaderGroups), "Ao")]
+[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(EnableAO))]
+[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
+[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
+[ShaderProgram("DirectContract", "lumon_debug_direct", 2)]
+[ShaderStage("DirectContract", ShaderStageKind.Vertex, "lumon_debug_direct.vsh")]
+[ShaderStage("DirectContract", ShaderStageKind.Fragment, "lumon_debug_direct.fsh")]
+[ShaderAcceptGroup("DirectContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("DirectContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("GbufferContract", "lumon_debug_gbuffer", 2)]
+[ShaderStage("GbufferContract", ShaderStageKind.Vertex, "lumon_debug_gbuffer.vsh")]
+[ShaderStage("GbufferContract", ShaderStageKind.Fragment, "lumon_debug_gbuffer.fsh")]
+[ShaderAcceptGroup("GbufferContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("GbufferContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("IndirectContract", "lumon_debug_indirect", 2)]
+[ShaderStage("IndirectContract", ShaderStageKind.Vertex, "lumon_debug_indirect.vsh")]
+[ShaderStage("IndirectContract", ShaderStageKind.Fragment, "lumon_debug_indirect.fsh")]
+[ShaderAcceptGroup("IndirectContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("IndirectContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("ProbeAnchorsContract", "lumon_debug_probe_anchors", 2)]
+[ShaderStage("ProbeAnchorsContract", ShaderStageKind.Vertex, "lumon_debug_probe_anchors.vsh")]
+[ShaderStage("ProbeAnchorsContract", ShaderStageKind.Fragment, "lumon_debug_probe_anchors.fsh")]
+[ShaderAcceptGroup("ProbeAnchorsContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("ProbeAnchorsContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("ProbeAtlasContract", "lumon_debug_probe_atlas", 2)]
+[ShaderStage("ProbeAtlasContract", ShaderStageKind.Vertex, "lumon_debug_probe_atlas.vsh")]
+[ShaderStage("ProbeAtlasContract", ShaderStageKind.Fragment, "lumon_debug_probe_atlas.fsh")]
+[ShaderAcceptGroup("ProbeAtlasContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("ProbeAtlasContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("ShContract", "lumon_debug_sh", 2)]
+[ShaderStage("ShContract", ShaderStageKind.Vertex, "lumon_debug_sh.vsh")]
+[ShaderStage("ShContract", ShaderStageKind.Fragment, "lumon_debug_sh.fsh")]
+[ShaderAcceptGroup("ShContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("ShContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("TemporalContract", "lumon_debug_temporal", 2)]
+[ShaderStage("TemporalContract", ShaderStageKind.Vertex, "lumon_debug_temporal.vsh")]
+[ShaderStage("TemporalContract", ShaderStageKind.Fragment, "lumon_debug_temporal.fsh")]
+[ShaderAcceptGroup("TemporalContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("TemporalContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("VelocityContract", "lumon_debug_velocity", 2)]
+[ShaderStage("VelocityContract", ShaderStageKind.Vertex, "lumon_debug_velocity.vsh")]
+[ShaderStage("VelocityContract", ShaderStageKind.Fragment, "lumon_debug_velocity.fsh")]
+[ShaderAcceptGroup("VelocityContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderUse("VelocityContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderProgram("WorldprobeContract", "lumon_debug_worldprobe", 4)]
+[ShaderStage("WorldprobeContract", ShaderStageKind.Vertex, "lumon_debug_worldprobe.vsh")]
+[ShaderStage("WorldprobeContract", ShaderStageKind.Fragment, "lumon_debug_worldprobe.fsh")]
+[ShaderAcceptGroup("WorldprobeContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderAcceptGroup("WorldprobeContract", typeof(LumOnShaderGroups), "World")]
+[ShaderAcceptGroup("WorldprobeContract", typeof(LumOnShaderGroups), "WorldGather")]
+[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbeEnabled")]
+[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeDiffuseStride), SpecializationId = 15, When = "WorldProbeEnabled")]
+[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbeEnabled")]
+[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbeEnabled")]
+[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbeEnabled")]
+[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
+[ShaderProgram("DispatcherContract", "lumon_debug", 32)]
+[ShaderStage("DispatcherContract", ShaderStageKind.Vertex, "lumon_debug.vsh")]
+[ShaderStage("DispatcherContract", ShaderStageKind.Fragment, "lumon_debug.fsh")]
+[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "Composite")]
+[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "Ao")]
+[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "World")]
+[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "WorldGather")]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(EnableAO))]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbeEnabled")]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeDiffuseStride), SpecializationId = 15, When = "WorldProbeEnabled")]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbeEnabled")]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbeEnabled")]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbeEnabled")]
+[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
 public partial class LumOnDebugShaderProgram : GpuProgram
 {
+    #region Shader options
+    /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.DirectVisibility))]
+    public partial bool DirectVisibility { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeDiffuseStride shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeDiffuseStride))]
+    public partial int WorldProbeDiffuseStride { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeOctahedralSize shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeOctahedralSize))]
+    public partial int WorldProbeOctahedralSize { get; set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => System.Linq.Enumerable.Single(Contracts, contract => contract.Identity == PassName);
 
@@ -43,9 +138,11 @@ public partial class LumOnDebugShaderProgram : GpuProgram
 
     #endregion
 
-    #region World Probes (Phase 18)
+    #region World probes
 
-    public int WorldProbeEnabled { set => SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, value != 0 ? "1" : "0"); }
+    /// <summary>Gets or sets the declared WorldProbes shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbes))]
+    public partial bool WorldProbeEnabled { get; set; }
 
     /// <summary>Updates topology only for debug programs declaring world-probe sampling.</summary>
     public bool EnsureWorldProbeClipmapDefines(
@@ -70,12 +167,12 @@ public partial class LumOnDebugShaderProgram : GpuProgram
         }
 
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride).ToString(CultureInfo.InvariantCulture));
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbes, enabled);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeLevels, levels);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride));
         return !changed;
     }
 
@@ -85,11 +182,17 @@ public partial class LumOnDebugShaderProgram : GpuProgram
     public GpuTexture? WorldProbeMeta0 { set => Layout.BindTexture2D(ProgramId, "worldProbeMeta0", value?.TextureId ?? 0, LayoutWarn); }
     public GpuTexture? WorldProbeDebugState0 { set => Layout.BindTexture2D(ProgramId, "worldProbeDebugState0", value?.TextureId ?? 0, LayoutWarn); }
 
-    public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
+    public partial float WorldProbeBaseSpacing { get; set; }
 
-    public int WorldProbeLevels { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared WorldProbeLevels shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeLevels))]
+    public partial int WorldProbeLevels { get; set; }
 
-    public int WorldProbeResolution { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared WorldProbeResolution shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]
+    public partial int WorldProbeResolution { get; set; }
 
     #endregion
 
@@ -373,11 +476,17 @@ public partial class LumOnDebugShaderProgram : GpuProgram
         }
     }
 
-    public bool EnablePbrComposite { set => SetDefine(VgeShaderDefines.LumOnPbrComposite, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared PbrComposite shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.PbrComposite))]
+    public partial bool EnablePbrComposite { get; set; }
 
-    public bool EnableAO { set => SetDefine(VgeShaderDefines.LumOnEnableAo, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared AmbientOcclusion shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.AmbientOcclusion))]
+    public partial bool EnableAO { get; set; }
 
-    public bool EnableShortRangeAo { set => SetDefine(VgeShaderDefines.LumOnEnableShortRangeAo, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared ShortRangeAo shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ShortRangeAo))]
+    public partial bool EnableShortRangeAo { get; set; }
 
     [System.Obsolete("Renamed to EnableShortRangeAo.")]
     public bool EnableBentNormal { set => EnableShortRangeAo = value; }

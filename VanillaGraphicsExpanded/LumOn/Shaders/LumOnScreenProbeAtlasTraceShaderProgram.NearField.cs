@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -13,7 +14,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram
 
     #region Near-Field Scene Binding
     /// <summary>Enables production near-field tracing; shader tests may explicitly compile the legacy path.</summary>
-    internal bool EnsureNearFieldDefines() => !SetDefine("VGE_LUMON_NEAR_FIELD_ENABLED", "1");
+    internal bool EnsureNearFieldDefines() => !SetShaderOption(LumOnShaderOptions.NearField, true);
 
     /// <summary>Binds one coherent published scene, or an explicit unavailable scene.</summary>
     internal void BindNearFieldScene(TraceGeometryGpuScene? scene)

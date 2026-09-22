@@ -10,6 +10,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
 {
     public Dictionary<string, byte[]> Overrides { get; } = new(StringComparer.Ordinal);
     public List<string> Logs { get; } = [];
+    public List<Action> ScheduledTasks { get; } = [];
     public ICoreClientAPI Api { get; }
 
     #region API construction
@@ -39,9 +40,16 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             Logs.Add(method.Name + ": " + string.Join(" ", args ?? []));
             return null;
         });
+        var events = Proxy<IClientEventAPI>((method, args) =>
+        {
+            if (method.Name != "EnqueueMainThreadTask") throw new NotSupportedException(method.Name);
+            ScheduledTasks.Add((Action)args![0]!);
+            return null;
+        });
         Api = Proxy<ICoreClientAPI>((method, _) => method.Name switch
         {
             "get_Assets" => assets,
+            "get_Event" => events,
             "get_Logger" => logger,
             "get_Side" => EnumAppSide.Client,
             _ => throw new NotSupportedException(method.Name)

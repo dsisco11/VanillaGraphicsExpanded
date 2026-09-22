@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
@@ -11,8 +12,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for projecting the screen-probe atlas to SH9 coefficients per probe.
 /// Used for the "EvaluateProjectedSH" gather mode (Phase 12 Option B).
 /// </summary>
+[ShaderProgram("Contract", "lumon_probe_atlas_project_sh9", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_project_sh9.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_project_sh9.fsh")]
 public partial class LumOnScreenProbeAtlasProjectSh9ShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 

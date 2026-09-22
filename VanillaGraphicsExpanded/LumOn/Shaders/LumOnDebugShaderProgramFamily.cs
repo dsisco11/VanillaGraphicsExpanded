@@ -71,9 +71,9 @@ internal static class LumOnDebugShaderProgramFamily
         // We intentionally do not gate rendering if this triggers recompiles; these toggles are rare.
         foreach (var program in GetAll().Where(p => p.ProgramContract.Groups.Contains(LumOnShaderGroups.Composite)))
         {
-            program.SetDefine(VgeShaderDefines.LumOnPbrComposite, enablePbrComposite ? "1" : "0");
-            program.SetDefine(VgeShaderDefines.LumOnEnableAo, enableAo ? "1" : "0");
-            program.SetDefine(VgeShaderDefines.LumOnEnableShortRangeAo, enableShortRangeAo ? "1" : "0");
+            program.SetShaderOption(LumOnShaderOptions.PbrComposite, enablePbrComposite);
+            program.SetShaderOption(LumOnShaderOptions.AmbientOcclusion, enableAo);
+            program.SetShaderOption(LumOnShaderOptions.ShortRangeAo, enableShortRangeAo);
         }
     }
 
@@ -96,10 +96,6 @@ internal static class LumOnDebugShaderProgramFamily
             resolution = 0;
         }
 
-        string baseSpacingStr = baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture);
-        string levelsStr = levels.ToString(CultureInfo.InvariantCulture);
-        string resolutionStr = resolution.ToString(CultureInfo.InvariantCulture);
-        string enabledStr = enabled ? "1" : "0";
 
         bool activeStable = true;
 
@@ -110,10 +106,10 @@ internal static class LumOnDebugShaderProgramFamily
             // Apply the topology settings to their declared consumers.
             // For the currently used program we additionally return whether this queued a recompile.
             bool changed = false;
-            changed |= program.SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabledStr);
-            changed |= program.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levelsStr);
-            changed |= program.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolutionStr);
-            changed |= program.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacingStr);
+            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbes, enabled);
+            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbeLevels, levels);
+            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
+            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
             stable = !changed;
 
             if (ReferenceEquals(program, activeProgram))

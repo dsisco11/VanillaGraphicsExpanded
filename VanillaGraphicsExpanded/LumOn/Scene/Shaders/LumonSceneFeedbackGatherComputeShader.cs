@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Diagnostics;
 
@@ -9,8 +10,12 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 
+/// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
+[ShaderProgram("Contract", "lumonscene_feedback_gather", 1)]
+[ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_feedback_gather.csh")]
 internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposable
 {
+
     public static string ShaderName => Contract.Identity;
 
     private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING

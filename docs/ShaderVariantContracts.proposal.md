@@ -31,13 +31,10 @@ The following names describe the intended responsibilities; exact API spelling c
 
 Contracts are constructed once and exposed as immutable declarations. Mutable builders, if useful, are confined to contract construction. Runtime settings remain separate so changing one program instance cannot change another program's defaults.
 
-Each shader class owns and exposes its immutable static contract. An adjacent `*.ShaderContract.cs` partial file contains the declaration, allowing the offline build tool to compile that same part of the shader class without its game/GL-dependent runtime implementation. Classes representing several programs, such as debug views and height-bake passes, expose a named static contract for each owned program. Shared option groups remain reusable declarations.
-
-`GpuShaderContracts` discovers those shader-owned instances once and caches the validated lookup. Discovery examines only the containing assembly's declared static get-only properties and readonly fields whose exact type is `GpuShaderContract`; it does not infer settings, pairings or budgets. Compiler-generated backing fields, inherited members and collection helpers are not extra declarations. No manually maintained program list or per-shader registration marker is required. Isolated validation-only shader owners explicitly opt out with `ExcludeFromShaderCatalog` and remain available to their dedicated test scope. Each model and resolver has its own file under `Rendering/Contracts`; shader loading remains under `Rendering/Spirv`. These ownership and automatic-discovery corrections were requested after the initial registry implementation. They require no additional project or general-purpose configuration framework.
-
+Each shader class owns and exposes its immutable static contract through generated declarations. Program metadata and typed option accessors are attributed directly on the owning partial class. Shared option groups remain reusable declarations. The generated catalog supplies direct references to these owners; no reflection discovery, manual program list or special handwritten declaration file is required. Dedicated fixture scopes remain separate from packaged programs. See [ShaderAuthoring.md](ShaderAuthoring.md) for the current authoring workflow.
 ## Shader declaration generator
 
-**Approved direction — 2026-09-22:** replace the handwritten contract partial-file requirement and reflection discovery described above with a small Roslyn incremental source generator. The existing implementation remains the migration baseline, not the final authoring model.
+**Approved direction — 2026-09-22:** replace the handwritten contract partial-file requirement and reflection discovery described above with a small Roslyn incremental source generator. Attribute-driven generation is now the authoring model; handwritten declarations are retained only in historical verification records.
 
 Shader classes declare program metadata through attributes and configurable options through attributed typed accessors. Prefer partial properties for generated runtime getters/setters so writes can invoke validation and reload scheduling; plain mutable fields cannot intercept assignments. Keep GLSL names explicit. Attributes reference shared typed definitions where appropriate, preserving one source for option defaults, domains and aliases. Exact attribute syntax and a readable representation of structural conditions must be settled against the full inventory before implementation.
 
@@ -47,7 +44,7 @@ The offline shader compiler must consume the same generated declarations without
 
 Implement the generator and representative fixtures first (3.1), replace named condition attributes with inline expressions (3.2), then migrate all production and test shaders and remove the superseded partial-file/discovery machinery (3.3). The task list defines each completion gate.
 
-**Implementation status — 2026-09-22:** generator foundation and representative integration are complete and independently audited (3.1). Inline condition authoring is complete and independently audited (3.2), with generator/contract tests, the normal shader-enabled build and isolated build validation passing. Full owner migration and removal of the temporary discovery bridge remain in 3.3; coherent runtime selection/reload changes remain later work.
+**Implementation status — 2026-09-22:** generator foundation and representative integration are complete and independently audited (3.1). Inline condition authoring is complete and independently audited (3.2), with generator/contract tests, the normal shader-enabled build and isolated build validation passing. Full owner migration and removal of the discovery bridge are complete and independently audited (3.3), with generator/contract/GPU tests, the normal build and isolated validator passing; coherent runtime selection/reload changes remain later work.
 
 ### Declaration API and build integration
 
@@ -86,7 +83,7 @@ The acyclic dependency order is `ShaderContractGenerator → ShaderBuildTool →
 
 Generated accessors use `GpuProgram.GetShaderOption` / `SetShaderOption`. These reuse `ShaderSettings` validation, canonicalize typed updates into the existing define map, and request recompilation through the existing scheduling method. They do not claim the later effective-input/coherent-snapshot reload migration. A deliberately isolated accessor fixture observes this real hook without a game API or GPU allocation.
 
-Generated scopes enumerate references directly. Compatible stages are interned by scope and identity, preserving existing shared-stage object ownership. The temporary production bridge combines generated references with reflection discovery of only unmigrated owners; subphase 3.3 removes that bridge, the old partial-file linking convention and remaining reflection. Representative graphics, compute, height-bake family and isolated validator owners already use attributes to exercise real build paths.
+Generated scopes enumerate references directly. Compatible stages are interned by scope and identity, preserving existing shared-stage object ownership. All graphics, compute, debug/height-bake family, source-only, packaged fixture and isolated validator owners use attributes. The temporary reflection bridge, owner filter and partial-file source-linking convention are removed. Shared lighting option metadata and group declarations live beside their lighting owners and reach the offline compiler through the same semantic-input path. The typed update hook reports whether the selected value changed so existing helper methods can retain their rendering stability checks. Loader/build adapters remain until their own migrations.
 
 ### Inline condition expressions
 
@@ -108,7 +105,7 @@ Parse with Roslyn at generation time and explicitly validate the syntax and type
 
 Both offline and runtime generation emit the same condition model. Preserve supported configurations, specialization IDs, conditional omission and retained inactive settings; the expression is an authoring change, not a lighting or reload behavior change. Verify world-probe dimensions when enabled, sky fallback when near-field continuation is disabled, and importance-sampling exploration when both overrides are disabled against the inventory.
 
-Names inside strings do not receive ordinary C# rename support. A stale or misspelled name must fail generation with a useful owner/stage/expression diagnostic. The four named-node attributes and their consumers have been removed and existing attributed fixtures migrated; handwritten typed condition declarations remain valid until their owners migrate in 3.3. Update XML documentation and examples with the new API.
+Names inside strings do not receive ordinary C# rename support. A stale or misspelled name must fail generation with a useful owner/stage/expression diagnostic. The four named-node attributes and their consumers have been removed and existing attributed fixtures migrated; all shader owners now express availability through inline conditions. The shared ShaderCondition model remains the generated representation. Update XML documentation and examples with the new API.
 
 ## Programs and stages
 

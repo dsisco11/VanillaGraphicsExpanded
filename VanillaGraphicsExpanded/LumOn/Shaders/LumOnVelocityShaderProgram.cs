@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
@@ -11,8 +12,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn velocity generation pass.
 /// Produces a per-pixel screen-space velocity (UV delta per frame) and packed reprojection flags.
 /// </summary>
+[ShaderProgram("Contract", "lumon_velocity", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_velocity.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_velocity.fsh")]
 public partial class LumOnVelocityShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 

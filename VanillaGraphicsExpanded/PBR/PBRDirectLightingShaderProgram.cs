@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 
 using VanillaGraphicsExpanded.Rendering;
@@ -17,8 +18,12 @@ namespace VanillaGraphicsExpanded.PBR;
 /// - MRT1: Direct specular
 /// - MRT2: Emissive
 /// </summary>
+[ShaderProgram("Contract", "pbr_direct_lighting", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_direct_lighting.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_direct_lighting.fsh")]
 public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 

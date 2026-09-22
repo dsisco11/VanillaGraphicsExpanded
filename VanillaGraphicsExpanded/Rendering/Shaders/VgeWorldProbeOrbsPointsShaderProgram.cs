@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Globalization;
 
@@ -9,8 +10,30 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
+[ShaderProgram("Contract", "vge_worldprobe_orbs_points", 2)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "vge_worldprobe_orbs_points.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "vge_worldprobe_orbs_points.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Orbs")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14)]
 public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
 {
+    #region Shader options
+    /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.DirectVisibility))]
+    public partial bool DirectVisibility { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeOctahedralSize shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeOctahedralSize))]
+    public partial int WorldProbeOctahedralSize { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeResolution shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]
+    public partial int WorldProbeResolution { get; set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -110,8 +133,8 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
         }
 
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
         return !changed;
     }
 

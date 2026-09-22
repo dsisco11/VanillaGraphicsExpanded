@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System.Globalization;
 
 using Vintagestory.API.Client;
@@ -12,8 +13,51 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for the LumOn probe-resolution PIS mask pass.
 /// Writes a per-probe 64-bit mask (packed into RG32F) selecting which atlas texels to trace.
 /// </summary>
+[ShaderProgram("Contract", "lumon_probe_atlas_pis_mask", 8)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_trace.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_pis_mask.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Pis")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "PisMask")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(TexelsPerFrame), SpecializationId = 1)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(BatchSlicing))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ExploreCount), SpecializationId = 8, When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ExploreFraction), SpecializationId = 9, When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ImportanceSampling))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(MinConfidenceWeight), SpecializationId = 7)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(UniformMask))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WeightEpsilon), SpecializationId = 10, When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
 public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
 {
+    #region Shader options
+    /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.BatchSlicing))]
+    public partial bool BatchSlicing { get; set; }
+
+    /// <summary>Gets or sets the declared ExploreCount shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ExploreCount))]
+    public partial int ExploreCount { get; set; }
+
+    /// <summary>Gets or sets the declared ExploreFraction shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ExploreFraction))]
+    public partial float ExploreFraction { get; set; }
+
+    /// <summary>Gets or sets the declared ImportanceSampling shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ImportanceSampling))]
+    public partial bool ImportanceSampling { get; set; }
+
+    /// <summary>Gets or sets the declared MinConfidenceWeight shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.MinConfidenceWeight))]
+    public partial float MinConfidenceWeight { get; set; }
+
+    /// <summary>Gets or sets the declared UniformMask shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.UniformMask))]
+    public partial bool UniformMask { get; set; }
+
+    /// <summary>Gets or sets the declared WeightEpsilon shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WeightEpsilon))]
+    public partial float WeightEpsilon { get; set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -55,7 +99,9 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
 
     #region Temporal Distribution Defines
 
-    public int TexelsPerFrame { set => SetDefine(VgeShaderDefines.LumOnAtlasTexelsPerFrame, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared AtlasTexelsPerFrame shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.AtlasTexelsPerFrame))]
+    public partial int TexelsPerFrame { get; set; }
 
     #endregion
 
@@ -71,13 +117,13 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
         bool forceBatchSlicing)
     {
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreFraction, exploreFraction.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisExploreCount, exploreCount.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisMinConfidenceWeight, minConfidenceWeight.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisWeightEpsilon, weightEpsilon.ToString("0.0########", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceUniformMask, forceUniformMask ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceBatchSlicing, forceBatchSlicing ? "1" : "0");
+        changed |= SetShaderOption(LumOnShaderOptions.ImportanceSampling, enabled);
+        changed |= SetShaderOption(LumOnShaderOptions.ExploreFraction, exploreFraction);
+        changed |= SetShaderOption(LumOnShaderOptions.ExploreCount, exploreCount);
+        changed |= SetShaderOption(LumOnShaderOptions.MinConfidenceWeight, minConfidenceWeight);
+        changed |= SetShaderOption(LumOnShaderOptions.WeightEpsilon, weightEpsilon);
+        changed |= SetShaderOption(LumOnShaderOptions.UniformMask, forceUniformMask);
+        changed |= SetShaderOption(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
         return !changed;
     }
 

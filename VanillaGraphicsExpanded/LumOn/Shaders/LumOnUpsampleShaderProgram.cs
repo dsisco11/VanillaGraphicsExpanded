@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 
 using Vintagestory.API.Client;
@@ -14,8 +15,15 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn Upsample pass.
 /// Bilateral upsamples half-res indirect diffuse to full resolution.
 /// </summary>
+[ShaderProgram("Contract", "lumon_upsample", 4)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_upsample.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_upsample.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Upsample")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DenoiseEnabled))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(HoleFillEnabled))]
 public partial class LumOnUpsampleShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -71,7 +79,9 @@ public partial class LumOnUpsampleShaderProgram : GpuProgram
     /// Whether edge-aware denoising is enabled.
     /// Compile-time define for better performance.
     /// </summary>
-    public bool DenoiseEnabled { set => SetDefine(VgeShaderDefines.LumOnUpsampleDenoise, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared UpsampleDenoise shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.UpsampleDenoise))]
+    public partial bool DenoiseEnabled { get; set; }
 
     /// <summary>
     /// Depth similarity sigma for bilateral upsample.
@@ -123,7 +133,9 @@ public partial class LumOnUpsampleShaderProgram : GpuProgram
     /// Whether low-confidence hole filling is enabled.
     /// Compile-time define for better performance.
     /// </summary>
-    public bool HoleFillEnabled { set => SetDefine(VgeShaderDefines.LumOnUpsampleHoleFill, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared UpsampleHoleFill shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.UpsampleHoleFill))]
+    public partial bool HoleFillEnabled { get; set; }
 
     /// <summary>
     /// Neighborhood radius in half-res pixels used for hole filling.

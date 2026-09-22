@@ -17,8 +17,6 @@
 
   <ItemGroup>
     <Compile Include="..\VanillaGraphicsExpanded\Rendering\Contracts\*.cs;..\VanillaGraphicsExpanded\Rendering\GpuBindingRegistry.cs" Link="Contracts\%(Filename)%(Extension)" />
-    <!-- Shader classes own these partial declarations; runtime halves stay in the mod project. -->
-    <Compile Include="..\VanillaGraphicsExpanded\**\*.ShaderContract.cs" Exclude="..\VanillaGraphicsExpanded\bin\**;..\VanillaGraphicsExpanded\obj\**;..\VanillaGraphicsExpanded\obj2\**" Link="ShaderContracts\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Reuse VGE's existing preprocessor helpers (they are engine-agnostic). -->
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\GlslSchema.cs" Link="SourceCodeMutator\GlslSchema.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\GlInterface*.cs;..\VanillaGraphicsExpanded\SourceCodeMutator\GlStageIoNode.cs;..\VanillaGraphicsExpanded\SourceCodeMutator\GlLayoutNode.cs" Link="SourceCodeMutator\%(Filename)%(Extension)" />
@@ -31,7 +29,7 @@
     <ProjectReference Include="../ShaderContractGenerator/ShaderContractGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <CompilerVisibleProperty Include="ShaderContractsOffline" />
     <!-- Read ordinary shader classes as semantic inputs without compiling their engine-dependent implementation. -->
-    <AdditionalFiles Include="../VanillaGraphicsExpanded/**/*.cs" Exclude="../VanillaGraphicsExpanded/bin/**;../VanillaGraphicsExpanded/obj/**;../VanillaGraphicsExpanded/obj2/**;../VanillaGraphicsExpanded/**/*.ShaderContract.cs" />
+    <AdditionalFiles Include="../VanillaGraphicsExpanded/**/*.cs" Exclude="../VanillaGraphicsExpanded/bin/**;../VanillaGraphicsExpanded/obj/**;../VanillaGraphicsExpanded/obj2/**" />
   </ItemGroup>
 </Project>
 

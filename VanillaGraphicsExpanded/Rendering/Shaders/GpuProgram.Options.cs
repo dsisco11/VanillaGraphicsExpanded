@@ -13,7 +13,8 @@ public abstract partial class GpuProgram
     }
 
     /// <summary>Validates before publishing an override and schedules through the existing recompile path.</summary>
-    internal void SetShaderOption<T>(ShaderOption<T> option, T value) where T : struct
+    /// <returns>Whether the normalized selected value changed and requested recompilation.</returns>
+    internal bool SetShaderOption<T>(ShaderOption<T> option, T value) where T : struct
     {
         bool changed;
         lock (defineLock)
@@ -29,6 +30,7 @@ public abstract partial class GpuProgram
             }
         }
         if (changed) RequestRecompile();
+        return changed;
     }
     #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Globalization;
 using System.Collections.Generic;
@@ -17,8 +18,35 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Implementation detail: integrates radiance from an octahedral-mapped probe atlas.
 /// This is the default screen-probe gather path.
 /// </summary>
+[ShaderProgram("Contract", "lumon_probe_atlas_gather", 4)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_gather.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_gather.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "World")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "WorldGather")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbeEnabled")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeDiffuseStride), SpecializationId = 15, When = "WorldProbeEnabled")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbeEnabled")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbeEnabled")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbeEnabled")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
 public partial class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 {
+    #region Shader options
+    /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.DirectVisibility))]
+    public partial bool DirectVisibility { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeDiffuseStride shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeDiffuseStride))]
+    public partial int WorldProbeDiffuseStride { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeOctahedralSize shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeOctahedralSize))]
+    public partial int WorldProbeOctahedralSize { get; set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -71,10 +99,6 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
         instance.Initialize(api);
-        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, "0");
-        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, "0");
-        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, "0");
-        instance.SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, "0.0");
         instance.CompileAndLink();
         api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
     }
@@ -173,9 +197,11 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
 
     #endregion
 
-    #region World Probes (Phase 18)
+    #region World probes
 
-    public int WorldProbeEnabled { set => SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, value != 0 ? "1" : "0"); }
+    /// <summary>Gets or sets the declared WorldProbes shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbes))]
+    public partial bool WorldProbeEnabled { get; set; }
 
     public bool EnsureWorldProbeClipmapDefines(
         bool enabled,
@@ -197,12 +223,12 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
         }
 
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride).ToString(CultureInfo.InvariantCulture));
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbes, enabled);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeLevels, levels);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride));
         return !changed;
     }
 
@@ -210,11 +236,17 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : GpuProgram
     public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 8); }
     public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 9); }
 
-    public float WorldProbeBaseSpacing { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, value.ToString("0.0####", CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
+    public partial float WorldProbeBaseSpacing { get; set; }
 
-    public int WorldProbeLevels { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared WorldProbeLevels shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeLevels))]
+    public partial int WorldProbeLevels { get; set; }
 
-    public int WorldProbeResolution { set => SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared WorldProbeResolution shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]
+    public partial int WorldProbeResolution { get; set; }
 
     #endregion
 }

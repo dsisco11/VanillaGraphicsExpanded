@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 
 using Vintagestory.API.Client;
@@ -14,8 +15,12 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for the LumOn screen-probe atlas filter pass.
 /// Performs an edge-stopped denoise within each probe's octahedral tile.
 /// </summary>
+[ShaderProgram("Contract", "lumon_probe_atlas_filter", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_filter.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_filter.fsh")]
 public partial class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 

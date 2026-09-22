@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 
 using Vintagestory.API.Client;
@@ -13,8 +14,17 @@ namespace VanillaGraphicsExpanded.PBR;
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
 /// applying fog once and writing to the primary framebuffer.
 /// </summary>
+[ShaderProgram("Contract", "pbr_composite", 8)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_composite.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Lighting")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Composite")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(LumOnEnabled))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
 public sealed partial class PBRCompositeShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -149,12 +159,18 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram
         }
     }
 
-    public bool LumOnEnabled { set => SetDefine(VgeShaderDefines.LumOnEnabled, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared Enabled shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.Enabled))]
+    public partial bool LumOnEnabled { get; set; }
 
-    public bool EnablePbrComposite { set => SetDefine(VgeShaderDefines.LumOnPbrComposite, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared PbrComposite shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.PbrComposite))]
+    public partial bool EnablePbrComposite { get; set; }
 
 
-    public bool EnableShortRangeAo { set => SetDefine(VgeShaderDefines.LumOnEnableShortRangeAo, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared ShortRangeAo shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ShortRangeAo))]
+    public partial bool EnableShortRangeAo { get; set; }
 
     [System.Obsolete("Renamed to EnableShortRangeAo.")]
     public bool EnableBentNormal { set => EnableShortRangeAo = value; }

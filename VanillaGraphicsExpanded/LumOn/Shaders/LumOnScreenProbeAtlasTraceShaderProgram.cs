@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Globalization;
 
@@ -17,8 +18,73 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Ray traces from each probe and stores radiance + hit distance in the probe atlas.
 /// Uses temporal distribution to trace a subset of directions each frame.
 /// </summary>
+[ShaderProgram("Contract", "lumon_probe_atlas_trace", 32)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_trace.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_trace.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Tracing")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Pis")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "World")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(TexelsPerFrame), SpecializationId = 1)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(BatchSlicing))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EmissiveBoost), SpecializationId = 0)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(HzbCoarseMip), SpecializationId = 2)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ImportanceSampling))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(NearField))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(RayMaxDistance), SpecializationId = 3)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(RaySteps), SpecializationId = 4)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(RayThickness), SpecializationId = 5)]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(SkyMissWeight), SpecializationId = 6, When = "!NearField")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbes")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbes")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
 public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 {
+    #region Shader options
+    /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.BatchSlicing))]
+    public partial bool BatchSlicing { get; set; }
+
+    /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.DirectVisibility))]
+    public partial bool DirectVisibility { get; set; }
+
+    /// <summary>Gets or sets the declared EmissiveBoost shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.EmissiveBoost))]
+    public partial float EmissiveBoost { get; set; }
+
+    /// <summary>Gets or sets the declared ImportanceSampling shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ImportanceSampling))]
+    public partial bool ImportanceSampling { get; set; }
+
+    /// <summary>Gets or sets the declared NearField shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.NearField))]
+    public partial bool NearField { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
+    public partial float WorldProbeBaseSpacing { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeLevels shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeLevels))]
+    public partial int WorldProbeLevels { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeOctahedralSize shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeOctahedralSize))]
+    public partial int WorldProbeOctahedralSize { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbeResolution shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]
+    public partial int WorldProbeResolution { get; set; }
+
+    /// <summary>Gets or sets the declared WorldProbes shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbes))]
+    public partial bool WorldProbes { get; set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -68,8 +134,8 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
         bool forceBatchSlicing)
     {
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnProbePisForceBatchSlicing, forceBatchSlicing ? "1" : "0");
+        changed |= SetShaderOption(LumOnShaderOptions.ImportanceSampling, enabled);
+        changed |= SetShaderOption(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
         return !changed;
     }
 
@@ -135,7 +201,9 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     /// With 64 texels total, this means full coverage in 8 frames.
     /// Compile-time define for temporal distribution.
     /// </summary>
-    public int TexelsPerFrame { set => SetDefine(VgeShaderDefines.LumOnAtlasTexelsPerFrame, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared AtlasTexelsPerFrame shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.AtlasTexelsPerFrame))]
+    public partial int TexelsPerFrame { get; set; }
 
     #endregion
 
@@ -145,25 +213,33 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     /// Number of ray march steps.
     /// Compile-time define for loop bounds.
     /// </summary>
-    public int RaySteps { set => SetDefine(VgeShaderDefines.LumOnRaySteps, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared RaySteps shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.RaySteps))]
+    public partial int RaySteps { get; set; }
 
     /// <summary>
     /// Maximum ray march distance in view-space units.
     /// Compile-time define for trace distance.
     /// </summary>
-    public float RayMaxDistance { set => SetDefine(VgeShaderDefines.LumOnRayMaxDistance, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared RayMaxDistance shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.RayMaxDistance))]
+    public partial float RayMaxDistance { get; set; }
 
     /// <summary>
     /// Thickness threshold for depth test during ray marching.
     /// Compile-time define for hit threshold.
     /// </summary>
-    public float RayThickness { set => SetDefine(VgeShaderDefines.LumOnRayThickness, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared RayThickness shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.RayThickness))]
+    public partial float RayThickness { get; set; }
 
     /// <summary>
     /// Coarse mip used for early rejection.
     /// Compile-time define for HZB mip selection.
     /// </summary>
-    public int HzbCoarseMip { set => SetDefine(VgeShaderDefines.LumOnHzbCoarseMip, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared HzbCoarseMip shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.HzbCoarseMip))]
+    public partial int HzbCoarseMip { get; set; }
 
     #endregion
 
@@ -173,7 +249,9 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
     /// Weight for sky color when ray misses (0 = black, 1 = full sky).
     /// Compile-time define for sky contribution.
     /// </summary>
-    public float SkyMissWeight { set => SetDefine(VgeShaderDefines.LumOnSkyMissWeight, value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Gets or sets the declared SkyMissWeight shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.SkyMissWeight))]
+    public partial float SkyMissWeight { get; set; }
 
     #endregion
 
@@ -193,7 +271,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
 
     #endregion
 
-    #region World Probes (Phase 18)
+    #region World probes
 
     public bool EnsureWorldProbeClipmapDefines(
         bool enabled,
@@ -215,11 +293,11 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
         }
 
         bool changed = false;
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeEnabled, enabled ? "1" : "0");
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapLevels, levels.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapResolution, resolution.ToString(CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeClipmapBaseSpacing, baseSpacing.ToString("0.0####", CultureInfo.InvariantCulture));
-        changed |= SetDefine(VgeShaderDefines.LumOnWorldProbeOctahedralSize, worldProbeOctahedralTileSize.ToString(CultureInfo.InvariantCulture));
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbes, enabled);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeLevels, levels);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
+        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
         return !changed;
     }
 

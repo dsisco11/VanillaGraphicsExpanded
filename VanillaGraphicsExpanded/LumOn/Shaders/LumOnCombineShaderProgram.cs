@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 
 using Vintagestory.API.Client;
@@ -15,8 +16,19 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Combines indirect diffuse lighting with direct lighting and applies
 /// proper material modulation (albedo, metallic rejection).
 /// </summary>
+[ShaderProgram("Contract", "lumon_combine", 16)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_combine.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_combine.fsh")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Lighting")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Composite")]
+[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Ao")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableAO))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(LumOnEnabled))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
 public partial class LumOnCombineShaderProgram : GpuProgram
 {
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
 
@@ -79,13 +91,19 @@ public partial class LumOnCombineShaderProgram : GpuProgram
 
     // Per-frame state (matrices) is provided via LumOnFrameUBO.
 
-    #region PBR Composite Defines (Phase 15 → SetDefine migration)
+    #region Composite options
 
-    public bool EnablePbrComposite { set => SetDefine(VgeShaderDefines.LumOnPbrComposite, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared PbrComposite shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.PbrComposite))]
+    public partial bool EnablePbrComposite { get; set; }
 
-    public bool EnableAO { set => SetDefine(VgeShaderDefines.LumOnEnableAo, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared AmbientOcclusion shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.AmbientOcclusion))]
+    public partial bool EnableAO { get; set; }
 
-    public bool EnableShortRangeAo { set => SetDefine(VgeShaderDefines.LumOnEnableShortRangeAo, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared ShortRangeAo shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ShortRangeAo))]
+    public partial bool EnableShortRangeAo { get; set; }
 
     [System.Obsolete("Renamed to EnableShortRangeAo.")]
     public bool EnableBentNormal { set => EnableShortRangeAo = value; }
@@ -145,7 +163,9 @@ public partial class LumOnCombineShaderProgram : GpuProgram
     /// Whether LumOn is enabled.
     /// When disabled, passes through direct lighting unchanged.
     /// </summary>
-    public bool LumOnEnabled { set => SetDefine(VgeShaderDefines.LumOnEnabled, value ? "1" : "0"); }
+    /// <summary>Gets or sets the declared Enabled shader selection.</summary>
+    [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.Enabled))]
+    public partial bool LumOnEnabled { get; set; }
 
     #endregion
 }
