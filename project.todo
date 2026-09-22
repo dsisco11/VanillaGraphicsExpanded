@@ -1,10 +1,16 @@
 Issues:
   Current:
-    ☐ Create a local-tracing geometry debug view to visualize the near-tracing voxel geometry scene which is uploaded to the GPU.
     ☐ Refactor near-tracing geometry system to support "directional" voxel types (e.g. partial blocks like stairs & slabs), as well as voxel types which are basically pass-through like campfires.
     ☐ Implement support for dynamic updates to the near-tracing geometry, allowing changes in the scene to be reflected in the GPU representation without full re-upload.
+
+    DebugViews:
+      ☐ Create debug-view for LumOns geometry irradience surface cache.
+    Shaders:
+      ☐ Seperate massive debug shaders into individual, more manageable shader files for easier maintenance, debugging, and better loading times.
+      ☐ Implement a new "shader variants" system to allow precompiled SPIRV shaders to compile all of their variants based on their preprocessor `#ifdef` conditions.
+      ☐ Implement a system for automatically reloading modified shader files during development to speed up iteration.
   
-  Debug View ystem:
+  Debug View System:
     ☐ Refactor debug view system so that debug view panels can actually have nested categories, allowing for better organization and easier navigation of complex debug information.
     ☐ Split all of the Probe-view debug modes into nested categories for better organization. e.g. all "Probe-atlas" views should be under the "Probe atlas" category, etc.
 
