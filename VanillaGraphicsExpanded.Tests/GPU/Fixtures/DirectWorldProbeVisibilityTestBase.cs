@@ -14,6 +14,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Runs direct irradiance consumers against the same controlled cache and published voxel scene.</summary>
 public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctionalTestBase
 {
+    // ShaderTestHelper owns these programs until fixture disposal. Multi-frame scenarios
+    // reuse the same compiled variant, matching runtime behavior instead of relinking each draw.
+    private readonly Dictionary<string, int> visibilityPrograms = new();
     /// <summary>Uses the shared mandatory GPU fixture.</summary>
     protected DirectWorldProbeVisibilityTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -24,12 +27,13 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         int size = 4, float span = 0.1f, int budget = 256, VectorInt3 worldOffset = default,
         Vector3 ring = default, bool suppress = false,
         Vector3[]? levelOrigins = null, Vector3[]? levelRings = null,
-        Vector3d? playerOrigin = null, float cameraBob = 0)
+        Vector3d? playerOrigin = null, float cameraBob = 0,
+        VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null)
     {
         bool debug = consumer >= 0;
         bool sh9 = consumer == -2;
         string shader = debug ? "lumon_debug_worldprobe" : sh9 ? "lumon_probe_sh9_gather" : "lumon_probe_atlas_gather";
-        int program = CompileShaderWithDefines(debug ? "lumon_debug.vsh" : shader + ".vsh", shader + ".fsh", new()
+        var defines = new Dictionary<string, string?>
         {
             ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "1",
             ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1",
@@ -38,7 +42,13 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = spacing.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = atlas.TileSize.ToString(),
             ["VGE_LUMON_WORLDPROBE_DIFFUSE_STRIDE"] = "2"
-        });
+        };
+        string key = shader + string.Join(";", defines.Select(pair => pair.Key + "=" + pair.Value));
+        if (!visibilityPrograms.TryGetValue(key, out int program))
+        {
+            program = CompileShaderWithDefines(debug ? "lumon_debug.vsh" : shader + ".vsh", shader + ".fsh", defines);
+            visibilityPrograms.Add(key, program);
+        }
         var textures = new List<DynamicTexture2D>();
         try
         {
@@ -69,15 +79,16 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             }
             int geometryUnit = debug ? 34 : sh9 ? 12 : 6;
             int readinessUnit = debug ? 35 : sh9 ? 13 : 7;
-            scene?.Geometry.Bind(geometryUnit);
-            scene?.Regions.Bind(readinessUnit);
+            (shared?.Geometry ?? scene?.Geometry)?.Bind(geometryUnit);
+            (shared?.Readiness ?? scene?.Regions)?.Bind(readinessUnit);
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "nearFieldGeometry"), geometryUnit);
             GL.Uniform1(GL.GetUniformLocation(program, "nearFieldRegions"), readinessUnit);
             GL.UseProgram(0);
             using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.DirectVisibility");
             var local = new LumOnNearFieldParamsUbo();
-            local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, budget, scene?.CellSize ?? 16);
+            if (shared != null) local.SetShared(shared, budget);
+            else local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, budget, scene?.CellSize ?? 16);
             localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
             localBuffer.BindBase(LumOnNearFieldParamsUbo.Binding);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
@@ -119,7 +130,6 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         finally
         {
             foreach (var texture in textures) texture.Dispose();
-            GL.DeleteProgram(program);
         }
 
         /// <summary>Creates and binds an explicitly packed input texture.</summary>

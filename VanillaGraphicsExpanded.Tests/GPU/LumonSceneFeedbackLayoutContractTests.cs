@@ -1,78 +1,84 @@
-using System;
-using System.IO;
-
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
-using Xunit;
-
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Checks compiled feedback bindings without depending on optional SPIR-V debug names.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
 {
+    /// <summary>Uses the shared GPU context.</summary>
     public LumonSceneFeedbackLayoutContractTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Compiled binding contracts
+    /// <summary>Requires the mark program's parameters, input samplers and output image.</summary>
     [Fact]
-    public void FeedbackMarkPages_GlslPath_ExposesExpectedBindings()
+    public void FeedbackMarkPages_SpirvPath_ExposesExpectedBindings()
     {
         EnsureContextValid();
-
-        using var helper = CreateShaderHelperOrSkip();
-
-        var layout = new GpuProgramLayout();
-        layout.RegisterUniformBlockBinding("VgeLumOnSceneFeedbackMarkParamsUBO", GpuBindingRegistry.Ubo.Object, required: true);
-        layout.RegisterSamplerUnit("vge_patchIdGBuffer", unit: 0, required: true);
-        layout.RegisterSamplerUnit("vge_chunkSlotGenerationTex", unit: 1, required: false);
-        layout.RegisterImageUnit("vge_pageUsageStamp", unit: 0, required: true);
-
-        using var program = ComputeProgram.Create(
-            helper,
-            computeShaderFile: "lumonscene_feedback_mark_pages.csh",
-            debugName: "Tests.LayoutContract.FeedbackMarkPages.Glsl",
-            preferSpirv: false,
-            layout: layout,
-            layoutWarn: message => Assert.Fail(message));
-
-        Assert.NotEqual(0, program.ProgramId);
+        using var helper = CreateShaderHelper();
+        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh");
+        AssertBuffer(program.ProgramId, ProgramInterface.UniformBlock, GpuBindingRegistry.Ubo.Object, 16);
+        AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2D, 0);
+        AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2D, 1);
+        AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntImage2DArray, 0);
     }
 
+    /// <summary>Requires the compact program's parameters, input samplers and output storage.</summary>
     [Fact]
-    public void FeedbackCompactPages_GlslPath_ExposesExpectedBindings()
+    public void FeedbackCompactPages_SpirvPath_ExposesExpectedBindings()
     {
         EnsureContextValid();
-
-        using var helper = CreateShaderHelperOrSkip();
-
-        var layout = new GpuProgramLayout();
-        layout.RegisterUniformBlockBinding("VgeLumOnSceneFeedbackCompactParamsUBO", GpuBindingRegistry.Ubo.Object, required: true);
-        layout.RegisterSamplerUnit("vge_pageUsageStamp", unit: 0, required: true);
-        layout.RegisterSamplerUnit("vge_pageTableMip0", unit: 1, required: true);
-        layout.RegisterShaderStorageBlockBinding("VgePageRequests", bindingIndex: 0, required: true);
-
-        using var program = ComputeProgram.Create(
-            helper,
-            computeShaderFile: "lumonscene_feedback_compact_pages.csh",
-            debugName: "Tests.LayoutContract.FeedbackCompactPages.Glsl",
-            preferSpirv: false,
-            layout: layout,
-            layoutWarn: message => Assert.Fail(message));
-
-        Assert.NotEqual(0, program.ProgramId);
+        using var helper = CreateShaderHelper();
+        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh");
+        AssertBuffer(program.ProgramId, ProgramInterface.UniformBlock, GpuBindingRegistry.Ubo.Object, 16);
+        AssertBuffer(program.ProgramId, ProgramInterface.ShaderStorageBlock, 0);
+        AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2DArray, 0);
+        AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2DArray, 1);
     }
+    #endregion
 
-    private static ShaderTestHelper CreateShaderHelperOrSkip()
+    #region Resource inspection
+    /// <summary>Constructs the asset context; missing build output is a failure.</summary>
+    private static ShaderTestHelper CreateShaderHelper() => new(
+        Path.Combine(AppContext.BaseDirectory, "assets", "shaders"),
+        Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes"));
+
+    /// <summary>Finds an active buffer by its baked binding and checks parameter size when specified.</summary>
+    private static void AssertBuffer(int program, ProgramInterface kind, int binding, int? size = null)
     {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        GL.GetProgramInterface(program, kind, ProgramInterfaceParameter.ActiveResources, out int count);
+        ProgramProperty[] properties = [ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize];
+        int[] values = new int[2];
+        // SPIR-V preserves binding decorations even when the driver omits resource names.
+        for (int i = 0; i < count; i++)
         {
-            Assert.Skip("Shader assets not available - test output content may be missing");
+            GL.GetProgramResource(program, kind, i, properties.Length, properties, values.Length, out _, values);
+            if (values[0] != binding) continue;
+            if (size.HasValue) Assert.Equal(size.Value, values[1]);
+            return;
         }
-
-        return new ShaderTestHelper(shaderPath, includePath);
+        Assert.Fail($"Missing {kind} at binding {binding}.");
     }
+
+    /// <summary>Checks the actual texture type and baked unit without rebinding or name lookup.</summary>
+    private static void AssertTexture(int program, ActiveUniformType type, int unit)
+    {
+        GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
+        ProgramProperty[] properties = [ProgramProperty.Type, ProgramProperty.Location, ProgramProperty.BlockIndex];
+        int[] values = new int[3];
+        // Inspect only standalone opaque uniforms, excluding parameter-block members.
+        for (int i = 0; i < count; i++)
+        {
+            GL.GetProgramResource(program, ProgramInterface.Uniform, i, properties.Length, properties, values.Length, out _, values);
+            if (values[0] != (int)type || values[1] < 0 || values[2] != -1) continue;
+            GL.GetUniform(program, values[1], out int actual);
+            if (actual == unit) return;
+        }
+        Assert.Fail($"Missing {type} at unit {unit}.");
+    }
+    #endregion
 }

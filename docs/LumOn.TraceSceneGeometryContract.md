@@ -31,7 +31,7 @@ Keep one world-zero grid of one-block voxels, published in 16-cubed cells. A 32-
 | Normalized light | RGBA8 | Captured block-light RGB and sunlight A, preserving NearField clamping/quantization. Retain data in air voxels for outside-face lighting. |
 | Publication readiness | R8UI per 16-cubed slot | Zero until all voxel resources and referenced material data are coherent. CPU retains logical owner, incarnation and revision. |
 | Face surface IDs | RGBA32UI, 16384 entries | Six 16-bit surface IDs in three lanes. Fourth lane holds separate surface-data and hit-lighting readiness bits. Entry 0 is unavailable. |
-| Hit materials | RGBA8, 12 texels per material | Six diffuse/emission pairs, preserving the existing NearField representation and quantization. |
+| Hit materials | RGBA8, 12 texels per material | Six diffuse/emission pairs, preserving the existing NearField RGB representation and quantization. Diffuse alpha mirrors hit readiness so screen tracing stays within its 16 fragment samplers; face-table readiness remains authoritative for surface consumers. |
 | Surface/light lookup tables | Existing formats | Keep surface LUT RGBA32UI, light-color LUT RGBA16F and block/sun scalar LUTs R16F for surface-cache shading. |
 
 Replace block-ID masking with one stable collision-free scene material registry. A supported cube remains an opaque hit when its material cannot resolve. Material exhaustion returns unavailable material, never a different block's entry. Unsupported shapes may retain surface IDs for material capture, but remain unresolved for voxel ray intersection. This preserves the ability to capture their material without pretending their collision shape is a full cube.

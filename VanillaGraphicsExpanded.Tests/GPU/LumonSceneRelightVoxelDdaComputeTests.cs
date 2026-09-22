@@ -79,6 +79,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Hit.ParamsUBO");
 
         GL.UseProgram(program);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
 
         // SSBO binding matches shader: binding=0.
         workSsbo.BindBase(bindingIndex: 0);
@@ -181,6 +182,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.DebugCounters.ParamsUBO");
 
         GL.UseProgram(program);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 0);
@@ -235,7 +237,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     }
 
     [Fact]
-    public void Relight_EmptyOcc_LeavesRgbBlack_ButStillIncrementsWeight()
+    public void Relight_EmptyOcc_LeavesRgbBlack_WithoutAddingWeight()
     {
         EnsureContextValid();
 
@@ -277,6 +279,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Miss.ParamsUBO");
 
         GL.UseProgram(program);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 0);
@@ -321,7 +324,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
         (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: 0, y: 0);
 
-        Assert.InRange(a, 0.99f, 1.01f);
+        Assert.Equal(0f, a);
         Assert.InRange(r, -1e-4f, 1e-4f);
         Assert.InRange(g, -1e-4f, 1e-4f);
         Assert.InRange(b, -1e-4f, 1e-4f);
@@ -347,7 +350,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         FillR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 0f);
         FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
 
-        uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 0);
+        uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
         using var occ = Texture3D.Create(occRes, occRes, occRes, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D, "Test_OccL0");
         FillR32ui3D(occ.TextureId, occRes, occRes, occRes, packed);
 
@@ -357,6 +360,10 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
+
+        using var materialPalette = Texture2D.Create(16384, 1, PixelInternalFormat.Rgba32ui, debugName: "Test_MaterialPalette");
+        using var surfaceLut = Texture2D.Create(256, 256, PixelInternalFormat.Rgba32ui, debugName: "Test_SurfaceLut");
+        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
 
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -376,6 +383,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.TemporalAccum.ParamsUBO");
 
         GL.UseProgram(program);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 0);
@@ -386,6 +394,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
@@ -511,6 +520,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Halfspace.ParamsUBO");
 
         GL.UseProgram(program);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 0);
@@ -568,7 +578,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     }
 
     [Fact]
-    public void Relight_OutOfBoundsStart_TreatsAsMiss_EvenIfOccHasSolidCell()
+    public void Relight_OutOfBoundsStart_AddsNoSample_EvenIfRingHasSolidCell()
     {
         EnsureContextValid();
 
@@ -598,6 +608,10 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
 
+        using var materialPalette = Texture2D.Create(16384, 1, PixelInternalFormat.Rgba32ui, debugName: "Test_MaterialPalette");
+        using var surfaceLut = Texture2D.Create(256, 256, PixelInternalFormat.Rgba32ui, debugName: "Test_SurfaceLut");
+        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
+
         using var irradiance = Texture3D.Create(tileSize, tileSize, atlasCount, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_IrradianceAtlas");
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
 
@@ -610,6 +624,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.OobStart.ParamsUBO");
 
         GL.UseProgram(program);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 0);
@@ -620,6 +635,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
         BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
+        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
 
         GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
 
@@ -652,7 +668,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
         (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
 
-        Assert.InRange(a, 0.99f, 1.01f);
+        Assert.Equal(0f, a);
         Assert.InRange(r, -1e-4f, 1e-4f);
         Assert.InRange(g, -1e-4f, 1e-4f);
         Assert.InRange(b, -1e-4f, 1e-4f);
@@ -744,7 +760,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         for (int z = 0; z < res; z++)
         {
             bool solid = solidForZGreaterOrEqual ? (z >= thresholdZ) : (z < thresholdZ);
-            uint v = solid ? packedSolid : 0u;
+            // Illuminate air as well: hit lighting samples the cell outside the solid boundary.
+            uint v = solid ? packedSolid : packedSolid & 0x3ffffu;
             for (int y = 0; y < res; y++)
             {
                 for (int x = 0; x < res; x++)

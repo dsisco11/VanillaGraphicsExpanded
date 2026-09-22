@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 
 using VanillaGraphicsExpanded.DebugView;
@@ -24,11 +25,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
     private LumOnBufferManager? lumOnBufferManager;
     private LumOnRenderer? lumOnRenderer;
-    private NearFieldGeometryPartitionRenderer? nearFieldGeometryPartitionRenderer;
-    internal NearFieldRuntimeMetrics? NearFieldMetrics => nearFieldGeometryPartitionRenderer?.Metrics;
+
+    internal NearFieldRuntimeMetrics? NearFieldMetrics => null;
     private LumOnDebugRenderer? lumOnDebugRenderer;
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
-    private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
+    private TraceGeometryRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
     private LumonSceneRelightUpdateRenderer? lumonSceneRelightUpdateRenderer;
     private LumOnTerrainBridgeUpdateRenderer? lumOnTerrainBridgeUpdateRenderer;
 
@@ -438,12 +439,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             && lumonSceneOccupancyClipmapUpdateRenderer is null)
         {
             PartitionCoordinator worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(clientApi, ConfigModSystem.Config, worldPartition);
+            lumonSceneOccupancyClipmapUpdateRenderer = new TraceGeometryRenderer(clientApi, ConfigModSystem.Config, clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>());
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
-        nearFieldGeometryPartitionRenderer ??= new NearFieldGeometryPartitionRenderer(clientApi, ConfigModSystem.Config, clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>());
-        lumOnRenderer?.SetNearFieldSceneProvider(nearFieldGeometryPartitionRenderer);
-        lumOnDebugRenderer?.SetNearFieldSceneProvider(nearFieldGeometryPartitionRenderer);
+        lumOnRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
+        lumOnDebugRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (current.LumOnEnabled
@@ -491,8 +491,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumOnTerrainBridgeUpdateRenderer?.Dispose();
         lumOnTerrainBridgeUpdateRenderer = null;
 
-        nearFieldGeometryPartitionRenderer?.Dispose();
-        nearFieldGeometryPartitionRenderer = null;
+
+
         lumOnRenderer?.Dispose();
         lumOnRenderer = null;
 
@@ -567,12 +567,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (lumonSceneOccupancyClipmapUpdateRenderer is null)
         {
             PartitionCoordinator worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            lumonSceneOccupancyClipmapUpdateRenderer = new LumonSceneOccupancyClipmapUpdateRenderer(capi, ConfigModSystem.Config, worldPartition);
+            lumonSceneOccupancyClipmapUpdateRenderer = new TraceGeometryRenderer(capi, ConfigModSystem.Config, capi.ModLoader.GetModSystem<WorldPartitionModSystem>());
         }
         lumOnDebugRenderer?.SetLumonSceneOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
-        nearFieldGeometryPartitionRenderer ??= new NearFieldGeometryPartitionRenderer(capi, ConfigModSystem.Config, capi.ModLoader.GetModSystem<WorldPartitionModSystem>());
-        lumOnRenderer?.SetNearFieldSceneProvider(nearFieldGeometryPartitionRenderer);
-        lumOnDebugRenderer?.SetNearFieldSceneProvider(nearFieldGeometryPartitionRenderer);
+        lumOnRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
+        lumOnDebugRenderer?.SetNearFieldSceneProvider(lumonSceneOccupancyClipmapUpdateRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetOccupancyClipmapUpdateRenderer(lumonSceneOccupancyClipmapUpdateRenderer);
 
         if (lumOnTerrainBridgeUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)

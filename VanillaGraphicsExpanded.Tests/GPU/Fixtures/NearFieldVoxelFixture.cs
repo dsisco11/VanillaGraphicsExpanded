@@ -74,7 +74,7 @@ internal sealed class NearFieldVoxelFixture : IDisposable
         for (int face = 0; face < 6; face++)
         {
             int i = (12 + face * 2) * 4;
-            data[i] = value.X; data[i + 1] = value.Y; data[i + 2] = value.Z;
+            data[i] = value.X; data[i + 1] = value.Y; data[i + 2] = value.Z; data[i + 3] = 1;
             data[i + 4] = value.X * value.W; data[i + 5] = value.Y * value.W; data[i + 6] = value.Z * value.W;
         }
         Scene.Materials.UploadDataImmediate(data);

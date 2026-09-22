@@ -1,5 +1,5 @@
 using OpenTK.Graphics.OpenGL;
-using VanillaGraphicsExpanded.LumOn.Scene.NearField;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -23,15 +23,14 @@ internal sealed class LumOnNearFieldVisibilityBindings
     }
 
     /// <summary>Binds a coherent local snapshot; unavailable geometry never implies visibility.</summary>
-    public void Bind(GpuProgram program, NearFieldGpuScene? scene)
+    public void Bind(GpuProgram program, TraceGeometryGpuScene? scene)
     {
-        parameters.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, cellSize: scene?.CellSize ?? 16,
-            supportedOrigins: scene?.SupportedOrigins, maximumTraceReach: scene?.MaximumTraceReach ?? 0);
+        parameters.SetShared(scene);
         parameters.BindTo(program, LumOnNearFieldParamsUbo.BlockName, "LumOn.DirectVisibility");
         layout.TryBindSamplerTextureActive(program.ProgramId, "nearFieldGeometry", TextureTarget.Texture3D,
             scene?.Geometry.TextureId ?? 0, GpuSamplers.NearestClamp.SamplerId, warn: null);
         layout.TryBindSamplerTextureActive(program.ProgramId, "nearFieldRegions", TextureTarget.Texture3D,
-            scene?.Regions.TextureId ?? 0, GpuSamplers.NearestClamp.SamplerId, warn: null);
+            scene?.Readiness.TextureId ?? 0, GpuSamplers.NearestClamp.SamplerId, warn: null);
     }
     #endregion
 }

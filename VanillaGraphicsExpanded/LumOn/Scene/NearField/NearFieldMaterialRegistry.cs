@@ -33,7 +33,7 @@ internal sealed class NearFieldMaterialRegistry
                 if (!BlockFaceTextureKeyResolver.TryResolveBaseTextureLocation(block, face, out var texture, out _) ||
                     !PbrMaterialRegistry.Instance.TryGetSurface(texture, out var surface) ||
                     !PbrMaterialRegistry.Instance.TryGetDerivedSurface(block.Id, face, out var derived)) return 0;
-                faces[face * 2] = new Vector4(derived.DiffuseAlbedo, 0);
+                faces[face * 2] = new Vector4(derived.DiffuseAlbedo, 1);
                 // Registry diffuse and F0 share the same base color. Recover it without
                 // dividing by (1 - metallic), which would discard fully metallic emission.
                 var baseColor = Vector3.Clamp(surface.DiffuseAlbedo + surface.SpecularF0 -

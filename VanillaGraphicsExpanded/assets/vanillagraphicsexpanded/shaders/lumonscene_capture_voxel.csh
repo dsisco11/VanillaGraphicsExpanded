@@ -1,4 +1,5 @@
 #version 430 core
+#define LUMON_TRACE_SCENE_COMPUTE 1
 
 // Phase 22.7: Voxel patch capture v1 (fast)
 // For each CaptureWork item, fills the corresponding physical tile in:
@@ -61,7 +62,7 @@ layout(std430, binding = 2) readonly buffer VgeChunkSlotInfo
 #define vge_tilesPerAtlas  (vgeCaptureVoxelParams.atlasLayout.z)
 #define vge_borderTexels   (vgeCaptureVoxelParams.atlasLayout.w)
 
-@import "./includes/lumonscene_trace_scene_occupancy.glsl"
+@import "./includes/lumon_trace_scene.glsl"
 @import "./includes/lumonscene_material_packing.glsl"
 
 vec3 NormalFromPatchId(uint patchId)
@@ -184,7 +185,7 @@ void main()
     uint physicalPageId = w.x;
     uint chunkSlot = w.y;
     uint patchId = w.z;
-    uint virtualPageIndex = w.w;
+    uint virtualPageIndex = w.w & 0x7FFFFFFFu;
 
     if (physicalPageId == 0u)
     {
@@ -213,7 +214,7 @@ void main()
     // Material: packed normal + surfaceId (resolved from TraceScene material palette).
     vec3 normalWS = NormalFromPatchId(patchId);
     vec4 outMat = VgeLumonScenePackMaterialAtlas(normalWS, 0u);
-    if (vge_occResolution > 0)
+    if (traceSurfaceMin.w != 0)
     {
         ivec4 og = vge_chunkOriginBlocksAndGeneration[chunkSlot];
         ivec3 chunkOrigin = og.xyz;
@@ -223,14 +224,14 @@ void main()
 
         if (!DecodeVoxelPatchId(patchId, axisId, planeIndex, patchU, patchV))
         {
-            originWS = vec3(chunkOrigin);
+            originWS = vec3(0.0);
             axisUWS = vec3(0.0);
             axisVWS = vec3(0.0);
             patchNormalWS = vec3(0.0, 1.0, 0.0);
         }
         else
         {
-            ComputeVoxelPatchBasisAndOrigin(chunkOrigin, axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, patchNormalWS);
+            ComputeVoxelPatchBasisAndOrigin(ivec3(0), axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, patchNormalWS);
         }
 
         normalWS = patchNormalWS;
@@ -251,19 +252,16 @@ void main()
         vec3 stepV = axisVWS * (1.0 / float(PatchSizeVoxels));
 
         vec3 surfacePos = originWS + stepU * (float(cellU) + fu) + stepV * (float(cellV) + fv);
-        ivec3 sampleCell = ivec3(floor(surfacePos - patchNormalWS * 0.01));
+        ivec3 sampleCell = chunkOrigin + ivec3(floor(surfacePos - patchNormalWS * 0.01));
 
-        uint payloadPacked = VgeSampleOccL0(vge_occL0, sampleCell, vge_occOriginMinCell0, vge_occRing0, vge_occResolution);
-        uint matIndex = (payloadPacked >> 18u) & 16383u;
-        if (matIndex != 0u)
-        {
-            uvec4 faces = texelFetch(vge_materialPalette, ivec2(int(matIndex), 0), 0);
-            uint faceIndex = VgeLumonSceneAxisIdToBlockFaceIndex(axisId);
-            uint surfaceId = VgeLumonSceneUnpackFaceSurfaceId(faces, faceIndex);
+        uint surfaceId;
+        if (lumonTraceSceneReadSurface(sampleCell, VgeLumonSceneAxisIdToBlockFaceIndex(axisId), surfaceId))
             outMat = VgeLumonScenePackMaterialAtlas(patchNormalWS, surfaceId);
-        }
+        else
+            atomicOr(vge_captureWork[workIndex].w, 0x80000000u);
     }
 
+    else atomicOr(vge_captureWork[workIndex].w, 0x80000000u);
     imageStore(vge_materialAtlas, texel, outMat);
 
     // Write patch metadata once per work item (avoid per-texel SSBO traffic).
@@ -278,23 +276,23 @@ void main()
 
         if (!DecodeVoxelPatchId(patchId, axisId, planeIndex, patchU, patchV))
         {
-            originWS = vec3(chunkOrigin);
+            originWS = vec3(0.0);
             axisUWS = vec3(0.0);
             axisVWS = vec3(0.0);
             normalWS = vec3(0.0, 1.0, 0.0);
         }
         else
         {
-            ComputeVoxelPatchBasisAndOrigin(chunkOrigin, axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, normalWS);
+            ComputeVoxelPatchBasisAndOrigin(ivec3(0), axisId, planeIndex, patchU, patchV, originWS, axisUWS, axisVWS, normalWS);
         }
 
         uint vx = virtualPageIndex & 127u;
         uint vy = virtualPageIndex >> 7u;
 
         VgePatchMeta meta;
-        meta.OriginWS = vec4(originWS, 0.0);
-        meta.AxisUWS = vec4(axisUWS, 0.0);
-        meta.AxisVWS = vec4(axisVWS, 0.0);
+        meta.OriginWS = vec4(originWS, intBitsToFloat(chunkOrigin.x));
+        meta.AxisUWS = vec4(axisUWS, intBitsToFloat(chunkOrigin.y));
+        meta.AxisVWS = vec4(axisVWS, intBitsToFloat(chunkOrigin.z));
         meta.NormalWS = vec4(normalWS, 0.0);
 
         meta.VirtualBasePageX = vx;
@@ -305,7 +303,7 @@ void main()
         meta.ChunkSlot = chunkSlot;
         meta.PatchId = patchId;
         meta.Reserved0 = generation;
-        meta.Reserved1 = 0u;
+        meta.Reserved1 = 1u; // Integer chunk origin is encoded in the three unused W lanes.
 
         vge_patchMeta[physicalPageId] = meta;
     }

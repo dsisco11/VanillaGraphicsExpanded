@@ -86,6 +86,9 @@ internal sealed class PbrMaterialRegistry
     // This represents the merged defaults.scale across all loaded sources.
     public PbrOverrideScale DefaultScale { get; private set; } = PbrOverrideScale.Identity;
 
+    /// <summary>Changes whenever geometry-facing material lookup data is rebuilt.</summary>
+    internal int GeometryGeneration { get; private set; }
+
     public void Initialize(ICoreAPI api, bool strict = false)
     {
         if (api == null) throw new ArgumentNullException(nameof(api));
@@ -117,6 +120,8 @@ internal sealed class PbrMaterialRegistry
         if (logger == null) throw new ArgumentNullException(nameof(logger));
         if (parsedSources == null) throw new ArgumentNullException(nameof(parsedSources));
         if (textureLocations == null) throw new ArgumentNullException(nameof(textureLocations));
+
+        GeometryGeneration++;
 
         sources.Clear();
         sources.AddRange(parsedSources);
@@ -245,6 +250,7 @@ internal sealed class PbrMaterialRegistry
 
     public void Clear()
     {
+        GeometryGeneration++;
         StopBaseColorBackgroundRegen();
 
         sources.Clear();
@@ -723,6 +729,7 @@ internal sealed class PbrMaterialRegistry
 
     public void BuildBlockFaceDerivedSurfaceLookup(ICoreClientAPI capi)
     {
+        GeometryGeneration++;
         ArgumentNullException.ThrowIfNull(capi);
 
         // Ensure surfaces are available.
@@ -760,6 +767,7 @@ internal sealed class PbrMaterialRegistry
 
     public void BuildDerivedSurfaces(ICoreClientAPI capi)
     {
+        GeometryGeneration++;
         ArgumentNullException.ThrowIfNull(capi);
 
         surfaceByTexture.Clear();

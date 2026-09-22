@@ -206,6 +206,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
             BindSampler3D(unit: 2, occL0.TextureId);
             BindSampler2D(unit: 3, materialPalette.TextureId);
+        using var sharedSurface = new SharedSurfaceInputFixture(captureProgram, occL0, materialPalette);
 
             LumonSceneCaptureVoxelParamsUbo.Bind(
                 captureParamsUbo,

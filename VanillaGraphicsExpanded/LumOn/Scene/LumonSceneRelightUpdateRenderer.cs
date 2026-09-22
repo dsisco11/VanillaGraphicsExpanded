@@ -1,6 +1,6 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -27,7 +27,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
     private readonly LumonSceneFeedbackUpdateRenderer feedback;
-    private readonly LumonSceneOccupancyClipmapUpdateRenderer occupancy;
+    private readonly TraceGeometryRenderer occupancy;
 
     private LumonSceneRelightVoxelDdaComputeShader? relightVoxelShader;
     private GpuAtomicCounterBuffer? debugCounters;
@@ -48,10 +48,11 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
     // When RelightTexelsPerPagePerFrame < tileSize^2, a single dispatch only covers a subset of texels.
     // Track per-virtual-page remaining batches so we don't clear NeedsRelight until the whole tile has been touched.
-    private readonly Dictionary<ulong, RelightBatchState> relightBatchStateByVirtualKey = new(capacity: 1024);
+    private readonly LumonSceneRelightBatchSchedule relightBatches = new();
     private int lastBatchCount = 1;
+    private long lastGeometryHistoryRevision = -1;
 
-    private readonly record struct RelightBatchState(int NextBatchIndex, int RemainingBatches);
+
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
@@ -60,7 +61,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         ICoreClientAPI capi,
         VgeConfig config,
         LumonSceneFeedbackUpdateRenderer feedback,
-        LumonSceneOccupancyClipmapUpdateRenderer occupancy)
+        TraceGeometryRenderer occupancy)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
@@ -100,8 +101,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
-        var occRes = occupancy.Resources;
-        if (occRes is null || occRes.OccupancyLevels.Length <= 0)
+        var occRes = occupancy.PrepareScene();
+        if (occRes is null)
         {
             return;
         }
@@ -134,18 +135,17 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         uint kU = (uint)Math.Max(0, cfg.RelightTexelsPerPagePerFrame);
         uint batchCountU = kU == 0u ? 0u : ((totalTexelsU + (kU - 1u)) / kU);
         int batchCount = (int)Math.Clamp(batchCountU, 0u, 1_000_000u);
-        bool isPartial = batchCount > 1;
         if (batchCount <= 0)
         {
             batchCount = 1;
-            isPartial = false;
         }
 
-        if (batchCount != lastBatchCount)
+        if (batchCount != lastBatchCount || lastGeometryHistoryRevision != feedback.GeometryHistoryRevision)
         {
             // Batch schedule state depends on batchCount. If config changes, reset state.
-            relightBatchStateByVirtualKey.Clear();
+            relightBatches.Clear();
             lastBatchCount = batchCount;
+            lastGeometryHistoryRevision = feedback.GeometryHistoryRevision;
         }
 
         // Select pages to relight:
@@ -238,7 +238,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             for (int i = 0; i < workCount; i++)
             {
                 ulong key = workVirtualKeys[i];
-                uint batchIndex = GetAndAdvanceBatchIndex(key, batchCount, isPartial);
+                uint batchIndex = relightBatches.Next(key, batchCount);
                 var w = work[i];
                 work[i] = new LumonSceneRelightWorkGpu(
                     physicalPageId: w.PhysicalPageId,
@@ -275,12 +275,12 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
                 relightVoxelShader.BindDepthAtlas(atlases.DepthAtlasTextureId);
                 relightVoxelShader.BindMaterialAtlas(atlases.MaterialAtlasTextureId);
 
-                relightVoxelShader.BindOccL0(occRes.OccupancyLevels[0].TextureId);
-                relightVoxelShader.BindLightColorLut(occRes.LightColorLut.TextureId);
-                relightVoxelShader.BindBlockLevelScalarLut(occRes.BlockLevelScalarLut.TextureId);
-                relightVoxelShader.BindSunLevelScalarLut(occRes.SunLevelScalarLut.TextureId);
-                relightVoxelShader.BindMaterialPalette(occRes.MaterialPalette.TextureId);
-                relightVoxelShader.BindSurfaceLut(occRes.SurfaceLut.TextureId);
+                relightVoxelShader.BindSharedGeometry(occRes);
+                relightVoxelShader.BindLightColorLut(occRes.LightColors.TextureId);
+                relightVoxelShader.BindBlockLevelScalarLut(occRes.BlockLevels.TextureId);
+                relightVoxelShader.BindSunLevelScalarLut(occRes.SunLevels.TextureId);
+                relightVoxelShader.BindMaterialPalette(occRes.Faces.TextureId);
+                relightVoxelShader.BindSurfaceLut(occRes.Surfaces.TextureId);
 
                 relightVoxelShader.BindIrradianceAtlasImage(atlases.IrradianceAtlas, access: TextureAccess.ReadWrite);
 
@@ -320,7 +320,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
             // Relight writes irradiance via imageStore, then the same texture is sampled as a sampler2DArray
             // by later passes (debug/combining). Ensure visibility for both image access and texture fetch.
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
 
             if (config.Debug.LumOnRuntimeSelfCheckEnabled && debugCounters is not null && debugCounters.IsValid)
             {
@@ -339,26 +339,15 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
             int clearOk = 0;
             int clearFail = 0;
 
+            // Failed texels keep their page retryable; a dispatch is not evidence of a complete lighting sample.
+            using var completedWork = nearGpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, workCount, MapBufferAccessMask.MapReadBit);
+            if (!completedWork.IsMapped) return;
+
             for (int i = 0; i < workCount; i++)
             {
                 ulong key = workVirtualKeys[i];
-
-                if (isPartial)
-                {
-                    if (!relightBatchStateByVirtualKey.TryGetValue(key, out RelightBatchState state))
-                    {
-                        state = new RelightBatchState(NextBatchIndex: 0, RemainingBatches: batchCount);
-                    }
-
-                    int remaining = state.RemainingBatches - 1;
-                    if (remaining > 0)
-                    {
-                        relightBatchStateByVirtualKey[key] = new RelightBatchState(state.NextBatchIndex, remaining);
-                        continue;
-                    }
-
-                    relightBatchStateByVirtualKey.Remove(key);
-                }
+                bool succeeded = (completedWork.Span[i].VirtualPageIndex & 0x80000000u) == 0;
+                if (!relightBatches.Complete(key, batchCount, succeeded)) continue;
 
                 uint chunkSlot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
                 int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
@@ -406,7 +395,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         lastDbgOobStarts = 0;
         lastClearedNeedsRelightOk = 0;
         lastClearedNeedsRelightFail = 0;
-        relightBatchStateByVirtualKey.Clear();
+        relightBatches.Clear();
         lastBatchCount = 1;
         relightVoxelShader?.Dispose();
         relightVoxelShader = null;
@@ -467,28 +456,4 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
         return relightVoxelShader is not null;
     }
 
-    private uint GetAndAdvanceBatchIndex(ulong virtualKey, int batchCount, bool isPartial)
-    {
-        if (!isPartial)
-        {
-            return 0u;
-        }
-
-        if (!relightBatchStateByVirtualKey.TryGetValue(virtualKey, out RelightBatchState state)
-            || state.RemainingBatches <= 0
-            || state.RemainingBatches > batchCount)
-        {
-            state = new RelightBatchState(NextBatchIndex: 0, RemainingBatches: batchCount);
-        }
-
-        int idx = state.NextBatchIndex;
-        if (idx < 0 || idx >= batchCount) idx = 0;
-
-        int next = idx + 1;
-        if (next >= batchCount) next = 0;
-
-        // Advance batch cursor now (so even if the same virtualKey is selected twice in a frame, it progresses).
-        relightBatchStateByVirtualKey[virtualKey] = new RelightBatchState(next, state.RemainingBatches);
-        return (uint)idx;
-    }
 }

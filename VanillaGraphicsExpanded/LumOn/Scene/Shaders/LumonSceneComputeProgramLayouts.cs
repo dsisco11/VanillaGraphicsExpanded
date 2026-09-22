@@ -40,11 +40,12 @@ internal static class LumonSceneComputeProgramLayouts
     {
         public CaptureVoxel()
         {
+            Geometry.TraceGeometryComputeBindings.Register(this);
             RegisterUniformBlockBinding("VgeLumOnSceneCaptureVoxelParamsUBO", GpuBindingRegistry.Ubo.Object);
             RegisterImageUnit("vge_depthAtlas", 0);
             RegisterImageUnit("vge_materialAtlas", 1);
-            RegisterSamplerUnit("vge_occL0", 2);
-            RegisterSamplerUnit("vge_materialPalette", 3);
+            RegisterSamplerUnit("vge_occL0", 2, required: false);
+            RegisterSamplerUnit("vge_materialPalette", 3, required: false);
             RegisterShaderStorageBlockBinding("VgeCaptureWork", 0);
             RegisterShaderStorageBlockBinding("VgePatchMetadata", 1);
             RegisterShaderStorageBlockBinding("VgeChunkSlotInfo", 2);
@@ -82,15 +83,16 @@ internal static class LumonSceneComputeProgramLayouts
     {
         public RelightVoxelDda()
         {
+            Geometry.TraceGeometryComputeBindings.Register(this);
             RegisterUniformBlockBinding("VgeLumOnSceneRelightParamsUBO", GpuBindingRegistry.Ubo.Object);
 
             RegisterSamplerUnit("vge_depthAtlas", 0);
             RegisterSamplerUnit("vge_materialAtlas", 1);
-            RegisterSamplerUnit("vge_occL0", 2);
+            RegisterSamplerUnit("vge_occL0", 2, required: false);
             RegisterSamplerUnit("vge_lightColorLut", 3);
             RegisterSamplerUnit("vge_blockLevelScalarLut", 4);
             RegisterSamplerUnit("vge_sunLevelScalarLut", 5);
-            RegisterSamplerUnit("vge_materialPalette", 6);
+            RegisterSamplerUnit("vge_materialPalette", 6, required: false);
             RegisterSamplerUnit("vge_surfaceLut", 7);
 
             RegisterImageUnit("vge_irradianceAtlas", 0);

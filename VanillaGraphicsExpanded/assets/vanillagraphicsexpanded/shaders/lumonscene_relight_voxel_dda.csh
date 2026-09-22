@@ -1,11 +1,12 @@
 #version 430 core
+#define LUMON_TRACE_SCENE_COMPUTE 1
 
 // Phase 22.9: Relight v1 (GL 4.3 compute, voxel DDA)
 // Writes RGB irradiance + accumulation weight into IrradianceAtlas.
 
 // Import deterministic hash (shared across LumOn shaders)
 @import "./includes/squirrel3.glsl"
-@import "./includes/lumonscene_trace_scene_occupancy.glsl"
+@import "./includes/lumon_trace_scene_trace.glsl"
 @import "./includes/lumonscene_material_packing.glsl"
 @import "./includes/lumonscene_relight_params_ubo.glsl"
 
@@ -85,9 +86,6 @@ uint UnpackSunLevel(uint p) { return (p >> 6u) & 63u; }
 uint UnpackLightId(uint p) { return (p >> 12u) & 63u; }
 uint UnpackMaterialPaletteIndex(uint p) { return (p >> 18u) & 16383u; }
 
-bool OccInBounds(ivec3 worldCell) { return VgeOccInBoundsL0(worldCell, vge_occOriginMinCell0, vge_occResolution); }
-uint SampleOccL0(ivec3 worldCell) { return VgeSampleOccL0(vge_occL0, worldCell, vge_occOriginMinCell0, vge_occRing0, vge_occResolution); }
-
 vec3 CosineSampleHemisphere(vec2 u)
 {
     float r = sqrt(u.x);
@@ -105,92 +103,6 @@ void OrthonormalBasis(vec3 n, out vec3 t, out vec3 b)
     b = cross(n, t);
 }
 
-bool TraceDdaL0(vec3 origin, vec3 dir, out ivec3 hitCell, out ivec3 hitN, out float hitT, out bool startedInBounds)
-{
-    // Constrain to the occupancy volume; treat leaving the volume as a miss.
-    ivec3 cell = ivec3(floor(origin));
-    if (!OccInBounds(cell))
-    {
-        startedInBounds = false;
-        hitCell = ivec3(0);
-        hitN = ivec3(0);
-        hitT = 0.0;
-        return false;
-    }
-
-    startedInBounds = true;
-
-    ivec3 step = ivec3(sign(dir));
-    vec3 adir = abs(dir);
-
-    vec3 tDelta = vec3(1e9);
-    if (adir.x > 1e-6) tDelta.x = 1.0 / adir.x;
-    if (adir.y > 1e-6) tDelta.y = 1.0 / adir.y;
-    if (adir.z > 1e-6) tDelta.z = 1.0 / adir.z;
-
-    vec3 cellf = vec3(cell);
-    vec3 tMax = vec3(1e9);
-    if (adir.x > 1e-6) tMax.x = (dir.x > 0.0) ? ((cellf.x + 1.0 - origin.x) * tDelta.x) : ((origin.x - cellf.x) * tDelta.x);
-    if (adir.y > 1e-6) tMax.y = (dir.y > 0.0) ? ((cellf.y + 1.0 - origin.y) * tDelta.y) : ((origin.y - cellf.y) * tDelta.y);
-    if (adir.z > 1e-6) tMax.z = (dir.z > 0.0) ? ((cellf.z + 1.0 - origin.z) * tDelta.z) : ((origin.z - cellf.z) * tDelta.z);
-
-    for (uint i = 0u; i < vge_maxDdaSteps; i++)
-    {
-        if (tMax.x < tMax.y)
-        {
-            if (tMax.x < tMax.z)
-            {
-                cell.x += step.x;
-                hitN = ivec3(-step.x, 0, 0);
-                hitT = tMax.x;
-                tMax.x += tDelta.x;
-            }
-            else
-            {
-                cell.z += step.z;
-                hitN = ivec3(0, 0, -step.z);
-                hitT = tMax.z;
-                tMax.z += tDelta.z;
-            }
-        }
-        else
-        {
-            if (tMax.y < tMax.z)
-            {
-                cell.y += step.y;
-                hitN = ivec3(0, -step.y, 0);
-                hitT = tMax.y;
-                tMax.y += tDelta.y;
-            }
-            else
-            {
-                cell.z += step.z;
-                hitN = ivec3(0, 0, -step.z);
-                hitT = tMax.z;
-                tMax.z += tDelta.z;
-            }
-        }
-
-        if (!OccInBounds(cell))
-        {
-            break;
-        }
-
-        uint occ = SampleOccL0(cell);
-        // Solidness is encoded via materialPaletteIndex != 0. Air cells may carry lighting payload.
-        if (UnpackMaterialPaletteIndex(occ) != 0u)
-        {
-            hitCell = cell;
-            return true;
-        }
-    }
-
-    hitCell = ivec3(0);
-    hitN = ivec3(0);
-    hitT = 0.0;
-    return false;
-}
-
 uint HitFaceIndexFromNormal(ivec3 hitN)
 {
     if (hitN.x > 0) return 1u; // +X East
@@ -206,12 +118,15 @@ uvec4 FetchSurfaceLut(uint surfaceId)
     return texelFetch(vge_surfaceLut, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
 }
 
-vec3 ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN)
+bool ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN, out vec3 radiance)
 {
-    uint packedWord = SampleOccL0(outsideCell);
+    radiance = vec3(0.0);
+    uint geometry;
+    if (lumonTraceSceneReadGeometry(outsideCell, TRACE_SCENE_SURFACE, geometry) != TRACE_SCENE_READY) return false;
+    uint packedWord = texelFetch(traceSceneLegacy, lumonNearFieldWrap(outsideCell, nearFieldOriginResolution.w), 0).r;
     if (packedWord == 0u)
     {
-        return vec3(0.0);
+        return true;
     }
 
     uint blockLevel = min(UnpackBlockLevel(packedWord), 32u);
@@ -222,7 +137,8 @@ vec3 ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN)
     if (matIdx != 0u)
     {
         // Fetch surfaceId for the hit face and derive albedo from SurfaceLut.
-        uvec4 faces = texelFetch(vge_materialPalette, ivec2(int(matIdx), 0), 0);
+        uvec4 faces = texelFetch(traceSceneFaces, ivec2(int(matIdx), 0), 0);
+        if ((faces.w & 1u) == 0u) return false;
         uint faceIndex = HitFaceIndexFromNormal(hitN);
         uint surfaceId = VgeLumonSceneUnpackFaceSurfaceId(faces, faceIndex);
         uvec4 surf = FetchSurfaceLut(surfaceId);
@@ -236,7 +152,8 @@ vec3 ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN)
     // v1: simple additive model (tune later).
     vec3 block = lightColor * (blockScalar * 32.0);
     vec3 sun = vec3(1.0) * (sunScalar * 32.0);
-    return (block + sun) * albedo;
+    radiance = (block + sun) * albedo;
+    return true;
 }
 
 void main()
@@ -252,7 +169,7 @@ void main()
     uvec4 w = vge_relightWork[workIndex];
     uint physicalPageId = w.x;
     uint batchIndexIn = w.z;
-    uint virtualPageIndex = w.w;
+    uint virtualPageIndex = w.w & 0x7FFFFFFFu;
 
     if (physicalPageId == 0u)
     {
@@ -312,6 +229,8 @@ void main()
 
     vec2 uv = (vec2(inTile) + vec2(0.5)) / float(max(1u, vge_tileSizeTexels));
 
+    ivec3 originCell = ivec3(0);
+    if (meta.Reserved1 == 1u) originCell = ivec3(floatBitsToInt(meta.OriginWS.w), floatBitsToInt(meta.AxisUWS.w), floatBitsToInt(meta.AxisVWS.w));
     vec3 surfacePos;
     if (dot(meta.AxisUWS.xyz, meta.AxisUWS.xyz) > 1e-6 && dot(meta.AxisVWS.xyz, meta.AxisVWS.xyz) > 1e-6)
     {
@@ -333,10 +252,13 @@ void main()
     }
 
     // Push the origin slightly off the surface along the normal.
-    // Patch metadata writes absolute world-space positions, so tracing uses absolute world coordinates directly.
-    vec3 origin = surfacePos + normalWS * 0.51;
+    // Voxel metadata retains an integer chunk anchor; only its small local offset is converted here.
+    vec3 localOrigin = surfacePos + normalWS * 0.51;
+    originCell += ivec3(floor(localOrigin));
+    vec3 originFraction = fract(localOrigin);
 
     vec3 acc = vec3(0.0);
+    uint validSamples = 0u;
     uint rays = max(1u, vge_raysPerTexel);
     uint seed0 = Squirrel3HashU(seedBase, linear, uint(vge_frameIndex));
     bool dbg = (vge_debugCountersEnabled != 0u);
@@ -351,52 +273,30 @@ void main()
         vec3 localDir = CosineSampleHemisphere(u);
         vec3 dir = normalize(t * localDir.x + b * localDir.y + normalWS * localDir.z);
 
-        ivec3 hitCell;
-        ivec3 hitN;
-        float hitT;
-        bool startedInBounds;
-        if (TraceDdaL0(origin, dir, hitCell, hitN, hitT, startedInBounds))
+        LumonTraceSceneHit hit = lumonTraceScene(originCell, originFraction, dir, 1e20, int(vge_maxDdaSteps), TRACE_SCENE_SURFACE);
+        if (hit.outcome == LUMON_NEAR_FIELD_HIT)
         {
-            if (dbg) { atomicCounterIncrement(vge_dbgHits); }
-            ivec3 outsideCell = hitCell + hitN; // outside-face convention
-            vec3 radiance = ShadeHitFromOutsideCell(outsideCell, hitN);
-            float falloff = 1.0 / (1.0 + hitT * hitT);
-            acc += radiance * falloff;
-        }
-        else
-        {
-            // Misses contribute sky radiance (TraceScene contract: out-of-bounds => sky).
-            // Use the start cell sunlight level as a cheap proxy for "am I outdoors?"
-             vec3 sky = vec3(0.0);
-             if (!startedInBounds)
-             {
-                 // No valid start cell exists; treat as full-sun sky (scaled by the LUT).
-                 float sunScalarMax = texelFetch(vge_sunLevelScalarLut, ivec2(32, 0), 0).r;
-                 sky = vec3(1.0) * (sunScalarMax * 32.0);
-             }
-             else
-             {
-                 ivec3 startCell = ivec3(floor(origin));
-                uint p0 = SampleOccL0(startCell);
-                uint sunLevel0 = min(UnpackSunLevel(p0), 32u);
-                float sunScalar0 = texelFetch(vge_sunLevelScalarLut, ivec2(int(sunLevel0), 0), 0).r;
-                sky = vec3(1.0) * (sunScalar0 * 32.0);
-            }
-
-            acc += sky;
-
-            if (dbg)
+            vec3 radiance;
+            uint hitSurface;
+            if (lumonTraceSceneReadSurface(hit.cell, HitFaceIndexFromNormal(hit.normal), hitSurface) &&
+                ShadeHitFromOutsideCell(hit.cell + hit.normal, hit.normal, radiance))
             {
-                atomicCounterIncrement(vge_dbgMisses);
-                if (!startedInBounds)
-                {
-                    atomicCounterIncrement(vge_dbgOobStarts);
-                }
+                if (dbg) atomicCounterIncrement(vge_dbgHits);
+                acc += radiance / (1.0 + hit.distance * hit.distance);
+                validSamples++;
             }
+        }
+        else if (dbg)
+        {
+            atomicCounterIncrement(vge_dbgMisses);
+            if (hit.reason == TRACE_SCENE_OUTSIDE && hit.distance == 0.0) atomicCounterIncrement(vge_dbgOobStarts);
         }
     }
+    // A bounded or unavailable trace establishes no sky sample and adds no temporal weight.
+    if (validSamples < rays) atomicOr(vge_relightWork[workIndex].w, 0x80000000u);
+    if (validSamples == 0u) return;
+    acc /= float(validSamples);
 
-    acc /= float(rays);
 
     // Temporal accumulation: RGBA16F (RGB irradiance, A weight/sample count).
     vec4 prev = imageLoad(vge_irradianceAtlas, atlasTexel);

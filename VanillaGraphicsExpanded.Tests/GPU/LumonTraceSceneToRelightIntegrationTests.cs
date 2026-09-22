@@ -142,6 +142,7 @@ public sealed class LumonTraceSceneToRelightIntegrationTests : RenderTestBase
         debugCounter.UploadZeros(counterCount: 4);
 
         GL.UseProgram(relightProgram);
+        using var sharedSurface = new SharedSurfaceInputFixture(relightProgram, occL0, materialPalette);
         workSsbo.BindBase(bindingIndex: 0);
         patchMetaSsbo.BindBase(bindingIndex: 1);
         debugCounter.BindBase(bindingIndex: 0);

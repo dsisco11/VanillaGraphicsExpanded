@@ -10,9 +10,11 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 [StructLayout(LayoutKind.Sequential)]
 internal struct LumonScenePatchMetadataGpu
 {
-    public Vector4 OriginWS;  // xyz: world origin, w: unused
-    public Vector4 AxisUWS;   // xyz: U basis, w: unused
-    public Vector4 AxisVWS;   // xyz: V basis, w: unused
+    // Reserved1 == 1: OriginWS.xyz is chunk-local and the three W lanes contain integer
+    // chunk XYZ bits. Mesh captures (Reserved1 == 0) retain their world-space origin.
+    public Vector4 OriginWS;
+    public Vector4 AxisUWS;   // xyz: U basis
+    public Vector4 AxisVWS;   // xyz: V basis
     public Vector4 NormalWS;  // xyz: normal, w: flags (optional)
 
     // Virtual-space placement for this patch/page.
@@ -29,4 +31,3 @@ internal struct LumonScenePatchMetadataGpu
     public uint Reserved0;
     public uint Reserved1;
 }
-

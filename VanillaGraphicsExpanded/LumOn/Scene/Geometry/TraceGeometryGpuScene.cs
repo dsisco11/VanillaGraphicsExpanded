@@ -10,10 +10,12 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
 {
     private readonly PartitionRequest?[] owners;
     private TraceGeometryCoverage? coverage;
+    public TraceGeometryCoverage? Coverage => coverage;
     public int Resolution { get; }
     public long TablesRevision { get; private set; } = -1;
     public long UploadedBytes { get; private set; }
     public long Revision { get; private set; }
+    public long InvalidationRevision { get; private set; }
     public Texture3D Geometry { get; }
     public Texture3D Legacy { get; }
     public Texture3D Light { get; }
@@ -107,6 +109,13 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
     public void SetWindow(TraceGeometryCoverage next)
     {
         if (next.Resolution != Resolution) throw new ArgumentException("Window requires a new backend.");
+        // Logical domains can move while every physical slot remains resident. Histories must
+        // observe that mapping change even when no owner is evicted from the shared ring.
+        if (coverage != null && coverage != next)
+        {
+            Revision++;
+            if (coverage.Surface != next.Surface) InvalidationRevision++;
+        }
         for (int i = 0; i < owners.Length; i++)
             if (owners[i] is { } owner && !Contains(next, owner.Key.Coordinate)) { Clear(owner.Key.Coordinate); owners[i] = null; }
         coverage = next;
@@ -147,6 +156,7 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
     /// <summary>Writes readiness invalidation before recycling or rebuilding storage.</summary>
     private void Clear(in PartitionCoordinate c)
     {
+        if (owners[Slot(c)] != null) InvalidationRevision++;
         Readiness.UploadDataImmediate(new byte[1], Wrap(c.X), Wrap(c.Y), Wrap(c.Z), 1, 1, 1); UploadedBytes++; Revision++;
     }
 

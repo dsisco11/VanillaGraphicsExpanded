@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -190,8 +191,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly DirectLightingBufferManager? directLightingBufferManager;
 
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
-    private LumonSceneOccupancyClipmapUpdateRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
-    private VanillaGraphicsExpanded.LumOn.Scene.NearField.INearFieldSceneProvider? nearFieldProvider;
+    private TraceGeometryRenderer? lumonSceneOccupancyClipmapUpdateRenderer;
+    private VanillaGraphicsExpanded.LumOn.Scene.Geometry.ITraceGeometrySceneProvider? nearFieldProvider;
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManagerEventSource;
@@ -349,9 +350,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     }
 
     /// <summary>Injects the independent near-field geometry partition for debug consumers.</summary>
-    internal void SetNearFieldSceneProvider(VanillaGraphicsExpanded.LumOn.Scene.NearField.INearFieldSceneProvider? provider) => nearFieldProvider = provider;
+    internal void SetNearFieldSceneProvider(VanillaGraphicsExpanded.LumOn.Scene.Geometry.ITraceGeometrySceneProvider? provider) => nearFieldProvider = provider;
 
-    internal void SetLumonSceneOccupancyClipmapUpdateRenderer(LumonSceneOccupancyClipmapUpdateRenderer? occupancy)
+    internal void SetLumonSceneOccupancyClipmapUpdateRenderer(TraceGeometryRenderer? occupancy)
     {
         lumonSceneOccupancyClipmapUpdateRenderer = occupancy;
     }
@@ -774,7 +775,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe;
         if (usesNearFieldVisibility && shader.SetDefine(LumOnNearFieldVisibilityBindings.EnabledDefine, "1")) return;
         var nearFieldVisibilityScene = usesNearFieldVisibility
-            ? nearFieldProvider?.PrepareNearFieldScene() : null;
+            ? nearFieldProvider?.PrepareScene() : null;
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
@@ -1095,7 +1096,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             if (lumonSceneEnabled != 0 && lumonSceneOccupancyClipmapUpdateRenderer is not null)
             {
-                lumonSceneSurfaceLut = lumonSceneOccupancyClipmapUpdateRenderer.Resources?.SurfaceLut;
+                lumonSceneSurfaceLut = lumonSceneOccupancyClipmapUpdateRenderer.Resources?.Surfaces;
             }
 
             shader.LumonSceneEnabled = lumonSceneEnabled;
@@ -1123,12 +1124,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneOccupancyClipmapUpdateRenderer is not null)
                 {
                     var occRes = lumonSceneOccupancyClipmapUpdateRenderer.Resources;
-                    if (occRes is not null && occRes.OccupancyLevels.Length > 0)
+                    if (occRes is not null)
                     {
                         if (lumonSceneOccupancyClipmapUpdateRenderer.TryGetLevel0RuntimeParams(out traceOccOriginMinCell0, out traceOccRing0, out traceOccResolution))
                         {
                             traceSceneEnabled = 1;
-                            traceOccL0 = occRes.OccupancyLevels[0];
+                            traceOccL0 = occRes.Legacy;
                         }
                     }
                 }

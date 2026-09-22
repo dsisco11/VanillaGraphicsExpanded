@@ -52,6 +52,8 @@ internal sealed class TraceGeometryMaterials
                 }
             }
             faces[index * 4 + 3] = (surfaceReady ? 1u : 0u) | (hitReady ? 2u : 0u);
+            // Mirror hit readiness in unused diffuse alpha to stay within the fragment sampler budget.
+            for (int face = 0; face < 6; face++) colors[index * 48 + face * 8 + 3] = hitReady ? (byte)255 : (byte)0;
             revision++;
             return index;
         }
@@ -91,5 +93,3 @@ internal sealed class TraceGeometryMaterials
     }
     #endregion
 }
-
-

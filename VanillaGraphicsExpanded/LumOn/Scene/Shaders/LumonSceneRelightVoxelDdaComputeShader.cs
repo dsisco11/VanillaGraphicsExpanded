@@ -44,6 +44,10 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
     private GpuUniformBuffer? paramsUbo;
 
     private readonly GpuComputePipeline pipeline;
+    private readonly Geometry.TraceGeometryComputeBindings sharedGeometry = new();
+
+    /// <summary>Binds the shared geometry and independent logical domains.</summary>
+    public void BindSharedGeometry(Geometry.TraceGeometryGpuScene? scene) => sharedGeometry.Bind(scene);
 
     public int ProgramId => pipeline.ProgramId;
 
@@ -226,6 +230,7 @@ internal sealed class LumonSceneRelightVoxelDdaComputeShader : IDisposable
     {
         try
         {
+            sharedGeometry.Dispose();
             paramsUbo?.Dispose();
             paramsUbo = null;
             pipeline.Dispose();

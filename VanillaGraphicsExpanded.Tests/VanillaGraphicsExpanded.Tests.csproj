@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableSpirv Condition="'$(EnableSpirv)' == ''">true</EnableSpirv>
+    <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(MSBuildProjectDirectory)\..\VanillaGraphicsExpanded\artifacts\spirv</SpirvArtifactsDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -48,14 +50,26 @@
       <Link>assets\shaders\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\VanillaGraphicsExpanded\artifacts\spirv\vanillagraphicsexpanded\shaders\**\*.spv">
-      <Link>assets\shaders\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaderincludes\**\*">
       <Link>assets\shaderincludes\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!-- Tests exercise the compiled assets. Disabling their producer must fail rather than reuse old binaries. -->
+  <Target Name="RequireTestSpirvBuild" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(EnableSpirv)' != 'true'" Text="GPU tests require EnableSpirv=true. Build shader assets before running tests." />
+  </Target>
+
+  <!-- Enumerate after project references build, so a clean build includes newly generated binaries. -->
+  <Target Name="CopyTestSpirvAssets" AfterTargets="Build">
+    <ItemGroup>
+      <_TestSpirvFiles Include="$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\**\*.spv" />
+      <_RequiredTestSpirv Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaders\*.csh" />
+    </ItemGroup>
+    <Error Condition="!Exists('$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\%(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv')"
+           Text="Missing compiled test shader: %(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv" />
+    <Copy SourceFiles="@(_TestSpirvFiles)" DestinationFiles="@(_TestSpirvFiles->'$(TargetDir)assets\shaders\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

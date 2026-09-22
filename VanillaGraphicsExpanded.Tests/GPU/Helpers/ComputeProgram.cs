@@ -11,6 +11,7 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
+/// <summary>Loads built SPIR-V compute assets and owns their test program lifetime.</summary>
 public sealed class ComputeProgram : IDisposable
 {
     private static readonly ConcurrentDictionary<int, string> ProgramIdToShaderFile = new();
@@ -24,13 +25,7 @@ public sealed class ComputeProgram : IDisposable
 
     public int ProgramId => _programId;
 
-    private ComputeProgram(int programId, string shaderFile)
-    {
-        _programId = programId;
-        ShaderFile = shaderFile;
-        ProgramIdToShaderFile[programId] = shaderFile;
-    }
-
+    /// <summary>Retains the loaded pipeline and its uniform lookup identity.</summary>
     private ComputeProgram(GpuComputePipeline pipeline, string shaderFile)
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
@@ -39,11 +34,11 @@ public sealed class ComputeProgram : IDisposable
         ProgramIdToShaderFile[_programId] = shaderFile;
     }
 
+    /// <summary>Loads the required build output, failing instead of falling back to runtime GLSL compilation.</summary>
     public static ComputeProgram Create(
         ShaderTestHelper helper,
         string computeShaderFile,
         string? debugName = null,
-        bool preferSpirv = true,
         GpuProgramLayout? layout = null,
         Action<string>? layoutWarn = null)
     {
@@ -52,40 +47,23 @@ public sealed class ComputeProgram : IDisposable
 
         string spvPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", computeShaderFile + ".spv");
 
-        if (preferSpirv && GpuShaderModule.SupportsSpirv())
-        {
-            Assert.SkipWhen(!File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}");
+        Assert.True(GpuShaderModule.SupportsSpirv(), "GPU compute tests require SPIR-V support; GLSL fallback is not permitted.");
+        Assert.True(File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}. Build the test project before running tests.");
 
-            bool ok = GpuComputePipeline.TryLoadFromSpirv(
-                spirvBinaryPath: spvPath,
-                pipeline: out var pipeline,
-                infoLog: out string infoLog,
-                debugName: debugName);
+        bool ok = GpuComputePipeline.TryLoadFromSpirv(
+            spirvBinaryPath: spvPath,
+            pipeline: out var pipeline,
+            infoLog: out string infoLog,
+            debugName: debugName);
 
-            Assert.True(ok, $"SPIR-V compute program creation failed. InfoLog:\n{infoLog}");
-            Assert.NotNull(pipeline);
-            Assert.True(pipeline!.IsValid);
-            Assert.True(pipeline.ProgramId != 0);
+        Assert.True(ok, $"SPIR-V compute program creation failed. InfoLog:\n{infoLog}");
+        Assert.NotNull(pipeline);
+        Assert.True(pipeline!.IsValid);
+        Assert.True(pipeline.ProgramId != 0);
 
-            layout?.ApplyContract(pipeline.ProgramId, warn: layoutWarn);
+        layout?.ApplyContract(pipeline.ProgramId, warn: layoutWarn);
 
-            return new ComputeProgram(pipeline, computeShaderFile);
-        }
-
-        var cs = helper.CompileShader(computeShaderFile, ShaderType.ComputeShader);
-        Assert.True(cs.IsSuccess, cs.ErrorMessage);
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, cs.ShaderId);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int okLink);
-        string linkLog = GL.GetProgramInfoLog(program) ?? string.Empty;
-        Assert.True(okLink != 0, $"Compute program link failed:\n{linkLog}");
-
-        layout?.ApplyContract(program, warn: layoutWarn);
-
-        return new ComputeProgram(program, computeShaderFile);
+        return new ComputeProgram(pipeline, computeShaderFile);
     }
 
     public static bool TryGetExplicitUniformLocation(int programId, string uniformName, out int location)

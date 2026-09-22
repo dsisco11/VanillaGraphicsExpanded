@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 using System.Buffers;
 using System.Threading;
@@ -22,7 +23,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// Phase 22.6: feedback-driven residency (v1).
 /// Gathers page requests from the PatchIdGBuffer and allocates physical tiles over time.
 /// </summary>
-internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
+internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 {
     private const double RenderOrderValue = 0.9998;
     private const int RenderRangeValue = 1;
@@ -37,7 +38,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
     private readonly GBufferManager gBufferManager;
-    private LumonSceneOccupancyClipmapUpdateRenderer? occupancyClipmap;
+    private TraceGeometryRenderer? occupancyClipmap;
 
     private readonly LumonScenePhysicalPoolManager physicalPools = new();
     private readonly LumonSceneFieldGpuResources nearGpu = new(LumonSceneField.Near);
@@ -147,10 +148,10 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             return false;
         }
 
-        return true;
+        return EnsureGeometryHistoryCurrent();
     }
 
-    internal void SetOccupancyClipmapUpdateRenderer(LumonSceneOccupancyClipmapUpdateRenderer? occupancy)
+    internal void SetOccupancyClipmapUpdateRenderer(TraceGeometryRenderer? occupancy)
     {
         occupancyClipmap = occupancy;
     }
@@ -374,7 +375,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             tileSizeTexels = physicalPools.Near.Plan.TileSizeTexels;
             tilesPerAxis = physicalPools.Near.Plan.TilesPerAxis;
             tilesPerAtlas = physicalPools.Near.Plan.TilesPerAtlas;
-            return pageTableMip0.IsValid && materialAtlas.IsValid && irradianceAtlas.IsValid;
+            return pageTableMip0.IsValid && materialAtlas.IsValid && irradianceAtlas.IsValid && EnsureGeometryHistoryCurrent();
         }
         catch
         {
@@ -453,6 +454,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         }
 
         EnsureConfigured();
+        if (!EnsureGeometryHistoryCurrent()) return;
         UpdateSlotWindowForNextFrame();
         UpdateWorldCoordUniformState();
 
@@ -550,6 +552,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        ReleaseGeometryHistory();
         capi.Event.LeaveWorld -= OnLeaveWorld;
 
         if (chunkResidency is not null)
@@ -578,6 +581,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
     private void OnLeaveWorld()
     {
+        ReleaseGeometryHistory();
         if (chunkResidency is not null)
         {
             chunkResidency.PageReleased -= OnChunkResidencyPageReleased;
@@ -1988,22 +1992,9 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
             VectorInt3 occOriginMinCell0 = default;
             VectorInt3 occRing0 = default;
 
-            var occRes = occupancyClipmap?.Resources;
-            if (occRes is not null
-                && occRes.OccupancyLevels.Length > 0
-                && occupancyClipmap!.TryGetLevel0RuntimeParams(out occOriginMinCell0, out occRing0, out occResolution)
-                && occResolution > 0)
-            {
-                captureVoxelShader.BindOccL0(occRes.OccupancyLevels[0].TextureId);
-                captureVoxelShader.BindMaterialPalette(occRes.MaterialPalette.TextureId);
-            }
-            else
-            {
-                occResolution = 0;
-                occOriginMinCell0 = default;
-                occRing0 = default;
-            }
-
+            var occRes = occupancyClipmap?.PrepareScene();
+            captureVoxelShader.BindSharedGeometry(occRes);
+            occupancyClipmap?.TryGetLevel0RuntimeParams(out occOriginMinCell0, out occRing0, out occResolution);
             captureVoxelShader.SetAtlasLayout(
                 tileSizeTexels: (uint)tileSize,
                 tilesPerAxis: (uint)tilesPerAxis,
@@ -2033,6 +2024,7 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
         GL.MemoryBarrier(
             MemoryBarrierFlags.ShaderImageAccessBarrierBit
             | MemoryBarrierFlags.ShaderStorageBarrierBit
+            | MemoryBarrierFlags.BufferUpdateBarrierBit
             | MemoryBarrierFlags.TextureFetchBarrierBit);
     }
 
@@ -2057,6 +2049,8 @@ internal sealed class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 
             for (int i = 0; i < captureCount; i++)
             {
+                // The shader marks unavailable material/geometry with the high bit; retry the page.
+                if ((items[i].VirtualPageIndex & 0x80000000u) != 0) continue;
                 uint chunkSlot = items[i].ChunkSlot;
                 int vpage = (int)items[i].VirtualPageIndex;
                 if ((uint)vpage >= (uint)VirtualPagesPerChunk)

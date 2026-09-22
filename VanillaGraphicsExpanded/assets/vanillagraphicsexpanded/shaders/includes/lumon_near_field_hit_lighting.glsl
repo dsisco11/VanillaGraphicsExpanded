@@ -11,6 +11,7 @@ bool lumonShadeNearFieldHit(LumonNearFieldHit hit, float traceDistance, float em
         hit.normal.y > 0 ? 4 : hit.normal.y < 0 ? 5 : hit.normal.z > 0 ? 2 : 0;
     int materialTexel = int(hit.material) * 12 + face * 2;
     vec4 material = texelFetch(nearFieldMaterials, ivec2(materialTexel % 256, materialTexel / 256), 0);
+    if (material.a < 0.5) return false;
     int emissionTexel = materialTexel + 1;
     vec3 emission = texelFetch(nearFieldMaterials, ivec2(emissionTexel % 256, emissionTexel / 256), 0).rgb;
     uint outsideGeometry; vec4 outsideLight;

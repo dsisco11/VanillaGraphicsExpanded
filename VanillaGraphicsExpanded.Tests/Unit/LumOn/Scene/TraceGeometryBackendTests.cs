@@ -105,10 +105,17 @@ public sealed class TraceGeometryBackendTests
         var materials = new TraceGeometryMaterials();
         var source = new TraceGeometrySnapshotSource(f.Accessor, id => f.Blocks[id], f.Versions, materials, f.Lighting);
         using var service = new ChunkProcessingService(source, f.Versions, new() { WorkerCount = 2 });
-        int caller = Environment.CurrentManagedThreadId;
-        var result = await service.RequestAsync(default, 0, new TraceGeometryChunkProcessor(), ct: TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        // Keep the submitting thread occupied until capture finishes. An async test continuation
+        // can otherwise release its pool thread for a worker and make thread-ID comparison invalid.
+        var result = await Task.Factory.StartNew(() =>
+        {
+            int caller = Environment.CurrentManagedThreadId;
+            var captured = service.RequestAsync(default, 0, new TraceGeometryChunkProcessor(), ct: TestContext.Current.CancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken).GetAwaiter().GetResult();
+            Assert.All(f.CaptureThreads, t => Assert.NotEqual(caller, t));
+            return captured;
+        }, TestContext.Current.CancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         Assert.Equal(ChunkWorkStatus.Success, result.Status);
-        Assert.All(f.CaptureThreads, t => Assert.NotEqual(caller, t));
         Assert.Equal(2, f.ChunkLookups);
         var cell = result.Artifact!.Extract(new(0, 0, 0));
         int index = (5 * 16 + 3) * 16 + 7;

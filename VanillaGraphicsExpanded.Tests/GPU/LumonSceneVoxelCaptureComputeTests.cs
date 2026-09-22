@@ -80,6 +80,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         BindSampler3D(unit: 2, occL0.TextureId);
         BindSampler2D(unit: 3, materialPalette.TextureId);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occL0, materialPalette);
 
         Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
         UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
@@ -183,7 +184,9 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.InRange(m0.OriginWS.Y, -0.01f, 0.01f);
         Assert.InRange(m0.OriginWS.Z, -0.01f, 0.01f);
 
-        Assert.InRange(m1.OriginWS.X, 32.99f, 33.01f);
+        Assert.InRange(m1.OriginWS.X, .99f, 1.01f);
+        Assert.Equal(32, BitConverter.SingleToInt32Bits(m1.OriginWS.W));
+        Assert.Equal(1u, m1.Reserved1);
         Assert.InRange(m1.OriginWS.Y, -0.01f, 0.01f);
         Assert.InRange(m1.OriginWS.Z, -0.01f, 0.01f);
 
@@ -254,6 +257,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         BindSampler3D(unit: 2, occL0.TextureId);
         BindSampler2D(unit: 3, materialPalette.TextureId);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occL0, materialPalette);
 
         Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
         UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
@@ -351,6 +355,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         BindSampler3D(unit: 2, occL0.TextureId);
         BindSampler2D(unit: 3, materialPalette.TextureId);
+        using var sharedSurface = new SharedSurfaceInputFixture(program, occL0, materialPalette);
 
         Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
         UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 2u);

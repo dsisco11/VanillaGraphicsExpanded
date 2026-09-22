@@ -244,6 +244,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
             // Capture voxel → depth/material.
             GL.UseProgram(captureProgram);
+            using var sharedSurface = new SharedSurfaceInputFixture(captureProgram, occ, materialPalette);
             captureSsbo.BindBase(bindingIndex: 0);
             patchMetaSsbo.BindBase(bindingIndex: 1);
             slotInfoSsbo.BindBase(bindingIndex: 2);
@@ -271,6 +272,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
             // Relight → irradiance.
             GL.UseProgram(relightProgram);
+            using var sharedRelight = new SharedSurfaceInputFixture(relightProgram, occ, materialPalette);
             relightSsbo.BindBase(bindingIndex: 0);
             patchMetaSsbo.BindBase(bindingIndex: 1);
             relightDebugCounter.BindBase(bindingIndex: 1);
