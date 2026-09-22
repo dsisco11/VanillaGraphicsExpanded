@@ -108,7 +108,7 @@ internal static class Program
         string outputFile,
         string stage,
         string targetEnv,
-        bool warningsAsErrors)
+        bool warningsAsErrors, string entryPoint = "main")
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputFile) ?? ".");
 
@@ -118,7 +118,7 @@ internal static class Program
         const string keepNames = " -g";
 
         string args =
-            $"tool run dotnet-shaderc -- --shader-stage={stage} --target-env={targetEnv}{keepNames} -x=glsl{werror} -o \"{outputFile}\" \"{inputFile}\"";
+            $"tool run dotnet-shaderc -- --shader-stage={stage} --entry-point={entryPoint} --target-env={targetEnv}{keepNames} -x=glsl{werror} -o \"{outputFile}\" \"{inputFile}\"";
 
         var psi = new ProcessStartInfo
         {

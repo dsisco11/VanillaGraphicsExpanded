@@ -7,7 +7,7 @@ using System.Text;
 
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
-/// <summary>Projects immutable registry declarations into the existing builder and stage-loader API.</summary>
+/// <summary>Projects immutable registry declarations into the remaining stage-loader and inventory APIs.</summary>
 internal sealed class LegacyShaderStageContract
 {
     /// <summary>A compatibility view of one typed numeric declaration.</summary>
@@ -63,7 +63,7 @@ internal sealed class LegacyShaderStageContract
         return new ShaderStageSelection(stage, Values(overrides)).BinaryPath;
     }
 
-    /// <summary>Enumerates the stage's declared finite domains for the transitional build loop.</summary>
+    /// <summary>Enumerates the stage's declared finite domains for the remaining inventory tests.</summary>
     public IEnumerable<Dictionary<string, string?>> Variants()
     {
         IEnumerable<Dictionary<string, string?>> rows = [new(StringComparer.Ordinal)];
@@ -81,7 +81,7 @@ internal sealed class LegacyShaderStageContract
             .Select(s => new Specialization((int)s.Id, s.Option.Name, s.Option.Default.GlslType, s.Option.Default.GlslLiteral));
     }
 
-    /// <summary>Retains the existing deterministic compiler scratch-file naming.</summary>
+    /// <summary>Retains canonical hashing for the remaining compatibility tests.</summary>
     public static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
     #endregion
 }

@@ -75,7 +75,28 @@ layout(local_size_x=1) in;
 layout(std430,binding=0) buffer Data { uint value; };
 void main(){value=1;}
 '@ | Set-Content "$shaders/fixture.csh"
-Invoke-ProbeBuild 'clean' | Out-Null
+$cleanLog = Invoke-ProbeBuild 'clean'
+Assert-Probe ($cleanLog.Contains('Programs: 2 programs, 2 combinations')) 'Program configuration count changed'
+Assert-Probe ($cleanLog.Contains('Stages: 3 stages, 3 variants')) 'Distinct stage binary count changed'
+Assert-Probe (@(Get-ChildItem "$output/vanillagraphicsexpanded/shaders" -Filter '*.spv' -File -Recurse).Count -eq 3) 'Expected exactly three published stage binaries'
+Assert-Probe (@(Get-ChildItem "$output/_tmp" -Filter '*.glsl' -File -Recurse).Count -eq 3) 'Expected one compiler input per distinct stage binary'
+# Coverage must reject both unknown owned entry points and registered missing sources before compilation.
+'not valid GLSL; coverage must reject this first' | Set-Content "$shaders/unregistered.csh"
+$unknownLog = & dotnet "$tool/ShaderBuildTool.dll" --assetsRoot $assets --outputRoot $output --workingDir $root --registry $registryScope --clean --incremental 2>&1
+$unknownStatus = $LASTEXITCODE
+$unknownLog | Set-Content "$root/unregistered-source.log"
+Assert-Probe ($unknownStatus -ne 0 -and ($unknownLog -join "`n").Contains('unregistered.csh')) 'Unknown source did not fail with its identity'
+Assert-Probe (@(Get-ChildItem $output -File -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.glsl', '.spv' }).Count -eq 0) 'Unknown source validation produced compiler inputs or binaries'
+Remove-Item -LiteralPath "$shaders/unregistered.csh"
+$missingSource = [IO.File]::ReadAllText("$shaders/fixture.csh")
+Remove-Item -LiteralPath "$shaders/fixture.csh"
+$coverageLog = & dotnet "$tool/ShaderBuildTool.dll" --assetsRoot $assets --outputRoot $output --workingDir $root --registry $registryScope --clean --incremental 2>&1
+$coverageStatus = $LASTEXITCODE
+$coverageLog | Set-Content "$root/missing-registered-source.log"
+Assert-Probe ($coverageStatus -ne 0 -and ($coverageLog -join "`n").Contains('fixture.csh')) 'Missing registered source did not fail with its identity'
+Assert-Probe (@(Get-ChildItem $output -File -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.glsl', '.spv' }).Count -eq 0) 'Missing source validation produced compiler inputs or binaries'
+[IO.File]::WriteAllText("$shaders/fixture.csh", $missingSource)
+Invoke-ProbeBuild 'coverage-restored' | Out-Null
 Assert-Probe (!(Get-ChildItem "$output/vanillagraphicsexpanded" -Filter '*.spirv.json' -Recurse)) 'Unexpected runtime manifests'
 # Recompile the identical emitted source independently: publication must preserve compiler bytes.
 $variantHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes(''))).ToLowerInvariant()
@@ -146,7 +167,7 @@ foreach ($file in (Get-ChildItem $publishedRoot -Filter '*.spv' -Recurse)) {
     Assert-Probe (Test-Path -LiteralPath $packaged) 'Packaged binary missing'
     Assert-Probe ((Get-FileHash -LiteralPath $packaged).Hash -eq (Get-FileHash -LiteralPath $file.FullName).Hash) 'Packaged binary differs'
 }
-Assert-Probe (!(Get-ChildItem $package -Filter '*.spirv.json' -Recurse)) 'Runtime manifests were packaged'
+Assert-Probe (!(Get-ChildItem $package -Filter '*.json' -Recurse)) 'Runtime metadata or build receipts were packaged'
 # Absence of the complete input directory must fail, never report stale outputs as current.
 $resolvedShaders = [IO.Path]::GetFullPath($shaders)
 if (!$resolvedShaders.StartsWith($root + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe fixture path' }
@@ -157,7 +178,7 @@ $missingLog | Set-Content "$root/removed-directory.log"
 Assert-Probe ($missingStatus -ne 0) 'Missing shader directory incorrectly succeeded'
 $rows.Add([pscustomobject]@{Name='removed-directory-explicit-failure';ExitCode=$missingStatus;Log='removed-directory.log'})
 $rows | ConvertTo-Json | Set-Content "$root/receipts.json"
-'PASS: unchanged compiler binary, clean, unchanged hash+mtime, source/include/define, missing/corrupt/extra output, removed source, tool/config fingerprint, isolated package variant integrity.' | Set-Content "$root/result.txt"
+'PASS: declared program/stage counts, unique compiler inputs, unknown/missing source rejection, unchanged compiler binary, clean, unchanged hash+mtime, source/include/define, missing/corrupt/extra output, removed source, tool/config fingerprint, metadata-free isolated package variant integrity.' | Set-Content "$root/result.txt"
 Write-Output $root
 } finally {
     $env:NUGET_PACKAGES = $originalPackages

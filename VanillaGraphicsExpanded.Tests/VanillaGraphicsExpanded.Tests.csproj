@@ -23,6 +23,7 @@
     <ProjectReference Include="..\VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj" />
     <!-- Exercise the production source-layout emitter directly. -->
     <Compile Include="..\ShaderBuildTool\Spirv\ShaderSourceLayout.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
+    <Compile Include="..\ShaderBuildTool\Spirv\ShaderVariantSource.cs;..\ShaderBuildTool\Spirv\ShaderSourcePreprocessor.cs;..\ShaderBuildTool\Spirv\DerivedGlobalConstants.cs;..\ShaderBuildTool\Spirv\FileSystemSyntaxTreeResourceResolver.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- Reference VintagestoryAPI from game directory -->

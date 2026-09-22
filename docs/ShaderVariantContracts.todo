@@ -209,18 +209,39 @@ Transition boundary: `LegacyShaderStageContract` still adapts generated contract
 
 Depends on phase 3.3. Outcome: the builder compiles deduplicated stage configurations from the generated catalog and publishes unchanged compiler binaries.
 
-- [ ] Migrate `ShaderVariantBuild` to enumerate supported program configurations, project them to stages, and compile each unique stage configuration once. Report program-combination and stage-binary counts separately. Source enumeration reports unregistered owned entry points without inventing contracts.
-- [ ] Update `ShaderVariantSource` to use typed fixed/structural values and active specialization declarations. Use shared condition evaluation and stable IDs, preserving macro mappings and omitting inactive declarations/overrides.
-- [ ] Retain import expansion through `ShaderSyntaxTreePreprocessor`, then use existing VGE GLSL schema/TinyAst editing to insert configuration before uses and guarded defaults. Keep GLSL conditional evaluation in the compiler and keep `ShaderSourceLayout` responsible for declared layouts.
-- [ ] Replace the remaining derived-global-constant regex rewriting with a separate syntax-aware implementation. Inspect existing schema specializations before extending them; preserve comments, nested expressions, function-local constants, and actual source behavior.
-- [ ] Preserve default and deterministic nondefault paths, strict binary publication, and build-receipt invalidation for contracts/source/fixed defines/bindings/tool inputs. Keep the receipt out of runtime assets; do not add manifests or binary instruction parsing.
-- [ ] Add source-emission tests for typed macros, conditional specializations, guarded imported defaults, and derived-global-constant transformations. Assert our transformations rather than interpreting compiler binaries.
-- [ ] Update/run `ValidateBuildContract.ps1` with registered fixtures and the new inventory. Verify unchanged compiler bytes, incremental invalidation, deduplication, complete asset coverage, and fresh package contents without runtime metadata.
-- [ ] Run the normal shader-enabled build and compile all declared configurations. Attribute any change from the baseline inventory to deliberate declarations/deduplication rather than silently losing variants.
+- [x] Migrate `ShaderVariantBuild` to enumerate supported program configurations, project them to stages, and compile each unique stage configuration once. Report program-combination and stage-binary counts separately. Source enumeration reports unregistered owned entry points without inventing contracts.
+- [x] Update `ShaderVariantSource` to use typed fixed/structural values and active specialization declarations. Use shared condition evaluation and stable IDs, preserving macro mappings and omitting inactive declarations/overrides.
+- [x] Retain import expansion through `ShaderSyntaxTreePreprocessor`, then use existing VGE GLSL schema/TinyAst editing to insert configuration before uses and guarded defaults. Keep GLSL conditional evaluation in the compiler and keep `ShaderSourceLayout` responsible for declared layouts.
+- [x] Replace the remaining derived-global-constant regex rewriting with a separate syntax-aware implementation. Inspect existing schema specializations before extending them; preserve comments, nested expressions, function-local constants, and actual source behavior.
+- [x] Preserve default and deterministic nondefault paths, strict binary publication, and build-receipt invalidation for contracts/source/fixed defines/bindings/tool inputs. Keep the receipt out of runtime assets; do not add manifests or binary instruction parsing.
+- [x] Add source-emission tests for typed macros, conditional specializations, guarded imported defaults, and derived-global-constant transformations. Assert our transformations rather than interpreting compiler binaries.
+- [x] Update/run `ValidateBuildContract.ps1` with registered fixtures and the new inventory. Verify unchanged compiler bytes, incremental invalidation, deduplication, complete asset coverage, and fresh package contents without runtime metadata.
+- [x] Run the normal shader-enabled build and compile all declared configurations. Attribute any change from the baseline inventory to deliberate declarations/deduplication rather than silently losing variants.
 
 Gate:
 
-- [ ] Every declared stage configuration compiles once, every expected binary exists at its resolved path, and the source/build/package checks pass. Runtime can consume the new output through the verified transition path; no temporary parallel catalogs are required.
+- [x] Every declared stage configuration compiles once, every expected binary exists at its resolved path, and the source/build/package checks pass. Runtime can consume the new output through the verified transition path; no temporary parallel catalogs are required.
+
+Implementation traceability for 4 (2026-09-22; implementation, second review, delegated verification and independent completion audit passed). All rows inherit the approved proposal and migration inventory. The existing GLSL schema was inspected: `GlLayoutNode`, `GlFunctionNode`, typed keyword/operator tokens and nested `SyntaxBlock` nodes already supply the required structure; no new schema specialization is needed.
+
+| Task | Authority / requirements | Implementation and planned evidence |
+| --- | --- | --- |
+| Build enumeration | Proposal Build flow, Supported configurations; inventory counts | Consume resolver program projections and deduplicated binaries; validate source coverage; subset/sharing tests and normal 63-program/242-combination/98-stage/243-binary build |
+| Typed emission | Proposal Settings, Conditional specialization constants | Typed fixed/structural macros, declaration defaults and resolver-active IDs; scalar/condition source tests |
+| AST imports/layout | Proposal Build flow; inventory fixed build profile | Preserve shared import expansion, AST header insertion and layout ownership; imported guarded-default tests and full compile |
+| Derived globals | Proposal syntax-aware rewriting requirement | Separate syntax-node transformation with trivia and scope preservation; comments/nested/local/specialization tests |
+| Paths/publication/receipts | Proposal binary identity and build flow | Resolver paths, unchanged compiler bytes and existing receipt inputs; isolated invalidation/publication checks |
+| Source tests | Proposal Verification and diagnostics | Assert transformed text/AST without binary interpretation; delegated focused suite |
+| Build/package validator | Proposal build/package verification; inventory fixture scope | Registered fixture coverage/counts, unknown/missing source failures, fresh assets and no runtime metadata; delegated validator |
+| Full compilation/transition | Inventory baseline and gate | Normal build all declared selections plus bounded runtime loader GPU evidence; exhaustive GPU acceptance remains later |
+
+Verification receipts under `artifacts/shader-variant-contracts`: `contract-build-final.log` records full compilation of 63 programs / 242 supported combinations / 98 stages / 243 binaries. That invocation subsequently exposed a missing source resolver link in the test project; after correcting that test-only link, `contract-build-finalv2.log` records the successful normal build (zero errors, nine existing vulnerability-feed/test-analyzer warnings), reusing the valid shader receipt. `contract-build-focused.log/.trx` records 83/83 passing tests, including 12 new projection/emission/AST cases. `contract-build-gpu.log/.trx` records five passing graphics/compute/accessor/reload checks. No tests were skipped.
+
+`contract-build-output-coverage.json` verifies the complete resolved path set equals the 243 generated binaries, with exactly 243 compiler inputs and no metadata files. `contract-build-validator.log` and `artifacts/spirv-build-contract/run-20260922-152118/result.txt` record passing source-coverage failures before compilation, fixture counts, compiler-byte identity, incremental invalidation, and fresh isolated package integrity without runtime metadata or build receipts. The existing receipt still fingerprints source/include, compiled contract/fixed/layout/tool and compiler inputs. No new output cleanup rules were introduced.
+
+Earlier attempts exposed an inaccessible TinyAst internal API, a generic keyword matcher that did not match the custom GLSL qualifier kind, and trivia duplication during qualifier removal. The final implementation uses the schema's exact keyword kind and a nonempty syntax-editor range; focused regressions preserve comments exactly once, nested expressions, locals and layout-qualified specialization declarations. The incomplete earlier build was stopped and is not completion evidence. The final normal build and tests supersede those attempts. Full mod packaging, exhaustive GPU combinations and live-game behavior remain reserved for later acceptance; this work verifies the current runtime loader transition with the bounded GPU suite.
+
+Completion evidence (2026-09-22): independent audit-stage-completion review confirmed all eight tasks and the gate with high confidence and no remaining findings or required evidence gaps. Task markers were updated only after that verdict. The runtime-only compatibility adapter and exhaustive acceptance remain assigned below.
 
 ## Phase 5: Runtime settings, loading, and reload migration
 

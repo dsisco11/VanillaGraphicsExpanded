@@ -23,6 +23,8 @@ internal readonly record struct ShaderScalar
         ShaderScalarType.UInt => Bits.ToString(CultureInfo.InvariantCulture),
         _ => BitConverter.UInt32BitsToSingle(Bits).ToString("R", CultureInfo.InvariantCulture)
     };
+    /// <summary>Uses integer Boolean tokens in preprocessor conditions and typed literals for other macros.</summary>
+    public string MacroLiteral => Type == ShaderScalarType.Bool ? Canonical : GlslLiteral;
     public string GlslLiteral => Type switch
     {
         ShaderScalarType.Bool => Bits == 0 ? "false" : "true",

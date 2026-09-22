@@ -1,12 +1,11 @@
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded;
 using System.Text;
-using System.Text.RegularExpressions;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace ShaderBuildTool.Spirv;
 
-/// <summary>Expands asset imports and separates finite preprocessing variants from numeric specialization inputs.</summary>
+/// <summary>Expands imports and emits the configuration selected by the shared typed resolver.</summary>
 internal sealed class ShaderVariantSource
 {
     private readonly string root;
@@ -19,48 +18,35 @@ internal sealed class ShaderVariantSource
     }
 
     /// <summary>Resolves imports beneath the assets root; GLSL guards still govern duplicate declarations.</summary>
-    public string Expand(string relative)
-    {
-        return new ShaderSourcePreprocessor(root, domain).Expand(relative);
-    }
+    public string Expand(string relative) => new ShaderSourcePreprocessor(root, domain).Expand(relative);
     #endregion
 
     #region Configuration and emission
-    /// <summary>Emits an OpenGL SPIR-V source with stable specialization IDs and selected structural macros.</summary>
-    public string Emit(string source, LegacyShaderStageContract contract, IReadOnlyDictionary<string, string?> structural)
+    /// <summary>Inserts typed configuration before imported defaults, preserving shared availability and stable IDs.</summary>
+    public string Emit(string source, ShaderStageSelection selection)
     {
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
         var version = Query.Syntax<GlDirectiveNode>().Named("version");
         if (tree.Select(version).Count() != 1)
-            throw new InvalidOperationException("Shader must contain exactly one #version directive.");
+            throw new InvalidOperationException($"Stage '{selection.Stage.Identity}' must contain exactly one #version directive.");
         tree.CreateEditor().Replace(version, "#version 450 core\n").Commit();
-        var header = new StringBuilder("\n#extension GL_EXT_control_flow_attributes : require\n#define VGE_SPIRV_BUILD 1\n");
-        foreach (var pair in structural) header.AppendLine($"#define {pair.Key} {pair.Value}");
-        foreach (var constant in contract.Constants(structural))
+        var header = new StringBuilder("\n#extension GL_EXT_control_flow_attributes : require\n");
+        foreach (var pair in selection.Stage.FixedDefines.OrderBy(p => p.Key, StringComparer.Ordinal))
+            header.AppendLine($"#define {pair.Key} {pair.Value.MacroLiteral}");
+        foreach (var pair in selection.Structural)
+            header.AppendLine($"#define {pair.Key} {pair.Value.MacroLiteral}");
+        // The resolver supplies active IDs using the same conditions as runtime argument projection.
+        // Compiler defaults are declaration defaults, never an individual user's numeric selection.
+        var active = selection.Specializations.Select(s => s.Id).ToHashSet();
+        foreach (var constant in selection.Stage.Specializations.Where(s => active.Contains(s.Id)))
         {
             string symbol = "vgeSpecialization" + constant.Id;
-            header.AppendLine($"layout(constant_id = {constant.Id}) const {constant.Type} {symbol} = {constant.Default};");
-            header.AppendLine($"#define {constant.Name} {symbol}");
+            var value = constant.Option.Default;
+            header.AppendLine($"layout(constant_id = {constant.Id}) const {value.GlslType} {symbol} = {value.GlslLiteral};");
+            header.AppendLine($"#define {constant.Option.Name} {symbol}");
         }
         tree.CreateEditor().InsertAfter(version, header.ToString()).Commit();
-        source = tree.ToText();
-        // Derived global const expressions may call functions that GLSL does not permit in specialization initializers.
-        // Keep the specialization declarations constant; derived globals are initialized when the entry point executes.
-        int depth = 0;
-        return Regex.Replace(source, @"/\*[\s\S]*?\*/|//[^\r\n]*|\{|\}|\bconst\b", match =>
-        {
-            if (match.Value == "{") depth++;
-            else if (match.Value == "}") depth--;
-            else if (match.Value == "const" && depth == 0)
-            {
-                int line = source.LastIndexOf('\n', Math.Max(0, match.Index - 1)) + 1;
-                int end = source.IndexOf(';', match.Index);
-                if (!source[line..match.Index].Contains("constant_id") && end >= 0 && source[match.Index..end].Contains('(')) return "";
-            }
-            return match.Value;
-        });
+        return DerivedGlobalConstants.Apply(tree.ToText());
     }
     #endregion
 }
-
-
