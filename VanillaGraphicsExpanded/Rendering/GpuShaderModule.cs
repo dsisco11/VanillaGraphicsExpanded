@@ -263,6 +263,9 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             return false;
         }
 
+#if DEBUG
+        using var errors = new GlDebug.ErrorScope($"SPIR-V {debugName} ({shaderType}), entry {entryPoint}");
+#endif
         int id = 0;
         try
         {
@@ -284,6 +287,9 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
                     spirvBytes.Length);
             }
 
+#if DEBUG
+            GlDebug.ThrowIfErrors($"{debugName}: glShaderBinary shader={id}, bytes={spirvBytes.Length}");
+#endif
             int count = specializationConstants.Length;
             int[] indices = count == 0 ? Array.Empty<int>() : new int[count];
             int[] values = count == 0 ? Array.Empty<int>() : new int[count];
@@ -295,6 +301,9 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             }
 
             GL.SpecializeShader(id, entryPoint, count, indices, values);
+#if DEBUG
+            GlDebug.ThrowIfErrors($"{debugName}: glSpecializeShader shader={id}, entry={entryPoint}, constants={count}");
+#endif
 
             GL.GetShader(id, ShaderParameter.CompileStatus, out int status);
             infoLog = GL.GetShaderInfoLog(id) ?? string.Empty;

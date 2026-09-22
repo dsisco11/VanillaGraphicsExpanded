@@ -288,6 +288,9 @@ public class GpuProgramLayout
     /// </remarks>
     public void ApplyContract(int programId, Action<string>? warn = null)
     {
+#if DEBUG
+        using var errors = new GlDebug.ErrorScope($"Program {programId}: ApplyContract");
+#endif
         if (programId == 0)
         {
             return;

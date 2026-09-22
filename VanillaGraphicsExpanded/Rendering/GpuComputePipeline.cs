@@ -96,6 +96,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         }
 
         int programId = 0;
+#if DEBUG
+        using var errors = new GlDebug.ErrorScope($"{debugName}: compute linking and bindings");
+#endif
         try
         {
             programId = GL.CreateProgram();
@@ -111,6 +114,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
 
             GL.AttachShader(programId, computeShader.ShaderId);
             GL.LinkProgram(programId);
+#if DEBUG
+            GlDebug.ThrowIfErrors($"{debugName}: compute create/attach/link program={programId}");
+#endif
 
             GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int linkStatus);
             infoLog = GL.GetProgramInfoLog(programId) ?? string.Empty;

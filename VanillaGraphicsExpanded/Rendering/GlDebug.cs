@@ -277,6 +277,24 @@ internal static class GlDebug
         return new GroupScope(name);
     }
 
+    #region Error attribution
+    /// <summary>Checks errors at both boundaries so existing errors are not attributed to the enclosed operation.</summary>
+    public readonly struct ErrorScope : IDisposable
+    {
+        private readonly string context;
+
+        /// <summary>Reports pending errors before starting the named operation.</summary>
+        public ErrorScope(string context)
+        {
+            this.context = context;
+            ThrowIfErrors("Before " + context);
+        }
+
+        /// <summary>Reports errors produced by the enclosed operation at its caller's stack frame.</summary>
+        public void Dispose() => ThrowIfErrors("After " + context);
+    }
+    #endregion
+
     public readonly struct GroupScope : IDisposable
     {
         private readonly bool active;
