@@ -41,4 +41,13 @@ Second review found and corrected partial-batch retry starvation, logical-domain
 
 Gate: one shared geometry pipeline serves the retained consumers, no obsolete backend remains active, and resource/performance differences are recorded without conflating requested coverage with readiness.
 
+## 5. Extend SPIR-V to all shader stages
+
+- [ ] Inventory all shader stages and program variants used by production and tests, including vertex, fragment, geometry and compute; include tessellation stages if present. Define deterministic variant identities for compile-time defines, configuration and generated sources, and explicit inter-stage locations/resource bindings that do not depend on optional SPIR-V debug names.
+- [ ] Extend `ShaderBuildTool` and build/package targets to compile every required stage and variant. Track source, include, compiler and variant-definition dependencies; regenerate changed or missing binaries before tests run, copy newly generated outputs, and prevent stale variants from being selected or packaged.
+- [ ] Switch graphics runtime loading and GPU test helpers to built SPIR-V assets, preserving specialization, program linking, resource bindings and reload behavior. Retain compute coverage and remove silent GLSL fallback; missing variants, invalid binaries or unsupported SPIR-V must produce explicit failures.
+- [ ] Validate clean and incremental builds, source/include/define changes, missing outputs, packaged assets and all used stage combinations through a validation subagent. Run rendering and visibility regressions through SPIR-V, verify that repeated draws do not compile GLSL, and record loading/specialization/linking timings separately from drawing costs.
+
+Gate: every production and test shader stage/variant in the inventory is built and loaded through SPIR-V, normal test builds cannot silently reuse stale or missing assets, and rendering/binding regressions pass. SPIR-V conversion does not by itself establish lower driver linking cost; shader-cost optimization remains separate work.
+
 Scope boundary: this work does not implement surface-cache hit-lighting integration into probes, migrate world-probe tracing to the GPU, change world-probe scheduling, or add multibounce lighting. Those remain separate work.
