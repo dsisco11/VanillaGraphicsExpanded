@@ -29,7 +29,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         using var helper = CreateShaderHelperOrSkip();
         using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.MaterialAtlasPopulation.Mark");
         using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.MaterialAtlasPopulation.Compact");
-        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.MaterialAtlasPopulation.Capture");
+        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.MaterialAtlasPopulation.Capture");
         int captureProgram = captureComputeProgram.ProgramId;
         using var captureParamsUbo = new ObjectParamsUbo("Tests.MaterialAtlasPopulation.CaptureParams");
 

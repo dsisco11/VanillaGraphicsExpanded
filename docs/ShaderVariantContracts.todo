@@ -247,19 +247,36 @@ Completion evidence (2026-09-22): independent audit-stage-completion review conf
 
 Depends on phase 4. Outcome: graphics and compute preparation consume one typed settings snapshot and preserve installed programs on failure.
 
-- [ ] Route `GpuProgram` and compute entry points through explicit program contracts and the shared resolver. Migrate asset and direct-file fixture callers without inferring stage identities from filenames or requiring adjacent metadata.
-- [ ] Expose typed setting updates and retain `SetDefine` as a contract-backed name/alias adapter. Validate updates before GPU preparation; apply global settings through declared memberships and preserve inactive selections.
-- [ ] Resolve all stages from one immutable settings snapshot into a transient load plan: binary selections plus typed specialization arguments. Keep asset I/O in the span-based loader and GL object ownership in existing shader/program abstractions.
-- [ ] Coalesce updates through existing scheduling. Compare effective binary/specialization selections so equivalent aliases, unused values, and unchanged settings do not reload; structural/active numeric changes prepare a replacement.
-- [ ] Keep requested settings distinct from installed settings. Commit the new program and installed snapshot only after successful linking; release failed candidates and retain the working program/interface on read, specialization, or link failure.
-- [ ] Preserve active-resource lookup and normal lifecycle diagnostics without compiler-obedience validation. Keep ordinary uniform/buffer setters outside the variant API.
-- [ ] Remove transitional registry adapters, duplicated stage-selection switches, string specialization types, callback conditions, hard-coded alias handling, and obsolete setting discovery remnants after consumer verification. Keep the approved compatibility setter.
-- [ ] Add/run settings and GPU lifecycle tests for no-op changes, alias/null handling, fragment-only choices, active numeric changes, disabling/re-enabling preserved values, coherent multistage snapshots, failed replacement ownership, repeated disposal/reload, span slices, and direct-file compute loading.
+- [x] Route `GpuProgram` and compute entry points through explicit program contracts and the shared resolver. Migrate asset and direct-file fixture callers without inferring stage identities from filenames or requiring adjacent metadata.
+- [x] Expose typed setting updates and retain `SetDefine` as a contract-backed name/alias adapter. Validate updates before GPU preparation; apply global settings through declared memberships and preserve inactive selections.
+- [x] Resolve all stages from one immutable settings snapshot into a transient load plan: binary selections plus typed specialization arguments. Keep asset I/O in the span-based loader and GL object ownership in existing shader/program abstractions.
+- [x] Coalesce updates through existing scheduling. Compare effective binary/specialization selections so equivalent aliases, unused values, and unchanged settings do not reload; structural/active numeric changes prepare a replacement.
+- [x] Keep requested settings distinct from installed settings. Commit the new program and installed snapshot only after successful linking; release failed candidates and retain the working program/interface on read, specialization, or link failure.
+- [x] Preserve active-resource lookup and normal lifecycle diagnostics without compiler-obedience validation. Keep ordinary uniform/buffer setters outside the variant API.
+- [x] Remove transitional registry adapters, duplicated stage-selection switches, string specialization types, callback conditions, hard-coded alias handling, and obsolete setting discovery remnants after consumer verification. Keep the approved compatibility setter.
+- [x] Add/run settings and GPU lifecycle tests for no-op changes, alias/null handling, fragment-only choices, active numeric changes, disabling/re-enabling preserved values, coherent multistage snapshots, failed replacement ownership, repeated disposal/reload, span slices, and direct-file compute loading.
 
 Gate:
 
-- [ ] Both graphics and compute paths use the same resolver/build declarations. Effective no-op updates avoid preparation, successful reloads install coherent settings, and failed reloads preserve the prior program without leaked candidate resources.
+- [x] Both graphics and compute paths use the same resolver/build declarations. Effective no-op updates avoid preparation, successful reloads install coherent settings, and failed reloads preserve the prior program without leaked candidate resources.
 
+Implementation traceability for 5 (2026-09-22; implementation, second review, delegated verification and independent completion audit passed). All tasks inherit the approved proposal and complete migration inventory, especially the runtime flow, conditional inputs, alias/default decisions and owner/fixture catalog.
+
+| Task | Linked authority / requirements | Implementation and observed evidence |
+| --- | --- | --- |
+| Explicit loading | Proposal Programs/stages and Runtime flow; inventory direct compute | Graphics contracts and compute program settings supply stage identity/kind/entry point; migrated fixture helpers and direct-file GPU tests |
+| Typed updates/groups | Proposal Settings, aliases, memberships | Immutable requested settings; generated accessors and validated string adapter; retain existing declared family memberships; pure accessor and invalid-input tests |
+| Coherent projection | Proposal Runtime flow | Shared resolver produces transient ShaderLoadPlan before any asset read; span loader consumes typed selections; multistage mutation regression |
+| Effective scheduling | Proposal Runtime flow and conditional constants | Compare requested changes and queued final plan with installed inputs; alias/null/inactive/no-op/coalescing tests |
+| Replacement ownership | Proposal installed versus requested snapshots | Prepare candidate link/interface separately, publish then retire old generation; read/specialize/link failure and disposal GPU regressions |
+| Resource behavior | Proposal active-resource queries/lifecycle diagnostics | Preserve layout bindings and lifecycle checks; no hot setter validation/reflection changes; graphics/compute/ring-buffer tests |
+| Adapter removal | Proposal shared typed model and no parallel catalogs | Remove LegacyShaderStageContract/CreateStage/string specializations and filename stage selection; migrate consumers and search/build verification |
+| Verification | Proposal verification; inventory scenarios | Delegated normal build, focused pure/source/runtime tests, representative GPU lifecycle suite; independent audit before checkmarks |
+Completion evidence (2026-09-22): independent audit-stage-completion review confirmed all eight tasks and the gate with high confidence and no outstanding defects or required evidence gaps. Graphics and compute consume explicit typed selections; requested settings are distinct from installed settings, and successful replacement preserves the owner layout object and its buffer state. Partial read, specialization and link failures preserve the installed program/settings/interface; candidate cleanup was also reviewed in the loader and program ownership paths. Transitional stage adapters and filename pairing logic are removed.
+
+Receipts under `artifacts/shader-variant-contracts`: `runtime-build-initial.log` compiled 98 stages / 243 binaries; `runtime-build-finalv2.log` records the successful final normal build with zero errors and nine existing warnings. `runtime-focused-final.log/.trx` passed 87/87; `runtime-gpu-finalv2.log/.trx` passed 12/12, covering coherent snapshots, coalescing, inactive values, active numeric replacement, failure preservation, repeated disposal/reload, span slices and explicit direct-file compute loading. `runtime-defines-isolated.log/.trx` passed 24/24 and `runtime-nearfield-isolated.log/.trx` passed 4/4. `runtime-build-contract.log` and `artifacts/spirv-build-contract/run-20260922-154508/result.txt` record PASS for the isolated build/package validator. No tests in these passing suites were skipped.
+
+Earlier focused failures were stale direct-file error-message expectations and were corrected before the final passing run. Three obsolete atlas-binding fixture writes were removed because they are not accepted contract options. The initial combined helper run retained one pre-load GL `InvalidOperation`; both component suites passed unchanged in separate runs. The cause remains unproven and the combined run is not claimed as passing. Exhaustive registry GPU execution, full mod package acceptance and live-game behavior remain phase 6 work.
 ## Phase 6: Registry-driven coverage and developer guidance
 
 Depends on phase 5. Outcome: the complete supported system is verified through the declared registry and documented for future shader additions.

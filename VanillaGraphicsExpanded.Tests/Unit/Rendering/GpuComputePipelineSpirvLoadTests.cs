@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.IO;
 using VanillaGraphicsExpanded.Rendering;
@@ -12,6 +13,7 @@ public sealed class GpuComputePipelineSpirvLoadTests
     {
         bool ok = GpuComputePipeline.TryLoadFromSpirv(
             spirvBinaryPath: "",
+            settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,
             infoLog: out string infoLog);
 
@@ -27,12 +29,13 @@ public sealed class GpuComputePipelineSpirvLoadTests
 
         bool ok = GpuComputePipeline.TryLoadFromSpirv(
             spirvBinaryPath: path,
+            settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,
             infoLog: out string infoLog);
 
         Assert.False(ok);
         Assert.Null(pipeline);
-        Assert.Contains("not found", infoLog, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(path, infoLog, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -46,12 +49,14 @@ public sealed class GpuComputePipelineSpirvLoadTests
 
             bool ok = GpuComputePipeline.TryLoadFromSpirv(
                 spirvBinaryPath: path,
-                pipeline: out var pipeline,
+                settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
+            pipeline: out var pipeline,
                 infoLog: out string infoLog);
 
             Assert.False(ok);
             Assert.Null(pipeline);
-            Assert.Contains("empty", infoLog, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("SPIR-V", infoLog, StringComparison.Ordinal);
+            Assert.Contains("lumonscene_feedback_mark_pages.csh", infoLog, StringComparison.Ordinal);
         }
         finally
         {

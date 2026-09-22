@@ -43,7 +43,6 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = wpResolution.ToString(CultureInfo.InvariantCulture),
                 ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = wpBaseSpacing.ToString("0.0####", CultureInfo.InvariantCulture),
                 ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = WorldProbeTileSize.ToString(CultureInfo.InvariantCulture),
-                ["VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS"] = "1",
             });
 
     private static float[] CreateUniformData(int width, int height, int channels, params float[] value)

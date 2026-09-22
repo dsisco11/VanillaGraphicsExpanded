@@ -18,9 +18,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
 
     #region Binary execution
     /// <summary>Automatically includes every graphics program variant in the built shader inventory.</summary>
-    public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.Variants()
-        .Where(row => (string)row[1] == "fsh")
-        .Select(row => new object[] { Path.ChangeExtension((string)row[0], null), row[2] });
+    public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.GraphicsPrograms();
 
     /// <summary>Reuses the registered program after the engine has disposed its previous GL generation.</summary>
     [Theory]
@@ -100,6 +98,35 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         }
     }
 
+    /// <summary>Valid binaries failing specialization or interface linking leave the installed generation intact.</summary>
+    [Theory]
+    [InlineData("tests/render_infrastructure.fsh.spv", "", "controlled asset read failure")]
+    [InlineData("tests/render_infrastructure.fsh.spv", "vge_worldprobe_orbs_points.vsh.spv", "specialization")]
+    [InlineData("tests/render_infrastructure.vsh.spv", "vge_worldprobe_orbs_points.vsh.spv", "link")]
+    public void RuntimeFailurePreservesInstalledGeneration(string replaced, string substitute, string failure)
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var program = new FixtureProgram();
+        program.Initialize(assets.Api);
+        Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+        int installed = program.ProgramId;
+        var settings = program.InstalledSettings;
+        var layout = program.ResourceBindings;
+        if (substitute.Length == 0)
+            assets.BeforeRead = path => { if (path == "shaders/" + replaced) throw new IOException("controlled asset read failure"); };
+        else
+            assets.Overrides["shaders/" + replaced] = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", substitute));
+        Assert.False(program.CompileAndLink());
+        Assert.Contains(assets.Logs, message => message.Contains(failure, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(installed, program.ProgramId);
+        Assert.Same(settings, program.InstalledSettings);
+        Assert.Same(layout, program.ResourceBindings);
+        Assert.True(GL.IsProgram(installed));
+        assets.Overrides.Clear();
+        assets.BeforeRead = null;
+        Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+    }
     /// <summary>Installs engine stage objects while retaining production binary loading and reload behavior.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {

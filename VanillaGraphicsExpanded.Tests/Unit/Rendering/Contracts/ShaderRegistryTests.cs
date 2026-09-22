@@ -38,8 +38,8 @@ public sealed class ShaderRegistryTests
         Assert.Empty(Registry.FindProgram("lumon_velocity").Options);
         Assert.Empty(Registry.FindProgram("lumonscene_capture_voxel").Options);
         Assert.Throws<ArgumentException>(() => Registry.FindProgram("not_registered"));
-        Assert.Throws<ArgumentException>(() => GpuShaderContracts.CreateStage("not_registered.fsh"));
-        Assert.Throws<ArgumentException>(() => GpuShaderContracts.CreateStage("fixture.fsh"));
+        Assert.Throws<ArgumentException>(() => Registry.FindStage("not_registered.fsh"));
+        Assert.Throws<ArgumentException>(() => Registry.FindStage("fixture.fsh"));
         var isolated = BuildValidationShaderPrograms.Create();
         Assert.Equal(2, isolated.Programs.Count);
         Assert.Equal(3, isolated.Stages.Count);
@@ -66,9 +66,9 @@ public sealed class ShaderRegistryTests
         Assert.Equal(budget, contract.Assignments.Count);
     }
 
-    /// <summary>Every registered configuration retains default paths, fixed build profile and adapter agreement.</summary>
+    /// <summary>Every registered configuration retains default paths, fixed build profile and compiled selection agreement.</summary>
     [Fact]
-    public void AllSelectionsAgreeWithTransitionalConsumers()
+    public void AllSelectionsRemainDeclaredAndDeterministic()
     {
         foreach (var program in Registry.Programs.Values)
         {
@@ -86,9 +86,9 @@ public sealed class ShaderRegistryTests
                 var settings = new ShaderSettings(program, values);
                 foreach (var selected in Registry.Resolve(settings))
                 {
-                    var adapter = GpuShaderContracts.CreateStage(selected.Stage.Identity);
-                    Assert.Equal(selected.BinaryPath, adapter.BinaryPath(selected.Stage.Identity, values));
-                    Assert.Equal(selected.Specializations.Select(s => s.Id), adapter.Constants(values).Select(s => (uint)s.Id));
+                    var compiled = Assert.Single(Registry.Binaries, b => b.Stage.Identity == selected.Stage.Identity && b.Key == selected.Key);
+                    Assert.Equal(compiled.BinaryPath, selected.BinaryPath);
+                    Assert.Equal(compiled.Specializations.Select(s => s.Id), selected.Specializations.Select(s => s.Id));
                 }
             }
         }

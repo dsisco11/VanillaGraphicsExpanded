@@ -10,6 +10,8 @@ internal sealed class BinaryShaderApiFixture : IDisposable
 {
     public Dictionary<string, byte[]> Overrides { get; } = new(StringComparer.Ordinal);
     public List<string> Logs { get; } = [];
+    public List<string> Reads { get; } = [];
+    public Action<string>? BeforeRead { get; set; }
     public List<Action> ScheduledTasks { get; } = [];
     public ICoreClientAPI Api { get; }
 
@@ -21,6 +23,8 @@ internal sealed class BinaryShaderApiFixture : IDisposable
         {
             if (method.Name != "TryGet") throw new NotSupportedException(method.Name);
             var location = (AssetLocation)args![0]!;
+            Reads.Add(location.Path);
+            BeforeRead?.Invoke(location.Path);
             string path = Path.Combine(AppContext.BaseDirectory, "assets", location.Path);
             if (!Overrides.TryGetValue(location.Path, out var data))
             {

@@ -77,7 +77,7 @@ public sealed class ShaderVariantResolverTests
         var one = new ShaderVariantResolver([first]).Resolve(new ShaderSettings(first, new Dictionary<string, string?> { ["Z"] = "0", ["A"] = "2.0" }))[1];
         var two = new ShaderVariantResolver([second]).Resolve(new ShaderSettings(second, new Dictionary<string, string?> { ["A"] = "2", ["Z"] = "false" }))[1];
         Assert.Equal("A=2;Z=0", one.Key); Assert.Equal(one.BinaryPath, two.BinaryPath);
-        Assert.Equal("variants/fixture.fsh/" + LegacyShaderStageContract.Hash("A=2;Z=0") + ".spv", one.BinaryPath);
+        Assert.Equal("variants/fixture.fsh/" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("A=2;Z=0"))).ToLowerInvariant() + ".spv", one.BinaryPath);
     }
     #endregion
 

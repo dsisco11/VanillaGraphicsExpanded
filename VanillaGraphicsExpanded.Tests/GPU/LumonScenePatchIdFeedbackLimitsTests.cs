@@ -27,8 +27,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.PatchIdFeedbackLimits.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits.Compact");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages", debugName: "Tests.PatchIdFeedbackLimits.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits.Compact");
         int markProgram = markComputeProgram.ProgramId;
         int compactProgram = compactComputeProgram.ProgramId;
 
@@ -137,8 +137,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.PatchIdFeedbackLimits2.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits2.Compact");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages", debugName: "Tests.PatchIdFeedbackLimits2.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits2.Compact");
         int markProgram = markComputeProgram.ProgramId;
         int compactProgram = compactComputeProgram.ProgramId;
 
@@ -226,8 +226,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh", debugName: "Tests.PatchIdFeedbackLimits3.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits3.Compact");
+        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages", debugName: "Tests.PatchIdFeedbackLimits3.Mark");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits3.Compact");
         int markProgram = markComputeProgram.ProgramId;
         int compactProgram = compactComputeProgram.ProgramId;
 
@@ -320,7 +320,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh", debugName: "Tests.PatchIdFeedbackLimits4.Compact");
+        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits4.Compact");
         int compactProgram = compactComputeProgram.ProgramId;
 
         const int chunkSlotCount = 1;

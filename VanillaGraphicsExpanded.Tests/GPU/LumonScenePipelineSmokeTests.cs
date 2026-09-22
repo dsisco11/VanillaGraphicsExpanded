@@ -30,8 +30,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         using var helper = CreateShaderHelperOrSkip();
         using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.LumonScenePipelineSmoke.Mark");
         using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.LumonScenePipelineSmoke.Compact");
-        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonScenePipelineSmoke.Capture");
-        using var relightComputeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.LumonScenePipelineSmoke.Relight");
+        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonScenePipelineSmoke.Capture");
+        using var relightComputeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.LumonScenePipelineSmoke.Relight");
         int captureProgram = captureComputeProgram.ProgramId;
         int relightProgram = relightComputeProgram.ProgramId;
         using var captureParamsUbo = new ObjectParamsUbo("Tests.LumonScenePipelineSmoke.CaptureParams");

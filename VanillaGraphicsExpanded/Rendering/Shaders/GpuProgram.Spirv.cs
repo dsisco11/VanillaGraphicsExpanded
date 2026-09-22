@@ -5,16 +5,15 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
-/// <summary>Owns binary graphics linking while retaining the engine's program registration and stage disposal contract.</summary>
+/// <summary>Prepares binary graphics generations and transfers ownership only after successful linking and interface preparation.</summary>
 public abstract partial class GpuProgram
 {
-    // Engine disposal is sealed and leaves handle fields intact. Its private flag is the
-    // authoritative lifetime marker; GL.IsProgram cannot distinguish recycled object IDs.
     private static readonly HarmonyLib.AccessTools.FieldRef<Vintagestory.Client.NoObf.ShaderProgramBase, bool> EngineDisposed =
         HarmonyLib.AccessTools.FieldRefAccess<Vintagestory.Client.NoObf.ShaderProgramBase, bool>("disposed");
 
@@ -22,16 +21,16 @@ public abstract partial class GpuProgram
     /// <summary>Routes engine-triggered reloads through the same strict binary loader as explicit reloads.</summary>
     public override bool Compile() => CompileAndLink();
 
-    /// <summary>Loads all stages before replacing a working program; failure releases only newly allocated handles.</summary>
-    private bool CompileSpirv(IReadOnlyDictionary<string, string?> configuration)
+    /// <summary>Prepares every stage from one plan, preserving the installed program and interface on failure.</summary>
+    private bool CompileSpirv(ShaderLoadPlan plan)
     {
         if (capi == null) throw new InvalidOperationException("Shader API is unavailable.");
 #if DEBUG
-        using var errors = new GlDebug.ErrorScope($"{ShaderName}: SPIR-V graphics loading/linking" );
+        using var errors = new GlDebug.ErrorScope($"{ShaderName}: SPIR-V graphics loading/linking");
 #endif
         if (Disposed)
         {
-            // Forget the disposed generation before allocating anything that can reuse its IDs.
+            // The engine leaves deleted IDs behind. Forget them before new allocations can reuse them.
             ProgramId = 0;
             if (VertexShader != null) VertexShader.ShaderId = 0;
             if (FragmentShader != null) FragmentShader.ShaderId = 0;
@@ -41,60 +40,77 @@ public abstract partial class GpuProgram
             uniformLocations.Clear();
             uniformLocationCache.Clear();
             uniformLocationCacheProgramId = 0;
+            lock (settingsLock) installedPlan = null;
         }
         string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
         ReadOnlySpan<byte> Read(string path) => capi.Assets.TryGet(AssetLocation.Create("shaders/" + path, domain), loadAsset: true)?.Data
             ?? throw new InvalidOperationException("Missing built shader asset: " + domain + ":shaders/" + path);
-        var stages = new List<(int Shader, VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingContract Contract)>();
+        var stages = new List<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract)>();
         int program = 0;
         try
         {
-            stages.Add(SpirvStageLoader.Load(VertexStageShaderName + ".vsh", ShaderType.VertexShader, configuration, Read));
-            stages.Add(SpirvStageLoader.Load(FragmentStageShaderName + ".fsh", ShaderType.FragmentShader, configuration, Read));
-            if (geometryStage.EmittedSource != null)
-                stages.Add(SpirvStageLoader.Load(GeometryStageShaderName + ".gsh", ShaderType.GeometryShader, configuration, Read));
+            foreach (var selection in plan.Stages)
+            {
+                var loaded = SpirvStageLoader.Load(selection, Read);
+                stages.Add((selection.Stage.Kind, loaded.Shader, loaded.Contract));
+            }
             program = GL.CreateProgram();
             foreach (var stage in stages) GL.AttachShader(program, stage.Shader);
-            long start = Stopwatch.GetTimestamp(); GL.LinkProgram(program);
+            long start = Stopwatch.GetTimestamp();
+            GL.LinkProgram(program);
             LastSpirvLinkMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             if (linked == 0) throw new InvalidOperationException("SPIR-V link failed: " + GL.GetProgramInfoLog(program));
 #if DEBUG
-            GlDebug.ThrowIfErrors($"{ShaderName}: program {program} create/attach/link/status" );
+            GlDebug.ThrowIfErrors($"{ShaderName}: program {program} create/attach/link/status");
 #endif
-            var binaryInterface = new GpuProgramInterface(program, stages.Select(stage => stage.Contract));
+            var layout = ProgramLayout.CreateCandidate();
+            layout.BinaryInterface = new GpuProgramInterface(program, stages.Select(stage => stage.Contract));
+            layout.ApplyContract(program, LayoutWarn);
 #if DEBUG
-            GlDebug.ThrowIfErrors($"{ShaderName}: program {program} numeric interface reflection" );
+            layout.ValidateContract(program, LayoutWarn);
+            GlDebug.ThrowIfErrors($"{ShaderName}: program {program} active interface and bindings");
 #endif
-            // The engine owns stage IDs after this transfer; discard the old generation only after a successful link.
-            if (ProgramId != 0) GL.DeleteProgram(ProgramId);
-#if DEBUG
-            GlDebug.ThrowIfErrors($"{ShaderName}: glDeleteProgram previous={ProgramId}" );
-#endif
-            if (VertexShader?.ShaderId is > 0) GL.DeleteShader(VertexShader.ShaderId);
-#if DEBUG
-            GlDebug.ThrowIfErrors($"{ShaderName}: glDeleteShader previous vertex={VertexShader?.ShaderId}" );
-#endif
-            if (FragmentShader?.ShaderId is > 0) GL.DeleteShader(FragmentShader.ShaderId);
-#if DEBUG
-            GlDebug.ThrowIfErrors($"{ShaderName}: glDeleteShader previous fragment={FragmentShader?.ShaderId}" );
-#endif
-            if (GeometryShader?.ShaderId is > 0) GL.DeleteShader(GeometryShader.ShaderId);
-#if DEBUG
-            GlDebug.ThrowIfErrors($"{ShaderName}: glDeleteShader previous geometry={GeometryShader?.ShaderId}" );
-#endif
+            var locations = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var stage in stages)
+            {
+                string? source = stage.Kind switch
+                {
+                    ShaderStageKind.Vertex => vertexStage.EmittedSource,
+                    ShaderStageKind.Fragment => fragmentStage.EmittedSource,
+                    ShaderStageKind.Geometry => geometryStage.EmittedSource,
+                    _ => null
+                };
+                if (source != null)
+                    foreach (Match match in Regex.Matches(source, @"\buniform\s+\w+\s+(\w+)")) locations[match.Groups[1].Value] = -1;
+            }
+            foreach (var pair in layout.BinaryInterface.Uniforms) locations[pair.Key] = pair.Value;
+
+            // Stages unsupported by the engine's slots can be deleted after linking; the executable retains them.
+            foreach (var stage in stages.Where(s => s.Kind is ShaderStageKind.TessellationControl or ShaderStageKind.TessellationEvaluation))
+            {
+                GL.DetachShader(program, stage.Shader);
+                GL.DeleteShader(stage.Shader);
+            }
+            stages.RemoveAll(s => s.Kind is ShaderStageKind.TessellationControl or ShaderStageKind.TessellationEvaluation);
+            int oldProgram = ProgramId;
+            int[] oldStages = [VertexShader?.ShaderId ?? 0, FragmentShader?.ShaderId ?? 0, GeometryShader?.ShaderId ?? 0];
             ProgramId = program; program = 0;
-            ProgramLayout.BinaryInterface = binaryInterface;
-            VertexShader!.ShaderId = stages[0].Shader; FragmentShader!.ShaderId = stages[1].Shader;
-            if (stages.Count == 3) GeometryShader!.ShaderId = stages[2].Shader;
+            ProgramLayout.InstallCandidate(layout);
+            VertexShader!.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Vertex).Shader;
+            FragmentShader!.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Fragment).Shader;
+            var geometry = stages.FirstOrDefault(s => s.Kind == ShaderStageKind.Geometry);
+            if (geometry.Shader != 0) GeometryShader!.ShaderId = geometry.Shader;
             else GeometryShader = null;
             stages.Clear();
             uniformLocations.Clear();
-            foreach (string source in new[] { vertexStage.EmittedSource, fragmentStage.EmittedSource, geometryStage.EmittedSource }.OfType<string>())
-                foreach (Match match in Regex.Matches(source, @"\buniform\s+\w+\s+(\w+)")) uniformLocations[match.Groups[1].Value] = -1;
-            foreach (var pair in binaryInterface.Uniforms) uniformLocations[pair.Key] = pair.Value;
-            // Binary linking bypasses the engine platform linker, so publish its lifetime state too.
+            foreach (var pair in locations) uniformLocations[pair.Key] = pair.Value;
+            uniformLocationCache.Clear();
+            uniformLocationCacheProgramId = 0;
             EngineDisposed(this) = false;
+            lock (settingsLock) installedPlan = plan;
+            if (oldProgram != 0) GL.DeleteProgram(oldProgram);
+            foreach (int shader in oldStages) if (shader != 0) GL.DeleteShader(shader);
             return true;
         }
         finally
@@ -108,5 +124,3 @@ public abstract partial class GpuProgram
     internal double LastSpirvLinkMilliseconds { get; private set; }
     #endregion
 }
-
-

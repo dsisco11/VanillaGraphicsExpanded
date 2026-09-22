@@ -28,7 +28,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.Hit");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.Hit");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
@@ -140,7 +140,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.LightId");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.LightId");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
@@ -242,7 +242,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.Miss");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.Miss");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
@@ -338,7 +338,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.TStep");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.TStep");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
@@ -470,7 +470,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.SelfHit");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.SelfHit");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
@@ -583,7 +583,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", debugName: "Tests.RelightVoxelDda.SelfHit2");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.SelfHit2");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 8;

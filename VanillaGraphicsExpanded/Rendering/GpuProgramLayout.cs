@@ -26,6 +26,28 @@ public class GpuProgramLayout
         compiledContract = true;
     }
 
+    /// <summary>Copies declarations into a candidate layout without sharing installed interface caches.</summary>
+    internal GpuProgramLayout CreateCandidate()
+    {
+        var candidate = new GpuProgramLayout { compiledContract = compiledContract };
+        foreach (var pair in uniformBlockContract) candidate.uniformBlockContract.Add(pair.Key, pair.Value);
+        foreach (var pair in shaderStorageBlockContract) candidate.shaderStorageBlockContract.Add(pair.Key, pair.Value);
+        foreach (var pair in samplerContract) candidate.samplerContract.Add(pair.Key, pair.Value);
+        foreach (var pair in imageContract) candidate.imageContract.Add(pair.Key, pair.Value);
+        return candidate;
+    }
+    /// <summary>Installs prepared interface caches while retaining the owner's layout type, UBO state and external references.</summary>
+    internal void InstallCandidate(GpuProgramLayout candidate)
+    {
+        BinaryInterface = candidate.BinaryInterface;
+        SetActiveSnapshot(candidate.uniformBlockBindings, candidate.shaderStorageBlockBindings,
+            candidate.samplerBindings, candidate.imageBindings);
+        // Lazy lookup caches must never carry locations or block indices from the retired generation.
+        uniformLocationCache.Clear(); uniformLocationCacheProgramId = 0;
+        uniformBlockIndexCache.Clear(); uniformBlockIndexCacheProgramId = 0;
+        shaderStorageBlockIndexCache.Clear(); shaderStorageBlockIndexCacheProgramId = 0;
+        warnedOnce.Clear();
+    }
     /// <summary>Resolves standalone locations from the owned binary interface or an external GLSL program.</summary>
     internal int GetUniformLocation(int programId, string name) => BinaryInterface?.GetUniformLocation(name) ?? GL.GetUniformLocation(programId, name);
 

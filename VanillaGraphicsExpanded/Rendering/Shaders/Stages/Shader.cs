@@ -61,31 +61,5 @@ internal sealed class Shader
         return SourceCode;
     }
 
-    /// <summary>Refreshes an optional stage and clears its source when the asset has been removed.</summary>
-    public bool TryLoadAndApplyOptional(
-        ICoreClientAPI api,
-        string shaderName,
-        IReadOnlyDictionary<string, string?> defines,
-        ILogger? log = null,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(api);
-        ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
-
-        string domain = SourceCode?.AssetDomain ?? VanillaGraphicsExpanded.PBR.ShaderImportsSystem.DefaultDomain;
-        string stageSourceName = $"{shaderName}.{stageExtension}";
-        string assetPath = $"shaders/{stageSourceName}";
-
-        IAsset? asset = api.Assets.TryGet(AssetLocation.Create(assetPath, domain), loadAsset: true);
-        if (asset is null)
-        {
-            SourceCode = null;
-            return false;
-        }
-
-        LoadAndApply(api, shaderName, defines, log, ct);
-        return true;
-    }
-
     #endregion
 }

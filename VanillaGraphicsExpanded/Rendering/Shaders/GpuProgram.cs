@@ -22,7 +22,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// Base class for all VGE-owned shader programs.
 ///
 /// Responsibilities:
-/// - Own a runtime define-map; <see cref="SetDefine"/> triggers a recompile only on changes
+/// - Own typed requested/installed settings; <see cref="SetDefine"/> adapts declared names and aliases
 /// - Load built SPIR-V variants; retain source processing for diagnostics
 /// - Apply a GL debug label to the linked program
 ///
@@ -37,8 +37,7 @@ public abstract partial class GpuProgram : ShaderProgram
     private readonly StageShader fragmentStage;
     private readonly StageShader geometryStage;
 
-    private readonly Dictionary<string, string?> defines = new(StringComparer.Ordinal);
-    private readonly object defineLock = new();
+
 
     private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
     private int uniformLocationCacheProgramId;
@@ -71,33 +70,15 @@ public abstract partial class GpuProgram : ShaderProgram
     /// <summary>
     /// Returns <c>true</c> when this program has a non-zero <see cref="ShaderProgram.ProgramId"/>.
     /// </summary>
-    public bool IsLinked => ProgramId != 0;
+    public bool IsLinked => ProgramId != 0 && !Disposed;
 
     /// <summary>
-    /// Shader name used for GL debug labels and as the default stage source base-name.
-    /// Stage source base-names can be overridden per-stage.
+    /// Program identity used for GL debug labels and explicit catalog lookup by generic owners.
     /// </summary>
     protected string ShaderName => PassName;
 
     /// <summary>Supplies the shader declaration; generic fixture owners may resolve an explicit catalog identity.</summary>
     internal virtual Contracts.GpuShaderContract ProgramContract => Contracts.GpuShaderContracts.Registry.FindProgram(ShaderName);
-
-    /// <summary>Base name of the vertex stage in this shader class's contract.</summary>
-    protected virtual string VertexStageShaderName => System.IO.Path.ChangeExtension(
-        ProgramContract.Stages.First(s => s.Kind == Contracts.ShaderStageKind.Vertex).Source, null);
-
-    /// <summary>
-    /// Base name for the fragment stage source (without extension).
-    /// Resolved from the explicitly registered program stage.
-    /// </summary>
-    protected virtual string FragmentStageShaderName => System.IO.Path.ChangeExtension(
-        ProgramContract.Stages.First(s => s.Kind == Contracts.ShaderStageKind.Fragment).Source, null);
-
-    /// <summary>
-    /// Base name for the optional geometry stage source (without extension).
-    /// Defaults to <see cref="ShaderName"/>.
-    /// </summary>
-    protected virtual string GeometryStageShaderName => ShaderName;
 
     /// <summary>
     /// Optional hook for derived programs that need to refresh caches after (re)compile.
@@ -295,53 +276,6 @@ public abstract partial class GpuProgram : ShaderProgram
         // if these slots are null.
         VertexShader ??= (global::Vintagestory.Client.NoObf.Shader)api.Shader.NewShader(EnumShaderType.VertexShader);
         FragmentShader ??= (global::Vintagestory.Client.NoObf.Shader)api.Shader.NewShader(EnumShaderType.FragmentShader);
-    }
-
-    /// <summary>
-    /// Updates a define value and schedules a recompile if it changed.
-    /// A null value means <c>#define NAME</c> (no explicit value).
-    /// </summary>
-    public bool SetDefine(string name, string? value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-
-        bool changed;
-        lock (defineLock)
-        {
-            changed = !defines.TryGetValue(name, out var existing) || existing != value;
-            if (changed)
-            {
-                defines[name] = value;
-            }
-        }
-
-        if (changed)
-        {
-            RequestRecompile();
-        }
-
-        return changed;
-    }
-
-    /// <summary>
-    /// Removes a define and schedules a recompile if it existed.
-    /// </summary>
-    public bool RemoveDefine(string name)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-
-        bool changed;
-        lock (defineLock)
-        {
-            changed = defines.Remove(name);
-        }
-
-        if (changed)
-        {
-            RequestRecompile();
-        }
-
-        return changed;
     }
 
     #endregion
@@ -548,60 +482,33 @@ public abstract partial class GpuProgram : ShaderProgram
 
         try
         {
-            // Preflight: avoid Vintage Story engine NREs by ensuring stage assets exist before we even attempt compilation.
-            // This also provides a much clearer error message than the engine's generic "shader missing" logs.
-            string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
+            Contracts.ShaderLoadPlan plan;
+            lock (settingsLock) plan = RequestedPlan;
+            if (plan.Stages.Any(s => s.Stage.Kind == Contracts.ShaderStageKind.Compute))
+                throw new InvalidOperationException("A graphics program cannot load a compute contract.");
 
-            string vshPath = $"shaders/{VertexStageShaderName}.vsh";
-            string fshPath = $"shaders/{FragmentStageShaderName}.fsh";
-
-            bool hasVsh = capi.Assets.TryGet(AssetLocation.Create(vshPath, domain), loadAsset: true) is not null;
-            bool hasFsh = capi.Assets.TryGet(AssetLocation.Create(fshPath, domain), loadAsset: true) is not null;
-
-            if (!hasVsh || !hasFsh)
+            // Diagnostics consume the same captured settings. Binary selection never rereads mutable state.
+            var diagnostics = plan.Settings.Values.ToDictionary(p => p.Key, p => (string?)p.Value.Canonical);
+            foreach (var selection in plan.Stages)
             {
-                if (!hasVsh)
+                var stage = selection.Stage;
+                StageShader? source = stage.Kind switch
                 {
-                    log?.Error($"[VGE][{ShaderName}] Missing vertex shader asset: {domain}:{vshPath}");
-                }
-                if (!hasFsh)
-                {
-                    log?.Error($"[VGE][{ShaderName}] Missing fragment shader asset: {domain}:{fshPath}");
-                }
-
-                log?.Error($"[VGE][{ShaderName}] Shader assets were not found. The engine may crash if compilation proceeds; skipping Compile().");
-                return false;
+                    Contracts.ShaderStageKind.Vertex => vertexStage,
+                    Contracts.ShaderStageKind.Fragment => fragmentStage,
+                    Contracts.ShaderStageKind.Geometry => geometryStage,
+                    _ => null
+                };
+                source?.LoadAndApply(capi, System.IO.Path.ChangeExtension(stage.Source, null), diagnostics, log);
             }
-
-            IReadOnlyDictionary<string, string?> defineSnapshot;
-            lock (defineLock)
-            {
-                defineSnapshot = new Dictionary<string, string?>(defines, StringComparer.Ordinal);
-            }
-
-            vertexStage.LoadAndApply(capi, VertexStageShaderName, defineSnapshot, log);
-            fragmentStage.LoadAndApply(capi, FragmentStageShaderName, defineSnapshot, log);
-
-            // Geometry stage is optional.
-            geometryStage.TryLoadAndApplyOptional(capi, GeometryStageShaderName, defineSnapshot, log);
-
-            bool ok = CompileSpirv(defineSnapshot);
+            bool ok = CompileSpirv(plan);
             if (ok)
             {
-                ProgramLayout.ApplyContract(ProgramId, msg => log?.Warning($"[VGE][{ShaderName}] {msg}"));
-#if DEBUG
-                ProgramLayout.ValidateContract(ProgramId, msg => log?.Warning($"[VGE][{ShaderName}] {msg}"));
-#endif
-                GlDebug.TryLabel(OpenTK.Graphics.OpenGL.ObjectLabelIdentifier.Program, ProgramId, ShaderName);
-                OnAfterCompile();
+                GlDebug.TryLabel(ObjectLabelIdentifier.Program, ProgramId, ShaderName);
+                // Owner notifications run after installation and cannot turn a committed link into a failed candidate.
+                try { OnAfterCompile(); }
+                catch (Exception ex) { log?.Error($"[VGE][{ShaderName}] Post-link notification failed: {ex}"); }
             }
-            else
-            {
-                ProgramLayout.RebuildCache(programId: 0);
-                log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
-                // Binary loader reports specialization/link errors directly; never compile a GLSL diagnostic fallback.
-            }
-
             return ok;
         }
         catch (Exception ex)
@@ -616,6 +523,7 @@ public abstract partial class GpuProgram : ShaderProgram
 
     #region Recompile Scheduling
 
+    /// <summary>Coalesces requests on the render thread and skips unchanged or disposed generations.</summary>
     protected virtual void RequestRecompile()
     {
         var api = capi;
@@ -624,7 +532,7 @@ public abstract partial class GpuProgram : ShaderProgram
             return;
         }
 
-        // Collapse multiple SetDefine calls into a single recompile.
+        // Collapse setting writes into one callback; compare the final effective plan before preparing GPU objects.
         if (Interlocked.Exchange(ref recompileQueued, 1) != 0)
         {
             return;
@@ -637,7 +545,10 @@ public abstract partial class GpuProgram : ShaderProgram
 
                 try
                 {
-                    CompileAndLink();
+                    if (Disposed) return;
+                    bool unchanged;
+                    lock (settingsLock) unchanged = !Disposed && ProgramId != 0 && installedPlan != null && RequestedPlan.SameInputs(installedPlan);
+                    if (!unchanged) CompileAndLink();
                 }
                 catch (Exception ex)
                 {

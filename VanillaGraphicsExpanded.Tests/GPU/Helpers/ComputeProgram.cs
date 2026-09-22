@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
@@ -37,21 +38,25 @@ public sealed class ComputeProgram : IDisposable
     /// <summary>Loads the required build output, failing instead of falling back to runtime GLSL compilation.</summary>
     public static ComputeProgram Create(
         ShaderTestHelper helper,
-        string computeShaderFile,
+        string programIdentity,
         string? debugName = null,
         GpuProgramLayout? layout = null,
         Action<string>? layoutWarn = null)
     {
         ArgumentNullException.ThrowIfNull(helper);
-        ArgumentException.ThrowIfNullOrWhiteSpace(computeShaderFile);
+        ArgumentException.ThrowIfNullOrWhiteSpace(programIdentity);
+        var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram(programIdentity));
+        var selected = new ShaderLoadPlan(settings).Stages.Single();
+        string computeShaderFile = selected.Stage.Source;
 
-        string spvPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", computeShaderFile + ".spv");
+        string spvPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", selected.BinaryPath);
 
         Assert.True(GpuShaderModule.SupportsSpirv(), "GPU compute tests require SPIR-V support; GLSL fallback is not permitted.");
         Assert.True(File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}. Build the test project before running tests.");
 
         bool ok = GpuComputePipeline.TryLoadFromSpirv(
             spirvBinaryPath: spvPath,
+            settings: settings,
             pipeline: out var pipeline,
             infoLog: out string infoLog,
             debugName: debugName, layout: layout, warn: layoutWarn);

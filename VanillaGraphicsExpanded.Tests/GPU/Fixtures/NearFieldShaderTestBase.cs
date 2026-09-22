@@ -29,7 +29,6 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
                 ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = cacheResolution.ToString(),
                 ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = cacheSpacing.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
                 ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = "16",
-                ["VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS"] = "1",
                 ["VGE_LUMON_HZB_COARSE_MIP"] = "0"
             });
         var textures = new List<DynamicTexture2D>();

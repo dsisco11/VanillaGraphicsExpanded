@@ -27,7 +27,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard.csh", debugName: "Tests.MeshCardCapture.PlanarQuad");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard", debugName: "Tests.MeshCardCapture.PlanarQuad");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
@@ -127,7 +127,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard.csh", debugName: "Tests.MeshCardCapture.Slanted");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard", debugName: "Tests.MeshCardCapture.Slanted");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
@@ -206,7 +206,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard.csh", debugName: "Tests.MeshCardCapture.Coverage");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard", debugName: "Tests.MeshCardCapture.Coverage");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 16;

@@ -16,9 +16,6 @@ internal static partial class GpuShaderContracts
     #endregion
 
     #region Compatibility access
-    /// <summary>Provides a temporary registry-derived stage adapter to unmigrated consumers.</summary>
-    public static LegacyShaderStageContract CreateStage(string identity) => new(Registry.FindStage(identity));
-
     /// <summary>Retains resource-layout access for existing owners, including two named layout aliases.</summary>
     public static GpuBindingContract Create(string identity)
     {

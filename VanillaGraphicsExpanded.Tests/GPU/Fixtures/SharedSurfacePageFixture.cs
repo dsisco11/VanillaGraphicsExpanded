@@ -25,8 +25,8 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Creates a +X page with an exact integer chunk origin, including coordinates beyond float precision.</summary>
     public SharedSurfacePageFixture(int chunkX = 0)
     {
-        capture = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", layout: new LumonSceneComputeProgramLayouts.CaptureVoxel());
-        relight = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda.csh", layout: new LumonSceneComputeProgramLayouts.RelightVoxelDda());
+        capture = ComputeProgram.Create(helper, "lumonscene_capture_voxel", layout: new LumonSceneComputeProgramLayouts.CaptureVoxel());
+        relight = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", layout: new LumonSceneComputeProgramLayouts.RelightVoxelDda());
         captureWork = Buffer<LumonSceneCaptureWorkGpu>([new(1, 0, 1, 0)]);
         relightWork = Buffer<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)]);
         metadata = Buffer<LumonScenePatchMetadataGpu>(new LumonScenePatchMetadataGpu[2]);
@@ -70,7 +70,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Clears temporal history using the production GL 4.3 reset shader.</summary>
     public void ResetLighting()
     {
-        using var reset = ComputeProgram.Create(helper, "lumonscene_reset_irradiance.csh");
+        using var reset = ComputeProgram.Create(helper, "lumonscene_reset_irradiance");
         GlStateCache.Current.UseProgram(reset.ProgramId);
         irradiance.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
         Dispatch();

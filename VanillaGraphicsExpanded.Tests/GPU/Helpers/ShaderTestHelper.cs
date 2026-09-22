@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using System;
 using System.Collections.Generic;
@@ -166,8 +167,12 @@ public sealed class ShaderTestHelper : IDisposable
         try
         {
             string binaryRoot = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var loaded = SpirvStageLoader.Load(filename.Replace('\\', '/'), type, defines,
-                path => File.ReadAllBytes(Path.Combine(binaryRoot, path)));
+            string identity = filename.Replace('\\', '/');
+            var stage = GpuShaderContracts.Registry.FindStage(identity);
+            if (SpirvStageLoader.ToShaderType(stage.Kind) != type) throw new ArgumentException("Stage kind mismatch: " + identity);
+            var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
+            var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
+            var loaded = SpirvStageLoader.Load(selected, path => File.ReadAllBytes(Path.Combine(binaryRoot, path)));
             TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
             int shaderId = loaded.Shader;
             _allocatedShaders.Add(shaderId);
@@ -182,13 +187,21 @@ public sealed class ShaderTestHelper : IDisposable
     /// <summary>Loads a registered graphics combination, validating its program settings before stage preparation.</summary>
     internal ProgramLinkResult CompileProgram(string identity, IReadOnlyDictionary<string, string?>? defines = null)
     {
-        var registry = VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry;
-        var settings = new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(registry.FindProgram(identity), defines);
-        var stages = registry.Resolve(settings);
-        var vertex = stages.Single(s => s.Stage.Kind == VanillaGraphicsExpanded.Rendering.Contracts.ShaderStageKind.Vertex);
-        var fragment = stages.Single(s => s.Stage.Kind == VanillaGraphicsExpanded.Rendering.Contracts.ShaderStageKind.Fragment);
-        return CompileAndLink(vertex.Stage.Source, fragment.Stage.Source,
-            settings.Values.ToDictionary(p => p.Key, p => (string?)p.Value.Canonical));
+        try
+        {
+            var plan = new ShaderLoadPlan(new ShaderSettings(GpuShaderContracts.Registry.FindProgram(identity), defines));
+            string root = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+            var handles = new Dictionary<ShaderStageKind, int>();
+            foreach (var selected in plan.Stages)
+            {
+                var loaded = SpirvStageLoader.Load(selected, path => File.ReadAllBytes(Path.Combine(root, path)));
+                _allocatedShaders.Add(loaded.Shader);
+                TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
+                handles.Add(selected.Stage.Kind, loaded.Shader);
+            }
+            return LinkProgram(handles[ShaderStageKind.Vertex], handles[ShaderStageKind.Fragment]);
+        }
+        catch (Exception error) { return ProgramLinkResult.Failure(error.Message); }
     }
     /// <summary>
     /// Compiles and links a shader program from vertex and fragment shader files.
@@ -206,21 +219,12 @@ public sealed class ShaderTestHelper : IDisposable
         string fragmentFilename,
         IReadOnlyDictionary<string, string?>? defines)
     {
-        var vertexResult = CompileShader(vertexFilename, ShaderType.VertexShader, defines);
-        if (!vertexResult.IsSuccess)
-        {
-            return ProgramLinkResult.Failure($"Vertex shader error: {vertexResult.ErrorMessage}");
-        }
-
-        var fragmentResult = CompileShader(fragmentFilename, ShaderType.FragmentShader, defines);
-        if (!fragmentResult.IsSuccess)
-        {
-            return ProgramLinkResult.Failure($"Fragment shader error: {fragmentResult.ErrorMessage}");
-        }
-
-        return LinkProgram(vertexResult.ShaderId, fragmentResult.ShaderId);
+        var candidates = GpuShaderContracts.Registry.Programs.Values.Where(program =>
+            program.Stages.Any(stage => stage.Kind == ShaderStageKind.Vertex && stage.Identity == vertexFilename) &&
+            program.Stages.Any(stage => stage.Kind == ShaderStageKind.Fragment && stage.Identity == fragmentFilename)).ToArray();
+        if (candidates.Length != 1) return ProgramLinkResult.Failure("Unknown or ambiguous declared stage pair: " + vertexFilename + " + " + fragmentFilename);
+        return CompileProgram(candidates[0].Identity, defines);
     }
-
     /// <summary>
     /// Links vertex and fragment shaders into a program.
     /// </summary>

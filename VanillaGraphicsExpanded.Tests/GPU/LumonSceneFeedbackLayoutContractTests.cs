@@ -20,7 +20,7 @@ public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
     {
         EnsureContextValid();
         using var helper = CreateShaderHelper();
-        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages.csh");
+        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages");
         AssertBuffer(program.ProgramId, ProgramInterface.UniformBlock, GpuBindingRegistry.Ubo.Object, 16);
         AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2D, 0);
         AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2D, 1);
@@ -33,7 +33,7 @@ public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
     {
         EnsureContextValid();
         using var helper = CreateShaderHelper();
-        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages.csh");
+        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages");
         AssertBuffer(program.ProgramId, ProgramInterface.UniformBlock, GpuBindingRegistry.Ubo.Object, 16);
         AssertBuffer(program.ProgramId, ProgramInterface.ShaderStorageBlock, 0);
         AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2DArray, 0);

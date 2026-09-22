@@ -29,7 +29,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         using var helper = CreateShaderHelperOrSkip();
         using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.LumonSceneRuntimeCaptureWiring.Mark");
         using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.LumonSceneRuntimeCaptureWiring.Compact");
-        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Capture");
+        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneRuntimeCaptureWiring.Capture");
         int captureProgram = captureComputeProgram.ProgramId;
         using var captureParamsUbo = new ObjectParamsUbo("Tests.LumonSceneRuntimeCaptureWiring.CaptureParams");
 

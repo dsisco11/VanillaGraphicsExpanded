@@ -27,7 +27,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.SingleWorkItem");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.SingleWorkItem");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
@@ -117,7 +117,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.MultiChunkSlots");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.MultiChunkSlots");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 16;
@@ -199,7 +199,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.MultipleAtlases");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.MultipleAtlases");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 8;
@@ -309,7 +309,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         EnsureContextValid();
 
         using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.LumonSceneVoxelCapture.LayeredWrites");
+        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.LayeredWrites");
         int program = computeProgram.ProgramId;
 
         const int tileSize = 16;

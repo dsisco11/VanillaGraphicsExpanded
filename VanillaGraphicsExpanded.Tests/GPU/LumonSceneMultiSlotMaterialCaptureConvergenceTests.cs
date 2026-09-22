@@ -29,7 +29,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         using var helper = CreateShaderHelperOrSkip();
         using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.MultiSlotCaptureConvergence.Mark");
         using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.MultiSlotCaptureConvergence.Compact");
-        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel.csh", debugName: "Tests.MultiSlotCaptureConvergence.Capture");
+        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.MultiSlotCaptureConvergence.Capture");
         int captureProgram = captureComputeProgram.ProgramId;
         using var captureParamsUbo = new ObjectParamsUbo("Tests.MultiSlotCaptureConvergence.CaptureParams");
 

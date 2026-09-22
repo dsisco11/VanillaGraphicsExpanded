@@ -69,7 +69,10 @@ internal sealed class ShaderVariantResolver
         var program = FindProgram(settings.Contract.Identity);
         if (!ReferenceEquals(program, settings.Contract))
             throw new ArgumentException($"Settings for program '{program.Identity}' belong to a different contract declaration.");
-        return Array.AsReadOnly(program.Stages.Select(stage => new ShaderStageSelection(FindStage(stage.Identity), settings.Values)).ToArray());
+        return ResolveStages(settings);
     }
+    /// <summary>Projects an explicit validated contract snapshot, including isolated fixture scopes.</summary>
+    public static IReadOnlyList<ShaderStageSelection> ResolveStages(ShaderSettings settings) =>
+        Array.AsReadOnly(settings.Contract.Stages.Select(stage => new ShaderStageSelection(stage, settings.Values)).ToArray());
     #endregion
 }
