@@ -110,7 +110,7 @@ namespace CakeBuild
             context.EnsureDirectoryExists("../Releases");
             context.CleanDirectory("../Releases");
             context.EnsureDirectoryExists($"../Releases/{context.Name}");
-            context.CopyFiles($"../{BuildContext.ProjectName}/bin/{context.BuildConfiguration}/Mods/mod/publish/*", $"../Releases/{context.Name}");
+            context.CopyFiles($"../{BuildContext.ProjectName}/bin/{context.BuildConfiguration}/publish/*", $"../Releases/{context.Name}");
             if (context.DirectoryExists($"../{BuildContext.ProjectName}/assets"))
             {
                 context.CopyDirectory($"../{BuildContext.ProjectName}/assets", $"../Releases/{context.Name}/assets");
