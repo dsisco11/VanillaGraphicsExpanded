@@ -1,0 +1,138 @@
+# Shader variant contract tasks
+
+Source proposal: [ShaderVariantContracts.proposal.md](ShaderVariantContracts.proposal.md), approved 2026-09-22. The proposal is authoritative; this plan covers its remaining implementation work.
+
+## Goal and constraints
+
+Implement immutable, typed program/stage contracts shared by offline compilation and runtime selection. Register every owned program and fixture, compile each distinct stage configuration once, and preserve working programs until replacements link successfully.
+
+Keep `GpuBindingContract` responsible for resource slots and interface locations, the existing TinyAst/GLSL schema and `ShaderSyntaxTreePreprocessor` responsible for source processing, and `Rendering/Spirv` responsible for binary loading. Keep the composition root thin and declarations in domain-owned files. No new project or general configuration framework is required.
+
+Runtime manifests, macro discovery, custom binary reflection, compiler-obedience checks, runtime source hashing, and GLSL fallback are already removed or excluded; do not restore them. Preserve read-only span loading, active-resource queries, normal GL lifecycle diagnostics, and existing incremental build receipts. Ordinary uniforms and per-frame buffer data remain outside variant settings. Do not add output-directory cleanup rules.
+
+All build/test execution must use a validation subagent. Preserve unrelated worktree/index changes. Record source review, unit tests, build, GPU behavior, package, and any live-game evidence separately; existing receipts are a baseline, not proof of these changes.
+
+## Assumptions and decisions to resolve
+
+- Type and API names in the proposal are provisional; settle exact names during phase 2 without changing responsibilities.
+- Numeric ranges, explicit supported subsets, and per-program variant budgets must come from the setting/source inventory in phase 1. Do not guess new restrictions that reject currently supported behavior.
+- Use the proposed scalar set where supported by the source pipeline; record any unsupported type rather than coercing it to another type.
+- The plan requires automated rendering and lifecycle evidence. Live-game observations, if collected, are additional evidence; no new mandatory manual gate or performance target is inferred.
+- The older `OpenGL.SPIR-V.BuildAndRuntime.todo` contains historical fallback behavior and is not authoritative for this work.
+
+## Phase 1: Inventory programs, stages, and setting consumers
+
+Outcome: the model and migration have a concrete inventory of supported behavior and ownership.
+
+- [ ] Inventory owned graphics/compute entry points, program owners, fixture programs, shared vertex stages, entry points, fixed defines, and binding contracts. Include isolated build-validator fixtures; exclude include-only files from the entry-point list.
+- [ ] Inventory runtime setting writers (`VgeShaderDefines`, `SetDefine`, global graphics configuration, compute callers) against actual shader uses and the current stage/specialization declarations.
+- [ ] Classify each accepted setting by type, default, aliases, domain/range, owning programs, stage use, and conditional availability. Identify obsolete/no-effect settings and their callers explicitly; do not silently register them as functional settings or silently drop live behavior.
+- [ ] Record supported program assignments, default assignments, proposed variant budgets, and current default/nondefault paths. Identify source reuse requiring distinct stage identities due to incompatible fixed defines or layouts.
+- [ ] Record the migration baseline and representative rendering/specialization scenarios, including AO alias behavior, near-field/world-probe toggles, importance-sampling overrides, shared fullscreen stages, and direct-file compute loading.
+
+Gate:
+
+- [ ] Every owned entry point and setting writer has an explicit destination or an explained no-effect classification. Domain/budget uncertainties are recorded before enforcement; current behavior and the intentional alias-conflict change are distinguishable.
+
+## Phase 2: Typed models and pure variant resolution
+
+Depends on phase 1. Outcome: deterministic contract construction and selection are testable without assets or a GL context.
+
+- [ ] Introduce/refine `GpuShaderContract`, `ShaderStageContract`, `ShaderOption<T>`, `ShaderSettings`, and `ShaderVariantResolver`, each with its own responsibility. Keep bindings separate, publish immutable contracts, and isolate per-instance settings from shared defaults.
+- [ ] Model explicit stage identity/source/type/entry point/bindings, program stage combinations, accepted option groups, and structural/specialization/fixed uses. Support one option being structural in one stage and specialized in another when types/domains permit it.
+- [ ] Centralize typed normalization, GLSL spelling, canonical formatting, and specialization argument encoding. Cover declared booleans, finite integer/enum domains, and supported 32-bit scalar specializations; reject nonfinite floats and implicit truncation.
+- [ ] Resolve aliases from declarations: equivalent alias/canonical values agree, conflicting values fail, omitted values use defaults, and compatibility `null` removes an override. Eliminate dependence on normalization through `double`.
+- [ ] Implement declarative structural conditions using equality, `All`, `Any`, and `Not`; reject unknown/nonstructural references. Separate constant availability from supported configuration membership.
+- [ ] Resolve Cartesian products or explicit complete assignment lists. Validate duplicates, missing/unknown values, missing defaults, invalid IDs/types/ranges, reserved/fixed-name conflicts, and variant budgets before GPU allocation or compiler invocation.
+- [ ] Project one normalized program snapshot onto stages. Produce canonical stage keys, deterministic paths, and typed specialization arguments; exclude aliases, unrelated settings, and numeric values from binary identity. Retain inactive user selections while omitting their effective stage inputs.
+- [ ] Validate shared stage definitions and output-path uniqueness. Deduplicate by stage identity and effective structural configuration without consumer-order dependence.
+- [ ] Add focused unit tests for normalization/encoding, alias conflicts, independent settings instances, defaults/domains, conditional constants, explicit subsets, unknown identities/options, path determinism/collisions, fragment-only changes, stage sharing, and budget limits.
+
+Gate:
+
+- [ ] Pure tests demonstrate typed, deterministic resolution and useful program/stage/option/value errors. No asset reads, GL calls, binary inspection, or serialized load plans are introduced. Existing production callers remain operational until their migrations below.
+
+## Phase 3: Explicit registry and domain declarations
+
+Depends on phase 2. Outcome: a single registry describes every production and fixture program and its supported stage combinations.
+
+- [ ] Make `GpuShaderContracts` a thin registry backed by domain-owned declarations and explicitly reused option groups. Register empty-configuration programs explicitly; reject unknown program/stage identities.
+- [ ] Migrate the phase 1 inventory, including stage pairings currently embedded in `GpuProgram`, `SpirvInventoryTests.VertexFor`, and related helpers. Register shared stages once and give incompatible definitions distinct identities/paths.
+- [ ] Declare canonical settings, supported domains, budgets, stage uses, stable specialization IDs, structural conditions, fixed defines, and aliases. Include the bent-normal alias on the short-range AO option.
+- [ ] Declare how global graphics settings are projected through program group memberships. Distinguish known settings irrelevant to one stage/configuration from unknown explicitly supplied program settings.
+- [ ] Reconcile no-effect legacy writers with their owners and remove obsolete writes where justified by the inventory. Keep shader-local helper macros/include guards outside the configuration registry.
+- [ ] If intermediate callers require an adapter, derive it from the registry rather than maintaining a second authoritative catalog. Record its consumers and remove it in phase 5 once migration is verified; retain the public string setter only as the approved compatibility API.
+- [ ] Add registry coverage tests for all owned entry points/fixtures, valid stage combinations, shared stage agreement, default assignments, budgets, and path uniqueness. Verify current supported selections against the recorded baseline.
+
+Gate:
+
+- [ ] Registry coverage is complete, including isolated validator fixtures; no unknown stage silently receives an empty contract. Defaults and supported choices preserve the inventory, with intentional compatibility changes documented.
+
+## Phase 4: Contract-driven build and AST emission
+
+Depends on phase 3. Outcome: the builder compiles deduplicated stage configurations from the registry and publishes unchanged compiler binaries.
+
+- [ ] Migrate `ShaderVariantBuild` to enumerate supported program configurations, project them to stages, and compile each unique stage configuration once. Report program-combination and stage-binary counts separately. Source enumeration reports unregistered owned entry points without inventing contracts.
+- [ ] Update `ShaderVariantSource` to use typed fixed/structural values and active specialization declarations. Use shared condition evaluation and stable IDs, preserving macro mappings and omitting inactive declarations/overrides.
+- [ ] Retain import expansion through `ShaderSyntaxTreePreprocessor`, then use existing VGE GLSL schema/TinyAst editing to insert configuration before uses and guarded defaults. Keep GLSL conditional evaluation in the compiler and keep `ShaderSourceLayout` responsible for declared layouts.
+- [ ] Replace the remaining derived-global-constant regex rewriting with a separate syntax-aware implementation. Inspect existing schema specializations before extending them; preserve comments, nested expressions, function-local constants, and actual source behavior.
+- [ ] Preserve default and deterministic nondefault paths, strict binary publication, and build-receipt invalidation for contracts/source/fixed defines/bindings/tool inputs. Keep the receipt out of runtime assets; do not add manifests or binary instruction parsing.
+- [ ] Add source-emission tests for typed macros, conditional specializations, guarded imported defaults, and derived-global-constant transformations. Assert our transformations rather than interpreting compiler binaries.
+- [ ] Update/run `ValidateBuildContract.ps1` with registered fixtures and the new inventory. Verify unchanged compiler bytes, incremental invalidation, deduplication, complete asset coverage, and fresh package contents without runtime metadata.
+- [ ] Run the normal shader-enabled build and compile all declared configurations. Attribute any change from the baseline inventory to deliberate declarations/deduplication rather than silently losing variants.
+
+Gate:
+
+- [ ] Every declared stage configuration compiles once, every expected binary exists at its resolved path, and the source/build/package checks pass. Runtime can consume the new output through the verified transition path; no temporary parallel catalogs are required.
+
+## Phase 5: Runtime settings, loading, and reload migration
+
+Depends on phase 4. Outcome: graphics and compute preparation consume one typed settings snapshot and preserve installed programs on failure.
+
+- [ ] Route `GpuProgram` and compute entry points through explicit program contracts and the shared resolver. Migrate asset and direct-file fixture callers without inferring stage identities from filenames or requiring adjacent metadata.
+- [ ] Expose typed setting updates and retain `SetDefine` as a contract-backed name/alias adapter. Validate updates before GPU preparation; apply global settings through declared memberships and preserve inactive selections.
+- [ ] Resolve all stages from one immutable settings snapshot into a transient load plan: binary selections plus typed specialization arguments. Keep asset I/O in the span-based loader and GL object ownership in existing shader/program abstractions.
+- [ ] Coalesce updates through existing scheduling. Compare effective binary/specialization selections so equivalent aliases, unused values, and unchanged settings do not reload; structural/active numeric changes prepare a replacement.
+- [ ] Keep requested settings distinct from installed settings. Commit the new program and installed snapshot only after successful linking; release failed candidates and retain the working program/interface on read, specialization, or link failure.
+- [ ] Preserve active-resource lookup and normal lifecycle diagnostics without compiler-obedience validation. Keep ordinary uniform/buffer setters outside the variant API.
+- [ ] Remove transitional registry adapters, duplicated stage-selection switches, string specialization types, callback conditions, hard-coded alias handling, and obsolete setting discovery remnants after consumer verification. Keep the approved compatibility setter.
+- [ ] Add/run settings and GPU lifecycle tests for no-op changes, alias/null handling, fragment-only choices, active numeric changes, disabling/re-enabling preserved values, coherent multistage snapshots, failed replacement ownership, repeated disposal/reload, span slices, and direct-file compute loading.
+
+Gate:
+
+- [ ] Both graphics and compute paths use the same resolver/build declarations. Effective no-op updates avoid preparation, successful reloads install coherent settings, and failed reloads preserve the prior program without leaked candidate resources.
+
+## Phase 6: Registry-driven coverage and developer guidance
+
+Depends on phase 5. Outcome: the complete supported system is verified through the declared registry and documented for future shader additions.
+
+- [ ] Derive stage inventory and program-link cases from the registry; remove filename pairing heuristics and manifest-driven assumptions. Ensure every declared finite stage variant and supported graphics combination is exercised.
+- [ ] Run representative numeric specialization defaults/boundaries and rendering regressions selected in phase 1, including world-probe/near-field visibility, importance sampling, uniform/buffer behavior, and graphics/compute reload/disposal. Do not claim exhaustive coverage of continuous/unbounded numeric domains.
+- [ ] Run final normal build, unit/source/integration tests, GPU coverage, isolated build-contract verification, and a fresh package check. Record expected versus actual configuration counts, failures/skips and their disposition, and receipts separately by evidence type.
+- [ ] Confirm packaging includes every resolved binary, unchanged compiler output, and no runtime manifests or build receipts. Confirm no runtime GLSL fallback, binary parser, source-hash check, or new per-frame validation was introduced.
+- [ ] Update developer guidance for adding a program/stage, sharing a stage, declaring typed options/domains/aliases/conditions, changing settings, and diagnosing selection or load failures. Document the intentional alias-conflict behavior and any inventoried obsolete setting removals.
+- [ ] Update proposal implementation status and this plan's evidence, clearly distinguishing completed behavior from any unresolved gap. Record live-game observations only if actually performed; do not turn test timings into performance claims.
+
+Gate:
+
+- [ ] All registered configurations have build/link evidence; representative rendering and lifecycle regressions pass, package coverage is verified, and no undocumented transitional path remains.
+
+## Final acceptance
+
+- [ ] Every owned program/stage and application-configurable option has an explicit typed declaration and stage use; unknown settings/identities fail clearly.
+- [ ] Build/runtime resolution agrees, stage sharing is deterministic, and supported configurations preserve documented defaults and behavior.
+- [ ] The approved no-manifest/no-custom-reflection architecture, shared AST pipeline, span loading, and safe replacement ownership are preserved.
+- [ ] Required source, unit, build, GPU, package, migration cleanup, and developer-documentation evidence is recorded; unresolved gaps remain unchecked.
+
+## Proposal coverage
+
+| Proposal area | Implementation/verification |
+| --- | --- |
+| Current baseline, scope, main objects and ownership | Constraints; phases 1–3 |
+| Program identities, explicit stages, shared-stage agreement | Phases 1–3; phase 6 inventory/link coverage |
+| Typed settings, stage uses, aliases, defaults, global membership | Phases 1–3; phase 5 runtime migration |
+| Conditional specializations and supported configurations | Phases 2–4; phases 5–6 GPU coverage |
+| Canonical binary identity, variant budgets, deduplication | Phases 2–4; phase 6 package coverage |
+| Build flow, TinyAst emission, derived-global rewriting | Phase 4 |
+| Runtime flow, effective-change detection, reload ownership | Phase 5 |
+| Diagnostics, verification, developer guidance, acceptance | Phase gates; phase 6; final acceptance |
