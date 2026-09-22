@@ -49,3 +49,27 @@ Each graphics load captures a `ShaderLoadPlan` before asset reads. Its immutable
 `SetDefine(name, value)` remains a compatibility adapter for declared names and aliases; unknown names and invalid values fail before GPU preparation. Null and `RemoveDefine` restore the canonical default. Equivalent alias writes are no-ops; conflicting values within a supplied settings dictionary are rejected. Inactive values remain requested without reloading until enabled. The setter's Boolean result describes an effective input change, not merely a retained value change.
 
 Compute loading accepts an explicit `ShaderSettings` snapshot. The asset compatibility overload resolves its argument as a program identity; direct-file loading requires settings alongside the path and never infers a stage from the filename. Compute creation prepares a new pipeline and leaves an existing caller-owned pipeline intact on failure. The span loader consumes each selected binary synchronously and does not read source or runtime metadata to reconstruct configuration.
+
+## Supported assignments and diagnostics
+
+Use repeated `ShaderAssignment` attributes when only specific complete structural assignments are supported. Each row must specify every structural option with canonical names and typed values, and the default row must be included. Otherwise the catalog enumerates the Cartesian product. The budget limits program assignments; sharing a stage does not multiply its binary count. Fixed defines belong in `ShaderFixedDefine`, and ordinary include guards or helper macros need no option declaration.
+
+When selection or loading fails, follow the reported owner and stage:
+
+| Symptom | What to inspect |
+| --- | --- |
+| Generator diagnostic on an attribute | Property type, constant type/domain, condition property names and structural stage uses; fix the declaration before building binaries |
+| Unknown option or conflicting aliases | The selected program's accepted keys/groups; an alias and canonical key may coexist only with equal values in one input dictionary |
+| Unsupported assignment or budget failure | Complete structural rows, declared defaults and intentional domain size |
+| Missing built asset | The selected stage's `BinaryPath` in `ShaderLoadPlan`, the normal shader build result, and the packaged asset path; there is no runtime GLSL fallback |
+| Specialization failure | Stage identity, entry point, active specialization values and driver log; inactive values are intentionally omitted |
+| Link failure | Declared stage pairing and source-owned interface layouts, then the driver link log |
+| Requested change is not visible | Compare requested and installed settings, pending scheduled work and the last load error; inactive values are retained without reloading and a failed replacement leaves the prior installed generation intact |
+
+Run the normal shader-enabled build before GPU tests so their copied assets match current declarations. `SpirvInventoryTests` enumerates every distinct stage binary and every declared graphics/compute assignment from the resolver. Rendering tests verify behavior separately from successful specialization/linking. The isolated `ShaderBuildTool/Tests/ValidateBuildContract.ps1` checks compilation, incremental invalidation and package rules; full mod packaging is the `Package` task in `CakeBuild`. Build receipts stay outside runtime assets. Do not add binary rewriting, reflection manifests or filename-pairing rules to repair a declaration or packaging error.
+
+## Removed ineffective option writes
+
+Unused temporal velocity-reprojection and rays-per-probe macros are not registered options. The migration removed writes that had no shader consumer: world-probe atlas update/bind switches, PBR composite AO and debug-mode writes, velocity-pass emissive writes, and PIS exploration or world-probe topology writes broadcast to programs that did not use them. CPU update budgets, actual atlas binding, current debug UBO routing and the consuming programs' settings remain separate functionality. An unknown explicit `SetDefine` key now fails instead of silently doing nothing; do not reintroduce an ineffective declaration merely to accept an obsolete writer.
+
+The bent-normal spelling remains an alias of short-range AO. Passing conflicting alias/canonical values together now fails deliberately; sequential setter calls update the same canonical option, and null restores its default. Engine-owned PBR shader patches retain their existing configuration path and are outside this owned-program catalog.

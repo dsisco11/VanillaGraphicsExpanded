@@ -151,7 +151,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                         GL.DeleteVertexArray((int)command.Id);
                         break;
                     case GpuDeletionKind.Texture:
-                        GL.DeleteTexture((int)command.Id);
+                        GlStateCache.Current.DeleteTexture((int)command.Id);
                         break;
                     case GpuDeletionKind.Framebuffer:
                         GL.DeleteFramebuffer((int)command.Id);

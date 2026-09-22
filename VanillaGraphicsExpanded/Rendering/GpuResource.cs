@@ -141,7 +141,7 @@ public abstract class GpuResource : IDisposable
                     GL.DeleteVertexArray((int)id);
                     break;
                 case GpuResourceKind.Texture:
-                    GL.DeleteTexture((int)id);
+                    GlStateCache.Current.DeleteTexture((int)id);
                     break;
                 case GpuResourceKind.Framebuffer:
                     GL.DeleteFramebuffer((int)id);

@@ -281,23 +281,52 @@ Earlier focused failures were stale direct-file error-message expectations and w
 
 Depends on phase 5. Outcome: the complete supported system is verified through the declared registry and documented for future shader additions.
 
-- [ ] Derive stage inventory and program-link cases from the registry; remove filename pairing heuristics and manifest-driven assumptions. Ensure every declared finite stage variant and supported graphics combination is exercised.
-- [ ] Run representative numeric specialization defaults/boundaries and rendering regressions selected in phase 1, including world-probe/near-field visibility, importance sampling, uniform/buffer behavior, and graphics/compute reload/disposal. Do not claim exhaustive coverage of continuous/unbounded numeric domains.
-- [ ] Run final normal build, unit/source/integration tests, GPU coverage, isolated build-contract verification, and a fresh package check. Record expected versus actual configuration counts, failures/skips and their disposition, and receipts separately by evidence type.
-- [ ] Confirm packaging includes every resolved binary, unchanged compiler output, and no runtime manifests or build receipts. Confirm no runtime GLSL fallback, binary parser, source-hash check, or new per-frame validation was introduced.
-- [ ] Update developer guidance for adding a program/stage, sharing a stage, declaring typed options/domains/aliases/conditions, changing settings, and diagnosing selection or load failures. Document the intentional alias-conflict behavior and any inventoried obsolete setting removals.
-- [ ] Update proposal implementation status and this plan's evidence, clearly distinguishing completed behavior from any unresolved gap. Record live-game observations only if actually performed; do not turn test timings into performance claims.
+- [x] Derive stage inventory and program-link cases from the registry; remove filename pairing heuristics and manifest-driven assumptions. Ensure every declared finite stage variant and supported graphics combination is exercised.
+- [x] Run representative numeric specialization defaults/boundaries and rendering regressions selected in phase 1, including world-probe/near-field visibility, importance sampling, uniform/buffer behavior, and graphics/compute reload/disposal. Do not claim exhaustive coverage of continuous/unbounded numeric domains.
+- [x] Run final normal build, unit/source/integration tests, GPU coverage, isolated build-contract verification, and a fresh package check. Record expected versus actual configuration counts, failures/skips and their disposition, and receipts separately by evidence type.
+- [x] Confirm packaging includes every resolved binary, unchanged compiler output, and no runtime manifests or build receipts. Confirm no runtime GLSL fallback, binary parser, source-hash check, or new per-frame validation was introduced.
+- [x] Update developer guidance for adding a program/stage, sharing a stage, declaring typed options/domains/aliases/conditions, changing settings, and diagnosing selection or load failures. Document the intentional alias-conflict behavior and any inventoried obsolete setting removals.
+- [x] Update proposal implementation status and this plan's evidence, clearly distinguishing completed behavior from any unresolved gap. Record live-game observations only if actually performed; do not turn test timings into performance claims.
 
 Gate:
 
-- [ ] All registered configurations have build/link evidence; representative rendering and lifecycle regressions pass, package coverage is verified, and no undocumented transitional path remains.
+- [x] All registered configurations have build/link evidence; representative rendering and lifecycle regressions pass, package coverage is verified, and no undocumented transitional path remains.
 
+Implementation traceability for 6 (2026-09-22; implementation, second review, delegated verification and independent final audit passed). Every task inherits the approved [proposal](ShaderVariantContracts.proposal.md), the complete [migration inventory](ShaderVariantContracts.inventory.md), and [authoring guidance](ShaderAuthoring.md).
+
+| Task | Linked authority / requirements | Observed evidence |
+| --- | --- | --- |
+| Registry coverage | Proposal Programs/stages, Verification; inventory catalog/pairings | 243 stage cases, 232 graphics combinations and 10 compute assignments (three generations each), plus borrowed-span loading: `acceptance-registry-gpu.log/.trx` passed 486/486 |
+| Numeric/rendering behavior | Proposal Verification; inventory scenario and numeric tables | `acceptance-rendering-final.log/.trx` passed 609/609: near-field/world-probe visibility, PIS pixels, composite/upsample, uniform/buffer behavior, numeric boundary linking and complete graphics reload/disposal coverage |
+| Final execution | Proposal Build flow and acceptance; inventory Build/package | Normal build passed; generator 88/88, final selected unit/source 146/146, registry GPU 486/486, combined rendering 609/609; isolated validator and fresh Cake package passed |
+| Package/runtime boundaries | Proposal no metadata/reflection/fallback and unchanged compiler bytes | `artifacts/p6q/acceptance-package-result.json` and hash receipt: exact 243 paths/hashes, eight root DLLs, no runtime metadata/nested DLLs; source review confirms owned binary-only loading without instruction parsing, source hashing or new hot-path validation |
+| Developer guidance | Proposal declarations/settings/diagnostics; inventory ineffective writers | Add/share/options/conditions/update/load-failure workflow, alias conflicts and obsolete-option guidance updated; obsolete proposal status descriptions reconciled |
+| Status and acceptance | Proposal Acceptance criteria; preceding task evidence | Second review and independent final audit passed with high confidence and no outstanding findings. No live-game or performance claim |
+
+Final verification receipts under `artifacts/shader-variant-contracts`:
+
+- `acceptance-build.log`: 63 programs / 242 combinations / 98 stages / 243 binaries compiled. `acceptance-finalv2-build.log`: final normal build passed, zero errors and nine existing warnings.
+- `acceptance-generator.log/.trx`: 88/88. `acceptance-unit-source-final.log/.trx`: 146/146 selected rendering-unit, source-emission, derived-global, layout and uniform-extraction tests.
+- `acceptance-registry-gpu.log/.trx`: 486/486, covering every distinct stage and registered graphics/compute assignment.
+- `acceptance-rendering-final.log/.trx`: 609/609, including all 232 graphics combinations through repeated runtime disposal/reload; near-field/world-probe visibility, sealed rooms, doorway edits and camera/large-origin behavior; paired trace-to-gather output; composite/upsample; uniform/buffer/compute behavior; 13 new PIS pixel cases; numeric tracing boundary linking; and resource-lifetime regressions. Exact selection is retained in `acceptance-rendering-final-filter.txt`.
+- No failures or skips in these final receipts. Numeric proof is representative: tracing application boundaries prove specialization/linking, while PIS cases verify actual selected mask pixels. No exhaustive continuous-domain or live-game claim is made.
+
+Fresh final package: the actual Cake Package task passed in isolated `artifacts/p6q`. `acceptance-package.log`, `acceptance-package-result.json` and `acceptance-package-binary-hashes.json` verify all 243 resolved paths and unchanged SHA256 values through compiler output, packaged files and ZIP. All eight publish DLLs are at the root, including TinyTokenizer, TinyAst.Preprocessor and TinyPreprocessor; no nested DLLs, runtime manifests or build receipts are present. The snapshot includes the final texture-lifetime fix; all 813 captured source/configuration files matched current source (`source-snapshot-comparison.json`). This supersedes the earlier pre-fix `artifacts/p6p` package. The unchanged build-contract validator passed at `artifacts/shader-variant-contracts/acceptance-package-20260922-162020/artifacts/spirv-build-contract/run-20260922-162107/result.txt`.
+
+Failure dispositions, with original receipts retained:
+
+- The deep initial package workspace exceeded Windows path limits while copying existing files; an identical snapshot succeeded in a shorter workspace without packaging changes. An overlapping test build could not replace the running executable and was rerun sequentially.
+- `acceptance-ownership-before.log/.trx` reproduced a test helper deleting already released handles (`InvalidValue`). Release bookkeeping fixes the ownership defect without draining errors or checking potentially recycled GL IDs; its regression passes in the final combined run.
+- The first representative run (`acceptance-rendering.log/.trx`) passed 558 and failed 11. The doorway checkpoint and `acceptance-texture-before.log/.trx` isolated a production defect: deleting a bound texture left its ID cached, and a later upload scope restored the deleted name (`InvalidOperation`). All texture deletion paths now update matching cached unit/target bindings at actual deletion, including render-thread queue draining and reallocation. Other bindings remain intact. No GL queries, per-frame checks or uniform-setter checks were added.
+- `acceptance-texture-fixed.log/.trx` passed 18/18, including all 11 previous failures and immediate/worker-queued texture deletion regressions; the final 609-case run then passed together. The earlier runtime-migration `InvalidOperation` was not independently localized at that time, so no stronger historical attribution is claimed.
 ## Final acceptance
 
-- [ ] Every owned program/stage and application-configurable option has an explicit typed declaration and stage use; unknown settings/identities fail clearly.
-- [ ] Build/runtime resolution agrees, stage sharing is deterministic, and supported configurations preserve documented defaults and behavior.
-- [ ] The approved no-manifest/no-custom-reflection architecture, shared AST pipeline, span loading, and safe replacement ownership are preserved.
-- [ ] Required source, unit, build, GPU, package, migration cleanup, and developer-documentation evidence is recorded; unresolved gaps remain unchecked.
+- [x] Every owned program/stage and application-configurable option has an explicit typed declaration and stage use; unknown settings/identities fail clearly.
+- [x] Build/runtime resolution agrees, stage sharing is deterministic, and supported configurations preserve documented defaults and behavior.
+- [x] The approved no-manifest/no-custom-reflection architecture, shared AST pipeline, span loading, and safe replacement ownership are preserved.
+- [x] Required source, unit, build, GPU, package, migration cleanup, and developer-documentation evidence is recorded; unresolved gaps remain unchecked.
+
+Completion audit (2026-09-22): independent audit-stage-completion review confirmed all six tasks, the gate and all four final acceptance requirements fully satisfied with high confidence. Task markers were updated only after that verdict. No required work remains.
 
 ## Proposal coverage
 

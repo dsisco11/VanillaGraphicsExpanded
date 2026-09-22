@@ -184,7 +184,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
     {
         if (textureId != 0)
         {
-            GL.DeleteTexture(textureId);
+            GlStateCache.Current.DeleteTexture(textureId);
             textureId = 0;
         }
     }

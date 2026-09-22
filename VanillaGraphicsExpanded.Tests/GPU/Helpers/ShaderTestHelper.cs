@@ -16,8 +16,8 @@ using VanillaGraphicsExpanded.Tests.Helpers;
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 /// <summary>
-/// Helper class for compiling and linking GLSL shaders in tests.
-/// Uses the production AST-based @import processing system.
+/// Loads and links contract-selected SPIR-V binaries in GPU tests.
+/// Separately exposes production AST import processing for source diagnostics.
 /// </summary>
 public sealed class ShaderTestHelper : IDisposable
 {
@@ -41,8 +41,7 @@ public sealed class ShaderTestHelper : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderBasePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(includeBasePath);
 
-        // Prefer repo-source shader assets when available. This avoids flaky test runs when
-        // build output content is stale (CopyToOutputDirectory=PreserveNewest) or locked.
+        // AST source diagnostics prefer repository inputs; executable binaries always use the normal build output.
         if (TryGetRepoShaderPaths(out string repoShaderPath, out string repoIncludePath))
         {
             _shaderBasePath = repoShaderPath;
@@ -176,6 +175,7 @@ public sealed class ShaderTestHelper : IDisposable
             TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
             int shaderId = loaded.Shader;
             _allocatedShaders.Add(shaderId);
+            TestShaderInterfaces.OnShaderRelease(shaderId, () => _allocatedShaders.Remove(shaderId));
             return ShaderCompileResult.Success(shaderId);
         }
         catch (Exception ex)
@@ -196,6 +196,8 @@ public sealed class ShaderTestHelper : IDisposable
             {
                 var loaded = SpirvStageLoader.Load(selected, path => File.ReadAllBytes(Path.Combine(root, path)));
                 _allocatedShaders.Add(loaded.Shader);
+                int ownedShader = loaded.Shader;
+                TestShaderInterfaces.OnShaderRelease(ownedShader, () => _allocatedShaders.Remove(ownedShader));
                 TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
                 handles.Add(selected.Stage.Kind, loaded.Shader);
             }
@@ -237,6 +239,7 @@ public sealed class ShaderTestHelper : IDisposable
         {
             int programId = GL.CreateProgram();
             _allocatedPrograms.Add(programId);
+            TestShaderInterfaces.OnProgramRelease(programId, () => _allocatedPrograms.Remove(programId));
 
             GL.AttachShader(programId, vertexShaderId);
             GL.AttachShader(programId, fragmentShaderId);
@@ -453,7 +456,7 @@ public sealed class ShaderTestHelper : IDisposable
     /// </summary>
     public void Dispose()
     {
-        foreach (var programId in _allocatedPrograms)
+        foreach (var programId in _allocatedPrograms.ToArray())
         {
             if (programId != 0)
             {
@@ -462,7 +465,7 @@ public sealed class ShaderTestHelper : IDisposable
         }
         _allocatedPrograms.Clear();
 
-        foreach (var shaderId in _allocatedShaders)
+        foreach (var shaderId in _allocatedShaders.ToArray())
         {
             if (shaderId != 0)
             {

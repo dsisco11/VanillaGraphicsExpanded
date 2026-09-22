@@ -12,7 +12,14 @@ internal static class TestShaderInterfaces
     private static Dictionary<int, VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingContract> Shaders => shaders ??= new();
     private static Dictionary<int, GpuProgramInterface> Programs => programs ??= new();
 
+    [ThreadStatic] private static Dictionary<int, Action>? shaderReleases;
+    [ThreadStatic] private static Dictionary<int, Action>? programReleases;
+
     #region Fixture ownership
+    /// <summary>Notifies the allocating helper when another fixture releases its shader handle.</summary>
+    public static void OnShaderRelease(int shader, Action release) => (shaderReleases ??= new()).Add(shader, release);
+    /// <summary>Notifies the allocating helper before its program handle can be recycled.</summary>
+    public static void OnProgramRelease(int program, Action release) => (programReleases ??= new()).Add(program, release);
     /// <summary>Retains fixture metadata until the raw shader handle is released.</summary>
     public static void TrackShader(int shader, VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingContract variant) => Shaders[shader] = variant;
     /// <summary>Records a production pipeline's existing interface for raw-handle fixture assertions.</summary>
@@ -28,11 +35,20 @@ internal static class TestShaderInterfaces
         Programs[program] = new GpuProgramInterface(program, attached.Select(id => Shaders[id]));
     }
     /// <summary>Deletes a fixture shader and forgets its metadata.</summary>
-    public static void DeleteShader(int shader) { Shaders.Remove(shader); GL.DeleteShader(shader); }
+    public static void DeleteShader(int shader)
+    {
+        Shaders.Remove(shader);
+        if (shaderReleases?.Remove(shader, out var released) == true) released();
+        GL.DeleteShader(shader);
+    }
     /// <summary>Deletes a fixture program and forgets its metadata.</summary>
     public static void DeleteProgram(int program) { ForgetProgram(program); GL.DeleteProgram(program); }
     /// <summary>Forgets a production-owned fixture before its pipeline disposes.</summary>
-    public static void ForgetProgram(int program) => Programs.Remove(program);
+    public static void ForgetProgram(int program)
+    {
+        Programs.Remove(program);
+        if (programReleases?.Remove(program, out var released) == true) released();
+    }
     /// <summary>Constructs a layout with the fixture program's interface for binding tests.</summary>
     public static GpuProgramLayout BuildLayout(int program)
     {

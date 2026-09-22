@@ -146,6 +146,33 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         Assert.Equal("24", program.InstalledSettings!.Values["VGE_LUMON_RAY_STEPS"].Canonical);
         Assert.Equal("27", program.RequestedSettings.Values["VGE_LUMON_WORLDPROBE_RESOLUTION"].Canonical);
     }
+    /// <summary>Representative application boundaries specialize and link without changing structural binary identity.</summary>
+    [Theory]
+    [InlineData(1, .25f, .01f, 0f, 0, 0f, 1)]
+    [InlineData(512, 256f, 16f, 1f, 12, 64f, 64)]
+    public void TraceApplicationNumericBoundariesLink(int steps, float distance, float thickness, float skyWeight, int mip, float emission, int texels)
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var program = new LumOnScreenProbeAtlasTraceShaderProgram
+        {
+            PassName = LumOnScreenProbeAtlasTraceShaderProgram.Contract.Identity,
+            VertexShader = new Vintagestory.Client.NoObf.Shader(),
+            FragmentShader = new Vintagestory.Client.NoObf.Shader()
+        };
+        program.Initialize(assets.Api);
+        program.RaySteps = steps;
+        program.RayMaxDistance = distance;
+        program.RayThickness = thickness;
+        program.SetDefine("VGE_LUMON_SKY_MISS_WEIGHT", skyWeight.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        program.SetDefine("VGE_LUMON_HZB_COARSE_MIP", mip.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        program.SetDefine("LUMON_EMISSIVE_BOOST", emission.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        program.SetDefine("VGE_LUMON_ATLAS_TEXELS_PER_FRAME", texels.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+        Assert.Contains("shaders/lumon_probe_atlas_trace.fsh.spv", assets.Reads);
+        Assert.Equal(steps.ToString(System.Globalization.CultureInfo.InvariantCulture), program.InstalledSettings!.Values["VGE_LUMON_RAY_STEPS"].Canonical);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
     /// <summary>Creates the real production owner with fixture API assets.</summary>
     private static PBRCompositeShaderProgram Create(BinaryShaderApiFixture assets)
     {

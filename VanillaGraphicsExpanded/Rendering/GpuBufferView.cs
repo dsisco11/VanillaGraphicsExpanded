@@ -117,7 +117,7 @@ public class GpuBufferView : GpuResource, IDisposable
         }
         catch
         {
-            try { GL.DeleteTexture(id); } catch { }
+            try { GlStateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }
@@ -178,7 +178,7 @@ public class GpuBufferView : GpuResource, IDisposable
         }
         catch
         {
-            try { GL.DeleteTexture(id); } catch { }
+            try { GlStateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }

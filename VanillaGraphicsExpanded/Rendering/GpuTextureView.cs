@@ -162,7 +162,7 @@ public sealed class GpuTextureView : GpuResource, IDisposable
         }
         catch
         {
-            try { GL.DeleteTexture(id); } catch { }
+            try { GlStateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }
