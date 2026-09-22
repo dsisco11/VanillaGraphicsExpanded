@@ -45,7 +45,68 @@ Generate each shader class's immutable static contract, typed option keys, acces
 
 The offline shader compiler must consume the same generated declarations without depending on the completed mod assembly. Establish and verify an acyclic clean-build pipeline; a source generator alone does not solve that dependency. A focused generator project is permitted if required by analyzer integration, but this is not a general configuration framework. Runtime accessor generation uses a shared settings-update hook; the remaining coherent stage loading, effective-change detection and replacement ownership work remains in the runtime migration.
 
-Implement the generator and representative fixtures first, then migrate all production and test shaders and remove the superseded partial-file/discovery machinery. The detailed contracts and completion gates are subphases 3.1 and 3.2 of the task list.
+Implement the generator and representative fixtures first (3.1), replace named condition attributes with inline expressions (3.2), then migrate all production and test shaders and remove the superseded partial-file/discovery machinery (3.3). The task list defines each completion gate.
+
+**Implementation status — 2026-09-22:** generator foundation and representative integration are complete and independently audited (3.1). Inline condition authoring is approved and pending in 3.2. Full owner migration and removal of the temporary discovery bridge remain in 3.3; coherent runtime selection/reload changes remain later work.
+
+### Declaration API and build integration
+
+The approved declaration API uses these attributes on a top-level, nongeneric partial shader class. The inline condition change described below is pending implementation in 3.2; the other declarations are implemented:
+
+- `ShaderProgram(member, identity, variantBudget)` names the generated static contract member; `Scope` defaults to `production`. Repeat it for a program family; the generator also exposes a read-only `Contracts` collection for a multi-program owner.
+- `ShaderStage(programMember, kind, source)` declares each stage. Optional `Identity`, `BinaryAsset`, `EntryPoint`, and `Layout` preserve distinct source/configuration and binding identities. `Layout` selects the existing `GpuBindingContract` factory; its default is the source stem. Each stage retains the fixed `VGE_SPIRV_BUILD=1` profile. `ShaderFixedDefine` declares additional typed fixed values.
+- `ShaderOption(glslName, defaultValue)` on a partial instance get/set property generates its implementation and an immutable `<Property>Option` key. `Domain`, `Minimum`, `Maximum` and `Aliases` supply the same metadata as the typed model. Constants must match the property's scalar type exactly. Writable fields are not supported because they cannot intercept setting updates.
+- The same `ShaderOption` attribute on a static, get-only partial `ShaderOption<T>` property defines a reusable key. `ShaderOptionReference(typeof(owner), nameof(owner.key))` on another key or instance accessor reuses that exact definition. `ShaderGroup(member, identity, optionMembers...)` publishes a reusable group; `ShaderAcceptGroup(programMember, typeof(owner), groupMember)` accepts it. Generated member names in attributes are literal strings; `nameof` works for members declared in source.
+- `ShaderUse(programMember, stageKind, optionMember)` declares a structural use. Specifying `SpecializationId` declares a numeric/Boolean specialization instead; `When` contains an optional restricted C#-style Boolean expression over structural option properties. The generator parses and validates it, then emits the existing closed condition tree; it never executes user callbacks.
+- Repeated `ShaderAssignment(programMember, "CANONICAL_NAME=value", ...)` attributes opt into complete supported rows. Omission retains the Cartesian product. The shared model validates types, aliases, domains, defaults, IDs, supported rows and budgets; compiler errors identify the declaration owner.
+
+Example using the existing shared settings hook:
+
+```csharp
+[ShaderProgram("Contract", "example", 2)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "example.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "example.fsh")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Enabled))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Steps), SpecializationId = 4)]
+internal partial class ExampleShader : GpuProgram
+{
+    [ShaderOption("EXAMPLE_ENABLED", false)]
+    public partial bool Enabled { get; set; }
+
+    [ShaderOption("EXAMPLE_STEPS", 10)]
+    public partial int Steps { get; set; }
+
+    internal override GpuShaderContract ProgramContract => Contract;
+}
+```
+
+The generator is a build-time analyzer targeting .NET 8, using Roslyn 4.14 and C# 13 partial properties. The repository's .NET 10 SDK runs it for both the net8 build tool and net10 mod. The analyzer links the existing pure contract validation sources; it does not ship as a mod dependency. Its .NET 8 target deliberately supports the repository's `dotnet` compiler host, not legacy .NET Framework compiler hosts.
+
+The acyclic dependency order is `ShaderContractGenerator → ShaderBuildTool → SpirvBuild → mod`. The build tool supplies ordinary mod C# source files as `AdditionalFiles`. The generator adds those trees to a semantic-only compilation to bind attributes, property types and constants, then emits only shader declaration owners and referenced top-level 32-bit option enums. Game-dependent base classes, methods and instance accessors are not emitted into the tool. The runtime consumes the same declaration reader/emitter against its normal compilation and additionally receives accessor implementations. Offline parsing preserves host configuration symbols such as `DEBUG`; declarations shared by the net8 tool and net10 mod must not depend on framework-specific C# conditional symbols. Both the generator and its focused test project are included in the solution so the existing solution-level test workflow discovers the tests. No handwritten declaration filename, completed mod assembly, manual registration list or serialized runtime manifest is needed for a generated owner.
+
+Generated accessors use `GpuProgram.GetShaderOption` / `SetShaderOption`. These reuse `ShaderSettings` validation, canonicalize typed updates into the existing define map, and request recompilation through the existing scheduling method. They do not claim the later effective-input/coherent-snapshot reload migration. A deliberately isolated accessor fixture observes this real hook without a game API or GPU allocation.
+
+Generated scopes enumerate references directly. Compatible stages are interned by scope and identity, preserving existing shared-stage object ownership. The temporary production bridge combines generated references with reflection discovery of only unmigrated owners; subphase 3.3 removes that bridge, the old partial-file linking convention and remaining reflection. Representative graphics, compute, height-bake family and isolated validator owners already use attributes to exercise real build paths.
+
+### Inline condition expressions
+
+**Approved direction — 2026-09-22:** replace the named `ShaderEquals`, `ShaderAll`, `ShaderAny` and `ShaderNot` attributes introduced by 3.1 with an expression directly in `ShaderUse.When`. The named-node implementation remains the current baseline until 3.2 completes; its earlier validation receipts are not evidence for the replacement.
+
+For example, the existing importance-sampling exploration condition becomes:
+
+```csharp
+[ShaderUse("Contract", ShaderStageKind.Fragment,
+    nameof(ExploreCount), SpecializationId = 8,
+    When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
+```
+
+Use the owning class's attributed option property names, including properties referencing shared option keys. A bare property must be Boolean. Allow Boolean literals, negation, conjunction, disjunction, parentheses and equality comparisons with typed constants. Support Boolean and finite integer/enum conditions using the existing typed validation rules. Define exact supported constant forms and equality syntax during implementation. Omitted/null `When` means unconditional availability; empty or whitespace-only expressions should produce a diagnostic rather than silently changing availability.
+
+Parse with Roslyn at generation time and explicitly validate the syntax and types before lowering to `ShaderCondition.Equal/All/Any/Not`. Every referenced option must be structural in the consuming stage. Reject malformed input, unknown properties, incompatible/out-of-domain constants, specialization-only dependencies and unsupported operations. Qualified enum constants may be resolved as typed constants; arbitrary property access, method calls, arithmetic and executable expressions are outside this grammar. Do not use dynamic compilation, callbacks, runtime parsing or a second condition evaluator.
+
+Both offline and runtime generation emit the same condition model. Preserve supported configurations, specialization IDs, conditional omission and retained inactive settings; the expression is an authoring change, not a lighting or reload behavior change. Verify world-probe dimensions when enabled, sky fallback when near-field continuation is disabled, and importance-sampling exploration when both overrides are disabled against the inventory.
+
+Names inside strings do not receive ordinary C# rename support. A stale or misspelled name must fail generation with a useful owner/stage/expression diagnostic. Remove the four named-node attributes and their consumers after migrating existing attributed fixtures; handwritten typed condition declarations remain valid until their owners migrate in 3.3. Update XML documentation and examples with the new API.
 
 ## Programs and stages
 

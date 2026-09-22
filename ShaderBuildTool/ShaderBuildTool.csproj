@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
+    <LangVersion>13.0</LangVersion>
+    <ShaderContractsOffline>true</ShaderContractsOffline>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
@@ -25,4 +27,11 @@
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\SourceCodeImportsProcessor.cs" Link="SourceCodeMutator\SourceCodeImportsProcessor.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../ShaderContractGenerator/ShaderContractGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <CompilerVisibleProperty Include="ShaderContractsOffline" />
+    <!-- Read ordinary shader classes as semantic inputs without compiling their engine-dependent implementation. -->
+    <AdditionalFiles Include="../VanillaGraphicsExpanded/**/*.cs" Exclude="../VanillaGraphicsExpanded/bin/**;../VanillaGraphicsExpanded/obj/**;../VanillaGraphicsExpanded/obj2/**;../VanillaGraphicsExpanded/**/*.ShaderContract.cs" />
+  </ItemGroup>
 </Project>
+

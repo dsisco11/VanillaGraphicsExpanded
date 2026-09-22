@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -8,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering.Contracts;
 /// <summary>Constructs shader-owned immutable contracts and shares compatible stage declarations.</summary>
 internal static class ShaderProgramDeclaration
 {
-    private static readonly ConcurrentDictionary<string, ShaderStageContract> stages = new(StringComparer.Ordinal);
+
 
     #region Declaration construction
     /// <summary>Declares a graphics pair whose listed configuration uses belong to its fragment stage.</summary>
@@ -41,9 +40,7 @@ internal static class ShaderProgramDeclaration
         var declared = new ShaderStageContract(source, source, kind,
             GpuShaderContracts.DeclareBindings(source[..source.LastIndexOf('.')]), structural, constants,
             new Dictionary<string, ShaderScalar> { ["VGE_SPIRV_BUILD"] = ShaderScalar.From(1) });
-        var shared = stages.GetOrAdd(source, declared);
-        if (!shared.Equivalent(declared)) throw new ArgumentException($"Conflicting shared stage '{source}'.");
-        return shared;
+        return ShaderStageDeclarations.Share(declared);
     }
     #endregion
 }

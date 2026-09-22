@@ -12,7 +12,8 @@ internal static partial class GpuShaderContracts
     #region Registry construction
     /// <summary>Discovers shader-owned declarations in this assembly and validates their shared stages.</summary>
     private static ShaderVariantResolver BuildRegistry() =>
-        new(ShaderContractDiscovery.Discover(typeof(GpuShaderContracts).Assembly.GetTypes()));
+        new(ShaderContractDiscovery.Discover(typeof(GpuShaderContracts).Assembly.GetTypes().Where(type => !GeneratedShaderCatalog.Owns(type)))
+            .Concat(GeneratedShaderCatalog.Programs()));
     #endregion
 
     #region Compatibility access

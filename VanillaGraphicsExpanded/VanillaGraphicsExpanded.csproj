@@ -112,4 +112,7 @@
     <Copy SourceFiles="@(_SpirvFiles)" DestinationFiles="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
+  <ItemGroup>
+    <ProjectReference Include="../ShaderContractGenerator/ShaderContractGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

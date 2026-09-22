@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
+using System.Linq;
 
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -8,8 +8,7 @@ internal static class BuildValidationShaderPrograms
     #region Selection
     /// <summary>Creates the explicit graphics-only or graphics-and-compute validation scope.</summary>
     public static ShaderVariantResolver Create(bool includeCompute = true) =>
-        new(includeCompute
-            ? [BuildValidationGraphicsShader.Contract, BuildValidationComputeShader.Contract]
-            : [BuildValidationGraphicsShader.Contract]);
+        new(GeneratedShaderCatalog.Programs("build-validation")
+            .Where(program => includeCompute || program.Stages.All(stage => stage.Kind != ShaderStageKind.Compute)));
     #endregion
 }
