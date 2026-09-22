@@ -24,15 +24,19 @@ All build/test execution must use a validation subagent. Preserve unrelated work
 
 Outcome: the model and migration have a concrete inventory of supported behavior and ownership.
 
-- [ ] Inventory owned graphics/compute entry points, program owners, fixture programs, shared vertex stages, entry points, fixed defines, and binding contracts. Include isolated build-validator fixtures; exclude include-only files from the entry-point list.
-- [ ] Inventory runtime setting writers (`VgeShaderDefines`, `SetDefine`, global graphics configuration, compute callers) against actual shader uses and the current stage/specialization declarations.
-- [ ] Classify each accepted setting by type, default, aliases, domain/range, owning programs, stage use, and conditional availability. Identify obsolete/no-effect settings and their callers explicitly; do not silently register them as functional settings or silently drop live behavior.
-- [ ] Record supported program assignments, default assignments, proposed variant budgets, and current default/nondefault paths. Identify source reuse requiring distinct stage identities due to incompatible fixed defines or layouts.
-- [ ] Record the migration baseline and representative rendering/specialization scenarios, including AO alias behavior, near-field/world-probe toggles, importance-sampling overrides, shared fullscreen stages, and direct-file compute loading.
+Inventory and task-to-proposal traceability: [ShaderVariantContracts.inventory.md](ShaderVariantContracts.inventory.md).
+
+- [x] Inventory owned graphics/compute entry points, program owners, fixture programs, shared vertex stages, entry points, fixed defines, and binding contracts. Include isolated build-validator fixtures; exclude include-only files from the entry-point list.
+- [x] Inventory runtime setting writers (`VgeShaderDefines`, `SetDefine`, global graphics configuration, compute callers) against actual shader uses and the current stage/specialization declarations.
+- [x] Classify each accepted setting by type, default, aliases, domain/range, owning programs, stage use, and conditional availability. Identify obsolete/no-effect settings and their callers explicitly; do not silently register them as functional settings or silently drop live behavior.
+- [x] Record supported program assignments, default assignments, proposed variant budgets, and current default/nondefault paths. Identify source reuse requiring distinct stage identities due to incompatible fixed defines or layouts.
+- [x] Record the migration baseline and representative rendering/specialization scenarios, including AO alias behavior, near-field/world-probe toggles, importance-sampling overrides, shared fullscreen stages, and direct-file compute loading.
 
 Gate:
 
-- [ ] Every owned entry point and setting writer has an explicit destination or an explained no-effect classification. Domain/budget uncertainties are recorded before enforcement; current behavior and the intentional alias-conflict change are distinguishable.
+- [x] Every owned entry point and setting writer has an explicit destination or an explained no-effect classification. Domain/budget uncertainties are recorded before enforcement; current behavior and the intentional alias-conflict change are distinguishable.
+
+Completion evidence (2026-09-22): source inventory and second review completed; independent audit-stage-completion review confirmed all five tasks and the gate. The audit independently matched 98 source stages, 60 ordinary program entries and 243 expected binaries, and checked writer destinations, defaults/conditions, alternate pairings, fixed configuration and linked-proposal traceability. Documentation-only changes; no new build, unit, GPU, package or live-game execution was required or claimed.
 
 ## Phase 2: Typed models and pure variant resolution
 
