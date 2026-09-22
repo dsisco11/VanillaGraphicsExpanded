@@ -7,7 +7,7 @@ internal static partial class GpuShaderContracts
 {
     #region Specialization declarations
     /// <summary>Declares stable IDs, defaults and conditional availability for each owning stage.</summary>
-    private static void DeclareSpecializations(string source, ShaderStageContract stage)
+    private static void DeclareSpecializations(string source, LegacyShaderStageContract stage)
     {
         if (source == "lumon_probe_atlas_trace.fsh")
         {
@@ -18,7 +18,7 @@ internal static partial class GpuShaderContracts
             stage.Specializations.Add(new(4, "VGE_LUMON_RAY_STEPS", "int", "10"));
             stage.Specializations.Add(new(5, "VGE_LUMON_RAY_THICKNESS", "float", "0.5"));
             stage.Specializations.Add(new(6, "VGE_LUMON_SKY_MISS_WEIGHT", "float", "0.5",
-                values => ShaderStageContract.Value("VGE_LUMON_NEAR_FIELD_ENABLED", "0", values) == "0"));
+                values => LegacyShaderStageContract.Value("VGE_LUMON_NEAR_FIELD_ENABLED", "0", values) == "0"));
         }
         if (source is "lumon_probe_atlas_temporal.fsh" or "lumon_probe_atlas_pis_mask.fsh")
             stage.Specializations.Add(new(1, "VGE_LUMON_ATLAS_TEXELS_PER_FRAME", "int", "16"));
@@ -48,12 +48,12 @@ internal static partial class GpuShaderContracts
 
     /// <summary>World-probe constants belong only to variants containing world-probe sampling.</summary>
     private static bool UsesWorldProbes(IReadOnlyDictionary<string, string?>? values) =>
-        ShaderStageContract.Value("VGE_LUMON_WORLDPROBE_ENABLED", "0", values) == "1";
+        LegacyShaderStageContract.Value("VGE_LUMON_WORLDPROBE_ENABLED", "0", values) == "1";
 
     /// <summary>Exploration constants are used only by importance sampling without either uniform-mask override.</summary>
     private static bool UsesImportanceSampling(IReadOnlyDictionary<string, string?>? values) =>
-        ShaderStageContract.Value("VGE_LUMON_PROBE_PIS_ENABLED", "0", values) == "1" &&
-        ShaderStageContract.Value("VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING", "0", values) == "0" &&
-        ShaderStageContract.Value("VGE_LUMON_PROBE_PIS_FORCE_UNIFORM_MASK", "0", values) == "0";
+        LegacyShaderStageContract.Value("VGE_LUMON_PROBE_PIS_ENABLED", "0", values) == "1" &&
+        LegacyShaderStageContract.Value("VGE_LUMON_PROBE_PIS_FORCE_BATCH_SLICING", "0", values) == "0" &&
+        LegacyShaderStageContract.Value("VGE_LUMON_PROBE_PIS_FORCE_UNIFORM_MASK", "0", values) == "0";
     #endregion
 }

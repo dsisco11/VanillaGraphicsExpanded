@@ -27,8 +27,8 @@ internal static class SpirvStageLoader
         var stage = GpuShaderContracts.CreateStage(source);
         var contract = GpuShaderContracts.Create(source[..^extension.Length]);
         var constants = stage.Constants(defines).Select(s => new GpuShaderModule.SpirvSpecializationConstant(s.Id,
-            s.Type == "float" ? BitConverter.SingleToInt32Bits(float.Parse(ShaderStageContract.Value(s.Name, s.Default, defines), CultureInfo.InvariantCulture)) :
-            int.Parse(ShaderStageContract.Value(s.Name, s.Default, defines), CultureInfo.InvariantCulture))).ToArray();
+            s.Type == "float" ? BitConverter.SingleToInt32Bits(float.Parse(LegacyShaderStageContract.Value(s.Name, s.Default, defines), CultureInfo.InvariantCulture)) :
+            int.Parse(LegacyShaderStageContract.Value(s.Name, s.Default, defines), CultureInfo.InvariantCulture))).ToArray();
         // Consume the borrowed binary synchronously. No further reader calls occur before upload completes.
         ReadOnlySpan<byte> binary = read(stage.BinaryPath(source, defines));
         double readMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;

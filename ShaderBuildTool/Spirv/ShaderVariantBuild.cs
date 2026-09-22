@@ -25,7 +25,7 @@ internal static class ShaderVariantBuild
             foreach (var configuration in choices.Variants())
             {
                 string binary = Path.Combine(outputRoot, domain, "shaders", choices.BinaryPath(relative, configuration));
-                string input = Path.Combine(outputRoot, "_tmp", relative + "." + ShaderStageContract.Hash(choices.VariantKey(configuration)) + ".glsl");
+                string input = Path.Combine(outputRoot, "_tmp", relative + "." + LegacyShaderStageContract.Hash(choices.VariantKey(configuration)) + ".glsl");
                 Directory.CreateDirectory(Path.GetDirectoryName(input)!);
                 Directory.CreateDirectory(Path.GetDirectoryName(binary)!);
                 File.WriteAllText(input, ShaderSourceLayout.Apply(sources.Emit(expanded, choices, configuration), stage, bindings));

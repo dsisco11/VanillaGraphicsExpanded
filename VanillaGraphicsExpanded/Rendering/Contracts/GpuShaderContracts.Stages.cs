@@ -8,9 +8,9 @@ internal static partial class GpuShaderContracts
 {
     #region Stage declarations
     /// <summary>Declares supported preprocessing choices explicitly, independent of compiler reflection.</summary>
-    public static ShaderStageContract CreateStage(string source)
+    public static LegacyShaderStageContract CreateStage(string source)
     {
-        var stage = new ShaderStageContract();
+        var stage = new LegacyShaderStageContract();
         switch (source)
         {
             case "lumon_debug_direct.fsh":

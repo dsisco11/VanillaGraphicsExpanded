@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
 /// <summary>Creates the same resource declarations for runtime layouts and offline shader compilation.</summary>

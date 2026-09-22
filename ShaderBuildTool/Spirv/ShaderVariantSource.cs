@@ -27,7 +27,7 @@ internal sealed class ShaderVariantSource
 
     #region Configuration and emission
     /// <summary>Emits an OpenGL SPIR-V source with stable specialization IDs and selected structural macros.</summary>
-    public string Emit(string source, ShaderStageContract contract, IReadOnlyDictionary<string, string?> structural)
+    public string Emit(string source, LegacyShaderStageContract contract, IReadOnlyDictionary<string, string?> structural)
     {
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
         var version = Query.Syntax<GlDirectiveNode>().Named("version");
