@@ -1,59 +1,151 @@
 # Shader variant contract proposal
 
+**Status: Approved** — 2026-09-22.
+
 ## Objective
 
-Declare every supported shader configuration in the shared shader contracts. The build tool must not infer configuration options, default values, types, or supported combinations from preprocessor text. Build and runtime must use the same declarations.
+Declare supported shader configurations in shared C# contracts consumed by the build tool and runtime. A contract owns the supported settings, their meanings, and the shader stages that use them. GLSL remains the implementation of the shader algorithm.
 
-## Current implementation
+The result should let a developer add a setting in one declared place, build its supported variants, and select them through a typed runtime API. No runtime manifests, custom SPIR-V reflection, or checks that the compiler honored explicit layouts are required.
 
-`GpuShaderContracts` supplies resource bindings and explicit interface locations through `GpuBindingContract`. `ShaderSourceLayout` applies those values through the shared GLSL AST before compilation. `ShaderStageContract` now declares structural choices and numeric specialization inputs shared by the build tool and runtime; runtime manifests and binary reflection have been removed.
+## Current implementation and proposed changes
 
-The source pipeline uses TinyAst and `ShaderSyntaxTreePreprocessor` for imports. GLSL conditional evaluation remains the compiler's responsibility. Current stage contracts cover binary structural choices and conditional numeric constants; the broader program ownership, typed-domain validation, alias conflict handling, and stage-combination declarations below remain proposed work.
-## Contract ownership
+The existing `GpuBindingContract` describes bindings and interface locations. `ShaderSourceLayout` applies those declarations through VGE's GLSL AST before compilation. `ShaderStageContract` now supplies shared structural defaults, deterministic binary paths, and numeric specialization declarations. Runtime loading reads the selected binary directly.
 
-Add a `GpuShaderContract` that composes resource bindings, declared stages, and configuration declarations. Keep `GpuBindingContract` responsible for resource slots and explicit interface locations. Put shared configuration groups in small reusable declaration files, referenced explicitly by each program that uses them. Includes do not automatically add options.
+The current configuration model is deliberately small: structural values are binary, specialization types are strings, availability uses callbacks, and the short-range AO alias is special-cased. Stage selection is spread between the contract factory, graphics programs, and test helpers. Unlisted stages currently receive an empty configuration.
 
-Every owned program, including test fixtures, must have an explicit contract. An empty configuration is valid and produces one variant. Unknown program names must fail the build rather than silently receive an empty contract. Existing debug and height-bake family aliases may share declarations, but each entry point must be listed explicitly.
+This proposal develops that foundation into explicit program and stage contracts. It preserves the existing binary-only loading path, TinyAst processing, and source-assigned resource layouts. It does not restore macro discovery or runtime metadata files.
 
-Declare graphics stage combinations in the program contract, including the existing shared fullscreen vertex shaders. A reusable stage is compiled once for each distinct stage configuration requested by its consumers. Linking validates the declared combination and cross-stage interfaces.
+## Main objects and ownership
 
-## Configuration declarations
+The following names describe the intended responsibilities; exact API spelling can be settled during implementation.
 
-Each configurable input has a stable name, type, default, stage applicability, and one of these roles:
+| Object | Owns | Does not own |
+| --- | --- | --- |
+| `GpuShaderContract` | A program identity, its declared stage combination, accepted settings, and supported configurations | GL handles or mutable per-instance settings |
+| `ShaderStageContract` | A stable stage identity, source asset, shader stage, entry point, binding contract, and explicit uses of settings | Settings belonging only to another stage |
+| `GpuBindingContract` | Resource slots, standalone uniform locations, and stage input/output locations | Variant enumeration or runtime selection |
+| `ShaderOption<T>` | A canonical setting name, scalar type, default, allowed values or range, and aliases | GL uniform locations or implicit membership in every program |
+| `ShaderSettings` | Values selected for one program instance, resolved against its contract | Modifying contract declarations |
+| `ShaderVariantResolver` | Normalization, supported-configuration checks, stage projection, binary selection, and specialization arguments | Asset I/O, binary inspection, or GL calls |
 
-- **Structural option:** an explicit finite value set, such as disabled/enabled or debug modes 0 through 4. Structural options produce preprocessor defines before compilation. Options controlling declarations, array sizes, interfaces, or conditional compilation belong here.
-- **Specialization constant:** an explicitly assigned stable numeric ID, scalar type, default, and supported range or finite set. Values specialize a compiled binary. These must not control preprocessor conditions or change the resource/interface layout.
-- **Fixed define:** an explicit build constant that is not a runtime selection dimension. `VGE_SPIRV_BUILD` belongs to the compiler environment and is reserved rather than exposed as a user option.
+Contracts are constructed once and exposed as immutable declarations. Mutable builders, if useful, are confined to contract construction. Runtime settings remain separate so changing one program instance cannot change another program's defaults.
 
-Declare legacy aliases explicitly in configuration metadata. Normalize aliases before selection, reject conflicting alias/canonical values, and replace the compatibility alias handling in `ShaderStageContract.Value`. Shared settings may use reusable declarations, but defaults and IDs must remain unambiguous within each stage.
+`GpuShaderContracts` becomes a small registry/composition root. Domain files own related program declarations and reusable option groups. Each model and resolver has its own file under `Rendering/Contracts`; shader loading remains under `Rendering/Spirv`. The build tool consumes the same engine-independent declarations. This does not require another project or a general-purpose configuration framework.
 
-For example, a trace program would explicitly declare the near-field switch as a boolean structural option for its fragment stage. Any numeric setting retained as a specialization constant would separately declare its integer/float type and ID. A macro name alone is not enough to declare either role.
+## Programs and stages
 
-## Supported variants
+Every owned graphics or compute program has an explicit registry entry, including GPU fixtures. A graphics program lists its vertex and fragment stages and any optional geometry/tessellation stages. A compute program lists its compute stage. Shared fullscreen vertex stages are referenced by identity instead of being paired through filename heuristics in tests.
 
-By default enumerate the Cartesian product of the explicitly declared structural domains. Allow a contract to supply an explicit list of supported configurations when only a subset is valid; require complete assignments and reject duplicates, unknown values, and a missing default configuration. Avoid arbitrary filtering callbacks so the allowed set can be serialized, inspected, and shared with runtime.
+An empty settings list is a valid explicit declaration. An unknown program or stage is an error, rather than an implicit empty contract. Build source enumeration can report an owned shader asset missing a registry entry, but must not invent that entry or discover options from its text. Include files are not entry points.
 
-Canonical keys use declaration names in ordinal order and invariant typed values. The same canonicalization code serves the build tool and runtime. No source scanning creates options or variants. Specialization values do not multiply offline binaries.
+A shared stage has one definition of its source, entry point, fixed defines, bindings, and setting uses. Programs referencing it must agree on that definition. If a source needs two incompatible fixed configurations or layouts, declare two distinct stage identities. Do not let consumer order determine the compiled result.
 
-The compiler receives each selected structural configuration through AST-based define injection, followed by the shared import preprocessor and SPIR-V emission. Generated specialization declarations use contract IDs and types. Existing derived-global-constant rewriting should receive a separate syntax-aware implementation and focused coverage; it must not become another source of inferred configuration.
+The build enumerates supported program configurations, projects them onto their stages, and compiles each distinct stage configuration once. This means changing a fragment-only option does not multiply identical vertex binaries.
 
-## Validation and runtime selection
+## Settings and their stage uses
 
-Validate contracts before invoking the shader compiler: duplicate names/IDs, unsupported types, nonfinite numeric defaults, invalid ranges, reserved names, conflicting aliases, unknown stages, and invalid supported configurations are errors. Enforce a declared variant-count budget per program to prevent accidental combinatorial expansion.
+A typed option provides the name and meaning of a setting. A stage explicitly declares how it uses that option. Merely importing a GLSL include or adding a constant to `VgeShaderDefines` does not register a configurable setting.
 
-A runtime program resolves typed settings against its program contract, then projects the result onto each declared stage. Unknown program-level options and unsupported combinations are errors; stage loading must not reject legitimate options owned by another stage. Defaults apply only to omitted declared settings. Report program, stage, option, and requested value on failure.
+| Stage use | Declaration | Build behavior | Runtime change |
+| --- | --- | --- | --- |
+| Structural | A typed option with an explicit finite domain | Emit its macro value and compile the supported configurations | Select another existing binary and relink |
+| Specialization | A numeric option, stable numeric ID, scalar type, and optional structural condition | Emit its specialization constant and macro mapping | Specialize a new shader object and relink |
+| Fixed define | A name and immutable typed value owned by the stage | Emit the same define for every configuration of that stage | Cannot be changed through program settings |
 
-Build and runtime use the same compiled contract declarations and deterministic binary paths. Include contract content in build invalidation. Do not generate or load runtime manifests, hash source assets during loading, or inspect compiled binaries to check whether the compiler honored explicit layouts. Keep strict SPIR-V-only loading and ordinary driver load/link error handling.
+Start with the types actually needed: booleans and finite integer/enum domains for structural choices; 32-bit signed integer, unsigned integer, float, and boolean specialization values where supported by the source pipeline. Type-to-GLSL spelling and GL argument encoding belong in one implementation. Do not represent types with arbitrary strings or normalize all values through `double`.
 
-Specialization declarations specify the structural branches where each constant is used, so the loader supplies only the constants belonging to the selected configuration. GPU tests cover supported specialization combinations and linked graphics interfaces. Runtime numeric queries identify active resources to avoid setting uniforms removed by optimization; they do not revalidate compiler-assigned bindings.
+Structural domains are explicit: a boolean has two values, while a debug mode might declare integers 0 through 4. Numeric settings can declare ranges; defaults must belong to those domains. Floating-point settings reject nonfinite values. No implicit numeric truncation is allowed.
+
+A setting may be structural in one stage and specialized in another, provided the shared option has a compatible type and finite domain wherever structural use requires one. The program owns one value, projected consistently to both stages. Specialization IDs belong to a stage and are explicitly assigned, never inferred from sorted option names.
+
+Ordinary per-frame uniforms and buffer fields remain ordinary rendering data. The variant system is for settings that justify preparing another shader program; it should not become the setter path for frequently changing draw values.
+
+## Aliases and defaults
+
+Alias metadata belongs to the option declaration. For example, the short-range AO option declares `VGE_LUMON_ENABLE_SHORT_RANGE_AO` as canonical and `VGE_LUMON_ENABLE_BENT_NORMAL` as a legacy alias. Both spellings resolve to the same typed option before variant selection.
+
+Omitted values use the declared default. Supplying an alias and canonical name with equivalent values is valid; conflicting values produce a useful settings error. This intentionally replaces the current canonical-name-wins behavior. A compatibility setter receiving `null` removes the override and restores the default.
+
+Shared settings groups are explicitly included by each program that accepts them. A global graphics configuration is projected through those declared memberships before resolving an individual program. An explicitly supplied, unknown program setting is an error; the stage resolver must not reject legitimate settings used by another stage in the same program.
+
+A recognized option can be irrelevant in a selected structural configuration. Its value remains part of the user's settings, but it contributes neither a stage binary choice nor a specialization argument where unused. Enabling the relevant feature later restores that selected value.
+
+## Conditional specialization constants
+
+Specialization availability must follow explicit structural conditions. Replace the current callbacks with a small declarative condition model: equality against a structural option, plus `All`, `Any`, and `Not` composition. Conditions cannot depend on frame state, arbitrary code, or another numeric specialization value.
+
+For example, world-probe dimensions are specialized only when world-probe sampling is enabled for that stage. Importance-sampling exploration parameters are specialized only when importance sampling is enabled and the uniform-mask and batch-slicing overrides are disabled.
+
+Both source emission and runtime argument generation evaluate the same condition. An inactive specialization declaration and its macro override are omitted; the underlying GLSL must either exclude that use structurally or provide its fixed fallback. A contract must not declare a specialization that its selected shader implementation never uses. Tests exercise the supported branches so incorrect declarations fail during shader loading, without adding a binary parser or runtime manifest.
+
+Availability is separate from supported configurations: a supported configuration may legitimately omit some numeric inputs. There is no attempt to infer their availability from optimizer output.
+
+## Supported configurations and binary identity
+
+The default is the Cartesian product of explicitly declared structural domains. A program may instead declare a finite list of complete supported assignments when not every combination is useful or valid. Validate that list for duplicate rows, missing values, unsupported values, and inclusion of the default configuration. Do not use arbitrary callbacks to silently filter it.
+
+Each program declares a maximum variant count to catch accidental expansion before compilation. The build reports both program combinations and deduplicated stage binaries so a shared stage does not appear to multiply unnecessarily.
+
+Canonical stage keys contain only the structural options used by that stage, sorted by canonical name and formatted by type using invariant rules. Aliases, unrelated stage settings, and numeric specialization values do not affect the key.
+
+Retain the current direct path for a stage's default binary and the deterministic keyed path for other variants. Stage identity determines the asset path; contract construction rejects two distinct stage identities that would publish to the same path. Fixed defines, source changes, and binding changes invalidate the build through the existing build receipt. No runtime source hash or manifest compatibility check is added.
+
+## Example: a trace program
+
+The trace program references its declared vertex stage and a trace fragment stage. Its fragment-stage declaration might include:
+
+| Setting | Use | Default | Applicability |
+| --- | --- | --- | --- |
+| Near-field enabled | Structural boolean | Disabled | Trace fragment stage |
+| World-probe enabled | Structural boolean | Disabled | Trace fragment stage |
+| Ray steps | Integer specialization with a declared range | 10 | Trace fragment stage |
+| World-probe resolution | Integer specialization | Existing supported default | Only when world-probe sampling is enabled |
+
+Other current trace settings remain declared as well; this table illustrates the ownership rather than replacing the complete contract.
+
+Selecting near-field enabled, world-probe disabled, and 20 ray steps chooses the corresponding fragment binary, supplies the ray-step specialization, and omits world-probe specialization arguments. The vertex stage keeps its existing binary if it uses none of those settings. Changing ray steps to 24 reuses the same fragment binary and prepares a new specialized program. Turning world probes on selects the corresponding structural variant and includes the declared world-probe constants.
+
+## Build flow
+
+1. Construct the shared registry and validate our declarations: identities, stage combinations, option types/defaults/domains, aliases, specialization IDs, structural conditions, fixed defines, and variant budgets.
+2. Enumerate supported program assignments and project them onto stages. Deduplicate identical stage configurations.
+3. Expand imports through the existing `ShaderSyntaxTreePreprocessor`. Apply fixed and structural defines, active specialization declarations, and resource layouts using VGE's extended GLSL schema and TinyAst editor. Insert configuration before its uses and guarded source defaults. The GLSL compiler evaluates conditional directives.
+4. Compile each stage configuration directly to its deterministic `.spv` asset. Publish the compiler bytes unchanged. The existing build receipt owns incremental invalidation and output tracking; it is not a runtime asset.
+5. Package those binaries through the existing build/package process. Registry-driven tests verify that every supported stage configuration has an asset and that declared graphics combinations link.
+
+Imported GLSL helpers, include guards, and internal macros remain normal source constructs. Contract validation does not require registering every preprocessor identifier. Only application-configurable settings and explicitly owned fixed defines belong to the contract system.
+
+The remaining derived-global-constant rewriting should separately move from regex handling to the existing syntax model. It must preserve source behavior and must not become a configuration-discovery mechanism.
+
+## Runtime flow and reload ownership
+
+`GpuProgram` and the compute pipeline resolve an explicit program contract. A typed setter accepts an option key and value; the current string-based `SetDefine` can remain as a compatibility adapter that resolves names and aliases through the contract.
+
+Normalize and validate a settings update before preparing GPU objects. Resolve all stages from the same settings snapshot, including each binary path and its typed specialization arguments. The resulting load plan is transient in-memory data, not a generated or serialized manifest.
+
+Coalesce multiple settings changes through the existing reload scheduling. If the effective stage selections and specialization arguments are unchanged, no reload is necessary. A structural or active specialization change prepares replacement stages and links a replacement program. The current program remains usable until the replacement succeeds; on failure, release the candidate resources and retain the current program. Keep the distinction between requested settings and the settings of the currently installed program visible to the owner.
+
+Load binaries through the read-only span asset-reader contract. Numeric resource lookup comes from `GpuBindingContract`, with OpenGL queries identifying active resources so callers do not set optimized-away uniforms. Keep normal OpenGL load/link status handling. Do not compare compiled bindings against source declarations or inspect SPIR-V instructions.
+
+## Verification and diagnostics
+
+Pure contract tests cover typed normalization, alias equivalence/conflicts, defaults, domains, conditional constants, unsupported assignments, deterministic paths, stage sharing, and variant-count limits. Source-emission tests verify that our AST transformations place the declared values correctly, without inspecting compiled binaries.
+
+GPU tests load every finite stage variant and link the declared program combinations. Numeric specialization ranges are tested with selected default, boundary, and representative values rather than claiming exhaustive coverage of unbounded inputs. Retain rendering, uniform/buffer behavior, and reload/disposal regressions.
+
+Failures identify the program, stage, option, and requested value where applicable. Build output reports configuration counts and asset failures. No new per-frame validation, runtime source hashing, or compiler-obedience checks are introduced.
+
 ## Implementation order
 
-1. Introduce the program/configuration models and deterministic validation, with unit tests for normalization, aliases, domains, combinations, IDs, and defaults.
-2. Inventory current runtime settings and shader entry points. Declare all production and fixture contracts, stage combinations, and explicit shared option groups. Use source declarations and existing runtime consumers as the authority.
-3. Replace `Describe` and `Variants` discovery with contract-driven enumeration and AST-based emission. Remove reflection over `VgeShaderDefines`, regex condition/default discovery, guessed boolean domains, and special-case option names. Preserve all-stage compilation and incremental invalidation.
-4. Switch runtime selection to the same contracts and typed validation. Reject unsupported values before allocating shader handles.
-5. Verify every declared variant compiles, graphics combinations link, bindings agree, lifecycle reload tests pass, and packaged binaries cover their declared configurations. Add negative tests for invalid contracts and unsupported runtime selections. Compare default and representative nondefault rendering fixtures to preserve behavior.
+1. Define immutable program/stage declarations, typed options and stage uses, and the resolver. Preserve existing default paths and supported behavior while replacing string types and special-case alias logic.
+2. Inventory existing setting writers and stage entry points. Register production programs and fixtures explicitly, including shared stage combinations and known aliases. Classify settings that no longer affect any shader instead of silently treating them as configurable.
+3. Migrate the existing contract-driven builder to the richer model: finite domains, explicit supported assignments, stage deduplication, and declarative specialization conditions. Retain the shared AST pipeline and build receipt. Macro discovery and runtime manifests are already removed and must stay removed.
+4. Route graphics and compute settings through program-level resolution and one immutable load snapshot. Retain the compatibility setter and existing successful-reload ownership rules.
+5. Derive inventory/link tests from the registry, verify representative rendering and numeric specializations, and update developer guidance for adding programs and options.
 
 ## Acceptance criteria
 
-Adding a configurable shader option requires an explicit contract declaration. No variant is discovered from GLSL. Both build and runtime consume the same declarations; all supported combinations are built and exercised by inventory/link tests. TinyAst and the shared shader preprocessor remain the source-processing path. No runtime GLSL fallback is introduced.
+Adding an application-configurable shader option requires an explicit typed contract declaration and explicit stage use. Every owned entry point and supported program combination is registered. Build and runtime resolve the same configurations, shared stages are compiled once per distinct stage configuration, and unsupported settings fail clearly.
+
+TinyAst and the existing shader preprocessor remain the source-processing path. Published assets are SPIR-V binaries, with no runtime manifests or custom binary reflection. Runtime loading remains SPIR-V-only, and changing settings preserves the working program until its replacement successfully links.
