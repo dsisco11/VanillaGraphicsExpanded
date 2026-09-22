@@ -25,7 +25,7 @@ public sealed class LumonDebugShaderProcessedSourceTests : RenderTestBase
         var result = helper.CompileShader("lumon_debug.fsh", ShaderType.FragmentShader);
         Assert.True(result.IsSuccess, result.ErrorMessage);
 
-        string src = GetShaderSource(result.ShaderId);
+        string src = helper.GetProcessedSource("lumon_debug.fsh")!;
         Assert.Contains("renderLumonSceneIrradianceDebug", src);
         Assert.Contains("VgeLumonSceneTrySampleIrradiance_NearFieldV1", src);
     }
@@ -39,17 +39,9 @@ public sealed class LumonDebugShaderProcessedSourceTests : RenderTestBase
         var result = helper.CompileShader("lumon_debug_gbuffer.fsh", ShaderType.FragmentShader);
         Assert.True(result.IsSuccess, result.ErrorMessage);
 
-        string src = GetShaderSource(result.ShaderId);
+        string src = helper.GetProcessedSource("lumon_debug_gbuffer.fsh")!;
         Assert.Contains("renderLumonSceneIrradianceDebug", src);
         Assert.Contains("VgeLumonSceneTrySampleIrradiance_NearFieldV1", src);
-    }
-
-    private static string GetShaderSource(int shaderId)
-    {
-        GL.GetShader(shaderId, ShaderParameter.ShaderSourceLength, out int len);
-        if (len <= 0) return string.Empty;
-        GL.GetShaderSource(shaderId, len, out _, out string src);
-        return src ?? string.Empty;
     }
 
     private static ShaderTestHelper CreateShaderHelperOrSkip()

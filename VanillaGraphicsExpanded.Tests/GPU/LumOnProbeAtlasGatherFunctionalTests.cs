@@ -68,11 +68,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         GL.UseProgram(programId);
 
         // Texture sampler uniforms
-        var atlasLoc = GL.GetUniformLocation(programId, "octahedralAtlas");
-        var anchorPosLoc = GL.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = GL.GetUniformLocation(programId, "probeAnchorNormal");
-        var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
+        var atlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas");
+        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
+        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
+        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
+        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
         GL.Uniform1(atlasLoc, 0);
         GL.Uniform1(anchorPosLoc, 1);
         GL.Uniform1(anchorNormalLoc, 2);
@@ -321,9 +321,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 ringOffset: [Vector3.Zero]);
 
             GL.UseProgram(programId);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeRadianceAtlas"), 5);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeVis0"), 8);
-            GL.Uniform1(GL.GetUniformLocation(programId, "worldProbeMeta0"), 9);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeRadianceAtlas"), 5);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeVis0"), 8);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeMeta0"), 9);
             GL.UseProgram(0);
 
             screenProbeAtlas.Bind(0);
@@ -367,7 +367,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         }
         finally
         {
-            if (programId != 0) GL.DeleteProgram(programId);
+            if (programId != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 
@@ -458,7 +458,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         Assert.True(bottomRight.r > 0.01f && bottomRight.g > 0.01f && bottomRight.b > 0.01f,
             $"Bottom-right should resolve to the white probe, got ({bottomRight.r:F3}, {bottomRight.g:F3}, {bottomRight.b:F3})");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -547,7 +547,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         Assert.True(r00 > 0.1f,
             $"Pixel (0,0) should have red contribution from nearest probe, got R={r00:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -655,7 +655,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         Assert.True(r > b,
             $"Pixel (0,0) should favor near probe (red) over far probe (blue), got R={r:F3}, B={b:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -769,7 +769,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         Assert.True(b11 < g11 || b11 < 0.1f,
             $"Pixel (1,1) should minimize opposite-normal probe, got R={r11:F3}, G={g11:F3}, B={b11:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -888,7 +888,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -961,7 +961,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1027,7 +1027,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1087,7 +1087,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             fullValidityBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Partial validity (0.5)
@@ -1118,7 +1118,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             partialValidityBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Partial validity should have similar or less brightness
@@ -1185,7 +1185,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             stride1Brightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Stride 2
@@ -1214,7 +1214,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             stride2Brightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce non-zero output
@@ -1335,32 +1335,32 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         GL.UseProgram(programId);
 
         // Matrix uniforms
-        var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
-        var viewLoc = GL.GetUniformLocation(programId, "viewMatrix");
+        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
+        var viewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix");
         GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
         GL.UniformMatrix4(viewLoc, 1, false, view);
 
         // Probe grid uniforms
-        var spacingLoc = GL.GetUniformLocation(programId, "probeSpacing");
-        var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
-        var screenSizeLoc = GL.GetUniformLocation(programId, "screenSize");
-        var halfResSizeLoc = GL.GetUniformLocation(programId, "halfResSize");
+        var spacingLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing");
+        var gridSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize");
+        var screenSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize");
+        var halfResSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "halfResSize");
         GL.Uniform1(spacingLoc, ProbeSpacing);
         GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
         GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
         GL.Uniform2(halfResSizeLoc, (float)HalfResWidth, (float)HalfResHeight);
 
         // Z-planes
-        var zNearLoc = GL.GetUniformLocation(programId, "zNear");
-        var zFarLoc = GL.GetUniformLocation(programId, "zFar");
+        var zNearLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear");
+        var zFarLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar");
         GL.Uniform1(zNearLoc, ZNear);
         GL.Uniform1(zFarLoc, ZFar);
 
         // Quality parameters
-        var intensityLoc = GL.GetUniformLocation(programId, "intensity");
-        var tintLoc = GL.GetUniformLocation(programId, "indirectTint");
-        var leakLoc = GL.GetUniformLocation(programId, "leakThreshold");
-        var strideLoc = GL.GetUniformLocation(programId, "sampleStride");
+        var intensityLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "intensity");
+        var tintLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint");
+        var leakLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "leakThreshold");
+        var strideLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sampleStride");
         
         GL.Uniform1(intensityLoc, 1.0f);
         GL.Uniform3(tintLoc, 1.0f, 1.0f, 1.0f);
@@ -1368,11 +1368,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         GL.Uniform1(strideLoc, 1);
 
         // Texture sampler uniforms
-        var atlasLoc = GL.GetUniformLocation(programId, "octahedralAtlas");
-        var anchorPosLoc = GL.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = GL.GetUniformLocation(programId, "probeAnchorNormal");
-        var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
+        var atlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas");
+        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
+        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
+        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
+        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
         GL.Uniform1(atlasLoc, 0);
         GL.Uniform1(anchorPosLoc, 1);
         GL.Uniform1(anchorNormalLoc, 2);
@@ -1449,7 +1449,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             strictBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Permissive leak threshold (0.9)
@@ -1478,7 +1478,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             permissiveBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce some output (we're not creating a deliberate leak scenario)
@@ -1532,7 +1532,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         }
         finally
         {
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 

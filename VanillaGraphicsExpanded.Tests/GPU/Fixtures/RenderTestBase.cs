@@ -287,7 +287,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     protected void SetUniform(int programId, string name, float value)
     {
-        var location = GL.GetUniformLocation(programId, name);
+        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
         {
             location = explicitLocation;
@@ -304,7 +304,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     protected void SetUniform(int programId, string name, float x, float y)
     {
-        var location = GL.GetUniformLocation(programId, name);
+        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
         {
             location = explicitLocation;
@@ -321,7 +321,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     protected void SetUniform(int programId, string name, float x, float y, float z)
     {
-        var location = GL.GetUniformLocation(programId, name);
+        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
         {
             location = explicitLocation;
@@ -338,7 +338,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     protected void SetUniform(int programId, string name, float x, float y, float z, float w)
     {
-        var location = GL.GetUniformLocation(programId, name);
+        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
         {
             location = explicitLocation;
@@ -355,7 +355,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     protected void SetUniform(int programId, string name, int value)
     {
-        var location = GL.GetUniformLocation(programId, name);
+        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
         {
             location = explicitLocation;

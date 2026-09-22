@@ -104,18 +104,18 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             depth.Bind(0); normal.Bind(1); patch.Bind(2);
             scene.Geometry.Bind(34); scene.Readiness.Bind(35); scene.Legacy.Bind(20);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "primaryDepth"), 0);
-            GL.Uniform1(GL.GetUniformLocation(program, "gBufferNormal"), 1);
-            GL.Uniform1(GL.GetUniformLocation(program, "gBufferPatchId"), 2);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldGeometry"), 34);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldRegions"), 35);
-            GL.Uniform1(GL.GetUniformLocation(program, "traceSceneLegacy"), 20);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "primaryDepth"), 0);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "gBufferNormal"), 1);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "gBufferPatchId"), 2);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), 34);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), 35);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "traceSceneLegacy"), 20);
             GL.UseProgram(0);
             using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }
-        finally { GL.DeleteProgram(program); }
+        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
 
     /// <summary>Checks every rendered pixel, including opaque alpha, against the diagnostic legend.</summary>

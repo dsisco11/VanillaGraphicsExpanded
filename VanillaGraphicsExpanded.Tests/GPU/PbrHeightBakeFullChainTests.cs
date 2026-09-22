@@ -706,7 +706,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
     private static int Uniform(int programId, string name)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         Assert.True(loc >= 0, $"Missing uniform '{name}'");
         return loc;
     }

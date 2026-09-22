@@ -6,7 +6,7 @@ internal static class UniformBlockBindingUtil
 {
     public static void EnsureBlockBound(int programId, string blockName, int bindingIndex)
     {
-        int blockIndex = GL.GetUniformBlockIndex(programId, blockName);
+        int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(programId, blockName);
         if (blockIndex < 0)
         {
             return;

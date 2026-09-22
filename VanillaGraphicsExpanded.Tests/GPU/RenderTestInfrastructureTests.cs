@@ -149,20 +149,8 @@ public class RenderTestInfrastructureTests : RenderTestBase
         EnsureContextValid();
 
         // Create a minimal shader that outputs UV coordinates as color
-        var vertexSource = @"#version 330 core
-layout(location = 0) in vec2 position;
-layout(location = 1) in vec2 texCoord;
-out vec2 vTexCoord;
-void main() {
-    gl_Position = vec4(position, 0.0, 1.0);
-    vTexCoord = texCoord;
-}";
-        var fragmentSource = @"#version 330 core
-in vec2 vTexCoord;
-out vec4 fragColor;
-void main() {
-    fragColor = vec4(vTexCoord.x, vTexCoord.y, 0.0, 1.0);
-}";
+        var vertexSource = "tests/render_infrastructure.vsh";
+        var fragmentSource = "tests/render_infrastructure.fsh";
 
         // Compile shader using OpenTK
         var programId = CompileMinimalShader(vertexSource, fragmentSource);
@@ -189,7 +177,7 @@ void main() {
         Assert.True(g2 < 0.1f, $"Bottom-left green (V) should be ~0.0, got {g2}");
 
         // Cleanup
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -300,29 +288,25 @@ void main() {
     private int CompileMinimalShader(string vertexSource, string fragmentSource)
     {
         // Compile vertex shader
-        var vertexShader = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(vertexShader, vertexSource);
-        GL.CompileShader(vertexShader);
+        var vertexShader = BuiltShaderFixture.Load(vertexSource, ShaderType.VertexShader);
         
         GL.GetShader(vertexShader, ShaderParameter.CompileStatus, out int vStatus);
         if (vStatus == 0)
         {
             var log = GL.GetShaderInfoLog(vertexShader);
-            GL.DeleteShader(vertexShader);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
             throw new InvalidOperationException($"Vertex shader compile error: {log}");
         }
 
         // Compile fragment shader
-        var fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
-        GL.ShaderSource(fragmentShader, fragmentSource);
-        GL.CompileShader(fragmentShader);
+        var fragmentShader = BuiltShaderFixture.Load(fragmentSource, ShaderType.FragmentShader);
         
         GL.GetShader(fragmentShader, ShaderParameter.CompileStatus, out int fStatus);
         if (fStatus == 0)
         {
             var log = GL.GetShaderInfoLog(fragmentShader);
-            GL.DeleteShader(vertexShader);
-            GL.DeleteShader(fragmentShader);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fragmentShader);
             throw new InvalidOperationException($"Fragment shader compile error: {log}");
         }
 
@@ -330,21 +314,21 @@ void main() {
         var program = GL.CreateProgram();
         GL.AttachShader(program, vertexShader);
         GL.AttachShader(program, fragmentShader);
-        GL.LinkProgram(program);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(program);
 
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int lStatus);
         if (lStatus == 0)
         {
             var log = GL.GetProgramInfoLog(program);
-            GL.DeleteShader(vertexShader);
-            GL.DeleteShader(fragmentShader);
-            GL.DeleteProgram(program);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fragmentShader);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
             throw new InvalidOperationException($"Program link error: {log}");
         }
 
         // Cleanup shaders (they're now part of the program)
-        GL.DeleteShader(vertexShader);
-        GL.DeleteShader(fragmentShader);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fragmentShader);
 
         return program;
     }

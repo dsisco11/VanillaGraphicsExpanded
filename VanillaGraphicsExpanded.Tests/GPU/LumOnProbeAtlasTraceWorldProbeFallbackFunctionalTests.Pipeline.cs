@@ -106,14 +106,14 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             }
             AssertGatherLightingEffect(gathered[0], gathered[1], expectLighting);
         }
-        finally { foreach (int program in programs) GL.DeleteProgram(program); }
+        finally { foreach (int program in programs) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
 
     /// <summary>Binds named samplers for a production shader stage.</summary>
     private static void BindPipelineSamplers(int program, params (string name, int unit)[] samplers)
     {
         GL.UseProgram(program);
-        foreach (var (name, unit) in samplers) GL.Uniform1(GL.GetUniformLocation(program, name), unit);
+        foreach (var (name, unit) in samplers) GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name), unit);
         GL.UseProgram(0);
     }
     #endregion

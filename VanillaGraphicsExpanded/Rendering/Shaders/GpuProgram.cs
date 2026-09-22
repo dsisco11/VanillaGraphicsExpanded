@@ -22,13 +22,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 ///
 /// Responsibilities:
 /// - Own a runtime define-map; <see cref="SetDefine"/> triggers a recompile only on changes
-/// - Compile from asset sources using <see cref="ShaderSourceCode"/> (imports handled inline)
+/// - Load built SPIR-V variants; retain source processing for diagnostics
 /// - Apply a GL debug label to the linked program
 ///
 /// NOTE: When VGE shader programs inline imports themselves, the Harmony import hook should
 /// skip these programs to avoid double-processing (deferred decision).
 /// </summary>
-public abstract class GpuProgram : ShaderProgram
+public abstract partial class GpuProgram : ShaderProgram
 {
     #region Fields
 
@@ -110,17 +110,6 @@ public abstract class GpuProgram : ShaderProgram
     #endregion
 
     #region Uniform Block Binding (UBO)
-
-    /// <summary>
-    /// Registers an expected uniform block binding for this program.
-    /// </summary>
-    /// <remarks>
-    /// This is primarily intended for GLSL 330 where <c>layout(binding=...)</c> cannot be used without extensions.
-    /// </remarks>
-    protected void RegisterUniformBlockBinding(string blockName, int bindingIndex, bool required = true)
-    {
-        ProgramLayout.RegisterUniformBlockBinding(blockName, bindingIndex, required);
-    }
 
     /// <summary>
     /// Binds a UBO to the named uniform block for this program.
@@ -291,7 +280,6 @@ public abstract class GpuProgram : ShaderProgram
         // Stage ownership is kept here, but stage behavior is fully encapsulated.
         // These delegates are safe because they are only invoked after Initialize() (when capi is set).
         // Vertex/Fragment/Geometry slots are provided by the engine ShaderProgram base.
-        
 
         // Keep AssetDomain aligned with the import system default unless a derived program explicitly overrides it.
         if (string.IsNullOrWhiteSpace(AssetDomain))
@@ -332,7 +320,6 @@ public abstract class GpuProgram : ShaderProgram
         return changed;
     }
 
-
     /// <summary>
     /// Removes a define and schedules a recompile if it existed.
     /// </summary>
@@ -355,7 +342,6 @@ public abstract class GpuProgram : ShaderProgram
     }
 
     #endregion
-
 
     #region Legacy Sampler Unit Assignment
 
@@ -509,8 +495,6 @@ public abstract class GpuProgram : ShaderProgram
 
     #endregion
 
-
-
     /// <summary>
     /// Returns the cached uniform location for <paramref name="uniformName"/>.
     /// When <paramref name="uniformName"/> refers to an array, this method also tries <c>name[0]</c>,
@@ -536,10 +520,10 @@ public abstract class GpuProgram : ShaderProgram
 
         // Spec allows querying the base name OR the [0] name.
         // Some compilers only expose one of these names.
-        int loc = GL.GetUniformLocation(ProgramId, uniformName);
+        int loc = ProgramLayout.GetUniformLocation(ProgramId, uniformName);
         if (loc < 0)
         {
-            loc = GL.GetUniformLocation(ProgramId, $"{uniformName}[0]");
+            loc = ProgramLayout.GetUniformLocation(ProgramId, $"{uniformName}[0]");
         }
 
         uniformLocationCache[uniformName] = loc;
@@ -549,7 +533,7 @@ public abstract class GpuProgram : ShaderProgram
     #region Compilation
 
     /// <summary>
-    /// Compiles and links using VGE's source pipeline (imports + AST define injection).
+    /// Loads built shader variants, specializes settings, and links their numeric interfaces.
     /// Intended for memory shader programs.
     /// </summary>
     public bool CompileAndLink()
@@ -598,7 +582,7 @@ public abstract class GpuProgram : ShaderProgram
             // Geometry stage is optional.
             geometryStage.TryLoadAndApplyOptional(capi, GeometryStageShaderName, defineSnapshot, log);
 
-            bool ok = Compile();
+            bool ok = CompileSpirv(defineSnapshot);
             if (ok)
             {
                 ProgramLayout.ApplyContract(ProgramId, msg => log?.Warning($"[VGE][{ShaderName}] {msg}"));
@@ -612,7 +596,7 @@ public abstract class GpuProgram : ShaderProgram
             {
                 ProgramLayout.RebuildCache(programId: 0);
                 log?.Warning($"[VGE] Shader compile failed: {ShaderName}");
-                LogDiagnostics();
+                // Binary loader reports specialization/link errors directly; never compile a GLSL diagnostic fallback.
             }
 
             return ok;
@@ -622,80 +606,6 @@ public abstract class GpuProgram : ShaderProgram
             // Never let shader compilation exceptions bring down the client.
             log?.Error($"[VGE][{ShaderName}] Exception during CompileAndLink(): {ex}");
             return false;
-        }
-    }
-
-    protected virtual void LogDiagnostics()
-    {
-        // Called only on compilation failures, on the render thread.
-        // All OpenGL diagnostics are best-effort and must never throw.
-        try
-        {
-            // Dump the uploaded sources for easier debugging without spamming the console.
-            if (VanillaGraphicsExpanded.Rendering.VgeShaderSourceDump.TryDumpProgram(
-                programName: ShaderName,
-                vertexSource: vertexStage.EmittedSource,
-                fragmentSource: fragmentStage.EmittedSource,
-                geometrySource: geometryStage.EmittedSource,
-                dumpPath: out string? dumpPath,
-                error: out string? dumpError))
-            {
-                log?.Error($"[VGE][{ShaderName}] Shader source dumped to: {dumpPath}");
-            }
-            else if (!string.IsNullOrWhiteSpace(dumpError))
-            {
-                log?.Warning($"[VGE][{ShaderName}] Failed to dump shader sources: {dumpError}");
-            }
-
-            var v = vertexStage.CompileDiagnostics();
-            var f = fragmentStage.CompileDiagnostics();
-            var g = geometryStage.EmittedSource is null ? new StageShader.StageCompileDiagnostics { Success = true, InfoLog = string.Empty, ShaderId = 0 } : geometryStage.CompileDiagnostics();
-
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(v.InfoLog))
-                {
-                    log?.Error($"[VGE][{ShaderName}] Vertex shader info log:\n{v.InfoLog}");
-                }
-                if (!string.IsNullOrWhiteSpace(f.InfoLog))
-                {
-                    log?.Error($"[VGE][{ShaderName}] Fragment shader info log:\n{f.InfoLog}");
-                }
-                if (!string.IsNullOrWhiteSpace(g.InfoLog))
-                {
-                    log?.Error($"[VGE][{ShaderName}] Geometry shader info log:\n{g.InfoLog}");
-                }
-
-                var link = ShaderProgramDiagnostics.LinkDiagnosticsOnly(v.ShaderId, f.ShaderId, g.ShaderId);
-                if (!string.IsNullOrWhiteSpace(link.ProgramInfoLog))
-                {
-                    log?.Error($"[VGE][{ShaderName}] Program link info log:\n{link.ProgramInfoLog}");
-                }
-
-                // Emit some context that will matter for future remapping.
-                if (vertexStage.SourceCode?.ImportInlining.HadImports == true)
-                {
-                    log?.Notification($"[VGE][{ShaderName}] Vertex stage had imports; source-map available={vertexStage.SourceCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(vertexStage.SourceCode.ImportResult) is not null}");
-                }
-                if (fragmentStage.SourceCode?.ImportInlining.HadImports == true)
-                {
-                    log?.Notification($"[VGE][{ShaderName}] Fragment stage had imports; source-map available={fragmentStage.SourceCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(fragmentStage.SourceCode.ImportResult) is not null}");
-                }
-                if (geometryStage.SourceCode?.ImportInlining.HadImports == true)
-                {
-                    log?.Notification($"[VGE][{ShaderName}] Geometry stage had imports; source-map available={geometryStage.SourceCode.ImportResult?.GetType().GetProperty("SourceMap")?.GetValue(geometryStage.SourceCode.ImportResult) is not null}");
-                }
-            }
-            finally
-            {
-                StageShader.DeleteDiagnosticsShader(v);
-                StageShader.DeleteDiagnosticsShader(f);
-                StageShader.DeleteDiagnosticsShader(g);
-            }
-        }
-        catch (Exception ex)
-        {
-            log?.Warning($"[VGE][{ShaderName}] Failed to capture GL shader diagnostics: {ex}");
         }
     }
 

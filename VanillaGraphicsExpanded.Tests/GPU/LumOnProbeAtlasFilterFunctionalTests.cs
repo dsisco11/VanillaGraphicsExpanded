@@ -116,9 +116,9 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         objectParamsUbo.UploadAndBind(cpuParams.Bytes);
 
         // Samplers
-        GL.Uniform1(GL.GetUniformLocation(programId, "octahedralAtlas"), 0);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMeta"), 1);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas"), 0);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMeta"), 1);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
 
         GL.UseProgram(0);
         return objectParamsUbo;
@@ -171,7 +171,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         var (r1, g1, b1, _) = ReadAtlasTexel(outRgba, 12, 4);
         Assert.True(r1 > 0.9f && g1 < 0.1f && b1 < 0.1f, "Valid probe tile should preserve non-zero radiance");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         Assert.True(r > 0.9f && g < 0.1f && b < 0.1f,
             $"Low-confidence neighbor should not bleed; got ({r:F3},{g:F3},{b:F3})");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             Assert.True(r > 0.3f && r < 0.7f && b > 0.3f && b < 0.7f,
                 $"Expected smoothing toward a mix; got R={r:F3}, B={b:F3}");
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Case B: Edge preservation via hit-distance stopping
@@ -303,7 +303,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             Assert.True(r > 0.9f && g < 0.1f && b < 0.1f,
                 $"Expected edge-stopped result to remain near center; got ({r:F3},{g:F3},{b:F3})");
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 }

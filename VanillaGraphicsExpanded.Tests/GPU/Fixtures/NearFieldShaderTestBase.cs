@@ -50,10 +50,10 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
             (shared?.Geometry ?? fixture.Scene.Geometry).Bind(10); (shared?.Light ?? fixture.Scene.Light).Bind(13);
             (shared?.Readiness ?? fixture.Scene.Regions).Bind(14); (shared?.Materials ?? fixture.Scene.Materials).Bind(15);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldGeometry"), 10);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldLight"), 13);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldRegions"), 14);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldMaterials"), 15);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), 10);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldLight"), 13);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), 14);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldMaterials"), 15);
             GL.UseProgram(0);
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection(),
                 projectionMatrix: LumOnTestInputFactory.CreateRealisticProjection(),
@@ -76,7 +76,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         finally
         {
             foreach (var texture in textures) texture.Dispose();
-            GL.DeleteProgram(program);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
         }
 
         /// <summary>Creates uniform inputs that isolate traversal from unrelated screen-buffer contents.</summary>
@@ -91,7 +91,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
             var texture = TestFramework.CreateTexture(width, height, format, data);
             textures.Add(texture); texture.Bind(unit);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, name), unit);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name), unit);
             GL.UseProgram(0);
         }
     }

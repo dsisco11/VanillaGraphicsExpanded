@@ -56,7 +56,6 @@ public class GpuFramebufferBlendStateIntegrationTests
         fbo.ApplyAttachmentBlendState();
 
         using var program = SimpleMrtProgram.Create(
-            fragmentColor: "vec4(1.0, 0.0, 0.0, 0.5)",
             debugName: "Test.Program");
 
         int vao = GL.GenVertexArray();
@@ -110,7 +109,6 @@ public class GpuFramebufferBlendStateIntegrationTests
         fbo.ApplyAttachmentBlendState();
 
         using var program = SimpleMrtProgram.Create(
-            fragmentColor: "vec4(1.0, 0.0, 0.0, 0.5)",
             debugName: "Test.Program");
 
         int vao = GL.GenVertexArray();
@@ -182,31 +180,11 @@ public class GpuFramebufferBlendStateIntegrationTests
             this.fs = fs;
         }
 
-        public static SimpleMrtProgram Create(string fragmentColor, string? debugName = null)
+        public static SimpleMrtProgram Create(string? debugName = null)
         {
-            string vsSource = """
-                #version 430 core
-                void main()
-                {
-                    vec2 pos;
-                    if (gl_VertexID == 0) pos = vec2(-1.0, -1.0);
-                    else if (gl_VertexID == 1) pos = vec2( 3.0, -1.0);
-                    else pos = vec2(-1.0,  3.0);
-                    gl_Position = vec4(pos, 0.0, 1.0);
-                }
-                """;
+            const string vsSource = "tests/GpuFramebufferBlendStateIntegrationTests_1.vsh";
 
-            string fsSource = """
-                #version 430 core
-                layout(location=0) out vec4 o0;
-                layout(location=1) out vec4 o1;
-                void main()
-                {
-                    vec4 c = FRAGMENT_COLOR;
-                    o0 = c;
-                    o1 = c;
-                }
-                """.Replace("FRAGMENT_COLOR", fragmentColor, StringComparison.Ordinal);
+            const string fsSource = "tests/framebuffer_blend.fsh";
 
             int vs = Compile(ShaderType.VertexShader, vsSource);
             int fs = Compile(ShaderType.FragmentShader, fsSource);
@@ -214,8 +192,8 @@ public class GpuFramebufferBlendStateIntegrationTests
             int program = GL.CreateProgram();
             if (program == 0)
             {
-                GL.DeleteShader(vs);
-                GL.DeleteShader(fs);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vs);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fs);
                 throw new InvalidOperationException("glCreateProgram returned 0.");
             }
 
@@ -225,15 +203,15 @@ public class GpuFramebufferBlendStateIntegrationTests
 
             GL.AttachShader(program, vs);
             GL.AttachShader(program, fs);
-            GL.LinkProgram(program);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(program);
 
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linkStatus);
             string info = GL.GetProgramInfoLog(program) ?? string.Empty;
             if (linkStatus == 0)
             {
-                GL.DeleteProgram(program);
-                GL.DeleteShader(vs);
-                GL.DeleteShader(fs);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vs);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fs);
                 throw new InvalidOperationException($"Program link failed: {info}");
             }
 
@@ -242,20 +220,12 @@ public class GpuFramebufferBlendStateIntegrationTests
 
         private static int Compile(ShaderType type, string source)
         {
-            int id = GL.CreateShader(type);
-            if (id == 0)
-            {
-                throw new InvalidOperationException("glCreateShader returned 0.");
-            }
-
-            GL.ShaderSource(id, source);
-            GL.CompileShader(id);
-
+            int id = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(source, type);
             GL.GetShader(id, ShaderParameter.CompileStatus, out int status);
             string info = GL.GetShaderInfoLog(id) ?? string.Empty;
             if (status == 0)
             {
-                GL.DeleteShader(id);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(id);
                 throw new InvalidOperationException($"{type} compile failed: {info}");
             }
 
@@ -271,15 +241,15 @@ public class GpuFramebufferBlendStateIntegrationTests
                     GL.UseProgram(0);
                     GL.DetachShader(ProgramId, vs);
                     GL.DetachShader(ProgramId, fs);
-                    GL.DeleteProgram(ProgramId);
+                    global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(ProgramId);
                 }
             }
             catch
             {
             }
 
-            try { if (vs != 0) GL.DeleteShader(vs); } catch { }
-            try { if (fs != 0) GL.DeleteShader(fs); } catch { }
+            try { if (vs != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vs); } catch { }
+            try { if (fs != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fs); } catch { }
         }
     }
 }

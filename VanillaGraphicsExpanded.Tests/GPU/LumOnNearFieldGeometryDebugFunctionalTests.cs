@@ -183,14 +183,14 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
             scene?.Geometry.Bind(34); scene?.Regions.Bind(35);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldGeometry"), 34);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldRegions"), 35);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), 34);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), 35);
             GL.UseProgram(0);
             using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }
-        finally { GL.DeleteProgram(program); }
+        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

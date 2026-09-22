@@ -518,7 +518,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
     private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, uniformName);
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2D, textureId);
         if (loc >= 0)
@@ -529,7 +529,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
     private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
     {
-        int loc = GL.GetUniformLocation(program, uniformName);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, uniformName);
         GL.ActiveTexture(TextureUnit.Texture0 + unit);
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);
         if (loc >= 0)
@@ -540,7 +540,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
     private static void SetUniform(int program, string name, uint value)
     {
-        int loc = GL.GetUniformLocation(program, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
         if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
         {
             loc = explicitLoc;

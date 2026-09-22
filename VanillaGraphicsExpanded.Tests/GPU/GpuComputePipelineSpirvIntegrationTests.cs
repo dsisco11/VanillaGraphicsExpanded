@@ -28,7 +28,7 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : IDisposable
         _fixture.EnsureContextValid();
 
         bool supportsSpirv = GpuShaderModule.SupportsSpirv();
-        Assert.SkipWhen(!supportsSpirv, "GL_ARB_gl_spirv not supported by current context.");
+        Assert.True(supportsSpirv, "GPU shader tests require GL_ARB_gl_spirv support.");
 
         string spvPath = Path.Combine(
             AppContext.BaseDirectory,
@@ -36,7 +36,7 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : IDisposable
             "shaders",
             "lumonscene_feedback_mark_pages.csh.spv");
 
-        Assert.SkipWhen(!File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}");
+        Assert.True(File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}");
 
         byte[] bytes = File.ReadAllBytes(spvPath);
         Assert.True(bytes.Length > 0, "SPIR-V asset bytes should be non-empty.");

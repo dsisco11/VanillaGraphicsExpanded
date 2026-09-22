@@ -801,17 +801,17 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         }
         finally
         {
-            if (pbrDirectProg != 0) GL.DeleteProgram(pbrDirectProg);
-            if (velocityProg != 0) GL.DeleteProgram(velocityProg);
-            if (hzbCopyProg != 0) GL.DeleteProgram(hzbCopyProg);
-            if (hzbDownProg != 0) GL.DeleteProgram(hzbDownProg);
-            if (anchorProg != 0) GL.DeleteProgram(anchorProg);
-            if (traceProg != 0) GL.DeleteProgram(traceProg);
-            if (temporalProg != 0) GL.DeleteProgram(temporalProg);
-            if (filterProg != 0) GL.DeleteProgram(filterProg);
-            if (gatherProg != 0) GL.DeleteProgram(gatherProg);
-            if (upsampleProg != 0) GL.DeleteProgram(upsampleProg);
-            if (pbrCompositeProg != 0) GL.DeleteProgram(pbrCompositeProg);
+            if (pbrDirectProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(pbrDirectProg);
+            if (velocityProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(velocityProg);
+            if (hzbCopyProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(hzbCopyProg);
+            if (hzbDownProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(hzbDownProg);
+            if (anchorProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(anchorProg);
+            if (traceProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(traceProg);
+            if (temporalProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(temporalProg);
+            if (filterProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(filterProg);
+            if (gatherProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(gatherProg);
+            if (upsampleProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(upsampleProg);
+            if (pbrCompositeProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(pbrCompositeProg);
         }
     }
 
@@ -915,7 +915,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         Assert.True(expectedTexture.IsValid, $"{stage}: expected texture for '{samplerUniform}' is invalid/disposed");
         Assert.NotEqual(0, expectedTexture.TextureId);
 
-        int loc = GL.GetUniformLocation(programId, samplerUniform);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, samplerUniform);
         Assert.True(loc >= 0, $"{stage}: sampler uniform '{samplerUniform}' not found");
 
         GL.GetUniform(programId, loc, out int actualUnit);
@@ -1042,7 +1042,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
     private static void SetSampler(int programId, string name, int unit)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0)
         {
             GL.Uniform1(loc, unit);
@@ -1051,7 +1051,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
     private static void SetInt(int programId, string name, int value)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0)
         {
             GL.Uniform1(loc, value);
@@ -1060,7 +1060,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
     private static void SetFloat(int programId, string name, float value)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0)
         {
             GL.Uniform1(loc, value);
@@ -1069,7 +1069,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
     private static void SetVec2(int programId, string name, float x, float y)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0)
         {
             GL.Uniform2(loc, x, y);
@@ -1078,7 +1078,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
     private static void SetVec3(int programId, string name, float x, float y, float z)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0)
         {
             GL.Uniform3(loc, x, y, z);
@@ -1087,7 +1087,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
     private static void SetMat4(int programId, string name, float[] matrix)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0)
         {
             GL.UniformMatrix4(loc, 1, false, matrix);
@@ -1156,7 +1156,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         SetSampler(programId, "primaryDepth", 7);
 
         // Fog disabled
-        int fogColorLoc = GL.GetUniformLocation(programId, "rgbaFogIn");
+        int fogColorLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "rgbaFogIn");
         if (fogColorLoc >= 0)
         {
             GL.Uniform4(fogColorLoc, 0f, 0f, 0f, 0f);

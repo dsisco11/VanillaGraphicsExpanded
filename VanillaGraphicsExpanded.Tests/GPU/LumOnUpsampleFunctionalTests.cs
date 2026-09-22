@@ -65,9 +65,9 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         GL.UseProgram(programId);
 
         // Texture sampler uniforms
-        var indirectLoc = GL.GetUniformLocation(programId, "indirectHalf");
-        var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
+        var indirectLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectHalf");
+        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
+        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
         GL.Uniform1(indirectLoc, 0);
         GL.Uniform1(depthLoc, 1);
         GL.Uniform1(normalLoc, 2);
@@ -266,7 +266,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #region Test: HoleFill_OnlyAffectsLowConfidenceAreas
@@ -360,8 +360,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(bottomRightFill.r > 1e-3f || bottomRightFill.g > 1e-3f || bottomRightFill.b > 1e-3f,
             "Expected hole-fill output to become non-black in low-confidence region.");
 
-        GL.DeleteProgram(programIdNoFill);
-        GL.DeleteProgram(programIdFill);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programIdNoFill);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programIdFill);
     }
 
     #endregion
@@ -442,7 +442,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(rightR > leftR,
             $"Right edge ({rightR:F3}) should be brighter than left edge ({leftR:F3})");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -536,7 +536,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 $"Right edge pixel ({ScreenWidth - 1},{py}) should be predominantly blue, got R={r3:F3}, B={b3:F3}");
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -613,7 +613,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -676,7 +676,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -733,7 +733,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
             denoisedBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Without denoising (simple bilinear) - compile with DENOISE=0
@@ -762,7 +762,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
             simpleBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce non-zero, similar output with uniform input
@@ -831,7 +831,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             float mean = sum / count;
             smallSigmaVariance = sumSq / count - mean * mean;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Large spatial sigma (blurrier)
@@ -867,7 +867,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             float mean = sum / count;
             largeSigmaVariance = sumSq / count - mean * mean;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce valid output
@@ -939,7 +939,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(lR > rR,
             $"Depth edge should prevent cross-blending: left={lR:F3}, right={rR:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion

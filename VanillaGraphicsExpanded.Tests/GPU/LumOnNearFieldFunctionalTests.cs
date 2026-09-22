@@ -33,7 +33,7 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
                 ["VGE_LUMON_WORLDPROBE_ENABLED"] = worldCache,
                 ["VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS"] = "1"
             });
-        GL.DeleteProgram(program);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
     }
     #endregion
 

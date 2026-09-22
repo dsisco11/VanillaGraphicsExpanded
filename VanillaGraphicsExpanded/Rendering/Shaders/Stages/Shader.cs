@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 
-using OpenTK.Graphics.OpenGL;
-
 using TinyTokenizer.Ast;
 
 using Vintagestory.API.Client;
@@ -11,15 +9,9 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Stages;
 
+/// <summary>Loads stage source for diagnostics while the owning program loads built shader binaries.</summary>
 internal sealed class Shader
 {
-    internal sealed class StageCompileDiagnostics
-    {
-        public required bool Success { get; init; }
-        public required string InfoLog { get; init; }
-        public required int ShaderId { get; init; }
-    }
-
     private readonly string stageExtension;
     private readonly EnumShaderType engineShaderType;
 
@@ -34,6 +26,8 @@ internal sealed class Shader
 
     public string? EmittedSource => SourceCode?.EmittedSource;
 
+    #region Stage source lifecycle
+    /// <summary>Connects a source stage to the owning program's engine shader slot.</summary>
     public Shader(string stageExtension, EnumShaderType engineShaderType, Func<IShader?> getSlot, Action<IShader> setSlot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stageExtension);
@@ -43,6 +37,7 @@ internal sealed class Shader
         this.setSlot = setSlot ?? throw new ArgumentNullException(nameof(setSlot));
     }
 
+    /// <summary>Processes source for diagnostics and maintains the engine stage slot without compiling GLSL.</summary>
     public ShaderSourceCode LoadAndApply(
         ICoreClientAPI api,
         string shaderName,
@@ -66,6 +61,7 @@ internal sealed class Shader
         return SourceCode;
     }
 
+    /// <summary>Refreshes an optional stage and clears its source when the asset has been removed.</summary>
     public bool TryLoadAndApplyOptional(
         ICoreClientAPI api,
         string shaderName,
@@ -83,6 +79,7 @@ internal sealed class Shader
         IAsset? asset = api.Assets.TryGet(AssetLocation.Create(assetPath, domain), loadAsset: true);
         if (asset is null)
         {
+            SourceCode = null;
             return false;
         }
 
@@ -90,67 +87,5 @@ internal sealed class Shader
         return true;
     }
 
-    public StageCompileDiagnostics CompileDiagnostics()
-    {
-        if (string.IsNullOrEmpty(EmittedSource))
-        {
-            return new StageCompileDiagnostics { Success = false, InfoLog = "[VGE] No emitted source available for diagnostics", ShaderId = 0 };
-        }
-
-        int shader = 0;
-        try
-        {
-            ShaderType type = MapToOpenTk(engineShaderType);
-
-            shader = GL.CreateShader(type);
-            GL.ShaderSource(shader, EmittedSource);
-            GL.CompileShader(shader);
-
-            GL.GetShader(shader, ShaderParameter.CompileStatus, out int status);
-            string log = GL.GetShaderInfoLog(shader) ?? string.Empty;
-
-            return new StageCompileDiagnostics
-            {
-                Success = status != 0,
-                InfoLog = log,
-                ShaderId = shader
-            };
-        }
-        catch (Exception ex)
-        {
-            if (shader != 0)
-            {
-                try { GL.DeleteShader(shader); } catch { /* ignore */ }
-            }
-
-            return new StageCompileDiagnostics
-            {
-                Success = false,
-                InfoLog = $"[VGE] Exception while compiling shader diagnostics: {ex}",
-                ShaderId = 0
-            };
-        }
-    }
-
-    public static void DeleteDiagnosticsShader(in StageCompileDiagnostics diag)
-    {
-        if (diag.ShaderId != 0)
-        {
-            try { GL.DeleteShader(diag.ShaderId); } catch { /* ignore */ }
-        }
-    }
-
-    private static ShaderType MapToOpenTk(EnumShaderType type)
-    {
-        return type switch
-        {
-            EnumShaderType.VertexShader => ShaderType.VertexShader,
-            EnumShaderType.FragmentShader => ShaderType.FragmentShader,
-            EnumShaderType.GeometryShader => ShaderType.GeometryShader,
-            EnumShaderType.ComputeShader => ShaderType.ComputeShader,
-            EnumShaderType.TessControlShader => ShaderType.TessControlShader,
-            EnumShaderType.TessEvaluationShader => ShaderType.TessEvaluationShader,
-            _ => throw new NotSupportedException($"Unsupported shader stage type for diagnostics: {type}")
-        };
-    }
+    #endregion
 }

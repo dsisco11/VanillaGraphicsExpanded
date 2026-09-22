@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
@@ -135,6 +136,8 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             }
 
             var layoutToUse = layout ?? new GpuProgramLayout();
+            if (computeShader.BindingContract != null)
+                layoutToUse.BinaryInterface = new Spirv.GpuProgramInterface(programId, [computeShader.BindingContract]);
             layoutToUse.ApplyContract(programId, warn);
 #if DEBUG
             layoutToUse.ValidateContract(programId, warn);
@@ -164,90 +167,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         }
     }
 
-    /// <summary>
-    /// Compiles a compute shader from preprocessed GLSL and links it into a compute pipeline.
-    /// </summary>
-    /// <param name="api">Vintage Story API (used for preprocessing imports and <c>#line</c> mapping).</param>
-    /// <param name="shaderName">Logical shader name (used for preprocessing bookkeeping).</param>
-    /// <param name="glslSource">Raw GLSL source text (may contain <c>@import</c> directives).</param>
-    /// <param name="pipeline">The created pipeline instance on success; otherwise null.</param>
-    /// <param name="sourceCode">Preprocessed source bundle (includes emitted GLSL and optional source mapping).</param>
-    /// <param name="infoLog">Compiler/linker info log (may be empty).</param>
-    /// <param name="stageExtension">Stage extension used for preprocessing bookkeeping (defaults to <c>csh</c>).</param>
-    /// <param name="defines">Optional preprocessor defines injected after <c>#version</c>.</param>
-    /// <param name="debugName">Optional KHR_debug label (debug builds only).</param>
-    /// <param name="log">Optional logger for preprocessing diagnostics.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>True on successful compilation + link.</returns>
-    public static bool TryCompileAndCreateGlslPreprocessed(
-        ICoreAPI api,
-        string shaderName,
-        string glslSource,
-        out GpuComputePipeline? pipeline,
-        out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
-        out string infoLog,
-        string stageExtension = "csh",
-        System.Collections.Generic.IReadOnlyDictionary<string, string?>? defines = null,
-        string? debugName = null,
-        ILogger? log = null,
-        System.Threading.CancellationToken ct = default,
-        GpuProgramLayout? layout = null)
-    {
-        ArgumentNullException.ThrowIfNull(api);
-        ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
-
-        pipeline = null;
-        sourceCode = null;
-        infoLog = string.Empty;
-
-        if (!GpuShaderModule.TryCompileGlslPreprocessed(
-            api: api,
-            shaderType: ShaderType.ComputeShader,
-            shaderName: shaderName,
-            stageExtension: stageExtension,
-            glslSource: glslSource,
-            module: out var module,
-            sourceCode: out sourceCode,
-            infoLog: out infoLog,
-            defines: defines,
-            debugName: debugName,
-            log: log,
-            ct: ct))
-        {
-            module?.Dispose();
-            pipeline = null;
-            return false;
-        }
-
-        if (module is null)
-        {
-            infoLog = "[VGE] Compute shader compilation succeeded but module was null (unexpected).";
-            pipeline = null;
-            return false;
-        }
-
-        if (!TryCreate(
-            computeShader: module,
-            pipeline: out pipeline,
-            infoLog: out string linkLog,
-            debugName: debugName,
-            disposeShaderAfterLink: true,
-            layout: layout,
-            warn: log is null ? null : msg => log.Warning($"[VGE][Compute:{shaderName}] {msg}")))
-        {
-            infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + linkLog;
-            pipeline = null;
-            return false;
-        }
-
-        return true;
-    }
-
-    private static int spirvUnsupportedLogged;
     private static int spirvUsedCount;
-    private static int spirvMissingCount;
-    private static int spirvUnsupportedCount;
 
+    /// <summary>Loads a standalone compute binary using its source-owned binding contract.</summary>
     public static bool TryLoadFromSpirv(
         string spirvBinaryPath,
         out GpuComputePipeline? pipeline,
@@ -271,94 +193,38 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        byte[] bytes;
         try
         {
-            bytes = File.ReadAllBytes(spirvBinaryPath);
+            if (new FileInfo(spirvBinaryPath).Length == 0) throw new InvalidOperationException("SPIR-V file was empty: " + spirvBinaryPath);
+            if (!GpuShaderModule.TryLoadSpirv(ShaderType.ComputeShader, File.ReadAllBytes(spirvBinaryPath),
+                "main", [], out var module, out infoLog, debugName) || module == null) return false;
+            using (module)
+            {
+                module.BindingContract = Contracts.GpuShaderContracts.Create(Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(spirvBinaryPath)));
+                return TryCreate(module, out pipeline, out infoLog, debugName, layout: layout, warn: warn);
+            }
         }
-        catch (Exception ex)
-        {
-            infoLog = $"[VGE] Failed to read SPIR-V file '{spirvBinaryPath}': {ex.Message}";
-            return false;
-        }
-
-        if (bytes.Length == 0)
-        {
-            infoLog = $"[VGE] SPIR-V file was empty: {spirvBinaryPath}";
-            return false;
-        }
-
-        bool ok = TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvLog, debugName, layout, warn);
-        infoLog = spirvLog;
-        return ok;
+        catch (Exception ex) { infoLog = ex.Message; return false; }
     }
 
-    private static bool TryCreateFromSpirvBytes(
-        ReadOnlySpan<byte> spirvBytes,
-        out GpuComputePipeline? pipeline,
-        out string infoLog,
-        string? debugName = null,
-        GpuProgramLayout? layout = null,
-        Action<string>? warn = null)
+    /// <summary>Loads a contract-selected binary and links its name-independent resource contract.</summary>
+    private static bool TryCreateFromBinaryContract(string source, IReadOnlyDictionary<string, string?>? defines,
+        Spirv.ShaderAssetReader read, out GpuComputePipeline? pipeline, out string infoLog,
+        string? debugName, GpuProgramLayout? layout, Action<string>? warn)
     {
         pipeline = null;
-        infoLog = string.Empty;
-
-        if (spirvBytes.Length == 0)
+        try
         {
-            infoLog = "[VGE] SPIR-V bytes were empty.";
-            return false;
+            var loaded = Spirv.SpirvStageLoader.Load(source, ShaderType.ComputeShader, defines, read);
+            using var module = new GpuShaderModule(loaded.Shader, ShaderType.ComputeShader) { BindingContract = loaded.Contract };
+            bool success = TryCreate(module, out pipeline, out infoLog, debugName, layout: layout, warn: warn);
+            if (success) Interlocked.Increment(ref spirvUsedCount);
+            return success;
         }
-
-        if (!GpuShaderModule.SupportsSpirv())
-        {
-            infoLog = "[VGE] GL_ARB_gl_spirv not supported by current context.";
-            return false;
-        }
-
-        if (!GpuShaderModule.TryLoadSpirv(
-            shaderType: ShaderType.ComputeShader,
-            spirvBytes: spirvBytes,
-            entryPoint: "main",
-            specializationConstants: ReadOnlySpan<GpuShaderModule.SpirvSpecializationConstant>.Empty,
-            module: out var module,
-            infoLog: out string spirvLog,
-            debugName: debugName))
-        {
-            infoLog = spirvLog;
-            return false;
-        }
-
-        if (module is null)
-        {
-            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + "[VGE] SPIR-V load succeeded but module was null (unexpected).";
-            return false;
-        }
-
-        if (!TryCreate(
-            computeShader: module,
-            pipeline: out pipeline,
-            infoLog: out string linkLog,
-            debugName: debugName,
-            disposeShaderAfterLink: true,
-            layout: layout,
-            warn: warn))
-        {
-            module.Dispose();
-            pipeline = null;
-            infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
-            return false;
-        }
-
-        Interlocked.Increment(ref spirvUsedCount);
-        infoLog = (spirvLog.Length > 0 ? spirvLog + "\n" : string.Empty) + linkLog;
-        return true;
+        catch (Exception ex) { infoLog = ex.Message; return false; }
     }
-
     /// <summary>
-    /// Creates a compute pipeline by loading a packaged SPIR-V binary (<c>.csh.spv</c>) when <paramref name="preferSpirv" /> is true,
-    /// present, and supported; otherwise falls back to loading and compiling the GLSL source (<c>.csh</c>) through the existing
-    /// preprocessing pipeline.
+    /// Creates a compute pipeline from a required packaged SPIR-V binary. The legacy preference parameter is ignored; GLSL fallback is never used.
     /// </summary>
     /// <remarks>
     /// This is the recommended runtime entry point for VGE-owned compute shaders.
@@ -369,7 +235,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         out GpuComputePipeline? pipeline,
         out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
         out string infoLog,
-        bool preferSpirv = false,
+        bool preferSpirv = true,
         string stageExtension = "csh",
         IReadOnlyDictionary<string, string?>? defines = null,
         string? debugName = null,
@@ -385,90 +251,14 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         sourceCode = null;
         infoLog = string.Empty;
 
+        ct.ThrowIfCancellationRequested();
         string stageName = $"{shaderName}.{stageExtension}";
-        string spvStageName = stageName + ".spv";
-
-        // 1) Optionally prefer SPIR-V if present and supported.
-        if (preferSpirv)
-        {
-            var locSpv = AssetLocation.Create($"shaders/{spvStageName}", VanillaGraphicsExpanded.PBR.ShaderImportsSystem.DefaultDomain);
-            IAsset? spvAsset = api.Assets.TryGet(locSpv, loadAsset: true);
-            if (spvAsset is not null)
-            {
-                if (GpuShaderModule.SupportsSpirv())
-                {
-                    byte[] bytes = spvAsset.Data ?? Array.Empty<byte>();
-                    if (bytes.Length > 0)
-                    {
-                        Action<string>? warn = (log ?? api.Logger) is null
-                            ? null
-                            : msg => (log ?? api.Logger).Warning($"[VGE][Compute:{shaderName}] {msg}");
-
-                        if (TryCreateFromSpirvBytes(bytes, out pipeline, out string spirvInfo, debugName, layout, warn))
-                        {
-                            infoLog = spirvInfo;
-                            return true;
-                        }
-
-                        // Fall back to GLSL when SPIR-V fails to load/link.
-                        infoLog = (spirvInfo.Length > 0 ? spirvInfo + "\n" : string.Empty) + "[VGE] SPIR-V load/link failed; falling back to GLSL.";
-                    }
-                    else
-                    {
-                        Interlocked.Increment(ref spirvMissingCount);
-                    }
-                }
-                else
-                {
-                    Interlocked.Increment(ref spirvUnsupportedCount);
-
-                    // Log once per session when SPIR-V exists but isn't supported.
-                    if (Interlocked.Exchange(ref spirvUnsupportedLogged, 1) == 0)
-                    {
-                        (log ?? api.Logger)?.Warning("[VGE] SPIR-V binaries found but GL_ARB_gl_spirv is not supported; falling back to GLSL.");
-                    }
-                }
-            }
-            else
-            {
-                Interlocked.Increment(ref spirvMissingCount);
-            }
-        }
-
-        // 2) GLSL fallback: load the source asset and use existing preprocessing + compilation.
-        var loc = AssetLocation.Create($"shaders/{stageName}", VanillaGraphicsExpanded.PBR.ShaderImportsSystem.DefaultDomain);
-        IAsset? asset = api.Assets.TryGet(loc, loadAsset: true);
-        if (asset is null)
-        {
-            infoLog = $"[VGE] Missing compute shader asset: {loc}";
-            pipeline = null;
-            return false;
-        }
-
-        string src = asset.ToText();
-        if (!TryCompileAndCreateGlslPreprocessed(
-            api: api,
-            shaderName: shaderName,
-            glslSource: src,
-            pipeline: out pipeline,
-            sourceCode: out sourceCode,
-            infoLog: out string glslLog,
-            stageExtension: stageExtension,
-            defines: defines,
-            debugName: debugName,
-            log: log,
-            ct: ct,
-            layout: layout))
-        {
-            infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + glslLog;
-            pipeline = null;
-            return false;
-        }
-
-        infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + glslLog;
-        return pipeline is not null;
+        ReadOnlySpan<byte> Read(string path) => api.Assets.TryGet(AssetLocation.Create("shaders/" + path,
+            PBR.ShaderImportsSystem.DefaultDomain), loadAsset: true)?.Data
+            ?? throw new InvalidOperationException("Missing built compute shader asset: " + path);
+        return TryCreateFromBinaryContract(stageName, defines, Read, out pipeline, out infoLog,
+            debugName, layout, message => (log ?? api.Logger)?.Warning(message));
     }
-
     [Obsolete("Use TryCreateFromAssets(..., preferSpirv: true/false, ...) instead.")]
     public static bool TryCreateFromAssetsPreferSpirv(
         ICoreAPI api,

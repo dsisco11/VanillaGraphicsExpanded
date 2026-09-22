@@ -97,13 +97,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         GL.UseProgram(programId);
 
         // Texture sampler uniforms
-        GL.Uniform1(GL.GetUniformLocation(programId, "octahedralCurrent"), 0);
-        GL.Uniform1(GL.GetUniformLocation(programId, "octahedralHistory"), 1);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMetaCurrent"), 3);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMetaHistory"), 4);
-        GL.Uniform1(GL.GetUniformLocation(programId, "velocityTex"), 5);
-        GL.Uniform1(GL.GetUniformLocation(programId, "pmjJitter"), 6);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralCurrent"), 0);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralHistory"), 1);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaCurrent"), 3);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory"), 4);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "velocityTex"), 5);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "pmjJitter"), 6);
 
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
@@ -394,7 +394,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         for (int i = 1; i < outputMeta.Length; i += 2)
             Assert.Equal(2u, (BitConverter.SingleToUInt32Bits(outputMeta[i]) >> 16) & 7u);
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -473,7 +473,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(resetCount == sampleCount,
             $"Expected all {sampleCount} sampled texels to reset to current, got {resetCount}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -551,7 +551,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(zeroCount == AtlasWidth * AtlasHeight,
             $"Expected all {AtlasWidth * AtlasHeight} texels to be zero, got {zeroCount}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -648,7 +648,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(nonTracedPreserved == nonTracedTotal,
             $"Expected all {nonTracedTotal} non-traced texels to be preserved, got {nonTracedPreserved}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -740,7 +740,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(blendedCount == sampleCount,
             $"Expected all {sampleCount} sampled texels to be blended, got {blendedCount}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -828,7 +828,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(currentCount == totalTexels,
             $"Expected all {totalTexels} texels to be current (disoccluded), got {currentCount}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -900,7 +900,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             highAlphaBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Low alpha (more current)
@@ -938,7 +938,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             lowAlphaBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // High alpha should have more blue (history) than low alpha
@@ -1017,7 +1017,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
         Assert.True(b < 0.1f, $"Expected history to be rejected with invalid velocity (blue~0), got blue={b:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1084,7 +1084,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame0Output = outputAtlas[0].ReadPixels();
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Frame 1
@@ -1119,7 +1119,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame1Output = outputAtlas[0].ReadPixels();
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Compare outputs - they should differ since different texels are traced
@@ -1213,7 +1213,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             strictThresholdBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Loose threshold (should accept)
@@ -1252,7 +1252,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             looseThresholdBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Strict threshold should have less blue (rejected history)
@@ -1338,7 +1338,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(currentCount == totalTexels,
             $"Expected all {totalTexels} texels to be current (invalid history), got {currentCount}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1413,7 +1413,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             belowThresholdBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Above threshold (50% diff, should reject)
@@ -1455,7 +1455,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             aboveThresholdBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Below threshold should have more blue (history accepted)
@@ -1594,7 +1594,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(zeroCount == AtlasWidth * AtlasHeight,
             $"All texels should be zero for invalid probes, got {zeroCount}/{AtlasWidth * AtlasHeight}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1652,7 +1652,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(r > b * 0.5f,
             $"Zero history hit distance should favor current frame: R={r:F3}, B={b:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1712,7 +1712,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         Assert.True(brightness < 3.0f,
             $"Neighborhood clamping should constrain output, got {brightness:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1773,7 +1773,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             acceptedBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Large diff (100%) - should reject history
@@ -1807,7 +1807,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             rejectedBlue = b;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Rejected case should have less blue (less history influence)

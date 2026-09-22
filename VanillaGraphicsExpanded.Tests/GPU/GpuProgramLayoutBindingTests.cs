@@ -21,38 +21,21 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
     {
         EnsureContextValid();
 
-        const string shader = """
-            #version 430 core
-            layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+        const string shader = "tests/GpuProgramLayoutBindingTests_1.csh";
 
-            // Sampler uses an explicit unit via layout(binding=...).
-            layout(binding = 3) uniform usampler3D uOcc;
-
-            // Image uses an explicit unit via layout(binding=...).
-            layout(binding = 0, r32ui) writeonly uniform uimage3D outImg;
-
-            void main()
-            {
-                uvec4 v = texelFetch(uOcc, ivec3(0, 0, 0), 0);
-                imageStore(outImg, ivec3(0, 0, 0), v);
-            }
-            """;
-
-        int shaderId = GL.CreateShader(ShaderType.ComputeShader);
-        GL.ShaderSource(shaderId, shader);
-        GL.CompileShader(shaderId);
+        int shaderId = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
         GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int okShader);
         string shaderLog = GL.GetShaderInfoLog(shaderId) ?? string.Empty;
         Assert.True(okShader != 0, $"Compute shader compile failed:\n{shaderLog}");
 
         int programId = GL.CreateProgram();
         GL.AttachShader(programId, shaderId);
-        GL.LinkProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(programId);
         GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int okLink);
         string programLog = GL.GetProgramInfoLog(programId) ?? string.Empty;
         Assert.True(okLink != 0, $"Compute program link failed:\n{programLog}");
 
-        var layout = GpuProgramLayout.TryBuild(programId);
+        var layout = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.BuildLayout(programId);
         Assert.NotSame(GpuProgramLayout.Empty, layout);
 
         // Create a 1x1x1 R32UI occ texture with a known value.
@@ -94,8 +77,8 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
         uint[] outData = ReadTexImageR32ui(outTex.TextureId, width: 1, height: 1, depth: 1);
         Assert.Equal(123u, outData[0]);
 
-        GL.DeleteProgram(programId);
-        GL.DeleteShader(shaderId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }
 
     private static uint[] ReadTexImageR32ui(int textureId, int width, int height, int depth)
@@ -108,4 +91,3 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
         return data;
     }
 }
-

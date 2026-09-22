@@ -42,7 +42,7 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
             UpdateAndBindLumOnFrameUbo(program);
             metadata.Bind(0);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "probeAtlasMeta"), 0);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "probeAtlasMeta"), 0);
             GL.UseProgram(0);
             TestFramework.RenderQuadTo(program, output);
             var pixels = output[0].ReadPixels();
@@ -54,7 +54,7 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
                 Assert.Equal(1f, pixels[i + 3]);
             }
         }
-        finally { GL.DeleteProgram(program); }
+        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

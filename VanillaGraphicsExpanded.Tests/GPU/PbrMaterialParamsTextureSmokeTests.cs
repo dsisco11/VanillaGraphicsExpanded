@@ -62,7 +62,7 @@ public sealed class PbrMaterialParamsTextureSmokeTests
         {
             GL.UseProgram(programId);
 
-            int loc = GL.GetUniformLocation(programId, "materialParams");
+            int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "materialParams");
             Assert.True(loc >= 0);
             GL.Uniform1(loc, 0);
 
@@ -82,79 +82,56 @@ public sealed class PbrMaterialParamsTextureSmokeTests
             GL.UseProgram(0);
             if (programId != 0)
             {
-                GL.DeleteProgram(programId);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
             }
         }
     }
 
     private static int CompileMinimalProgram(string vertexSource, string fragmentSource)
     {
-        int v = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(v, vertexSource);
-        GL.CompileShader(v);
+        int v = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(vertexSource, ShaderType.VertexShader);
         GL.GetShader(v, ShaderParameter.CompileStatus, out int vStatus);
         if (vStatus != (int)All.True)
         {
             string log = GL.GetShaderInfoLog(v);
-            GL.DeleteShader(v);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(v);
             throw new InvalidOperationException($"Vertex shader compile error: {log}");
         }
 
-        int f = GL.CreateShader(ShaderType.FragmentShader);
-        GL.ShaderSource(f, fragmentSource);
-        GL.CompileShader(f);
+        int f = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(fragmentSource, ShaderType.FragmentShader);
         GL.GetShader(f, ShaderParameter.CompileStatus, out int fStatus);
         if (fStatus != (int)All.True)
         {
             string log = GL.GetShaderInfoLog(f);
-            GL.DeleteShader(v);
-            GL.DeleteShader(f);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(v);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(f);
             throw new InvalidOperationException($"Fragment shader compile error: {log}");
         }
 
         int program = GL.CreateProgram();
         GL.AttachShader(program, v);
         GL.AttachShader(program, f);
-        GL.LinkProgram(program);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(program);
 
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linkStatus);
         if (linkStatus != (int)All.True)
         {
             string log = GL.GetProgramInfoLog(program);
-            GL.DeleteProgram(program);
-            GL.DeleteShader(v);
-            GL.DeleteShader(f);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(v);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(f);
             throw new InvalidOperationException($"Program link error: {log}");
         }
 
         GL.DetachShader(program, v);
         GL.DetachShader(program, f);
-        GL.DeleteShader(v);
-        GL.DeleteShader(f);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(v);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(f);
 
         return program;
     }
 
-    private const string VertexShaderSource = """
-#version 330 core
-layout(location = 0) in vec2 aPos;
-out vec2 uv;
-void main() {
-    uv = aPos * 0.5 + 0.5;
-    gl_Position = vec4(aPos, 0.0, 1.0);
-}
-""";
+    private const string VertexShaderSource = "tests/PbrMaterialParamsTextureSmokeTests_1.vsh";
 
-    private const string FragmentShaderSource = """
-#version 330 core
-in vec2 uv;
-out vec4 outColor;
-
-uniform sampler2D materialParams;
-
-void main() {
-    vec3 p = texture(materialParams, uv).rgb;
-    outColor = vec4(p, 1.0);
-}
-""";
+    private const string FragmentShaderSource = "tests/PbrMaterialParamsTextureSmokeTests_2.fsh";
 }

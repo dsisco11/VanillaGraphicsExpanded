@@ -9,10 +9,14 @@ internal static partial class GpuShaderContracts
     public static GpuBindingContract Create(string shader)
     {
         var contract = new GpuBindingContract();
+        DeclareLocations(contract);
         if (shader.StartsWith("lumon_debug_", StringComparison.Ordinal)) shader = "lumon_debug";
         if (shader.StartsWith("pbr_heightbake_", StringComparison.Ordinal)) shader = "pbr_heightbake";
         switch (shader)
         {
+            case "pbr_normaldepth_bake": contract.RegisterUniformBlockBinding("VgePbrNormalDepthBakeParamsUBO", GpuBindingRegistry.Ubo.Object); break;
+            case "GpuUniformRingBufferIntegrationTests_1":
+            case "tests/GpuUniformRingBufferIntegrationTests_1": contract.RegisterUniformBlockBinding("TestParams", 0); break;
             case "lumon_combine": LumOnCombine(contract); break;
             case "lumon_debug": LumOnDebug(contract); break;
             case "lumon_probe_atlas_trace": LumOnTrace(contract); break;
@@ -42,6 +46,11 @@ internal static partial class GpuShaderContracts
             case "lumonscene_capture_meshcard": CaptureMeshCard(contract); break;
             case "lumonscene_relight_voxel_dda": RelightVoxelDda(contract); break;
         }
+        // Shared includes declare these blocks even when a variant eliminates all uses.
+        contract.UniformBlocks.TryAdd("LumOnFrameUBO", new(GpuBindingRegistry.Ubo.Frame, false));
+        contract.UniformBlocks.TryAdd("LumOnWorldProbeUBO", new(GpuBindingRegistry.Ubo.WorldProbe, false));
+        contract.UniformBlocks.TryAdd("LumOnNearFieldUBO", new(GpuBindingRegistry.Ubo.Material, false));
+        contract.UniformBlocks.TryAdd("LumOnTerrainBridgeUBO", new(GpuBindingRegistry.Ubo.TerrainBridge, false));
         return contract;
     }
     #endregion

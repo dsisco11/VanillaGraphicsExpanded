@@ -31,15 +31,21 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
     private readonly string assetsRoot;
     private readonly string defaultDomain;
 
-    public FileSystemSyntaxTreeResourceResolver(string assetsRoot, string defaultDomain)
+    private readonly Action<ResourceId, string, string, SyntaxTree>? resourceRead;
+
+    #region Construction and resource resolution
+    /// <summary>Resolves asset imports and optionally reports the source content used by each resolution.</summary>
+    public FileSystemSyntaxTreeResourceResolver(string assetsRoot, string defaultDomain, Action<ResourceId, string, string, SyntaxTree>? resourceRead = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetsRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(defaultDomain);
 
-        this.assetsRoot = assetsRoot;
+        this.assetsRoot = Path.GetFullPath(assetsRoot);
+        this.resourceRead = resourceRead;
         this.defaultDomain = defaultDomain;
     }
 
+    /// <summary>Reads and parses one import, reporting invalid or missing resources as preprocessing diagnostics.</summary>
     public ValueTask<ResourceResolutionResult<SyntaxTree>> ResolveAsync(
         string reference,
         IResource<SyntaxTree>? relativeTo,
@@ -71,6 +77,9 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         var (domain, path) = SplitDomainAndPath(resolvedIdPath);
 
         string filePath = Path.Combine(assetsRoot, domain, path.Replace('/', Path.DirectorySeparatorChar));
+        filePath = Path.GetFullPath(filePath);
+        if (!filePath.StartsWith(assetsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Import escaped assets: " + reference);
         if (!File.Exists(filePath))
         {
             var diag = new ResolutionFailedDiagnostic(reference, $"File not found: {filePath}", relativeTo?.Id, null);
@@ -85,10 +94,15 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         }
 
         var tree = SyntaxTree.Parse(text, GlslSchema.Instance);
+        resourceRead?.Invoke(id, filePath, text, tree);
         var resource = new Resource<SyntaxTree>(id, tree, EmptyMetadata);
         return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Success(resource));
     }
 
+    #endregion
+
+    #region Resource path normalization
+    /// <summary>Removes control characters from imported asset identifiers.</summary>
     private static string RemoveControlChars(string value)
     {
         if (string.IsNullOrEmpty(value))
@@ -109,6 +123,7 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         return new string(buffer[..idx]);
     }
 
+    /// <summary>Resolves a qualified or relative import against its owning resource.</summary>
     private string ResolveResourceIdPath(string reference, IResource<SyntaxTree>? relativeTo)
     {
         reference = reference.Replace('\\', '/');
@@ -126,6 +141,7 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         return $"{baseDomain}:{NormalizePathWithinDomain(resolvedPath)}";
     }
 
+    /// <summary>Normalizes an import relative to the containing resource directory.</summary>
     private string ResolveResourcePath(string reference, string basePath)
     {
         reference = (reference ?? string.Empty).Trim();
@@ -145,6 +161,7 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         return NormalizeSeparators(normalizedRelative);
     }
 
+    /// <summary>Splits the asset domain from its path, applying the default domain when omitted.</summary>
     private (string Domain, string Path) SplitDomainAndPath(string domainAndPath)
     {
         if (string.IsNullOrWhiteSpace(domainAndPath))
@@ -168,6 +185,7 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         return (domain, path);
     }
 
+    /// <summary>Normalizes path segments using a stable synthetic domain root.</summary>
     private static string NormalizePathWithinDomain(string path)
     {
         path = path.Replace('\\', '/');
@@ -179,11 +197,13 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         return NormalizeSeparators(rel);
     }
 
+    /// <summary>Uses asset-style separators for resource identifiers.</summary>
     private static string NormalizeSeparators(string path)
     {
         return path.Replace(Path.DirectorySeparatorChar, '/');
     }
 
+    /// <summary>Terminates the normalization root with a directory separator.</summary>
     private static string EnsureTrailingSeparator(string path)
     {
         if (path.EndsWith(Path.DirectorySeparatorChar))
@@ -192,4 +212,5 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         }
         return path + Path.DirectorySeparatorChar;
     }
+    #endregion
 }

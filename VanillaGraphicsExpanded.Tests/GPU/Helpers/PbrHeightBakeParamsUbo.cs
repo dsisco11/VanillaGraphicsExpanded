@@ -18,7 +18,7 @@ internal static class PbrHeightBakeParamsUbo
     public static void EnsureHeightBakeBlockBound(int programId)
     {
         // Under GLSL < 420, layout(binding=...) is omitted; we must bind the block in C#.
-        int blockIndex = GL.GetUniformBlockIndex(programId, BlockName);
+        int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(programId, BlockName);
         if (blockIndex < 0)
         {
             return;

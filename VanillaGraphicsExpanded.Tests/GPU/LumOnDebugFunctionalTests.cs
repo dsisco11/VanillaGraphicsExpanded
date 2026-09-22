@@ -76,14 +76,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         GL.UseProgram(programId);
 
         // Texture sampler uniforms
-        var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
-        var anchorPosLoc = GL.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = GL.GetUniformLocation(programId, "probeAnchorNormal");
-        var radiance0Loc = GL.GetUniformLocation(programId, "radianceTexture0");
-        var radiance1Loc = GL.GetUniformLocation(programId, "radianceTexture1");
-        var indirectHalfLoc = GL.GetUniformLocation(programId, "indirectHalf");
-        var historyMetaLoc = GL.GetUniformLocation(programId, "historyMeta");
+        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
+        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
+        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
+        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
+        var radiance0Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture0");
+        var radiance1Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture1");
+        var indirectHalfLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectHalf");
+        var historyMetaLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "historyMeta");
         
         GL.Uniform1(depthLoc, 0);
         GL.Uniform1(normalLoc, 1);
@@ -355,7 +355,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(magentaCount == ScreenWidth * ScreenHeight,
             $"Expected all {ScreenWidth * ScreenHeight} pixels to be magenta, got {magentaCount}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -524,7 +524,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(coloredCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show heatmap for all non-sky pixels, got {coloredCount}/{ScreenWidth * ScreenHeight}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -609,7 +609,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -686,7 +686,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show black for sky, got {blackCount}/{ScreenWidth * ScreenHeight}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -755,7 +755,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(g > 0.8f,
             $"Mode 5 with upward normal should have high green component, got ({r:F3}, {g:F3}, {b:F3})");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -835,7 +835,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(nonZeroCount > 0,
             "Mode 8 should show non-zero SH visualization for valid probes");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -911,7 +911,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 2 should show black for invalid probes, got {blackCount}/{ScreenWidth * ScreenHeight}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -989,7 +989,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(nonBlackCount > 0,
             "Mode 3 should show normal colors for valid probes");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1063,7 +1063,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(nonBlackCount > 0,
             "Mode 6 should visualize temporal weights");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1137,7 +1137,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(nonBlackCount > 0,
             "Mode 7 should visualize temporal rejection mask");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1211,7 +1211,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(nonBlackCount > 0,
             "Mode 9 should visualize interpolation weights");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion

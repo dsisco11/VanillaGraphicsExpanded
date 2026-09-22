@@ -95,12 +95,12 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     {
         GL.UseProgram(programId);
 
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "viewMatrix"), 1, false, viewMatrix);
-        GL.Uniform2(GL.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix"), 1, false, viewMatrix);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "octahedralAtlas"), 0);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMeta"), 1);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas"), 0);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMeta"), 1);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
 
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
@@ -114,29 +114,29 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     {
         GL.UseProgram(programId);
 
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "viewMatrix"), 1, false, view);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix"), 1, false, view);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
-        GL.Uniform2(GL.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(GL.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(GL.GetUniformLocation(programId, "halfResSize"), (float)HalfResWidth, (float)HalfResHeight);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "halfResSize"), (float)HalfResWidth, (float)HalfResHeight);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "zNear"), ZNear);
-        GL.Uniform1(GL.GetUniformLocation(programId, "zFar"), ZFar);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear"), ZNear);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar"), ZFar);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "depthDiscontinuityThreshold"), 0.05f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "intensity"), 1.0f);
-        GL.Uniform3(GL.GetUniformLocation(programId, "indirectTint"), 1f, 1f, 1f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "depthSigma"), 0.5f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "normalSigma"), 8.0f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthDiscontinuityThreshold"), 0.05f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "intensity"), 1.0f);
+        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint"), 1f, 1f, 1f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthSigma"), 0.5f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "normalSigma"), 8.0f);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "radianceTexture0"), 0);
-        GL.Uniform1(GL.GetUniformLocation(programId, "radianceTexture1"), 1);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorNormal"), 3);
-        GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), 4);
-        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferNormal"), 5);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture0"), 0);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture1"), 1);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal"), 3);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), 4);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal"), 5);
 
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
@@ -152,27 +152,27 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     {
         GL.UseProgram(programId);
 
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "viewMatrix"), 1, false, view);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix"), 1, false, view);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
-        GL.Uniform2(GL.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(GL.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(GL.GetUniformLocation(programId, "halfResSize"), (float)HalfResWidth, (float)HalfResHeight);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "halfResSize"), (float)HalfResWidth, (float)HalfResHeight);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "zNear"), ZNear);
-        GL.Uniform1(GL.GetUniformLocation(programId, "zFar"), ZFar);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear"), ZNear);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar"), ZFar);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "intensity"), 1.0f);
-        GL.Uniform3(GL.GetUniformLocation(programId, "indirectTint"), 1f, 1f, 1f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "leakThreshold"), 0.5f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "sampleStride"), 1);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "intensity"), 1.0f);
+        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint"), 1f, 1f, 1f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "leakThreshold"), 0.5f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sampleStride"), 1);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "octahedralAtlas"), 0);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 1);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorNormal"), 2);
-        GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), 3);
-        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferNormal"), 4);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas"), 0);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 1);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal"), 2);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), 3);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal"), 4);
 
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
@@ -245,7 +245,7 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         Assert.True(System.Math.Abs(b1) < 0.05f);
         Assert.True(System.Math.Abs(a1) < 0.05f);
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact(Skip = "Option B now uses SH9 projection/gather; this L1 gather comparison is obsolete.")]
@@ -328,8 +328,8 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         Assert.True(System.Math.Abs(sg - ag) < 0.1f);
         Assert.True(System.Math.Abs(sb - ab) < 0.1f);
 
-        GL.DeleteProgram(projectId);
-        GL.DeleteProgram(shGatherId);
-        GL.DeleteProgram(atlasGatherId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(projectId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(shGatherId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(atlasGatherId);
     }
 }

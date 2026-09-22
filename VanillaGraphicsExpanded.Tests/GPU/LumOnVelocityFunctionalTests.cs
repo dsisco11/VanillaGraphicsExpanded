@@ -42,17 +42,17 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         GL.UseProgram(programId);
 
         // Samplers
-        GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), depthUnit);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), depthUnit);
 
         // Screen
-        GL.Uniform2(GL.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
 
         // Matrices
-        ShaderTestFramework.SetUniformMatrix4(GL.GetUniformLocation(programId, "invCurrViewProjMatrix"), invCurrViewProj);
-        ShaderTestFramework.SetUniformMatrix4(GL.GetUniformLocation(programId, "prevViewProjMatrix"), prevViewProj);
+        ShaderTestFramework.SetUniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invCurrViewProjMatrix"), invCurrViewProj);
+        ShaderTestFramework.SetUniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "prevViewProjMatrix"), prevViewProj);
 
         // History validity
-        GL.Uniform1(GL.GetUniformLocation(programId, "historyValid"), historyValid);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "historyValid"), historyValid);
 
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
@@ -147,7 +147,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -254,6 +254,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.InRange(cornerPx.vx, expectedCorner.X - TestEpsilon, expectedCorner.X + TestEpsilon);
         Assert.InRange(cornerPx.vy, expectedCorner.Y - TestEpsilon, expectedCorner.Y + TestEpsilon);
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 }

@@ -26,12 +26,8 @@
     <SpirvBuildToolProject>$(VgeSolutionRoot)\ShaderBuildTool\ShaderBuildTool.csproj</SpirvBuildToolProject>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'">
-    <VgeComputeShaders Include="$(VgeModProjectDir)\assets\$(SpirvDomain)\shaders\**\*.csh" />
-    <VgeShaderIncludes Include="$(VgeModProjectDir)\assets\$(SpirvDomain)\shaders\includes\**\*.*" />
-    <VgeShaderIncludes Include="$(VgeModProjectDir)\assets\$(SpirvDomain)\shaderincludes\**\*.*" />
-    <VgeShaderBuildInputs Include="$(SpirvBuildToolProject);$(VgeSolutionRoot)\ShaderBuildTool\Program.cs;$(VgeSolutionRoot)\ShaderBuildTool\Spirv\**\*.cs;$(MSBuildProjectFullPath);$(VgeSolutionRoot)\.config\dotnet-tools.json" />
-    <VgeShaderBuildInputs Include="$(VgeModProjectDir)\SourceCodeMutator\GlslSchema.cs;$(VgeModProjectDir)\SourceCodeMutator\ShaderSyntaxTreePreprocessor.cs;$(VgeModProjectDir)\SourceCodeMutator\LineDirectiveInjector.cs;$(VgeModProjectDir)\SourceCodeMutator\SourceCodeImportsProcessor.cs" />
+  <ItemGroup>
+    <ProjectReference Include="..\ShaderBuildTool\ShaderBuildTool.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
   <Target Name="RestoreDotnetShadercTool"
@@ -42,12 +38,10 @@
 
   <Target Name="CompileSpirvShaders"
           Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
-          Inputs="@(VgeComputeShaders);@(VgeShaderIncludes);@(VgeShaderBuildInputs)"
-          Outputs="@(VgeComputeShaders-&gt;'$(SpirvArtifactsDir)\$(SpirvDomain)\shaders\%(Filename)%(Extension).spv')"
           AfterTargets="Build">
     <Exec
       WorkingDirectory="$(VgeSolutionRoot)"
-      Command="dotnet run --project &quot;$(SpirvBuildToolProject)&quot; -- --clean --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
+      Command="dotnet run --no-build --no-restore --configuration $(Configuration) --project &quot;$(SpirvBuildToolProject)&quot; -- --clean --incremental --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
   </Target>
 
 </Project>

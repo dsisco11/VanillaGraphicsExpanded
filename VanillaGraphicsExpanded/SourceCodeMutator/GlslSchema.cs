@@ -212,7 +212,7 @@ public sealed class GlImportNode : SyntaxNode, INamedNode
 /// Example: uniform mat4 modelViewMatrix;
 /// Example: uniform vec4 lights[16];
 /// </summary>
-public sealed class GlUniformNode : SyntaxNode, INamedNode
+public sealed class GlUniformNode : GlInterfaceDeclarationNode
 {
     internal GlUniformNode(CreationContext context)
         : base(context) { }
@@ -230,7 +230,13 @@ public sealed class GlUniformNode : SyntaxNode, INamedNode
     public SyntaxToken NameNode => GetTypedChild<SyntaxToken>(2);
 
     /// <summary>The uniform name as text (implements INamedNode).</summary>
-    public string Name => NameNode.Text;
+    public override string Name => NameNode.Text;
+
+    /// <inheritdoc/>
+    public override GlInterfaceStorage Storage => GlInterfaceStorage.Uniform;
+
+    /// <inheritdoc/>
+    public override bool IsAtomicCounter => TypeNode.Kind == GlslSchema.Instance.GetKeywordKind("atomic_uint");
 
     /// <summary>
     /// The array size if this is an array uniform, otherwise null.
@@ -297,6 +303,26 @@ public static class GlslSchema
         .DefineKeywordCategory("GlslImageTypes", GlslKeywords.ImageTypes)
         .DefineKeywordCategory("GlslSpecialTypes", GlslKeywords.SpecialTypes)
         .DefineKeywordCategory("GlslStorageQualifiers", GlslKeywords.StorageQualifiers)
+        // Layout and interface headers retain typed identity even across preprocessor branches.
+        .DefineSyntax(Syntax.Define<GlLayoutNode>("glLayout")
+            .Match(Query.Keyword("layout"), Query.ParenBlock)
+            .WithPriority(30)
+            .Build())
+        .DefineSyntax(Syntax.Define<GlInterfaceBlockHeaderNode>("glInterfaceBlockHeader")
+            .Match(
+                Query.AnyOf(Query.Keyword("uniform"), Query.Keyword("buffer")),
+                Query.AnyIdent.FollowedBy(Query.AnyOf(Query.BraceBlock, Query.AnyTaggedIdent)))
+            .WithPriority(25)
+            .Build())
+        .DefineSyntax(Syntax.Define<GlStageIoNode>("glStageIo")
+            .Match(
+                Query.AnyOf(Query.Keyword("in"), Query.Keyword("out")),
+                Query.AnyOf(Query.AnyKeyword, Query.AnyIdent),
+                Query.AnyIdent,
+                Query.BracketBlock.Optional(),
+                Query.Symbol(";"))
+            .WithPriority(20)
+            .Build())
         // Uniform declaration: uniform type name; or uniform type name[size];
         // Must match before function definition (higher priority)
         .DefineSyntax(Syntax.Define<GlUniformNode>("glUniform")
@@ -337,6 +363,9 @@ public static class GlslSchema
             .WithPriority(0)
             .Build())
         .Build();
+
+    /// <summary>Schema-assigned node kinds for the existing GLSL storage and interpolation qualifier category.</summary>
+    public static IReadOnlyList<NodeKind> StorageQualifierKinds { get; } = Instance.GetKeywordsInCategory("GlslStorageQualifiers");
 }
 
 #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Spirv;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -164,24 +165,12 @@ public sealed class ShaderTestHelper : IDisposable
 
         try
         {
-            var source = File.ReadAllText(filePath);
-            var processedSource = BuildProcessedSource(source, defines);
-
-            // Create and compile shader
-            int shaderId = GL.CreateShader(type);
+            string binaryRoot = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
+            var loaded = SpirvStageLoader.Load(filename.Replace('\\', '/'), type, defines,
+                path => File.ReadAllBytes(Path.Combine(binaryRoot, path)));
+            TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
+            int shaderId = loaded.Shader;
             _allocatedShaders.Add(shaderId);
-
-            GL.ShaderSource(shaderId, processedSource);
-            GL.CompileShader(shaderId);
-
-            // Check compilation status
-            GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int status);
-            if (status == 0)
-            {
-                var infoLog = GL.GetShaderInfoLog(shaderId);
-                return ShaderCompileResult.Failure($"Compilation failed for {filename}:\n{infoLog}");
-            }
-
             return ShaderCompileResult.Success(shaderId);
         }
         catch (Exception ex)
@@ -236,7 +225,7 @@ public sealed class ShaderTestHelper : IDisposable
 
             GL.AttachShader(programId, vertexShaderId);
             GL.AttachShader(programId, fragmentShaderId);
-            GL.LinkProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(programId);
 
             // Check link status
             GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int status);
@@ -262,7 +251,7 @@ public sealed class ShaderTestHelper : IDisposable
     /// <returns>The uniform location, or -1 if not found.</returns>
     public int GetUniformLocation(int programId, string uniformName)
     {
-        return GL.GetUniformLocation(programId, uniformName);
+        return global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, uniformName);
     }
 
     /// <summary>
@@ -453,7 +442,7 @@ public sealed class ShaderTestHelper : IDisposable
         {
             if (programId != 0)
             {
-                GL.DeleteProgram(programId);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
             }
         }
         _allocatedPrograms.Clear();
@@ -462,7 +451,7 @@ public sealed class ShaderTestHelper : IDisposable
         {
             if (shaderId != 0)
             {
-                GL.DeleteShader(shaderId);
+                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
             }
         }
         _allocatedShaders.Clear();

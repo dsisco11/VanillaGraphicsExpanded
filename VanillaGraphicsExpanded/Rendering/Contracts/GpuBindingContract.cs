@@ -13,6 +13,13 @@ public sealed class GpuBindingContract
     public Dictionary<string, Binding> Samplers { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, Binding> Images { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>Explicit standalone uniform locations shared by compatible stages.</summary>
+    public Dictionary<string, int> UniformLocations { get; } = new(StringComparer.Ordinal);
+    /// <summary>Explicit locations for values passed between shader stages.</summary>
+    public Dictionary<string, int> VaryingLocations { get; } = new(StringComparer.Ordinal);
+    /// <summary>Default color attachment locations for outputs without source layout declarations.</summary>
+    public Dictionary<string, int> FragmentOutputLocations { get; } = new(StringComparer.Ordinal);
+
     #region Declarations
     /// <summary>Declares a uniform-buffer slot.</summary>
     public void RegisterUniformBlockBinding(string name, int bindingIndex, bool required = true) => UniformBlocks.Add(name, new(bindingIndex, required));

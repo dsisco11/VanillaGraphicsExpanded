@@ -99,7 +99,7 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
         }
         finally
         {
-            if (programId != 0) GL.DeleteProgram(programId);
+            if (programId != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
             if (vbo != 0) GL.DeleteBuffer(vbo);
             if (vao != 0) GL.DeleteVertexArray(vao);
         }

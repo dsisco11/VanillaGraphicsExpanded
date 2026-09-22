@@ -21,36 +21,19 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
     {
         EnsureContextValid();
 
-        const string shader = """
-            #version 430 core
-            layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+        const string shader = "tests/GpuUniformRingBufferIntegrationTests_1.csh";
 
-            layout(std140) uniform TestParams
-            {
-                uvec4 u0;
-            } params;
-
-            layout(binding = 0, rgba32ui) writeonly uniform uimage3D outImg;
-
-            void main()
-            {
-                imageStore(outImg, ivec3(0, 0, 0), params.u0);
-            }
-            """;
-
-        int shaderId = GL.CreateShader(ShaderType.ComputeShader);
-        GL.ShaderSource(shaderId, shader);
-        GL.CompileShader(shaderId);
+        int shaderId = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
         GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int okShader);
         Assert.True(okShader != 0, GL.GetShaderInfoLog(shaderId));
 
         int programId = GL.CreateProgram();
         GL.AttachShader(programId, shaderId);
-        GL.LinkProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(programId);
         GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int okLink);
         Assert.True(okLink != 0, GL.GetProgramInfoLog(programId));
 
-        var layout = new GpuProgramLayout();
+        var layout = TestShaderInterfaces.BuildLayout(programId);
         layout.RegisterUniformBlockBinding("TestParams", bindingIndex: 0, required: true);
         layout.ApplyContract(programId);
 
@@ -95,8 +78,8 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
 
         ring.EndFrame();
 
-        GL.DeleteProgram(programId);
-        GL.DeleteShader(shaderId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }
 
     [Fact]
@@ -104,31 +87,19 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
     {
         EnsureContextValid();
 
-        const string shader = """
-            #version 430 core
-            layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+        const string shader = "tests/GpuUniformRingBufferIntegrationTests_2.csh";
 
-            layout(binding = 0, rgba32ui) writeonly uniform uimage3D outImg;
-
-            void main()
-            {
-                imageStore(outImg, ivec3(0, 0, 0), uvec4(0u));
-            }
-            """;
-
-        int shaderId = GL.CreateShader(ShaderType.ComputeShader);
-        GL.ShaderSource(shaderId, shader);
-        GL.CompileShader(shaderId);
+        int shaderId = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
         GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int okShader);
         Assert.True(okShader != 0, GL.GetShaderInfoLog(shaderId));
 
         int programId = GL.CreateProgram();
         GL.AttachShader(programId, shaderId);
-        GL.LinkProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(programId);
         GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int okLink);
         Assert.True(okLink != 0, GL.GetProgramInfoLog(programId));
 
-        var layout = new GpuProgramLayout();
+        var layout = TestShaderInterfaces.BuildLayout(programId);
         layout.RegisterUniformBlockBinding("TestParams", bindingIndex: 0, required: true);
         layout.ApplyContract(programId);
 
@@ -167,8 +138,8 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
 
         ring.EndFrame();
 
-        GL.DeleteProgram(programId);
-        GL.DeleteShader(shaderId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }
 
     private static void WriteU32(byte[] dst, int offsetBytes, uint value)

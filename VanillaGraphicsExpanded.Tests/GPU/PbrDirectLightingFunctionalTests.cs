@@ -58,7 +58,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
         finally
         {
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 
@@ -117,7 +117,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
         finally
         {
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 
@@ -165,7 +165,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
         finally
         {
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 
@@ -217,7 +217,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
         finally
         {
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 
@@ -289,7 +289,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
         finally
         {
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 
@@ -329,85 +329,15 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
         finally
         {
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 
-    private int CompilePbrDirectLightingProgram()
-    {
-        string? processedFragment = ShaderHelper.GetProcessedSource("pbr_direct_lighting.fsh");
-        Assert.NotNull(processedFragment);
+    /// <summary>Uses the reusable binary direct-lighting fixture.</summary>
+    private int CompilePbrDirectLightingProgram() => PbrShaderPrograms.CompilePbrDirectLightingProgram(ShaderHelper);
 
-        processedFragment = SourceCodeImportsProcessor.StripNonAscii(processedFragment!);
-
-        const string vertexSource = "#version 330 core\n" +
-                                    "layout(location = 0) in vec2 position;\n" +
-                                    "out vec2 uv;\n" +
-                                    "void main(){ gl_Position = vec4(position, 0.0, 1.0); uv = position * 0.5 + 0.5; }\n";
-
-        return CompileProgramFromSource(vertexSource, processedFragment!);
-    }
-
-    private int CompilePbrCompositeProgram()
-    {
-        string? processedFragment = ShaderHelper.GetProcessedSource("pbr_composite.fsh");
-        Assert.NotNull(processedFragment);
-
-        processedFragment = SourceCodeImportsProcessor.StripNonAscii(processedFragment!);
-
-        const string vertexSource = "#version 330 core\n" +
-                                    "layout(location = 0) in vec2 position;\n" +
-                                    "void main(){ gl_Position = vec4(position, 0.0, 1.0); }\n";
-
-        return CompileProgramFromSource(vertexSource, processedFragment!);
-    }
-
-    private static int CompileProgramFromSource(string vertexSource, string fragmentSource)
-    {
-        int vertexShader = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(vertexShader, vertexSource);
-        GL.CompileShader(vertexShader);
-        GL.GetShader(vertexShader, ShaderParameter.CompileStatus, out int vStatus);
-        if (vStatus == 0)
-        {
-            var log = GL.GetShaderInfoLog(vertexShader);
-            GL.DeleteShader(vertexShader);
-            throw new InvalidOperationException($"Vertex shader compile error: {log}");
-        }
-
-        int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
-        GL.ShaderSource(fragmentShader, fragmentSource);
-        GL.CompileShader(fragmentShader);
-        GL.GetShader(fragmentShader, ShaderParameter.CompileStatus, out int fStatus);
-        if (fStatus == 0)
-        {
-            var log = GL.GetShaderInfoLog(fragmentShader);
-            GL.DeleteShader(vertexShader);
-            GL.DeleteShader(fragmentShader);
-            throw new InvalidOperationException($"Fragment shader compile error: {log}");
-        }
-
-        int program = GL.CreateProgram();
-        GL.AttachShader(program, vertexShader);
-        GL.AttachShader(program, fragmentShader);
-        GL.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int lStatus);
-        if (lStatus == 0)
-        {
-            var log = GL.GetProgramInfoLog(program);
-            GL.DeleteShader(vertexShader);
-            GL.DeleteShader(fragmentShader);
-            GL.DeleteProgram(program);
-            throw new InvalidOperationException($"Program link error: {log}");
-        }
-
-        GL.DeleteShader(vertexShader);
-        GL.DeleteShader(fragmentShader);
-
-        return program;
-    }
-
+    /// <summary>Uses the reusable binary composite fixture.</summary>
+    private int CompilePbrCompositeProgram() => PbrShaderPrograms.CompilePbrCompositeProgram(ShaderHelper);
     private static (float R, float G, float B, float A) ReadPixelFromAttachment(GpuFramebuffer target, int attachmentIndex)
     {
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, target.FboId);
@@ -573,7 +503,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
     private static void BindSampler(int programId, string name, int unit, int textureId)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc < 0)
         {
             return;
@@ -586,31 +516,31 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
     private static void SetFloat(int programId, string name, float value)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0) GL.Uniform1(loc, value);
     }
 
     private static void SetInt(int programId, string name, int value)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0) GL.Uniform1(loc, value);
     }
 
     private static void SetVec3(int programId, string name, float x, float y, float z)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0) GL.Uniform3(loc, x, y, z);
     }
 
     private static void SetVec4(int programId, string name, float x, float y, float z, float w)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0) GL.Uniform4(loc, x, y, z, w);
     }
 
     private static void SetMat4(int programId, string name, float[] m)
     {
-        int loc = GL.GetUniformLocation(programId, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
         if (loc >= 0) GL.UniformMatrix4(loc, 1, false, m);
     }
 }

@@ -70,46 +70,46 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         GL.UseProgram(programId);
 
         // Matrix uniforms
-        var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
-        var invViewLoc = GL.GetUniformLocation(programId, "invViewMatrix");
+        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
+        var invViewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invViewMatrix");
         GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
         GL.UniformMatrix4(invViewLoc, 1, false, invView);
 
         // Probe grid uniforms
-        var spacingLoc = GL.GetUniformLocation(programId, "probeSpacing");
-        var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
-        var screenSizeLoc = GL.GetUniformLocation(programId, "screenSize");
+        var spacingLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing");
+        var gridSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize");
+        var screenSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize");
         GL.Uniform1(spacingLoc, ProbeSpacing);
         GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
         GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
 
         // Deterministic jitter uniforms (default off for most tests)
-        var frameIndexLoc = GL.GetUniformLocation(programId, "frameIndex");
-        var jitterEnabledLoc = GL.GetUniformLocation(programId, "anchorJitterEnabled");
-        var jitterScaleLoc = GL.GetUniformLocation(programId, "anchorJitterScale");
+        var frameIndexLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "frameIndex");
+        var jitterEnabledLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "anchorJitterEnabled");
+        var jitterScaleLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "anchorJitterScale");
         GL.Uniform1(frameIndexLoc, frameIndex);
         GL.Uniform1(jitterEnabledLoc, anchorJitterEnabled ? 1 : 0);
         GL.Uniform1(jitterScaleLoc, anchorJitterScale);
 
         // Z-plane uniforms
-        var zNearLoc = GL.GetUniformLocation(programId, "zNear");
-        var zFarLoc = GL.GetUniformLocation(programId, "zFar");
+        var zNearLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear");
+        var zFarLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar");
         GL.Uniform1(zNearLoc, ZNear);
         GL.Uniform1(zFarLoc, ZFar);
 
         // Edge detection threshold
-        var thresholdLoc = GL.GetUniformLocation(programId, "depthDiscontinuityThreshold");
+        var thresholdLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthDiscontinuityThreshold");
         GL.Uniform1(thresholdLoc, DepthDiscontinuityThreshold);
 
         // Texture sampler uniforms
-        var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
+        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
+        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
         GL.Uniform1(depthLoc, depthUnit);
         GL.Uniform1(normalLoc, normalUnit);
 
         // PMJ jitter uniforms + binding
-        var pmjCycleLoc = GL.GetUniformLocation(programId, "pmjCycleLength");
-        var pmjSamplerLoc = GL.GetUniformLocation(programId, "pmjJitter");
+        var pmjCycleLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "pmjCycleLength");
+        var pmjSamplerLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "pmjJitter");
         GL.Uniform1(pmjCycleLoc, pmjCycleLength);
         GL.Uniform1(pmjSamplerLoc, pmjUnit);
         BindPmjJitterTexture(pmjUnit, pmjCycleLength);
@@ -193,7 +193,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(changed, "Expected probe (0,0) position to change when frameIndex changes with jitter enabled.");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -450,7 +450,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -525,7 +525,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -596,7 +596,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         // With uniform depth, we expect all probes to be fully valid (no edges detected)
         Assert.True(validCount > 0, "At least some probes should be fully valid (validity = 1.0)");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -673,7 +673,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -744,7 +744,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -837,7 +837,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -918,7 +918,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion

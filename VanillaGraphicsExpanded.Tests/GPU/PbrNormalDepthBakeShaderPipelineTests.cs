@@ -80,8 +80,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
         albedoAtlas.Bind(1);
 
-        int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlas = GL.GetUniformLocation(programId, "u_albedoAtlas");
+        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
+        int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
 
         Assert.True(locHeight >= 0, "u_height uniform missing");
         Assert.True(locAlbedoAtlas >= 0, "u_albedoAtlas uniform missing");
@@ -252,8 +252,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
         albedoAtlas.Bind(1);
 
-        int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlas = GL.GetUniformLocation(programId, "u_albedoAtlas");
+        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
+        int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
 
         GL.Uniform1(locHeight, 0);
         GL.Uniform1(locAlbedoAtlas, 1);
@@ -308,8 +308,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
         albedoAtlas.Bind(1);
 
-        int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlas = GL.GetUniformLocation(programId, "u_albedoAtlas");
+        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
+        int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
 
         GL.Uniform1(locHeight, 0);
         GL.Uniform1(locAlbedoAtlas, 1);
@@ -389,7 +389,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         using var normalizeParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.NormalizeParams.{normalizeProgram.ProgramId}");
 
-        int locH = GL.GetUniformLocation(normalizeProgram.ProgramId, "u_h");
+        int locH = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(normalizeProgram.ProgramId, "u_h");
 
         Assert.True(locH >= 0);
         GL.Uniform1(locH, 0);
@@ -421,8 +421,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         using var albedoAtlas2 = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
         albedoAtlas2.Bind(1);
 
-        int locHeight = GL.GetUniformLocation(packProgram.ProgramId, "u_height");
-        int locAlbedoAtlas2Loc = GL.GetUniformLocation(packProgram.ProgramId, "u_albedoAtlas");
+        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_height");
+        int locAlbedoAtlas2Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_albedoAtlas");
 
         Assert.True(locHeight >= 0);
         Assert.True(locAlbedoAtlas2Loc >= 0);
@@ -522,8 +522,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
         albedoAtlas.Bind(1);
 
-        int locHeight = GL.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlasLoc = GL.GetUniformLocation(programId, "u_albedoAtlas");
+        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
+        int locAlbedoAtlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
 
         Assert.True(locHeight >= 0);
         Assert.True(locAlbedoAtlasLoc >= 0);

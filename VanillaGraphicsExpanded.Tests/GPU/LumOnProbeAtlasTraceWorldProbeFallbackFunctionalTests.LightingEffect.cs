@@ -43,7 +43,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                     for (int channel = 0; channel < 3; channel++) Assert.Equal(0f, pixels[i + channel]);
             }
         }
-        finally { GL.DeleteProgram(program); }
+        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

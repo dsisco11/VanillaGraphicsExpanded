@@ -103,7 +103,7 @@ public sealed class LumOnUboBindingTests : IDisposable
 
     private void AssertUniformBlockPresent(int programId, string blockName)
     {
-        int blockIndex = GL.GetUniformBlockIndex(programId, blockName);
+        int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(programId, blockName);
         Assert.True(blockIndex >= 0, $"Program {programId} did not expose uniform block '{blockName}'.");
 
         output.WriteLine($"Program {programId}: {blockName} index={blockIndex}");
@@ -112,7 +112,7 @@ public sealed class LumOnUboBindingTests : IDisposable
     private static void AssertUniformBlockBindingMatchesLayoutWhenAvailable(int programId, string blockName, int expectedBinding)
     {
         // GL 3.3: direct query.
-        int blockIndex = GL.GetUniformBlockIndex(programId, blockName);
+        int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(programId, blockName);
         Assert.True(blockIndex >= 0, $"Program {programId} did not expose uniform block '{blockName}'.");
 
         // GLSL 330 can't fix bindings in-source; production code assigns them via glUniformBlockBinding.
@@ -123,7 +123,7 @@ public sealed class LumOnUboBindingTests : IDisposable
         Assert.Equal(expectedBinding, binding);
 
         // Prefer testing the cached layout as well when supported by the GL context.
-        var layout = GpuProgramLayout.TryBuild(programId);
+        var layout = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.BuildLayout(programId);
         Assert.SkipWhen(layout.UniformBlockBindings.Count == 0, "Program interface queries unavailable; skipping layout-cache assertions.");
 
         Assert.True(

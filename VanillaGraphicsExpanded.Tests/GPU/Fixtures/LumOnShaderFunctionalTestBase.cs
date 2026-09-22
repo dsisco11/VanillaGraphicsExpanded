@@ -36,7 +36,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 ///         EnsureShaderTestAvailable();
 ///         var programId = CompileShader("my_shader.vsh", "my_shader.fsh");
 ///         // ... test logic ...
-///         GL.DeleteProgram(programId);
+///         global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
 ///     }
 /// }
 /// </code>
@@ -53,7 +53,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// All derived test classes should:
 /// 1. Use [Collection("GPU")] and [Trait("Category", "GPU")] attributes
 /// 2. Call EnsureShaderTestAvailable() at the start of each test
-/// 3. Clean up shader programs with GL.DeleteProgram()
+/// 3. Clean up shader programs with global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram()
 /// 4. Document expected value derivations in XML comments
 /// </remarks>
 public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposable
@@ -289,7 +289,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
 
     private static void BindLumOnUboIfPresent(int programId, string blockName, int bindingIndex, GpuUniformBuffer ubo)
     {
-        int blockIndex = GL.GetUniformBlockIndex(programId, blockName);
+        int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(programId, blockName);
         if (blockIndex < 0)
         {
             return;

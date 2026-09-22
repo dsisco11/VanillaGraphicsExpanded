@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj" />
+    <!-- Exercise the production source-layout emitter directly. -->
+    <Compile Include="..\ShaderBuildTool\Spirv\ShaderSourceLayout.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- Reference VintagestoryAPI from game directory -->
@@ -31,6 +33,11 @@
     </Reference>
     <Reference Include="VintagestoryLib">
       <HintPath>$(VINTAGE_STORY)/VintagestoryLib.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- Runtime shader lifecycle code uses the same Harmony assembly supplied by the game. -->
+    <Reference Include="0Harmony">
+      <HintPath>$(VINTAGE_STORY)/Lib/0Harmony.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <!-- IRenderAPI proxy fixtures need its public signature types, without invoking native drawing. -->
@@ -48,11 +55,11 @@
   <ItemGroup>
     <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaders\**\*">
       <Link>assets\shaders\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaderincludes\**\*">
       <Link>assets\shaderincludes\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 

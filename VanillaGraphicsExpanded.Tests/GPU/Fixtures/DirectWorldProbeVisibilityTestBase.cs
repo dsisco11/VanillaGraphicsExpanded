@@ -82,8 +82,8 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             (shared?.Geometry ?? scene?.Geometry)?.Bind(geometryUnit);
             (shared?.Readiness ?? scene?.Regions)?.Bind(readinessUnit);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldGeometry"), geometryUnit);
-            GL.Uniform1(GL.GetUniformLocation(program, "nearFieldRegions"), readinessUnit);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), geometryUnit);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), readinessUnit);
             GL.UseProgram(0);
             using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.DirectVisibility");
             var local = new LumOnNearFieldParamsUbo();
@@ -139,7 +139,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             textures.Add(texture);
             texture.Bind(unit);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, name), unit);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name), unit);
             GL.UseProgram(0);
         }
     }

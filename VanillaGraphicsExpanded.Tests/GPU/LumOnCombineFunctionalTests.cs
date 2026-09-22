@@ -102,8 +102,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             specularAOStrength: specularAOStrength);
 
         // Matrices (identity defaults are fine for deterministic testing)
-        var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
-        var viewLoc = GL.GetUniformLocation(programId, "viewMatrix");
+        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
+        var viewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix");
 
         var identity = new float[]
         {
@@ -123,12 +123,12 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             viewMatrix: view ?? identity);
 
         // Texture sampler uniforms
-        var sceneDirectLoc = GL.GetUniformLocation(programId, "sceneDirect");
-        var indirectLoc = GL.GetUniformLocation(programId, "indirectDiffuse");
-        var albedoLoc = GL.GetUniformLocation(programId, "gBufferAlbedo");
-        var materialLoc = GL.GetUniformLocation(programId, "gBufferMaterial");
-        var normalLoc = GL.GetUniformLocation(programId, "gBufferNormal");
-        var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
+        var sceneDirectLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sceneDirect");
+        var indirectLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectDiffuse");
+        var albedoLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferAlbedo");
+        var materialLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferMaterial");
+        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
+        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
         GL.Uniform1(sceneDirectLoc, 0);
         GL.Uniform1(indirectLoc, 1);
         GL.Uniform1(albedoLoc, 2);
@@ -163,19 +163,19 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     {
         GL.UseProgram(programId);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "debugMode"), debugMode);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "debugMode"), debugMode);
 
         // Required sizing uniforms
-        GL.Uniform2(GL.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(GL.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
+        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
 
-        GL.Uniform1(GL.GetUniformLocation(programId, "zNear"), ZNear);
-        GL.Uniform1(GL.GetUniformLocation(programId, "zFar"), ZFar);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear"), ZNear);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar"), ZFar);
 
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "invViewMatrix"), 1, false, IdentityMatrix4x4);
-        GL.UniformMatrix4(GL.GetUniformLocation(programId, "prevViewProjMatrix"), 1, false, IdentityMatrix4x4);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invViewMatrix"), 1, false, IdentityMatrix4x4);
+        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "prevViewProjMatrix"), 1, false, IdentityMatrix4x4);
 
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
@@ -186,16 +186,16 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             prevViewProjMatrix: IdentityMatrix4x4);
 
         // Required temporal uniforms (not used by composite modes)
-        GL.Uniform1(GL.GetUniformLocation(programId, "temporalAlpha"), 0.9f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "depthRejectThreshold"), 0.1f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "normalRejectThreshold"), 0.9f);
-        GL.Uniform1(GL.GetUniformLocation(programId, "gatherAtlasSource"), 0);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "temporalAlpha"), 0.9f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthRejectThreshold"), 0.1f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "normalRejectThreshold"), 0.9f);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gatherAtlasSource"), 0);
 
         // Phase 23: debug selection + composite params are UBO-backed (VgeLumOnDebugParamsUBO).
         // Keep the old uniform sets for back-compat; they no-op when optimized away.
-        GL.Uniform1(GL.GetUniformLocation(programId, "indirectIntensity"), indirectIntensity);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectIntensity"), indirectIntensity);
         var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
-        GL.Uniform3(GL.GetUniformLocation(programId, "indirectTint"), tint.Item1, tint.Item2, tint.Item3);
+        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint"), tint.Item1, tint.Item2, tint.Item3);
 
         UpdateAndBindLumOnDebugParamsUbo(
             programId,
@@ -207,21 +207,21 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             specularAOStrength: specularAOStrength);
 
         // Sampler units (match LumOnDebugShaderProgram bindings)
-        GL.Uniform1(GL.GetUniformLocation(programId, "primaryDepth"), 0);
-        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferNormal"), 1);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorPosition"), 2);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAnchorNormal"), 3);
-        GL.Uniform1(GL.GetUniformLocation(programId, "radianceTexture0"), 4);
-        GL.Uniform1(GL.GetUniformLocation(programId, "radianceTexture1"), 5);
-        GL.Uniform1(GL.GetUniformLocation(programId, "indirectHalf"), 6);
-        GL.Uniform1(GL.GetUniformLocation(programId, "historyMeta"), 7);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasMeta"), 8);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasCurrent"), 9);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasFiltered"), 10);
-        GL.Uniform1(GL.GetUniformLocation(programId, "probeAtlasGatherInput"), 11);
-        GL.Uniform1(GL.GetUniformLocation(programId, "indirectDiffuseFull"), 12);
-        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferAlbedo"), 13);
-        GL.Uniform1(GL.GetUniformLocation(programId, "gBufferMaterial"), 14);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), 0);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal"), 1);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal"), 3);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture0"), 4);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture1"), 5);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectHalf"), 6);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "historyMeta"), 7);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMeta"), 8);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasCurrent"), 9);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasFiltered"), 10);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasGatherInput"), 11);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectDiffuseFull"), 12);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferAlbedo"), 13);
+        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferMaterial"), 14);
 
         GL.UseProgram(0);
     }
@@ -331,7 +331,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(diffuseLuma > specLuma,
             $"Expected diffuse to dominate for metallic=0. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(specLuma > diffuseLuma,
             $"Expected specular to dominate for metallic=1. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -503,7 +503,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(MathF.Abs(lumaAo1 - lumaAo0) < 1e-3f,
             $"AO is stubbed; reflectivity must not attenuate indirect. Reflectivity1={lumaAo1:F3}, Reflectivity0={lumaAo0:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -583,7 +583,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -660,7 +660,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -741,7 +741,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -817,7 +817,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -892,7 +892,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -970,7 +970,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1034,7 +1034,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(g < 0.1f, $"Red tint should suppress green, got G={g:F3}");
         Assert.True(b < 0.1f, $"Red tint should suppress blue, got B={b:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1096,7 +1096,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
             dielectricBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Half metallic (metallic=0.5)
@@ -1131,7 +1131,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
             halfMetallicBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Full metallic (metallic=1.0)
@@ -1166,7 +1166,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
             fullMetallicBrightness = (r + g + b) / 3f;
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Half metallic should be between dielectric and full metallic

@@ -403,7 +403,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
 
     private static void SetUniform1ui(int program, string name, uint value)
     {
-        int loc = GL.GetUniformLocation(program, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
         if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
         {
             loc = explicitLoc;

@@ -374,7 +374,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
     private static void SetUniform(int program, string name, uint value)
     {
-        int loc = GL.GetUniformLocation(program, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
         if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
         {
             loc = explicitLoc;
@@ -386,7 +386,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
     private static bool TrySetUniform(int program, string name, uint value)
     {
-        int loc = GL.GetUniformLocation(program, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
         if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
         {
             loc = explicitLoc;
@@ -439,7 +439,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
     private static void SetUniform1i(int program, string name, int value)
     {
-        int loc = GL.GetUniformLocation(program, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
         if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
         {
             loc = explicitLoc;
@@ -451,7 +451,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
     private static void SetUniform3i(int program, string name, int x, int y, int z)
     {
-        int loc = GL.GetUniformLocation(program, name);
+        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
         if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
         {
             loc = explicitLoc;

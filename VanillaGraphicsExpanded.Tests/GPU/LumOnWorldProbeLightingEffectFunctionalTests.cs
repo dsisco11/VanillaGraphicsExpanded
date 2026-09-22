@@ -54,8 +54,8 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
             normal.Bind(0);
             suppressed.Bind(1);
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "indirectDiffuseFull"), 0);
-            GL.Uniform1(GL.GetUniformLocation(program, "worldProbeSuppressedLighting"), 1);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "indirectDiffuseFull"), 0);
+            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "worldProbeSuppressedLighting"), 1);
             GL.UseProgram(0);
             TestFramework.RenderQuadTo(program, output);
             var pixels = output[0].ReadPixels();
@@ -68,7 +68,7 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
                 for (int channel = 0; channel < 3; channel++)
                     Assert.InRange(pixels[i + channel], expected[channel] - TestEpsilon, expected[channel] + TestEpsilon);
         }
-        finally { GL.DeleteProgram(program); }
+        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

@@ -308,14 +308,20 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 	ivec3 cornerStorage[8];
 	float cornerW[8];
 
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i0.z), ring, resolution, level, w000, cornerStorage[0], cornerW[0], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i0.z), ring, resolution, level, w100, cornerStorage[1], cornerW[1], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i0.z), ring, resolution, level, w010, cornerStorage[2], cornerW[2], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i0.z), ring, resolution, level, w110, cornerStorage[3], cornerW[3], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i0.y, i1.z), ring, resolution, level, w001, cornerStorage[4], cornerW[4], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i0.y, i1.z), ring, resolution, level, w101, cornerStorage[5], cornerW[5], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i0.x, i1.y, i1.z), ring, resolution, level, w011, cornerStorage[6], cornerW[6], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
-	lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing, s.cacheAvailable, probeVis0, probeMeta0, ivec3(i1.x, i1.y, i1.z), ring, resolution, level, w111, cornerStorage[7], cornerW[7], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	float spatialWeights[8] = float[8](w000, w100, w010, w110, w001, w101, w011, w111);
+	// Keep one traversal body per consumer instead of eight manually expanded copies.
+	// Corner order and scalar accumulation remain identical to the trilinear weights above.
+#ifdef VGE_SPIRV_BUILD
+	[[dont_unroll]]
+#endif
+	for (int corner = 0; corner < 8; corner++)
+	{
+		ivec3 index = ivec3((corner & 1) == 0 ? i0.x : i1.x,
+			(corner & 2) == 0 ? i0.y : i1.y, (corner & 4) == 0 ? i0.z : i1.z);
+		lumonWorldProbeAccumulateCornerScalars(probeRadianceAtlas, worldPosRel, originMinCorner, spacing,
+			s.cacheAvailable, probeVis0, probeMeta0, index, ring, resolution, level, spatialWeights[corner],
+			cornerStorage[corner], cornerW[corner], metaConfAccum, aoDirAccum, aoConfAccum, skyIntensityAccum);
+	}
 
 	if (metaConfAccum <= 1e-6)
 	{

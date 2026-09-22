@@ -101,35 +101,35 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         GL.UseProgram(programId);
 
         // Matrix uniforms
-        var invProjLoc = GL.GetUniformLocation(programId, "invProjectionMatrix");
-        var projLoc = GL.GetUniformLocation(programId, "projectionMatrix");
-        var viewLoc = GL.GetUniformLocation(programId, "viewMatrix");
-        var invViewLoc = GL.GetUniformLocation(programId, "invViewMatrix");
+        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
+        var projLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "projectionMatrix");
+        var viewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix");
+        var invViewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invViewMatrix");
         GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
         GL.UniformMatrix4(projLoc, 1, false, projection);
         GL.UniformMatrix4(viewLoc, 1, false, view);
         GL.UniformMatrix4(invViewLoc, 1, false, invView);
 
         // Probe grid uniforms
-        var gridSizeLoc = GL.GetUniformLocation(programId, "probeGridSize");
-        var screenSizeLoc = GL.GetUniformLocation(programId, "screenSize");
+        var gridSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize");
+        var screenSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize");
         GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
         GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
 
         // Temporal distribution
-        var frameIndexLoc = GL.GetUniformLocation(programId, "frameIndex");
+        var frameIndexLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "frameIndex");
         GL.Uniform1(frameIndexLoc, frameIndex);
 
         // Z-planes
-        var zNearLoc = GL.GetUniformLocation(programId, "zNear");
-        var zFarLoc = GL.GetUniformLocation(programId, "zFar");
+        var zNearLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear");
+        var zFarLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar");
         GL.Uniform1(zNearLoc, ZNear);
         GL.Uniform1(zFarLoc, ZFar);
 
         // Sky fallback
-        var ambientLoc = GL.GetUniformLocation(programId, "ambientColor");
-        var sunColorLoc = GL.GetUniformLocation(programId, "sunColor");
-        var sunPosLoc = GL.GetUniformLocation(programId, "sunPosition");
+        var ambientLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "ambientColor");
+        var sunColorLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sunColor");
+        var sunPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sunPosition");
         
         // Use defaults if not specified (nullable check allows explicit zero values)
         var ambient = ambientColor ?? (0.3f, 0.4f, 0.5f);
@@ -142,15 +142,15 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         GL.Uniform3(sunPosLoc, sunDir.x, sunDir.y, sunDir.z);
 
         // Indirect tint
-        var indirectTintLoc = GL.GetUniformLocation(programId, "indirectTint");
+        var indirectTintLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint");
         GL.Uniform3(indirectTintLoc, tint.r, tint.g, tint.b);
 
         // Texture sampler uniforms
-        var anchorPosLoc = GL.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = GL.GetUniformLocation(programId, "probeAnchorNormal");
-        var depthLoc = GL.GetUniformLocation(programId, "primaryDepth");
-        var colorLoc = GL.GetUniformLocation(programId, "primaryColor");
-        var historyLoc = GL.GetUniformLocation(programId, "octahedralHistory");
+        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
+        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
+        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
+        var colorLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryColor");
+        var historyLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralHistory");
         GL.Uniform1(anchorPosLoc, 0);
         GL.Uniform1(anchorNormalLoc, 1);
         GL.Uniform1(depthLoc, 2);
@@ -416,7 +416,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -520,7 +520,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -607,7 +607,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             }
         }
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -691,7 +691,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(zeroTexels == totalTexels,
             $"Expected all {totalTexels} texels to be zero for invalid probes, got {zeroTexels} zero texels");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -800,7 +800,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(historyTexels >= expectedHistory - 2 && historyTexels <= expectedHistory + 2,
             $"Expected exactly {expectedHistory} history texels (±2), got {historyTexels}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -888,7 +888,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(cyanTexels > 0,
             "With cyan ambient color, some texels should have cyan color contribution from sky miss");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -952,7 +952,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             TestFramework.RenderQuadTo(programId, outputAtlas);
             lowStepsOutput = outputAtlas[0].ReadPixels();
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // High ray steps
@@ -989,7 +989,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             TestFramework.RenderQuadTo(programId, outputAtlas);
             highStepsOutput = outputAtlas[0].ReadPixels();
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce non-zero output in valid probe regions
@@ -1054,7 +1054,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Bind meta history sampler (used for non-traced texels; harmless here since we trace all)
         GL.UseProgram(programId);
-        int metaHistLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
+        int metaHistLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory");
         GL.Uniform1(metaHistLoc, 6);
         GL.UseProgram(0);
 
@@ -1110,7 +1110,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(hitConf > skyConf,
             $"Expected hit confidence > sky confidence, got hit={hitConf:F3} sky={skyConf:F3} (hitCoord={hitX},{hitY} skyCoord={skyX},{skyY})");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -1152,7 +1152,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             sunColor: (0f, 0f, 0f));
 
         GL.UseProgram(programId);
-        int metaHistLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
+        int metaHistLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory");
         GL.Uniform1(metaHistLoc, 6);
         GL.UseProgram(0);
 
@@ -1183,7 +1183,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(minConf <= 0.06f, $"Expected exit confidence to be low (<= 0.06), got {minConf:F3}");
         Assert.True(maxConf >= 0.20f, $"Expected non-exit sky-miss confidence to be higher (>= 0.20), got {maxConf:F3}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -1233,7 +1233,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             sunColor: (0f, 0f, 0f));
 
         GL.UseProgram(programId);
-        int metaHistLoc = GL.GetUniformLocation(programId, "probeAtlasMetaHistory");
+        int metaHistLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory");
         GL.Uniform1(metaHistLoc, 6);
         GL.UseProgram(0);
 
@@ -1252,7 +1252,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(MathF.Abs(flagsBitsAsFloat - 123.0f) < 1e-4f,
             $"Expected preserved meta flags bits at ({x},{y}) to match history, got {flagsBitsAsFloat:F6}");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -1324,7 +1324,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < atlasData.Length; i += 4)
                 withSunRed += atlasData[i];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Without sun
@@ -1369,7 +1369,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < atlasData.Length; i += 4)
                 withoutSunRed += atlasData[i];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         Assert.True(withSunRed > withoutSunRed,
@@ -1445,7 +1445,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < atlasData.Length; i += 4)
                 fullTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Half tint
@@ -1489,7 +1489,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < atlasData.Length; i += 4)
                 halfTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         Assert.True(halfTintBrightness < fullTintBrightness * 0.8f,
@@ -1564,7 +1564,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < atlasData.Length; i += 4)
                 nearHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Far geometry (depth 0.99 - farther)
@@ -1609,7 +1609,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < atlasData.Length; i += 4)
                 farHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Near hits should produce different radiance than far hits due to distance encoding
@@ -1683,7 +1683,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame0Output = outputAtlas[0].ReadPixels();
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Frame 1
@@ -1720,7 +1720,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame1Output = outputAtlas[0].ReadPixels();
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Count how many texels differ between frames
@@ -1806,7 +1806,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                     lowTexelsNonZero++;
             }
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // High texels per frame (32)
@@ -1849,7 +1849,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                     highTexelsNonZero++;
             }
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Higher texelsPerFrame should trace more texels
@@ -1936,7 +1936,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.False(hasInvalidOutput, "Ray exits should not produce NaN/Infinity");
         Assert.True(hasValidOutput, "At least some texels should have valid output");
 
-        GL.DeleteProgram(programId);
+        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -2006,7 +2006,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < outputData.Length; i += 4)
                 identityBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Rotated view (90 degrees around Y)
@@ -2060,7 +2060,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             for (int i = 0; i < outputData.Length; i += 4)
                 rotatedBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
 
-            GL.DeleteProgram(programId);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce valid output

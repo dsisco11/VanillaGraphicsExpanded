@@ -1,15 +1,16 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
-
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// RAII wrapper around an OpenGL shader object (stage), with optional SPIR-V loading support.
+/// RAII wrapper around an OpenGL shader object (stage) built as a SPIR-V binary.
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
@@ -31,6 +32,9 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     /// </summary>
     public int ShaderId => shaderId;
 
+    /// <summary>Source-owned binding declarations carried into the program layout at link time.</summary>
+    internal Contracts.GpuBindingContract? BindingContract { get; set; }
+
     /// <summary>
     /// Gets the OpenGL shader stage type.
     /// </summary>
@@ -41,7 +45,8 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     /// </summary>
     public new bool IsValid => shaderId != 0 && !IsDisposed;
 
-    private GpuShaderModule(int shaderId, ShaderType shaderType)
+    /// <summary>Adopts an owned shader handle loaded by the binary asset loader.</summary>
+    internal GpuShaderModule(int shaderId, ShaderType shaderType)
     {
         this.shaderId = shaderId;
         this.shaderType = shaderType;
@@ -52,7 +57,11 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     /// </summary>
     public static bool SupportsSpirv()
     {
-        return GlExtensions.Supports("GL_ARB_gl_spirv");
+        if (GlExtensions.Supports("GL_ARB_gl_spirv")) return true;
+        if (!GlExtensions.TryGetContextKey(out _)) return false;
+        GL.GetInteger(GetPName.MajorVersion, out int major);
+        GL.GetInteger(GetPName.MinorVersion, out int minor);
+        return major > 4 || (major == 4 && minor >= 6);
     }
 
     /// <summary>
@@ -252,8 +261,14 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
         module = null;
         infoLog = string.Empty;
 
-        if (spirvBytes.Length == 0 || string.IsNullOrWhiteSpace(entryPoint))
+        if (spirvBytes.Length < 20 || spirvBytes.Length % 4 != 0 || BinaryPrimitives.ReadUInt32LittleEndian(spirvBytes) != 0x07230203)
         {
+            infoLog = "Invalid SPIR-V binary header.";
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(entryPoint))
+        {
+            infoLog = "SPIR-V entry point is empty.";
             return false;
         }
 
@@ -272,11 +287,13 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             id = GL.CreateShader(shaderType);
             if (id == 0)
             {
+                infoLog = "glCreateShader returned 0.";
                 return false;
             }
 
             int[] shaders = [id];
 
+            long started = Stopwatch.GetTimestamp();
             fixed (byte* binaryPtr = spirvBytes)
             {
                 GL.ShaderBinary(
@@ -290,6 +307,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
 #if DEBUG
             GlDebug.ThrowIfErrors($"{debugName}: glShaderBinary shader={id}, bytes={spirvBytes.Length}");
 #endif
+            LastBinaryLoadMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             int count = specializationConstants.Length;
             int[] indices = count == 0 ? Array.Empty<int>() : new int[count];
             int[] values = count == 0 ? Array.Empty<int>() : new int[count];
@@ -300,10 +318,12 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
                 values[i] = specializationConstants[i].Value;
             }
 
+            started = Stopwatch.GetTimestamp();
             GL.SpecializeShader(id, entryPoint, count, indices, values);
 #if DEBUG
             GlDebug.ThrowIfErrors($"{debugName}: glSpecializeShader shader={id}, entry={entryPoint}, constants={count}");
 #endif
+            LastSpecializeMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
 
             GL.GetShader(id, ShaderParameter.CompileStatus, out int status);
             infoLog = GL.GetShaderInfoLog(id) ?? string.Empty;
@@ -319,8 +339,9 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             module = created;
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            infoLog = ex.Message;
             try
             {
                 if (id != 0)
@@ -337,8 +358,11 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
         }
     }
 
-    /// <summary>
-    /// SPIR-V specialization constant id/value pair.
-    /// </summary>
+    /// <summary>Last driver binary upload duration, excluding specialization.</summary>
+    internal static double LastBinaryLoadMilliseconds { get; private set; }
+    /// <summary>Last driver specialization duration, excluding linking and drawing.</summary>
+    internal static double LastSpecializeMilliseconds { get; private set; }
+
+    /// <summary>Typed specialization bits passed to OpenGL.</summary>
     public readonly record struct SpirvSpecializationConstant(int ConstantId, int Value);
 }

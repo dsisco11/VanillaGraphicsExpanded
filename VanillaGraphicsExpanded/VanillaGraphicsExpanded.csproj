@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -82,7 +82,7 @@
   </Content>
 </ItemGroup>
 
-  <!-- Phase 6: MSBuild-integrated SPIR-V compilation (compute shaders). -->
+  <!-- MSBuild-integrated SPIR-V compilation for every owned shader stage. -->
   <PropertyGroup>
     <!-- Default: enabled for all builds (Debug + Release). -->
     <EnableSpirv Condition="'$(EnableSpirv)' == ''">true</EnableSpirv>
@@ -98,7 +98,7 @@
 
   <!-- Build SPIR-V shaders as a separate project so it shows up as its own entry in build output. -->
   <ItemGroup Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'">
-    <ProjectReference Include="..\SpirvBuild\VanillaGraphicsExpanded.SpirvBuild.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SpirvBuild\VanillaGraphicsExpanded.SpirvBuild.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
   <Target Name="CopySpirvArtifactsToOutputAssets" Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'" AfterTargets="Build">

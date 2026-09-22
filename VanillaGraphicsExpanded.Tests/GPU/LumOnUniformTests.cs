@@ -1,4 +1,5 @@
 using OpenTK.Graphics.OpenGL;
+using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
@@ -19,7 +20,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public class LumOnUniformTests : IDisposable
 {
     // Many legacy uniform names are now macro aliases over UBO members.
-    // The old name will never appear in GL reflection; instead, the backing UBO member must be active.
+    // The old name will not appear in GL reflection; check its source member and active owning block.
     private static readonly IReadOnlyDictionary<string, string[]> MacroBackedCriticals =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
@@ -212,7 +213,7 @@ public class LumOnUniformTests : IDisposable
     /// </summary>
     [Theory]
     [MemberData(nameof(CriticalUniformsData))]
-    public void Shader_CriticalUniformIsActive(string vertexShader, string fragmentShader, string uniformName)
+    public void Shader_CriticalValueHasLinkedBinding(string vertexShader, string fragmentShader, string uniformName)
     {
         _fixture.EnsureContextValid();
         Assert.SkipWhen(_helper == null, "ShaderTestHelper not available - assets may be missing");
@@ -224,9 +225,9 @@ public class LumOnUniformTests : IDisposable
         int location = _helper.GetUniformLocation(linkResult.ProgramId, uniformName);
 
         // Many parameters have moved from standalone uniforms to UBO members.
-        // For these, GL.GetUniformLocation(name) will be -1, but the variable should still
-        // show up as an active uniform with a qualified name like "blockInstance.member".
-        if (location >= 0 || IsActiveUniformOrUboMember(linkResult.ProgramId, uniformName))
+        // For these, global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(name) will be -1, but the variable should still
+        // be present in the compiled member layout of an active block. Functional tests verify its reads.
+        if (location >= 0 || HasLinkedUniformOrBlockMember(linkResult.ProgramId, uniformName, vertexShader, fragmentShader))
         {
             return;
         }
@@ -237,7 +238,7 @@ public class LumOnUniformTests : IDisposable
         {
             foreach (var backingName in backingUniforms)
             {
-                if (IsActiveUniformOrUboMember(linkResult.ProgramId, backingName))
+                if (HasLinkedUniformOrBlockMember(linkResult.ProgramId, backingName, vertexShader, fragmentShader))
                 {
                     return;
                 }
@@ -245,13 +246,13 @@ public class LumOnUniformTests : IDisposable
 
             Assert.Fail(
                 $"Critical value '{uniformName}' is a macro alias backed by UBO uniforms [{string.Join(", ", backingUniforms)}], " +
-                $"but none were reported active by OpenGL for {vertexShader}/{fragmentShader}.");
+                $"but none had a linked binding for {vertexShader}/{fragmentShader}.");
         }
 
         // Phase 23: Many previously-critical uniforms are now provided via UBOs instead of glUniform*.
         if (FrameUboBackedNames.Contains(uniformName))
         {
-            int blockIndex = GL.GetUniformBlockIndex(linkResult.ProgramId, "LumOnFrameUBO");
+            int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(linkResult.ProgramId, "LumOnFrameUBO");
             Assert.True(
                 blockIndex >= 0,
                 $"Critical value '{uniformName}' is expected to come from LumOnFrameUBO, but the program did not expose the block.");
@@ -281,9 +282,25 @@ public class LumOnUniformTests : IDisposable
             $"Location: {location}. This uniform is required for the shader to work correctly.");
     }
 
-    private static bool IsActiveUniformOrUboMember(int programId, string uniformName)
+    /// <summary>Checks standalone resources or a declared member of an active uniform block.</summary>
+    private bool HasLinkedUniformOrBlockMember(int programId, string uniformName, string vertexShader, string fragmentShader)
     {
-        GL.GetProgram(programId, GetProgramParameterName.ActiveUniforms, out int activeUniformCount);
+        // SPIR-V debug member names are optional. Check the source declaration and the owning
+        // active block here; buffer packing and actual member reads have separate GPU fixtures.
+        var (vertex, fragment) = _helper!.GetProcessedSources(vertexShader, fragmentShader);
+        foreach (string source in new[] { vertex, fragment }.OfType<string>())
+        {
+            var nodes = SyntaxTree.Parse(source, GlslSchema.Instance).Root.Children.ToArray();
+            for (int i = 0; i + 1 < nodes.Length; i++)
+            {
+                if (nodes[i] is not GlInterfaceBlockHeaderNode header || nodes[i + 1] is not SyntaxBlock body) continue;
+                string member = uniformName.Contains('.') ? uniformName[(uniformName.LastIndexOf('.') + 1)..] : uniformName;
+                if (uniformName.Contains('.') && !uniformName.StartsWith(header.Name + ".", StringComparison.Ordinal)) continue;
+                if (body.InnerChildren.OfType<SyntaxToken>().Any(token => token.Text == member) &&
+                    TestShaderInterfaces.GetUniformBlockIndex(programId, header.Name) >= 0) return true;
+            }
+        }
+        GL.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int activeUniformCount);
         if (activeUniformCount <= 0)
         {
             return false;
@@ -301,7 +318,7 @@ public class LumOnUniformTests : IDisposable
 
         for (int i = 0; i < activeUniformCount; i++)
         {
-            GL.GetActiveUniform(programId, i, bufSize: 1024, out _, out _, out _, out string activeName);
+            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetProgramResourceName(programId, ProgramInterface.Uniform, i, 1024, out _, out string activeName);
 
             string actual = Normalize(activeName);
 

@@ -11,15 +11,31 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public class GpuProgramLayout
 {
-    #region Shared contract declarations
-    /// <summary>Registers a program's centralized resource slots using the existing runtime binding machinery.</summary>
+    #region Compiled contract ownership
+    private bool compiledContract;
+    /// <summary>Numeric reflection belongs to this layout and is replaced with each successful link.</summary>
+    internal Spirv.GpuProgramInterface? BinaryInterface { get; set; }
+
+    /// <summary>Uses the same declarations that assign resource slots during offline compilation.</summary>
     internal void RegisterContract(Contracts.GpuBindingContract contract)
     {
         foreach (var (name, value) in contract.UniformBlocks) RegisterUniformBlockBinding(name, value.Slot, value.Required);
         foreach (var (name, value) in contract.StorageBlocks) RegisterShaderStorageBlockBinding(name, value.Slot, value.Required);
         foreach (var (name, value) in contract.Samplers) RegisterSamplerUnit(name, value.Slot, value.Required);
         foreach (var (name, value) in contract.Images) RegisterImageUnit(name, value.Slot, value.Required);
+        compiledContract = true;
     }
+
+    /// <summary>Resolves standalone locations from the owned binary interface or an external GLSL program.</summary>
+    internal int GetUniformLocation(int programId, string name) => BinaryInterface?.GetUniformLocation(name) ?? GL.GetUniformLocation(programId, name);
+
+    /// <summary>Supplies optional resource names for diagnostics without changing any resource slots.</summary>
+    private void GetResourceName(int programId, ProgramInterface kind, int index, int capacity, out int length, out string name)
+    {
+        if (BinaryInterface != null) BinaryInterface.GetProgramResourceName(kind, index, capacity, out length, out name);
+        else GL.GetProgramResourceName(programId, kind, index, capacity, out length, out name);
+    }
+
     #endregion
 
     #region Types
@@ -302,6 +318,12 @@ public class GpuProgramLayout
 #if DEBUG
         using var errors = new GlDebug.ErrorScope($"Program {programId}: ApplyContract");
 #endif
+        if (compiledContract && BinaryInterface is not null)
+        {
+            // Explicit source layouts already own these slots; only refresh active-resource caches.
+            RebuildCache(programId);
+            return;
+        }
         if (programId == 0)
         {
             return;
@@ -327,7 +349,7 @@ public class GpuProgramLayout
     /// </summary>
     public void ValidateContract(int programId, Action<string>? warn = null)
     {
-        if (programId == 0 || warn is null)
+        if (compiledContract || programId == 0 || warn is null)
         {
             return;
         }
@@ -659,10 +681,10 @@ public class GpuProgramLayout
         int loc = -1;
         try
         {
-            loc = GL.GetUniformLocation(programId, uniformName);
+            loc = GetUniformLocation(programId, uniformName);
             if (loc < 0)
             {
-                loc = GL.GetUniformLocation(programId, $"{uniformName}[0]");
+                loc = GetUniformLocation(programId, $"{uniformName}[0]");
             }
         }
         catch
@@ -734,7 +756,7 @@ public class GpuProgramLayout
         int index = -1;
         try
         {
-            index = GL.GetUniformBlockIndex(programId, blockName);
+            index = BinaryInterface?.GetUniformBlockIndex(blockName) ?? GL.GetUniformBlockIndex(programId, blockName);
         }
         catch
         {
@@ -761,7 +783,7 @@ public class GpuProgramLayout
         int index = -1;
         try
         {
-            index = GL.GetProgramResourceIndex(programId, ProgramInterface.ShaderStorageBlock, blockName);
+            index = BinaryInterface?.GetStorageBlockIndex(blockName) ?? GL.GetProgramResourceIndex(programId, ProgramInterface.ShaderStorageBlock, blockName);
         }
         catch
         {
@@ -772,7 +794,7 @@ public class GpuProgramLayout
         return index;
     }
 
-    private static IReadOnlyDictionary<string, int> TryBuildBufferBindingByName(int programId, ProgramInterface programInterface)
+    private IReadOnlyDictionary<string, int> TryBuildBufferBindingByName(int programId, ProgramInterface programInterface)
     {
         try
         {
@@ -794,7 +816,7 @@ public class GpuProgramLayout
 
             for (int i = 0; i < count; i++)
             {
-                GL.GetProgramResourceName(programId, programInterface, i, maxNameLen, out _, out string name);
+                GetResourceName(programId, programInterface, i, maxNameLen, out _, out string name);
                 if (string.IsNullOrWhiteSpace(name))
                 {
                     continue;
@@ -812,7 +834,7 @@ public class GpuProgramLayout
         }
     }
 
-    private static (IReadOnlyDictionary<string, int> Samplers, IReadOnlyDictionary<string, int> Images) TryBuildTextureUnitBindings(int programId)
+    private (IReadOnlyDictionary<string, int> Samplers, IReadOnlyDictionary<string, int> Images) TryBuildTextureUnitBindings(int programId)
     {
         try
         {
@@ -856,7 +878,7 @@ public class GpuProgramLayout
                     continue;
                 }
 
-                GL.GetProgramResourceName(programId, ProgramInterface.Uniform, i, maxNameLen, out _, out string name);
+                GetResourceName(programId, ProgramInterface.Uniform, i, maxNameLen, out _, out string name);
                 if (string.IsNullOrWhiteSpace(name))
                 {
                     continue;
