@@ -1,6 +1,6 @@
 # Surface-cache lighting contract
 
-This is the controlling contract for Sections 4–7 of `LumOn.SurfaceCache.TestCoverage.todo`. It defines the target storage and producer/consumer semantics; lighting producers and publication are implemented in Section 5, while probe consumers belong to Section 6.
+This is the controlling contract for Sections 4–7 of `LumOn.SurfaceCache.TestCoverage.todo`. It defines the target storage and producer/consumer semantics; lighting producers and publication are implemented in Section 5, and geometry-hit consumers are implemented in Section 6.
 
 ## Lighting terms and units
 
@@ -57,7 +57,7 @@ Four RGBA16F lighting layers (direct, indirect, two outgoing generations) cost 3
 
 ## Estimator audit and implementation boundary
 
-Section 4 corrects the current compatibility estimator's missing Lambert/PDF normalization, double distance attenuation, outside-cell material lookup, partial-ray averaging, and capped-history growth. That standalone estimator retains the effective direct-light adapter as a calibration reference. The production renderer now uses the separate surface-lighting producer described below, with previous-generation hit lighting, emission, direct storage and publication. Section 6 still owns probe integration.
+Section 4 corrects the current compatibility estimator's missing Lambert/PDF normalization, double distance attenuation, outside-cell material lookup, partial-ray averaging, and capped-history growth. That standalone estimator retains the effective direct-light adapter as a calibration reference. The production renderer now uses the separate surface-lighting producer described below, with previous-generation hit lighting, emission, direct storage and publication. Geometry-hit consumers use the published outgoing radiance as described below.
 
 ## Task traceability and verification
 
@@ -80,7 +80,7 @@ Direct and indirect layers are progressive diagnostic resources. Only outgoing r
 
 The producer checks resource identity, scene invalidation, capture history, residency mappings and sampling settings. Geometry/material/light changes discard dependent histories conservatively. Material registry generation changes recreate shared geometry and immutable material tables. Residency changes clear readiness before new seeds. The provider also rejects obsolete atlas/mapping/capture state between capture and relight.
 
-Production indirect tracing now uses the exact voxel patch layout, signed integer chunk coordinates, slot ring, current slot generation, captured face identity, page mapping and published readiness to sample outgoing radiance. Probe integration remains Section 6. The older standalone relight estimator and its historical tests remain normalization/reference coverage; they are no longer the runtime lighting producer.
+Production indirect tracing now uses the exact voxel patch layout, signed integer chunk coordinates, slot ring, current slot generation, captured face identity, page mapping and published readiness to sample outgoing radiance. Screen and world-probe integration use that same lookup through the consumer paths below. The older standalone relight estimator and its historical tests remain normalization/reference coverage; they are no longer the runtime lighting producer.
 
 | Section 5 task | Controlling sections | Implementation and planned evidence |
 | --- | --- | --- |
@@ -91,3 +91,25 @@ Production indirect tracing now uses the exact voxel patch layout, signed intege
 | Numerical fixtures | Lighting terms; History | Reusable captured enclosure, isolated direct/emission/indirect, valid black and stable multi-bounce tests |
 
 Executed receipts and independent audit results are recorded in the task list after verification.
+
+## Geometry-hit consumers
+
+Screen-probe near-field hits sample the same outgoing-radiance lookup as surface indirect tracing. The lookup uses signed integer chunk coordinates, the exact axial face/patch layout, local hit fractions, current chunk-slot generation, resident page mapping, captured surface identity, and complete-page readiness. A surface ID of zero, absent page, stale slot, mismatched captured material, or invalid outgoing texel is unavailable. Valid black returns success. No consumer reapplies diffuse albedo, emission boost, or Lambert normalization to outgoing radiance.
+
+An unavailable opaque hit retains its hit classification and distance. Screen probes publish zero radiance with zero lighting confidence; they do not sample a world probe through that occluder. Existing screen-only emission remains available when no supported near-field hit supersedes it. Gather and composition continue to consume probe radiance, not surface-cache textures.
+
+World probes keep CPU geometry traversal and directional scheduling. Workers emit integer hit cells, axial normals, within-cell fractions, and engine block identity instead of evaluating the legacy hit-light approximation. Render-thread compute queries validate the current geometry/block identity and invoke the same cache lookup. A bounded batch contains at most 4,096 descriptors (256 KiB); only one batch is pending. GPU fences are polled with zero timeout. CPU workers never receive GPU resource references, and the render thread maps results only after the fence signals. A query covers a ray's known hit; it does not retrace the ray or infer sky from an unavailable cache.
+
+Only complete resolved probe batches reach atlas upload. Unavailable hit lighting retries without publishing confident darkness or adding directional history. Successful answers preserve the CPU hit distance, occlusion and confidence metadata; valid black counts as resolved. Whole probe uploads require space for their metadata and every directional sample. Admission tickets reject delayed answers after storage reuse, reset, dirtying or disabling.
+
+Publication exposes a dependency revision separate from the progressively increasing lighting generation. Cache dependency changes or unavailability discard dependent screen history and world-probe atlases/requests. Ordinary completed bounce generations do not reset probe history. The existing CPU geometry backend remains the world-probe tracing owner; asynchronous GPU hit-query transport is the implemented dependency that bridges it to GPU-owned lighting. A future all-GPU tracing backend is not required for this transport. Hits outside resident cache coverage are explicitly unresolved, including farther world-probe levels; no legacy light approximation silently substitutes for missing cached surfaces.
+
+| Section 6 task | Controlling sections | Implementation and verification |
+| --- | --- | --- |
+| Shared hit addressing | Atlas and publication; Geometry-hit consumers | Shared lumon_surface_lighting.glsl; real capture/producer/query tests across all six faces, positive/negative chunk boundaries, stale generations and unavailable pages |
+| Screen-probe provider | Lighting terms; Geometry-hit consumers | Composition injects ISurfaceLightingProvider; shader-owned contracts bind outgoing radiance and addressing; screen probes consume produced light once |
+| Unavailable versus black | Indirect estimator and history; Geometry-hit consumers | Explicit lookup validity; tests preserve opaque distance while confidence becomes zero; valid black remains confident |
+| World-probe ownership | Atlas and publication; Geometry-hit consumers | Worker descriptors, render-thread asynchronous query batch, admission tickets and atomic probe uploads; CPU/GPU transport and stale-request tests |
+| Downstream ownership | Lighting terms; Geometry-hit consumers | Positive hit-consumer binding tests and negative gather/combine cache-binding tests; no reflection pipeline introduced |
+
+Executed receipts and final independent review remain recorded in the task list. Full cache-to-final-pixel behavioral coverage remains Section 7.

@@ -11,9 +11,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed partial class LumOnNearFieldFunctionalTests
 {
     #region Lighting Controls
-    /// <summary>Emission is evaluated once with the GI boost and survives cache-only suppression.</summary>
+    /// <summary>Raw material emission cannot replace missing cached outgoing radiance.</summary>
     [Fact]
-    public void LocalEmission_IsIndependentOfCacheSuppression()
+    public void RawEmission_RemainsUnavailableWithoutSurfaceCache()
     {
         EnsureShaderTestAvailable();
         var world = new ControlledVoxelWorld();
@@ -23,10 +23,10 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var result = Trace(fixture, suppress: true, emissionBoost: 3);
         for (int i = 0; i < result.Radiance.Length; i += 4)
         {
-            Assert.InRange(result.Radiance[i], 2.99f, 3.01f);
-            Assert.InRange(result.Radiance[i + 1], 1.49f, 1.51f);
-            Assert.InRange(result.Radiance[i + 2], 0.74f, 0.76f);
-            Assert.Equal(1, result.Meta[i / 2]);
+            Assert.Equal(0,result.Radiance[i]);
+            Assert.Equal(0,result.Radiance[i+1]);
+            Assert.Equal(0,result.Radiance[i+2]);
+            Assert.Equal(0, result.Meta[i / 2]);
         }
     }
 
@@ -48,9 +48,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
         }
     }
 
-    /// <summary>Fully visible sky over a diffuse horizontal plane matches the CPU model's normalized inverse-pi term.</summary>
+    /// <summary>Raw sunlight cannot bypass surface-cache publication, even on an upward face.</summary>
     [Fact]
-    public void UpwardSurface_SkyTermMatchesNormalizedCpuModel()
+    public void UpwardSurface_RequiresPublishedSurfaceLighting()
     {
         EnsureShaderTestAvailable();
         var world = new ControlledVoxelWorld { DefaultLight = new Vector4(0, 0, 0, 1) };
@@ -65,13 +65,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         {
             if ((Flags(result.Meta[i / 2 + 1]) & 1u) == 0) continue;
             hitCount++;
-            Assert.InRange(result.Radiance[i], 1 / MathF.PI - 0.002f, 1 / MathF.PI + 0.002f);
-            Assert.Equal(1, result.Meta[i / 2]);
+            Assert.Equal(0,result.Radiance[i]);
+            Assert.Equal(0, result.Meta[i / 2]);
         }
         Assert.True(hitCount > 32, "The production rays must exercise the plane's hit-lighting path.");
     }
 
-    /// <summary>Normalized byte lighting stays within its quantization bound, including dim cells and endpoints.</summary>
+    /// <summary>Game voxel light levels do not silently substitute for unavailable outgoing radiance.</summary>
     [Theory]
     [InlineData(0f)]
     [InlineData(0.001f)]
@@ -79,7 +79,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
     [InlineData(0.025f)]
     [InlineData(0.5f)]
     [InlineData(1f)]
-    public void CompactLighting_UsesNormalizedEightBitValues(float intensity)
+    public void RawVoxelLightingDoesNotSubstituteForMissingCache(float intensity)
     {
         EnsureShaderTestAvailable();
         var world = new ControlledVoxelWorld { DefaultLight = new Vector4(intensity, 0, 1, 0) };
@@ -87,14 +87,14 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var result = Trace(fixture);
-        float quantized = MathF.Round(intensity * 255) / 255;
+
         for (int i = 0; i < result.Radiance.Length; i += 4)
         {
-            Assert.InRange(result.Radiance[i], quantized - 0.0005f, quantized + 0.0005f);
-            Assert.InRange(Math.Abs(result.Radiance[i] - intensity), 0, 0.5f / 255 + 0.0005f);
+            Assert.Equal(0,result.Radiance[i]);
+
             Assert.Equal(0, result.Radiance[i + 1]);
-            Assert.Equal(1, result.Radiance[i + 2]);
-            Assert.Equal(1, result.Meta[i / 2]);
+            Assert.Equal(0, result.Radiance[i + 2]);
+            Assert.Equal(0, result.Meta[i / 2]);
         }
     }
 

@@ -10,12 +10,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed partial class LumOnNearFieldFunctionalTests
 {
     #region Screen Hit Lighting
-    /// <summary>Adding visible geometry must not erase outgoing radiance supplied by the same near-field scene off screen.</summary>
+    /// <summary>Screen and offscreen geometry agree on unavailable cache lighting while preserving opaque hits.</summary>
     [Theory]
     [InlineData(0f)]
     [InlineData(0.25f)]
     [InlineData(1f)]
-    public void ScreenHits_PreserveNonEmissiveLocalLighting(float lighting)
+    public void ScreenHits_AndOffscreenHitsRequireCachePublication(float lighting)
     {
         EnsureShaderTestAvailable();
         var world = new ControlledVoxelWorld();
@@ -37,12 +37,12 @@ public sealed partial class LumOnNearFieldFunctionalTests
             // take the accepted screen-hit branch, avoiding a vacuous miss-path test.
             if ((Flags(screenOnly.Meta[pixel * 2 + 1]) & 1u) == 0) continue;
             checkedHits++;
-            Assert.Equal(1f, onScreen.Meta[pixel * 2]);
+            Assert.Equal(0f, onScreen.Meta[pixel * 2]);
             Assert.Equal(1u, Flags(onScreen.Meta[pixel * 2 + 1]) & 1u);
             Assert.Equal(0u, Flags(onScreen.Meta[pixel * 2 + 1]) & (1u << 5));
             for (int c = 0; c < 3; c++)
             {
-                Assert.InRange(offScreen.Radiance[pixel * 4 + c], lighting - 0.002f, lighting + 0.002f);
+                Assert.Equal(0,offScreen.Radiance[pixel*4+c]);
                 Assert.InRange(onScreen.Radiance[pixel * 4 + c],
                     offScreen.Radiance[pixel * 4 + c] - 0.002f, offScreen.Radiance[pixel * 4 + c] + 0.002f);
             }
@@ -70,7 +70,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         Assert.True(checkedHits > 0);
     }
 
-    /// <summary>Shared near-field shading counts emission once; unavailable local data preserves explicit visible emission.</summary>
+    /// <summary>Screen emission survives absent geometry, but a known opaque hit requires its own published cache lighting.</summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -92,9 +92,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
         {
             if ((Flags(screenOnly.Meta[pixel * 2 + 1]) & 1u) == 0) continue;
             checkedHits++;
-            Assert.Equal(1f, result.Meta[pixel * 2]);
-            // RGBA8 emission quantization permits roughly 0.502 rather than exactly 0.5.
-            for (int c = 0; c < 3; c++) Assert.InRange(result.Radiance[pixel * 4 + c], 0.495f, 0.505f);
+            Assert.Equal(publish ? 0f : 1f, result.Meta[pixel * 2]);
+            // A known local occluder must not borrow the screen surface emission.
+            for (int c = 0; c < 3; c++) Assert.InRange(result.Radiance[pixel * 4 + c], publish ? 0 : 0.495f, publish ? 0 : 0.505f);
         }
         Assert.True(checkedHits > 0);
     }

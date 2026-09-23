@@ -51,7 +51,8 @@ internal sealed class TraceGeometryMaterials
                     colors[index * 48 + face * 8 + 4 + c] = (byte)(emission >> (c * 8));
                 }
             }
-            faces[index * 4 + 3] = (surfaceReady ? 1u : 0u) | (hitReady ? 2u : 0u);
+            // Preserve the engine block identity beside readiness so delayed CPU hits can reject replaced geometry.
+            faces[index * 4 + 3] = (surfaceReady ? 1u : 0u) | (hitReady ? 2u : 0u) | ((uint)block.Id << 2);
             // Mirror hit readiness in unused diffuse alpha to stay within the fragment sampler budget.
             for (int face = 0; face < 6; face++) colors[index * 48 + face * 8 + 3] = hitReady ? (byte)255 : (byte)0;
             revision++;

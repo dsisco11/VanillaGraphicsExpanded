@@ -32,7 +32,8 @@ public sealed partial class LumOnNearFieldFunctionalTests
         for (int i = 0; i < closed.Radiance.Length; i += 4)
         {
             Assert.Equal(0, closed.Radiance[i]);
-            Assert.Equal(1, closed.Meta[i / 2]);
+            Assert.Equal(0, closed.Meta[i / 2]);
+            Assert.Equal(1u,Flags(closed.Meta[i / 2+1])&1u);
         }
     }
 
@@ -53,7 +54,8 @@ public sealed partial class LumOnNearFieldFunctionalTests
         for (int i = 0; i < result.Radiance.Length; i += 4)
         {
             Assert.Equal(0, result.Radiance[i]);
-            Assert.Equal(1, result.Meta[i / 2]);
+            Assert.Equal(0, result.Meta[i / 2]);
+            Assert.Equal(1u,Flags(result.Meta[i / 2+1])&1u);
         }
     }
 
@@ -74,7 +76,8 @@ public sealed partial class LumOnNearFieldFunctionalTests
         {
             Assert.Equal(0, result.Radiance[i]);
             Assert.Equal(0, result.Radiance[i + 3]);
-            Assert.Equal(1, result.Meta[i / 2]);
+            Assert.Equal(0, result.Meta[i / 2]);
+            Assert.Equal(1u,Flags(result.Meta[i / 2+1])&1u);
         }
     }
 

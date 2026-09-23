@@ -23,14 +23,13 @@ Validation: normal incremental build passed; `SurfaceCacheRuntimeTests` passed 3
 
 ## 3. Surface-cache consumer audit
 
-Status: consumer audit complete; behavioral verification moved to Section 7. Cache-to-final-lighting behavior is not yet implemented or verified.
+Status: historical consumer audit complete; hit-consumer implementation is tracked in Section 6 and full behavioral verification remains Section 7.
 
 - [x] Identify the currently implemented surface-cache consumers and explicitly record any missing integration before defining end-to-end expectations.
 
-The current implementation has one surface-cache sampling consumer: the diagnostic shader used by the surface-cache debug views. `LumOnRenderer` receives the shared trace geometry provider, but it does not receive a surface-cache resource provider for evaluating ray-hit lighting. Cached lighting therefore cannot reach the screen-probe or final-lighting pipeline yet. Gather and final composition should receive this contribution through probe radiance; they do not require direct surface-cache bindings.
+The original audit found only a diagnostic surface-cache consumer. Production screen/world-probe hit lighting had no connection to the cache. Section 6 now implements that connection and replaces the missing-integration assertion with positive hit-consumer coverage. Gather and final composition remain downstream of probe radiance and do not bind the surface cache directly.
 
-`SurfaceCacheConsumerContractTests` records this boundary from the shader-owned binding contracts. It verifies that the diagnostic consumer declares both resources and that the current production trace, gather, and combine programs do not. The illumination and removal tests require a production cache-sampling consumer and remain open in Section 7, which also replaces the test that asserts missing integration.
-
+The illumination/removal proof across filtering, gather and final pixels remains Section 7. The validation below records the original audit, not that later end-to-end behavior.
 Validation: the focused consumer-contract run passed 2/2 with no failures or skips and built all 98 shader stages / 243 SPIR-V variants. Receipts: `artifacts/shader-variant-contracts/surface-cache-consumer-contract-tests.log` and `surface-cache-consumer-contract.trx`.
 
 Use modular fixtures shared across scenarios. Record executed tests and results when completing each item.
@@ -57,17 +56,24 @@ Controlling design and task traceability: [Surface-cache lighting contract](LumO
 
 Validation: second implementation review and independent completion audit passed. Normal shader-enabled build compiled 99 stages / 244 variants. Focused suites passed 44/44 with zero failures or skips: producers 7, runtime 5, pool/budget units 10, dynamic history 2, shared surface 11, estimator terms 5, debug bindings 4. Producer coverage uses real capture and previous-generation transport, checks every page completion marker and outgoing texel validity, and verifies direct/albedo/emission accounting, normalization, unavailable-page history, removal/restoration and stable multiple bounces. The runtime test verifies partial-page readiness and bitwise preservation of a previously lit tile across publication swaps, plus configuration/resource invalidation. Receipts: artifacts/shader-variant-contracts/surface-lighting-build.log, surface-lighting-producer.trx, surface-lighting-runtime-final.{log,trx}, surface-lighting-pool.{log,trx}, and surface-lighting-{SurfaceCacheDynamicLightingTests,SharedTraceSceneSurfaceTests,SurfaceCacheLightingTermsTests,SurfaceCacheDebugBindingTests}.{log,trx}.
 
-The production provider is ready for consumer integration. Screen/world probe consumers and final-lighting proof remain Sections 6–7.
+Provider production is complete. Section 6 owns screen/world-probe consumption; Section 7 owns final-lighting proof.
 
 ## 6. Consume surface lighting at geometry hits
-- [ ] Implement shared hit-to-surface addressing from geometry hit position, face/material identity, and chunk generation through the page table to cached outgoing radiance. Test cross-chunk hits, boundaries, stale mappings, and unavailable pages.
-- [ ] Connect the published provider to `LumOnRenderer` and the screen-probe near-field hit-lighting path through shader-owned contracts. Preserve screen-hit behavior; consume cached outgoing radiance for supported world-geometry hits without applying hit albedo twice.
-- [ ] Define explicit unavailable-cache behavior separately from valid black lighting, and preserve hit distance, occlusion, confidence, and history semantics.
-- [ ] Connect world-probe trace hit lighting to the same surface-lighting contract. Resolve the current CPU-worker/GPU-cache ownership boundary explicitly; do not synchronously read GPU textures from tracing workers. Record any required GPU tracing or snapshot transport work as an implementation dependency.
-- [ ] Keep gather and final composition downstream of probe radiance. Reserve reflection integration for an actual reflection consumer rather than introducing an unused pipeline.
 
+Controlling design and task traceability: [Surface-cache lighting contract](LumOn.SurfaceCache.LightingContract.md), especially Geometry-hit consumers and Atlas and publication design.
+- [x] Implement shared hit-to-surface addressing from geometry hit position, face/material identity, and chunk generation through the page table to cached outgoing radiance. Test cross-chunk hits, boundaries, stale mappings, and unavailable pages.
+- [x] Connect the published provider to `LumOnRenderer` and the screen-probe near-field hit-lighting path through shader-owned contracts. Preserve screen-hit behavior; consume cached outgoing radiance for supported world-geometry hits without applying hit albedo twice.
+- [x] Define explicit unavailable-cache behavior separately from valid black lighting, and preserve hit distance, occlusion, confidence, and history semantics.
+- [x] Connect world-probe trace hit lighting to the same surface-lighting contract. Resolve the current CPU-worker/GPU-cache ownership boundary explicitly; do not synchronously read GPU textures from tracing workers. Record any required GPU tracing or snapshot transport work as an implementation dependency.
+- [x] Keep gather and final composition downstream of probe radiance. Reserve reflection integration for an actual reflection consumer rather than introducing an unused pipeline.
+
+Validation: second implementation review and independent completion audit passed. Normal shader-enabled build compiled 100 stages / 245 variants. Focused suites passed 104 distinct tests with zero failures or skips: hit consumers 12, near-field behavior 57, world-probe transport 2, scheduler 5, runtime publication 5, shared surface 11, producers 7, shader bindings 3, consumer contracts 2. Coverage includes real produced radiance at screen and CPU-world-probe hits, accepted screen-hit emission exactly once, signed cross-chunk addressing, stale/aliased/unavailable pages, valid black, preserved hit distances, query-buffer reuse, dependency revisions and delayed-request rejection.
+
+World-probe geometry tracing remains on workers. The implemented dependency is bounded asynchronous render-thread GPU hit resolution (at most 4,096 descriptors), followed by whole-probe atlas upload. Workers perform no GPU readback. Hits outside resident cache coverage remain unresolved. Final-pixel and multi-frame consumer proof remain Section 7; no live visual verification is claimed.
+
+Receipts: artifacts/shader-variant-contracts/surface-consumer-build-confirmed.log; surface-consumer-{lookup,runtime,bindings,contract}-verified.{log,trx}; surface-consumer-{nearfield,world,scheduler}-current.{log,trx}; surface-consumer-shared-final.{log,trx}; surface-consumer-producer.{log,trx}.
 ## 7. End-to-end lighting proof
-- [ ] Replace `FinalLightingShadersDoNotYetDeclareSurfaceCacheInputs` with positive consumer coverage; absence of integration must not remain a required behavior.
+- [x] Replace `FinalLightingShadersDoNotYetDeclareSurfaceCacheInputs` with positive consumer coverage; absence of integration must not remain a required behavior.
 - [ ] Trace controlled scene lighting changes through real cache production, hit sampling, probe radiance, filtering, both gather modes, and final indirect-lighting pixels. Verify illumination, removal, and restoration without injecting downstream lighting.
 - [ ] Cover screen misses with offscreen geometry, emissive-only illumination, sealed-room darkness, multi-bounce transfer, missing/stale pages, and resource recreation. Check intermediate radiance as well as final pixels to identify the failing boundary.
 - [ ] Extend world-probe coverage through its implemented cache consumer and exercise runtime publication/invalidation across frames. Record build and executed GPU-test evidence separately from live visual verification.

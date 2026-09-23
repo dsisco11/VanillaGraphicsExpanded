@@ -810,6 +810,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
         shader.BindNearFieldScene(nearFieldScene);
+        (surfaceLightingBindings ??= new()).Bind(surfaceLighting);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
         // Bind probe anchor textures
@@ -1505,6 +1506,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        surfaceLightingBindings?.Dispose(); surfaceLightingBindings = null;
         comparisonBuffers?.Dispose();
         primaryBuffers.WorldProbeSuppressedLighting = null;
         pmjJitter.Dispose();

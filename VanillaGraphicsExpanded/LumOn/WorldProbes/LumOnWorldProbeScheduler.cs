@@ -311,10 +311,14 @@ internal sealed class LumOnWorldProbeScheduler
         return list;
     }
 
-    /// <summary>
-    /// Mark a probe update request as completed.
-    /// This is a Phase 18.5 hook; Phase 18.6+ will drive this from the async trace backend.
-    /// </summary>
+    /// <summary>Rejects delayed lighting results after dirtying, disabling or reusing their storage slot.</summary>
+    public bool IsCurrent(in LumOnWorldProbeUpdateRequest request)
+    {
+        if ((uint)request.Level >= (uint)levels.Length) return false;
+        lock (levelLocks[request.Level]) return levels[request.Level].IsCurrent(request.StorageLinearIndex, request.Ticket);
+    }
+
+    /// <summary>Completes only the original admission, retaining aborted-trace retry backoff.</summary>
     public void Complete(in LumOnWorldProbeUpdateRequest request, int frameIndex, bool success, bool aborted)
     {
         if ((uint)request.Level >= (uint)levels.Length) throw new ArgumentOutOfRangeException(nameof(request));
@@ -322,6 +326,7 @@ internal sealed class LumOnWorldProbeScheduler
         lock (levelLocks[request.Level])
         {
             ref LevelState state = ref levels[request.Level];
+            if (!state.Matches(request.StorageLinearIndex, request.Ticket)) return;
             int retryDelayFrames = (!success && aborted) ? AbortedRetryDelayFrames : 0;
             state.Complete(request.StorageLinearIndex, frameIndex, success, retryDelayFrames);
         }
@@ -358,7 +363,7 @@ internal sealed class LumOnWorldProbeScheduler
         lock (levelLocks[request.Level])
         {
             ref LevelState state = ref levels[request.Level];
-            return state.TryClaim(request.StorageLinearIndex, frameIndex);
+            return state.Matches(request.StorageLinearIndex, request.Ticket) && state.TryClaim(request.StorageLinearIndex, frameIndex);
         }
     }
 
@@ -376,7 +381,7 @@ internal sealed class LumOnWorldProbeScheduler
         lock (levelLocks[request.Level])
         {
             ref LevelState state = ref levels[request.Level];
-            state.Unqueue(request.StorageLinearIndex);
+            if (state.Matches(request.StorageLinearIndex, request.Ticket)) state.Unqueue(request.StorageLinearIndex);
         }
     }
 
@@ -415,6 +420,8 @@ internal sealed class LumOnWorldProbeScheduler
         private readonly bool[] disableAfterInFlight;
 
         private readonly int[] queuedAtFrame;
+        private readonly long[] tickets;
+        private long nextTicket;
 
         private int validationCursor;
 
@@ -437,6 +444,7 @@ internal sealed class LumOnWorldProbeScheduler
             dirtyAfterInFlight = new bool[probesPerLevel];
             disableAfterInFlight = new bool[probesPerLevel];
             queuedAtFrame = new int[probesPerLevel];
+            tickets = new long[probesPerLevel]; nextTicket = 0;
             validationCursor = 0;
 
             anchor = null;
@@ -452,7 +460,7 @@ internal sealed class LumOnWorldProbeScheduler
             Array.Fill(importanceFlags, LumOnWorldProbeImportanceFlags.None);
             Array.Fill(dirtyAfterInFlight, false);
             Array.Fill(disableAfterInFlight, false);
-            Array.Fill(queuedAtFrame, 0);
+            Array.Fill(queuedAtFrame, 0); Array.Clear(tickets);
             validationCursor = 0;
             anchor = null;
             originMinCorner = null;
@@ -570,6 +578,14 @@ internal sealed class LumOnWorldProbeScheduler
             ring = ringOffset;
             return true;
         }
+
+        /// <summary>Checks the unique admission token without accepting another request for the same slot.</summary>
+        public bool Matches(int index, long ticket) => (uint)index < (uint)probesPerLevel && tickets[index] == ticket;
+
+        /// <summary>Checks whether the admitted request still represents current geometry and occupancy.</summary>
+        public bool IsCurrent(int index, long ticket) => Matches(index,ticket) &&
+            lifecycle[index] == LumOnWorldProbeLifecycleState.InFlight &&
+            !dirtyAfterInFlight[index] && !disableAfterInFlight[index];
 
         public bool TryClaim(int storageLinearIndex, int frameIndex)
         {
@@ -796,7 +812,7 @@ internal sealed class LumOnWorldProbeScheduler
                     LocalIndex: c.LocalIndex,
                     StorageIndex: c.StorageIndex,
                     StorageLinearIndex: c.StorageLinearIndex,
-                    ImportanceFlags: importanceFlags[c.StorageLinearIndex]));
+                    ImportanceFlags: importanceFlags[c.StorageLinearIndex], Ticket: tickets[c.StorageLinearIndex] = ++nextTicket));
 
                 taken++;
             }
@@ -927,7 +943,7 @@ internal sealed class LumOnWorldProbeScheduler
                 Array.Fill(lifecycle, LumOnWorldProbeLifecycleState.Dirty);
                 Array.Fill(importanceFlags, LumOnWorldProbeImportanceFlags.None);
                 Array.Fill(retryAfterFrame, 0);
-                Array.Fill(queuedAtFrame, 0);
+                Array.Fill(queuedAtFrame, 0); Array.Clear(tickets);
                 return;
             }
 

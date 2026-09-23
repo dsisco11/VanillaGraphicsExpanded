@@ -10,9 +10,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
     #region Recorded Outcomes
     /// <summary>Independent scene conditions produce distinct outcomes without changing ordinary trace flags.</summary>
     [Theory]
-    [InlineData("solid", 1u, 1f)]
-    [InlineData("lit", 2u, 1f)]
-    [InlineData("dark", 3u, 1f)]
+    [InlineData("solid", 1u, 0f)]
+    [InlineData("lit", 4u, 0f)]
+    [InlineData("dark", 4u, 0f)]
     [InlineData("unpublished", 4u, 0f)]
     [InlineData("budget", 4u, 0f)]
     [InlineData("cache", 5u, 1f)]
@@ -45,9 +45,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
             // Screen exits retain the lower sky confidence while still recording sky provenance.
             float expectedConfidence = scenario == "sky" && (flags & (1u << 2)) != 0 ? 0.05f : confidence;
             Assert.Equal(expectedConfidence, result.Meta[pixel * 2]);
-            Assert.Equal(expectedOutcome is 1 or 2 or 3, (flags & 1u) != 0);
+            Assert.Equal(scenario is "solid" or "lit" or "dark", (flags & 1u) != 0);
             Assert.Equal(expectedOutcome == 5, (flags & (1u << 5)) != 0);
-            if (scenario == "lit") Assert.InRange(result.Radiance[pixel * 4], 0.248f, 0.253f);
+            if (scenario == "lit") Assert.Equal(0,result.Radiance[pixel * 4]);
             if (scenario is "solid" or "dark" or "unpublished" or "budget") Assert.Equal(0f, result.Radiance[pixel * 4]);
         }
     }

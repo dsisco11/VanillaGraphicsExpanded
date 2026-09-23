@@ -45,6 +45,7 @@ internal static partial class GpuShaderContracts
             case "lumonscene_feedback_gather": FeedbackGather(contract); break;
             case "lumonscene_capture_voxel": CaptureVoxel(contract); break;
             case "lumonscene_capture_meshcard": CaptureMeshCard(contract); break;
+            case "lumonscene_surface_query": TraceGeometry(contract); SurfaceLightingInputs(contract); contract.RegisterShaderStorageBlockBinding("SurfaceQueries", 0); break;
             case "lumonscene_surface_lighting": SurfaceLighting(contract); break;
             case "lumonscene_relight_voxel_dda": RelightVoxelDda(contract); break;
         }

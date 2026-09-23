@@ -28,6 +28,8 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
     private int settingsHash, cursor, frame, lastWorkCount;
     private SurfaceLightingSnapshot snapshot;
     private bool published;
+    private static long nextDependencyRevision;
+    private long dependencyRevision;
     public double RenderOrder => 0.99986;
     public int RenderRange => 1;
 
@@ -85,6 +87,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
             mapping.Any(pair => !identities.TryGetValue(pair.Key, out ulong key) || key != pair.Value);
         if (changed)
         {
+            dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
             published = false; seeded.Clear(); batches.Clear(); identities.Clear(); cursor = 0;
             foreach (var pair in mapping) identities.Add(pair.Key, pair.Value);
             candidates = identities.Keys.OrderBy(id => id).ToArray();
@@ -100,7 +103,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
         snapshot = new(resources.PublishedOutgoing, resources.DirectAtlas, resources.IrradianceAtlas,
             gpu.PageTable.PageTableMip0, resources.MaterialAtlas, gpu.PatchMetadata.Ssbo, slots, readyBuffer,
             LumonSceneChunkSlotUniformState.OriginMinChunk, LumonSceneChunkSlotUniformState.Dims,
-            LumonSceneChunkSlotUniformState.Ring, tile, pool.Plan.TilesPerAxis, pool.Plan.TilesPerAtlas, resources.LightingGeneration);
+            LumonSceneChunkSlotUniformState.Ring, tile, pool.Plan.TilesPerAxis, pool.Plan.TilesPerAtlas, resources.LightingGeneration, dependencyRevision);
 
         int count = Math.Min(maxPages, candidates.Length), batchCount = (tile * tile + texels - 1) / texels;
         var complete = new List<LumonSceneRelightWorkGpu>(count);

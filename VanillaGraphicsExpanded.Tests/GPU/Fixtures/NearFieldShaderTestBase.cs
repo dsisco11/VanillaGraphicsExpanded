@@ -16,7 +16,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
     private protected (float[] Radiance, float[] Meta) Trace(NearFieldVoxelFixture fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
-        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null)
+        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default)
     {
         int program = CompileShaderWithDefines("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh",
             new Dictionary<string, string?>
@@ -31,10 +31,12 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
                 ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = "16",
                 ["VGE_LUMON_HZB_COARSE_MIP"] = "0"
             });
+        using var cacheBinding=new VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingBindings();
+        cacheBinding.Bind(surfaceLighting);
         var textures = new List<DynamicTexture2D>();
         try
         {
-            AddTexture("probeAnchorPosition", 0, 2, 2, PixelInternalFormat.Rgba16f, anchorX, 0, -5, 1);
+            AddTexture("probeAnchorPosition", 0, 2, 2, PixelInternalFormat.Rgba16f, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1);
             AddTexture("probeAnchorNormal", 1, 2, 2, PixelInternalFormat.Rgba16f, 0.5f, 0.5f, 1, 0);
             AddTexture("primaryDepth", 2, 4, 4, PixelInternalFormat.R32f, screenDepth);
             AddTexture("surfaceAlbedo", 3, 4, 4, PixelInternalFormat.Rgba16f, 1, 1, 1, 1);
@@ -48,15 +50,21 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
             AddTexture("worldProbeMeta0", 12, cacheResolution * cacheResolution, cacheResolution, PixelInternalFormat.Rg32f, 1, 0);
             (shared?.Geometry ?? fixture.Scene.Geometry).Bind(10); (shared?.Light ?? fixture.Scene.Light).Bind(13);
             (shared?.Readiness ?? fixture.Scene.Regions).Bind(14); (shared?.Materials ?? fixture.Scene.Materials).Bind(15);
+            if(shared != null) shared.Faces.Bind(19);
             GL.UseProgram(program);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), 10);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldLight"), 13);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), 14);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldMaterials"), 15);
+            foreach(var binding in new[]{("capturedMaterial",16),("previousOutgoing",17),("surfacePages",18),("traceSceneFaces",19)})
+            {
+                int location=global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program,binding.Item1);
+                if(location>=0) GL.Uniform1(location,binding.Item2);
+            }
             GL.UseProgram(0);
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection(),
                 projectionMatrix: LumOnTestInputFactory.CreateRealisticProjection(),
-                matrixSpaceWorldChunkCoordOffset: new VanillaGraphicsExpanded.Numerics.VectorInt3(worldOffset.X >> 5, worldOffset.Y >> 5, worldOffset.Z >> 5));
+                matrixSpaceWorldChunkCoordOffset: new VanillaGraphicsExpanded.Numerics.VectorInt3(worldOffset.X >> 5, worldOffset.Y >> 5, worldOffset.Z >> 5), matrixSpaceWorldBlockOffsetRem: matrixRemainder);
             UpdateAndBindLumOnWorldProbeUbo(program, skyTint: new Vintagestory.API.MathTools.Vec3f(1, 1, 1), cameraPosWS: Vector3.Zero, originMinCorner: [new Vector3(-cacheSpacing * .5f * cacheResolution, -cacheSpacing * .5f * cacheResolution, -5 - cacheSpacing * .5f * cacheResolution)]);
             using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.NearField");
             var local = new LumOnNearFieldParamsUbo();

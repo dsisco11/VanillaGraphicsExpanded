@@ -25,6 +25,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram
         BindTexture3D("nearFieldLight", scene?.Light, 13);
         BindTexture3D("nearFieldRegions", scene?.Readiness, 14);
         BindTexture2D("nearFieldMaterials", scene?.Materials, 15);
+        BindTexture2D("traceSceneFaces", scene?.Faces, 19);
     }
     #endregion
 }

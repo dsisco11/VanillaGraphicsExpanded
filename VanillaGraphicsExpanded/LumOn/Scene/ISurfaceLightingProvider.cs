@@ -16,4 +16,4 @@ internal readonly record struct SurfaceLightingSnapshot(
     Texture3D PageTable, Texture3D Material, GpuShaderStorageBuffer Patches,
     GpuShaderStorageBuffer Slots, GpuShaderStorageBuffer Readiness,
     VectorInt3 Origin, VectorInt3 Dimensions, VectorInt3 Ring,
-    int TileSize, int TilesPerAxis, int TilesPerAtlas, long Generation);
+    int TileSize, int TilesPerAxis, int TilesPerAtlas, long Generation, long DependencyRevision = 0);

@@ -23,43 +23,54 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private readonly LumonSceneRelightWorkGpu[] lightingItems;
     private int generation;
     private readonly uint materialId;
+    private readonly int offsetX, firstChunk, chunkCount;
     public SharedTraceGeometryFixture Geometry { get; }
+    public int BlockId => material.Cube.Id;
     public int BlockLight { get; set; }
     public int SunLight { get; set; }
     public bool EmissionPolicy { get; set; }
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
-        metadata, slots, readiness, new(0,1,0), new(1,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation);
+        metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation);
 
     #region Setup
     /// <summary>Captures every inward facing patch of an eight-voxel enclosure.</summary>
-    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f)
+    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0)
     {
+        offsetX=xOffset; firstChunk=xOffset>>5; chunkCount=((xOffset+7)>>5)-firstChunk+1;
         BlockLight = blockLight;
         material.SetReadiness(true,true,new System.Numerics.Vector3(reflectance), emission / 32f);
         var materials = new TraceGeometryMaterials(); materialId = materials.Resolve(material.Cube);
-        Geometry = new(TraceGeometryCoverage.Plan(new(4,36,4),true,32,256),materials,Sample);
+        Geometry = new(TraceGeometryCoverage.Plan(new(4+offsetX,36,4),true,32,256),materials,Sample);
         Geometry.Publish();
         depth = Texture(PixelInternalFormat.R16f); captured = Texture(PixelInternalFormat.Rgba8);
         direct = Texture(PixelInternalFormat.Rgba16f); indirect = Texture(PixelInternalFormat.Rgba16f);
         outgoing = [Texture(PixelInternalFormat.Rgba16f),Texture(PixelInternalFormat.Rgba16f)];
-        pages = Texture3D.Create(128,128,1,PixelInternalFormat.R32ui,textureTarget:TextureTarget.Texture2DArray);
-        var entries = new uint[128*128]; var capture = new List<LumonSceneCaptureWorkGpu>();
+        pages = Texture3D.Create(128,128,chunkCount,PixelInternalFormat.R32ui,textureTarget:TextureTarget.Texture2DArray);
+        var entries = new uint[128*128*chunkCount]; var capture = new List<LumonSceneCaptureWorkGpu>();
+        var seen=new HashSet<(uint Slot,uint Patch)>();
         for (uint axis=0; axis<6; axis++)
-        for (uint v=0; v<2; v++)
-        for (uint u=0; u<2; u++)
+        for (int v=0; v<8; v++)
+        for (int u=0; u<8; u++)
         {
-            uint plane = axis % 2 == 0 ? 0u : 7u;
-            uint patch = 1+6*(plane*64+v*8+u)+axis;
-            uint id = (uint)capture.Count+1;
-            capture.Add(new(id,0,patch,patch));
-            entries[patch] = LumonScenePageTableEntryPacking.Pack(id,LumonScenePageTableEntryPacking.Flags.Resident).Packed;
+            int plane=axis%2==0?0:7;
+            int x=offsetX+(axis<2?plane:u), y=32+(axis<2?v:axis<4?plane:v), z=axis<2?u:axis<4?v:plane;
+            int px=x&31, py=y&31, pz=z&31;
+            int localPlane=axis<2?px:axis<4?py:pz;
+            int uc=axis<2?pz:px, vc=axis<2?py:axis<4?pz:py;
+            uint slot=(uint)((x>>5)-firstChunk);
+            uint patch=1+6*(uint)(localPlane*64+(vc/4)*8+uc/4)+axis;
+            if(!seen.Add((slot,patch))) continue;
+            uint id=(uint)capture.Count+1;
+            capture.Add(new(id,slot,patch,patch));
+            entries[slot*128*128+patch]=LumonScenePageTableEntryPacking.Pack(id,LumonScenePageTableEntryPacking.Flags.Resident).Packed;
         }
         captureItems = capture.ToArray();
-        lightingItems = captureItems.Select(item=>new LumonSceneRelightWorkGpu(item.PhysicalPageId,0,0,item.VirtualPageIndex)).ToArray();
+        lightingItems = captureItems.Select(item=>new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,0,item.VirtualPageIndex)).ToArray();
         metadata = Buffer<LumonScenePatchMetadataGpu>(new LumonScenePatchMetadataGpu[captureItems.Length+1]);
-        slots = Buffer<int>([0,32,0,0]); readiness = Buffer<uint>(new uint[captureItems.Length+1]);
+        var slotData=new int[chunkCount*4]; for(int i=0;i<chunkCount;i++){slotData[i*4]=(firstChunk+i)*32;slotData[i*4+1]=32;}
+        slots = Buffer<int>(slotData); readiness = Buffer<uint>(new uint[captureItems.Length+1]);
         work = Buffer<LumonSceneCaptureWorkGpu>(captureItems);
-        pages.UploadDataImmediate(entries,0,0,0,128,128,1);
+        pages.UploadDataImmediate(entries,0,0,0,128,128,chunkCount);
         Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api,out var captureShader,out string log),log);
         using (captureShader)
         using (captureShader!.UseScope())
@@ -79,7 +90,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Defines a solid boundary with explicit effective light values in all adjacent cells.</summary>
     private TraceGeometryVoxel Sample(int x,int y,int z)
     {
-        bool wall=x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7;
+        bool wall=x<=offsetX || x>=offsetX+7 || y<=32 || y>=39 || z<=0 || z>=7;
         return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(BlockLight,SunLight,0,0),0);
     }
 
@@ -135,6 +146,22 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
                 for (int c=0;c<3;c++) Assert.InRange(pixels[offset+c],0f,65504f);
             }
         }
+    }
+
+    /// <summary>Aliases a page-table entry to another captured patch without changing its physical readiness.</summary>
+    public void AliasFirstPage()
+    {
+        var first=captureItems[0];
+        uint entry=LumonScenePageTableEntryPacking.Pack(captureItems[1].PhysicalPageId,LumonScenePageTableEntryPacking.Flags.Resident).Packed;
+        pages.UploadDataImmediate(new[]{entry},(int)(first.VirtualPageIndex%128),(int)(first.VirtualPageIndex/128),(int)first.ChunkSlot,1,1,1);
+    }
+
+    /// <summary>Changes the chunk generation while retaining old captured metadata, simulating slot reuse.</summary>
+    public void StaleSlots()
+    {
+        var values=new int[chunkCount*4];
+        for(int i=0;i<chunkCount;i++){values[i*4]=(firstChunk+i)*32;values[i*4+1]=32;values[i*4+3]=1;}
+        slots.UploadSubData<int>(values,0,values.Length*4);
     }
 
     /// <summary>Withholds every cached page, exercising unavailable hit lighting without altering geometry.</summary>

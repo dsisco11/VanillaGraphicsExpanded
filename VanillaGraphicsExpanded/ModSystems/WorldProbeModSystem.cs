@@ -87,7 +87,19 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
                 api,
                 ConfigModSystem.Config,
                 clipmap);
+            worldProbeUpdateRenderer.SetSurfaceLightingProvider(surfaceLightingProvider,surfaceGeometryProvider);
         }
+    }
+
+    private VanillaGraphicsExpanded.LumOn.Scene.ISurfaceLightingProvider? surfaceLightingProvider;
+    private VanillaGraphicsExpanded.LumOn.Scene.Geometry.ITraceGeometrySceneProvider? surfaceGeometryProvider;
+
+    /// <summary>Connects the surface publication owner to the existing CPU-trace/render-thread upload pipeline.</summary>
+    internal void SetSurfaceLightingProvider(VanillaGraphicsExpanded.LumOn.Scene.ISurfaceLightingProvider? provider,
+        VanillaGraphicsExpanded.LumOn.Scene.Geometry.ITraceGeometrySceneProvider? geometry)
+    {
+        surfaceLightingProvider=provider; surfaceGeometryProvider=geometry;
+        worldProbeUpdateRenderer?.SetSurfaceLightingProvider(provider,geometry);
     }
 
     internal LumOnWorldProbeClipmapBufferManager? GetClipmapBufferManagerOrNull()
@@ -188,6 +200,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
                 clientApi,
                 ConfigModSystem.Config,
                 clipmap);
+            worldProbeUpdateRenderer.SetSurfaceLightingProvider(surfaceLightingProvider,surfaceGeometryProvider);
         }
 
         // Phase 18 world-probe config: classify hot-reload behavior.

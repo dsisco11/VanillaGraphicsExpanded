@@ -394,6 +394,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
                 lumonSceneFeedbackUpdateRenderer,
                 traceGeometryRenderer);
         }
+        lumOnRenderer?.SetSurfaceLightingProvider(lumonSceneRelightUpdateRenderer);
+        clientApi.ModLoader.GetModSystem<WorldProbeModSystem>().SetSurfaceLightingProvider(lumonSceneRelightUpdateRenderer, traceGeometryRenderer);
     }
 
     public override void Dispose()
@@ -526,6 +528,8 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
                 lumonSceneFeedbackUpdateRenderer,
                 traceGeometryRenderer);
         }
+        lumOnRenderer?.SetSurfaceLightingProvider(lumonSceneRelightUpdateRenderer);
+        capi.ModLoader.GetModSystem<WorldProbeModSystem>().SetSurfaceLightingProvider(lumonSceneRelightUpdateRenderer, traceGeometryRenderer);
 
         capi.Logger.Debug("[VGE] LumOnModSystem ensured ({0})", reason);
     }

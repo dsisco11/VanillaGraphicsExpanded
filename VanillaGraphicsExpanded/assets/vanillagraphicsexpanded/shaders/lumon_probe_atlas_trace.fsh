@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 // MRT output to probe atlas
 layout(location = 0) out vec4 outRadiance;  // RGB = radiance, A = log-encoded hit distance

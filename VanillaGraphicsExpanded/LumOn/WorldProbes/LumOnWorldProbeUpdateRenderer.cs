@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes;
 /// Runs at the very end of the frame (Done stage) so it can schedule/trace/upload work
 /// for the next frame without blocking the main LumOn render passes.
 /// </summary>
-internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
+internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 {
 	private const double RenderOrderValue = 0.9999;
 	private const int RenderRangeValue = 1;
@@ -37,7 +37,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 	private BlockAccessorWorldProbeTraceScene? traceScene;
 	private IBlockAccessor? traceBlockAccessor;
 
-	private readonly System.Collections.Generic.List<LumOnWorldProbeTraceResult> traceResults = new();
+
 	private readonly System.Collections.Generic.List<LumOnWorldProbeScheduler.ProbeCenterValidation> validationResults = new();
 	private readonly System.Collections.Generic.List<LumOnWorldProbeUpdateRequest> enqueuedTraceRequests = new();
 
@@ -94,6 +94,8 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		}
 
 		EnsureScheduler(resources);
+        PrepareSurfaceLighting(resources);
+        if (surfaceRevision < 0) return;
 		if (scheduler is null)
 		{
 			return;
@@ -157,10 +159,12 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 		}
 
 		traceScene ??= new BlockAccessorWorldProbeTraceScene(worldAccessor);
+        // A retired worker must never claim work on a replacement scheduler.
+        var traceScheduler = scheduler;
 		traceService ??= new LumOnWorldProbeTraceService(
 			traceScene,
 			maxQueuedWorkItems: 2048,
-			tryClaim: (req, frame) => scheduler.TryClaim(req, frame));
+			tryClaim: (req, frame) => traceScheduler.TryClaim(req, frame));
 
 		System.Collections.Generic.List<LumOnWorldProbeUpdateRequest> requests;
 		using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.BuildList", "LumOn"))
@@ -244,7 +248,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 					DirectionPISExploreFraction: cfg.DirectionPISExploreFraction,
 					DirectionPISExploreCount: cfg.DirectionPISExploreCount,
 					DirectionPISWeightEpsilon: cfg.DirectionPISWeightEpsilon,
-					NearbySolidHitDistance: spacing * 0.5d);
+					NearbySolidHitDistance: spacing * 0.5d, DeferSurfaceLighting: true, SurfaceRevision: surfaceRevision);
 				if (!traceService.TryEnqueue(item))
 				{
 					scheduler.Unqueue(req);
@@ -265,33 +269,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 			clipmapBufferManager.ClearDebugTraceRays(frameIndex);
 		}
 
-		using (Profiler.BeginScope("LumOn.WorldProbe.Trace.Drain", "LumOn"))
-		{
-			traceResults.Clear();
-			while (traceService.TryDequeueResult(out var res))
-			{
-				if (res.Success)
-				{
-					traceResults.Add(res);
-					scheduler.MergeImportanceFlags(
-						res.Request.Level,
-						res.Request.StorageLinearIndex,
-						res.ImportanceFlags);
-					scheduler.Complete(res.Request, frameIndex, success: true);
-				}
-				else
-				{
-					bool aborted = res.FailureReason == WorldProbeTraceFailureReason.Aborted;
-					scheduler.Complete(res.Request, frameIndex, success: false, aborted);
-				}
-			}
-		}
-
-		if (traceResults.Count > 0)
-		{
-			using var uploadScope = Profiler.BeginScope("LumOn.WorldProbe.Upload", "LumOn");
-			_ = uploader.Upload(resources, traceResults, cfg.UploadBudgetBytesPerFrame);
-		}
+        ResolveSurfaceLighting(resources, uploader);
 
 		LumOnDebugMode debugMode = config.LumOn.DebugMode;
 		if (debugMode is LumOnDebugMode.WorldProbeMetaFlagsHeatmap
@@ -306,6 +284,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 	public void Dispose()
 	{
 		capi.Event.LeaveWorld -= OnLeaveWorld;
+        ReleaseSurfaceLighting();
 
 		traceService?.Dispose();
 		traceService = null;
@@ -323,6 +302,7 @@ internal sealed class LumOnWorldProbeUpdateRenderer : IRenderer, IDisposable
 
 	private void OnLeaveWorld()
 	{
+        ReleaseSurfaceLighting();
 		scheduler?.ResetAll();
 
 		traceService?.Dispose();

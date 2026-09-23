@@ -107,6 +107,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         runtime.RunUntil(() => runtime.TryGetLighting(out _));
         Assert.True(runtime.TryGetLighting(out var second));
         Assert.True(second.Generation > first.Generation);
+        Assert.NotEqual(first.DependencyRevision, second.DependencyRevision);
         runtime.RequestAtlasRecreation();
         runtime.Frame();
         runtime.RunUntil(() => runtime.TryGetLighting(out var value) && !ReferenceEquals(value.OutgoingRadiance, second.OutgoingRadiance));
@@ -142,6 +143,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var second));
         Assert.True(second.Generation>first.Generation);
+        Assert.Equal(first.DependencyRevision,second.DependencyRevision);
         using (var ready=second.Readiness.MapRange<uint>(0,readCount,MapBufferAccessMask.MapReadBit))
         { Assert.True(ready.IsMapped);Assert.Equal(1u,ready.Span[(int)ids[0]]);Assert.Equal(1u,ready.Span[(int)ids[1]]); }
         Assert.Equal(before,ReadTile(second,firstId));

@@ -19,27 +19,19 @@ public sealed class SurfaceCacheConsumerContractTests
         Assert.Contains(IrradianceAtlas, debug.Samplers.Keys);
     }
 
-    /// <summary>Documents the missing production link that prevents cached irradiance from reaching final lighting.</summary>
+    /// <summary>Ray-hit consumers bind outgoing radiance; gather and composition remain downstream of probe radiance.</summary>
     [Fact]
-    public void FinalLightingShadersDoNotYetDeclareSurfaceCacheInputs()
+    public void HitConsumersDeclareCacheWhileGatherAndCombineDoNot()
     {
-        string[] productionConsumers =
-        [
-            "lumon_probe_atlas_trace",
-            "lumon_probe_atlas_gather",
-            "lumon_probe_sh9_gather",
-            "lumon_combine"
-        ];
-
-        foreach (string identity in productionConsumers)
+        foreach(string identity in new[]{"lumon_probe_atlas_trace","lumonscene_surface_query"})
         {
-            GpuShaderContract program = GpuShaderContracts.Registry.FindProgram(identity);
-            Assert.All(program.Stages, stage =>
-            {
-                Assert.DoesNotContain(PageTable, stage.Bindings.Samplers.Keys);
-                Assert.DoesNotContain(IrradianceAtlas, stage.Bindings.Samplers.Keys);
-            });
+            var contract=GpuShaderContracts.Create(identity);
+            Assert.Contains("previousOutgoing",contract.Samplers.Keys);
+            Assert.Contains("surfacePages",contract.Samplers.Keys);
+            Assert.Contains("SurfaceReady",contract.StorageBlocks.Keys);
         }
+        foreach(string identity in new[]{"lumon_probe_atlas_gather","lumon_probe_sh9_gather","lumon_combine"})
+            Assert.DoesNotContain("previousOutgoing",GpuShaderContracts.Create(identity).Samplers.Keys);
     }
     #endregion
 }

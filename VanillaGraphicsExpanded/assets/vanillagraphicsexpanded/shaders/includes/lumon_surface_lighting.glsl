@@ -2,7 +2,7 @@
 #define LUMON_SURFACE_LIGHTING_GLSL
 @import "./vge_ubo_bindings.glsl"
 /** Shared surface lighting parameters; all positions retain integer chunk anchors. */
-layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform SurfaceLightingParams
+layout(std140, binding = 16) uniform SurfaceLightingParams
 {
     uvec4 layoutInfo; // tile edge, tiles per axis, tiles per layer, operation (0 seed, 1 trace, 2 combine)
     uvec4 sampling;   // batch texels, rays, steps, frame
@@ -21,9 +21,9 @@ struct SurfacePatch
 layout(std430, binding = 1) readonly buffer SurfacePatches { SurfacePatch patches[]; };
 layout(std430, binding = 2) readonly buffer SurfaceSlots { ivec4 slots[]; };
 layout(std430, binding = 3) readonly buffer SurfaceReady { uint ready[]; };
-layout(binding = 2) uniform sampler2DArray previousOutgoing;
-layout(binding = 6) uniform usampler2DArray surfacePages;
-layout(binding = 1) uniform sampler2DArray capturedMaterial;
+layout(binding = 17) uniform sampler2DArray previousOutgoing;
+layout(binding = 18) uniform usampler2DArray surfacePages;
+layout(binding = 16) uniform sampler2DArray capturedMaterial;
 
 /** Decodes a physical page with the same shared atlas layout as allocation. */
 ivec3 surfaceAddress(uint id, ivec2 texel)
@@ -33,11 +33,12 @@ ivec3 surfaceAddress(uint id, ivec2 texel)
         int(index / lighting.layoutInfo.z));
 }
 /** Computes integer floor division for signed world coordinates. */
-ivec3 surfaceChunk(ivec3 cell) { return cell / 32 - ivec3(lessThan(cell % 32, ivec3(0))); }
+ivec3 surfaceChunk(ivec3 cell) { return cell >> 5; }
 /** Resolves a geometric hit into a complete previous lighting generation. */
 bool sampleSurfaceLighting(ivec3 cell, ivec3 normal, vec3 fraction, uint materialId, out vec3 radiance)
 {
     radiance = vec3(0);
+    if (any(lessThanEqual(lighting.slotDimensions.xyz, ivec3(0))) || materialId == 0u || dot(vec3(abs(normal)), vec3(1)) != 1.0) return false;
     ivec3 chunk = surfaceChunk(cell);
     ivec3 localChunk = chunk - lighting.slotOrigin.xyz;
     ivec3 dims = lighting.slotDimensions.xyz;
@@ -54,6 +55,7 @@ bool sampleSurfaceLighting(ivec3 cell, ivec3 normal, vec3 fraction, uint materia
     uint entry = texelFetch(surfacePages, ivec3(int(patchIdentity % 128u), int(patchIdentity / 128u), int(slot)), 0).r;
     uint id = entry & 0xffffffu, flags = entry >> 24u;
     if (id == 0u || id >= uint(ready.length()) || ready[id] == 0u || (flags & 3u) != 1u) return false;
+    if (id >= uint(patches.length())) return false;
     SurfacePatch meta = patches[id];
     if (meta.chunkSlot != slot || meta.patchId != patchIdentity || meta.generation != (uint(slots[slot].w) & 65535u)) return false;
     vec2 uv = (vec2(uvCell % 4) + clamp(uvFraction, vec2(0), vec2(0.99999))) * 0.25;
@@ -63,7 +65,7 @@ bool sampleSurfaceLighting(ivec3 cell, ivec3 normal, vec3 fraction, uint materia
     if (capturedId != materialId) return false;
     vec4 value = texelFetch(previousOutgoing, address, 0);
     if (value.a != 1.0 || any(isnan(value)) || any(isinf(value))) return false;
-    radiance = value.rgb;
+    radiance = max(value.rgb, vec3(0));
     return true;
 }
 #endif

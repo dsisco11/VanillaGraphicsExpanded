@@ -37,11 +37,11 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
     #endregion
 
     #region Scenarios
-    /// <summary>A sealed room must resolve all ray directions locally even with a bright distant cache.</summary>
+    /// <summary>A sealed room retains opaque hits and rejects raw voxel light when surface pages are unavailable.</summary>
     [Theory]
     [InlineData(0f)]
     [InlineData(0.25f)]
-    public void SealedRoom_UsesOutsideCellLighting(float lighting)
+    public void SealedRoom_RequiresPublishedSurfaceLighting(float lighting)
     {
         EnsureShaderTestAvailable();
         var world = new ControlledVoxelWorld { DefaultLight = Vector4.One };
@@ -56,10 +56,11 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
         {
             for (int c = 0; c < 3; c++)
             {
-                Assert.InRange(result.Radiance[i + c], lighting - 0.002f, lighting + 0.002f);
+                Assert.Equal(0,result.Radiance[i+c]);
                 Assert.Equal(result.Radiance[i + c], suppressed.Radiance[i + c]);
             }
-            Assert.Equal(1f, result.Meta[i / 2]);
+            Assert.Equal(0f, result.Meta[i / 2]);
+            Assert.Equal(1u,Flags(result.Meta[i / 2+1])&1u);
             Assert.Equal(0u, Flags(result.Meta[i / 2 + 1]) & (1u << 5));
         }
     }

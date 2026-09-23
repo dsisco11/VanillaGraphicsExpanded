@@ -7,6 +7,8 @@ internal static partial class GpuShaderContracts
     /// <summary>Declares the lumon_probe_atlas_trace resource slots.</summary>
     private static void LumOnTrace(GpuBindingContract contract)
     {
+        SurfaceLightingInputs(contract);
+        contract.RegisterSamplerUnit("traceSceneFaces", 19, required: false);
         contract.RegisterSamplerUnit("probeAnchorPosition", 0, required: true);
         contract.RegisterSamplerUnit("probeAnchorNormal", 1, required: true);
         contract.RegisterSamplerUnit("primaryDepth", 2, required: true);

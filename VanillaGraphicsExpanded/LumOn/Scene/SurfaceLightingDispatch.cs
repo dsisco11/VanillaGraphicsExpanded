@@ -41,12 +41,13 @@ internal sealed class SurfaceLightingDispatch : IDisposable
         UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, 0, 0, 0);
         using var program = pipeline.UseScope();
         parameters.UploadOrResize(bytes, growExponentially: false);
-        parameters.BindBase(GpuBindingRegistry.Ubo.Object);
+        parameters.BindBase(GpuBindingRegistry.Ubo.Lights);
         geometry.Bind(scene);
         work.BindBase(0); input.Patches.BindBase(1); input.Slots.BindBase(2); input.Readiness.BindBase(3);
-        input.Material.Bind(1); input.OutgoingRadiance.Bind(2);
+        input.Material.Bind(16); input.OutgoingRadiance.Bind(17);
         scene.LightColors.Bind(3); scene.BlockLevels.Bind(4); scene.SunLevels.Bind(5);
-        input.PageTable.Bind(6); scene.Surfaces.Bind(7);
+        input.PageTable.Bind(18); scene.Surfaces.Bind(7);
+        for (int unit = 16; unit <= 18; unit++) GpuSamplers.NearestClamp.Bind(unit);
         for (int unit = 1; unit <= 7; unit++) GpuSamplers.NearestClamp.Bind(unit);
         input.IndirectIrradiance.BindImageUnit(0, TextureAccess.ReadWrite, layered: true, format: SizedInternalFormat.Rgba16f);
         input.DirectIrradiance.BindImageUnit(1, TextureAccess.ReadWrite, layered: true, format: SizedInternalFormat.Rgba16f);

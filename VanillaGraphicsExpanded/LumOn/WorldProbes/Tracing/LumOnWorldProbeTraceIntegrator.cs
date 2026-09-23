@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene;
 using System;
 using System.Numerics;
 using System.Threading;
@@ -136,6 +137,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
             Vector3 radianceRgb;
             float alphaSigned;
+            SurfaceLightingQuery? surfaceHit = null;
 
             if (hit)
             {
@@ -144,7 +146,15 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                     importanceFlags |= LumOnWorldProbeImportanceFlags.NearbySolidHit;
                 }
                 Vector3 specularF0 = Vector3.Zero;
-                radianceRgb = EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0);
+                if (item.DeferSurfaceLighting)
+                {
+                    // Preserve an integer anchor; only the within-cell hit fraction crosses as floats.
+                    Vector3d point = item.ProbePosWorld + new Vector3d(dir.X * hitDist, dir.Y * hitDist, dir.Z * hitDist);
+                    Vector3 fraction = new((float)(point.X-hitInfo.HitBlockPos.X), (float)(point.Y-hitInfo.HitBlockPos.Y), (float)(point.Z-hitInfo.HitBlockPos.Z));
+                    surfaceHit = new SurfaceLightingQuery(hitInfo.HitBlockPos, hitInfo.HitFaceNormal, fraction, hitInfo.HitBlockId);
+                    radianceRgb = Vector3.Zero;
+                }
+                else radianceRgb = EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0);
                 alphaSigned = (float)Math.Log(Math.Max(0.0, hitDist) + 1.0);
 
                 skyIntensitySum += EvaluateSkyLightIntensity(hitInfo);
@@ -161,7 +171,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                 OctX: octX,
                 OctY: octY,
                 RadianceRgb: radianceRgb,
-                AlphaEncodedDistSigned: alphaSigned);
+                AlphaEncodedDistSigned: alphaSigned, SurfaceHit: surfaceHit);
 
             if (!hit)
             {
@@ -229,7 +239,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             ShortRangeAoConfidence: aoConfidence,
             Confidence: confidence,
             MeanLogHitDistance: meanLogDist,
-            ImportanceFlags: importanceFlags);
+            ImportanceFlags: importanceFlags, SurfaceRevision: item.SurfaceRevision);
     }
 
     private static WorldProbeTraceOutcome TraceNearbyCardinalSolid(

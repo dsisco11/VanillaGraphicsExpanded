@@ -8,21 +8,29 @@ internal static partial class GpuShaderContracts
     private static void SurfaceLighting(GpuBindingContract contract)
     {
         TraceGeometry(contract);
-        contract.RegisterUniformBlockBinding("SurfaceLightingParams", GpuBindingRegistry.Ubo.Object);
-        contract.RegisterSamplerUnit("capturedMaterial", 1);
-        contract.RegisterSamplerUnit("previousOutgoing", 2);
+        SurfaceLightingInputs(contract);
+
         contract.RegisterSamplerUnit("lightColors", 3);
         contract.RegisterSamplerUnit("blockLevels", 4);
         contract.RegisterSamplerUnit("sunLevels", 5);
-        contract.RegisterSamplerUnit("surfacePages", 6);
+
         contract.RegisterSamplerUnit("surfaces", 7);
         contract.RegisterImageUnit("indirectIrradiance", 0);
         contract.RegisterImageUnit("directIrradiance", 1);
         contract.RegisterImageUnit("nextOutgoing", 2);
         contract.RegisterShaderStorageBlockBinding("SurfaceWork", 0);
-        contract.RegisterShaderStorageBlockBinding("SurfacePatches", 1);
-        contract.RegisterShaderStorageBlockBinding("SurfaceSlots", 2);
-        contract.RegisterShaderStorageBlockBinding("SurfaceReady", 3);
+
+    }
+    /// <summary>Declares one shared cache lookup interface for producers and geometry-hit consumers.</summary>
+    private static void SurfaceLightingInputs(GpuBindingContract contract)
+    {
+        contract.RegisterUniformBlockBinding("SurfaceLightingParams", GpuBindingRegistry.Ubo.Lights, required: false);
+        contract.RegisterSamplerUnit("capturedMaterial", 16, required: false);
+        contract.RegisterSamplerUnit("previousOutgoing", 17, required: false);
+        contract.RegisterSamplerUnit("surfacePages", 18, required: false);
+        contract.RegisterShaderStorageBlockBinding("SurfacePatches", 1, required: false);
+        contract.RegisterShaderStorageBlockBinding("SurfaceSlots", 2, required: false);
+        contract.RegisterShaderStorageBlockBinding("SurfaceReady", 3, required: false);
     }
     #endregion
 }

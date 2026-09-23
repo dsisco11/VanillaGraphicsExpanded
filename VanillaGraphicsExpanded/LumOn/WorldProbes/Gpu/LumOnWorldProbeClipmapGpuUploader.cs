@@ -111,16 +111,11 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         int bytesPerProbeVertex = Marshal.SizeOf<ProbeResolveVertex>();
         int bytesPerTileVertex = Marshal.SizeOf<TileResolveVertex>();
 
+        // Publish a probe's metadata only when every admitted directional sample can be uploaded.
+        if (tileProg is null || tileProg.LoadError || tileProg.Disposed) return 0;
         int maxProbes = results.Count;
         int maxTileVertices = int.MaxValue;
-        if (uploadBudgetBytesPerFrame > 0)
-        {
-            maxProbes = Math.Min(maxProbes, Math.Max(0, uploadBudgetBytesPerFrame / Math.Max(1, bytesPerProbeVertex)));
-            int usedProbeBytes = maxProbes * bytesPerProbeVertex;
-            int remaining = Math.Max(0, uploadBudgetBytesPerFrame - usedProbeBytes);
-            maxTileVertices = bytesPerTileVertex <= 0 ? int.MaxValue : remaining / Math.Max(1, bytesPerTileVertex);
-        }
-
+        int remainingBytes = uploadBudgetBytesPerFrame > 0 ? uploadBudgetBytesPerFrame : int.MaxValue;
         int usedProbes = 0;
         var probeVertices = new List<ProbeResolveVertex>(capacity: maxProbes);
         var tileVertices = new List<TileResolveVertex>(capacity: Math.Min(4096, maxTileVertices));
@@ -131,6 +126,9 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
             int level = r.Request.Level;
             if ((uint)level >= (uint)resources.Levels) continue;
 
+            int bytes = bytesPerProbeVertex + bytesPerTileVertex * (r.AtlasSamples?.Length ?? 0);
+            if (bytes > remainingBytes) break;
+            remainingBytes -= bytes;
             Vec3i storage = r.Request.StorageIndex;
 
             int u = storage.X + storage.Z * resources.Resolution;
