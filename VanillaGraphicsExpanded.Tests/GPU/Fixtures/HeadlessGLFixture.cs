@@ -179,7 +179,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             // buffer names and persistent mapping before another context can reuse them.
             GLFW.MakeContextCurrent(_glfwWindow);
             GL.LoadBindings(new GLFWBindingsContext());
-            VanillaGraphicsExpanded.Rendering.GpuUniformRingSystem.DisposeTestResources();
+            TestUniformRing.Dispose();
             GLFW.DestroyWindow(_glfwWindow);
             _glfwWindow = null;
         }

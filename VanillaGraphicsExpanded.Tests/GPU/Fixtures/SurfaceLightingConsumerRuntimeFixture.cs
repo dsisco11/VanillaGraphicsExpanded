@@ -12,6 +12,10 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Composes registered cache, screen-probe and worker-driven world-probe consumers against controlled engine inputs.</summary>
 internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
 {
+    private static readonly System.Reflection.FieldInfo surfaceQueriesField =
+        typeof(LumOnWorldProbeUpdateRenderer).GetField("surfaceQueries",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("The runtime fixture could not locate the renderer's query owner.");
     private readonly EngineShaderPlatformScope platform = new();
     private readonly ShaderTestFramework drawing = new();
     private readonly RuntimeLightingPrograms programs = new();
@@ -28,6 +32,10 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     public List<int> DrawnPrograms { get; } = [];
     public IReadOnlyCollection<string> LoadedPrograms => programs.Loaded;
     public const int FrameBudget = 160;
+
+    /// <summary>Observes in-flight queries from the test boundary without adding a production inspection API or polling the fence.</summary>
+    public bool HasPendingSurfaceLightingQueries =>
+        (surfaceQueriesField.GetValue(WorldRenderer) as VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingQueryBatch)?.Pending == true;
 
     #region Composition
     /// <summary>Registers real consumers with the producer's engine events and injects real publication providers.</summary>
@@ -106,7 +114,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     public void RunUntil(Func<bool> condition,int maximumFrames=FrameBudget)
     {
         for(int i=0;i<maximumFrames&&!condition();i++) { Frame(); Thread.Sleep(1); }
-        Assert.True(condition(),$"Runtime failed to settle in {maximumFrames} frames; frames={Cache.Frames}, workerReads={World.WorkerReads}, final={Energy(FinalPixels())}, world={Energy(WorldPixels())}, worldConfidence={WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]}, trace={Energy(Screen.ScreenProbeAtlasHistoryTex!.ReadPixels())}, filter={Energy(Screen.ScreenProbeAtlasFilteredTex!.ReadPixels())}, gather={Energy(Screen.IndirectHalfTex!.ReadPixels())}, anchors={string.Join(",",Screen.ProbeAnchorPositionTex!.ReadPixels())}, pending={WorldRenderer.HasPendingSurfaceLightingQueries}, programs={string.Join(',',LoadedPrograms)}, logs={string.Join('|',Cache.Logs.TakeLast(8))}");
+        Assert.True(condition(),$"Runtime failed to settle in {maximumFrames} frames; frames={Cache.Frames}, workerReads={World.WorkerReads}, final={Energy(FinalPixels())}, world={Energy(WorldPixels())}, worldConfidence={WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]}, trace={Energy(Screen.ScreenProbeAtlasHistoryTex!.ReadPixels())}, filter={Energy(Screen.ScreenProbeAtlasFilteredTex!.ReadPixels())}, gather={Energy(Screen.IndirectHalfTex!.ReadPixels())}, anchors={string.Join(",",Screen.ProbeAnchorPositionTex!.ReadPixels())}, pending={HasPendingSurfaceLightingQueries}, programs={string.Join(',',LoadedPrograms)}, logs={string.Join('|',Cache.Logs.TakeLast(8))}");
     }
 
     /// <summary>Reads the final full-resolution indirect output that the renderer publishes to composition.</summary>

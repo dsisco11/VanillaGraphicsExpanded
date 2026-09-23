@@ -7,34 +7,38 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// Thread-local access to the currently-active UBO ring allocator.
 ///
-/// Production: set/cleared by render-thread frame controllers.
-/// Tests: can be set manually via <see cref="BeginTestFrame"/>.
+/// Set and cleared by render-thread frame controllers.
 /// </summary>
 internal static class GpuUniformRingSystem
 {
     [ThreadStatic]
     private static GpuUniformRingBuffer? current;
 
-    private static GpuUniformRingBuffer? testRing;
-    private static int testFrameIndex;
-
+    #region Active allocator
+    /// <summary>Returns the allocator installed for the current render thread.</summary>
     public static bool TryGetCurrent(out GpuUniformRingBuffer ring)
     {
         ring = current!;
         return ring is not null;
     }
 
+    /// <summary>Installs the frame owner's allocator on the current render thread.</summary>
     public static void SetCurrent(GpuUniformRingBuffer ring)
     {
         ArgumentNullException.ThrowIfNull(ring);
         current = ring;
     }
 
+    /// <summary>Detaches the current allocator without disposing its owner's resources.</summary>
     public static void ClearCurrent()
     {
         current = null;
     }
 
+    #endregion
+
+    #region Uniform binding
+    /// <summary>Writes uniform bytes into the active ring and binds the resulting range to the program.</summary>
     public static bool TryBind(
         GpuProgram program,
         string blockName,
@@ -61,39 +65,6 @@ internal static class GpuUniformRingSystem
             alloc.OffsetBytes,
             alloc.SizeBytes,
             warn: null);
-    }
-
-    #region Test lifetime
-    /// <summary>
-    /// Ensures a ring is active on the current thread for GPU tests.
-    /// </summary>
-    internal static void BeginTestFrame()
-    {
-        // Single-page ring is sufficient for tests; no fences needed.
-        testRing ??= new GpuUniformRingBuffer(
-            pageSizeBytes: 2 * 1024 * 1024,
-            pageCount: 1,
-            preferPersistent: true,
-            coherent: true,
-            debugName: "Test.UboRing");
-
-        testRing.BeginFrame(testFrameIndex++);
-        SetCurrent(testRing);
-    }
-
-    internal static void EndTestFrame()
-    {
-        // Don't fence in tests by default; just clear the thread-local.
-        ClearCurrent();
-    }
-
-    /// <summary>Releases test-owned mapped storage while its GL context is still current, before that context is destroyed.</summary>
-    internal static void DisposeTestResources()
-    {
-        ClearCurrent();
-        testRing?.Dispose();
-        testRing = null;
-        testFrameIndex = 0;
     }
     #endregion
 }

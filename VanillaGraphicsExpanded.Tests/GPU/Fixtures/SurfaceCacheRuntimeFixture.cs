@@ -142,7 +142,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Runs real registered stage callbacks and supplies the terrain patch raster at the engine boundary.</summary>
     public void Frame()
     {
-        GpuUniformRingSystem.BeginTestFrame();
+        TestUniformRing.BeginFrame();
         Events.Render(EnumRenderStage.Opaque);
         if(spatial!=null)
         {
@@ -174,7 +174,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     {
         for (int frame = 0; frame < maximumFrames; frame++)
         {
-            GpuUniformRingSystem.BeginTestFrame();
+            TestUniformRing.BeginFrame();
             Events.Render(EnumRenderStage.Opaque);
             if (Geometry.Resources is { TablesRevision: 1, Revision: >= 8 }) return;
             System.Threading.Thread.Yield();

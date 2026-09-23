@@ -77,7 +77,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         runtime.WorldBuffers.RequestRecreate("verify atomic upload admission with a ready cache");
         runtime.Frame();
-        runtime.RunUntil(()=>runtime.WorldRenderer.HasPendingSurfaceLightingQueries);
+        runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
         Assert.Equal(0,runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]);
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1575;
@@ -87,7 +87,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
             Assert.Equal(0,runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]);
         }
-        Assert.False(runtime.WorldRenderer.HasPendingSurfaceLightingQueries);
+        Assert.False(runtime.HasPendingSurfaceLightingQueries);
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1576;
         runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
     }
@@ -99,7 +99,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
-        runtime.RunUntil(()=>runtime.WorldRenderer.HasPendingSurfaceLightingQueries);
+        runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.True(runtime.Cache.TryGetLighting(out var before));
         runtime.Cache.ChangeBlockLight(0); runtime.Frame();
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
