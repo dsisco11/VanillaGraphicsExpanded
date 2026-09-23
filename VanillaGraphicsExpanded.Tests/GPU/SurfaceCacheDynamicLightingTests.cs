@@ -77,7 +77,7 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
         Assert.True(fixture.Page.Capture(scene));
         for (int update = 0; update < 4; update++) Assert.True(fixture.Page.Relight(scene, steps: 256));
         float[] open = fixture.Page.ReadLighting();
-        // Hit lighting is attenuated by 1 / (1 + distance squared), so exterior visibility is a positive subset.
+        // Resolved bright directions retain their source radiance regardless of travel distance.
         Assert.Contains(open.Where((_, index) => index % 4 == 0), value => value > .5f);
         for (int i = 3; i < open.Length; i += 4) Assert.Equal(4f, open[i]);
 

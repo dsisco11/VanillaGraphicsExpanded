@@ -34,7 +34,7 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         Assert.Equal(history, scene.InvalidationRevision);
     }
 
-    /// <summary>Preserves material capture, integer coordinates and the legacy valid-hit lighting formula.</summary>
+    /// <summary>Preserves material capture, integer coordinates and cosine-weighted irradiance normalization.</summary>
     [Theory]
     [InlineData(0)] [InlineData(-16777216)] [InlineData(16777216)]
     [InlineData(-32)]

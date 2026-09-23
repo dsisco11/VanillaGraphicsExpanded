@@ -36,10 +36,15 @@ Validation: the focused consumer-contract run passed 2/2 with no failures or ski
 Use modular fixtures shared across scenarios. Record executed tests and results when completing each item.
 
 ## 4. Surface lighting terms and storage contract
-- [ ] Define separate direct irradiance, indirect irradiance, linear diffuse albedo, and emitted radiance terms. Specify units, exposure convention, sky/block-light classification, and normalization for every producer and consumer.
-- [ ] Define cached outgoing diffuse radiance as `L = (E_direct + E_indirect) * diffuseAlbedo / pi + emission`, with finite, nonnegative output. Keep irradiance distinct from material-modulated outgoing radiance in names, resources, and debug views.
-- [ ] Audit the existing relight estimator, including angular/PDF weighting and `1 / (1 + distance^2)` attenuation; replace incompatible behavior and old test expectations with the documented lighting contract.
-- [ ] Specify atlas layers, per-term validity/history, and publication ownership for direct irradiance, indirect irradiance, and combined outgoing radiance. Preserve bounded allocation and update budgets.
+
+Controlling design and task traceability: [Surface-cache lighting contract](LumOn.SurfaceCache.LightingContract.md). Its storage design governs Sections 5–7; Section 4 implements the estimator corrections without claiming the later producers or consumers exist.
+
+- [x] Define separate direct irradiance, indirect irradiance, linear diffuse albedo, and emitted radiance terms. Specify units, exposure convention, sky/block-light classification, and normalization for every producer and consumer.
+- [x] Define cached outgoing diffuse radiance as `L = (E_direct + E_indirect) * diffuseAlbedo / pi + emission`, with finite, nonnegative output. Keep irradiance distinct from material-modulated outgoing radiance in names, resources, and debug views.
+- [x] Audit the existing relight estimator, including angular/PDF weighting and `1 / (1 + distance^2)` attenuation; replace incompatible behavior and old test expectations with the documented lighting contract.
+- [x] Specify atlas layers, per-term validity/history, and publication ownership for direct irradiance, indirect irradiance, and combined outgoing radiance. Preserve bounded allocation and update budgets.
+
+Validation: second implementation review and independent completion audit passed. The normal shader-enabled build compiled 98 stages / 243 SPIR-V variants. Focused GPU suites passed 18/18 with zero failures or skips: lighting terms 5/5, dynamic history 2/2, shared surface 11/11. Receipts: artifacts/shader-variant-contracts/surface-cache-terms-{lighting,dynamic,shared}.{log,trx}. New coverage checks distance invariance, nonwhite hit reflectance, rejection of incomplete hemisphere batches, and capped-history energy stability.
 
 ## 5. Produce and publish complete surface lighting
 - [ ] Capture the material data needed for diffuse reflectance and emission; compute direct irradiance from supported scene lighting with the documented visibility and sky treatment.

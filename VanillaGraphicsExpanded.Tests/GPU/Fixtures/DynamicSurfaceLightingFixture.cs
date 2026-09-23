@@ -20,9 +20,9 @@ internal sealed class DynamicSurfaceLightingFixture : IDisposable
         : this((id, _, _, _) => new(2u | id << 2, LumonSceneOccupancyPacking.PackClamped(initialLight, 0, 0, (int)id), 0)) { }
 
     /// <summary>Publishes an authored voxel scene while retaining real materials, capture and history ownership.</summary>
-    public DynamicSurfaceLightingFixture(Func<uint, int, int, int, TraceGeometryVoxel> sample)
+    public DynamicSurfaceLightingFixture(Func<uint, int, int, int, TraceGeometryVoxel> sample, System.Numerics.Vector3? diffuseAlbedo = null)
     {
-        material.SetReadiness(true, true);
+        material.SetReadiness(true, true, diffuseAlbedo);
         var materials = new TraceGeometryMaterials();
         MaterialId = materials.Resolve(material.Cube);
         var plan = TraceGeometryCoverage.Plan(new(0, 32, 0), true, 32, 256);

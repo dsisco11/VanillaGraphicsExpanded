@@ -1,7 +1,7 @@
 #version 430 core
 #define LUMON_TRACE_SCENE_COMPUTE 1
 
-// Phase 22.9: Relight v1 (GL 4.3 compute, voxel DDA)
+// Surface indirect irradiance estimator (GL 4.3 compute, voxel DDA).
 // Writes RGB irradiance + accumulation weight into IrradianceAtlas.
 
 // Import deterministic hash (shared across LumOn shaders)
@@ -116,7 +116,8 @@ uvec4 FetchSurfaceLut(uint surfaceId)
     return texelFetch(vge_surfaceLut, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
 }
 
-bool ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN, out vec3 radiance)
+// Reads incident direct-light estimates outside the hit; reflectance belongs to the hit surface.
+bool ShadeHitFromOutsideCell(ivec3 outsideCell, uint hitSurface, out vec3 radiance)
 {
     radiance = vec3(0.0);
     uint geometry;
@@ -130,27 +131,16 @@ bool ShadeHitFromOutsideCell(ivec3 outsideCell, ivec3 hitN, out vec3 radiance)
     uint blockLevel = min(UnpackBlockLevel(packedWord), 32u);
     uint sunLevel = min(UnpackSunLevel(packedWord), 32u);
     uint lightId = min(UnpackLightId(packedWord), 63u);
-    uint matIdx = UnpackMaterialPaletteIndex(packedWord);
-    vec3 albedo = vec3(1.0);
-    if (matIdx != 0u)
-    {
-        // Fetch surfaceId for the hit face and derive albedo from SurfaceLut.
-        uvec4 faces = texelFetch(traceSceneFaces, ivec2(int(matIdx), 0), 0);
-        if ((faces.w & 1u) == 0u) return false;
-        uint faceIndex = HitFaceIndexFromNormal(hitN);
-        uint surfaceId = VgeLumonSceneUnpackFaceSurfaceId(faces, faceIndex);
-        uvec4 surf = FetchSurfaceLut(surfaceId);
-        albedo = vec3(surf.xyz) * (1.0 / 255.0);
-    }
+    vec3 albedo = vec3(FetchSurfaceLut(hitSurface).xyz) * (1.0 / 255.0);
 
     float blockScalar = texelFetch(vge_blockLevelScalarLut, ivec2(int(blockLevel), 0), 0).r;
     float sunScalar = texelFetch(vge_sunLevelScalarLut, ivec2(int(sunLevel), 0), 0).r;
     vec3 lightColor = texelFetch(vge_lightColorLut, ivec2(int(lightId), 0), 0).rgb;
 
-    // v1: simple additive model (tune later).
+    // Legacy light levels supply direct irradiance in scene-linear engine units.
     vec3 block = lightColor * (blockScalar * 32.0);
     vec3 sun = vec3(1.0) * (sunScalar * 32.0);
-    radiance = (block + sun) * albedo;
+    radiance = (block + sun) * albedo / 3.14159265359;
     return true;
 }
 
@@ -277,10 +267,14 @@ void main()
             vec3 radiance;
             uint hitSurface;
             if (lumonTraceSceneReadSurface(hit.cell, HitFaceIndexFromNormal(hit.normal), hitSurface) &&
-                ShadeHitFromOutsideCell(hit.cell + hit.normal, hit.normal, radiance))
+                ShadeHitFromOutsideCell(hit.cell + hit.normal, hitSurface, radiance))
             {
+                if (any(isnan(radiance)) || any(isinf(radiance))) continue;
+                radiance = max(radiance, vec3(0.0));
                 if (dbg) atomicCounterIncrement(vge_dbgHits);
-                acc += radiance / (1.0 + hit.distance * hit.distance);
+                // Cosine-weighted PDF is cos(theta)/pi: incident radiance contributes pi * L.
+                // Free-space radiance does not decay with ray travel distance.
+                acc += radiance * 3.14159265359;
                 validSamples++;
             }
         }
@@ -291,15 +285,21 @@ void main()
         }
     }
     // A bounded or unavailable trace establishes no sky sample and adds no temporal weight.
-    if (validSamples < rays) atomicOr(vge_relightWork[workIndex].w, 0x80000000u);
-    if (validSamples == 0u) return;
+    if (validSamples < rays)
+    {
+        // An average of only resolved directions would bias the hemisphere integral.
+        atomicOr(vge_relightWork[workIndex].w, 0x80000000u);
+        return;
+    }
     acc /= float(validSamples);
 
 
     // Temporal accumulation: RGBA16F (RGB irradiance, A weight/sample count).
     vec4 prev = imageLoad(vge_irradianceAtlas, atlasTexel);
+    if (any(isnan(prev)) || any(isinf(prev))) prev = vec4(0.0);
     float prevW = max(0.0, prev.a);
     float newW = min(prevW + 1.0, 1024.0);
-    vec3 outRgb = (prev.rgb * prevW + acc) / max(1e-6, newW);
-    imageStore(vge_irradianceAtlas, atlasTexel, vec4(outRgb, newW));
+    // At the weight cap, retain a normalized exponential average.
+    vec3 outRgb = mix(prev.rgb, acc, 1.0 / newW);
+    imageStore(vge_irradianceAtlas, atlasTexel, vec4(clamp(outRgb, vec3(0.0), vec3(65504.0)), newW));
 }

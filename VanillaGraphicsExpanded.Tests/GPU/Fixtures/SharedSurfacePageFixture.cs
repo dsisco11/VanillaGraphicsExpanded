@@ -76,7 +76,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     }
 
     /// <summary>Runs bounded relighting and returns the page completion marker written by the shader.</summary>
-    public bool Relight(TraceGeometryGpuScene scene, uint steps = 256)
+    public bool Relight(TraceGeometryGpuScene scene, uint steps = 256, uint rays = 1)
     {
         relightWork.UploadSubData<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)], 0, 16);
         GlStateCache.Current.UseProgram(relight.ProgramId);
@@ -85,7 +85,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         depth.Bind(0); material.Bind(1); scene.LightColors.Bind(3); scene.BlockLevels.Bind(4); scene.SunLevels.Bind(5); scene.Surfaces.Bind(7);
         foreach (int unit in new[] { 0, 1, 3, 4, 5, 7 }) GpuSamplers.NearestClamp.Bind(unit);
         irradiance.BindImageUnit(0, TextureAccess.ReadWrite, layered: true, format: SizedInternalFormat.Rgba16f);
-        LumonSceneRelightParamsUbo.Bind(parameters, Size, 1, 1, 0, Size * Size, 1, steps, 0, 0, scene.Resolution, 0, 0, 0, 0, 0, 0);
+        LumonSceneRelightParamsUbo.Bind(parameters, Size, 1, 1, 0, Size * Size, rays, steps, 0, 0, scene.Resolution, 0, 0, 0, 0, 0, 0);
         Dispatch();
         using var read = relightWork.MapRange<LumonSceneRelightWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
         Assert.True(read.IsMapped);
