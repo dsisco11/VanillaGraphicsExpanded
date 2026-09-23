@@ -161,11 +161,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             indirectTex = lumOnBuffers.IndirectFullTex;
         }
 
-        shader.LumOnEnabled = lumOnEnabled == 1;
-
-        // Phase 15 knobs (now compile-time defines)
-        shader.EnablePbrComposite = lumOnConfig?.LumOn.EnablePbrComposite ?? true;
-        shader.EnableShortRangeAo = lumOnConfig?.LumOn.EnableShortRangeAo ?? true;
+        shader.ConfigureOptions(() =>
+        {
+            shader.LumOnEnabled = lumOnEnabled == 1;
+            shader.EnablePbrComposite = lumOnConfig?.LumOn.EnablePbrComposite ?? true;
+            shader.EnableShortRangeAo = lumOnConfig?.LumOn.EnableShortRangeAo ?? true;
+        });
 
         shader.Use();
 

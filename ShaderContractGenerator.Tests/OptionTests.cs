@@ -37,7 +37,7 @@ public sealed class OptionTests
                 private ShaderSettings? selected;
                 internal abstract GpuShaderContract Declaration { get; }
                 internal T GetShaderOption<T>(ShaderOption<T> key) where T : struct => ShaderOptionAccess.Get(selected ??= new(Declaration), key);
-                internal void SetShaderOption<T>(ShaderOption<T> key, T value) where T : struct => selected = (selected ?? new(Declaration)).With(key, value);
+                internal void SetShaderOptions(System.Action<ShaderSettingsEditor> configure) { var editor = new ShaderSettingsEditor(selected ?? new(Declaration)); configure(editor); selected = editor.Complete(); }
             }
             public static class Proof
             {

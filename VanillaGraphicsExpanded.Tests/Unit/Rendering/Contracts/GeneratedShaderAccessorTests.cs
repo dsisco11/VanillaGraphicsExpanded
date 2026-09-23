@@ -22,7 +22,7 @@ public sealed class GeneratedShaderAccessorTests
         Assert.Throws<ArgumentException>(() => shader.Steps = 0);
         Assert.Equal(12, shader.Steps);
         Assert.Equal(0, shader.ReloadRequests);
-        shader.SetDefine("GENERATED_LEGACY", "1");
+        shader.SetDefines(new Dictionary<string, string?> { ["GENERATED_LEGACY"] = "1" });
         Assert.True(shader.Enabled);
         shader.Enabled = false;
         Assert.False(shader.Enabled);

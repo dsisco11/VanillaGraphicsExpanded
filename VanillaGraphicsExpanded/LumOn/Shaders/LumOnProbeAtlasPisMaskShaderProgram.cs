@@ -117,14 +117,16 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
         bool forceUniformMask,
         bool forceBatchSlicing)
     {
-        bool changed = false;
-        changed |= SetShaderOption(LumOnShaderOptions.ImportanceSampling, enabled);
-        changed |= SetShaderOption(LumOnShaderOptions.ExploreFraction, exploreFraction);
-        changed |= SetShaderOption(LumOnShaderOptions.ExploreCount, exploreCount);
-        changed |= SetShaderOption(LumOnShaderOptions.MinConfidenceWeight, minConfidenceWeight);
-        changed |= SetShaderOption(LumOnShaderOptions.WeightEpsilon, weightEpsilon);
-        changed |= SetShaderOption(LumOnShaderOptions.UniformMask, forceUniformMask);
-        changed |= SetShaderOption(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
+        bool changed = SetShaderOptions(options =>
+        {
+            options.Set(LumOnShaderOptions.ImportanceSampling, enabled);
+            options.Set(LumOnShaderOptions.ExploreFraction, exploreFraction);
+            options.Set(LumOnShaderOptions.ExploreCount, exploreCount);
+            options.Set(LumOnShaderOptions.MinConfidenceWeight, minConfidenceWeight);
+            options.Set(LumOnShaderOptions.WeightEpsilon, weightEpsilon);
+            options.Set(LumOnShaderOptions.UniformMask, forceUniformMask);
+            options.Set(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
+        });
         return !changed;
     }
 

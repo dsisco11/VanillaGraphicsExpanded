@@ -37,11 +37,11 @@ public sealed class ProductionShaderAccessorTests
     {
         var composite = new PBRCompositeShaderProgram();
         Assert.True(composite.EnableShortRangeAo);
-        composite.SetDefine("VGE_LUMON_ENABLE_BENT_NORMAL", "0");
+        composite.SetDefines(new Dictionary<string, string?> { ["VGE_LUMON_ENABLE_BENT_NORMAL"] = "0" });
         Assert.False(composite.EnableShortRangeAo);
         composite.EnableShortRangeAo = true;
         Assert.True(composite.EnableShortRangeAo);
-        composite.SetDefine("VGE_LUMON_ENABLE_BENT_NORMAL", null);
+        composite.SetDefines(new Dictionary<string, string?> { ["VGE_LUMON_ENABLE_BENT_NORMAL"] = null });
         Assert.True(composite.EnableShortRangeAo);
         Assert.True(new PBRCompositeShaderProgram().EnableShortRangeAo);
     }

@@ -28,11 +28,8 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
         var program = new FixtureProgram(shaderName);
-        foreach (string setting in variant.Split(';', StringSplitOptions.RemoveEmptyEntries))
-        {
-            string[] pair = setting.Split('=', 2);
-            program.SetDefine(pair[0], pair[1]);
-        }
+        program.SetDefines(variant.Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(setting => setting.Split('=', 2)).ToDictionary(pair => pair[0], pair => (string?)pair[1]));
         program.Initialize(assets.Api);
         try
         {

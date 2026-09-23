@@ -676,16 +676,18 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
-
-        if (!shader.EnsureProbePisDefines(
+        if (shader.ConfigureOptions(() =>
+        {
+            shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
+            shader.EnsureProbePisDefines(
                 enabled: pisEnabled,
                 exploreFraction: config.LumOn.ProbePISExploreFraction,
                 exploreCount: config.LumOn.ProbePISExploreCount,
                 minConfidenceWeight: config.LumOn.ProbePISMinConfidenceWeight,
                 weightEpsilon: config.LumOn.ProbePISWeightEpsilon,
                 forceUniformMask: config.LumOn.ForceUniformMask,
-                forceBatchSlicing: config.LumOn.ForceBatchSlicing))
+                forceBatchSlicing: config.LumOn.ForceBatchSlicing);
+        }))
         {
             // Defines changed (recompile queued). Leave the mask cleared so downstream passes fall back safely.
             return;
@@ -734,32 +736,25 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.SetShaderOption(LumOnShaderOptions.EmissiveBoost, Math.Max(0.0f, config.LumOn.EmissiveGiBoost));
-        if (!shader.EnsureNearFieldDefines())
+        // Publish trace settings together so reloads cannot install an intermediate combination.
+        bool traceOptionsChanged = shader.ConfigureOptions(() =>
+        {
+            shader.EmissiveBoost = Math.Max(0.0f, config.LumOn.EmissiveGiBoost);
+            shader.NearField = true;
+            shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
+            shader.RaySteps = config.LumOn.RaySteps;
+            shader.RayMaxDistance = config.LumOn.RayMaxDistance;
+            shader.RayThickness = config.LumOn.RayThickness;
+            shader.SkyMissWeight = config.LumOn.SkyMissWeight;
+            shader.ImportanceSampling = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
+            shader.BatchSlicing = config.LumOn.ForceBatchSlicing;
+            if (primaryBuffers.HzbDepthTex != null)
+                shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, primaryBuffers.HzbDepthTex.MipLevels - 1));
+        });
+        if (traceOptionsChanged)
         {
             lightingPassesComplete = false;
             return;
-        }
-        shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
-        shader.RaySteps = config.LumOn.RaySteps;
-        shader.RayMaxDistance = config.LumOn.RayMaxDistance;
-        shader.RayThickness = config.LumOn.RayThickness;
-        shader.SkyMissWeight = config.LumOn.SkyMissWeight;
-
-        // PIS config is define-backed. If defines changed, a recompile is queued; skip this pass (do not clear)
-        // to avoid a one-frame mismatch between selection logic and consumption.
-        bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
-        if (!shader.EnsureProbePisDefines(
-            enabled: pisEnabled,
-            forceBatchSlicing: config.LumOn.ForceBatchSlicing))
-        {
-            lightingPassesComplete = false;
-            return;
-        }
-
-        if (primaryBuffers.HzbDepthTex != null)
-        {
-            shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, primaryBuffers.HzbDepthTex.MipLevels - 1));
         }
 
         // World-probe clipmap uses compile-time defines. They must be configured before Use().
@@ -959,14 +954,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
-
-        // PIS config is define-backed. If defines changed, a recompile is queued; skip this pass (do not clear)
-        // to keep temporal selection and trace selection consistent.
-        bool pisEnabled = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
-        if (!shader.EnsureProbePisDefines(
-            enabled: pisEnabled,
-            forceBatchSlicing: config.LumOn.ForceBatchSlicing))
+        if (shader.ConfigureOptions(() =>
+        {
+            shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
+            shader.EnsureProbePisDefines(
+                enabled: config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask,
+                forceBatchSlicing: config.LumOn.ForceBatchSlicing);
+        }))
         {
             lightingPassesComplete = false;
             return;
@@ -1118,7 +1112,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetShaderOption(LumOnShaderOptions.DirectVisibility, true))
+        if (shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true)))
         {
             lightingPassesComplete = false;
             return;
@@ -1221,7 +1215,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetShaderOption(LumOnShaderOptions.DirectVisibility, true))
+        if (shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true)))
         {
             lightingPassesComplete = false;
             return;

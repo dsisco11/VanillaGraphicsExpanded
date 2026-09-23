@@ -71,9 +71,12 @@ internal static class LumOnDebugShaderProgramFamily
         // We intentionally do not gate rendering if this triggers recompiles; these toggles are rare.
         foreach (var program in GetAll().Where(p => p.ProgramContract.Groups.Contains(LumOnShaderGroups.Composite)))
         {
-            program.SetShaderOption(LumOnShaderOptions.PbrComposite, enablePbrComposite);
-            program.SetShaderOption(LumOnShaderOptions.AmbientOcclusion, enableAo);
-            program.SetShaderOption(LumOnShaderOptions.ShortRangeAo, enableShortRangeAo);
+            program.SetShaderOptions(options =>
+            {
+                options.Set(LumOnShaderOptions.PbrComposite, enablePbrComposite);
+                options.Set(LumOnShaderOptions.AmbientOcclusion, enableAo);
+                options.Set(LumOnShaderOptions.ShortRangeAo, enableShortRangeAo);
+            });
         }
     }
 
@@ -105,11 +108,13 @@ internal static class LumOnDebugShaderProgramFamily
 
             // Apply the topology settings to their declared consumers.
             // For the currently used program we additionally return whether this queued a recompile.
-            bool changed = false;
-            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbes, enabled);
-            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbeLevels, levels);
-            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
-            changed |= program.SetShaderOption(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
+            bool changed = program.SetShaderOptions(options =>
+            {
+                options.Set(LumOnShaderOptions.WorldProbes, enabled);
+                options.Set(LumOnShaderOptions.WorldProbeLevels, levels);
+                options.Set(LumOnShaderOptions.WorldProbeResolution, resolution);
+                options.Set(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
+            });
             stable = !changed;
 
             if (ReferenceEquals(program, activeProgram))

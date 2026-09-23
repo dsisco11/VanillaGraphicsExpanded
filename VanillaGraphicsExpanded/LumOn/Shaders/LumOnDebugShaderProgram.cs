@@ -166,13 +166,15 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram
             worldProbeDiffuseStride = 0;
         }
 
-        bool changed = false;
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbes, enabled);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeLevels, levels);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride));
+        bool changed = SetShaderOptions(options =>
+        {
+            options.Set(LumOnShaderOptions.WorldProbes, enabled);
+            options.Set(LumOnShaderOptions.WorldProbeLevels, levels);
+            options.Set(LumOnShaderOptions.WorldProbeResolution, resolution);
+            options.Set(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
+            options.Set(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
+            options.Set(LumOnShaderOptions.WorldProbeDiffuseStride, Math.Max(1, worldProbeDiffuseStride));
+        });
         return !changed;
     }
 

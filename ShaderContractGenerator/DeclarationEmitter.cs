@@ -41,7 +41,7 @@ internal static class DeclarationEmitter
                     .Append(string.Join(" ", syntax.Modifiers.Select(m => m.Text))).Append(' ').Append(option.TypeName).Append(' ').Append(option.Property.Name).Append(" { ");
                 foreach (var accessor in syntax.AccessorList!.Accessors)
                     text.Append(string.Join(" ", accessor.Modifiers.Select(m => m.Text))).Append(' ').Append(accessor.Keyword.Text).Append(" => ")
-                        .Append(accessor.IsKind(SyntaxKind.GetAccessorDeclaration) ? $"GetShaderOption({option.KeyName})" : $"SetShaderOption({option.KeyName}, value)").Append("; ");
+                        .Append(accessor.IsKind(SyntaxKind.GetAccessorDeclaration) ? $"GetShaderOption({option.KeyName})" : $"SetShaderOptions(options => options.Set({option.KeyName}, value))").Append("; ");
                 text.Append("}\n");
             }
         text.Append("#endregion\n}\n");

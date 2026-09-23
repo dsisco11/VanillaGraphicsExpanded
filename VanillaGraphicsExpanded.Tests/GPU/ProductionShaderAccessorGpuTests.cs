@@ -72,7 +72,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         assets.ScheduledTasks.Clear();
         Assert.Empty(assets.Reads);
         Assert.Equal(installed, program.ProgramId);
-        Assert.False(program.SetDefine("VGE_LUMON_ENABLE_SHORT_RANGE_AO", null));
+        Assert.False(program.SetDefines(new Dictionary<string, string?> { ["VGE_LUMON_ENABLE_SHORT_RANGE_AO"] = null }));
         Assert.Empty(assets.ScheduledTasks);
         program.EnableShortRangeAo = false;
         program.Dispose();
@@ -161,18 +161,73 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             FragmentShader = new Vintagestory.Client.NoObf.Shader()
         };
         program.Initialize(assets.Api);
-        program.RaySteps = steps;
-        program.RayMaxDistance = distance;
-        program.RayThickness = thickness;
-        program.SetDefine("VGE_LUMON_SKY_MISS_WEIGHT", skyWeight.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
-        program.SetDefine("VGE_LUMON_HZB_COARSE_MIP", mip.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        program.SetDefine("LUMON_EMISSIVE_BOOST", emission.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
-        program.SetDefine("VGE_LUMON_ATLAS_TEXELS_PER_FRAME", texels.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        program.ConfigureOptions(() =>
+        {
+            program.RaySteps = steps;
+            program.RayMaxDistance = distance;
+            program.RayThickness = thickness;
+            program.SkyMissWeight = skyWeight;
+            program.HzbCoarseMip = mip;
+            program.EmissiveBoost = emission;
+            program.TexelsPerFrame = texels;
+        });
         Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
         Assert.Contains("shaders/lumon_probe_atlas_trace.fsh.spv", assets.Reads);
         Assert.Equal(steps.ToString(System.Globalization.CultureInfo.InvariantCulture), program.InstalledSettings!.Values["VGE_LUMON_RAY_STEPS"].Canonical);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
+    /// <summary>Bulk edits configure before initialization, coalesce queued changes and replace only the final generation.</summary>
+    [Fact]
+    public void BulkUpdatesPublishOnlyCompleteInstalledGenerations()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var program = new PBRCompositeShaderProgram
+        {
+            PassName = PBRCompositeShaderProgram.Contract.Identity,
+            VertexShader = new Vintagestory.Client.NoObf.Shader(),
+            FragmentShader = new Vintagestory.Client.NoObf.Shader()
+        };
+        program.ConfigureOptions(() => { program.EnableShortRangeAo = false; program.EnablePbrComposite = false; });
+        Assert.Empty(assets.ScheduledTasks);
+        program.Initialize(assets.Api);
+        Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+        int first = program.ProgramId;
+        var requested = program.RequestedSettings;
+        var installed = program.InstalledSettings;
+        Assert.Throws<ArgumentException>(() => program.ConfigureOptions(() =>
+        {
+            program.EnableShortRangeAo = true;
+            program.SetDefines(new Dictionary<string, string?> { ["UNKNOWN"] = "1" });
+        }));
+        Assert.Same(requested, program.RequestedSettings);
+        Assert.Same(installed, program.InstalledSettings);
+        Assert.Empty(assets.ScheduledTasks);
+        program.ConfigureOptions(() =>
+        {
+            program.EnableShortRangeAo = true;
+            Assert.Empty(assets.ScheduledTasks);
+            program.EnablePbrComposite = true;
+            Assert.Equal(first, program.ProgramId);
+        });
+        Assert.Single(assets.ScheduledTasks);
+        program.ConfigureOptions(() => program.EnableShortRangeAo = false);
+        Assert.Single(assets.ScheduledTasks)();
+        assets.ScheduledTasks.Clear();
+        Assert.NotEqual(first, program.ProgramId);
+        Assert.False(GL.IsProgram(first));
+        Assert.Same(program.RequestedSettings, program.InstalledSettings);
+        int second = program.ProgramId;
+        Assert.False(program.ConfigureOptions(() =>
+        {
+            program.EnablePbrComposite = false;
+            program.EnablePbrComposite = true;
+        }));
+        Assert.Empty(assets.ScheduledTasks);
+        Assert.Equal(second, program.ProgramId);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Creates the real production owner with fixture API assets.</summary>
     private static PBRCompositeShaderProgram Create(BinaryShaderApiFixture assets)
     {

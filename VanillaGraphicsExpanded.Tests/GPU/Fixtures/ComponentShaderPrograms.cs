@@ -23,9 +23,11 @@ internal sealed class ComponentShaderPrograms : IDisposable
         // Supply the engine's stage objects without starting its window or renderer.
         program.VertexShader = new Shader();
         program.FragmentShader = new Shader();
-        if (settings != null)
-            foreach (var setting in settings) program.SetDefine(setting.Key, setting.Value);
-        configure?.Invoke(program);
+        program.ConfigureOptions(() =>
+        {
+            if (settings != null) program.SetDefines(settings);
+            configure?.Invoke(program);
+        });
         program.Initialize(assets.Api);
         Assert.True(program.CompileAndLink(), string.Join(Environment.NewLine, assets.Logs));
         return program;

@@ -133,9 +133,11 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
         bool enabled,
         bool forceBatchSlicing)
     {
-        bool changed = false;
-        changed |= SetShaderOption(LumOnShaderOptions.ImportanceSampling, enabled);
-        changed |= SetShaderOption(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
+        bool changed = SetShaderOptions(options =>
+        {
+            options.Set(LumOnShaderOptions.ImportanceSampling, enabled);
+            options.Set(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
+        });
         return !changed;
     }
 
@@ -292,12 +294,14 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
             worldProbeDiffuseStride = 0;
         }
 
-        bool changed = false;
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbes, enabled);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeLevels, levels);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
+        bool changed = SetShaderOptions(options =>
+        {
+            options.Set(LumOnShaderOptions.WorldProbes, enabled);
+            options.Set(LumOnShaderOptions.WorldProbeLevels, levels);
+            options.Set(LumOnShaderOptions.WorldProbeResolution, resolution);
+            options.Set(LumOnShaderOptions.WorldProbeBaseSpacing, baseSpacing);
+            options.Set(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
+        });
         return !changed;
     }
 

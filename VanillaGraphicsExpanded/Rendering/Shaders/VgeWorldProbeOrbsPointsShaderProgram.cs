@@ -132,9 +132,11 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
             worldProbeDiffuseStride = 0;
         }
 
-        bool changed = false;
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeResolution, resolution);
-        changed |= SetShaderOption(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
+        bool changed = SetShaderOptions(options =>
+        {
+            options.Set(LumOnShaderOptions.WorldProbeResolution, resolution);
+            options.Set(LumOnShaderOptions.WorldProbeOctahedralSize, worldProbeOctahedralTileSize);
+        });
         return !changed;
     }
 

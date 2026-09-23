@@ -14,7 +14,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram
 
     #region Near-Field Scene Binding
     /// <summary>Enables production near-field tracing; shader tests may explicitly compile the legacy path.</summary>
-    internal bool EnsureNearFieldDefines() => !SetShaderOption(LumOnShaderOptions.NearField, true);
+    internal bool EnsureNearFieldDefines() => !SetShaderOptions(options => options.Set(LumOnShaderOptions.NearField, true));
 
     /// <summary>Binds one coherent scene with optional traversal policy; null scenes remain unavailable regardless of policy.</summary>
     internal void BindNearFieldScene(TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)

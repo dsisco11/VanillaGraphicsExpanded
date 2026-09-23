@@ -779,7 +779,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe ||
             mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview or LumOnDebugMode.TraceSceneDdaDistanceL0;
-        if (usesNearFieldVisibility && shader.SetShaderOption(LumOnShaderOptions.DirectVisibility, true)) return;
+        if (usesNearFieldVisibility && shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true))) return;
         var nearFieldVisibilityScene = usesNearFieldVisibility
             ? nearFieldProvider?.PrepareScene() : null;
 

@@ -74,9 +74,11 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
         bool enabled,
         bool forceBatchSlicing)
     {
-        bool changed = false;
-        changed |= SetShaderOption(LumOnShaderOptions.ImportanceSampling, enabled);
-        changed |= SetShaderOption(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
+        bool changed = SetShaderOptions(options =>
+        {
+            options.Set(LumOnShaderOptions.ImportanceSampling, enabled);
+            options.Set(LumOnShaderOptions.BatchSlicing, forceBatchSlicing);
+        });
         return !changed;
     }
 

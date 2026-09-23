@@ -5,7 +5,8 @@ namespace VanillaGraphicsExpanded.Rendering.Contracts;
 /// <summary>Defines a typed shader setting, its default and its validation metadata on a partial property.</summary>
 /// <remarks>
 /// An instance partial get/set property generates an immutable <c>&lt;PropertyName&gt;Option</c> key and
-/// accessors that call the owner's <c>GetShaderOption</c> and <c>SetShaderOption</c> hooks. In GpuProgram,
+/// accessors that call the owner's <c>GetShaderOption</c> and <c>SetShaderOptions</c> hooks. Wrap related
+/// property assignments in <c>ConfigureOptions</c> to publish and schedule them atomically. In GpuProgram,
 /// those hooks validate through ShaderSettings and use the existing recompile scheduler. A static
 /// get-only partial <see cref="ShaderOption{T}"/> property instead publishes a reusable option key.
 /// Supported value types are bool, int, uint, float and top-level enums backed by int or uint.
