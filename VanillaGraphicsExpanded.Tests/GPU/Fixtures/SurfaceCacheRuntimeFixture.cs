@@ -24,6 +24,8 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     private readonly LumonSceneRelightUpdateRenderer relight;
     private readonly DebugViewController controller;
     private readonly int requestedPages;
+    private readonly uint[] feedbackPatches;
+    public Block SourceBlock => material.Cube;
     private readonly DynamicTexture2D color = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
     private readonly DynamicTexture2D depth = DynamicTexture2D.Create(2, 2, PixelInternalFormat.R32f);
     private readonly GpuFramebuffer output;
@@ -41,14 +43,19 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public uint MaterialId { get; private set; }
     public List<string> Logs => assets.Logs;
     public ICoreClientAPI Api { get; }
+    public ISurfaceLightingProvider LightingProvider => relight;
     /// <summary>Queries the production publication owner without retaining resources across frames.</summary>
     public bool TryGetLighting(out SurfaceLightingSnapshot snapshot) => relight.TryGetSurfaceLighting(out snapshot);
 
     #region Runtime setup
     /// <summary>Mocks camera and terrain raster inputs while retaining renderer registration, cache work and viewer selection.</summary>
-    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false)
+    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false)
     {
         this.requestedPages = requestedPages;
+        feedbackPatches = enclosure
+            ? Enumerable.Range(0,6).SelectMany(axis => Enumerable.Range(0,4).Select(tile =>
+                1u + 6u * (uint)((axis%2==0?0:7)*64 + (tile/2)*8 + tile%2) + (uint)axis)).ToArray()
+            : Enumerable.Range(0,requestedPages).Select(index=>1u+6u*(uint)index).ToArray();
         material.SetReadiness(true, true);
         Config.LumOn.Enabled = true;
         var cfg = Config.LumOn.LumonScene;
@@ -99,7 +106,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         {
             uint id = materials.Resolve(material.Cube);
             MaterialId = id;
-            var source = new RuntimeTraceGeometrySource((x, _, _) => new(!exposedWall || x <= 0 ? 2u | id << 2 : 1u, LumonSceneOccupancyPacking.PackClamped(BlockLight, 0, 0, (int)id), 0), () => GeometryAvailable);
+            var source = new RuntimeTraceGeometrySource((x, y, z) => new((enclosure ? x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7 : !exposedWall || x<=0) ? 2u | id << 2 : 1u, LumonSceneOccupancyPacking.PackClamped(BlockLight, 0, 0, (int)id), 0), () => GeometryAvailable);
             Sources.Add(source); return source;
         }, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
@@ -123,7 +130,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         Events.Render(EnumRenderStage.Opaque);
         if (Feedback.TryGetNearChunkSlotAndGeneration(new(0, 1, 0), out uint slot, out ushort generation))
         {
-            uint[] pixels = Enumerable.Range(0, 4).SelectMany(index => new uint[] { slot, 1u + 6u * (uint)(index % requestedPages), 0, generation }).ToArray();
+            uint[] pixels = Enumerable.Range(0, 4).SelectMany(index => new uint[] { slot, feedbackPatches[(Frames*4+index)%feedbackPatches.Length], 0, generation }).ToArray();
             using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, Buffers.PatchIdTextureId);
             GL.TexSubImage2D(TextureTarget.Texture2D, 0, 0, 0, 2, 2, PixelFormat.RgbaInteger, PixelType.UnsignedInt, pixels);
         }

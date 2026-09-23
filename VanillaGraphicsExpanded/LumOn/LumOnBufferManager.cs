@@ -447,6 +447,9 @@ public sealed class LumOnBufferManager : IDisposable
         screenProbeAtlasHistoryFbo?.BindAndClear();
         screenProbeAtlasFilteredFbo?.BindAndClear();
         probeSh9Fbo?.BindAndClear();
+        // Composition can still hold these outputs after world teardown; reject stale indirect light too.
+        indirectHalfFbo?.BindAndClear();
+        indirectFullFbo?.BindAndClear();
 
         // Clear probe trace mask (computed each frame, but keep deterministic on resets).
         probeTraceMaskFbo?.BindAndClear();

@@ -19,6 +19,9 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     private long surfaceRevision = -1;
     private LumOnWorldProbeClipmapGpuResources? lightingProbeResources;
 
+    /// <summary>Reports in-flight render-thread hit queries without polling or waiting for the GPU.</summary>
+    internal bool HasPendingSurfaceLightingQueries => surfaceQueries?.Pending == true;
+
     #region Cache ownership
     /// <summary>Injects render-thread providers; neither provider is passed to CPU tracing workers.</summary>
     internal void SetSurfaceLightingProvider(ISurfaceLightingProvider? provider, ITraceGeometrySceneProvider? geometry)

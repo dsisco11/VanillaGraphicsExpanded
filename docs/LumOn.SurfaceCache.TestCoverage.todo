@@ -151,11 +151,29 @@ Second implementation review and independent completion audit passed with no out
 
 ## 10. Full consumer runtime orchestration
 
-- [ ] Extend the runtime fixture to drive `LumOnRenderer` and the world-probe update renderer alongside the production geometry/cache owners through registered callbacks and real provider wiring. Include production anchor generation, tracing, temporal processing, filtering, gather and final output.
-- [ ] Exercise actual worker scheduling, delayed CPU completion, pending GPU queries and bounded upload admission. Invalidate or replace dependencies while work is pending; prove obsolete results cannot repopulate cleared atlases or final pixels.
-- [ ] Run illumination/removal/restoration, resource recreation, world teardown and restart through the composed runtime. Verify callback ordering, history/atlas resets, republishing and finite final output without OpenGL errors.
+- [x] Extend the runtime fixture to drive `LumOnRenderer` and the world-probe update renderer alongside the production geometry/cache owners through registered callbacks and real provider wiring. Include production anchor generation, tracing, temporal processing, filtering, gather and final output.
+- [x] Exercise actual worker scheduling, delayed CPU completion, pending GPU queries and bounded upload admission. Invalidate or replace dependencies while work is pending; prove obsolete results cannot repopulate cleared atlases or final pixels.
+- [x] Run illumination/removal/restoration, resource recreation, world teardown and restart through the composed runtime. Verify callback ordering, history/atlas resets, republishing and finite final output without OpenGL errors.
 
 Completion: the runtime owns consumer scheduling and invalidation end to end; manually calling the integrator, resolver and uploader in test order is supplementary evidence only.
+
+Traceability and verification:
+
+| Task | Controlling document sections | Requirements and evidence |
+| --- | --- | --- |
+| Composed consumers | LumOn.SurfaceCache.LightingContract.md: Geometry-hit consumers; Atlas and publication design | Registered cache, LumOnRenderer and world-probe update callbacks, actual providers, generated anchors and real shader passes; read production full-resolution indirect output and worker-owned world atlas in both gather modes. |
+| Pending work and admission | LumOn.SurfaceCache.LightingContract.md: Geometry-hit consumers | Hold real worker traversal at the engine accessor boundary; observe real queued GPU hit queries; change dependencies before completion; admit only complete probe uploads inside the byte cap; prove stale results cannot restore illumination. |
+| Lifetime transitions | LumOn.SurfaceCache.LightingContract.md: Indirect estimator and history; Atlas and publication design | Source off/on, cache and probe-resource replacement, world teardown/restart, callback ordering and disposal; retained state must reset and recover without GL errors. |
+
+Acceptance bounds: at most 160 registered frames per settled transition, eight screen directions per probe per frame, one world probe with 64 directions and one whole-probe upload per frame (1,576 bytes). A below-one-probe budget must leave the world atlas untouched. RGB darkness tolerance is 0.0001, lit output exceeds 0.001, and every observed output must be finite. Terrain raster/voxel inputs are controlled; no cache or probe radiance is injected. The final consumer output here is LumOnRenderer's production full-resolution indirect texture handed to composition; Section 12 separately covers PBR composition and its numerical accounting. The 2x2 raster uses one production-generated anchor per pixel, keeping stationary orchestration checks separate from the spatial interpolation and movement scenarios in Section 11. Pending-work scenarios first establish bright world radiance, then invalidate dependencies while an actual CPU worker or GPU query is pending. Upload admission uses 1,575 bytes to reject a 1,576-byte whole probe and checks untouched RGBA and confidence metadata before restoring the full budget.
+
+Observed coverage: `SurfaceLightingConsumerRuntimeTests` adds six GPU cases: the lifetime scenario in both gather modes, whole-probe upload admission, invalidation of pending GPU queries, invalidation of delayed worker completion, and callback disposal. The composed fixture registers the actual producer and consumer owners and supplies their real providers; only engine camera, terrain raster and voxel inputs are controlled. Production temporal/filter outputs and generated anchors are checked alongside the world atlas and full-resolution indirect output.
+
+The lifetime scenario reproduced stale final indirect lighting after LeaveWorld: probe history was zero but the final output retained RGB energy (14.125 in the failing SH case). `LumOnBufferManager.ClearHistory` now also clears both indirect outputs. Both consumer renderers now unregister their callbacks on disposal. They reuse the existing camera snapshot abstraction for controlled engine input while retaining the default engine camera source and coordinate math. No lighting shader was changed.
+
+Validation: the normal shader-enabled application/test build passed and verified all binaries/contracts current. The final GPU run passed 26/26 with zero failures or skips: composed consumers 6, existing cache runtime 5, persistent temporal history 10, world-probe flow 5. A subsequent latest-source rerun passed both lifetime cases with the tightened 0.0001 darkness tolerance (2/2, no skips). Receipts: `artifacts/surface-runtime-consumers/runtime-final-and-neighbors.{log,trx}` and `runtime-final-tolerance.{log,trx}`. Earlier failing receipts remain available, including `runtime-modloader.{log,trx}` for the stale final-output reproduction. Five existing unrelated test-analyzer warnings remain. Builds used isolated outputs without replacing the running game's files. This is executed headless GPU evidence, not live in-game visual verification.
+
+Second implementation review and independent completion audit passed with no outstanding required findings. All three tasks are complete.
 
 ## 11. Movement, streaming and mixed probe contribution
 

@@ -110,20 +110,25 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     #endregion
 
+    private readonly Func<LumOnCameraState?> readCamera;
+
     #region Constructor
 
+    /// <summary>Registers screen-probe rendering with an optional camera source; ordinary runtime reads the engine player.</summary>
     internal LumOnRenderer(
         ICoreClientAPI capi,
         VgeConfig config,
         LumOnBufferManager bufferManager,
         GBufferManager? gBufferManager,
-        LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager = null)
+        LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager = null,
+        Func<LumOnCameraState?>? readCamera = null)
     {
         this.capi = capi;
         this.config = config;
         primaryBuffers = bufferManager;
         this.gBufferManager = gBufferManager;
         this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
+        this.readCamera = readCamera ?? (() => LumOnCameraState.Read(capi));
 
         pmjJitter = LumOnPmjJitterTexture.Create(config.LumOn.PmjJitterCycleLength, config.LumOn.PmjJitterSeed);
 
@@ -420,14 +425,14 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private bool DetectTeleport()
     {
-        var player = capi.World?.Player;
-        if (player?.Entity is null)
+        var camera = readCamera();
+        if (camera is null)
             return false;
 
-        var camPos = player.Entity.CameraPos;
-        double dx = camPos.X - lastCameraX;
-        double dy = camPos.Y - lastCameraY;
-        double dz = camPos.Z - lastCameraZ;
+        var camPos = camera.Value;
+        double dx = camPos.CameraX - lastCameraX;
+        double dy = camPos.CameraY - lastCameraY;
+        double dz = camPos.CameraZ - lastCameraZ;
         double distance = Math.Sqrt(dx * dx + dy * dy + dz * dz);
 
         return distance > config.LumOn.CameraTeleportResetThreshold;
@@ -438,14 +443,14 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void StoreCameraPosition()
     {
-        var player = capi.World?.Player;
-        if (player?.Entity is null)
+        var camera = readCamera();
+        if (camera is null)
             return;
 
-        var camPos = player.Entity.CameraPos;
-        lastCameraX = camPos.X;
-        lastCameraY = camPos.Y;
-        lastCameraZ = camPos.Z;
+        var camPos = camera.Value;
+        lastCameraX = camPos.CameraX;
+        lastCameraY = camPos.CameraY;
+        lastCameraZ = camPos.CameraZ;
     }
 
     private void UpdateMatrices()
@@ -478,13 +483,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
         }
 
-        var entity = capi.World?.Player?.Entity;
-        (VectorInt3 ChunkOffset, Vector3d BlockOffsetRemainder) frameBridge = entity is null
+        var camera = readCamera();
+        (VectorInt3 ChunkOffset, Vector3d BlockOffsetRemainder) frameBridge = camera is null
             ? (default, default)
             : LumOnFrameWorldSpaceBridge.Compute(
-                entity.Pos.X,
-                entity.Pos.Y,
-                entity.Pos.Z);
+                camera.Value.PositionX,
+                camera.Value.PositionY,
+                camera.Value.PositionZ);
 
         uniformBuffers.UpdateFrame(
             invProjectionMatrix: invProjectionMatrix,
@@ -1512,6 +1517,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         pmjJitter.Dispose();
         uniformBuffers.Dispose();
         // Unregister world events
+        capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
         capi.Event.LeaveWorld -= OnLeaveWorld;
 
         if (quadMeshRef is not null)

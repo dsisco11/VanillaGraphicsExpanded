@@ -28,6 +28,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 
 	private readonly ICoreClientAPI capi;
 	private readonly VgeConfig config;
+	private readonly Func<LumOnCameraState?> readCamera;
 	private readonly LumOnWorldProbeClipmapBufferManager clipmapBufferManager;
 
 	private LumOnWorldProbeScheduler? scheduler;
@@ -56,13 +57,16 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 
 	public int RenderRange => RenderRangeValue;
 
+	/// <summary>Registers asynchronous probe updates with an optional camera source; ordinary runtime reads the engine player.</summary>
 	public LumOnWorldProbeUpdateRenderer(
 		ICoreClientAPI capi,
 		VgeConfig config,
-		LumOnWorldProbeClipmapBufferManager clipmapBufferManager)
+		LumOnWorldProbeClipmapBufferManager clipmapBufferManager,
+		Func<LumOnCameraState?>? readCamera = null)
 	{
 		this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
 		this.config = config ?? throw new ArgumentNullException(nameof(config));
+		this.readCamera = readCamera ?? (() => LumOnCameraState.Read(capi));
 		this.clipmapBufferManager = clipmapBufferManager ?? throw new ArgumentNullException(nameof(clipmapBufferManager));
 
 		capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_worldprobe_update");
@@ -283,6 +287,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 
 	public void Dispose()
 	{
+		capi.Event.UnregisterRenderer(this, EnumRenderStage.Done);
 		capi.Event.LeaveWorld -= OnLeaveWorld;
         ReleaseSurfaceLighting();
 
@@ -449,14 +454,14 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 
 	private bool TryGetPlayerOriginWorld(out Vec3d playerOriginWorld)
 	{
-		var player = capi.World?.Player;
-		if (player?.Entity is null)
+		var camera = readCamera();
+		if (camera is null)
 		{
 			playerOriginWorld = new Vec3d();
 			return false;
 		}
 
-		playerOriginWorld = new Vec3d(player.Entity.Pos.X, player.Entity.Pos.Y, player.Entity.Pos.Z);
+		playerOriginWorld = new Vec3d(camera.Value.PositionX, camera.Value.PositionY, camera.Value.PositionZ);
 		return true;
 	}
 
