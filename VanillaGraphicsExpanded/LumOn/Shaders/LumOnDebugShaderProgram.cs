@@ -372,11 +372,14 @@ public partial class LumOnDebugShaderProgram : GpuProgram
         }
     }
 
-    public GpuTexture? LumonScenePageTableMip0 { set => Layout.BindTexture2D(ProgramId, "vge_lumonScenePageTableMip0", value?.TextureId ?? 0, LayoutWarn); }
+    /// <summary>Binds the array of page-table layers indexed by scene chunk slot.</summary>
+    public GpuTexture? LumonScenePageTableMip0 { set => Layout.TryBindSamplerTextureActive(ProgramId, "vge_lumonScenePageTableMip0", OpenTK.Graphics.OpenGL.TextureTarget.Texture2DArray, value?.TextureId ?? 0, samplerId: 0, LayoutWarn); }
 
-    public GpuTexture? LumonSceneIrradianceAtlas { set => Layout.BindTexture2D(ProgramId, "vge_lumonSceneIrradianceAtlas", value?.TextureId ?? 0, LayoutWarn); }
+    /// <summary>Binds the irradiance atlas array using the same target as its physical storage.</summary>
+    public GpuTexture? LumonSceneIrradianceAtlas { set => Layout.TryBindSamplerTextureActive(ProgramId, "vge_lumonSceneIrradianceAtlas", OpenTK.Graphics.OpenGL.TextureTarget.Texture2DArray, value?.TextureId ?? 0, samplerId: 0, LayoutWarn); }
 
-    public GpuTexture? LumonSceneMaterialAtlas { set => Layout.BindTexture2D(ProgramId, "vge_lumonSceneMaterialAtlas", value?.TextureId ?? 0, LayoutWarn); }
+    /// <summary>Binds the captured material atlas array without changing its texture target.</summary>
+    public GpuTexture? LumonSceneMaterialAtlas { set => Layout.TryBindSamplerTextureActive(ProgramId, "vge_lumonSceneMaterialAtlas", OpenTK.Graphics.OpenGL.TextureTarget.Texture2DArray, value?.TextureId ?? 0, samplerId: 0, LayoutWarn); }
 
     public GpuTexture? LumonSceneSurfaceLut { set => Layout.BindTexture2D(ProgramId, "vge_lumonSceneSurfaceLut", value?.TextureId ?? 0, LayoutWarn); }
 

@@ -27,6 +27,7 @@ public static partial class VgeBuiltInDebugViews
     private const string ArtifactsViewId = "vge.pbr.artifacts";
     private const string WorldCellBoundsViewId = "vge.geometry.worldCellBounds";
     private const string TraceSceneClipmapViewId = "vge.lumon.tracescene.clipmap";
+    private const string SurfaceCacheViewId = "vge.lumon.surfaceCache";
 
     public static void RegisterAll(
         ICoreClientAPI capi,
@@ -47,6 +48,7 @@ public static partial class VgeBuiltInDebugViews
         DebugViewRegistry.Instance.Register(CreateGBufferOverlayView(gBufferManager));
         DebugViewRegistry.Instance.Register(CreateWorldCellBoundsView());
         DebugViewRegistry.Instance.Register(CreateTraceSceneClipmapDebugView());
+        DebugViewRegistry.Instance.Register(CreateSurfaceCacheDebugView());
         DebugViewRegistry.Instance.Register(CreateToolsView());
         DebugViewRegistry.Instance.Register(CreateArtifactsView());
     }
