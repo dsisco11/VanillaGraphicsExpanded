@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
@@ -12,13 +13,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
 /// Functional tests for the LumOn probe-atlas gather shader pass.
-/// 
+///
 /// These tests verify that the gather shader correctly:
 /// - Interpolates irradiance from the four surrounding probes
 /// - Weights probes by bilinear position, depth similarity, and normal similarity
 /// - Applies indirectTint to the final output
 /// - Handles edge cases (sky pixels, invalid probes)
-/// 
+///
 /// Test configuration:
 /// - Screen buffer: 4×4 pixels (full-res)
 /// - Half-res buffer: 2×2 pixels (gather output)
@@ -30,7 +31,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// The gather shader runs at half resolution. Each half-res pixel corresponds to
 /// a 2×2 block in full-res. The shader reads from full-res G-buffer and outputs
 /// to half-res irradiance buffer.
-/// 
+///
 /// Probe weight calculation:
 /// <code>
 /// bilinearWeight = based on pixel position relative to probe grid
@@ -50,57 +51,26 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     /// <summary>
     /// Compiles and links the probe-atlas gather shader.
     /// </summary>
-    private int CompileGatherShader() => CompileShader("lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh");
+    private LumOnScreenProbeAtlasGatherShaderProgram CompileGatherShader() => Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>();
 
     /// <summary>
     /// Sets up common uniforms for the gather shader.
     /// </summary>
-    private ObjectParamsUbo SetupGatherUniforms(
-        int programId,
+    private void SetupGatherUniforms(
+        LumOnScreenProbeAtlasGatherShaderProgram programId,
         float[] invProjection,
         float[] view,
         float intensity = 1.0f,
         (float r, float g, float b) indirectTint = default,
         int sampleStride = 1)
     {
-        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.ProbeGather.ParamsUBO");
-
-        GL.UseProgram(programId);
-
-        // Texture sampler uniforms
-        var atlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas");
-        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
-        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
-        GL.Uniform1(atlasLoc, 0);
-        GL.Uniform1(anchorPosLoc, 1);
-        GL.Uniform1(anchorNormalLoc, 2);
-        GL.Uniform1(depthLoc, 3);
-        GL.Uniform1(normalLoc, 4);
-
-        // Phase 23: UBO-backed frame state.
-        UpdateAndBindLumOnFrameUbo(
-            programId,
-            invProjectionMatrix: invProjection,
-            viewMatrix: view,
-            probeSpacing: ProbeSpacing);
-
-        // Phase 23: UBO-backed probe parameters.
-        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-        var cpuParams = new LumOnProbeParamsUbo();
-        using (cpuParams.BeginBatchUpdate())
-        {
-            cpuParams.Intensity = intensity;
-            var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
-            cpuParams.IndirectTint = new Vector3(tint.Item1, tint.Item2, tint.Item3);
-            cpuParams.LeakThreshold = 0.5f;
-            cpuParams.SampleStride = sampleStride;
-        }
-        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
-
-        GL.UseProgram(0);
-        return objectParamsUbo;
+        using var use = programId.UseScope();
+        UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: view, probeSpacing: ProbeSpacing);
+        programId.Intensity = intensity;
+        var tint = indirectTint == default ? (1f, 1f, 1f) : indirectTint;
+        programId.IndirectTint = [tint.Item1, tint.Item2, tint.Item3];
+        programId.LeakThreshold = 0.5f;
+        programId.SampleStride = sampleStride;
     }
 
     /// <summary>
@@ -136,7 +106,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         float encX = nx * 0.5f + 0.5f;
         float encY = ny * 0.5f + 0.5f;
         float encZ = nz * 0.5f + 0.5f;
-        
+
         for (int i = 0; i < ProbeGridWidth * ProbeGridHeight; i++)
         {
             int idx = i * 4;
@@ -155,7 +125,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     {
         var data = new float[AtlasWidth * AtlasHeight * 4];
         float encodedDist = MathF.Log(hitDist + 1.0f);
-        
+
         for (int i = 0; i < AtlasWidth * AtlasHeight; i++)
         {
             int idx = i * 4;
@@ -174,7 +144,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     {
         var data = new float[AtlasWidth * AtlasHeight * 4];
         float encodedDist = MathF.Log(hitDist + 1.0f);
-        
+
         // Probe (0,0) = Red, (1,0) = Green, (0,1) = Blue, (1,1) = White
         (float r, float g, float b)[] probeColors =
         [
@@ -190,7 +160,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             {
                 int probeIdx = probeY * ProbeGridWidth + probeX;
                 var (r, g, b) = probeColors[probeIdx];
-                
+
                 // Fill this probe's 8×8 tile
                 for (int ty = 0; ty < OctahedralSize; ty++)
                 {
@@ -199,7 +169,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                         int atlasX = probeX * OctahedralSize + tx;
                         int atlasY = probeY * OctahedralSize + ty;
                         int idx = (atlasY * AtlasWidth + atlasX) * 4;
-                        
+
                         data[idx + 0] = r;
                         data[idx + 1] = g;
                         data[idx + 2] = b;
@@ -297,44 +267,49 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             CreateUniformData(worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, 2, 1f, 0f));
         using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
 
-        int programId = 0;
-        try
+        // Each gather receives its own production input layout. SH9 uses a DC coefficient
+        // for constant white radiance and zero higher bands.
+        using var shDc = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 3.5449077f, 3.5449077f, 3.5449077f, 0));
+        using var shZero = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 0));
+        LumOnProbeSh9GatherShaderProgram? sh = null;
+        LumOnScreenProbeAtlasGatherShaderProgram? atlas = null;
+        if (sh9)
+            sh = Programs.Create<LumOnProbeSh9GatherShaderProgram>(shader =>
+            {
+                shader.WorldProbeEnabled = true; shader.WorldProbeLevels = worldProbeLevels;
+                shader.WorldProbeResolution = worldProbeResolution; shader.WorldProbeBaseSpacing = worldProbeBaseSpacing;
+                shader.WorldProbeOctahedralSize = worldProbeTileSize;
+            });
+        else
+            atlas = Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>(shader =>
+            {
+                shader.WorldProbeEnabled = true; shader.WorldProbeLevels = worldProbeLevels;
+                shader.WorldProbeResolution = worldProbeResolution; shader.WorldProbeBaseSpacing = worldProbeBaseSpacing;
+                shader.WorldProbeOctahedralSize = worldProbeTileSize;
+            });
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram programId = sh ?? (VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram)atlas!;
+        using var programUse = programId.UseScope();
+        UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: viewMatrix);
+        UpdateAndBindLumOnWorldProbeUbo(programId, new(0,0,0), Vector3.Zero,
+            originMinCorner: [blocked ? new(-400f,-400f,-400f) : new(-500f,-500f,-500f)], ringOffset: [Vector3.Zero]);
+        if (sh != null)
         {
-            programId = CompileShaderWithDefines(
-                sh9 ? "lumon_probe_sh9_gather.vsh" : "lumon_probe_atlas_gather.vsh",
-                sh9 ? "lumon_probe_sh9_gather.fsh" : "lumon_probe_atlas_gather.fsh",
-                new Dictionary<string, string?>
-                {
-                    ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1",
-                    ["VGE_LUMON_WORLDPROBE_LEVELS"] = worldProbeLevels.ToString(CultureInfo.InvariantCulture),
-                    ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = worldProbeResolution.ToString(CultureInfo.InvariantCulture),
-                    ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = worldProbeBaseSpacing.ToString("0.0", CultureInfo.InvariantCulture),
-                    ["VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE"] = worldProbeTileSize.ToString(CultureInfo.InvariantCulture),
-                });
-
-            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
-            UpdateAndBindLumOnWorldProbeUbo(
-                programId,
-                skyTint: new Vintagestory.API.MathTools.Vec3f(0f, 0f, 0f),
-                cameraPosWS: Vector3.Zero,
-                originMinCorner: [blocked ? new Vector3(-400f, -400f, -400f) : new Vector3(-500f, -500f, -500f)],
-                ringOffset: [Vector3.Zero]);
-
-            GL.UseProgram(programId);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeRadianceAtlas"), 5);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeVis0"), 8);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeMeta0"), 9);
-            GL.UseProgram(0);
-
-            screenProbeAtlas.Bind(0);
-            anchorPos.Bind(1);
-            anchorNormal.Bind(2);
-            depth.Bind(3);
-            normal.Bind(4);
-            worldProbeRadiance.Bind(5);
-            worldProbeVis.Bind(8);
-            worldProbeMeta.Bind(9);
-
+            sh.Intensity = 1; sh.IndirectTint = [1,1,1];
+            sh.ProbeSh0 = shDc; sh.ProbeSh1 = shZero; sh.ProbeSh2 = shZero; sh.ProbeSh3 = shZero;
+            sh.ProbeSh4 = shZero; sh.ProbeSh5 = shZero; sh.ProbeSh6 = shZero;
+            sh.ProbeAnchorPosition = anchorPos; sh.ProbeAnchorNormal = anchorNormal;
+            sh.PrimaryDepth = depth.TextureId; sh.GBufferNormal = normal.TextureId;
+            sh.WorldProbeRadianceAtlas = worldProbeRadiance; sh.WorldProbeVis0 = worldProbeVis; sh.WorldProbeMeta0 = worldProbeMeta;
+        }
+        else
+        {
+            SetupGatherUniforms(atlas!, invProjection, viewMatrix);
+            atlas!.ScreenProbeAtlas = screenProbeAtlas; atlas.ProbeAnchorPosition = anchorPos; atlas.ProbeAnchorNormal = anchorNormal;
+            atlas.PrimaryDepth = depth.TextureId; atlas.GBufferNormal = normal.TextureId;
+            atlas.WorldProbeRadianceAtlas = worldProbeRadiance; atlas.WorldProbeVis0 = worldProbeVis; atlas.WorldProbeMeta0 = worldProbeMeta;
+        }
             TestFramework.RenderQuadTo(programId, output);
 
             var (r, g, b, confidence) = ReadPixelHalfRes(output[0].ReadPixels(), 0, 0);
@@ -350,12 +325,8 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             var reference = output[0].ReadPixels();
 
             // Keep every gather setting equal while zeroing only accepted world fallback lighting.
-            var suppressedParams = new LumOnProbeParamsUbo
-            {
-                Intensity = 1f, IndirectTint = Vector3.One, LeakThreshold = 0.5f,
-                SampleStride = 1, SuppressWorldProbeRadiance = true
-            };
-            objectParamsUbo.UploadAndBind(suppressedParams.Bytes);
+            if (sh != null) sh.SuppressWorldProbeRadiance = true;
+            else atlas!.SuppressWorldProbeRadiance = true;
             TestFramework.RenderQuadTo(programId, output);
             var suppressed = output[0].ReadPixels();
             for (int i = 0; i < reference.Length; i += 4)
@@ -364,11 +335,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 for (int channel = 0; channel < 3; channel++)
                     Assert.Equal(validScreenProbes ? reference[i + channel] : 0f, suppressed[i + channel]);
             }
-        }
-        finally
-        {
-            if (programId != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        }
     }
 
     private static float[] CreateUniformData(int width, int height, int channels, params float[] value)
@@ -388,11 +354,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that half-resolution gather coordinates align with the screen-probe anchors.
-    /// 
+    ///
     /// Setup:
     /// - 2×2 half-res output and 2×2 probe grid
     /// - Probes with distinct RGBW colors at matching depth/normal
-    /// 
+    ///
     /// Expected:
     /// - Each output texel is dominated by its corresponding probe.
     /// </summary>
@@ -410,11 +376,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         // Create input textures
         // Probes with RGBW colors - use the computed hit distance
         var atlasData = CreateQuadrantAtlas(hitDistance);
-        
+
         // All probes at same depth (matching pixel) and with upward normals
         var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
         var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);  // Upward
-        
+
         // Pixel depth and normal matching probes
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward, matching probes
@@ -431,14 +397,16 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f);
+
+        using var programUse = programId.UseScope();
+        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f);
 
         // Bind inputs
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -457,8 +425,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             $"Bottom-left should resolve to the blue probe, got ({bottomLeft.r:F3}, {bottomLeft.g:F3}, {bottomLeft.b:F3})");
         Assert.True(bottomRight.r > 0.01f && bottomRight.g > 0.01f && bottomRight.b > 0.01f,
             $"Bottom-right should resolve to the white probe, got ({bottomRight.r:F3}, {bottomRight.g:F3}, {bottomRight.b:F3})");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -467,15 +433,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that a pixel near a corner is weighted more heavily toward the nearest probe.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Pixels closer to a probe should receive more irradiance from that probe
     /// - Bilinear interpolation weights should favor the nearest probe
-    /// 
+    ///
     /// Setup:
     /// - Probe (0,0) = Red, others = Black
     /// - Check pixel near probe (0,0)
-    /// 
+    ///
     /// Expected:
     /// - Pixel (0,0) in half-res should be predominantly red
     /// </summary>
@@ -493,7 +459,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Create atlas with only probe (0,0) having color (red), others black
         var atlasData = new float[AtlasWidth * AtlasHeight * 4];
-        
+
         // Only fill probe (0,0) with red
         for (int ty = 0; ty < OctahedralSize; ty++)
         {
@@ -524,13 +490,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        using var programUse = programId.UseScope();
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -538,16 +506,14 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // DESIRED: Pixel (0,0) should be predominantly red since it's nearest to probe (0,0)
         var (r00, g00, b00, _) = ReadPixelHalfRes(outputData, 0, 0);
-        
+
         // Red channel should dominate
         Assert.True(r00 > g00 && r00 > b00,
             $"Pixel (0,0) should be predominantly red (nearest probe), got ({r00:F3}, {g00:F3}, {b00:F3})");
-        
+
         // Should have significant red contribution
         Assert.True(r00 > 0.1f,
             $"Pixel (0,0) should have red contribution from nearest probe, got R={r00:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -556,17 +522,17 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that probes at significantly different depths contribute less to the pixel.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When a probe's depth differs significantly from the pixel's depth,
     ///   its contribution should be reduced to prevent light leaking
     /// - Weight formula: depthWeight = exp(-depthDiff² * 8.0)
-    /// 
+    ///
     /// Setup:
     /// - Probe (0,0) at near depth (matching pixel) = Red
     /// - Probe (1,1) at far depth (mismatched) = Blue
     /// - Other probes invalid
-    /// 
+    ///
     /// Expected:
     /// - Output should be predominantly red (near probe wins)
     /// </summary>
@@ -582,10 +548,10 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             out var probeWorldZ, out var hitDistance);
         float encodedDistNear = MathF.Log(hitDistance + 1.0f);
         float encodedDistFar = MathF.Log(hitDistance * 10f + 1.0f);  // Far probe has different hit distance
-        
+
         // Create probes at different depths
         var anchorPosData = new float[ProbeGridWidth * ProbeGridHeight * 4];
-        
+
         // Probe (0,0): at pixel depth (matching), valid - RED
         anchorPosData[0] = -0.5f; anchorPosData[1] = -0.5f; anchorPosData[2] = probeWorldZ; anchorPosData[3] = 1.0f;
         // Probe (1,0): invalid
@@ -597,7 +563,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Create atlas: probe (0,0) = red, probe (1,1) = blue
         var atlasData = new float[AtlasWidth * AtlasHeight * 4];
-        
+
         // Probe (0,0) = red with near hit distance
         for (int ty = 0; ty < OctahedralSize; ty++)
         {
@@ -636,13 +602,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        using var programUse = programId.UseScope();
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -650,12 +618,10 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // DESIRED: Pixel (0,0) should favor red (near probe) over blue (far probe)
         var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
-        
+
         // Near probe (red) should have significantly more weight than far probe (blue)
         Assert.True(r > b,
             $"Pixel (0,0) should favor near probe (red) over far probe (blue), got R={r:F3}, B={b:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -664,17 +630,17 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that probes with normals opposite to the pixel's normal contribute less.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When a probe's normal points away from the pixel's normal,
     ///   its contribution should be reduced (surface orientation mismatch)
     /// - Weight formula: normalWeight = pow(max(dot(pixelNormal, probeNormal), 0), 4)
-    /// 
+    ///
     /// Setup:
     /// - Pixel normal = (0, 1, 0) (upward)
     /// - Probe (0,0) normal = (0, 1, 0) (matching) = Red
     /// - Probe (1,1) normal = (0, -1, 0) (opposite) = Blue
-    /// 
+    ///
     /// Expected:
     /// - Output should be predominantly red (matching normal wins)
     /// </summary>
@@ -703,7 +669,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         // Create atlas: probe (0,0) = red, probe (1,1) = blue, others = green
         var atlasData = new float[AtlasWidth * AtlasHeight * 4];
         float encodedDist = MathF.Log(hitDistance + 1.0f);
-        
+
         // Fill entire atlas with green first
         for (int i = 0; i < AtlasWidth * AtlasHeight; i++)
         {
@@ -711,7 +677,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             atlasData[idx + 0] = 0.0f; atlasData[idx + 1] = 1.0f; atlasData[idx + 2] = 0.0f;
             atlasData[idx + 3] = encodedDist;
         }
-        
+
         // Probe (0,0) = red
         for (int ty = 0; ty < OctahedralSize; ty++)
         {
@@ -748,13 +714,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        using var programUse = programId.UseScope();
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -763,13 +731,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         // DESIRED: Pixel (1,1) should have very little blue contribution
         // because probe (1,1) has opposite normal (dot product ≈ -1, weight ≈ 0)
         var (r11, g11, b11, _) = ReadPixelHalfRes(outputData, 1, 1);
-        
+
         // The opposite-normal probe should have near-zero weight
         // So blue should be much less than green (other upward probes)
         Assert.True(b11 < g11 || b11 < 0.1f,
             $"Pixel (1,1) should minimize opposite-normal probe, got R={r11:F3}, G={g11:F3}, B={b11:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -778,15 +744,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that the indirectTint uniform scales the output irradiance per-channel.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Final output = irradiance * intensity * indirectTint
     /// - Each channel scaled independently
-    /// 
+    ///
     /// Setup:
     /// - Uniform white radiance from all probes
     /// - indirectTint = (2.0, 1.0, 0.5)
-    /// 
+    ///
     /// Expected:
     /// - Output R channel = 2× base
     /// - Output G channel = 1× base
@@ -823,13 +789,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        using var objectParamsUboBaseline = SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: (1f, 1f, 1f));
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        using var programUse = programId.UseScope();
+        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: (1f, 1f, 1f));
+
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, baselineOutput);
         var baselineData = baselineOutput[0].ReadPixels();
@@ -839,14 +807,14 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             HalfResWidth, HalfResHeight,
             PixelInternalFormat.Rgba16f);
 
-        using var objectParamsUboTint = SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: tint);
+        SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: tint);
 
         // Re-bind textures after uniform setup
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, tintedOutput);
         var tintedData = tintedOutput[0].ReadPixels();
@@ -887,8 +855,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 }
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -897,15 +863,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that sky pixels (depth=1.0) produce zero irradiance.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Sky pixels should early-out with black output
     /// - No indirect lighting should be gathered for sky
-    /// 
+    ///
     /// Setup:
     /// - Pixel depth = 1.0 (sky/far plane)
     /// - Bright radiance in atlas
-    /// 
+    ///
     /// Expected:
     /// - Output = (0, 0, 0)
     /// </summary>
@@ -916,7 +882,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Sky depth
         var depthData = CreateDepthBuffer(1.0f);
-        
+
         // Bright atlas (should be ignored)
         var atlasData = CreateUniformAtlas(1.0f, 1.0f, 1.0f);
         var anchorPosData = CreateProbeAnchors(-5.0f, validity: 1.0f);
@@ -934,16 +900,18 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
+
+        using var programUse = programId.UseScope();
         // Use realistic matrices for consistency (though sky pixels early-out before depth reconstruction)
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var viewMatrix = LumOnTestInputFactory.CreateIdentityView();
-        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -955,13 +923,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             for (int px = 0; px < HalfResWidth; px++)
             {
                 var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
-                
+
                 Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
                     $"Sky pixel ({px},{py}) should have zero irradiance, got ({r:F3}, {g:F3}, {b:F3})");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -970,11 +936,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that all invalid probes result in zero output.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When all surrounding probes are invalid, totalWeight < 0.001
     /// - Output should be zero (no contribution)
-    /// 
+    ///
     /// Setup:
     /// - All probes invalid (validity=0)
     /// - Non-zero radiance in atlas (would contribute if valid)
@@ -1003,15 +969,17 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
+
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var viewMatrix = LumOnTestInputFactory.CreateIdentityView();
-        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1026,17 +994,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                     $"Pixel ({px},{py}) should be zero when all probes invalid, got ({r:F4}, {g:F4}, {b:F4})");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests that edge probes with partial validity have reduced weight.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Probes with validity < 1.0 should contribute less
     /// - Validity acts as a weight multiplier
-    /// 
+    ///
     /// Setup:
     /// - Some probes with validity=0.5, others with validity=1.0
     /// - Compare brightness near partial vs full validity probes
@@ -1074,20 +1040,20 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-            atlasTex.Bind(0);
-            anchorPosTex.Bind(1);
-            anchorNormalTex.Bind(2);
-            depthTex.Bind(3);
-            normalTex.Bind(4);
+            using var programUse = programId.UseScope();
+            SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             fullValidityBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Partial validity (0.5)
@@ -1105,20 +1071,20 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-            atlasTex.Bind(0);
-            anchorPosTex.Bind(1);
-            anchorNormalTex.Bind(2);
-            depthTex.Bind(3);
-            normalTex.Bind(4);
+            using var programUse = programId.UseScope();
+            SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             partialValidityBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Partial validity should have similar or less brightness
@@ -1129,14 +1095,14 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that sampleStride uniform affects sampling quality.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - sampleStride=1: Sample every texel in probe's octahedral tile
     /// - sampleStride=2: Sample every other texel (faster but lower quality)
-    /// 
+    ///
     /// Setup:
     /// - Compare stride=1 vs stride=2 with non-uniform atlas
-    /// 
+    ///
     /// Expected:
     /// - Both should produce valid output (stride affects quality, not correctness)
     /// </summary>
@@ -1172,20 +1138,20 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
 
-            atlasTex.Bind(0);
-            anchorPosTex.Bind(1);
-            anchorNormalTex.Bind(2);
-            depthTex.Bind(3);
-            normalTex.Bind(4);
+            using var programUse = programId.UseScope();
+            SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
+
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             stride1Brightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Stride 2
@@ -1201,20 +1167,20 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
-            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
 
-            atlasTex.Bind(0);
-            anchorPosTex.Bind(1);
-            anchorNormalTex.Bind(2);
-            depthTex.Bind(3);
-            normalTex.Bind(4);
+            using var programUse = programId.UseScope();
+            SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
+
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             stride2Brightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce non-zero output
@@ -1224,15 +1190,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     /// <summary>
     /// Tests that hemisphere backface samples are skipped correctly.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When cosWeight (dot(dir, normal)) &lt;= 0, the sample should be skipped
     /// - This prevents sampling from behind the surface
-    /// 
+    ///
     /// Setup:
     /// - Surface normal pointing up (0, 1, 0)
     /// - Atlas should only contribute from upper hemisphere
-    /// 
+    ///
     /// Expected:
     /// - Output should reflect only upper hemisphere contribution
     /// </summary>
@@ -1265,13 +1231,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileGatherShader();
-        using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormalTex.Bind(2);
-        depthTex.Bind(3);
-        normalTex.Bind(4);
+        using var programUse = programId.UseScope();
+        SetupGatherUniforms(programId, invProjection, viewMatrix);
+
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1327,79 +1295,26 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     /// Sets up gather uniforms with custom leak threshold.
     /// </summary>
     private void SetupGatherUniformsWithLeak(
-        int programId,
+        LumOnScreenProbeAtlasGatherShaderProgram programId,
         float[] invProjection,
         float[] view,
         float leakThreshold)
     {
-        GL.UseProgram(programId);
-
-        // Matrix uniforms
-        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
-        var viewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix");
-        GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
-        GL.UniformMatrix4(viewLoc, 1, false, view);
-
-        // Probe grid uniforms
-        var spacingLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing");
-        var gridSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize");
-        var screenSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize");
-        var halfResSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "halfResSize");
-        GL.Uniform1(spacingLoc, ProbeSpacing);
-        GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(halfResSizeLoc, (float)HalfResWidth, (float)HalfResHeight);
-
-        // Z-planes
-        var zNearLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear");
-        var zFarLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar");
-        GL.Uniform1(zNearLoc, ZNear);
-        GL.Uniform1(zFarLoc, ZFar);
-
-        // Quality parameters
-        var intensityLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "intensity");
-        var tintLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint");
-        var leakLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "leakThreshold");
-        var strideLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sampleStride");
-        
-        GL.Uniform1(intensityLoc, 1.0f);
-        GL.Uniform3(tintLoc, 1.0f, 1.0f, 1.0f);
-        GL.Uniform1(leakLoc, leakThreshold);
-        GL.Uniform1(strideLoc, 1);
-
-        // Texture sampler uniforms
-        var atlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas");
-        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
-        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
-        GL.Uniform1(atlasLoc, 0);
-        GL.Uniform1(anchorPosLoc, 1);
-        GL.Uniform1(anchorNormalLoc, 2);
-        GL.Uniform1(depthLoc, 3);
-        GL.Uniform1(normalLoc, 4);
-
-        // Phase 23: UBO-backed frame state.
-        UpdateAndBindLumOnFrameUbo(
-            programId,
-            invProjectionMatrix: invProjection,
-            viewMatrix: view,
-            probeSpacing: ProbeSpacing);
-
-        GL.UseProgram(0);
+        SetupGatherUniforms(programId, invProjection, view);
+        programId.LeakThreshold = leakThreshold;
     }
 
     /// <summary>
     /// Tests that leakThreshold prevents light bleeding through walls.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Lower leakThreshold = stricter leak prevention
     /// - Higher leakThreshold = more permissive (may allow more bleeding)
-    /// 
+    ///
     /// Setup:
     /// - Probe with depth mismatch to pixel
     /// - Compare strict vs permissive threshold
-    /// 
+    ///
     /// Expected:
     /// - Strict threshold should produce different/lower output
     /// </summary>
@@ -1436,20 +1351,20 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
+
+            using var programUse = programId.UseScope();
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.1f);
 
-            atlasTex.Bind(0);
-            anchorPosTex.Bind(1);
-            anchorNormalTex.Bind(2);
-            depthTex.Bind(3);
-            normalTex.Bind(4);
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             strictBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Permissive leak threshold (0.9)
@@ -1465,20 +1380,20 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileGatherShader();
+
+            using var programUse = programId.UseScope();
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.9f);
 
-            atlasTex.Bind(0);
-            anchorPosTex.Bind(1);
-            anchorNormalTex.Bind(2);
-            depthTex.Bind(3);
-            normalTex.Bind(4);
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             permissiveBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce some output (we're not creating a deliberate leak scenario)
@@ -1513,15 +1428,17 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, CreateNormalBuffer(0f, 1f, 0f));
         using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
 
-        int programId = CompileGatherShader();
+        var programId = CompileGatherShader();
+
+        using var programUse = programId.UseScope();
         try
         {
-            using var objectParamsUbo = SetupGatherUniforms(programId, invProjection, viewMatrix);
-            atlasTex.Bind(0);
-            anchorPosTex.Bind(1);
-            anchorNormalTex.Bind(2);
-            depthTex.Bind(3);
-            normalTex.Bind(4);
+            SetupGatherUniforms(programId, invProjection, viewMatrix);
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, output);
 
@@ -1532,7 +1449,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         }
         finally
         {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 

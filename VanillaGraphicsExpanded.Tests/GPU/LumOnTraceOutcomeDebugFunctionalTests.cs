@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
@@ -29,21 +30,16 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
     public void TraceOutcomeDebug_MapsRecordedOutcome(uint outcome, float red, float green, float blue)
     {
         EnsureShaderTestAvailable();
-        int program = CompileShader("lumon_debug.vsh", "lumon_debug_probe_atlas.fsh");
-        try
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.ProbeAtlasContract.Identity);
+        using var use = program.UseScope();
         {
             uint flags = (outcome << 16) | (1u << 8) | (1u << 14) | 3u;
             using var metadata = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f,
                 new float[] { 0f, BitConverter.UInt32BitsToSingle(flags) });
             using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
-            using var parameters = new ObjectParamsUbo("Tests.TraceOutcomeDebug");
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            parameters.UploadAndBind(new LumOnDebugParamsUbo { DebugMode = 69 }.Bytes);
+            program.DebugMode = 69;
             UpdateAndBindLumOnFrameUbo(program);
-            metadata.Bind(0);
-            GL.UseProgram(program);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "probeAtlasMeta"), 0);
-            GL.UseProgram(0);
+            program.ProbeAtlasMeta = metadata;
             TestFramework.RenderQuadTo(program, output);
             var pixels = output[0].ReadPixels();
             for (int i = 0; i < pixels.Length; i += 4)
@@ -54,7 +50,6 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
                 Assert.Equal(1f, pixels[i + 3]);
             }
         }
-        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

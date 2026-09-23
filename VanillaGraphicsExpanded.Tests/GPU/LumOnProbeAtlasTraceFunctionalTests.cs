@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
@@ -11,13 +12,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
 /// Functional tests for the LumOn probe-atlas trace shader pass.
-/// 
+///
 /// These tests verify that the probe trace shader correctly:
 /// - Traces rays from valid probes and fills atlas regions
 /// - Returns sky/ambient color when rays miss geometry
 /// - Encodes hit distances using log encoding
 /// - Produces zero radiance for invalid probes
-/// 
+///
 /// Test configuration:
 /// - Probe grid: 2×2 probes
 /// - Octahedral size: 8×8 texels per probe
@@ -36,7 +37,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// +--------+--------+
 /// Atlas total: 16×16 texels
 /// </code>
-/// 
+///
 /// Hit distance encoding:
 /// <code>
 /// encoded = log(distance + 1.0)
@@ -51,7 +52,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
     private const int RaySteps = 16;
     private const float RayMaxDistance = 50f;
     private const float RayThickness = 0.5f;
-    
+
     // Sky fallback defaults
     private const float SkyMissWeight = 1.0f;
 
@@ -62,17 +63,14 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the probe-atlas trace shader.
     /// </summary>
-    private int CompileOctahedralTraceShader(
+    private LumOnScreenProbeAtlasTraceShaderProgram CompileOctahedralTraceShader(
         int raySteps = RaySteps,
         int texelsPerFrame = 64,
         float rayMaxDistance = RayMaxDistance,
         float rayThickness = RayThickness,
         float skyMissWeight = SkyMissWeight,
         int hzbCoarseMip = 0) =>
-        CompileShaderWithDefines(
-            "lumon_probe_anchor.vsh",
-            "lumon_probe_atlas_trace.fsh",
-            new Dictionary<string, string?>
+        Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
             {
                 ["VGE_LUMON_RAY_STEPS"] = raySteps.ToString(),
                 ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = texelsPerFrame.ToString(),
@@ -86,7 +84,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
     /// Sets up common uniforms for the probe-atlas trace shader.
     /// </summary>
     private void SetupOctahedralTraceUniforms(
-        int programId,
+        LumOnScreenProbeAtlasTraceShaderProgram programId,
         float[] invProjection,
         float[] projection,
         float[] view,
@@ -98,65 +96,14 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         (float x, float y, float z)? sunPosition = null,
         (float r, float g, float b)? indirectTint = null)
     {
-        GL.UseProgram(programId);
-
-        // Matrix uniforms
-        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
-        var projLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "projectionMatrix");
-        var viewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix");
-        var invViewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invViewMatrix");
-        GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
-        GL.UniformMatrix4(projLoc, 1, false, projection);
-        GL.UniformMatrix4(viewLoc, 1, false, view);
-        GL.UniformMatrix4(invViewLoc, 1, false, invView);
-
-        // Probe grid uniforms
-        var gridSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize");
-        var screenSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize");
-        GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
-
-        // Temporal distribution
-        var frameIndexLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "frameIndex");
-        GL.Uniform1(frameIndexLoc, frameIndex);
-
-        // Z-planes
-        var zNearLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear");
-        var zFarLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar");
-        GL.Uniform1(zNearLoc, ZNear);
-        GL.Uniform1(zFarLoc, ZFar);
-
-        // Sky fallback
-        var ambientLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "ambientColor");
-        var sunColorLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sunColor");
-        var sunPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sunPosition");
-        
+        using var use = programId.UseScope();
         // Use defaults if not specified (nullable check allows explicit zero values)
         var ambient = ambientColor ?? (0.3f, 0.4f, 0.5f);
         var sun = sunColor ?? (1.0f, 0.9f, 0.8f);
         var sunDir = sunPosition ?? (0.5f, 0.8f, 0.3f);
         var tint = indirectTint ?? (1.0f, 1.0f, 1.0f);
-        
-        GL.Uniform3(ambientLoc, ambient.r, ambient.g, ambient.b);
-        GL.Uniform3(sunColorLoc, sun.r, sun.g, sun.b);
-        GL.Uniform3(sunPosLoc, sunDir.x, sunDir.y, sunDir.z);
 
-        // Indirect tint
-        var indirectTintLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint");
-        GL.Uniform3(indirectTintLoc, tint.r, tint.g, tint.b);
-
-        // Texture sampler uniforms
-        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
-        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
-        var colorLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryColor");
-        var historyLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralHistory");
-        GL.Uniform1(anchorPosLoc, 0);
-        GL.Uniform1(anchorNormalLoc, 1);
-        GL.Uniform1(depthLoc, 2);
-        GL.Uniform1(colorLoc, 3);
-        GL.Uniform1(historyLoc, 4);
-
+        programId.IndirectTint = new(tint.r, tint.g, tint.b);
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
             programId,
@@ -169,7 +116,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             sunColor: new Vintagestory.API.MathTools.Vec3f(sun.r, sun.g, sun.b),
             ambientColor: new Vintagestory.API.MathTools.Vec3f(ambient.r, ambient.g, ambient.b));
 
-        GL.UseProgram(0);
     }
 
     /// <summary>
@@ -328,17 +274,17 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that a valid probe traces rays and fills its 8×8 region in the atlas.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Valid probes should trace rays for ALL 64 texels in their octahedral region
     /// - When rays miss geometry (sky), each texel should receive sky/ambient color
     /// - No texel should remain zero when probe is valid and texelsPerFrame covers all
-    /// 
+    ///
     /// Setup:
     /// - All probes valid with position at origin, normal upward
     /// - Depth buffer: sky (depth=1.0) so all rays miss
     /// - texelsPerFrame=64 to trace all texels in one pass
-    /// 
+    ///
     /// Expected:
     /// - ALL 256 texels (4 probes × 64 texels) should have non-zero sky color
     /// </summary>
@@ -367,6 +313,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup shader - use realistic perspective matrices
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -381,11 +328,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             ambientColor: (0.3f, 0.4f, 0.5f));
 
         // Bind inputs
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
 
         // Render to atlas
         TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -395,7 +342,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // DESIRED: ALL texels should have sky color when all probes are valid
         // Atlas is 16×16 = 256 texels total (4 probes × 64 texels each)
-        
+
         for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
         {
             for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
@@ -415,8 +362,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 }
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -425,13 +370,13 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that rays missing geometry return ambient color weighted by skyMissWeight.
-    /// 
+    ///
     /// Setup:
     /// - Valid probes
     /// - Depth=1.0 everywhere (sky)
     /// - ambientColor=(0.2, 0.4, 0.6)
     /// - skyMissWeight=0.5
-    /// 
+    ///
     /// Expected:
     /// - Output radiance should be approximately ambient * skyMissWeight
     /// - The sky gradient formula adds some variation, so we check ranges
@@ -463,6 +408,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -478,11 +424,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             sunColor: (0f, 0f, 0f),  // No sun contribution for cleaner test
             sunPosition: (0f, 1f, 0f));
 
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
@@ -495,7 +441,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         // For center texel (4,4) of octahedral map, ray direction depends on octahedral decode.
         // With upward-facing probe normal, center rays point roughly upward, giving skyFactor ≈ 1.0
         // Expected ≈ ambient * 1.0 * skyWeight = ambient * 0.5
-        
+
         for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
         {
             for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
@@ -510,7 +456,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 float expectedR = ambient.r * skyWeight;  // 0.2 * 0.5 = 0.1
                 float expectedG = ambient.g * skyWeight;  // 0.4 * 0.5 = 0.2
                 float expectedB = ambient.b * skyWeight;  // 0.6 * 0.5 = 0.3
-                
+
                 Assert.True(r >= expectedR * (1 - tolerance) && r <= expectedR * (1 + tolerance),
                     $"Probe ({probeX},{probeY}) R channel: expected ≈{expectedR:F2}, got {r:F3}");
                 Assert.True(g >= expectedG * (1 - tolerance) && g <= expectedG * (1 + tolerance),
@@ -519,8 +465,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Probe ({probeX},{probeY}) B channel: expected ≈{expectedB:F2}, got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -529,10 +473,10 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that hit distances are log-encoded correctly in the alpha channel.
-    /// 
+    ///
     /// Setup:
     /// - Sky depth (no hits), so hit distance = rayMaxDistance
-    /// 
+    ///
     /// Expected:
     /// - outRadiance.a = log(rayMaxDistance + 1.0)
     /// </summary>
@@ -560,6 +504,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -572,11 +517,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             invView: invView,
             texelsPerFrame: 64);
 
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
@@ -606,8 +551,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 }
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -616,10 +559,10 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that invalid probes (validity=0) produce zero radiance.
-    /// 
+    ///
     /// Setup:
     /// - All probes invalid (validity=0)
-    /// 
+    ///
     /// Expected:
     /// - All 64 texels per probe = (0, 0, 0, 0)
     /// </summary>
@@ -647,6 +590,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -659,11 +603,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             invView: invView,
             texelsPerFrame: 64);
 
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
@@ -690,8 +634,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(zeroTexels == totalTexels,
             $"Expected all {totalTexels} texels to be zero for invalid probes, got {zeroTexels} zero texels");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -700,12 +642,12 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that temporal distribution only traces a subset of texels each frame.
-    /// 
+    ///
     /// Setup:
     /// - texelsPerFrame=8 (out of 64 total)
     /// - Frame 0 should trace batch 0 only
     /// - History texture initialized to specific color
-    /// 
+    ///
     /// Expected:
     /// - 8 texels per probe should be newly traced
     /// - 56 texels per probe should retain history color
@@ -743,6 +685,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -756,11 +699,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             frameIndex: 0,
             ambientColor: (0.5f, 0.5f, 0.5f));
 
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
@@ -777,7 +720,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
                 // Cyan = history preserved (R≈0, G≈1, B≈1)
                 bool isCyan = r < 0.1f && g > 0.9f && b > 0.9f;
-                
+
                 if (isCyan)
                     historyTexels++;
                 else
@@ -799,8 +742,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             $"Expected exactly {expectedTraced} traced texels (±2), got {tracedTexels}");
         Assert.True(historyTexels >= expectedHistory - 2 && historyTexels <= expectedHistory + 2,
             $"Expected exactly {expectedHistory} history texels (±2), got {historyTexels}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -809,17 +750,17 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that rays hitting geometry return the scene color from the hit point.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When a ray hits geometry (depth &lt; 1.0), it should sample the scene color
     /// - The hit radiance should appear in the octahedral texel
-    /// 
+    ///
     /// Setup:
     /// - Probes at origin, centered in view
     /// - Depth buffer at 0.99 (geometry far in scene, but not sky)
     /// - Scene color: bright cyan (0, 1, 1)
     /// - Use ambient color to verify shader output
-    /// 
+    ///
     /// Note: In octahedral tracing, rays go uniformly across a sphere. Only rays pointing
     /// toward the scene (-Z direction) can potentially hit geometry. Most rays will miss
     /// and return sky/ambient color. This test verifies the shader produces valid output.
@@ -847,6 +788,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -861,11 +804,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             ambientColor: (0f, 1f, 1f),  // Cyan ambient - will show in sky miss
             sunColor: (0f, 0f, 0f));
 
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var atlasData = outputAtlas[0].ReadPixels();
@@ -887,20 +830,18 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(cyanTexels > 0,
             "With cyan ambient color, some texels should have cyan color contribution from sky miss");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests that raySteps uniform affects ray marching quality.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - More steps should improve hit detection accuracy
     /// - Fewer steps may miss thin geometry
-    /// 
+    ///
     /// Setup:
     /// - Compare raySteps=4 vs raySteps=32
-    /// 
+    ///
     /// Expected:
     /// - Both should produce valid output
     /// </summary>
@@ -931,6 +872,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(raySteps: 4, texelsPerFrame: 64);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -943,16 +886,14 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 texelsPerFrame: 64);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             lowStepsOutput = outputAtlas[0].ReadPixels();
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // High ray steps
@@ -968,6 +909,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(raySteps: 32, texelsPerFrame: 64);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -980,16 +923,14 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 texelsPerFrame: 64);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             highStepsOutput = outputAtlas[0].ReadPixels();
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce non-zero output in valid probe regions
@@ -1039,6 +980,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1053,17 +996,13 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             sunColor: (0f, 0f, 0f));
 
         // Bind meta history sampler (used for non-traced texels; harmless here since we trace all)
-        GL.UseProgram(programId);
-        int metaHistLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory");
-        GL.Uniform1(metaHistLoc, 6);
-        GL.UseProgram(0);
 
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
-        metaHistoryTex.Bind(6);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
 
@@ -1109,8 +1048,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(hitConf > skyConf,
             $"Expected hit confidence > sky confidence, got hit={hitConf:F3} sky={skyConf:F3} (hitCoord={hitX},{hitY} skyCoord={skyX},{skyY})");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -1138,6 +1075,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1151,17 +1090,12 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             texelsPerFrame: 64,
             sunColor: (0f, 0f, 0f));
 
-        GL.UseProgram(programId);
-        int metaHistLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory");
-        GL.Uniform1(metaHistLoc, 6);
-        GL.UseProgram(0);
-
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
-        metaHistoryTex.Bind(6);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var metaData = outputAtlas[1].ReadPixels();
@@ -1182,8 +1116,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(minConf < maxConf, $"Expected some rays to exit screen (minConf={minConf:F3}, maxConf={maxConf:F3})");
         Assert.True(minConf <= 0.06f, $"Expected exit confidence to be low (<= 0.06), got {minConf:F3}");
         Assert.True(maxConf >= 0.20f, $"Expected non-exit sky-miss confidence to be higher (>= 0.20), got {maxConf:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -1219,6 +1151,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1232,17 +1166,12 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             frameIndex: 0,
             sunColor: (0f, 0f, 0f));
 
-        GL.UseProgram(programId);
-        int metaHistLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory");
-        GL.Uniform1(metaHistLoc, 6);
-        GL.UseProgram(0);
-
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
-        metaHistoryTex.Bind(6);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var metaData = outputAtlas[1].ReadPixels();
@@ -1251,20 +1180,18 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(MathF.Abs(conf - 0.77f) < 1e-4f, $"Expected preserved meta confidence at ({x},{y}) to be 0.77, got {conf:F6}");
         Assert.True(MathF.Abs(flagsBitsAsFloat - 123.0f) < 1e-4f,
             $"Expected preserved meta flags bits at ({x},{y}) to match history, got {flagsBitsAsFloat:F6}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests that sun contribution is added to sky miss results.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When rays miss geometry, sun color should contribute based on ray direction
-    /// 
+    ///
     /// Setup:
     /// - Sky depth (1.0 everywhere)
     /// - Compare with sunColor=(1,0,0) vs sunColor=(0,0,0)
-    /// 
+    ///
     /// Expected:
     /// - With sun enabled, red channel should be higher
     /// </summary>
@@ -1295,6 +1222,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1310,11 +1239,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (1f, 0f, 0f),
                 sunPosition: (0f, 1f, 0f));
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var atlasData = outputAtlas[0].ReadPixels();
@@ -1323,8 +1252,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             withSunRed = 0;
             for (int i = 0; i < atlasData.Length; i += 4)
                 withSunRed += atlasData[i];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Without sun
@@ -1340,6 +1267,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1355,11 +1284,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (0f, 0f, 0f),
                 sunPosition: (0f, 1f, 0f));
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var atlasData = outputAtlas[0].ReadPixels();
@@ -1368,8 +1297,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             withoutSunRed = 0;
             for (int i = 0; i < atlasData.Length; i += 4)
                 withoutSunRed += atlasData[i];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         Assert.True(withSunRed > withoutSunRed,
@@ -1378,12 +1305,12 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that indirectTint uniform is properly passed to the shader.
-    /// 
+    ///
     /// Note: indirectTint only affects geometry hits, not sky/ambient contribution.
     /// In octahedral tracing with test setup constraints, achieving reliable geometry
     /// hits is difficult. This test is skipped with explanation - the uniform binding
     /// is verified by shader compilation and other tests that use default tint values.
-    /// 
+    ///
     /// The indirectTint functionality is tested indirectly by:
     /// 1. Shader compilation succeeding (uniform exists)
     /// 2. Other tests using default tint=(1,1,1) producing expected output
@@ -1417,6 +1344,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1432,11 +1361,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (0f, 0f, 0f),
                 indirectTint: (1f, 1f, 1f));
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var atlasData = outputAtlas[0].ReadPixels();
@@ -1444,8 +1373,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             fullTintBrightness = 0;
             for (int i = 0; i < atlasData.Length; i += 4)
                 fullTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Half tint
@@ -1461,6 +1388,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1476,11 +1405,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (0f, 0f, 0f),
                 indirectTint: (0.5f, 0.5f, 0.5f));
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var atlasData = outputAtlas[0].ReadPixels();
@@ -1488,8 +1417,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             halfTintBrightness = 0;
             for (int i = 0; i < atlasData.Length; i += 4)
                 halfTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         Assert.True(halfTintBrightness < fullTintBrightness * 0.8f,
@@ -1498,11 +1425,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that distance falloff is applied to hit radiance in octahedral atlas.
-    /// 
+    ///
     /// Note: Distance falloff only affects geometry hits. In octahedral tracing with
     /// test setup constraints (identity matrices, simple depth buffers), achieving
     /// reliable geometry hits at specific distances is very difficult.
-    /// 
+    ///
     /// The distance falloff functionality is verified by:
     /// 1. Shader compilation succeeding (distanceFalloff function exists)
     /// 2. HitDistance_EncodedCorrectly test verifying distance encoding works
@@ -1537,6 +1464,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1551,11 +1480,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 ambientColor: (0f, 0f, 0f),
                 sunColor: (0f, 0f, 0f));
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var atlasData = outputAtlas[0].ReadPixels();
@@ -1563,8 +1492,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             nearHitBrightness = 0;
             for (int i = 0; i < atlasData.Length; i += 4)
                 nearHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Far geometry (depth 0.99 - farther)
@@ -1582,6 +1509,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1596,11 +1525,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 ambientColor: (0f, 0f, 0f),
                 sunColor: (0f, 0f, 0f));
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var atlasData = outputAtlas[0].ReadPixels();
@@ -1608,8 +1537,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             farHitBrightness = 0;
             for (int i = 0; i < atlasData.Length; i += 4)
                 farHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Near hits should produce different radiance than far hits due to distance encoding
@@ -1623,15 +1550,15 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that frameIndex affects which texels are selected for tracing.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Different frame indices should trace different texels
     /// - This implements temporal distribution across frames
-    /// 
+    ///
     /// Setup:
     /// - Same scene, different frameIndex values
     /// - Compare which texels are updated
-    /// 
+    ///
     /// Expected:
     /// - Different frame indices should produce different update patterns
     /// </summary>
@@ -1662,6 +1589,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1674,16 +1603,14 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 frameIndex: 0);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame0Output = outputAtlas[0].ReadPixels();
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Frame 1
@@ -1699,6 +1626,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1711,16 +1640,14 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 frameIndex: 1);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame1Output = outputAtlas[0].ReadPixels();
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Count how many texels differ between frames
@@ -1740,15 +1667,15 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that texelsPerFrame uniform controls how many texels are traced each frame.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - texelsPerFrame=8: traces 8 texels per probe per frame
     /// - texelsPerFrame=32: traces 32 texels per probe per frame
-    /// 
+    ///
     /// Setup:
     /// - Compare outputs with different texelsPerFrame values
     /// - Start from zeroed history
-    /// 
+    ///
     /// Expected:
     /// - Higher texelsPerFrame should result in more non-zero texels
     /// </summary>
@@ -1779,6 +1706,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1790,11 +1719,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
@@ -1805,8 +1734,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 if (outputData[i] > 0.01f || outputData[i + 1] > 0.01f || outputData[i + 2] > 0.01f)
                     lowTexelsNonZero++;
             }
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // High texels per frame (32)
@@ -1822,6 +1749,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 32);
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1833,11 +1762,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
@@ -1848,8 +1777,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 if (outputData[i] > 0.01f || outputData[i + 1] > 0.01f || outputData[i + 2] > 0.01f)
                     highTexelsNonZero++;
             }
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Higher texelsPerFrame should trace more texels
@@ -1859,15 +1786,15 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that rays exiting the screen boundary terminate early.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Rays that march outside screen UV [0,1] should terminate
     /// - Should return sky/ambient color for out-of-bounds rays
-    /// 
+    ///
     /// Setup:
     /// - Probe at screen edge
     /// - Ray direction pointing off-screen
-    /// 
+    ///
     /// Expected:
     /// - Rays exiting screen should produce valid (non-garbage) output
     /// </summary>
@@ -1894,6 +1821,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTraceShader();
+
+        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1907,11 +1836,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             texelsPerFrame: 64,
             ambientColor: (0.2f, 0.2f, 0.3f));  // Ambient for sky miss
 
-        anchorPosTex.Bind(0);
-        anchorNormalTex.Bind(1);
-        depthTex.Bind(2);
-        colorTex.Bind(3);
-        historyTex.Bind(4);
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.SurfaceAlbedo = colorTex;
+        programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1935,22 +1864,20 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.False(hasInvalidOutput, "Ray exits should not produce NaN/Infinity");
         Assert.True(hasValidOutput, "At least some texels should have valid output");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests that invViewMatrix correctly transforms ray directions.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - invViewMatrix transforms view-space directions to world-space
     /// - With identity view, world == view directions
     /// - With rotated view, directions should be transformed
-    /// 
+    ///
     /// Setup:
     /// - Compare identity view vs rotated view
     /// - Same scene otherwise
-    /// 
+    ///
     /// Expected:
     /// - Different view matrices should produce different results
     /// </summary>
@@ -1981,6 +1908,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader();
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1993,11 +1922,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 texelsPerFrame: 64);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
@@ -2005,8 +1934,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             identityBrightness = 0;
             for (int i = 0; i < outputData.Length; i += 4)
                 identityBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Rotated view (90 degrees around Y)
@@ -2022,6 +1949,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTraceShader();
+
+            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             // Create a rotated view matrix (90 degrees around Y axis)
@@ -2047,11 +1976,11 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: rotatedInvView,
                 texelsPerFrame: 64);
 
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            colorTex.Bind(3);
-            historyTex.Bind(4);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = colorTex;
+            programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
@@ -2059,8 +1988,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             rotatedBrightness = 0;
             for (int i = 0; i < outputData.Length; i += 4)
                 rotatedBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce valid output

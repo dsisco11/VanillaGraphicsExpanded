@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System.Collections.Generic;
 
 using OpenTK.Graphics.OpenGL;
@@ -41,23 +42,20 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         int fbo = GL.GenFramebuffer();
 
-        int copyProg = CompileShader("lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh");
-        int downProg = CompileShader("lumon_hzb_downsample.vsh", "lumon_hzb_downsample.fsh");
+        var copyProg = Programs.Create<LumOnHzbCopyShaderProgram>();
+        var downProg = Programs.Create<LumOnHzbDownsampleShaderProgram>();
 
         // Copy mip 0
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
         GL.Viewport(0, 0, w, h);
-        GL.UseProgram(copyProg);
-        primaryDepth.Bind(0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(copyProg, "primaryDepth"), 0);
+        using var copyUse = copyProg.UseScope();
+        copyProg.PrimaryDepth = primaryDepth.TextureId;
         TestFramework.RenderQuad(copyProg);
 
         // Downsample mip0->mip1 and mip1->mip2
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.HzbDownsample.ParamsUBO");
-        UniformBlockBindingUtil.EnsureBlockBound(downProg, LumOnHzbDownsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-        var cpuParams = new LumOnHzbDownsampleParamsUbo();
+
         for (int dstMip = 1; dstMip <= 2; dstMip++)
         {
             int srcMip = dstMip - 1;
@@ -68,11 +66,9 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             GL.Viewport(0, 0, dstW, dstH);
 
-            GL.UseProgram(downProg);
-            hzb.Bind(0);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(downProg, "hzbDepth"), 0);
-            cpuParams.SrcMip = srcMip;
-            objectParamsUbo.UploadAndBind(cpuParams.Bytes);
+            using var downUse = downProg.UseScope();
+            downProg.HzbDepth = hzb;
+            downProg.SrcMip = srcMip;
 
             TestFramework.RenderQuad(downProg);
         }
@@ -106,9 +102,6 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float expectedMip2 = mip1.Min();
         Assert.True(MathF.Abs(mip2[0] - expectedMip2) < Epsilon,
             $"Mip2 expected {expectedMip2} got {mip2[0]}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(copyProg);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(downProg);
         GL.DeleteFramebuffer(fbo);
     }
 
@@ -148,10 +141,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f);
 
-        int progMip0 = CompileShaderWithDefines(
-            "lumon_probe_atlas_trace.vsh",
-            "lumon_probe_atlas_trace.fsh",
-            new Dictionary<string, string?>
+        var progMip0 = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
             {
                 ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
                 ["VGE_LUMON_RAY_STEPS"] = "8",
@@ -160,10 +150,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
                 ["VGE_LUMON_SKY_MISS_WEIGHT"] = "0.0",
                 ["VGE_LUMON_HZB_COARSE_MIP"] = "0"
             });
-        int progMip1 = CompileShaderWithDefines(
-            "lumon_probe_atlas_trace.vsh",
-            "lumon_probe_atlas_trace.fsh",
-            new Dictionary<string, string?>
+        var progMip1 = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
             {
                 ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
                 ["VGE_LUMON_RAY_STEPS"] = "8",
@@ -176,15 +163,14 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         // Build HZB (mip0 only is enough for this equivalence test).
         using var hzb = DynamicTexture2D.CreateMipmapped(screenW, screenH, PixelInternalFormat.R32f, mipLevels: 1);
         int fbo = GL.GenFramebuffer();
-        int copyProg = CompileShader("lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh");
+        var copyProg = Programs.Create<LumOnHzbCopyShaderProgram>();
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
         GL.Viewport(0, 0, screenW, screenH);
-        GL.UseProgram(copyProg);
-        primaryDepth.Bind(0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(copyProg, "primaryDepth"), 0);
+        using var copyUse = copyProg.UseScope();
+        copyProg.PrimaryDepth = primaryDepth.TextureId;
         TestFramework.RenderQuad(copyProg);
 
         float[] invProj = LumOnTestInputFactory.CreateRealisticInverseProjection();
@@ -193,35 +179,16 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] invView = LumOnTestInputFactory.CreateIdentityView();
 
         // Render with coarse mip 0
-        GL.UseProgram(progMip0);
-        probePos.Bind(0);
-        probeNorm.Bind(1);
-        primaryDepth.Bind(2);
-        primaryColor.Bind(3);
-        history.Bind(4);
-        hzb.Bind(5);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "probeAnchorPosition"), 0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "probeAnchorNormal"), 1);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "primaryDepth"), 2);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "primaryColor"), 3);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "octahedralHistory"), 4);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "hzbDepth"), 5);
-
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "invProjectionMatrix"), 1, false, invProj);
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "projectionMatrix"), 1, false, proj);
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "viewMatrix"), 1, false, view);
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "invViewMatrix"), 1, false, invView);
-
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "screenSize"), (float)screenW, (float)screenH);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "frameIndex"), 0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "zNear"), 0.1f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "zFar"), 100f);
-        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "sunPosition"), 0f, 1f, 0f);
-        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "sunColor"), 1f, 1f, 1f);
-        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "ambientColor"), 0f, 0f, 0f);
-        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip0, "indirectTint"), 1f, 1f, 1f);
+        using var progMip0Use = progMip0.UseScope();
+            progMip0.ProbeAnchorPosition = probePos;
+            progMip0.ProbeAnchorNormal = probeNorm;
+            progMip0.PrimaryDepth = primaryDepth.TextureId;
+            progMip0.SurfaceAlbedo = primaryColor;
+            progMip0.ScreenProbeAtlasHistory = history;
+            progMip0.HzbDepth = hzb;
+            progMip0.IndirectTint = new(1,1,1);
+            UpdateAndBindLumOnFrameUbo(progMip0, invProjectionMatrix: invProj, projectionMatrix: proj,
+                viewMatrix: view, invViewMatrix: invView, sunPosition: new(0,1,0), sunColor: new(1,1,1));
 
         TestFramework.RenderQuadTo(progMip0, outputAtlas);
         var mip0 = outputAtlas[0].ReadPixels();
@@ -238,35 +205,16 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] outCoarse;
         if (hzb.MipLevels > 1)
         {
-            GL.UseProgram(progMip1);
-            probePos.Bind(0);
-            probeNorm.Bind(1);
-            primaryDepth.Bind(2);
-            primaryColor.Bind(3);
-            history.Bind(4);
-            hzb.Bind(5);
-
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "probeAnchorPosition"), 0);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "probeAnchorNormal"), 1);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "primaryDepth"), 2);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "primaryColor"), 3);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "octahedralHistory"), 4);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "hzbDepth"), 5);
-
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "invProjectionMatrix"), 1, false, invProj);
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "projectionMatrix"), 1, false, proj);
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "viewMatrix"), 1, false, view);
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "invViewMatrix"), 1, false, invView);
-
-            GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-            GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "screenSize"), (float)screenW, (float)screenH);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "frameIndex"), 0);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "zNear"), 0.1f);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "zFar"), 100f);
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "sunPosition"), 0f, 1f, 0f);
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "sunColor"), 1f, 1f, 1f);
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "ambientColor"), 0f, 0f, 0f);
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(progMip1, "indirectTint"), 1f, 1f, 1f);
+            using var progMip1Use = progMip1.UseScope();
+            progMip1.ProbeAnchorPosition = probePos;
+            progMip1.ProbeAnchorNormal = probeNorm;
+            progMip1.PrimaryDepth = primaryDepth.TextureId;
+            progMip1.SurfaceAlbedo = primaryColor;
+            progMip1.ScreenProbeAtlasHistory = history;
+            progMip1.HzbDepth = hzb;
+            progMip1.IndirectTint = new(1,1,1);
+            UpdateAndBindLumOnFrameUbo(progMip1, invProjectionMatrix: invProj, projectionMatrix: proj,
+                viewMatrix: view, invViewMatrix: invView, sunPosition: new(0,1,0), sunColor: new(1,1,1));
 
             TestFramework.RenderQuadTo(progMip1, outputAtlas);
             outCoarse = outputAtlas[0].ReadPixels();
@@ -289,10 +237,6 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             Assert.True(MathF.Abs(outMip0[idx + c] - outCoarse[idx + c]) < 1e-3f,
                 $"Mismatch channel {c} (coarseMip={coarseMip}): {outMip0[idx + c]} vs {outCoarse[idx + c]}");
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(progMip0);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(progMip1);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(copyProg);
         GL.DeleteFramebuffer(fbo);
     }
 

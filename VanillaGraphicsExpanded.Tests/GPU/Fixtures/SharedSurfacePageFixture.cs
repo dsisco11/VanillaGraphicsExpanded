@@ -12,10 +12,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class SharedSurfacePageFixture : IDisposable
 {
     private const int Size = 8;
-    private readonly ShaderTestHelper helper = new(Path.Combine(AppContext.BaseDirectory, "assets", "shaders"), Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes"));
-    private readonly ComputeProgram capture, relight;
-    private readonly TraceGeometryComputeBindings geometry = new();
-    private readonly ObjectParamsUbo parameters = new("Tests.SharedSurfacePage");
+    private readonly BinaryShaderApiFixture assets = new();
+    private readonly LumonSceneCaptureVoxelComputeShader capture;
+    private readonly LumonSceneRelightVoxelDdaComputeShader relight;
     private readonly GpuShaderStorageBuffer captureWork, relightWork, metadata, slots;
     private readonly SurfaceAtlasTextures textures = new(Size,Size,1,"Tests.SurfacePage");
     private Texture3D depth => textures.Depth;
@@ -29,8 +28,10 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Creates a +X page with an exact integer chunk origin, including coordinates beyond float precision.</summary>
     public SharedSurfacePageFixture(int chunkX = 0)
     {
-        capture = ComputeProgram.Create(helper, "lumonscene_capture_voxel", layout: new LumonSceneComputeProgramLayouts.CaptureVoxel());
-        relight = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", layout: new LumonSceneComputeProgramLayouts.RelightVoxelDda());
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api, out var captureOwner, out string captureLog), captureLog);
+        capture = captureOwner!;
+        Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var relightOwner, out string relightLog), relightLog);
+        relight = relightOwner!;
         captureWork = Buffer<LumonSceneCaptureWorkGpu>([new(1, 0, 1, 0)]);
         relightWork = Buffer<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)]);
         metadata = Buffer<LumonScenePatchMetadataGpu>(new LumonScenePatchMetadataGpu[2]);
@@ -42,12 +43,12 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public bool Capture(TraceGeometryGpuScene scene)
     {
         captureWork.UploadSubData<LumonSceneCaptureWorkGpu>([new(1, 0, 1, 0)], 0, 16);
-        GlStateCache.Current.UseProgram(capture.ProgramId);
-        geometry.Bind(scene);
-        captureWork.BindBase(0); metadata.BindBase(1); slots.BindBase(2);
-        depth.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.R16f);
-        material.BindImageUnit(1, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba8);
-        LumonSceneCaptureVoxelParamsUbo.Bind(parameters, Size, 1, 1, 0, 0, 0, 0, 0, 0, 0, scene.Resolution);
+        using var active = capture.UseScope();
+        capture.BindSharedGeometry(scene);
+        capture.BindCaptureWorkSsbo(captureWork); capture.BindPatchMetaSsbo(metadata); capture.BindChunkSlotInfoSsbo(slots);
+        capture.BindDepthAtlasImage(depth);
+        capture.BindMaterialAtlasImage(material);
+        capture.SetAtlasLayout(Size, 1, 1, 0);
         Dispatch();
         using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
         Assert.True(read.IsMapped);
@@ -81,13 +82,18 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     {
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         relightWork.UploadSubData<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)], 0, 16);
-        GlStateCache.Current.UseProgram(relight.ProgramId);
-        geometry.Bind(scene);
-        relightWork.BindBase(0); metadata.BindBase(1);
-        depth.Bind(0); material.Bind(1); scene.LightColors.Bind(3); scene.BlockLevels.Bind(4); scene.SunLevels.Bind(5); scene.Surfaces.Bind(7);
-        foreach (int unit in new[] { 0, 1, 3, 4, 5, 7 }) GpuSamplers.NearestClamp.Bind(unit);
-        irradiance.BindImageUnit(0, TextureAccess.ReadWrite, layered: true, format: SizedInternalFormat.Rgba16f);
-        LumonSceneRelightParamsUbo.Bind(parameters, Size, 1, 1, 0, Size * Size, rays, steps, 0, 0, scene.Resolution, 0, 0, 0, 0, 0, 0);
+        using var active = relight.UseScope();
+        relight.BindSharedGeometry(scene);
+        relight.BindRelightWorkSsbo(relightWork); relight.BindPatchMetaSsbo(metadata);
+        relight.BindDepthAtlas(depth.TextureId); relight.BindMaterialAtlas(material.TextureId);
+        relight.BindLightColorLut(scene.LightColors.TextureId);
+        relight.BindBlockLevelScalarLut(scene.BlockLevels.TextureId);
+        relight.BindSunLevelScalarLut(scene.SunLevels.TextureId);
+        relight.BindSurfaceLut(scene.Surfaces.TextureId);
+        relight.BindIrradianceAtlasImage(irradiance);
+        relight.SetAtlasLayout(Size, 1, 1, 0);
+        relight.SetRelightParams(0, Size * Size, rays, steps, false);
+        relight.SetOccupancyMapping(0, 0, 0, 0, 0, 0, scene.Resolution);
         Dispatch();
         using var read = relightWork.MapRange<LumonSceneRelightWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
         Assert.True(read.IsMapped);
@@ -98,9 +104,13 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public void ResetLighting()
     {
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        using var reset = ComputeProgram.Create(helper, "lumonscene_reset_irradiance");
+        // This packaged reset operation has a contract but no instance shader class.
+        // Exercise the production compute pipeline and image owner directly.
+        Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, "lumonscene_reset_irradiance",
+            out var loaded, out _, out string log, preferSpirv: true), log);
+        using var reset = loaded!;
         // Restore the prior live program before the temporary reset pipeline is disposed.
-        using var program = GlStateCache.Current.UseProgramScope(reset.ProgramId);
+        using var program = reset.UseScope();
         irradiance.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
         Dispatch();
     }
@@ -151,11 +161,9 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Releases the page and its programs on the owning context.</summary>
     public void Dispose()
     {
-        // Capture and relight bind directly; release that binding before deleting their programs.
-        GlStateCache.Current.UnbindProgram();
-        capture.Dispose(); relight.Dispose(); geometry.Dispose(); parameters.Dispose();
+        capture.Dispose(); relight.Dispose();
         captureWork.Dispose(); relightWork.Dispose(); metadata.Dispose(); slots.Dispose();
-        textures.Dispose(); helper.Dispose();
+        textures.Dispose(); assets.Dispose();
     }
     #endregion
 }

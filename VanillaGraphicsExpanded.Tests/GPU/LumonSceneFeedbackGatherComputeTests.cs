@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +9,6 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
-using VanillaGraphicsExpanded.Tests.GPU.Shaders;
 
 using Xunit;
 
@@ -25,9 +25,9 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.FeedbackGather.CompactOnly");
-        int compactProgram = compactShader.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactShaderOwner, out string compactShaderLog), compactShaderLog);
+        using var compactShader = compactShaderOwner!;
 
         const int chunkSlotCount = 8;
         const uint frameStamp = 1u;
@@ -59,13 +59,13 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)maxRequests, sentinel: Sentinel);
-        using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
+        using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
         var seen = new bool[chunkSlotCount];
 
-        compactShader.Use();
-        counter.BindBase(bindingIndex: 0);
-        requests.BindBase(bindingIndex: 0);
+        using var compactShaderScope = compactShader.UseScope();
+        compactShader.BindRequestCounter(counter.Buffer);
+        compactShader.BindRequestsSsbo(requests.Buffer);
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
 
@@ -83,7 +83,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
             // Dispatch only a single workgroup so the outcome is deterministic (no cross-workgroup atomic ordering).
             // This validates the scanOffset mapping logic itself (slot rotation), which is the core fairness mechanism.
-            GL.DispatchCompute(1, 1, 1);
+            compactShader.DispatchBound(1, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip($"FeedbackCompact scanOffset frame={f}");
@@ -110,7 +110,6 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             Assert.True(seen[s], $"Expected scanOffset to eventually return requests for chunkSlot={s}.");
         }
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -118,11 +117,11 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.FeedbackGather.Mark");
-        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.FeedbackGather.Compact");
-        int markProgram = markShader.ProgramId;
-        int compactProgram = compactShader.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var markShaderOwner, out string markShaderLog), markShaderLog);
+        using var markShader = markShaderOwner!;
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactShaderOwner, out string compactShaderLog), compactShaderLog);
+        using var compactShader = compactShaderOwner!;
 
         const int w = 8;
         const int h = 8;
@@ -178,28 +177,28 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         const uint capacity = 64;
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
-        using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
+        using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
         // Pass A: mark pages.
-        markShader.Use();
+        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchId.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
-        markShader.BindPageUsageStampImage(usageStamp.TextureId, access: TextureAccess.ReadWrite);
+        markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
         GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         // Pass B: compact stamps -> unique requests list.
-        compactShader.Use();
-        counter.BindBase(bindingIndex: 0);
-        requests.BindBase(bindingIndex: 0);
+        using var compactShaderScope = compactShader.UseScope();
+        compactShader.BindRequestCounter(counter.Buffer);
+        compactShader.BindRequestsSsbo(requests.Buffer);
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (dedup unique requests)");
@@ -228,7 +227,6 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             Assert.Equal(0, kvp.Value);
         }
 
-        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -236,9 +234,11 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.FeedbackGatherGenMismatch.Mark");
-        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.FeedbackGatherGenMismatch.Compact");
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var markShaderOwner, out string markShaderLog), markShaderLog);
+        using var markShader = markShaderOwner!;
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactShaderOwner, out string compactShaderLog), compactShaderLog);
+        using var compactShader = compactShaderOwner!;
 
         const int w = 8;
         const int h = 8;
@@ -289,28 +289,28 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         const uint capacity = 16;
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
-        using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
-        using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
+        using var markCounters = new ComponentAtomicCounters(initialValue: 0u, counterCount: 3);
+        using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
-        markCounters.BindBase(bindingIndex: 0);
-        markShader.Use();
+        markShader.BindDebugCounters(markCounters.Buffer);
+        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchId.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
-        markShader.BindPageUsageStampImage(usageStamp.TextureId, access: TextureAccess.ReadWrite);
+        markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
         GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
-        counter.BindBase(bindingIndex: 0);
-        requests.BindBase(bindingIndex: 0);
-        compactShader.Use();
+        compactShader.BindRequestCounter(counter.Buffer);
+        compactShader.BindRequestsSsbo(requests.Buffer);
+        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (generation mismatch)");
@@ -321,7 +321,6 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         RequestGpu[] outReq = requests.ReadBack(count: (int)requestCount);
         Assert.Equal(new RequestGpu(0u, 1u, 0u, 1u), outReq[0]);
 
-        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -329,9 +328,11 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.FeedbackGatherDedup.Mark");
-        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.FeedbackGatherDedup.Compact");
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var markShaderOwner, out string markShaderLog), markShaderLog);
+        using var markShader = markShaderOwner!;
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactShaderOwner, out string compactShaderLog), compactShaderLog);
+        using var compactShader = compactShaderOwner!;
 
         const int w = 16;
         const int h = 16;
@@ -374,28 +375,28 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         const uint capacity = 16;
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
-        using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
-        using var counter = CreateAtomicCounterBuffer(initialValue: 0u);
+        using var markCounters = new ComponentAtomicCounters(initialValue: 0u, counterCount: 3);
+        using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
-        markCounters.BindBase(bindingIndex: 0);
-        markShader.Use();
+        markShader.BindDebugCounters(markCounters.Buffer);
+        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchId.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
-        markShader.BindPageUsageStampImage(usageStamp.TextureId, access: TextureAccess.ReadWrite);
+        markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
         GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
-        counter.BindBase(bindingIndex: 0);
-        requests.BindBase(bindingIndex: 0);
-        compactShader.Use();
+        compactShader.BindRequestCounter(counter.Buffer);
+        compactShader.BindRequestsSsbo(requests.Buffer);
+        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        GL.DispatchCompute((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (duplicate patchIds)");
@@ -404,7 +405,6 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         RequestGpu[] outReq = requests.ReadBack(count: 1);
         Assert.Equal(new RequestGpu(0u, 777u, 0u, 777u), outReq[0]);
 
-        // Programs are disposed via ComputeProgram.
     }
 
     private static readonly RequestGpu Sentinel = new(0xFFFF_FFFFu, 0xFFFF_FFFFu, 0xFFFF_FFFFu, 0xFFFF_FFFFu);
@@ -426,54 +426,6 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             => HashCode.Combine(obj.ChunkSlot, obj.VirtualPageIndex, obj.Mip, obj.PatchId);
     }
 
-    private sealed class AtomicCounterBuffer : IDisposable
-    {
-        private int bufferId;
-
-        public AtomicCounterBuffer(int bufferId) => this.bufferId = bufferId;
-
-        public void BindBase(int bindingIndex)
-        {
-            GL.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, bindingIndex, bufferId);
-        }
-
-        public uint Read()
-        {
-            uint value = 0u;
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
-            GL.GetBufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint), ref value);
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-            return value;
-        }
-
-        public void Upload(uint value)
-        {
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
-            GL.BufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint), ref value);
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-        }
-
-        public void Dispose()
-        {
-            int id = bufferId;
-            bufferId = 0;
-            if (id != 0) GL.DeleteBuffer(id);
-        }
-    }
-
-    private static AtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue, int counterCount = 1)
-    {
-        if (counterCount <= 0) throw new ArgumentOutOfRangeException(nameof(counterCount));
-
-        int id = GL.GenBuffer();
-        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, id);
-        uint[] init = new uint[counterCount];
-        init[0] = initialValue;
-        GL.BufferData(BufferTarget.AtomicCounterBuffer, checked(sizeof(uint) * counterCount), init, BufferUsageHint.DynamicDraw);
-        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-        return new AtomicCounterBuffer(id);
-    }
-
     private sealed class Ssbo<T> : IDisposable where T : unmanaged
     {
         private readonly int capacityItems;
@@ -485,7 +437,8 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
             this.capacityItems = capacityItems;
         }
 
-        public void BindBase(int bindingIndex) => buffer.BindBase(bindingIndex);
+        /// <summary>Exposes the owned storage to the production shader binding method.</summary>
+        public GpuShaderStorageBuffer Buffer => buffer;
 
         public T[] ReadBack(int count)
         {
@@ -516,50 +469,4 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         return new Ssbo<T>(ssbo, capacityItems);
     }
 
-    private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, uniformName);
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-        if (loc >= 0)
-        {
-            GL.Uniform1(loc, unit);
-        }
-    }
-
-    private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, uniformName);
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        if (loc >= 0)
-        {
-            GL.Uniform1(loc, unit);
-        }
-    }
-
-    private static void SetUniform(int program, string name, uint value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static ShaderTestHelper CreateShaderHelperOrSkip()
-    {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
-        {
-            Assert.Skip("Shader assets not available - test output content may be missing");
-        }
-
-        return new ShaderTestHelper(shaderPath, includePath);
-    }
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -25,11 +26,8 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
 
     public LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private int CompileProbeAtlasTraceShaderWithWorldProbeFallback(int wpLevels, int wpResolution, float wpBaseSpacing)
-        => CompileShaderWithDefines(
-            "lumon_probe_atlas_trace.vsh",
-            "lumon_probe_atlas_trace.fsh",
-            new Dictionary<string, string?>
+    private LumOnScreenProbeAtlasTraceShaderProgram CompileProbeAtlasTraceShaderWithWorldProbeFallback(int wpLevels, int wpResolution, float wpBaseSpacing)
+        => Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
             {
                 ["VGE_LUMON_RAY_STEPS"] = RaySteps.ToString(CultureInfo.InvariantCulture),
                 ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
@@ -157,62 +155,30 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
 
         using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
 
-        int programId = 0;
-        try
+        var programId = CompileProbeAtlasTraceShaderWithWorldProbeFallback(wpLevels, wpResolution, wpBaseSpacing);
+        using var use = programId.UseScope();
         {
-            programId = CompileProbeAtlasTraceShaderWithWorldProbeFallback(wpLevels, wpResolution, wpBaseSpacing);
 
             // Bind textures to fixed units
-            anchorPosTex.Bind(0);
-            anchorNormalTex.Bind(1);
-            depthTex.Bind(2);
-            directTex.Bind(3);
-            emissiveTex.Bind(4);
-            historyAtlasTex.Bind(5);
-            hzbTex.Bind(6);
-            historyMetaTex.Bind(7);
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ProbeAnchorNormal = anchorNormalTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.SurfaceAlbedo = directTex;
+            programId.GBufferMaterial = emissiveTex.TextureId;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.HzbDepth = hzbTex;
+            programId.ScreenProbeAtlasMetaHistory = historyMetaTex;
 
-            wpRadianceAtlasTex.Bind(8);
-            wpVis0Tex.Bind(9);
-            wpMeta0Tex.Bind(10);
+            programId.WorldProbeRadianceAtlas = wpRadianceAtlasTex;
+            programId.WorldProbeVis0 = wpVis0Tex;
+            programId.WorldProbeMeta0 = wpMeta0Tex;
 
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
             var invView = LumOnTestInputFactory.CreateIdentityMatrix();
 
-            GL.UseProgram(programId);
-
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "projectionMatrix"), 1, false, projection);
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix"), 1, false, view);
-            GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invViewMatrix"), 1, false, invView);
-
-            GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-            GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "frameIndex"), 0);
-
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear"), ZNear);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar"), ZFar);
-
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sunPosition"), 0.0f, 1.0f, 0.0f);
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sunColor"), 0.0f, 0.0f, 0.0f);
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "ambientColor"), 0.0f, 1.0f, 0.0f); // bright green sky fallback
-            GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint"), 1.0f, 1.0f, 1.0f);
-
             // Sampler units (must match binds above)
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 0);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal"), 1);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), 2);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "directDiffuse"), 3);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "emissive"), 4);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralHistory"), 5);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "hzbDepth"), 6);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory"), 7);
-
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeRadianceAtlas"), 8);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeVis0"), 9);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "worldProbeMeta0"), 10);
 
             // Phase 23: UBO-backed frame + world-probe state (GLSL 330 assigns block bindings in C#).
             UpdateAndBindLumOnFrameUbo(
@@ -235,12 +201,8 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 originMinCorner: [new System.Numerics.Vector3(-spacing * 0.5f, -spacing * 0.5f, -5f - spacing * 0.5f), new System.Numerics.Vector3(-spacing, -spacing, -5f - spacing)],
                 ringOffset: [new System.Numerics.Vector3(ringShift ? 1f : 0f, 0f, 0f), System.Numerics.Vector3.Zero]);
 
-            GL.UseProgram(0);
-
-            using var probeParamsBuffer = new ObjectParamsUbo("Tests.WorldProbeComparison.Params");
-            var probeParams = new LumOnProbeParamsUbo();
-            UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            probeParamsBuffer.UploadAndBind(probeParams.Bytes);
+            programId.IndirectTint = new(1,1,1);
+            programId.SuppressWorldProbeRadiance = false;
             TestFramework.RenderQuadTo(programId, output);
 
             var radianceOut = output[0].ReadPixels();
@@ -288,8 +250,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
 
             // Suppressing accepted world radiance must preserve visibility and validity, rather
             // than taking the bright green sky fallback or changing the ray's hit distance.
-            probeParams.SuppressWorldProbeRadiance = true;
-            probeParamsBuffer.UploadAndBind(probeParams.Bytes);
+            programId.SuppressWorldProbeRadiance = true;
             TestFramework.RenderQuadTo(programId, output);
             var suppressedRadiance = output[0].ReadPixels();
             var suppressedMeta = output[1].ReadPixels();
@@ -305,10 +266,6 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
             {
                 AssertPairedHistoryReachesGather(radianceOut, suppressedRadiance, metaOut, sh9, expectedRadiance != 0);
             }
-        }
-        finally
-        {
-            if (programId != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 }

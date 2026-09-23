@@ -14,8 +14,8 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
     /// <summary>Renders gathered lighting directly at its native resolution to isolate the diagnostic from upsampling.</summary>
     private void AssertGatherLightingEffect(float[] normal, float[] suppressed, bool expectLighting)
     {
-        int program = CompileShader("lumon_debug.vsh", "lumon_debug_worldprobe.fsh");
-        try
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.WorldprobeContract.Identity);
+        using var use = program.UseScope();
         {
             using var assets = new BinaryShaderApiFixture();
             using var normalBuffers = new LumOnBufferManager(assets.Api, new VgeConfig());
@@ -28,14 +28,11 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             suppressedTexture.UploadDataImmediate(suppressed);
             using var terrain = new EngineTerrainBuffers(HalfResWidth, HalfResHeight);
             var output = terrain.Output;
-            using var parameters = new ObjectParamsUbo("Tests.SealedRoom.LightingEffect");
-            var cpu = new LumOnDebugParamsUbo { DebugMode = 43, WorldProbeComparisonReady = true };
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            parameters.UploadAndBind(cpu.Bytes);
+            program.DebugMode = 43;
+            program.WorldProbeEffectGain = 1;
             UpdateAndBindLumOnFrameUbo(program);
-            normalTexture.Bind(0);
-            suppressedTexture.Bind(1);
-            BindPipelineSamplers(program, ("indirectDiffuseFull", 0), ("worldProbeSuppressedLighting", 1));
+            program.IndirectDiffuseFull = normalTexture;
+            program.WorldProbeSuppressedLighting = suppressedTexture;
             TestFramework.RenderQuadTo(program, output);
             var pixels = output[0].ReadPixels();
             for (int i = 0; i < pixels.Length; i += 4)
@@ -53,7 +50,6 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                     for (int channel = 0; channel < 3; channel++) Assert.Equal(0f, pixels[i + channel]);
             }
         }
-        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

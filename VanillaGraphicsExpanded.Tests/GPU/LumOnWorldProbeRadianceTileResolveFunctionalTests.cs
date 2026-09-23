@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -34,16 +35,12 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
         const float b = 0.0f;
         float a = (float)Math.Log(3.0); // example encoded hit distance
 
-        int programId = 0;
+        var program = Programs.Create<LumOnWorldProbeRadianceTileResolveShaderProgram>();
         int vao = 0;
         int vbo = 0;
 
         try
         {
-            programId = CompileShaderWithDefines(
-                "lumon_worldprobe_radiance_tile_resolve.vsh",
-                "lumon_worldprobe_radiance_tile_resolve.fsh",
-                new System.Collections.Generic.Dictionary<string, string?>());
 
             using var output = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba16f);
 
@@ -73,19 +70,11 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
             GL.EnableVertexAttribArray(1);
             GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, 2 * sizeof(float));
 
-            GL.UseProgram(programId);
-
-            using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.WorldProbeResolve.ParamsUBO");
-            UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnWorldProbeResolveParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            var cpuParams = new LumOnWorldProbeResolveParamsUbo
-            {
-                AtlasSize = new System.Numerics.Vector2(width, height)
-            };
-            objectParamsUbo.UploadAndBind(cpuParams.Bytes);
+            using var use = program.UseScope();
+            program.AtlasSize = new(width, height);
 
             GL.DrawArrays(PrimitiveType.Points, 0, 1);
 
-            GL.UseProgram(0);
             GL.BindVertexArray(0);
 
             // Validate output texel.
@@ -99,7 +88,6 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
         }
         finally
         {
-            if (programId != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
             if (vbo != 0) GL.DeleteBuffer(vbo);
             if (vao != 0) GL.DeleteVertexArray(vao);
         }

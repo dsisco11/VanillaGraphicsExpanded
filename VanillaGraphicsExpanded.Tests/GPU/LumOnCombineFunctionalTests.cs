@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
 /// Functional tests for the LumOn Combine/Integrate shader pass.
-/// 
+///
 /// These tests verify that the combine shader correctly:
 /// - Adds indirect diffuse to direct lighting
 /// - Modulates indirect contribution by surface albedo
@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// - Applies indirectIntensity and indirectTint to the indirect contribution
 /// - Passes through direct lighting when lumOnEnabled=0
 /// - Skips indirect for sky pixels
-/// 
+///
 /// Test configuration:
 /// - Full-res: 4×4 pixels
 /// </summary>
@@ -42,15 +42,12 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the combine shader.
     /// </summary>
-    private int CompileCombineShader(
+    private LumOnCombineShaderProgram CompileCombineShader(
         int lumOnEnabled = 1,
         int enablePbrComposite = 0,
         int enableAO = 0,
         int enableShortRangeAo = 0) =>
-        CompileShaderWithDefines(
-            "lumon_combine.vsh",
-            "lumon_combine.fsh",
-            new Dictionary<string, string?>
+        Programs.Create<LumOnCombineShaderProgram>(settings: new Dictionary<string, string?>
             {
                 ["VGE_LUMON_ENABLED"] = lumOnEnabled.ToString(),
                 ["VGE_LUMON_PBR_COMPOSITE"] = enablePbrComposite.ToString(),
@@ -62,14 +59,11 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     /// Compiles and links the LumOn debug shader.
     /// Used for Phase 15 composite debug views (moved out of lumon_combine).
     /// </summary>
-    private int CompileDebugShader(
+    private LumOnDebugShaderProgram CompileDebugShader(
         int enablePbrComposite = 1,
         int enableAO = 0,
         int enableShortRangeAo = 0) =>
-        CompileShaderWithDefines(
-            "lumon_debug.vsh",
-            "lumon_debug.fsh",
-            new Dictionary<string, string?>
+        Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.DispatcherContract.Identity, settings: new Dictionary<string, string?>
             {
                 ["VGE_LUMON_PBR_COMPOSITE"] = enablePbrComposite.ToString(),
                 ["VGE_LUMON_ENABLE_AO"] = enableAO.ToString(),
@@ -79,8 +73,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Sets up common uniforms for the combine shader.
     /// </summary>
-    private void SetupCombineUniforms(
-        int programId,
+    private void SetupCombineUniforms(LumOnCombineShaderProgram programId,
         float indirectIntensity = 1.0f,
         (float r, float g, float b) indirectTint = default,
         int lumOnEnabled = 1,
@@ -91,52 +84,13 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         float[]? invProjection = null,
         float[]? view = null)
     {
-        GL.UseProgram(programId);
-
-        // Phase 23: combine params are UBO-backed (VgeLumOnCombineParamsUBO).
-        UpdateAndBindLumOnCombineParamsUbo(
-            programId,
-            indirectIntensity: indirectIntensity,
-            indirectTint: indirectTint,
-            diffuseAOStrength: diffuseAOStrength,
-            specularAOStrength: specularAOStrength);
-
-        // Matrices (identity defaults are fine for deterministic testing)
-        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
-        var viewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix");
-
-        var identity = new float[]
-        {
-            1,0,0,0,
-            0,1,0,0,
-            0,0,1,0,
-            0,0,0,1
-        };
-
-        GL.UniformMatrix4(invProjLoc, 1, false, invProjection ?? identity);
-        GL.UniformMatrix4(viewLoc, 1, false, view ?? identity);
-
-        // Phase 23: UBO-backed frame state.
-        UpdateAndBindLumOnFrameUbo(
-            programId,
-            invProjectionMatrix: invProjection ?? identity,
-            viewMatrix: view ?? identity);
-
-        // Texture sampler uniforms
-        var sceneDirectLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sceneDirect");
-        var indirectLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectDiffuse");
-        var albedoLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferAlbedo");
-        var materialLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferMaterial");
-        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
-        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
-        GL.Uniform1(sceneDirectLoc, 0);
-        GL.Uniform1(indirectLoc, 1);
-        GL.Uniform1(albedoLoc, 2);
-        GL.Uniform1(materialLoc, 3);
-        GL.Uniform1(depthLoc, 4);
-        GL.Uniform1(normalLoc, 5);
-
-        GL.UseProgram(0);
+        using var use = programId.UseScope();
+        var tint = indirectTint == default ? (1f,1f,1f) : indirectTint;
+        programId.IndirectIntensity = indirectIntensity;
+        programId.IndirectTint = new(tint.Item1,tint.Item2,tint.Item3);
+        programId.DiffuseAOStrength = diffuseAOStrength;
+        programId.SpecularAOStrength = specularAOStrength;
+        UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: view);
     }
 
     private static float[] IdentityMatrix4x4 =>
@@ -150,8 +104,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Sets up uniforms for composite debug views in lumon_debug.fsh.
     /// </summary>
-    private void SetupDebugCompositeUniforms(
-        int programId,
+    private void SetupDebugCompositeUniforms(LumOnDebugShaderProgram programId,
         int debugMode,
         float indirectIntensity,
         (float r, float g, float b) indirectTint,
@@ -161,69 +114,14 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         float specularAOStrength,
         float[] invProjection)
     {
-        GL.UseProgram(programId);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "debugMode"), debugMode);
-
-        // Required sizing uniforms
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear"), ZNear);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar"), ZFar);
-
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invViewMatrix"), 1, false, IdentityMatrix4x4);
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "prevViewProjMatrix"), 1, false, IdentityMatrix4x4);
-
-        // Phase 23: UBO-backed frame state.
-        UpdateAndBindLumOnFrameUbo(
-            programId,
-            invProjectionMatrix: invProjection,
-            invViewMatrix: IdentityMatrix4x4,
-            viewMatrix: IdentityMatrix4x4,
-            prevViewProjMatrix: IdentityMatrix4x4);
-
-        // Required temporal uniforms (not used by composite modes)
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "temporalAlpha"), 0.9f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthRejectThreshold"), 0.1f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "normalRejectThreshold"), 0.9f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gatherAtlasSource"), 0);
-
-        // Phase 23: debug selection + composite params are UBO-backed (VgeLumOnDebugParamsUBO).
-        // Keep the old uniform sets for back-compat; they no-op when optimized away.
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectIntensity"), indirectIntensity);
-        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
-        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint"), tint.Item1, tint.Item2, tint.Item3);
-
-        UpdateAndBindLumOnDebugParamsUbo(
-            programId,
-            debugMode: debugMode,
-            gatherAtlasSource: 0,
-            indirectIntensity: indirectIntensity,
-            indirectTint: indirectTint,
-            diffuseAOStrength: diffuseAOStrength,
-            specularAOStrength: specularAOStrength);
-
-        // Sampler units (match LumOnDebugShaderProgram bindings)
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), 0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal"), 1);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal"), 3);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture0"), 4);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture1"), 5);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectHalf"), 6);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "historyMeta"), 7);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMeta"), 8);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasCurrent"), 9);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasFiltered"), 10);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasGatherInput"), 11);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectDiffuseFull"), 12);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferAlbedo"), 13);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferMaterial"), 14);
-
-        GL.UseProgram(0);
+        using var use = programId.UseScope();
+        var tint = indirectTint == default ? (1f,1f,1f) : indirectTint;
+        programId.IndirectIntensity = indirectIntensity;
+        programId.IndirectTint = new(tint.Item1,tint.Item2,tint.Item3);
+        programId.DiffuseAOStrength = diffuseAOStrength;
+        programId.SpecularAOStrength = specularAOStrength;
+        UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: IdentityMatrix4x4);
+        programId.DebugMode = debugMode;
     }
 
     /// <summary>
@@ -277,6 +175,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 0);
 
+        using var programUse = programId.UseScope();
+
         // Diffuse debug view
         SetupDebugCompositeUniforms(programId,
             debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
@@ -288,21 +188,21 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             specularAOStrength: 1.0f,
             invProjection: invProj);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        dummyTex.Bind(2);
-        dummyTex.Bind(3);
-        dummyTex.Bind(4);
-        dummyTex.Bind(5);
-        dummyTex.Bind(6);
-        dummyTex.Bind(7);
-        dummyTex.Bind(8);
-        dummyTex.Bind(9);
-        dummyTex.Bind(10);
-        dummyTex.Bind(11);
-        indirectTex.Bind(12);
-        albedoTex.Bind(13);
-        materialTex.Bind(14);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = dummyTex;
+        programId.ProbeAnchorNormal = dummyTex;
+        programId.RadianceTexture0 = dummyTex;
+        programId.RadianceTexture1 = dummyTex;
+        programId.IndirectHalf = dummyTex;
+        programId.HistoryMeta = dummyTex;
+        programId.ProbeAtlasMeta = dummyTex;
+        programId.ProbeAtlasCurrent = dummyTex;
+        programId.ProbeAtlasFiltered = dummyTex;
+        programId.ProbeAtlasGatherInput = dummyTex;
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        programId.GBufferMaterial = materialTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var diffuseOut = outputGBuffer[0].ReadPixels();
@@ -330,8 +230,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(diffuseLuma > specLuma,
             $"Expected diffuse to dominate for metallic=0. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -369,6 +267,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 0);
 
+        using var programUse = programId.UseScope();
+
         SetupDebugCompositeUniforms(programId,
             debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
             indirectIntensity: 1.0f,
@@ -379,21 +279,21 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             specularAOStrength: 1.0f,
             invProjection: invProj);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        dummyTex.Bind(2);
-        dummyTex.Bind(3);
-        dummyTex.Bind(4);
-        dummyTex.Bind(5);
-        dummyTex.Bind(6);
-        dummyTex.Bind(7);
-        dummyTex.Bind(8);
-        dummyTex.Bind(9);
-        dummyTex.Bind(10);
-        dummyTex.Bind(11);
-        indirectTex.Bind(12);
-        albedoTex.Bind(13);
-        materialTex.Bind(14);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = dummyTex;
+        programId.ProbeAnchorNormal = dummyTex;
+        programId.RadianceTexture0 = dummyTex;
+        programId.RadianceTexture1 = dummyTex;
+        programId.IndirectHalf = dummyTex;
+        programId.HistoryMeta = dummyTex;
+        programId.ProbeAtlasMeta = dummyTex;
+        programId.ProbeAtlasCurrent = dummyTex;
+        programId.ProbeAtlasFiltered = dummyTex;
+        programId.ProbeAtlasGatherInput = dummyTex;
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        programId.GBufferMaterial = materialTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var diffuseOut = outputGBuffer[0].ReadPixels();
@@ -419,8 +319,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(specLuma > diffuseLuma,
             $"Expected specular to dominate for metallic=1. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -463,6 +361,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 1);
 
+        using var programUse = programId.UseScope();
+
         float RenderWithAoTexture(DynamicTexture2D materialTex)
         {
             SetupDebugCompositeUniforms(programId,
@@ -475,21 +375,21 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 specularAOStrength: 0.0f,
                 invProjection: invProj);
 
-            depthTex.Bind(0);
-            normalTex.Bind(1);
-            dummyTex.Bind(2);
-            dummyTex.Bind(3);
-            dummyTex.Bind(4);
-            dummyTex.Bind(5);
-            dummyTex.Bind(6);
-            dummyTex.Bind(7);
-            dummyTex.Bind(8);
-            dummyTex.Bind(9);
-            dummyTex.Bind(10);
-            dummyTex.Bind(11);
-            indirectTex.Bind(12);
-            albedoTex.Bind(13);
-            materialTex.Bind(14);
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
+            programId.ProbeAnchorPosition = dummyTex;
+            programId.ProbeAnchorNormal = dummyTex;
+            programId.RadianceTexture0 = dummyTex;
+            programId.RadianceTexture1 = dummyTex;
+            programId.IndirectHalf = dummyTex;
+            programId.HistoryMeta = dummyTex;
+            programId.ProbeAtlasMeta = dummyTex;
+            programId.ProbeAtlasCurrent = dummyTex;
+            programId.ProbeAtlasFiltered = dummyTex;
+            programId.ProbeAtlasGatherInput = dummyTex;
+            programId.IndirectDiffuseFull = indirectTex;
+            programId.GBufferAlbedo = albedoTex;
+            programId.GBufferMaterial = materialTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outData = outputGBuffer[0].ReadPixels();
@@ -502,8 +402,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(MathF.Abs(lumaAo1 - lumaAo0) < 1e-3f,
             $"AO is stubbed; reflectivity must not attenuate indirect. Reflectivity1={lumaAo1:F3}, Reflectivity0={lumaAo0:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -512,18 +410,18 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that direct and indirect lighting are correctly combined.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - output = direct + (indirect * albedo * diffuseWeight * intensity * tint)
     /// - With white albedo, full diffuse weight (metallic=0), intensity=1, tint=white:
     ///   output = direct + indirect
-    /// 
+    ///
     /// Setup:
     /// - Direct: (1, 0, 0) = red
     /// - Indirect: (0, 1, 0) = green
     /// - Albedo: (1, 1, 1) = white
     /// - Metallic: 0 (dielectric, full diffuse)
-    /// 
+    ///
     /// Expected:
     /// - Output = (1, 1, 0) = yellow (red + green)
     /// </summary>
@@ -554,14 +452,16 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, indirectTint: (1f, 1f, 1f), lumOnEnabled: 1);
 
         // Bind inputs
-        sceneDirectTex.Bind(0);
-        indirectTex.Bind(1);
-        albedoTex.Bind(2);
-        materialTex.Bind(3);
-        depthTex.Bind(4);
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferMaterial = materialTex.TextureId;
+        programId.PrimaryDepth = depthTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -582,8 +482,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Pixel ({px},{py}) B should be 0.0, got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -592,17 +490,17 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that indirect lighting is modulated by surface albedo.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - indirectContrib = indirect * albedo * diffuseWeight
     /// - With red albedo: only red channel of indirect passes through
-    /// 
+    ///
     /// Setup:
     /// - Direct: (0, 0, 0) = black (to isolate indirect)
     /// - Indirect: (1, 1, 1) = white
     /// - Albedo: (1, 0, 0) = red
     /// - Metallic: 0
-    /// 
+    ///
     /// Expected:
     /// - Output = (1, 0, 0) = red (white indirect filtered by red albedo)
     /// </summary>
@@ -632,13 +530,15 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
-        sceneDirectTex.Bind(0);
-        indirectTex.Bind(1);
-        albedoTex.Bind(2);
-        materialTex.Bind(3);
-        depthTex.Bind(4);
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferMaterial = materialTex.TextureId;
+        programId.PrimaryDepth = depthTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -659,8 +559,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Pixel ({px},{py}) B should be 0.0 (filtered by red albedo), got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -669,18 +567,18 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that indirectIntensity scales the indirect contribution.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - indirectContrib = indirect * albedo * diffuseWeight * intensity
     /// - With intensity=2.0: indirect contribution is doubled
-    /// 
+    ///
     /// Setup:
     /// - Direct: (0, 0, 0) = black
     /// - Indirect: (0.25, 0.25, 0.25) = gray
     /// - Albedo: (1, 1, 1) = white
     /// - Metallic: 0
     /// - indirectIntensity: 2.0
-    /// 
+    ///
     /// Expected:
     /// - Output = (0.5, 0.5, 0.5) = doubled indirect
     /// </summary>
@@ -711,13 +609,15 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: intensity, lumOnEnabled: 1);
 
-        sceneDirectTex.Bind(0);
-        indirectTex.Bind(1);
-        albedoTex.Bind(2);
-        materialTex.Bind(3);
-        depthTex.Bind(4);
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferMaterial = materialTex.TextureId;
+        programId.PrimaryDepth = depthTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -740,8 +640,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Pixel ({px},{py}) B should be {expectedValue:F2} (intensity scaled), got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -750,16 +648,16 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that when lumOnEnabled=0, direct lighting passes through unchanged.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - With lumOnEnabled=0: output = direct (no indirect added)
     /// - Feature toggle for performance or debugging
-    /// 
+    ///
     /// Setup:
     /// - Direct: (0.5, 0.3, 0.1)
     /// - Indirect: (1, 1, 1) = bright (should be ignored)
     /// - lumOnEnabled: 0
-    /// 
+    ///
     /// Expected:
     /// - Output = (0.5, 0.3, 0.1) = direct only
     /// </summary>
@@ -788,14 +686,16 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileCombineShader(lumOnEnabled: 0, enablePbrComposite: 0);
+
+        using var programUse = programId.UseScope();
         // DISABLE LumOn
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 0);
 
-        sceneDirectTex.Bind(0);
-        indirectTex.Bind(1);
-        albedoTex.Bind(2);
-        materialTex.Bind(3);
-        depthTex.Bind(4);
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferMaterial = materialTex.TextureId;
+        programId.PrimaryDepth = depthTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -816,8 +716,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Pixel ({px},{py}) B should be {direct.b:F2} (passthrough), got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -826,16 +724,16 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that sky pixels pass through direct lighting without indirect contribution.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - For sky (depth=1.0): output = direct (no indirect added)
     /// - Sky doesn't receive bounced light from surfaces
-    /// 
+    ///
     /// Setup:
     /// - Direct: (0.3, 0.5, 0.8) = sky blue
     /// - Indirect: (1, 0, 0) = red (should be ignored for sky)
     /// - Depth: 1.0 (sky)
-    /// 
+    ///
     /// Expected:
     /// - Output = (0.3, 0.5, 0.8) = direct only
     /// </summary>
@@ -864,13 +762,15 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
-        sceneDirectTex.Bind(0);
-        indirectTex.Bind(1);
-        albedoTex.Bind(2);
-        materialTex.Bind(3);
-        depthTex.Bind(4);
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferMaterial = materialTex.TextureId;
+        programId.PrimaryDepth = depthTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -891,8 +791,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Sky pixel ({px},{py}) B should be {direct.b:F2} (direct only), got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -901,17 +799,17 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that metallic surfaces receive reduced indirect diffuse.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Metals don't receive diffuse lighting (they only reflect specularly)
     /// - diffuseWeight = 1.0 - metallic
     /// - With metallic=1.0: no indirect diffuse contribution
-    /// 
+    ///
     /// Setup:
     /// - Direct: (0.2, 0.2, 0.2) = dark gray
     /// - Indirect: (1, 1, 1) = bright white (should be blocked for metal)
     /// - Metallic: 1.0 (full metal)
-    /// 
+    ///
     /// Expected:
     /// - Output ≈ direct (indirect blocked by metallic)
     /// </summary>
@@ -941,13 +839,15 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
-        sceneDirectTex.Bind(0);
-        indirectTex.Bind(1);
-        albedoTex.Bind(2);
-        materialTex.Bind(3);
-        depthTex.Bind(4);
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferMaterial = materialTex.TextureId;
+        programId.PrimaryDepth = depthTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -969,8 +869,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Metal pixel ({px},{py}) B should be ≈{direct.b:F2} (no indirect for metal), got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -979,15 +877,15 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that indirectTint colors the indirect lighting contribution.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - indirectTint multiplies the indirect contribution
     /// - Allows artistic control over indirect light color
-    /// 
+    ///
     /// Setup:
     /// - White indirect light
     /// - Red tint (1, 0, 0)
-    /// 
+    ///
     /// Expected:
     /// - Indirect contribution should be red-tinted
     /// </summary>
@@ -1017,13 +915,15 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, indirectTint: (1f, 0f, 0f), lumOnEnabled: 1);  // Red tint
 
-        sceneDirectTex.Bind(0);
-        indirectTex.Bind(1);
-        albedoTex.Bind(2);
-        materialTex.Bind(3);
-        depthTex.Bind(4);
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferMaterial = materialTex.TextureId;
+        programId.PrimaryDepth = depthTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1033,21 +933,19 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(r > 0.5f, $"Red tint should produce red output, got R={r:F3}");
         Assert.True(g < 0.1f, $"Red tint should suppress green, got G={g:F3}");
         Assert.True(b < 0.1f, $"Red tint should suppress blue, got B={b:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests that partial metallic values blend diffuse correctly.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - metallic=0.5 should give diffuseWeight=0.5
     /// - Indirect contribution should be half of full dielectric
-    /// 
+    ///
     /// Setup:
     /// - Metallic = 0.5
     /// - Bright indirect light
-    /// 
+    ///
     /// Expected:
     /// - Output between full dielectric and full metal
     /// </summary>
@@ -1083,20 +981,20 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileCombineShader(enablePbrComposite: 0);
+
+            using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
-            sceneDirectTex.Bind(0);
-            indirectTex.Bind(1);
-            albedoTex.Bind(2);
-            materialTex.Bind(3);
-            depthTex.Bind(4);
+            programId.SceneDirect = sceneDirectTex;
+            programId.IndirectDiffuse = indirectTex;
+            programId.GBufferAlbedo = albedoTex.TextureId;
+            programId.GBufferMaterial = materialTex.TextureId;
+            programId.PrimaryDepth = depthTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
             dielectricBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Half metallic (metallic=0.5)
@@ -1118,20 +1016,20 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileCombineShader(enablePbrComposite: 0);
+
+            using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
-            sceneDirectTex.Bind(0);
-            indirectTex.Bind(1);
-            albedoTex.Bind(2);
-            materialTex.Bind(3);
-            depthTex.Bind(4);
+            programId.SceneDirect = sceneDirectTex;
+            programId.IndirectDiffuse = indirectTex;
+            programId.GBufferAlbedo = albedoTex.TextureId;
+            programId.GBufferMaterial = materialTex.TextureId;
+            programId.PrimaryDepth = depthTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
             halfMetallicBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Full metallic (metallic=1.0)
@@ -1153,20 +1051,20 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileCombineShader(enablePbrComposite: 0);
+
+            using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
-            sceneDirectTex.Bind(0);
-            indirectTex.Bind(1);
-            albedoTex.Bind(2);
-            materialTex.Bind(3);
-            depthTex.Bind(4);
+            programId.SceneDirect = sceneDirectTex;
+            programId.IndirectDiffuse = indirectTex;
+            programId.GBufferAlbedo = albedoTex.TextureId;
+            programId.GBufferMaterial = materialTex.TextureId;
+            programId.PrimaryDepth = depthTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
             fullMetallicBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Half metallic should be between dielectric and full metallic

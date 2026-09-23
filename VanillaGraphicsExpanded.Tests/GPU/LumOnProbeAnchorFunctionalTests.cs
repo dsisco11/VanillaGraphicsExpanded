@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -9,13 +10,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
 /// Functional tests for the LumOn Probe Anchor shader pass.
-/// 
+///
 /// These tests verify that the probe anchor shader correctly:
 /// - Reconstructs world-space positions from depth buffer
 /// - Extracts world-space normals from G-buffer
 /// - Sets validity flags based on depth/normal criteria
 /// - Rejects sky pixels (depth >= 0.9999)
-/// 
+///
 /// Test configuration:
 /// - Screen buffer: 4×4 pixels
 /// - Probe grid: 2×2 probes (probeSpacing = 2 pixels)
@@ -29,7 +30,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// // linearDepth = (2 * zNear * zFar) / (zFar + zNear - z_ndc * (zFar - zNear))
 /// //             = (2 * 0.1 * 100) / (100 + 0.1 - 0 * 99.9)
 /// //             = 20 / 100.1 ≈ 0.1998
-/// // 
+/// //
 /// // With identity projection, NDC (x,y) maps directly to clip space
 /// // View-space position = invProj * clip_pos
 /// // World-space position = invView * view_pos (identity = view_pos)
@@ -50,14 +51,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the probe anchor shader.
     /// </summary>
-    private int CompileProbeAnchorShader() => CompileShader("lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh");
+    private LumOnProbeAnchorShaderProgram CompileProbeAnchorShader() => Programs.Create<LumOnProbeAnchorShaderProgram>();
 
     /// <summary>
     /// Sets up common uniforms for the probe anchor shader.
     /// </summary>
     private void SetupProbeAnchorUniforms(
-        int programId, 
-        float[] invProjection, 
+        LumOnProbeAnchorShaderProgram programId,
+        float[] invProjection,
         float[] invView,
         int frameIndex = 0,
         bool anchorJitterEnabled = false,
@@ -67,54 +68,9 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         int pmjUnit = 2,
         int pmjCycleLength = DefaultPmjCycleLength)
     {
-        GL.UseProgram(programId);
-
-        // Matrix uniforms
-        var invProjLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix");
-        var invViewLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invViewMatrix");
-        GL.UniformMatrix4(invProjLoc, 1, false, invProjection);
-        GL.UniformMatrix4(invViewLoc, 1, false, invView);
-
-        // Probe grid uniforms
-        var spacingLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing");
-        var gridSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize");
-        var screenSizeLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize");
-        GL.Uniform1(spacingLoc, ProbeSpacing);
-        GL.Uniform2(gridSizeLoc, (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(screenSizeLoc, (float)ScreenWidth, (float)ScreenHeight);
-
-        // Deterministic jitter uniforms (default off for most tests)
-        var frameIndexLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "frameIndex");
-        var jitterEnabledLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "anchorJitterEnabled");
-        var jitterScaleLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "anchorJitterScale");
-        GL.Uniform1(frameIndexLoc, frameIndex);
-        GL.Uniform1(jitterEnabledLoc, anchorJitterEnabled ? 1 : 0);
-        GL.Uniform1(jitterScaleLoc, anchorJitterScale);
-
-        // Z-plane uniforms
-        var zNearLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear");
-        var zFarLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar");
-        GL.Uniform1(zNearLoc, ZNear);
-        GL.Uniform1(zFarLoc, ZFar);
-
-        // Edge detection threshold
-        var thresholdLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthDiscontinuityThreshold");
-        GL.Uniform1(thresholdLoc, DepthDiscontinuityThreshold);
-
-        // Texture sampler uniforms
-        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
-        GL.Uniform1(depthLoc, depthUnit);
-        GL.Uniform1(normalLoc, normalUnit);
-
-        // PMJ jitter uniforms + binding
-        var pmjCycleLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "pmjCycleLength");
-        var pmjSamplerLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "pmjJitter");
-        GL.Uniform1(pmjCycleLoc, pmjCycleLength);
-        GL.Uniform1(pmjSamplerLoc, pmjUnit);
-        BindPmjJitterTexture(pmjUnit, pmjCycleLength);
-
-        // Phase 23: UBO-backed frame state.
+        using var use = programId.UseScope();
+        programId.DepthDiscontinuityThreshold = DepthDiscontinuityThreshold;
+        programId.PmjJitter = GetOrCreatePmjJitterTexture(pmjCycleLength);
         var projection = LumOnTestInputFactory.CreateInverseMatrix(invProjection);
         var view = LumOnTestInputFactory.CreateInverseMatrix(invView);
         UpdateAndBindLumOnFrameUbo(
@@ -128,7 +84,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             pmjCycleLength: pmjCycleLength,
             anchorJitterScale: anchorJitterScale);
 
-        GL.UseProgram(0);
     }
 
     [Fact]
@@ -157,6 +112,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
         var programId = CompileProbeAnchorShader();
+
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();
 
@@ -166,8 +123,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         // Render twice with same frameIndex: results must match (deterministic jitter).
         SetupProbeAnchorUniforms(programId, invProjection, invView, frameIndex: 0, anchorJitterEnabled: true, anchorJitterScale: jitterScale);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var pos0 = outputGBuffer[0].ReadPixels();
 
@@ -192,8 +149,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             MathF.Abs(pos0[2] - pos1[2]) > 1e-4f;
 
         Assert.True(changed, "Expected probe (0,0) position to change when frameIndex changes with jitter enabled.");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -217,11 +172,11 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
     /// <remarks>
     /// GLSL does: viewPos = invProjectionMatrix * ndc (column vector convention)
     /// C# Vector4.Transform does: v * M (row vector convention)
-    /// 
+    ///
     /// Since the input is column-major (GLSL format), and FromColumnMajor transposes
     /// it for System.Numerics row-major storage, we need to use the transposed matrix
     /// with Vector4.Transform to match GLSL's post-multiplication behavior.
-    /// 
+    ///
     /// Effectively: GLSL (M * v) == C# (v * M^T)
     /// Since FromColumnMajor gives us M (the GLSL matrix transposed), we transpose again.
     /// </remarks>
@@ -230,12 +185,12 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         // Convert column-major float[] to Matrix4x4 using MatrixHelper
         // This transposes the data for System.Numerics' row-major storage
         var invProjMatrix = MatrixHelper.FromColumnMajor(invProjection);
-        
+
         // Transpose to match GLSL's post-multiplication convention
         // GLSL: M * v == C#: v * M^T, and invProjMatrix is already transposed from column-major
         // So we need to transpose again to get the correct result
         var invProjForGlsl = Matrix4x4.Transpose(invProjMatrix);
-        
+
         // NDC coordinates (homogeneous)
         var ndc = new Vector4(
             u * 2.0f - 1.0f,
@@ -376,12 +331,12 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that uniform depth=0.5 with identity matrices produces correct world positions.
-    /// 
+    ///
     /// Setup:
     /// - Depth buffer: all pixels at depth=0.5
     /// - Normals: all upward (0, 1, 0) encoded as (0.5, 1.0, 0.5)
     /// - Matrices: identity projection and view
-    /// 
+    ///
     /// Expected:
     /// - Each probe's outPosition.xyz should match hand-calculated world coordinates
     /// - outPosition.w should be 1.0 (valid)
@@ -407,13 +362,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile shader and set uniforms - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Bind inputs and render
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -449,8 +405,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Probe ({px},{py}) should be valid, got validity={validity}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -459,11 +413,11 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that G-buffer normals are correctly passed through to output.
-    /// 
+    ///
     /// Setup:
     /// - Depth buffer: uniform depth=0.5
     /// - Normals: all upward (0, 1, 0) encoded as (0.5, 1.0, 0.5)
-    /// 
+    ///
     /// Expected:
     /// - outNormal.xyz should decode to the upward normal (0, 1, 0)
     /// </summary>
@@ -488,13 +442,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back normal output (second attachment)
@@ -524,8 +479,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Probe ({px},{py}) normal Z mismatch: expected 0, got {actualNz}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -534,11 +487,11 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that probes with valid depth and normals have validity flag set to 1.0.
-    /// 
+    ///
     /// Setup:
     /// - Depth buffer: uniform depth=0.5 (valid, not sky)
     /// - Normals: all upward (0, 1, 0) encoded - valid normal
-    /// 
+    ///
     /// Expected:
     /// - outPosition.w = 1.0 for all probes (or 0.5 for edge probes)
     /// </summary>
@@ -563,13 +516,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -595,8 +549,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // With uniform depth, we expect all probes to be fully valid (no edges detected)
         Assert.True(validCount > 0, "At least some probes should be fully valid (validity = 1.0)");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -605,11 +557,11 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that probes sampling sky (depth >= 0.9999) are marked as invalid.
-    /// 
+    ///
     /// Setup:
     /// - Depth buffer: all pixels at depth=1.0 (sky/far plane)
     /// - Normals: any valid encoded normal
-    /// 
+    ///
     /// Expected:
     /// - outPosition.w = 0.0 for all probes (invalid)
     /// - outPosition.xyz should be (0, 0, 0)
@@ -635,13 +587,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -672,8 +625,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Probe ({px},{py}) invalid probe Z should be 0, got {posZ}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -682,18 +633,18 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that probes at depth discontinuities are marked with partial validity (0.5).
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When a probe's sampling neighborhood contains significant depth discontinuities,
     ///   the probe should be marked with partial validity (0.5) to indicate it's at an edge
     /// - This prevents light leaking across object boundaries
-    /// 
+    ///
     /// Setup:
     /// - Depth buffer: checkerboard pattern (alternating 0.3 and 0.7 depth)
     /// - Screen: 4×4 pixels, Probe grid: 2×2 probes (probeSpacing=2)
     /// - Each probe samples center of its 2×2 cell, which straddles the checkerboard edge
     /// - Normals: valid upward normals (encoded)
-    /// 
+    ///
     /// Expected:
     /// - ALL probes should have validity = 0.5 (partial) because each probe's 2×2 cell
     ///   contains both near and far depth values in the checkerboard pattern
@@ -717,13 +668,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -743,8 +695,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Probe ({px},{py}) should have partial validity (≈0.5) at depth edge, got {validity}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -753,15 +703,15 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that probes with invalid normals (zero-length after decoding) are marked as invalid.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Probes with degenerate/zero-length normals should be marked invalid (validity = 0.0)
     /// - The shader should gracefully handle edge cases without producing NaN or undefined output
-    /// 
+    ///
     /// Setup:
     /// - Depth buffer: valid uniform depth
     /// - Normals: encoded (0.5, 0.5, 0.5) which decodes to zero vector (0, 0, 0)
-    /// 
+    ///
     /// Expected:
     /// - outPosition.w = 0.0 (invalid due to degenerate normal)
     /// - outPosition.xyz = (0, 0, 0) for invalid probes
@@ -780,7 +730,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Create input textures
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
-        
+
         // Encoded (0.5, 0.5, 0.5) decodes to (0, 0, 0) - a zero-length normal
         var normalData = new float[ScreenWidth * ScreenHeight * 4];
         for (int i = 0; i < ScreenWidth * ScreenHeight; i++)
@@ -802,13 +752,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -824,20 +775,18 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
                 float posY = positionData[idx + 1];
                 float posZ = positionData[idx + 2];
                 float validity = positionData[idx + 3];
-                
+
                 // DESIRED: No NaN values in output
-                Assert.False(float.IsNaN(validity), 
+                Assert.False(float.IsNaN(validity),
                     $"Probe ({px},{py}) validity should not be NaN");
                 Assert.False(float.IsNaN(posX) || float.IsNaN(posY) || float.IsNaN(posZ),
                     $"Probe ({px},{py}) position should not contain NaN");
-                
+
                 // DESIRED: Invalid probes due to degenerate normal
                 Assert.True(validity < 0.5f,
                     $"Probe ({px},{py}) should be invalid (validity < 0.5) due to zero-length normal, got {validity}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -846,11 +795,11 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that different axis-aligned normals per quadrant are correctly output.
-    /// 
+    ///
     /// Setup:
     /// - Depth buffer: uniform valid depth
     /// - Normals: axis-aligned per quadrant (+X, +Y, +Z, -Y), encoded for G-buffer
-    /// 
+    ///
     /// Expected:
     /// - Each probe's normal output should match its quadrant's axis-aligned normal
     /// </summary>
@@ -875,13 +824,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
 
         // Render
-        depthTex.Bind(0);
-        normalTex.Bind(1);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back normal output
@@ -917,8 +867,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Probe ({px},{py}) normal Z mismatch: expected {expectedNz}, got {actualNz}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion

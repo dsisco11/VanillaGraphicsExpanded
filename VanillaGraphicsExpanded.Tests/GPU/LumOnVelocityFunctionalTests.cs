@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -28,40 +29,24 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
     public LumOnVelocityFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private int CompileVelocityShader() => CompileShader("lumon_velocity.vsh", "lumon_velocity.fsh");
+    private LumOnVelocityShaderProgram CompileVelocityShader() => Programs.Create<LumOnVelocityShaderProgram>();
 
     private static float PackFlags(uint flags) => BitConverter.UInt32BitsToSingle(flags);
 
     private void SetupVelocityUniforms(
-        int programId,
+        LumOnVelocityShaderProgram programId,
         float[] invCurrViewProj,
         float[] prevViewProj,
         int historyValid,
         int depthUnit = 0)
     {
-        GL.UseProgram(programId);
-
-        // Samplers
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), depthUnit);
-
-        // Screen
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-
-        // Matrices
-        ShaderTestFramework.SetUniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invCurrViewProjMatrix"), invCurrViewProj);
-        ShaderTestFramework.SetUniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "prevViewProjMatrix"), prevViewProj);
-
-        // History validity
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "historyValid"), historyValid);
-
-        // Phase 23: UBO-backed frame state.
+        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(
             programId,
             invCurrViewProjMatrix: invCurrViewProj,
             prevViewProjMatrix: prevViewProj,
             historyValid: historyValid);
 
-        GL.UseProgram(0);
     }
 
     private static Vector4 MulMat4Vec4(float[] m, Vector4 v)
@@ -112,7 +97,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompileVelocityShader();
+        var programId = CompileVelocityShader();
+
+        using var programUse = programId.UseScope();
 
         // Depth that is not sky and not zero.
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
@@ -125,7 +112,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         SetupVelocityUniforms(programId, invCurr, prev, historyValid: 1);
 
-        depthTex.Bind(0);
+        programId.PrimaryDepth = depthTex.TextureId;
         TestFramework.RenderQuadTo(programId, outRt);
 
         var pixels = ReadPixelsFloat(outRt);
@@ -146,8 +133,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
                 Assert.True((flags & FlagValid) != 0u);
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -155,7 +140,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompileVelocityShader();
+        var programId = CompileVelocityShader();
+
+        using var programUse = programId.UseScope();
 
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
         using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
@@ -172,7 +159,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         SetupVelocityUniforms(programId, invCurr, prev, historyValid: 1);
 
-        depthTex.Bind(0);
+        programId.PrimaryDepth = depthTex.TextureId;
         TestFramework.RenderQuadTo(programId, outRt);
 
         var pixels = ReadPixelsFloat(outRt);
@@ -193,8 +180,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
                 Assert.True((flags & FlagValid) != 0u);
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -202,7 +187,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompileVelocityShader();
+        var programId = CompileVelocityShader();
+
+        using var programUse = programId.UseScope();
 
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
         using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
@@ -214,7 +201,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         SetupVelocityUniforms(programId, invCurr, prev, historyValid: 1);
 
-        depthTex.Bind(0);
+        programId.PrimaryDepth = depthTex.TextureId;
         TestFramework.RenderQuadTo(programId, outRt);
 
         var pixels = ReadPixelsFloat(outRt);
@@ -253,7 +240,5 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.InRange(cornerPx.vx, expectedCorner.X - TestEpsilon, expectedCorner.X + TestEpsilon);
         Assert.InRange(cornerPx.vy, expectedCorner.Y - TestEpsilon, expectedCorner.Y + TestEpsilon);
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 }

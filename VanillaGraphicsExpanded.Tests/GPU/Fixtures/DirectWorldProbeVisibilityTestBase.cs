@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -14,9 +15,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Runs direct irradiance consumers against the same controlled cache and published voxel scene.</summary>
 public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctionalTestBase
 {
-    // ShaderTestHelper owns these programs until fixture disposal. Multi-frame scenarios
+    // The fixture owns production programs until disposal. Multi-frame scenarios
     // reuse the same compiled variant, matching runtime behavior instead of relinking each draw.
-    private readonly Dictionary<string, int> visibilityPrograms = new();
+    private readonly Dictionary<string, GpuProgram> visibilityPrograms = new();
     /// <summary>Uses the shared mandatory GPU fixture.</summary>
     protected DirectWorldProbeVisibilityTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -45,13 +46,15 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             ["VGE_LUMON_WORLDPROBE_DIFFUSE_STRIDE"] = "2"
         };
         string key = shader + string.Join(";", defines.Select(pair => pair.Key + "=" + pair.Value));
-        if (!visibilityPrograms.TryGetValue(key, out int program))
+        if (!visibilityPrograms.TryGetValue(key, out var program))
         {
-            var declaration = VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(
-                debug ? "tests/worldprobe_debug" : shader);
-            program = CompileShaderWithDefines(declaration.Stages[0].Source, declaration.Stages[1].Source, defines);
+            program = debug
+                ? Programs.Create<LumOnDebugShaderProgram>(settings: defines, identity: LumOnDebugShaderProgram.WorldprobeContract.Identity)
+                : sh9 ? Programs.Create<LumOnProbeSh9GatherShaderProgram>(settings: defines)
+                : Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>(settings: defines);
             visibilityPrograms.Add(key, program);
         }
+        using var use = program.UseScope();
         using var assets = new BinaryShaderApiFixture();
         int guideSize = debug ? size : size * 2;
         using var terrain = new EngineTerrainBuffers(guideSize,guideSize);
@@ -76,35 +79,52 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                 normals[i + 2] = normal.Z * .5f + .5f;
                 normals[i + 3] = 1;
             }
-            Add("primaryDepth", debug ? 0 : sh9 ? 9 : 3, terrain.Depth, depth);
-            Add("gBufferNormal", debug ? 1 : sh9 ? 10 : 4, terrainAttachments.Normal, normals);
-            Add("worldProbeRadianceAtlas", debug ? 19 : sh9 ? 11 : 5, world.ProbeRadianceAtlas, atlas.Radiance);
-            Add("worldProbeVis0", debug ? 22 : sh9 ? 14 : 8, world.ProbeVis0, atlas.Visibility);
-            Add("worldProbeMeta0", debug ? 24 : sh9 ? 15 : 9, world.ProbeMeta0, atlas.Metadata);
-            if (!debug)
+            terrain.Depth.UploadDataImmediate(depth);
+            terrainAttachments.Normal.UploadDataImmediate(normals);
+            world.ProbeRadianceAtlas.UploadDataImmediate(atlas.Radiance);
+            world.ProbeVis0.UploadDataImmediate(atlas.Visibility);
+            world.ProbeMeta0.UploadDataImmediate(atlas.Metadata);
+            screen.ProbeAnchorPositionTex!.UploadDataImmediate(new float[screen.ProbeAnchorPositionTex.Width * screen.ProbeAnchorPositionTex.Height * 4]);
+            screen.ProbeAnchorNormalTex!.UploadDataImmediate(new float[screen.ProbeAnchorNormalTex.Width * screen.ProbeAnchorNormalTex.Height * 4]);
+            var geometry = shared ?? scene?.Backend;
+            switch (program)
             {
-                Add("probeAnchorPosition", sh9 ? 7 : 1, screen.ProbeAnchorPositionTex!, new float[16]);
-                Add("probeAnchorNormal", sh9 ? 8 : 2, screen.ProbeAnchorNormalTex!, new float[16]);
-                if (sh9)
-                    for (int i = 0; i < 7; i++) Add("probeSh" + i, i, (DynamicTexture2D)screen.ProbeSh9Fbo![i], new float[16]);
-                else Add("octahedralAtlas", 0, screen.ScreenProbeAtlasFilteredTex!, new float[1024]);
+                case LumOnDebugShaderProgram viewProgram:
+                    viewProgram.PrimaryDepth = terrain.Depth.TextureId;
+                    viewProgram.GBufferNormal = terrainAttachments.Normal.TextureId;
+                    viewProgram.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas;
+                    viewProgram.WorldProbeVis0 = world.ProbeVis0;
+                    viewProgram.WorldProbeMeta0 = world.ProbeMeta0;
+                    viewProgram.NearFieldVisibility.Bind(viewProgram, geometry);
+                    viewProgram.DebugMode = consumer;
+                    break;
+                case LumOnProbeSh9GatherShaderProgram gather:
+                    for (int i = 0; i < 7; i++) ((DynamicTexture2D)screen.ProbeSh9Fbo![i]).UploadDataImmediate(new float[screen.ProbeAnchorPositionTex.Width * screen.ProbeAnchorPositionTex.Height * 4]);
+                    gather.ProbeSh0 = screen.ProbeSh9Fbo![0]; gather.ProbeSh1 = screen.ProbeSh9Fbo[1];
+                    gather.ProbeSh2 = screen.ProbeSh9Fbo[2]; gather.ProbeSh3 = screen.ProbeSh9Fbo[3];
+                    gather.ProbeSh4 = screen.ProbeSh9Fbo[4]; gather.ProbeSh5 = screen.ProbeSh9Fbo[5]; gather.ProbeSh6 = screen.ProbeSh9Fbo[6];
+                    gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
+                    gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
+                    gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
+                    gather.NearFieldVisibility.Bind(gather, geometry);
+                    gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SuppressWorldProbeRadiance = suppress;
+                    break;
+                case LumOnScreenProbeAtlasGatherShaderProgram gather:
+                    screen.ScreenProbeAtlasFilteredTex!.UploadDataImmediate(new float[screen.ScreenProbeAtlasFilteredTex.Width * screen.ScreenProbeAtlasFilteredTex.Height * 4]);
+                    gather.ScreenProbeAtlas = screen.ScreenProbeAtlasFilteredTex;
+                    gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
+                    gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
+                    gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
+                    gather.NearFieldVisibility.Bind(gather, geometry);
+                    gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SampleStride = 1; gather.SuppressWorldProbeRadiance = suppress;
+                    break;
             }
-            int geometryUnit = debug ? 34 : sh9 ? 12 : 6;
-            int readinessUnit = debug ? 35 : sh9 ? 13 : 7;
-            (shared?.Geometry ?? scene?.Geometry)?.Bind(geometryUnit);
-            (shared?.Readiness ?? scene?.Regions)?.Bind(readinessUnit);
-            GL.UseProgram(program);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), geometryUnit);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), readinessUnit);
-            GL.UseProgram(0);
-            using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.DirectVisibility");
+            // Component scenarios override the traversal budget through the existing
+            // parameter contract. Production scene binding still owns every sampler.
             var local = new LumOnNearFieldParamsUbo();
             if (shared != null) local.SetShared(shared, budget);
             else local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, budget, scene?.CellSize ?? 16);
-            localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
-            localBuffer.BindBase(LumOnNearFieldParamsUbo.Binding);
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
-
+            local.BindTo(program, LumOnNearFieldParamsUbo.BlockName, "Tests.DirectVisibility");
             // Move the camera while compensating the view-space receiver so the
             // reconstructed player-relative surface remains stationary.
             float cameraHeight = playerOrigin.HasValue ? 1.625f : 0;
@@ -120,36 +140,11 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset,
                 matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
             UpdateAndBindLumOnWorldProbeUbo(program, new Vec3f(), Vector3.Zero, levelOrigins ?? [cacheOrigin], levelRings ?? [ring]);
-            using var parameters = new ObjectParamsUbo("Tests.DirectVisibility.Params");
-            if (debug)
-            {
-                parameters.UploadAndBind(new LumOnDebugParamsUbo { DebugMode = consumer }.Bytes);
-                UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            }
-            else
-            {
-                parameters.UploadAndBind(new LumOnProbeParamsUbo
-                {
-                    Intensity = 1, IndirectTint = Vector3.One, SampleStride = 1,
-                    SuppressWorldProbeRadiance = suppress
-                }.Bytes);
-                UniformBlockBindingUtil.EnsureBlockBound(program, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            }
             var output = debug ? terrain.Output : screen.IndirectHalfFbo!;
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }
 
-
-        /// <summary>Populates an owned input texture without duplicating its storage format.</summary>
-        void Add(string name, int unit, DynamicTexture2D texture, float[] data)
-        {
-            texture.UploadDataImmediate(data);
-            texture.Bind(unit);
-            GL.UseProgram(program);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name), unit);
-            GL.UseProgram(0);
-        }
     }
     #endregion
 }

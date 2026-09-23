@@ -25,8 +25,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompilePbrDirectLightingProgram();
-        try
+        var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
                 PixelInternalFormat.Rgba16f,
@@ -56,10 +55,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             AssertAllFinite(dd);
             AssertAllFinite(ds);
         }
-        finally
-        {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        }
     }
 
     [Fact]
@@ -67,8 +62,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompilePbrDirectLightingProgram();
-        try
+        var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
                 PixelInternalFormat.Rgba16f,
@@ -115,10 +109,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             AssertNear(expectedG, dd.G, 3e-2f);
             AssertNear(expectedB, dd.B, 3e-2f);
         }
-        finally
-        {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        }
     }
 
     [Fact]
@@ -126,8 +116,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompilePbrDirectLightingProgram();
-        try
+        var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
                 PixelInternalFormat.Rgba16f,
@@ -163,10 +152,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             Assert.True(ds.R > 1e-3f || ds.G > 1e-3f || ds.B > 1e-3f,
                 $"Expected some specular for metallic=1, got ({ds.R}, {ds.G}, {ds.B})");
         }
-        finally
-        {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        }
     }
 
     [Fact]
@@ -174,8 +159,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompilePbrDirectLightingProgram();
-        try
+        var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
                 PixelInternalFormat.Rgba16f,
@@ -215,10 +199,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             AssertNear(baseColor.g * emissiveScalar, em.G, 2e-2f);
             AssertNear(baseColor.b * emissiveScalar, em.B, 2e-2f);
         }
-        finally
-        {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        }
     }
 
     [Fact]
@@ -226,8 +206,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompilePbrDirectLightingProgram();
-        try
+        var programId = CompilePbrDirectLightingProgram();
         {
             using var outputA = TestFramework.CreateTestGBuffer(1, 1,
                 PixelInternalFormat.Rgba16f,
@@ -287,10 +266,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             AssertNear(dsA.G, dsB.G, 2e-2f);
             AssertNear(dsA.B, dsB.B, 2e-2f);
         }
-        finally
-        {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        }
     }
 
     [Fact]
@@ -298,8 +273,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
 
-        int programId = CompilePbrCompositeProgram();
-        try
+        var programId = CompilePbrCompositeProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 1);
 
@@ -327,17 +301,13 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             AssertNear(0.2f + 0.0f + 0.05f, outPx.G, 2e-2f);
             AssertNear(0.3f + 0.1f + 0.0f, outPx.B, 2e-2f);
         }
-        finally
-        {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        }
-    }
+}
 
     /// <summary>Uses the reusable binary direct-lighting fixture.</summary>
-    private int CompilePbrDirectLightingProgram() => PbrShaderPrograms.CompilePbrDirectLightingProgram(ShaderHelper);
+    private PBRDirectLightingShaderProgram CompilePbrDirectLightingProgram() => Programs.Create<PBRDirectLightingShaderProgram>();
 
     /// <summary>Uses the reusable binary composite fixture.</summary>
-    private int CompilePbrCompositeProgram() => PbrShaderPrograms.CompilePbrCompositeProgram(ShaderHelper);
+    private PBRCompositeShaderProgram CompilePbrCompositeProgram() => Programs.Create<PBRCompositeShaderProgram>(shader => { shader.LumOnEnabled = false; shader.EnablePbrComposite = false; shader.EnableShortRangeAo = false; });
     private static (float R, float G, float B, float A) ReadPixelFromAttachment(GpuFramebuffer target, int attachmentIndex)
     {
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, target.FboId);
@@ -361,8 +331,9 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             $"Expected finite RGBA, got ({px.R}, {px.G}, {px.B}, {px.A})");
     }
 
+    /// <summary>Renders controlled lighting through the production parameters and resource setters.</summary>
     private void RenderDirectLighting(
-        int programId,
+        PBRDirectLightingShaderProgram programId,
         GpuFramebuffer output,
         DynamicTexture2D primaryScene,
         DynamicTexture2D primaryDepth,
@@ -382,15 +353,15 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.ClearColor(0f, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        GL.UseProgram(programId);
+        using var use = programId.UseScope();
 
         // Samplers
-        BindSampler(programId, "primaryScene", 0, primaryScene.TextureId);
-        BindSampler(programId, "primaryDepth", 1, primaryDepth.TextureId);
-        BindSampler(programId, "gBufferNormal", 2, gBufferNormal.TextureId);
-        BindSampler(programId, "gBufferMaterial", 3, gBufferMaterial.TextureId);
-        BindSampler(programId, "shadowMapNear", 4, shadowNear.TextureId);
-        BindSampler(programId, "shadowMapFar", 5, shadowFar.TextureId);
+        programId.PrimaryScene = primaryScene.TextureId;
+        programId.PrimaryDepth = primaryDepth.TextureId;
+        programId.GBufferNormal = gBufferNormal.TextureId;
+        programId.GBufferMaterial = gBufferMaterial.TextureId;
+        programId.ShadowMapNear = shadowNear.TextureId;
+        programId.ShadowMapFar = shadowFar.TextureId;
 
         // Identity matrices
         float[] identity =
@@ -402,8 +373,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         ];
 
         // Phase 23: UBO-backed params (VgePbrDirectLightingParamsUBO @ object binding).
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.Pbr.DirectLighting.ParamsUBO");
-        UniformBlockBindingUtil.EnsureBlockBound(programId, PbrDirectLightingParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
 
         float[]? pointLightPositions3 = null;
         float[]? pointLightColors3 = null;
@@ -412,21 +381,18 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             pointLightPositions3 = [pointLightPos0.x, pointLightPos0.y, pointLightPos0.z];
             pointLightColors3 = [pointLightColor0.r, pointLightColor0.g, pointLightColor0.b];
         }
-
-        var cpuParams = new PbrDirectLightingParamsUbo();
-        cpuParams.InvProjectionMatrix = identity;
-        cpuParams.InvModelViewMatrix = identity;
-        cpuParams.ToShadowMapSpaceMatrixNear = identity;
-        cpuParams.ToShadowMapSpaceMatrixFar = identity;
-        cpuParams.ZPlanesAndShadowRanges = (zNear: 0.1f, zFar: 100f, shadowRangeNear: 1f, shadowRangeFar: 1f);
-        cpuParams.ShadowExtendAndDrop = (shadowZExtendNear: 1f, shadowZExtendFar: 1f, dropShadowIntensity: 0f);
-        cpuParams.CameraOriginFloor = new Vector3(cameraOriginFloor.x, cameraOriginFloor.y, cameraOriginFloor.z);
-        cpuParams.CameraOriginFrac = new Vector3(cameraOriginFrac.x, cameraOriginFrac.y, cameraOriginFrac.z);
-        cpuParams.LightDirection = new Vector3(lightDirection.x, lightDirection.y, lightDirection.z);
-        cpuParams.RgbaLightIn = new Vector3(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b);
-        cpuParams.RgbaAmbientIn = Vector3.Zero;
-        cpuParams.SetPointLights(pointLightCount, pointLightPositions3, pointLightColors3);
-        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
+        programId.InvProjectionMatrix = identity;
+        programId.InvModelViewMatrix = identity;
+        programId.ToShadowMapSpaceMatrixNear = identity;
+        programId.ToShadowMapSpaceMatrixFar = identity;
+        programId.ZPlanesAndShadowRanges = (zNear: 0.1f, zFar: 100f, shadowRangeNear: 1f, shadowRangeFar: 1f);
+        programId.ShadowZExtendNear = 1; programId.ShadowZExtendFar = 1; programId.DropShadowIntensity = 0;
+        programId.CameraOriginFloor = new(cameraOriginFloor.x, cameraOriginFloor.y, cameraOriginFloor.z);
+        programId.CameraOriginFrac = new(cameraOriginFrac.x, cameraOriginFrac.y, cameraOriginFrac.z);
+        programId.LightDirection = new(lightDirection.x, lightDirection.y, lightDirection.z);
+        programId.RgbaLightIn = new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b);
+        programId.RgbaAmbientIn = new(0,0,0);
+        programId.SetPointLights(pointLightCount, pointLightPositions3, pointLightColors3);
 
         // Draw
         GL.Disable(EnableCap.DepthTest);
@@ -435,12 +401,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         // Fullscreen triangle from ShaderTestFramework expects position at location 0.
         TestFramework.RenderQuad(programId);
 
-        GL.UseProgram(0);
         GpuFramebuffer.Unbind();
     }
 
+    /// <summary>Renders direct-only composition with the production composite shader.</summary>
     private void RenderComposite(
-        int programId,
+        PBRCompositeShaderProgram programId,
         GpuFramebuffer output,
         DynamicTexture2D directDiffuse,
         DynamicTexture2D directSpecular,
@@ -455,32 +421,28 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.ClearColor(0f, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        GL.UseProgram(programId);
+        using var use = programId.UseScope();
 
-        BindSampler(programId, "directDiffuse", 0, directDiffuse.TextureId);
-        BindSampler(programId, "directSpecular", 1, directSpecular.TextureId);
-        BindSampler(programId, "emissive", 2, emissive.TextureId);
-        BindSampler(programId, "indirectDiffuse", 3, indirectDiffuse.TextureId);
-        BindSampler(programId, "gBufferAlbedo", 4, gBufferAlbedo.TextureId);
-        BindSampler(programId, "gBufferMaterial", 5, gBufferMaterial.TextureId);
-        BindSampler(programId, "gBufferNormal", 6, gBufferNormal.TextureId);
-        BindSampler(programId, "primaryDepth", 7, primaryDepth.TextureId);
+        programId.DirectDiffuse = directDiffuse;
+        programId.DirectSpecular = directSpecular;
+        programId.Emissive = emissive;
+        programId.IndirectDiffuse = indirectDiffuse;
+        programId.GBufferAlbedo = gBufferAlbedo.TextureId;
+        programId.GBufferMaterial = gBufferMaterial.TextureId;
+        programId.GBufferNormal = gBufferNormal.TextureId;
+        programId.PrimaryDepth = primaryDepth.TextureId;
 
         // Disable LumOn + fog
-        SetInt(programId, "lumOnEnabled", 0);
-        SetFloat(programId, "indirectIntensity", 0f);
-        SetVec3(programId, "indirectTint", 1f, 1f, 1f);
+        programId.IndirectIntensity = 0f;
+        programId.IndirectTint = new(1f, 1f, 1f);
 
-        SetVec4(programId, "rgbaFogIn", 0f, 0f, 0f, 0f);
-        SetFloat(programId, "fogDensityIn", 0f);
-        SetFloat(programId, "fogMinIn", 0f);
+        programId.RgbaFogIn = new(0f, 0f, 0f, 0f);
+        programId.FogDensityIn = 0f;
+        programId.FogMinIn = 0f;
 
-        // Phase 15 toggles irrelevant when lumOn disabled
-        SetInt(programId, "enablePbrComposite", 0);
-        SetInt(programId, "enableAO", 0);
-        SetInt(programId, "enableShortRangeAo", 0);
-        SetFloat(programId, "diffuseAOStrength", 1f);
-        SetFloat(programId, "specularAOStrength", 1f);
+        // Ambient-occlusion controls are inactive when indirect lighting is disabled.
+        programId.DiffuseAOStrength = 1f;
+        programId.SpecularAOStrength = 1f;
 
         float[] identity =
         [
@@ -489,58 +451,15 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             0, 0, 1, 0,
             0, 0, 0, 1
         ];
-        SetMat4(programId, "invProjectionMatrix", identity);
-        SetMat4(programId, "viewMatrix", identity);
+        programId.InvProjectionMatrix = identity;
+        programId.ViewMatrix = identity;
 
         GL.Disable(EnableCap.DepthTest);
         GL.Disable(EnableCap.Blend);
 
         TestFramework.RenderQuad(programId);
 
-        GL.UseProgram(0);
         GpuFramebuffer.Unbind();
     }
 
-    private static void BindSampler(int programId, string name, int unit, int textureId)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc < 0)
-        {
-            return;
-        }
-
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.Uniform1(loc, unit);
-    }
-
-    private static void SetFloat(int programId, string name, float value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0) GL.Uniform1(loc, value);
-    }
-
-    private static void SetInt(int programId, string name, int value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0) GL.Uniform1(loc, value);
-    }
-
-    private static void SetVec3(int programId, string name, float x, float y, float z)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0) GL.Uniform3(loc, x, y, z);
-    }
-
-    private static void SetVec4(int programId, string name, float x, float y, float z, float w)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0) GL.Uniform4(loc, x, y, z, w);
-    }
-
-    private static void SetMat4(int programId, string name, float[] m)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0) GL.UniformMatrix4(loc, 1, false, m);
-    }
 }

@@ -37,8 +37,6 @@ public abstract partial class GpuProgram : ShaderProgram
     private readonly StageShader fragmentStage;
     private readonly StageShader geometryStage;
 
-
-
     private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
     private int uniformLocationCacheProgramId;
 
@@ -359,22 +357,31 @@ public abstract partial class GpuProgram : ShaderProgram
     /// </summary>
     public ProgramUseScope UseScope()
     {
-        int prevProgram = 0;
-        _ = GlStateCache.Current.TryGetCachedCurrentProgram(out prevProgram);
+        var previous = ShaderProgramBase.CurrentShaderProgram;
+        int previousId = previous?.ProgramId ?? 0;
+        if (previous is null)
+            GlStateCache.Current.TryGetCachedCurrentProgram(out previousId);
+        if (ReferenceEquals(previous, this))
+            return default; // A nested use borrows the outer scope's activation.
 
         try
         {
+            // The engine rejects overlapping shader owners, even when GL allows a bind.
+            previous?.Stop();
+            GlStateCache.Current.NotifyProgramBound(0);
             Use();
             GlStateCache.Current.NotifyProgramBound(ProgramId);
-            return new ProgramUseScope(prevProgram, ProgramId);
+            return new ProgramUseScope(previous, previousId, this);
         }
         catch
         {
-            // Best-effort: some callers may run during shutdown/context loss.
-            return new ProgramUseScope(previousProgramId: 0, currentProgramId: 0);
+            // Restore the caller's ownership if activation failed during shutdown/reload.
+            if (previous is not null) previous.Use();
+            else GlStateCache.Current.UseProgram(previousId);
+            GlStateCache.Current.NotifyProgramBound(previousId);
+            return default;
         }
     }
-
     /// <summary>
     /// Attempts to bind this program.
     /// </summary>
@@ -410,26 +417,29 @@ public abstract partial class GpuProgram : ShaderProgram
     /// </summary>
     public readonly struct ProgramUseScope : IDisposable
     {
+        private readonly ShaderProgramBase? previous;
         private readonly int previousProgramId;
-        private readonly int currentProgramId;
+        private readonly GpuProgram? current;
 
-        public ProgramUseScope(int previousProgramId, int currentProgramId)
+        /// <summary>Remembers both the engine owner and any engine-independent GL binding.</summary>
+        internal ProgramUseScope(ShaderProgramBase? previous, int previousProgramId, GpuProgram current)
         {
+            this.previous = previous;
             this.previousProgramId = previousProgramId;
-            this.currentProgramId = currentProgramId;
+            this.current = current;
         }
 
+        /// <summary>Stops this activation and restores the caller's engine and GL state together.</summary>
         public void Dispose()
         {
-            if (previousProgramId == 0 || previousProgramId == currentProgramId)
-            {
-                return;
-            }
-
-            GlStateCache.Current.UseProgram(previousProgramId);
+            if (current is null) return;
+            current.Stop();
+            GlStateCache.Current.NotifyProgramBound(0);
+            if (previous is not null) previous.Use();
+            else GlStateCache.Current.UseProgram(previousProgramId);
+            GlStateCache.Current.NotifyProgramBound(previousProgramId);
         }
     }
-
     #endregion
 
     /// <summary>

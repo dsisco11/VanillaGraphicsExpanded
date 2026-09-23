@@ -23,15 +23,8 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     public void SurfaceCacheSettersBindArrayTextures(int resource, int unit, PixelInternalFormat format)
     {
         EnsureContextValid();
-        using var assets = new BinaryShaderApiFixture();
-        using var program = new LumOnDebugShaderProgram
-        {
-            PassName = "lumon_debug_gbuffer",
-            VertexShader = new Vintagestory.Client.NoObf.Shader(),
-            FragmentShader = new Vintagestory.Client.NoObf.Shader()
-        };
-        program.Initialize(assets.Api);
-        Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: "lumon_debug_gbuffer");
+        using var active = program.UseScope();
         using var texture = Texture3D.Create(2, 2, 2, format, textureTarget: TextureTarget.Texture2DArray);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var sentinel = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
@@ -63,17 +56,9 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     public void IrradianceViewDrawsKnownArrayLighting()
     {
         EnsureShaderTestAvailable();
-        using var assets = new BinaryShaderApiFixture();
-        using var program = new LumOnDebugShaderProgram
-        {
-            PassName = "lumon_debug_gbuffer",
-            VertexShader = new Vintagestory.Client.NoObf.Shader(),
-            FragmentShader = new Vintagestory.Client.NoObf.Shader()
-        };
-        program.Initialize(assets.Api);
-        Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
-        TestShaderInterfaces.TrackProgram(program.ProgramId, program.ResourceBindings.BinaryInterface!);
-        try
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: "lumon_debug_gbuffer");
+        using var active = program.UseScope();
+
         {
             using var patch = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
             patch.UploadDataImmediate(new uint[] { 0, 1, 0, 0 });
@@ -94,16 +79,16 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
             program.LumonSceneTilesPerAxis = 1;
             program.LumonSceneTilesPerAtlas = 1;
             program.DebugMode = (int)LumOnDebugMode.LumonSceneIrradiance;
-            UpdateAndBindLumOnFrameUbo(program.ProgramId);
+            UpdateAndBindLumOnFrameUbo(program);
             using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-            TestFramework.RenderQuadTo(program.ProgramId, output);
+            TestFramework.RenderQuadTo(program, output);
             float[] pixel = output[0].ReadPixels();
             Assert.InRange(pixel[0], .499f, .501f);
             Assert.InRange(pixel[1], .749f, .751f);
             Assert.InRange(pixel[2], .874f, .876f);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { TestShaderInterfaces.ForgetProgram(program.ProgramId); }
+
     }
     #endregion
 }

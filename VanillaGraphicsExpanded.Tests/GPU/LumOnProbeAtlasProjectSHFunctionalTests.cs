@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -20,9 +21,15 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
 
     public LumOnProbeAtlasProjectSHFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private int CompileProjectShader() => CompileShader("lumon_probe_atlas_project_sh.vsh", "lumon_probe_atlas_project_sh.fsh");
-    private int CompileShGatherShader() => CompileShader("lumon_gather.vsh", "lumon_gather.fsh");
-    private int CompileAtlasGatherShader() => CompileShader("lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh");
+    private LumOnScreenProbeAtlasProjectSHShaderProgram CompileProjectShader() => Programs.Create<LumOnScreenProbeAtlasProjectSHShaderProgram>();
+    /// <summary>Retains the explicitly skipped retired L1 comparison; no production L1 gather owner exists.</summary>
+    private int CompileShGatherShader()
+    {
+        var result = ShaderHelper.CompileAndLink("lumon_gather.vsh", "lumon_gather.fsh");
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        return result.ProgramId;
+    }
+    private LumOnScreenProbeAtlasGatherShaderProgram CompileAtlasGatherShader() => Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>();
 
     private static float[] CreateProbeAnchors(float worldZ, float validity = 1.0f)
     {
@@ -91,25 +98,14 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         return data;
     }
 
-    private void SetupProjectUniforms(int programId, float[] viewMatrix)
+    /// <summary>Configures the production shader for controlled coefficient inputs.</summary>
+    private void SetupProjectUniforms(LumOnScreenProbeAtlasProjectSHShaderProgram programId, float[] viewMatrix)
     {
-        GL.UseProgram(programId);
-
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix"), 1, false, viewMatrix);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas"), 0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMeta"), 1);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
-
-        // Phase 23: UBO-backed frame state.
-        UpdateAndBindLumOnFrameUbo(
-            programId,
-            viewMatrix: viewMatrix);
-
-        GL.UseProgram(0);
+        using var use = programId.UseScope();
+        UpdateAndBindLumOnFrameUbo(programId, viewMatrix: viewMatrix);
     }
 
+    /// <summary>Retains the retired L1 binding contract solely for the explicitly skipped historical comparison.</summary>
     private void SetupShGatherUniforms(int programId, float[] invProjection, float[] view)
     {
         GL.UseProgram(programId);
@@ -138,9 +134,9 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), 4);
         GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal"), 5);
 
-        // Phase 23: UBO-backed frame state.
+        // The retired gather borrows the existing frame-buffer contract without a production shader owner.
         UpdateAndBindLumOnFrameUbo(
-            programId,
+            null,
             invProjectionMatrix: invProjection,
             viewMatrix: view,
             probeSpacing: ProbeSpacing);
@@ -148,40 +144,12 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         GL.UseProgram(0);
     }
 
-    private void SetupAtlasGatherUniforms(int programId, float[] invProjection, float[] view)
+    /// <summary>Configures the production shader for controlled coefficient inputs.</summary>
+    private void SetupAtlasGatherUniforms(LumOnScreenProbeAtlasGatherShaderProgram programId, float[] invProjection, float[] view)
     {
-        GL.UseProgram(programId);
-
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix"), 1, false, view);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "halfResSize"), (float)HalfResWidth, (float)HalfResHeight);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear"), ZNear);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar"), ZFar);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "intensity"), 1.0f);
-        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint"), 1f, 1f, 1f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "leakThreshold"), 0.5f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "sampleStride"), 1);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas"), 0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 1);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal"), 2);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth"), 3);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal"), 4);
-
-        // Phase 23: UBO-backed frame state.
-        UpdateAndBindLumOnFrameUbo(
-            programId,
-            invProjectionMatrix: invProjection,
-            viewMatrix: view,
-            probeSpacing: ProbeSpacing);
-
-        GL.UseProgram(0);
+        using var use = programId.UseScope();
+        UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: view);
+        programId.Intensity = 1; programId.IndirectTint = [1,1,1]; programId.LeakThreshold = .5f; programId.SampleStride = 1;
     }
 
     private static (float r, float g, float b, float a) ReadProbeTexel(float[] rgba, int w, int x, int y)
@@ -219,12 +187,13 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f);
 
-        int programId = CompileProjectShader();
+        var programId = CompileProjectShader();
+        using var programIdUse = programId.UseScope();
         SetupProjectUniforms(programId, identity);
 
-        atlasTex.Bind(0);
-        metaTex.Bind(1);
-        anchorPosTex.Bind(2);
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ScreenProbeAtlasMeta = metaTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
 
         TestFramework.RenderQuadTo(programId, outSh);
 
@@ -244,8 +213,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         Assert.True(System.Math.Abs(g1) < 0.05f);
         Assert.True(System.Math.Abs(b1) < 0.05f);
         Assert.True(System.Math.Abs(a1) < 0.05f);
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact(Skip = "Option B now uses SH9 projection/gather; this L1 gather comparison is obsolete.")]
@@ -281,12 +248,13 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f);
 
-        int projectId = CompileProjectShader();
+        var projectId = CompileProjectShader();
+        using var projectIdUse = projectId.UseScope();
         SetupProjectUniforms(projectId, identity);
 
-        atlasTex.Bind(0);
-        metaTex.Bind(1);
-        anchorPosTex.Bind(2);
+        projectId.ScreenProbeAtlas = atlasTex;
+        projectId.ScreenProbeAtlasMeta = metaTex;
+        projectId.ProbeAnchorPosition = anchorPosTex;
         TestFramework.RenderQuadTo(projectId, outSh);
 
         // 2) SH gather using projected coefficients
@@ -308,14 +276,15 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         // 3) Atlas gather integration
         using var outIndirectAtlas = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
 
-        int atlasGatherId = CompileAtlasGatherShader();
+        var atlasGatherId = CompileAtlasGatherShader();
+        using var atlasGatherIdUse = atlasGatherId.UseScope();
         SetupAtlasGatherUniforms(atlasGatherId, identity, identity);
 
-        atlasTex.Bind(0);
-        anchorPosTex.Bind(1);
-        anchorNormTex.Bind(2);
-        depthTex.Bind(3);
-        gbufNormTex.Bind(4);
+        atlasGatherId.ScreenProbeAtlas = atlasTex;
+        atlasGatherId.ProbeAnchorPosition = anchorPosTex;
+        atlasGatherId.ProbeAnchorNormal = anchorNormTex;
+        atlasGatherId.PrimaryDepth = depthTex.TextureId;
+        atlasGatherId.GBufferNormal = gbufNormTex.TextureId;
 
         TestFramework.RenderQuadTo(atlasGatherId, outIndirectAtlas);
         var atlasOut = outIndirectAtlas[0].ReadPixels();
@@ -327,9 +296,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         Assert.True(System.Math.Abs(sr - ar) < 0.1f);
         Assert.True(System.Math.Abs(sg - ag) < 0.1f);
         Assert.True(System.Math.Abs(sb - ab) < 0.1f);
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(projectId);
         global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(shGatherId);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(atlasGatherId);
     }
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -20,16 +21,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 {
     public LumonSceneRelightVoxelDdaComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private const int RelightParamsUboSizeBytes = 80;
-
     [Fact]
     public void Relight_HitProducesNonZeroIrradiance_AndWeightIncrements()
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.Hit");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 8;
         const int tilesPerAxis = 1;
@@ -74,53 +73,37 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
-        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Hit.ParamsUBO");
-
-        GL.UseProgram(program);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
+        using var computeProgramScope = computeProgram.UseScope();
+        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
 
         // SSBO binding matches shader: binding=0.
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 0);
+        computeProgram.BindRelightWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindDebugCounters(debugCounter.Buffer);
 
         // Samplers use layout(binding=N): bind textures to those units.
-        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
-        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
-        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
+        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
+        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+
+        computeProgram.BindLightColorLut(lightColorLut.TextureId);
+        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
+        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+
+        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
 
         // Output image binding matches shader: layout(binding=0, rgba16f) image2DArray.
-        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+        computeProgram.BindIrradianceAtlasImage(irradiance);
 
-        BindRelightParamsUbo(
-            paramsUbo,
-            tileSizeTexels: tileSize,
-            tilesPerAxis: tilesPerAxis,
-            tilesPerAtlas: tilesPerAtlas,
-            borderTexels: 0,
-            frameIndex: 0,
-            occResolution: occRes,
-            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
-            raysPerTexel: 1u,
-            maxDdaSteps: 16u,
-            debugCountersEnabled: 0u,
-            occOriginMinCell0X: 0,
-            occOriginMinCell0Y: 0,
-            occOriginMinCell0Z: 0,
-            occRing0X: 0,
-            occRing0Y: 0,
-            occRing0Z: 0);
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, (uint)0);
+        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 16u, 0u != 0);
+        computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.DispatchBound(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 1)");
@@ -131,7 +114,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(a, 0.99f, 1.01f);
         Assert.True(r > 0.001f || g > 0.001f || b > 0.001f, $"Expected non-zero irradiance, got rgb=({r},{g},{b})");
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -139,9 +121,9 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.LightId");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -176,52 +158,36 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
 
-        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.DebugCounters.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
+        computeProgram.BindRelightWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        GL.UseProgram(program);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 0);
+        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
+        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
 
-        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
-        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
-        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
+        computeProgram.BindLightColorLut(lightColorLut.TextureId);
+        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
+        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
 
-        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
 
-        BindRelightParamsUbo(
-            paramsUbo,
-            tileSizeTexels: tileSize,
-            tilesPerAxis: 1,
-            tilesPerAtlas: 1,
-            borderTexels: 0,
-            frameIndex: 0,
-            occResolution: occRes,
-            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
-            raysPerTexel: 1u,
-            maxDdaSteps: 16u,
-            debugCountersEnabled: 1u,
-            occOriginMinCell0X: 0,
-            occOriginMinCell0Y: 0,
-            occOriginMinCell0Z: 0,
-            occRing0X: 0,
-            occRing0Y: 0,
-            occRing0Z: 0);
+        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+
+        computeProgram.BindIrradianceAtlasImage(irradiance);
+
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
+        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 16u, 1u != 0);
+        computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.DispatchBound(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (atomic counter)");
@@ -233,7 +199,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.Equal(expectedRays, counters[2]); // misses
         Assert.Equal(0u, counters[3]);           // oob starts
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -241,9 +206,9 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.Miss");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -274,49 +239,33 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
-        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Miss.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
+        computeProgram.BindRelightWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        GL.UseProgram(program);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 0);
+        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
+        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
 
-        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
-        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
-        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
+        computeProgram.BindLightColorLut(lightColorLut.TextureId);
+        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
+        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
 
-        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
 
-        BindRelightParamsUbo(
-            paramsUbo,
-            tileSizeTexels: tileSize,
-            tilesPerAxis: 1,
-            tilesPerAtlas: 1,
-            borderTexels: 0,
-            frameIndex: 0,
-            occResolution: occRes,
-            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
-            raysPerTexel: 1u,
-            maxDdaSteps: 8u,
-            debugCountersEnabled: 0u,
-            occOriginMinCell0X: 0,
-            occOriginMinCell0Y: 0,
-            occOriginMinCell0Z: 0,
-            occRing0X: 0,
-            occRing0Y: 0,
-            occRing0Z: 0);
+        computeProgram.BindIrradianceAtlasImage(irradiance);
+
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
+        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 8u, 0u != 0);
+        computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.DispatchBound(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 2)");
@@ -329,7 +278,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(g, -1e-4f, 1e-4f);
         Assert.InRange(b, -1e-4f, 1e-4f);
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -337,9 +285,9 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.TStep");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -378,25 +326,24 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
-        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.TemporalAccum.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
+        computeProgram.BindRelightWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        GL.UseProgram(program);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 0);
+        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
+        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
 
-        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
-        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
-        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
+        computeProgram.BindLightColorLut(lightColorLut.TextureId);
+        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
+        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
 
-        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+        computeProgram.BindIrradianceAtlasImage(irradiance);
 
         uint commonTexelsPerFrame = (uint)(tileSize * tileSize);
         const uint commonRaysPerTexel = 1u;
@@ -407,49 +354,19 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         int gy = (tileSize + 7) / 8;
 
         // Frame 0
-        BindRelightParamsUbo(
-            paramsUbo,
-            tileSizeTexels: tileSize,
-            tilesPerAxis: 1,
-            tilesPerAtlas: 1,
-            borderTexels: 0,
-            frameIndex: 0,
-            occResolution: occRes,
-            texelsPerPagePerFrame: commonTexelsPerFrame,
-            raysPerTexel: commonRaysPerTexel,
-            maxDdaSteps: commonMaxDdaSteps,
-            debugCountersEnabled: commonDebugCountersEnabled,
-            occOriginMinCell0X: 0,
-            occOriginMinCell0Y: 0,
-            occOriginMinCell0Z: 0,
-            occRing0X: 0,
-            occRing0Y: 0,
-            occRing0Z: 0);
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
+        computeProgram.SetRelightParams(0, commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
+        computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
+        computeProgram.DispatchBound(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 3)");
 
         // Frame 1
-        BindRelightParamsUbo(
-            paramsUbo,
-            tileSizeTexels: tileSize,
-            tilesPerAxis: 1,
-            tilesPerAtlas: 1,
-            borderTexels: 0,
-            frameIndex: 1,
-            occResolution: occRes,
-            texelsPerPagePerFrame: commonTexelsPerFrame,
-            raysPerTexel: commonRaysPerTexel,
-            maxDdaSteps: commonMaxDdaSteps,
-            debugCountersEnabled: commonDebugCountersEnabled,
-            occOriginMinCell0X: 0,
-            occOriginMinCell0Y: 0,
-            occOriginMinCell0Z: 0,
-            occRing0X: 0,
-            occRing0Y: 0,
-            occRing0Z: 0);
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
+        computeProgram.SetRelightParams(1, commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
+        computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
+        computeProgram.DispatchBound(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 4)");
@@ -461,7 +378,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.False(float.IsNaN(r) || float.IsNaN(g) || float.IsNaN(b));
         Assert.False(float.IsInfinity(r) || float.IsInfinity(g) || float.IsInfinity(b));
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -469,9 +385,9 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.SelfHit");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -514,50 +430,34 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
 
-        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.Halfspace.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
+        computeProgram.BindRelightWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        GL.UseProgram(program);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 0);
+        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
+        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
 
-        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
-        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
-        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 6, materialPalette.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
+        computeProgram.BindLightColorLut(lightColorLut.TextureId);
+        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
+        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
 
-        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
 
-        BindRelightParamsUbo(
-            paramsUbo,
-            tileSizeTexels: tileSize,
-            tilesPerAxis: 1,
-            tilesPerAtlas: 1,
-            borderTexels: 0,
-            frameIndex: 0,
-            occResolution: occRes,
-            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
-            raysPerTexel: 1u,
-            maxDdaSteps: 8u,
-            debugCountersEnabled: 1u,
-            occOriginMinCell0X: 0,
-            occOriginMinCell0Y: 0,
-            occOriginMinCell0Z: 0,
-            occRing0X: 0,
-            occRing0Y: 0,
-            occRing0Z: 0);
+        computeProgram.BindIrradianceAtlasImage(irradiance);
+
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
+        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 8u, 1u != 0);
+        computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.DispatchBound(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 5)");
@@ -574,7 +474,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(a, 0.99f, 1.01f);
         Assert.True(r > 1e-3f || g > 1e-3f || b > 1e-3f, "Expected non-zero irradiance from halfspace hits.");
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -582,9 +481,9 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_relight_voxel_dda", debugName: "Tests.RelightVoxelDda.SelfHit2");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -619,48 +518,32 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: 1u, virtualPageIndex: 0u);
         using var workSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_WorkSSBO", work);
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
-        using var debugCounter = CreateAtomicCounterBuffer(counterCount: 4);
+        using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneRelightVoxelDda.OobStart.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
+        computeProgram.BindRelightWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        GL.UseProgram(program);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occ, materialPalette);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        debugCounter.BindBase(bindingIndex: 0);
+        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
+        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
 
-        BindSampler(TextureTarget.Texture2DArray, unit: 0, depthAtlas.TextureId);
-        BindSampler(TextureTarget.Texture2DArray, unit: 1, materialAtlas.TextureId);
-        BindSampler(TextureTarget.Texture3D, unit: 2, occ.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 3, lightColorLut.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 4, blockScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 5, sunScalar.TextureId);
-        BindSampler(TextureTarget.Texture2D, unit: 7, surfaceLut.TextureId);
+        computeProgram.BindLightColorLut(lightColorLut.TextureId);
+        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
+        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
 
-        GL.BindImageTexture(0, irradiance.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.Rgba16f);
+        computeProgram.BindIrradianceAtlasImage(irradiance);
 
-        BindRelightParamsUbo(
-            paramsUbo,
-            tileSizeTexels: tileSize,
-            tilesPerAxis: 1,
-            tilesPerAtlas: 1,
-            borderTexels: 0,
-            frameIndex: 0,
-            occResolution: occRes,
-            texelsPerPagePerFrame: (uint)(tileSize * tileSize),
-            raysPerTexel: 1u,
-            maxDdaSteps: 8u,
-            debugCountersEnabled: 0u,
-            occOriginMinCell0X: 0,
-            occOriginMinCell0Y: 0,
-            occOriginMinCell0Z: 0,
-            occRing0X: 0,
-            occRing0Y: 0,
-            occRing0Z: 0);
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
+        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 8u, 0u != 0);
+        computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.DispatchBound(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 6)");
@@ -673,7 +556,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.InRange(g, -1e-4f, 1e-4f);
         Assert.InRange(b, -1e-4f, 1e-4f);
 
-        // Program disposed via ComputeProgram.
     }
 
     private static void FindSafeSeedForOccRes(int occRes, uint physicalPageId, uint virtualPageIndex, out uint patchId)
@@ -695,36 +577,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         }
 
         throw new InvalidOperationException($"Unable to find a safe patchId seed for occRes={occRes}.");
-    }
-
-    private static void BindRelightParamsUbo(
-        ObjectParamsUbo paramsUbo,
-        int tileSizeTexels,
-        int tilesPerAxis,
-        int tilesPerAtlas,
-        int borderTexels,
-        int frameIndex,
-        int occResolution,
-        uint texelsPerPagePerFrame,
-        uint raysPerTexel,
-        uint maxDdaSteps,
-        uint debugCountersEnabled,
-        int occOriginMinCell0X,
-        int occOriginMinCell0Y,
-        int occOriginMinCell0Z,
-        int occRing0X,
-        int occRing0Y,
-        int occRing0Z)
-    {
-        Span<byte> paramsBytes = stackalloc byte[RelightParamsUboSizeBytes];
-
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSizeTexels, (uint)tilesPerAxis, (uint)tilesPerAtlas, (uint)borderTexels);
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 16, texelsPerPagePerFrame, raysPerTexel, maxDdaSteps, debugCountersEnabled);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, frameIndex, occResolution, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occOriginMinCell0X, occOriginMinCell0Y, occOriginMinCell0Z, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 64, occRing0X, occRing0Y, occRing0Z, 0);
-
-        paramsUbo.UploadAndBind(paramsBytes);
     }
 
     private static void FindSafeSeedWithLocalZForHalfspace(int occRes, uint physicalPageId, uint virtualPageIndex, out uint patchId, out int localZ)
@@ -774,74 +626,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture3D, textureId);
         GL.TexSubImage3D(TextureTarget.Texture3D, 0, 0, 0, 0, res, res, res, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
         GL.BindTexture(TextureTarget.Texture3D, 0);
-    }
-
-    private static ShaderTestHelper CreateShaderHelperOrSkip()
-    {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
-        {
-            Assert.Skip("Shader assets not available - test output content may be missing");
-        }
-
-        return new ShaderTestHelper(shaderPath, includePath);
-    }
-
-    private static void BindSampler(TextureTarget target, int unit, int textureId)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(target, textureId);
-    }
-
-    private static void SetUniform(int program, string name, uint value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static bool TrySetUniform(int program, string name, uint value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        if (loc < 0) return false;
-        GL.Uniform1(loc, value);
-        return true;
-    }
-
-    private static new void SetUniform(int program, string name, int value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static void SetUniform3i(int program, string name, int x, int y, int z)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform3(loc, x, y, z);
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
@@ -994,52 +778,4 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         return (rgba[idx + 0], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]);
     }
 
-    private sealed class AtomicCounterBuffer : IDisposable
-    {
-        private int bufferId;
-
-        public AtomicCounterBuffer(int bufferId) => this.bufferId = bufferId;
-
-        public void BindBase(int bindingIndex)
-        {
-            GL.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, bindingIndex, bufferId);
-        }
-
-        public void UploadZeros(int counterCount)
-        {
-            counterCount = Math.Max(1, counterCount);
-            uint[] zeros = new uint[counterCount];
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
-            GL.BufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint) * counterCount, zeros);
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-        }
-
-        public uint[] Read(int counterCount)
-        {
-            counterCount = Math.Max(1, counterCount);
-            uint[] data = new uint[counterCount];
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
-            GL.GetBufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint) * counterCount, data);
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-            return data;
-        }
-
-        public void Dispose()
-        {
-            int id = bufferId;
-            bufferId = 0;
-            if (id != 0) GL.DeleteBuffer(id);
-        }
-    }
-
-    private static AtomicCounterBuffer CreateAtomicCounterBuffer(int counterCount)
-    {
-        if (counterCount <= 0) counterCount = 1;
-
-        int id = GL.GenBuffer();
-        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, id);
-        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint) * counterCount, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-        return new AtomicCounterBuffer(id);
-    }
 }

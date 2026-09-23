@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -19,16 +20,14 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 {
     public LumonSceneVoxelCaptureComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private const int CaptureVoxelParamsUboSizeBytes = 64;
-
     [Fact]
     public void CaptureVoxel_SingleWorkItem_WritesDepthZero_AndExpectedMaterial()
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.SingleWorkItem");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 16;
         const int tilesPerAxis = 1;
@@ -67,27 +66,19 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.CaptureVoxel.ParamsUBO");
-
-        GL.UseProgram(program);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        slotInfoSsbo.BindBase(bindingIndex: 2);
+        using var computeProgramScope = computeProgram.UseScope();
+        computeProgram.BindCaptureWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
 
         // Bind output images to match shader layout(binding=...).
-        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
+        computeProgram.BindDepthAtlasImage(depthAtlas);
+        computeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        BindSampler3D(unit: 2, occL0.TextureId);
-        BindSampler2D(unit: 3, materialPalette.TextureId);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occL0, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occL0, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
 
-        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occRes, 0, 0, 0);
-        paramsUbo.UploadAndBind(paramsBytes);
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -108,7 +99,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.Equal((byte)9, b);    // surfaceId low byte
         Assert.Equal((byte)0, a);    // surfaceId high byte
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -116,9 +106,9 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.MultiChunkSlots");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 16;
         const int tilesPerAxis = 2;
@@ -144,22 +134,16 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         // Slot 0 origin=(0,0,0); slot 1 origin=(32,0,0). Generation=0.
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new[] { 0, 0, 0, 0, 32, 0, 0, 0 });
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.MultiChunkSlots.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        computeProgram.BindSharedGeometry(null); // This case checks metadata without a geometry publication.
+        computeProgram.BindCaptureWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
 
-        GL.UseProgram(program);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        slotInfoSsbo.BindBase(bindingIndex: 2);
+        computeProgram.BindDepthAtlasImage(depthAtlas);
+        computeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
-
-        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, 0, 0, 0, 0);
-        paramsUbo.UploadAndBind(paramsBytes);
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -190,7 +174,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.InRange(m1.OriginWS.Y, -0.01f, 0.01f);
         Assert.InRange(m1.OriginWS.Z, -0.01f, 0.01f);
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -198,9 +181,9 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.MultipleAtlases");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 8;
         const int tilesPerAxis = 2;
@@ -245,26 +228,18 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[6]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.MultipleAtlases.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        computeProgram.BindCaptureWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
 
-        GL.UseProgram(program);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        slotInfoSsbo.BindBase(bindingIndex: 2);
+        computeProgram.BindDepthAtlasImage(depthAtlas);
+        computeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
+        using var sharedSurface = new SharedSurfaceInputFixture(occL0, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
 
-        BindSampler3D(unit: 2, occL0.TextureId);
-        BindSampler2D(unit: 3, materialPalette.TextureId);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occL0, materialPalette);
-
-        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occRes, 0, 0, 0);
-        paramsUbo.UploadAndBind(paramsBytes);
+        computeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -300,7 +275,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         float dUnwritten = depth[LinearIndex(w, h, layer: 0, x: tileSize + tileSize / 2, y: tileSize / 2)];
         Assert.InRange(dUnwritten, 0.98f, 1.02f);
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -308,9 +282,9 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.LumonSceneVoxelCapture.LayeredWrites");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 16;
 
@@ -343,26 +317,18 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneVoxelCapture.BorderTexels.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        computeProgram.BindCaptureWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+        computeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
 
-        GL.UseProgram(program);
-        workSsbo.BindBase(bindingIndex: 0);
-        patchMetaSsbo.BindBase(bindingIndex: 1);
-        slotInfoSsbo.BindBase(bindingIndex: 2);
+        computeProgram.BindDepthAtlasImage(depthAtlas);
+        computeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
+        using var sharedSurface = new SharedSurfaceInputFixture(occL0, materialPalette);
+        computeProgram.BindSharedGeometry(sharedSurface.Scene);
 
-        BindSampler3D(unit: 2, occL0.TextureId);
-        BindSampler2D(unit: 3, materialPalette.TextureId);
-        using var sharedSurface = new SharedSurfaceInputFixture(program, occL0, materialPalette);
-
-        Span<byte> paramsBytes = stackalloc byte[CaptureVoxelParamsUboSizeBytes];
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 2u);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 16, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 32, 0, 0, 0, 0);
-        UboPacking.WriteIVec4(paramsBytes, byteOffset: 48, occRes, 0, 0, 0);
-        paramsUbo.UploadAndBind(paramsBytes);
+        computeProgram.SetAtlasLayout((uint)tileSize, 1u, 1u, 2u);
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
@@ -378,20 +344,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         Assert.Equal((byte)9, b);
         Assert.Equal((byte)0, a);
 
-        // Program disposed via ComputeProgram.
-    }
-
-    private static ShaderTestHelper CreateShaderHelperOrSkip()
-    {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
-        {
-            Assert.Skip("Shader assets not available - test output content may be missing");
-        }
-
-        return new ShaderTestHelper(shaderPath, includePath);
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
@@ -461,20 +413,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         byte a = rgba[idx + 3];
 
         return (r, g, b, a);
-    }
-
-    private static void BindSampler3D(int unit, int textureId)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
-    }
-
-    private static void BindSampler2D(int unit, int textureId)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static (float Min, float Max) MinMax(ReadOnlySpan<float> v)

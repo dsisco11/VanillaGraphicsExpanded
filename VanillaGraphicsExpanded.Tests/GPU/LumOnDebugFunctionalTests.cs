@@ -12,10 +12,10 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
 /// Functional tests for the LumOn Debug Visualization shader pass.
-/// 
+///
 /// These tests verify that the debug shader correctly renders various
 /// visualization modes for debugging the probe grid system.
-/// 
+///
 /// Debug Modes:
 /// 1 = Probe Grid with validity coloring
 /// 2 = Probe Depth heatmap
@@ -27,7 +27,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// 8 = SH Coefficients
 /// 9 = Interpolation Weights
 /// 10 = Radiance Overlay (indirect diffuse)
-/// 
+///
 /// Test configuration:
 /// - Screen buffer: 4×4 pixels
 /// - Probe grid: 2×2 probes
@@ -56,13 +56,13 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the debug visualization shader.
     /// </summary>
-    private int CompileDebugShader() => CompileShader("lumon_debug.vsh", "lumon_debug.fsh");
+    private LumOnDebugShaderProgram CompileDebugShader() => Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.DispatcherContract.Identity);
 
     /// <summary>
     /// Sets up common uniforms for the debug shader.
     /// </summary>
-    private ObjectParamsUbo SetupDebugUniforms(
-        int programId,
+    private void SetupDebugUniforms(
+        LumOnDebugShaderProgram programId,
         int debugMode,
         float[] invProjection,
         float[] invView,
@@ -71,29 +71,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         float depthRejectThreshold = 0.1f,
         float normalRejectThreshold = 0.9f)
     {
-        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Debug.ParamsUBO");
-
-        GL.UseProgram(programId);
-
-        // Texture sampler uniforms
-        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
-        var anchorPosLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition");
-        var anchorNormalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorNormal");
-        var radiance0Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture0");
-        var radiance1Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "radianceTexture1");
-        var indirectHalfLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectHalf");
-        var historyMetaLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "historyMeta");
-        
-        GL.Uniform1(depthLoc, 0);
-        GL.Uniform1(normalLoc, 1);
-        GL.Uniform1(anchorPosLoc, 2);
-        GL.Uniform1(anchorNormalLoc, 3);
-        GL.Uniform1(radiance0Loc, 4);
-        GL.Uniform1(radiance1Loc, 5);
-        GL.Uniform1(indirectHalfLoc, 6);
-        GL.Uniform1(historyMetaLoc, 7);
-
+        using var use = programId.UseScope();
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
             programId,
@@ -101,26 +79,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             invViewMatrix: invView,
             prevViewProjMatrix: prevViewProj);
 
-        // Phase 23: UBO-backed debug parameters.
-        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-        var cpuParams = new LumOnDebugParamsUbo();
-        using (cpuParams.BeginBatchUpdate())
-        {
-            cpuParams.DebugMode = debugMode;
-            cpuParams.TemporalAlpha = temporalAlpha;
-            cpuParams.DepthRejectThreshold = depthRejectThreshold;
-            cpuParams.NormalRejectThreshold = normalRejectThreshold;
-
-            // Keep radiance overlay consistent across modes.
-            cpuParams.IndirectTint = new Vector3(1f, 1f, 1f);
-            cpuParams.IndirectIntensity = 1f;
-            cpuParams.DiffuseAOStrength = 1f;
-            cpuParams.SpecularAOStrength = 1f;
-        }
-        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
-
-        GL.UseProgram(0);
-        return objectParamsUbo;
+        programId.DebugMode = debugMode;
+        programId.TemporalAlpha = temporalAlpha;
+        programId.DepthRejectThreshold = depthRejectThreshold;
+        programId.NormalRejectThreshold = normalRejectThreshold;
+        programId.IndirectTint = new(1,1,1);
+        programId.IndirectIntensity = 1;
+        programId.DiffuseAOStrength = 1;
+        programId.SpecularAOStrength = 1;
     }
 
     /// <summary>
@@ -283,14 +249,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that unknown debug modes render magenta (error color).
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Invalid debugMode values should output magenta (1,0,1)
     /// - This helps identify misconfiguration
-    /// 
+    ///
     /// Setup:
     /// - debugMode = 99 (invalid)
-    /// 
+    ///
     /// Expected:
     /// - All pixels = magenta (1, 0, 1)
     /// </summary>
@@ -323,17 +289,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: 99, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: 99, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -354,8 +322,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(magentaCount == ScreenWidth * ScreenHeight,
             $"Expected all {ScreenWidth * ScreenHeight} pixels to be magenta, got {magentaCount}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -364,15 +330,15 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that Mode 1 (Probe Grid) colors probes by validity.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Green dots for valid probes (validity > 0.9)
     /// - Yellow dots for edge probes (0.4 < validity ≤ 0.9)
     /// - Red dots for invalid probes (validity ≤ 0.4)
-    /// 
+    ///
     /// Setup:
     /// - Mixed validity probes
-    /// 
+    ///
     /// Expected:
     /// - Probe dot colors match validity states
     /// </summary>
@@ -404,17 +370,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -451,14 +419,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that Mode 4 (Scene Depth) renders a depth heatmap.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Non-sky pixels show heatmap colors based on depth
     /// - Sky pixels (depth=1.0) show black
-    /// 
+    ///
     /// Setup:
     /// - Mid-depth scene (depth=0.5)
-    /// 
+    ///
     /// Expected:
     /// - Non-zero colored output (heatmap)
     /// </summary>
@@ -490,18 +458,20 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
+
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -523,8 +493,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(coloredCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show heatmap for all non-sky pixels, got {coloredCount}/{ScreenWidth * ScreenHeight}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -533,14 +501,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that Mode 10 (Radiance Overlay) outputs the indirect diffuse buffer.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Non-sky pixels show tone-mapped indirect radiance
-    /// 
+    ///
     /// Setup:
     /// - Depth = 0.5 (non-sky)
     /// - indirectHalf = uniform white (1,1,1)
-    /// 
+    ///
     /// Expected:
     /// - Output ~= Reinhard(1) = 0.5 per channel
     /// </summary>
@@ -583,17 +551,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -608,8 +578,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Pixel ({x},{y}) expected ~0.5 gray, got ({r:F3},{g:F3},{b:F3})");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -618,10 +586,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that Mode 4 shows black for sky pixels.
-    /// 
+    ///
     /// Setup:
     /// - Depth = 1.0 (sky)
-    /// 
+    ///
     /// Expected:
     /// - All pixels = black
     /// </summary>
@@ -653,18 +621,20 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
+
+        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -685,8 +655,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show black for sky, got {blackCount}/{ScreenWidth * ScreenHeight}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -695,14 +663,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that Mode 5 (Scene Normals) visualizes G-buffer normals.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Normals displayed as RGB: (nx*0.5+0.5, ny*0.5+0.5, nz*0.5+0.5)
     /// - Upward normal (0,1,0) should show as (0.5, 1.0, 0.5)
-    /// 
+    ///
     /// Setup:
     /// - Uniform upward normals
-    /// 
+    ///
     /// Expected:
     /// - Output color ≈ (0.5, 1.0, 0.5) greenish
     /// </summary>
@@ -734,17 +702,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -754,8 +724,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(g > 0.8f,
             $"Mode 5 with upward normal should have high green component, got ({r:F3}, {g:F3}, {b:F3})");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -764,14 +732,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that Mode 8 (SH Coefficients) visualizes SH radiance data.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Shows DC term as base color
     /// - Tone-mapped for HDR values
-    /// 
+    ///
     /// Setup:
     /// - White radiance (1,1,1) in SH DC terms
-    /// 
+    ///
     /// Expected:
     /// - Non-zero grayscale output (tone-mapped white)
     /// </summary>
@@ -803,17 +771,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -834,8 +804,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(nonZeroCount > 0,
             "Mode 8 should show non-zero SH visualization for valid probes");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -844,10 +812,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that Mode 2 (Probe Depth) shows black for invalid probes.
-    /// 
+    ///
     /// Setup:
     /// - All probes invalid (validity=0)
-    /// 
+    ///
     /// Expected:
     /// - All pixels = black
     /// </summary>
@@ -879,17 +847,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -910,8 +880,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 2 should show black for invalid probes, got {blackCount}/{ScreenWidth * ScreenHeight}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -920,14 +888,14 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests Mode 3 (Probe Normals) visualization.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Renders probe normals as RGB color
     /// - Normal (0,0,-1) should appear as blueish
-    /// 
+    ///
     /// Setup:
     /// - Probes with forward-facing normals (0,0,-1)
-    /// 
+    ///
     /// Expected:
     /// - Output should show normal colors (encoded 0.5,0.5,0 for forward)
     /// </summary>
@@ -959,17 +927,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -988,20 +958,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(nonBlackCount > 0,
             "Mode 3 should show normal colors for valid probes");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests Mode 6 (Temporal Weight) visualization.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Shows the temporal blending weight as grayscale
     /// - Higher weight = more history influence
-    /// 
+    ///
     /// Setup:
     /// - Valid probes with consistent history
-    /// 
+    ///
     /// Expected:
     /// - Non-black output indicating temporal weight
     /// </summary>
@@ -1033,17 +1001,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1062,20 +1032,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(nonBlackCount > 0,
             "Mode 6 should visualize temporal weights");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests Mode 7 (Temporal Rejection) visualization.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Shows rejection mask - red = rejected, green = accepted
     /// - Helps debug temporal stability issues
-    /// 
+    ///
     /// Setup:
     /// - Valid probes with matching history
-    /// 
+    ///
     /// Expected:
     /// - Non-black output showing rejection state
     /// </summary>
@@ -1107,17 +1075,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1136,20 +1106,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(nonBlackCount > 0,
             "Mode 7 should visualize temporal rejection mask");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests Mode 9 (Interpolation Weights) visualization.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Shows bilinear interpolation weights for probe gather
     /// - Visualizes how much each probe contributes
-    /// 
+    ///
     /// Setup:
     /// - Valid probe grid
-    /// 
+    ///
     /// Expected:
     /// - Non-black output showing weight distribution
     /// </summary>
@@ -1181,17 +1149,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileDebugShader();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        using var objectParamsUbo = SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
 
-        depthTex.Bind(0);
-        normalTex.Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormalTex.Bind(3);
-        radiance0Tex.Bind(4);
-        radiance1Tex.Bind(5);
-        indirectHalfTex.Bind(6);
-        historyMetaTex.Bind(7);
+        using var programUse = programId.UseScope();
+        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
+
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ProbeAnchorNormal = anchorNormalTex;
+        programId.RadianceTexture0 = radiance0Tex;
+        programId.RadianceTexture1 = radiance1Tex;
+        programId.IndirectHalf = indirectHalfTex;
+        programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1210,8 +1180,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(nonBlackCount > 0,
             "Mode 9 should visualize interpolation weights");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion

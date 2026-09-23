@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -11,14 +12,14 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
 /// Functional tests for the LumOn probe-atlas temporal shader pass.
-/// 
+///
 /// These tests verify that the probe-atlas temporal shader correctly:
 /// - Blends traced texels between current and history frames
 /// - Preserves non-traced texels (temporal distribution)
 /// - Detects disocclusion via hit distance changes
 /// - Clamps history to neighborhood bounds (prevents ghosting)
 /// - Outputs zero for invalid probes
-/// 
+///
 /// Test configuration:
 /// - Probe grid: 2×2 probes
 /// - Octahedral size: 8×8 texels per probe
@@ -30,7 +31,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// - Uses hit distance for disocclusion (not depth/normal comparison)
 /// - Temporal distribution: only traced texels are blended
 /// - Neighborhood clamping within probe's octahedral tile
-/// 
+///
 /// Temporal blend formula:
 /// <code>
 /// if (wasTracedThisFrame(texel)) {
@@ -73,39 +74,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     /// <summary>
     /// Compiles and links the probe-atlas temporal shader.
     /// </summary>
-    private int CompileOctahedralTemporalShader(int texelsPerFrame = DefaultTexelsPerFrame) =>
-        CompileShaderWithDefines(
-            "lumon_probe_atlas_temporal.vsh",
-            "lumon_probe_atlas_temporal.fsh",
-            new Dictionary<string, string?>
-            {
-                ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = texelsPerFrame.ToString()
-            });
+    private LumOnScreenProbeAtlasTemporalShaderProgram CompileOctahedralTemporalShader(int texelsPerFrame = DefaultTexelsPerFrame) => Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = texelsPerFrame);
 
     /// <summary>
     /// Sets up common uniforms for the probe-atlas temporal shader.
     /// </summary>
-    private ObjectParamsUbo SetupOctahedralTemporalUniforms(
-        int programId,
+    private void SetupOctahedralTemporalUniforms(
+        LumOnScreenProbeAtlasTemporalShaderProgram programId,
         int frameIndex = 0,
         int texelsPerFrame = DefaultTexelsPerFrame,
         float temporalAlpha = DefaultTemporalAlpha,
         float hitDistanceRejectThreshold = DefaultHitDistanceRejectThreshold)
     {
-        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.ProbeTemporal.ParamsUBO");
-
-        GL.UseProgram(programId);
-
-        // Texture sampler uniforms
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralCurrent"), 0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralHistory"), 1);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaCurrent"), 3);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMetaHistory"), 4);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "velocityTex"), 5);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "pmjJitter"), 6);
-
-        // Phase 23: UBO-backed frame state.
+        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(
             programId,
             probeSpacing: ProbeSpacing,
@@ -116,18 +97,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             velocityRejectThreshold: 0.01f,
             anchorJitterScale: 0.0f);
 
-        // Phase 23: UBO-backed probe temporal parameters.
-        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-        var cpuParams = new LumOnProbeParamsUbo();
-        using (cpuParams.BeginBatchUpdate())
-        {
-            cpuParams.TemporalAlpha = temporalAlpha;
-            cpuParams.HitDistanceRejectThreshold = hitDistanceRejectThreshold;
-        }
-        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
-
-        GL.UseProgram(0);
-        return objectParamsUbo;
+        programId.TemporalAlpha = temporalAlpha;
+        programId.HitDistanceRejectThreshold = hitDistanceRejectThreshold;
     }
 
     /// <summary>
@@ -195,12 +166,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Creates a current atlas that is "neighborhood clamp friendly".
-    /// 
+    ///
     /// The temporal shader clamps history to the current 3×3 neighborhood min/max.
     /// With a uniform current atlas (solid red), the neighborhood min/max collapses
     /// to a single value and will clamp history to red, making it impossible for
     /// tests to observe blending behavior.
-    /// 
+    ///
     /// This helper keeps the center texel of each probe tile red, but injects
     /// a black and blue neighbor into the center's 3×3 neighborhood so that:
     /// - min.r becomes 0 (so history.r=0 is not clamped up to 1)
@@ -350,17 +321,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.5f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -393,8 +366,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var outputMeta = outputAtlas[1].ReadPixels();
         for (int i = 1; i < outputMeta.Length; i += 2)
             Assert.Equal(2u, (BitConverter.SingleToUInt32Bits(outputMeta[i]) >> 16) & 7u);
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
@@ -436,17 +407,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.9f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -472,8 +445,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(resetCount == sampleCount,
             $"Expected all {sampleCount} sampled texels to reset to current, got {resetCount}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -482,16 +453,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that invalid probes produce zero output in their atlas region.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Invalid probes (validity=0) should output zero radiance
     /// - This prevents invalid probes from contributing to lighting
-    /// 
+    ///
     /// Setup:
     /// - All probes invalid
     /// - Current atlas: red (1,0,0)
     /// - History atlas: blue (0,0,1)
-    /// 
+    ///
     /// Expected:
     /// - All 256 texels output (0,0,0,0)
     /// </summary>
@@ -520,13 +491,15 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(programId);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(programId);
+
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -550,8 +523,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(zeroCount == AtlasWidth * AtlasHeight,
             $"Expected all {AtlasWidth * AtlasHeight} texels to be zero, got {zeroCount}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -560,18 +531,18 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that non-traced texels preserve the current frame output unchanged.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Texels NOT traced this frame should pass through current unchanged
     /// - The trace pass already copied history for non-traced texels
     /// - Temporal pass should not modify these texels
-    /// 
+    ///
     /// Setup:
     /// - frameIndex=0, texelsPerFrame=8
     /// - Probe 0 traces batch 0 (texels 0-7)
     /// - Current atlas: red
     /// - History atlas: blue
-    /// 
+    ///
     /// Expected:
     /// - Non-traced texels (8-63 for probe 0) = current (red)
     /// </summary>
@@ -600,16 +571,18 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 8);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -617,7 +590,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         // Check probe (0,0) - probeIndex=0
         int probeIndex = 0;
         int probeX = 0, probeY = 0;
-        
+
         int nonTracedPreserved = 0;
         int nonTracedTotal = 0;
 
@@ -626,7 +599,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             for (int octX = 0; octX < OctahedralSize; octX++)
             {
                 bool wasTraced = WasTracedThisFrame(octX, octY, probeIndex, 0, 8);
-                
+
                 if (!wasTraced)
                 {
                     nonTracedTotal++;
@@ -647,8 +620,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             $"Expected 56 non-traced texels, got {nonTracedTotal}");
         Assert.True(nonTracedPreserved == nonTracedTotal,
             $"Expected all {nonTracedTotal} non-traced texels to be preserved, got {nonTracedPreserved}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -657,19 +628,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that traced texels are blended with valid history.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Texels traced this frame should blend current and history
     /// - Formula: result = mix(current, clampedHistory, temporalAlpha)
     /// - With α=0.5: result = 0.5*current + 0.5*history
-    /// 
+    ///
     /// Setup:
     /// - frameIndex=0, texelsPerFrame=64 (trace all)
     /// - Current atlas: red (1,0,0)
     /// - History atlas: blue (0,0,1)
     /// - temporalAlpha=0.5
     /// - Same hit distances (no disocclusion)
-    /// 
+    ///
     /// Expected:
     /// - All texels = (0.5, 0, 0.5) magenta (blended red+blue)
     /// </summary>
@@ -699,17 +670,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,  // Trace all texels
             temporalAlpha: 0.5f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -739,8 +712,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(blendedCount == sampleCount,
             $"Expected all {sampleCount} sampled texels to be blended, got {blendedCount}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -749,17 +720,17 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that texels with significant hit distance change reset to current frame.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When hit distance changes more than threshold, history is rejected
     /// - Output = current frame only (no blending)
-    /// 
+    ///
     /// Setup:
     /// - Current hit distance: 5.0
     /// - History hit distance: 20.0 (300% difference, > 30% threshold)
     /// - Current atlas: red
     /// - History atlas: blue
-    /// 
+    ///
     /// Expected:
     /// - Output = red (current) due to disocclusion
     /// </summary>
@@ -791,18 +762,20 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.9f,
             hitDistanceRejectThreshold: 0.3f);  // 30% threshold
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -816,7 +789,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             for (int x = 0; x < AtlasWidth; x++)
             {
                 var (r, g, b, _) = ReadAtlasTexel(outputData, x, y);
-                
+
                 // Should be approximately red (current)
                 if (r > 0.9f && g < 0.1f && b < 0.1f)
                 {
@@ -827,8 +800,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(currentCount == totalTexels,
             $"Expected all {totalTexels} texels to be current (disoccluded), got {currentCount}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -837,17 +808,17 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that temporalAlpha parameter controls the blend strength.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Higher alpha = more history contribution
     /// - α=0.9: result = 0.1*current + 0.9*history (mostly history)
     /// - α=0.1: result = 0.9*current + 0.1*history (mostly current)
-    /// 
+    ///
     /// Setup:
     /// - Run twice with α=0.9 and α=0.1
     /// - Current: red (1,0,0)
     /// - History: blue (0,0,1)
-    /// 
+    ///
     /// Expected:
     /// - α=0.9: more blue (history)
     /// - α=0.1: more red (current)
@@ -882,25 +853,25 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.9f);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             highAlphaBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Low alpha (more current)
@@ -920,25 +891,25 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.1f);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             lowAlphaBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // High alpha should have more blue (history) than low alpha
@@ -986,7 +957,9 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
@@ -1003,12 +976,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             pmjCycleLength: 1,
             anchorJitterScale: 0.0f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
-        velocityTex.Bind(5);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
+        programId.VelocityTex = velocityTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1016,8 +989,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         // Sample a clamp-friendly texel (4,4). If history were blended, blue would be > 0.
         var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
         Assert.True(b < 0.1f, $"Expected history to be rejected with invalid velocity (blue~0), got blue={b:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1026,16 +997,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that different frame indices trace different texel batches.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Each frame traces a different batch of texels
     /// - With texelsPerFrame=8 and 64 total, there are 8 batches
     /// - frameIndex 0 traces batch 0, frameIndex 1 traces batch 1, etc.
-    /// 
+    ///
     /// Setup:
     /// - Run with frameIndex=0 and frameIndex=1
     /// - Check which texels were blended (traced) vs preserved
-    /// 
+    ///
     /// Expected:
     /// - Different texels are traced for different frame indices
     /// </summary>
@@ -1069,22 +1040,22 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 8,
                 temporalAlpha: 0.5f);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame0Output = outputAtlas[0].ReadPixels();
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Frame 1
@@ -1104,22 +1075,22 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 1,
                 texelsPerFrame: 8,
                 temporalAlpha: 0.5f);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             frame1Output = outputAtlas[0].ReadPixels();
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Compare outputs - they should differ since different texels are traced
@@ -1130,7 +1101,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             float dr = MathF.Abs(frame0Output[i] - frame1Output[i]);
             float dg = MathF.Abs(frame0Output[i + 1] - frame1Output[i + 1]);
             float db = MathF.Abs(frame0Output[i + 2] - frame1Output[i + 2]);
-            
+
             if (dr > 0.1f || dg > 0.1f || db > 0.1f)
             {
                 differingTexels++;
@@ -1148,16 +1119,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that hitDistanceRejectThreshold controls disocclusion sensitivity.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Higher threshold = more tolerant of distance changes
     /// - Lower threshold = more aggressive rejection
-    /// 
+    ///
     /// Setup:
     /// - Current hit distance: 10
     /// - History hit distance: 15 (50% difference)
     /// - Test with threshold=0.3 (30%) and threshold=0.8 (80%)
-    /// 
+    ///
     /// Expected:
     /// - 30% threshold: reject history (50% > 30%)
     /// - 80% threshold: accept history (50% < 80%)
@@ -1194,26 +1165,26 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.9f,
                 hitDistanceRejectThreshold: 0.3f);  // 30% - will reject 50% difference
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             strictThresholdBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Loose threshold (should accept)
@@ -1233,26 +1204,26 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.9f,
                 hitDistanceRejectThreshold: 0.8f);  // 80% - will accept 50% difference
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             looseThresholdBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Strict threshold should have less blue (rejected history)
@@ -1267,15 +1238,15 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that zero hit distance in history is treated as invalid.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - historyHitDist < 0.001 should fail validation
     /// - Output = current frame only
-    /// 
+    ///
     /// Setup:
     /// - Current hit distance: 10
     /// - History hit distance: 0 (invalid)
-    /// 
+    ///
     /// Expected:
     /// - Output = current (red), not blended
     /// </summary>
@@ -1303,17 +1274,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.9f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1327,7 +1300,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             for (int x = 0; x < AtlasWidth; x++)
             {
                 var (r, g, b, _) = ReadAtlasTexel(outputData, x, y);
-                
+
                 if (r > 0.9f && g < 0.1f && b < 0.1f)
                 {
                     currentCount++;
@@ -1337,8 +1310,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(currentCount == totalTexels,
             $"Expected all {totalTexels} texels to be current (invalid history), got {currentCount}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1347,17 +1318,17 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that depth (hit distance) rejection triggers precisely at the threshold boundary.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When hit distance difference > threshold, reject history
     /// - Values just below threshold should accept history
     /// - Values just above threshold should reject history
-    /// 
+    ///
     /// Setup:
     /// - hitDistanceRejectThreshold = 0.3 (30%)
     /// - Current hit distance = 10.0
     /// - Test with history distance 11.0 (10% diff, accept) vs 15.0 (50% diff, reject)
-    /// 
+    ///
     /// Expected:
     /// - 10% diff: history accepted (blended)
     /// - 50% diff: history rejected (current passthrough)
@@ -1395,25 +1366,25 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.9f,
                 hitDistanceRejectThreshold: threshold);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             belowThresholdBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Above threshold (50% diff, should reject)
@@ -1437,25 +1408,25 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.9f,
                 hitDistanceRejectThreshold: threshold);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
-            metaCurrentTex.Bind(3);
-            metaHistoryTex.Bind(4);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
+            programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+            programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             aboveThresholdBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Below threshold should have more blue (history accepted)
@@ -1465,15 +1436,15 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that neighborhood clamping prevents ghosting artifacts.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - History values outside the neighborhood min/max should be clamped
     /// - Clamping prevents bright/dark ghost trails from persisting
-    /// 
+    ///
     /// Setup:
     /// - Current atlas: uniform gray (0.5, 0.5, 0.5)
     /// - History atlas: very bright (2.0, 2.0, 2.0) - outside neighborhood bounds
-    /// 
+    ///
     /// Expected:
     /// - Output should be clamped closer to current (not 2.0)
     /// </summary>
@@ -1484,7 +1455,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         float hitDist = 10f;
         var anchorPos = CreateValidProbeAnchors();
-        
+
         // Current = gray (0.5), History = very bright (2.0)
         var currentAtlas = CreateUniformAtlas(0.5f, 0.5f, 0.5f, EncodeHitDistance(hitDist));
         var historyAtlas = CreateUniformAtlas(2.0f, 2.0f, 2.0f, EncodeHitDistance(hitDist));
@@ -1504,17 +1475,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.9f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
-        metaCurrentTex.Bind(3);
-        metaHistoryTex.Bind(4);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
+        programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
+        programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1523,23 +1496,23 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         // With α=0.9, unclamped would be: 0.1*0.5 + 0.9*2.0 = 1.85
         // Clamping should bring it closer to current
         var (r, g, b, _) = ReadAtlasTexel(outputData, 4, 4);
-        
+
         Assert.True(r < 1.5f,
             $"Neighborhood clamping should prevent full history bleed, got R={r:F3}");
     }
 
     /// <summary>
     /// Tests that invalid probes output current frame values without blending.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Invalid probes (validity=0) should pass through current atlas unchanged
     /// - No temporal blending should occur for invalid probes
-    /// 
+    ///
     /// Setup:
     /// - All probes invalid
     /// - Current atlas: red (1,0,0)
     /// - History atlas: blue (0,0,1)
-    /// 
+    ///
     /// Expected:
     /// - Output should match current (red) exactly
     /// </summary>
@@ -1562,15 +1535,17 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.9f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1593,8 +1568,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(zeroCount == AtlasWidth * AtlasHeight,
             $"All texels should be zero for invalid probes, got {zeroCount}/{AtlasWidth * AtlasHeight}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -1603,15 +1576,15 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
     /// <summary>
     /// Tests that zero history hit distance is rejected as invalid.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - History with hitDistance ≈ 0 indicates invalid/stale data
     /// - Should fall back to current frame only
-    /// 
+    ///
     /// Setup:
     /// - Current frame with valid hit distance
     /// - History with near-zero hit distance (encoded as 0)
-    /// 
+    ///
     /// Expected:
     /// - Output should favor current frame
     /// </summary>
@@ -1634,15 +1607,17 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.9f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1651,21 +1626,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var (r, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
         Assert.True(r > b * 0.5f,
             $"Zero history hit distance should favor current frame: R={r:F3}, B={b:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests that neighborhood clamping constrains history to valid bounds.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - History values far outside the current neighborhood should be clamped
     /// - Prevents bright/dark ghost trails
-    /// 
+    ///
     /// Setup:
     /// - Current: uniform gray (0.3)
     /// - History: extreme value (5.0)
-    /// 
+    ///
     /// Expected:
     /// - Output should be much less than 5.0 (clamped toward current)
     /// </summary>
@@ -1690,15 +1663,17 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
-        using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+        using var programUse = programId.UseScope();
+        SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
             texelsPerFrame: 64,
             temporalAlpha: 0.9f);
 
-        currentAtlasTex.Bind(0);
-        historyAtlasTex.Bind(1);
-        anchorPosTex.Bind(2);
+        programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+        programId.ScreenProbeAtlasHistory = historyAtlasTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1711,22 +1686,20 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         Assert.True(brightness < 3.0f,
             $"Neighborhood clamping should constrain output, got {brightness:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     /// <summary>
     /// Tests that hitDistanceRejectThreshold triggers disocclusion detection.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When history hit distance differs by more than threshold%, reject history
     /// - This detects disoccluded surfaces
-    /// 
+    ///
     /// Setup:
     /// - Current hit distance = 10
     /// - History hit distance = 20 (100% diff, should reject at 30% threshold)
     /// - History hit distance = 11 (10% diff, should accept at 30% threshold)
-    /// 
+    ///
     /// Expected:
     /// - Large distance difference should reject history (favor current)
     /// </summary>
@@ -1757,23 +1730,23 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTemporalShader();
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.9f,
                 hitDistanceRejectThreshold: threshold);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             acceptedBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Large diff (100%) - should reject history
@@ -1791,23 +1764,23 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileOctahedralTemporalShader();
-            using var objectParamsUbo = SetupOctahedralTemporalUniforms(
+
+            using var programUse = programId.UseScope();
+            SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
                 texelsPerFrame: 64,
                 temporalAlpha: 0.9f,
                 hitDistanceRejectThreshold: threshold);
 
-            currentAtlasTex.Bind(0);
-            historyAtlasTex.Bind(1);
-            anchorPosTex.Bind(2);
+            programId.ScreenProbeAtlasCurrent = currentAtlasTex;
+            programId.ScreenProbeAtlasHistory = historyAtlasTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             rejectedBlue = b;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Rejected case should have less blue (less history influence)

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -19,16 +20,14 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 {
     public LumonSceneMeshCardCaptureComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private const int CaptureMeshCardParamsUboSizeBytes = 32;
-
     [Fact]
     public void Capture_PlanarQuad_WritesZeroDepthAndNormal()
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard", debugName: "Tests.MeshCardCapture.PlanarQuad");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneCaptureMeshCardComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 16;
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
@@ -73,24 +72,20 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = tri1;
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneMeshCardCapture.PlanarQuad.ParamsUBO");
-
-        GL.UseProgram(program);
+        using var computeProgramScope = computeProgram.UseScope();
 
         // SSBO bindings match the shader:
         // binding=0 work, binding=1 patch metadata, binding=2 triangles
-        workSsbo.BindBase(bindingIndex: 0);
-        metaSsbo.BindBase(bindingIndex: 1);
-        triSsbo.BindBase(bindingIndex: 2);
+        computeProgram.BindMeshCardCaptureWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetadataSsbo(metaSsbo);
+        computeProgram.BindTrianglesSsbo(triSsbo);
 
         // Image bindings match the shader layout(binding=...).
-        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
+        computeProgram.BindDepthAtlasImage(depthAtlas);
+        computeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        Span<byte> paramsBytes = stackalloc byte[CaptureMeshCardParamsUboSizeBytes];
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 0u);
-        UboPacking.WriteVec4(paramsBytes, byteOffset: 16, 1f, 0f, 0f, 0f);
-        paramsUbo.UploadAndBind(paramsBytes);
+        computeProgram.SetAtlasLayout((uint)tileSize, 1u, 1u, 0u);
+        computeProgram.CaptureDepthRange = 1f;
 
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
@@ -118,7 +113,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         Assert.Equal((byte)0, material[idx + 2]); // surfaceId lo
         Assert.Equal((byte)0, material[idx + 3]); // surfaceId hi
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -126,9 +120,9 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard", debugName: "Tests.MeshCardCapture.Slanted");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneCaptureMeshCardComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 16;
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
@@ -171,20 +165,16 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = tri1;
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneMeshCardCapture.OffsetQuad.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        computeProgram.BindMeshCardCaptureWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetadataSsbo(metaSsbo);
+        computeProgram.BindTrianglesSsbo(triSsbo);
 
-        GL.UseProgram(program);
-        workSsbo.BindBase(bindingIndex: 0);
-        metaSsbo.BindBase(bindingIndex: 1);
-        triSsbo.BindBase(bindingIndex: 2);
+        computeProgram.BindDepthAtlasImage(depthAtlas);
+        computeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
-
-        Span<byte> paramsBytes = stackalloc byte[CaptureMeshCardParamsUboSizeBytes];
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 0u);
-        UboPacking.WriteVec4(paramsBytes, byteOffset: 16, 1f, 0f, 0f, 0f);
-        paramsUbo.UploadAndBind(paramsBytes);
+        computeProgram.SetAtlasLayout((uint)tileSize, 1u, 1u, 0u);
+        computeProgram.CaptureDepthRange = 1f;
 
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
@@ -197,7 +187,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         Assert.InRange(min, dz - 0.03f, dz + 0.03f);
         Assert.InRange(max, dz - 0.03f, dz + 0.03f);
 
-        // Program disposed via ComputeProgram.
     }
 
     [Fact]
@@ -205,9 +194,9 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var computeProgram = ComputeProgram.Create(helper, "lumonscene_capture_meshcard", debugName: "Tests.MeshCardCapture.Coverage");
-        int program = computeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneCaptureMeshCardComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
+        using var computeProgram = computeProgramOwner!;
 
         const int tileSize = 16;
         using var depthAtlas = Texture3D.Create(tileSize, tileSize, depth: 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Test_DepthAtlas");
@@ -249,20 +238,16 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = new LumonSceneMeshCardTriangleGpu(new Vector4(p0, 0), new Vector4(p2, 0), new Vector4(p3, 0), new Vector4(n, 0));
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
-        using var paramsUbo = new ObjectParamsUbo("Tests.LumonSceneMeshCardCapture.RotatedQuad.ParamsUBO");
+        using var computeProgramScope = computeProgram.UseScope();
+        computeProgram.BindMeshCardCaptureWorkSsbo(workSsbo);
+        computeProgram.BindPatchMetadataSsbo(metaSsbo);
+        computeProgram.BindTrianglesSsbo(triSsbo);
 
-        GL.UseProgram(program);
-        workSsbo.BindBase(bindingIndex: 0);
-        metaSsbo.BindBase(bindingIndex: 1);
-        triSsbo.BindBase(bindingIndex: 2);
+        computeProgram.BindDepthAtlasImage(depthAtlas);
+        computeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-        GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
-
-        Span<byte> paramsBytes = stackalloc byte[CaptureMeshCardParamsUboSizeBytes];
-        UboPacking.WriteUVec4(paramsBytes, byteOffset: 0, (uint)tileSize, 1u, 1u, 0u);
-        UboPacking.WriteVec4(paramsBytes, byteOffset: 16, 1f, 0f, 0f, 0f);
-        paramsUbo.UploadAndBind(paramsBytes);
+        computeProgram.SetAtlasLayout((uint)tileSize, 1u, 1u, 0u);
+        computeProgram.CaptureDepthRange = 1f;
 
         GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
@@ -284,7 +269,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         Vector3 decoded = DecodeOctNormal01(new Vector2(material[idx + 0] / 255f, material[idx + 1] / 255f));
         Assert.True(Vector3.Dot(decoded, n) > 0.99f, $"Captured normal dot expected too low: {Vector3.Dot(decoded, n)}");
 
-        // Program disposed via ComputeProgram.
     }
 
     private static Vector3 DecodeOctNormal01(Vector2 oct01)
@@ -299,19 +283,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         }
 
         return Vector3.Normalize(v);
-    }
-
-    private static ShaderTestHelper CreateShaderHelperOrSkip()
-    {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
-        {
-            Assert.Skip("Shader assets not available - test output content may be missing");
-        }
-
-        return new ShaderTestHelper(shaderPath, includePath);
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged

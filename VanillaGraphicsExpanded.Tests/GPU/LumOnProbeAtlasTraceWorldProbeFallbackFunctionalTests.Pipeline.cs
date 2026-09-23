@@ -15,20 +15,13 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
     /// <summary>Processes actual trace outputs for two frames with separate history textures.</summary>
     private void AssertPairedHistoryReachesGather(float[] normalTrace, float[] suppressedTrace, float[] metadata, bool sh9, bool expectLighting = true)
     {
-        var programs = new List<int>();
-        try
         {
-            int temporal = CompileShaderWithDefines("lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh",
-                new Dictionary<string, string?> { ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64" });
-            programs.Add(temporal);
-            int filter = CompileShader("lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh");
-            programs.Add(filter);
-            int project = CompileShader("lumon_probe_atlas_project_sh9.vsh", "lumon_probe_atlas_project_sh9.fsh");
-            programs.Add(project);
-            int gather = CompileShader(sh9 ? "lumon_probe_sh9_gather.vsh" : "lumon_probe_atlas_gather.vsh",
-                sh9 ? "lumon_probe_sh9_gather.fsh" : "lumon_probe_atlas_gather.fsh");
-            programs.Add(gather);
-
+            var temporal = Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = 64);
+            var filter = Programs.Create<LumOnScreenProbeAtlasFilterShaderProgram>();
+            var project = Programs.Create<LumOnScreenProbeAtlasProjectSh9ShaderProgram>();
+            var shGather = sh9 ? Programs.Create<LumOnProbeSh9GatherShaderProgram>() : null;
+            var atlasGather = !sh9 ? Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>() : null;
+            VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram gather = shGather ?? (VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram)atlasGather!;
             using var assets = new BinaryShaderApiFixture();
             var config = new VgeConfig(); config.LumOn.ProbeSpacingPx = ProbeSpacing;
             using var inputs = new LumOnBufferManager(assets.Api, config);
@@ -45,17 +38,6 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             depth.UploadDataImmediate(CreateUniformData(ScreenWidth, ScreenHeight, 1, depthValue));
             var meta = inputs.ScreenProbeAtlasMetaHistoryTex!;
             meta.UploadDataImmediate(metadata);
-            using var paramsBuffer = new ObjectParamsUbo("Tests.WorldProbePairedPipeline");
-            var parameters = new LumOnProbeParamsUbo
-            {
-                TemporalAlpha = 0.9f, HitDistanceRejectThreshold = 0.3f,
-                FilterRadius = 1, HitDistanceSigma = 1f, Intensity = 1f,
-                IndirectTint = Vector3.One, LeakThreshold = 0.5f, SampleStride = 1
-            };
-            paramsBuffer.UploadAndBind(parameters.Bytes);
-            foreach (int program in programs)
-                UniformBlockBindingUtil.EnsureBlockBound(program, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-
             // Each branch owns its own temporal outputs. Frame two reads only its own first frame.
             float[][] gathered = new float[2][];
             for (int branch = 0; branch < 2; branch++)
@@ -71,34 +53,52 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 var output = buffers.IndirectHalfFbo!;
                 for (int frame = 0; frame < 2; frame++)
                 {
+                    using var use = temporal.UseScope();
                     UpdateAndBindLumOnFrameUbo(temporal, frameIndex: frame, historyValid: frame, enableVelocityReprojection: 0);
-                    if (frame == 0) { trace.Bind(0); trace.Bind(1); meta.Bind(3); meta.Bind(4); }
-                    else { first[0].Bind(0); first[0].Bind(1); first[1].Bind(3); first[1].Bind(4); }
-                    anchors.Bind(2);
-                    BindPipelineSamplers(temporal, ("octahedralCurrent", 0), ("octahedralHistory", 1),
-                        ("probeAnchorPosition", 2), ("probeAtlasMetaCurrent", 3), ("probeAtlasMetaHistory", 4));
+                    temporal.ScreenProbeAtlasCurrent = frame == 0 ? trace : first[0];
+                    temporal.ScreenProbeAtlasHistory = frame == 0 ? trace : first[0];
+                    temporal.ScreenProbeAtlasMetaCurrent = frame == 0 ? meta : first[1];
+                    temporal.ScreenProbeAtlasMetaHistory = frame == 0 ? meta : first[1];
+                    temporal.ProbeAnchorPosition = anchors;
+                    temporal.TemporalAlpha = .9f;
+                    temporal.HitDistanceRejectThreshold = .3f;
                     TestFramework.RenderQuadTo(temporal, frame == 0 ? first : second);
                 }
-                UpdateAndBindLumOnFrameUbo(filter);
-                second[0].Bind(0); second[1].Bind(1); anchors.Bind(2);
-                BindPipelineSamplers(filter, ("octahedralAtlas", 0), ("probeAtlasMeta", 1), ("probeAnchorPosition", 2));
-                TestFramework.RenderQuadTo(filter, filtered);
+                using (filter.UseScope())
+                {
+                    UpdateAndBindLumOnFrameUbo(filter);
+                    filter.ScreenProbeAtlas = second[0]; filter.ScreenProbeAtlasMeta = second[1]; filter.ProbeAnchorPosition = anchors;
+                    filter.FilterRadius = 1; filter.HitDistanceSigma = 1;
+                    TestFramework.RenderQuadTo(filter, filtered);
+                }
                 if (sh9)
                 {
+                    using var use = project.UseScope();
                     UpdateAndBindLumOnFrameUbo(project);
-                    filtered[0].Bind(0); second[1].Bind(1); anchors.Bind(2);
-                    BindPipelineSamplers(project, ("octahedralAtlas", 0), ("probeAtlasMeta", 1), ("probeAnchorPosition", 2));
+                    project.ScreenProbeAtlas = filtered[0]; project.ScreenProbeAtlasMeta = second[1]; project.ProbeAnchorPosition = anchors;
                     TestFramework.RenderQuadTo(project, projected);
                 }
-                UpdateAndBindLumOnFrameUbo(gather, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection());
-                anchors.Bind(7); normals.Bind(8); depth.Bind(9); normals.Bind(10);
-                BindPipelineSamplers(gather, ("probeAnchorPosition", 7), ("probeAnchorNormal", 8), ("primaryDepth", 9), ("gBufferNormal", 10));
-                if (sh9)
+                using (gather.UseScope())
                 {
-                    for (int i = 0; i < 7; i++) { projected[i].Bind(i); BindPipelineSamplers(gather, ($"probeSh{i}", i)); }
+                    UpdateAndBindLumOnFrameUbo(gather, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection());
+                    if (shGather != null)
+                    {
+                        shGather.ProbeAnchorPosition = anchors; shGather.ProbeAnchorNormal = normals;
+                        shGather.PrimaryDepth = depth.TextureId; shGather.GBufferNormal = normals.TextureId;
+                        shGather.ProbeSh0 = projected[0]; shGather.ProbeSh1 = projected[1]; shGather.ProbeSh2 = projected[2];
+                        shGather.ProbeSh3 = projected[3]; shGather.ProbeSh4 = projected[4]; shGather.ProbeSh5 = projected[5]; shGather.ProbeSh6 = projected[6];
+                        shGather.Intensity = 1; shGather.IndirectTint = [1,1,1];
+                    }
+                    else
+                    {
+                        atlasGather!.ScreenProbeAtlas = filtered[0];
+                        atlasGather.ProbeAnchorPosition = anchors; atlasGather.ProbeAnchorNormal = normals;
+                        atlasGather.PrimaryDepth = depth.TextureId; atlasGather.GBufferNormal = normals.TextureId;
+                        atlasGather.Intensity = 1; atlasGather.IndirectTint = [1,1,1];
+                        atlasGather.LeakThreshold = .5f; atlasGather.SampleStride = 1;
+                    }
+                    TestFramework.RenderQuadTo(gather, output);
                 }
-                else { filtered[0].Bind(0); BindPipelineSamplers(gather, ("octahedralAtlas", 0)); }
-                TestFramework.RenderQuadTo(gather, output);
                 gathered[branch] = output[0].ReadPixels();
             }
             for (int i = 0; i < gathered[0].Length; i += 4)
@@ -115,15 +115,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             }
             AssertGatherLightingEffect(gathered[0], gathered[1], expectLighting);
         }
-        finally { foreach (int program in programs) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
 
-    /// <summary>Binds named samplers for a production shader stage.</summary>
-    private static void BindPipelineSamplers(int program, params (string name, int unit)[] samplers)
-    {
-        GL.UseProgram(program);
-        foreach (var (name, unit) in samplers) GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name), unit);
-        GL.UseProgram(0);
-    }
     #endregion
 }

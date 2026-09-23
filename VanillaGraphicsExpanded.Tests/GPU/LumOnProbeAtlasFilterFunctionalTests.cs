@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -23,7 +24,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 {
     public LumOnProbeAtlasFilterFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private int CompileProbeAtlasFilterShader() => CompileShader("lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh");
+    private LumOnScreenProbeAtlasFilterShaderProgram CompileProbeAtlasFilterShader() => Programs.Create<LumOnScreenProbeAtlasFilterShaderProgram>();
 
     private static float EncodeHitDistance(float distance) => (float)Math.Log(distance + 1.0);
 
@@ -96,32 +97,13 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         meta[idx + 1] = FlagsToFloat(flags);
     }
 
-    private ObjectParamsUbo SetupUniforms(int programId, int filterRadius, float hitDistanceSigma)
+    /// <summary>Uses the filter's production parameter setters and frame binding.</summary>
+    private void SetupUniforms(LumOnScreenProbeAtlasFilterShaderProgram programId, int filterRadius, float hitDistanceSigma)
     {
-        var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.ProbeFilter.ParamsUBO");
-
-        GL.UseProgram(programId);
-
-        // Phase 23: UBO-backed frame state (probeGridSize).
+        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId);
-
-        // Phase 23: UBO-backed probe parameters.
-        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-        var cpuParams = new LumOnProbeParamsUbo();
-        using (cpuParams.BeginBatchUpdate())
-        {
-            cpuParams.FilterRadius = filterRadius;
-            cpuParams.HitDistanceSigma = hitDistanceSigma;
-        }
-        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
-
-        // Samplers
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "octahedralAtlas"), 0);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAtlasMeta"), 1);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeAnchorPosition"), 2);
-
-        GL.UseProgram(0);
-        return objectParamsUbo;
+        programId.FilterRadius = filterRadius;
+        programId.HitDistanceSigma = hitDistanceSigma;
     }
 
     private static (float r, float g, float b, float a) ReadAtlasTexel(float[] rgba, int x, int y)
@@ -153,12 +135,14 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rg32f);
 
-        int programId = CompileProbeAtlasFilterShader();
-        using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1.0f);
+        var programId = CompileProbeAtlasFilterShader();
 
-        atlasTex.Bind(0);
-        metaTex.Bind(1);
-        anchorPosTex.Bind(2);
+        using var programUse = programId.UseScope();
+        SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1.0f);
+
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ScreenProbeAtlasMeta = metaTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outRgba = outputAtlas[0].ReadPixels();
@@ -170,8 +154,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         // Valid probe (1,0) tile covers [8..15]x[0..7]
         var (r1, g1, b1, _) = ReadAtlasTexel(outRgba, 12, 4);
         Assert.True(r1 > 0.9f && g1 < 0.1f && b1 < 0.1f, "Valid probe tile should preserve non-zero radiance");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -201,13 +183,15 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rg32f);
 
-        int programId = CompileProbeAtlasFilterShader();
-        // Large sigma so hit distance does not reject; this isolates confidence weighting.
-        using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
+        var programId = CompileProbeAtlasFilterShader();
 
-        atlasTex.Bind(0);
-        metaTex.Bind(1);
-        anchorPosTex.Bind(2);
+        using var programUse = programId.UseScope();
+        // Large sigma so hit distance does not reject; this isolates confidence weighting.
+        SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
+
+        programId.ScreenProbeAtlas = atlasTex;
+        programId.ScreenProbeAtlasMeta = metaTex;
+        programId.ProbeAnchorPosition = anchorPosTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outRgba = outputAtlas[0].ReadPixels();
@@ -215,8 +199,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         var (r, g, b, _) = ReadAtlasTexel(outRgba, 4, 4);
         Assert.True(r > 0.9f && g < 0.1f && b < 0.1f,
             $"Low-confidence neighbor should not bleed; got ({r:F3},{g:F3},{b:F3})");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     [Fact]
@@ -254,12 +236,14 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f,
                 PixelInternalFormat.Rg32f);
 
-            int programId = CompileProbeAtlasFilterShader();
-            using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
+            var programId = CompileProbeAtlasFilterShader();
 
-            atlasTex.Bind(0);
-            metaTex.Bind(1);
-            anchorPosTex.Bind(2);
+            using var programUse = programId.UseScope();
+            SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
+
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ScreenProbeAtlasMeta = metaTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outRgba = outputAtlas[0].ReadPixels();
@@ -267,8 +251,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, _, b, _) = ReadAtlasTexel(outRgba, 4, 4);
             Assert.True(r > 0.3f && r < 0.7f && b > 0.3f && b < 0.7f,
                 $"Expected smoothing toward a mix; got R={r:F3}, B={b:F3}");
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Case B: Edge preservation via hit-distance stopping
@@ -288,13 +270,15 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
                 PixelInternalFormat.Rgba16f,
                 PixelInternalFormat.Rg32f);
 
-            int programId = CompileProbeAtlasFilterShader();
-            // Small sigma => strong edge stop on large hit-distance delta.
-            using var objectParamsUbo = SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 0.05f);
+            var programId = CompileProbeAtlasFilterShader();
 
-            atlasTex.Bind(0);
-            metaTex.Bind(1);
-            anchorPosTex.Bind(2);
+            using var programUse = programId.UseScope();
+            // Small sigma => strong edge stop on large hit-distance delta.
+            SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 0.05f);
+
+            programId.ScreenProbeAtlas = atlasTex;
+            programId.ScreenProbeAtlasMeta = metaTex;
+            programId.ProbeAnchorPosition = anchorPosTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outRgba = outputAtlas[0].ReadPixels();
@@ -302,8 +286,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             var (r, g, b, _) = ReadAtlasTexel(outRgba, 4, 4);
             Assert.True(r > 0.9f && g < 0.1f && b < 0.1f,
                 $"Expected edge-stopped result to remain near center; got ({r:F3},{g:F3},{b:F3})");
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
     }
 }

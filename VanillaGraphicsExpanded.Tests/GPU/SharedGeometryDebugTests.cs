@@ -79,9 +79,12 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
     /// <summary>Binds real shared textures and a deterministic reconstructed surface; camera translation cancels view displacement.</summary>
     private float[] Render(TraceGeometryGpuScene scene, int mode, int anchor, float x, float cameraY = 0)
     {
-        int program = CompileShaderWithDefines("lumon_debug.vsh", "lumon_debug.fsh", new()
-        { ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "1", ["VGE_LUMON_WORLDPROBE_ENABLED"] = "0" });
-        try
+        var program = Programs.Create<LumOnDebugShaderProgram>(shader =>
+        {
+            shader.DirectVisibility = true;
+            shader.WorldProbeEnabled = false;
+        }, identity: LumOnDebugShaderProgram.DispatcherContract.Identity);
+        using var use = program.UseScope();
         {
             // Surface queries land at y=32.5 after the frame bridge; rays face -Z from that same camera.
             float[] projection = [0,0,0,0, 0,0,0,0, 0,0,0,0, x,.5f-cameraY,-5,1];
@@ -89,33 +92,20 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             var bridge = LumOnFrameWorldSpaceBridge.Compute(anchor, 32, 0);
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: projection, invViewMatrix: view,
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
-            using var parameters = new ObjectParamsUbo("Tests.SharedGeometryDebug");
-            parameters.UploadAndBind(new LumOnDebugParamsUbo { DebugMode = mode }.Bytes);
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.SharedGeometryDebug.Scene");
-            var local = new LumOnNearFieldParamsUbo(); local.SetShared(scene);
-            localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
-            localBuffer.BindBase(LumOnNearFieldParamsUbo.Binding);
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
+            program.DebugMode = mode;
+            program.NearFieldVisibility.Bind(program, scene);
             SceneInputs.EnsureSize(ScreenWidth,ScreenHeight);
             SceneInputs.Engine.Depth.UploadDataImmediate(CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
             SceneInputs.Terrain.Normal.UploadDataImmediate(CreateUniformNormalData(ScreenWidth,ScreenHeight,0,0,1));
             SceneInputs.Terrain.PatchId.UploadDataImmediate(new uint[ScreenWidth * ScreenHeight * 4]);
-            SceneInputs.Engine.Depth.Bind(0); SceneInputs.Terrain.Normal.Bind(1); SceneInputs.Terrain.PatchId.Bind(2);
-            scene.Geometry.Bind(34); scene.Readiness.Bind(35); scene.Legacy.Bind(20);
-            GL.UseProgram(program);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "primaryDepth"), 0);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "gBufferNormal"), 1);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "gBufferPatchId"), 2);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), 34);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), 35);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "traceSceneLegacy"), 20);
-            GL.UseProgram(0);
+            program.PrimaryDepth = SceneInputs.Engine.Depth.TextureId;
+            program.GBufferNormal = SceneInputs.Terrain.Normal.TextureId;
+            program.GBufferPatchId = SceneInputs.Terrain.PatchId.TextureId;
+            program.TraceSceneLegacy = scene.Legacy;
             var output = SceneInputs.Engine.Output;
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }
-        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
 
     /// <summary>Checks every rendered pixel, including opaque alpha, against the diagnostic legend.</summary>

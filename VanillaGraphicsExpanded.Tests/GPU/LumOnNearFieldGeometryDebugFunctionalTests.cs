@@ -156,12 +156,11 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
     /// <summary>Renders only production geometry/readiness inputs with a narrow camera frustum and precise world origin.</summary>
     private float[] RenderGeometry(ControlledTraceGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, bool monolithic = false)
     {
-        int program = CompileShaderWithDefines("lumon_debug.vsh", monolithic ? "lumon_debug.fsh" : "lumon_debug_worldprobe.fsh", new()
+        var program = Programs.Create<LumOnDebugShaderProgram>(shader =>
         {
-            ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "1",
-            ["VGE_LUMON_WORLDPROBE_ENABLED"] = "0"
-        });
-        try
+            shader.DirectVisibility = true; shader.WorldProbeEnabled = false;
+        }, identity: monolithic ? LumOnDebugShaderProgram.DispatcherContract.Identity : LumOnDebugShaderProgram.WorldprobeContract.Identity);
+        using var use = program.UseScope();
         {
             // Perspective rays face -Z; a narrow frustum isolates the chosen voxel column.
             float[] inverseProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
@@ -172,25 +171,12 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             var bridge = LumOnFrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverseProjection, invViewMatrix: inverseView,
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
-            using var parameters = new ObjectParamsUbo("Tests.NearFieldGeometryDebug");
-            parameters.UploadAndBind(new LumOnDebugParamsUbo { DebugMode = 70 }.Bytes);
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            using var localBuffer = GpuUniformBuffer.Create(debugName: "Tests.NearFieldGeometryDebug.Scene");
-            var local = new LumOnNearFieldParamsUbo();
-            local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, cellSize: scene?.CellSize ?? 16);
-            localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
-            localBuffer.BindBase(LumOnNearFieldParamsUbo.Binding);
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
-            scene?.Geometry.Bind(34); scene?.Regions.Bind(35);
-            GL.UseProgram(program);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldGeometry"), 34);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), 35);
-            GL.UseProgram(0);
+            program.DebugMode = 70;
+            program.NearFieldVisibility.Bind(program, scene?.Backend);
             using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }
-        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

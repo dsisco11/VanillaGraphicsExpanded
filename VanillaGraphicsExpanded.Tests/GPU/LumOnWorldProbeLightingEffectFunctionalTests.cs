@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
@@ -31,8 +32,8 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
         float red, float green, float blue, float gain, bool ready)
     {
         EnsureShaderTestAvailable();
-        int program = CompileShader("lumon_debug.vsh", "lumon_debug_worldprobe.fsh");
-        try
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.WorldprobeContract.Identity);
+        using var use = program.UseScope();
         {
             // Split signed differences into nonnegative HDR inputs.
             float[] positive = [Math.Max(red, 0), Math.Max(green, 0), Math.Max(blue, 0), 1];
@@ -40,23 +41,14 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
             using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, positive);
             using var suppressed = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, negative);
             using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
-            using var objectParams = new ObjectParamsUbo("Tests.WorldProbeLightingEffect");
-            // Set gain first to also detect accidental overwrites by the neighboring UBO setters.
-            var cpuParams = new LumOnDebugParamsUbo
-            {
-                DebugMode = 43, WorldProbeEffectGain = gain,
-                WorldProbeComparisonReady = ready, DiffuseAOStrength = 0.5f, SpecularAOStrength = 0.5f
-            };
-            Assert.Equal(gain, cpuParams.WorldProbeEffectGain);
-            UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            objectParams.UploadAndBind(cpuParams.Bytes);
+            // Apply adjacent setters after gain to catch parameter-buffer overwrites.
+            program.WorldProbeEffectGain = gain;
+            program.DebugMode = 43;
+            program.DiffuseAOStrength = .5f;
+            program.SpecularAOStrength = .5f;
             UpdateAndBindLumOnFrameUbo(program);
-            normal.Bind(0);
-            suppressed.Bind(1);
-            GL.UseProgram(program);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "indirectDiffuseFull"), 0);
-            GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "worldProbeSuppressedLighting"), 1);
-            GL.UseProgram(0);
+            program.IndirectDiffuseFull = normal;
+            program.WorldProbeSuppressedLighting = ready ? suppressed : null;
             TestFramework.RenderQuadTo(program, output);
             var pixels = output[0].ReadPixels();
             float luminance = red * 0.2126f + green * 0.7152f + blue * 0.0722f;
@@ -68,7 +60,6 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
                 for (int channel = 0; channel < 3; channel++)
                     Assert.InRange(pixels[i + channel], expected[channel] - TestEpsilon, expected[channel] + TestEpsilon);
         }
-        finally { global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program); }
     }
     #endregion
 }

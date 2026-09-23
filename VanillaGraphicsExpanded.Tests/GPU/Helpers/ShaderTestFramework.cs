@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -13,20 +14,20 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// Usage:
 /// <code>
 /// using var framework = new ShaderTestFramework();
-/// 
+///
 /// // Create input textures with test data
 /// using var depthTex = framework.CreateTexture(4, 4, PixelInternalFormat.R32f, depthData);
 /// using var normalTex = framework.CreateTexture(4, 4, PixelInternalFormat.Rgba16f, normalData);
-/// 
+///
 /// // Create output render target
 /// using var outputGBuffer = framework.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba16f, 2);
-/// 
+///
 /// // Bind inputs and render
 /// depthTex.Bind(0);
 /// normalTex.Bind(1);
 /// outputGBuffer.BindWithViewport();
 /// framework.RenderQuad(programId);
-/// 
+///
 /// // Read back and validate
 /// var result = outputGBuffer[0].ReadPixels();
 /// </code>
@@ -203,6 +204,29 @@ public sealed class ShaderTestFramework : IDisposable
         GlStateCache.Current.UnbindProgram();
     }
 
+    /// <summary>Draws an isolated pass using its production activation and state handling.</summary>
+    public void RenderQuad(GpuProgram program)
+    {
+        EnsureQuadInitialized();
+        GlStateCache.Current.Apply(FullscreenPassPso);
+        using var use = program.UseScope();
+        GlStateCache.Current.BindVertexArray(_quadVao);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        GlStateCache.Current.UnbindVertexArray();
+    }
+
+    /// <summary>Executes a production shader against an explicitly supplied component target.</summary>
+    public void RenderQuadTo(GpuProgram program, GpuFramebuffer target, (float r, float g, float b, float a)? clearColor = null)
+    {
+        target.BindWithViewport();
+        GlStateCache.Current.Apply(FullscreenPassPso);
+        var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
+        GL.ClearColor(r, g, b, a);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+        RenderQuad(program);
+        GpuFramebuffer.Unbind();
+    }
+
     /// <summary>
     /// Renders a fullscreen quad with explicit state setup.
     /// Binds the GBuffer, sets viewport, clears, then renders.
@@ -238,9 +262,9 @@ public sealed class ShaderTestFramework : IDisposable
         // This triangle covers (-1,-1) to (1,1) with overdraw
         float[] vertices =
         [
-            -1f, -1f,  // Bottom-left
-             3f, -1f,  // Bottom-right (extends past viewport)
-            -1f,  3f   // Top-left (extends past viewport)
+            -1f, -1f, 0f, 0f, // Position and UV
+             3f, -1f, 2f, 0f, // Bottom-right (extends past viewport)
+            -1f,  3f, 0f, 2f  // Top-left (extends past viewport)
         ];
 
         _quadVao = GL.GenVertexArray();
@@ -251,8 +275,11 @@ public sealed class ShaderTestFramework : IDisposable
         GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
 
         // Position attribute at location 0
-        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
+        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
         GL.EnableVertexAttribArray(0);
+        // Production direct lighting consumes the engine mesh UV attribute.
+        GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
+        GL.EnableVertexAttribArray(1);
 
         GlStateCache.Current.UnbindVertexArray();
         GlStateCache.Current.UnbindBuffer(BufferTarget.ArrayBuffer);

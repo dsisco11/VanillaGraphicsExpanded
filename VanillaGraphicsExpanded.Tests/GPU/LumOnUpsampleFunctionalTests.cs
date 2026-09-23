@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -10,13 +11,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
 /// Functional tests for the LumOn Upsample shader pass.
-/// 
+///
 /// These tests verify that the upsample shader correctly:
 /// - Upsamples half-resolution indirect lighting to full resolution
 /// - Uses bilateral filtering to preserve edges at depth/normal discontinuities
 /// - Falls back to simple bilinear when denoiseEnabled=0
 /// - Outputs black for sky pixels
-/// 
+///
 /// Test configuration:
 /// - Half-res input: 2×2 pixels
 /// - Full-res output: 4×4 pixels
@@ -46,7 +47,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the upsample shader.
     /// </summary>
-    private int CompileUpsampleShader() => CompileShader("lumon_upsample.vsh", "lumon_upsample.fsh");
+    private LumOnUpsampleShaderProgram CompileUpsampleShader() => Programs.Create<LumOnUpsampleShaderProgram>();
 
     /// <summary>
     /// Sets up common uniforms for the upsample shader.
@@ -54,41 +55,20 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     /// so they are not set as uniforms here. Use CompileShaderWithDefines() instead.
     /// </summary>
     private void SetupUpsampleUniforms(
-        int programId,
-        ObjectParamsUbo objectParamsUbo,
+        LumOnUpsampleShaderProgram programId,
         float depthSigma = DefaultDepthSigma,
         float normalSigma = DefaultNormalSigma,
         float spatialSigma = DefaultSpatialSigma,
         int holeFillRadius = 2,
         float holeFillMinConfidence = 0.05f)
     {
-        GL.UseProgram(programId);
-
-        // Texture sampler uniforms
-        var indirectLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectHalf");
-        var depthLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "primaryDepth");
-        var normalLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "gBufferNormal");
-        GL.Uniform1(indirectLoc, 0);
-        GL.Uniform1(depthLoc, 1);
-        GL.Uniform1(normalLoc, 2);
-
-        // Phase 23: UBO-backed frame state (screenSize, halfResSize, zNear/zFar).
+        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId);
-
-        // Phase 23: UBO-backed upsample parameters.
-        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnUpsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-        var cpuParams = new LumOnUpsampleParamsUbo();
-        using (cpuParams.BeginBatchUpdate())
-        {
-            cpuParams.UpsampleDepthSigma = depthSigma;
-            cpuParams.UpsampleNormalSigma = normalSigma;
-            cpuParams.UpsampleSpatialSigma = spatialSigma;
-            cpuParams.HoleFillRadius = holeFillRadius;
-            cpuParams.HoleFillMinConfidence = holeFillMinConfidence;
-        }
-        objectParamsUbo.UploadAndBind(cpuParams.Bytes);
-
-        GL.UseProgram(0);
+        programId.UpsampleDepthSigma = depthSigma;
+        programId.UpsampleNormalSigma = normalSigma;
+        programId.UpsampleSpatialSigma = spatialSigma;
+        programId.HoleFillRadius = holeFillRadius;
+        programId.HoleFillMinConfidence = holeFillMinConfidence;
     }
 
     /// <summary>
@@ -201,17 +181,17 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that uniform half-res input produces uniform full-res output.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When input is uniform color and depth/normals are uniform,
     ///   all output pixels should have the same color as input
     /// - Bilinear interpolation of uniform values = same uniform value
-    /// 
+    ///
     /// Setup:
     /// - Half-res input: uniform green (0.3, 0.6, 0.2)
     /// - Depth: uniform 0.5
     /// - Normals: uniform upward
-    /// 
+    ///
     /// Expected:
     /// - All 4×4 output pixels = (0.3, 0.6, 0.2)
     /// </summary>
@@ -238,13 +218,14 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO");
-        SetupUpsampleUniforms(programId, objectParamsUbo);
+
+        using var programUse = programId.UseScope();
+        SetupUpsampleUniforms(programId);
 
         // Bind inputs
-        halfResTex.Bind(0);
-        depthTex.Bind(1);
-        normalTex.Bind(2);
+        programId.IndirectHalf = halfResTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -265,8 +246,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Pixel ({px},{py}) B should be {inputColor.b:F2}, got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #region Test: HoleFill_OnlyAffectsLowConfidenceAreas
@@ -311,28 +290,22 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
 
         // Compile two shader variants: one with hole fill disabled, one with it enabled
-        var programIdNoFill = CompileShaderWithDefines(
-            "lumon_upsample.vsh",
-            "lumon_upsample.fsh",
-            new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "0" });
+        var programIdNoFill = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "0" });
 
-        var programIdFill = CompileShaderWithDefines(
-            "lumon_upsample.vsh",
-            "lumon_upsample.fsh",
-            new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "1" });
+        var programIdFill = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "1" });
 
-        float[] Render(int programId)
+        /// <summary>Executes one selected production variant against identical controlled inputs.</summary>
+        float[] Render(LumOnUpsampleShaderProgram programId)
         {
-            using var objectParamsUbo = new ObjectParamsUbo($"Tests.LumOn.Upsample.ParamsUBO.{programId}");
+            using var use = programId.UseScope();
             SetupUpsampleUniforms(programId,
-                objectParamsUbo,
                 holeFillRadius: 2,
                 holeFillMinConfidence: 0.05f);
 
             // Bind inputs
-            halfResTex.Bind(0);
-            depthTex.Bind(1);
-            normalTex.Bind(2);
+            programId.IndirectHalf = halfResTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             return outputGBuffer[0].ReadPixels();
@@ -359,9 +332,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             "Expected no-fill output to remain black in low-confidence region.");
         Assert.True(bottomRightFill.r > 1e-3f || bottomRightFill.g > 1e-3f || bottomRightFill.b > 1e-3f,
             "Expected hole-fill output to become non-black in low-confidence region.");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programIdNoFill);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programIdFill);
     }
 
     #endregion
@@ -372,16 +342,16 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that a gradient in half-res is smoothly interpolated to full-res.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Bilinear interpolation should produce smooth gradient across full-res
     /// - Left side should be darker than right side
     /// - Intermediate pixels should have intermediate values
-    /// 
+    ///
     /// Setup:
     /// - Half-res input: horizontal gradient (left=0, right=1)
     /// - Uniform depth and normals (no edge filtering)
-    /// 
+    ///
     /// Expected:
     /// - Full-res output has smooth left-to-right gradient
     /// - Each row should increase monotonically left to right
@@ -407,12 +377,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO");
-        SetupUpsampleUniforms(programId, objectParamsUbo);
 
-        halfResTex.Bind(0);
-        depthTex.Bind(1);
-        normalTex.Bind(2);
+        using var programUse = programId.UseScope();
+        SetupUpsampleUniforms(programId);
+
+        programId.IndirectHalf = halfResTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -431,7 +402,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 // DESIRED: Gradient should increase left to right (allowing small tolerance)
                 Assert.True(brightness >= prevBrightness - 0.05f,
                     $"Row {py}: pixel {px} brightness {brightness:F3} should be >= previous {prevBrightness:F3}");
-                
+
                 prevBrightness = brightness;
             }
         }
@@ -441,8 +412,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var (rightR, _, _, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, ScreenHeight / 2);
         Assert.True(rightR > leftR,
             $"Right edge ({rightR:F3}) should be brighter than left edge ({leftR:F3})");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -451,17 +420,17 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that bilateral filter preserves edges at depth discontinuities.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When there's a sharp depth edge in the scene, the upsample should NOT
     ///   blend colors across the edge (to prevent light leaking)
     /// - Pixels at the edge should take color primarily from their own depth region
-    /// 
+    ///
     /// Setup:
     /// - Half-res: left column = red (1,0,0), right column = blue (0,0,1)
     /// - Depth: left half = near (0.2), right half = far (0.8)
     /// - The depth discontinuity should prevent blending
-    /// 
+    ///
     /// Expected:
     /// - Full-res left pixels should be mostly red
     /// - Full-res right pixels should be mostly blue
@@ -508,13 +477,14 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        // Use standard sigma values for edge-aware filtering
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO");
-        SetupUpsampleUniforms(programId, objectParamsUbo, depthSigma: 0.1f);
 
-        halfResTex.Bind(0);
-        depthTex.Bind(1);
-        normalTex.Bind(2);
+        using var programUse = programId.UseScope();
+        // Use standard sigma values for edge-aware filtering
+        SetupUpsampleUniforms(programId, depthSigma: 0.1f);
+
+        programId.IndirectHalf = halfResTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -535,8 +505,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             Assert.True(b3 > r3,
                 $"Right edge pixel ({ScreenWidth - 1},{py}) should be predominantly blue, got R={r3:F3}, B={b3:F3}");
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -545,16 +513,16 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that with VGE_LUMON_UPSAMPLE_DENOISE=0, simple bilinear sampling is used.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - When denoise is disabled, the shader should use simple texture() sampling
     /// - This is faster but doesn't preserve edges
     /// - Result should still be a valid upsample, just without edge-awareness
-    /// 
+    ///
     /// Setup:
     /// - Same as UniformInput test
     /// - VGE_LUMON_UPSAMPLE_DENOISE = 0 (compile-time)
-    /// 
+    ///
     /// Expected:
     /// - Output should still match input color (uniform case)
     /// - No crashes or rendering errors
@@ -580,16 +548,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         // Compile with denoising DISABLED (compile-time define)
-        var programId = CompileShaderWithDefines(
-            "lumon_upsample.vsh",
-            "lumon_upsample.fsh",
-            new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO.DenoiseOff");
-        SetupUpsampleUniforms(programId, objectParamsUbo);
+        var programId = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
+        using var programUse = programId.UseScope();
+        SetupUpsampleUniforms(programId);
 
-        halfResTex.Bind(0);
-        depthTex.Bind(1);
-        normalTex.Bind(2);
+        programId.IndirectHalf = halfResTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -612,8 +577,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Pixel ({px},{py}) B should be ≈{inputColor.b:F2}, got {b:F3}");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -622,15 +585,15 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that sky pixels (depth=1.0) produce zero output.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - Sky pixels should early-out with black (0,0,0,0)
     /// - No indirect lighting should be upsampled for sky
-    /// 
+    ///
     /// Setup:
     /// - Bright indirect half-res (should be ignored)
     /// - Depth = 1.0 everywhere (sky)
-    /// 
+    ///
     /// Expected:
     /// - All output pixels = (0, 0, 0, 0)
     /// </summary>
@@ -653,12 +616,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO");
-        SetupUpsampleUniforms(programId, objectParamsUbo);
 
-        halfResTex.Bind(0);
-        depthTex.Bind(1);
-        normalTex.Bind(2);
+        using var programUse = programId.UseScope();
+        SetupUpsampleUniforms(programId);
+
+        programId.IndirectHalf = halfResTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -675,8 +639,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                     $"Sky pixel ({px},{py}) should be black, got ({r:F3}, {g:F3}, {b:F3})");
             }
         }
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -685,15 +647,15 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that denoiseEnabled=0 uses simple bilinear upsampling.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - With denoiseEnabled=0, skip bilateral filtering
     /// - Use simple bilinear interpolation for performance
-    /// 
+    ///
     /// Setup:
     /// - Compare denoiseEnabled=0 vs denoiseEnabled=1
     /// - Both should produce valid output
-    /// 
+    ///
     /// Expected:
     /// - Both produce similar results with uniform input
     /// </summary>
@@ -721,19 +683,18 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-            using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO.DenoiseOn");
-            SetupUpsampleUniforms(programId, objectParamsUbo);
 
-            halfResTex.Bind(0);
-            depthTex.Bind(1);
-            normalTex.Bind(2);
+            using var programUse = programId.UseScope();
+            SetupUpsampleUniforms(programId);
+
+            programId.IndirectHalf = halfResTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
             denoisedBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Without denoising (simple bilinear) - compile with DENOISE=0
@@ -746,23 +707,19 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileShaderWithDefines(
-                "lumon_upsample.vsh",
-                "lumon_upsample.fsh",
-                new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
-            using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO.DenoiseOff");
-            SetupUpsampleUniforms(programId, objectParamsUbo);
+            var programId = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
 
-            halfResTex.Bind(0);
-            depthTex.Bind(1);
-            normalTex.Bind(2);
+            using var programUse = programId.UseScope();
+            SetupUpsampleUniforms(programId);
+
+            programId.IndirectHalf = halfResTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
             var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
             simpleBrightness = (r + g + b) / 3f;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce non-zero, similar output with uniform input
@@ -774,15 +731,15 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that upsampleSpatialSigma affects the denoising filter.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - spatialSigma controls the spatial falloff of the bilateral filter
     /// - Larger sigma = more blur, smaller = sharper
-    /// 
+    ///
     /// Setup:
     /// - Gradient input
     /// - Compare different spatialSigma values
-    /// 
+    ///
     /// Expected:
     /// - Different sigma values produce different results
     /// </summary>
@@ -809,12 +766,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-            using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO.SpatialSmall");
-            SetupUpsampleUniforms(programId, objectParamsUbo, spatialSigma: 0.5f);
 
-            halfResTex.Bind(0);
-            depthTex.Bind(1);
-            normalTex.Bind(2);
+            using var programUse = programId.UseScope();
+            SetupUpsampleUniforms(programId, spatialSigma: 0.5f);
+
+            programId.IndirectHalf = halfResTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -830,8 +788,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             int count = outputData.Length / 4;
             float mean = sum / count;
             smallSigmaVariance = sumSq / count - mean * mean;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Large spatial sigma (blurrier)
@@ -845,12 +801,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-            using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO.SpatialLarge");
-            SetupUpsampleUniforms(programId, objectParamsUbo, spatialSigma: 4.0f);
 
-            halfResTex.Bind(0);
-            depthTex.Bind(1);
-            normalTex.Bind(2);
+            using var programUse = programId.UseScope();
+            SetupUpsampleUniforms(programId, spatialSigma: 4.0f);
+
+            programId.IndirectHalf = halfResTex;
+            programId.PrimaryDepth = depthTex.TextureId;
+            programId.GBufferNormal = normalTex.TextureId;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -866,8 +823,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             int count = outputData.Length / 4;
             float mean = sum / count;
             largeSigmaVariance = sumSq / count - mean * mean;
-
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         }
 
         // Both should produce valid output
@@ -877,15 +832,15 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
     /// <summary>
     /// Tests that depth edges reduce cross-blending.
-    /// 
+    ///
     /// DESIRED BEHAVIOR:
     /// - At sharp depth discontinuities, bilateral filter should reduce blending
     /// - This prevents indirect light from bleeding across depth edges
-    /// 
+    ///
     /// Setup:
     /// - Half-res with left=bright, right=dark
     /// - Depth edge down the middle
-    /// 
+    ///
     /// Expected:
     /// - Sharp transition at the depth edge
     /// </summary>
@@ -921,12 +876,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-        using var objectParamsUbo = new ObjectParamsUbo("Tests.LumOn.Upsample.ParamsUBO");
-        SetupUpsampleUniforms(programId, objectParamsUbo, depthSigma: 0.05f);  // Strict depth filtering
 
-        halfResTex.Bind(0);
-        depthTex.Bind(1);
-        normalTex.Bind(2);
+        using var programUse = programId.UseScope();
+        SetupUpsampleUniforms(programId, depthSigma: 0.05f);  // Strict depth filtering
+
+        programId.IndirectHalf = halfResTex;
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -938,8 +894,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         // Left should be brighter than right
         Assert.True(lR > rR,
             $"Depth edge should prevent cross-blending: left={lR:F3}, right={rR:F3}");
-
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion

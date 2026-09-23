@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.MathTools;
 using VanillaGraphicsExpanded.LumOn;
@@ -13,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>
 /// Base class for all LumOn shader functional tests.
-/// 
+///
 /// Provides common infrastructure for GPU shader testing:
 /// - OpenGL context via HeadlessGLFixture
 /// - Shader compilation via ShaderTestHelper
@@ -21,25 +22,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// - Common test constants (screen sizes, Z-planes, epsilon)
 /// - Reusable scene-owned input resources
 /// - Proper resource cleanup
-/// 
-/// Usage:
-/// <code>
-/// [Collection("GPU")]
-/// [Trait("Category", "GPU")]
-/// public class MyShaderTests : LumOnShaderFunctionalTestBase
-/// {
-///     public MyShaderTests(HeadlessGLFixture fixture) : base(fixture) { }
-///     
-///     [Fact]
-///     public void MyTest()
-///     {
-///         EnsureShaderTestAvailable();
-///         var programId = CompileShader("my_shader.vsh", "my_shader.fsh");
-///         // ... test logic ...
-///         global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-///     }
-/// }
-/// </code>
+///
+/// Component tests obtain real shader instances from <c>Programs</c> and use their typed setters.
 /// </summary>
 /// <remarks>
 /// Test Configuration Standards:
@@ -49,11 +33,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// - Octahedral atlas: 16×16 (8×8 texels per probe)
 /// - Z-planes: zNear=0.1, zFar=100
 /// - Float comparison epsilon: 1e-2f (for GPU precision variance)
-/// 
+///
 /// All derived test classes should:
 /// 1. Use [Collection("GPU")] and [Trait("Category", "GPU")] attributes
 /// 2. Call EnsureShaderTestAvailable() at the start of each test
-/// 3. Clean up shader programs with global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram()
+/// 3. Let the fixture dispose its shader owners
 /// 4. Document expected value derivations in XML comments
 /// </remarks>
 public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposable
@@ -113,12 +97,12 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private ShaderTestHelper? _shaderHelper;
     private ShaderTestFramework? _testFramework;
     private LumOnUniformBuffers? _lumOnUbos;
-    private readonly LumOnCombineParamsUbo _lumOnCombineParams = new();
-    private GpuUniformBuffer? _lumOnCombineParamsUbo;
-    private readonly LumOnDebugParamsUbo _lumOnDebugParams = new();
-    private GpuUniformBuffer? _lumOnDebugParamsUbo;
     private bool _disposed;
     private ShaderSceneInputs? sceneInputs;
+    private ComponentShaderPrograms? programs;
+
+    /// <summary>Owns the real shader classes used by isolated pass tests.</summary>
+    private protected ComponentShaderPrograms Programs => programs ??= new();
 
     /// <summary>Owns this test scene's borrowed inputs; independent scenes must create their own set.</summary>
     private protected ShaderSceneInputs SceneInputs => sceneInputs ??= new();
@@ -129,93 +113,15 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
 
     #endregion
 
-    #region UBO Helpers (Phase 23 - Combine Params)
-
-    protected void UpdateAndBindLumOnCombineParamsUbo(
-        int programId,
-        float indirectIntensity,
-        (float r, float g, float b) indirectTint,
-        float diffuseAOStrength,
-        float specularAOStrength)
-    {
-        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
-
-        _lumOnCombineParams.IndirectTint = new System.Numerics.Vector3(tint.Item1, tint.Item2, tint.Item3);
-        _lumOnCombineParams.IndirectIntensity = indirectIntensity;
-        _lumOnCombineParams.DiffuseAOStrength = diffuseAOStrength;
-        _lumOnCombineParams.SpecularAOStrength = specularAOStrength;
-
-        UploadAndBindCpuUbo(
-            programId,
-            cpuUbo: _lumOnCombineParams,
-            sizeBytes: LumOnCombineParamsUbo.UboSizeBytes,
-            blockName: LumOnCombineParamsUbo.BlockName,
-            bindingIndex: GpuBindingRegistry.Ubo.Object,
-            debugName: "Tests.LumOn.CombineParamsUBO",
-            gpuUbo: ref _lumOnCombineParamsUbo);
-    }
-
-    #endregion
-
-    #region UBO Helpers (Phase 23 - Debug Params)
-
-    protected void UpdateAndBindLumOnDebugParamsUbo(
-        int programId,
-        int debugMode,
-        int gatherAtlasSource,
-        float indirectIntensity,
-        (float r, float g, float b) indirectTint,
-        float diffuseAOStrength,
-        float specularAOStrength)
-    {
-        var tint = indirectTint == default ? (1.0f, 1.0f, 1.0f) : indirectTint;
-
-        _lumOnDebugParams.DebugMode = debugMode;
-        _lumOnDebugParams.GatherAtlasSource = gatherAtlasSource;
-        _lumOnDebugParams.IndirectTint = new System.Numerics.Vector3(tint.Item1, tint.Item2, tint.Item3);
-        _lumOnDebugParams.IndirectIntensity = indirectIntensity;
-        _lumOnDebugParams.DiffuseAOStrength = diffuseAOStrength;
-        _lumOnDebugParams.SpecularAOStrength = specularAOStrength;
-
-        UploadAndBindCpuUbo(
-            programId,
-            cpuUbo: _lumOnDebugParams,
-            sizeBytes: LumOnDebugParamsUbo.UboSizeBytes,
-            blockName: LumOnDebugParamsUbo.BlockName,
-            bindingIndex: GpuBindingRegistry.Ubo.Object,
-            debugName: "Tests.LumOn.DebugParamsUBO",
-            gpuUbo: ref _lumOnDebugParamsUbo);
-    }
-
-    private static void UploadAndBindCpuUbo(
-        int programId,
-        CpuUniformBuffer cpuUbo,
-        int sizeBytes,
-        string blockName,
-        int bindingIndex,
-        string debugName,
-        ref GpuUniformBuffer? gpuUbo)
-    {
-        if (gpuUbo is null || gpuUbo.BufferId == 0)
-        {
-            gpuUbo?.Dispose();
-            gpuUbo = GpuUniformBuffer.Create(debugName: debugName);
-        }
-
-        gpuUbo.UploadOrResize(cpuUbo.Bytes, sizeBytes, growExponentially: false);
-        BindLumOnUboIfPresent(programId, blockName, bindingIndex, gpuUbo);
-    }
-
-    #endregion
-
-    #region UBO Helpers (Phase 23)
+    #region Frame inputs
 
     private static readonly float[] IdentityMat4 = LumOnTestInputFactory.CreateIdentityMatrix();
 
     private LumOnUniformBuffers LumOnUbos => _lumOnUbos ??= new LumOnUniformBuffers();
 
+    /// <summary>Uploads controlled inputs through the production buffer owner and shader block contract.</summary>
     protected void UpdateAndBindLumOnFrameUbo(
-        int programId,
+        GpuProgram? program,
         float[]? invProjectionMatrix = null,
         float[]? projectionMatrix = null,
         float[]? viewMatrix = null,
@@ -272,11 +178,13 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             matrixSpaceWorldChunkCoordOffset: matrixSpaceWorldChunkCoordOffset,
             matrixSpaceWorldBlockOffsetRem: matrixSpaceWorldBlockOffsetRem);
 
-        BindLumOnUboIfPresent(programId, "LumOnFrameUBO", LumOnUniformBuffers.FrameBinding, LumOnUbos.FrameUbo);
+        if (program is not null) program.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, LumOnUbos.FrameUbo);
+        else LumOnUbos.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding); // Retired L1 comparison has no production owner.
     }
 
+    /// <summary>Uploads controlled inputs through the production buffer owner and shader block contract.</summary>
     protected void UpdateAndBindLumOnWorldProbeUbo(
-        int programId,
+        GpuProgram program,
         Vec3f skyTint,
         System.Numerics.Vector3 cameraPosWS,
         System.Numerics.Vector3[]? originMinCorner = null,
@@ -288,30 +196,19 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             originMinCorner: originMinCorner,
             ringOffset: ringOffset);
 
-        BindLumOnUboIfPresent(programId, "LumOnWorldProbeUBO", LumOnUniformBuffers.WorldProbeBinding, LumOnUbos.WorldProbeUbo);
-    }
-
-    private static void BindLumOnUboIfPresent(int programId, string blockName, int bindingIndex, GpuUniformBuffer ubo)
-    {
-        int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(programId, blockName);
-        if (blockIndex < 0)
-        {
-            return;
-        }
-
-        GL.UniformBlockBinding(programId, blockIndex, bindingIndex);
-        ubo.BindBase(bindingIndex);
+        program.TryBindUniformBlock("LumOnWorldProbeUBO", LumOnUbos.WorldProbeUbo);
     }
 
     #endregion
 
     #region PMJ Helpers
 
-    protected int GetOrCreatePmjJitterTextureId(int cycleLength = DefaultPmjCycleLength, uint seed = DefaultPmjSeed)
+    /// <summary>Reuses the jitter owner until its deterministic seed or cycle changes.</summary>
+    protected LumOnPmjJitterTexture GetOrCreatePmjJitterTexture(int cycleLength = DefaultPmjCycleLength, uint seed = DefaultPmjSeed)
     {
         if (_pmjJitterTexture is not null && _pmjJitterTexture.TextureId != 0 && _pmjJitterCycleLength == cycleLength && _pmjJitterSeed == seed)
         {
-            return _pmjJitterTexture.TextureId;
+            return _pmjJitterTexture;
         }
 
         if (_pmjJitterTexture is not null)
@@ -325,13 +222,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
 
         _pmjJitterTexture = LumOnPmjJitterTexture.Create(cycleLength, seed);
 
-        return _pmjJitterTexture.TextureId;
-    }
-
-    protected void BindPmjJitterTexture(int unit, int cycleLength = DefaultPmjCycleLength, uint seed = DefaultPmjSeed)
-    {
-        _ = GetOrCreatePmjJitterTextureId(cycleLength, seed);
-        _pmjJitterTexture!.Bind(unit);
+        return _pmjJitterTexture;
     }
 
     #endregion
@@ -411,35 +302,6 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         EnsureContextValid();
         Assert.SkipWhen(_shaderHelper == null, "ShaderTestHelper not available - shader paths not found");
         Assert.SkipWhen(_testFramework == null, "ShaderTestFramework not available");
-    }
-
-    /// <summary>
-    /// Compiles and links a shader program.
-    /// </summary>
-    /// <param name="vertexShader">Vertex shader filename (in shaders directory).</param>
-    /// <param name="fragmentShader">Fragment shader filename (in shaders directory).</param>
-    /// <returns>The linked program ID.</returns>
-    /// <exception cref="Xunit.Sdk.XunitException">If compilation fails.</exception>
-    protected int CompileShader(string vertexShader, string fragmentShader)
-    {
-        var result = ShaderHelper.CompileAndLink(vertexShader, fragmentShader);
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
-    }
-
-    /// <summary>
-    /// Compiles and links a shader program with custom defines injected.
-    /// </summary>
-    /// <param name="vertexShader">Vertex shader filename (in shaders directory).</param>
-    /// <param name="fragmentShader">Fragment shader filename (in shaders directory).</param>
-    /// <param name="defines">Dictionary of define name to value (null value removes the define).</param>
-    /// <returns>The linked program ID.</returns>
-    /// <exception cref="Xunit.Sdk.XunitException">If compilation fails.</exception>
-    protected int CompileShaderWithDefines(string vertexShader, string fragmentShader, Dictionary<string, string?> defines)
-    {
-        var result = ShaderHelper.CompileAndLink(vertexShader, fragmentShader, defines);
-        Assert.True(result.IsSuccess, $"Shader compilation failed: {result.ErrorMessage}");
-        return result.ProgramId;
     }
 
     #endregion
@@ -522,7 +384,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
 
     /// <summary>
     /// Creates test matrices and computes matching probe depth for a given depth buffer value.
-    /// 
+    ///
     /// Uses perspective projection to get realistic depth values that work correctly
     /// with shader depth reconstruction and probe weighting calculations.
     /// </summary>
@@ -531,7 +393,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// the shader's distance-based weighting to fail (distRatio becomes huge).
     /// This method creates proper perspective matrices that produce realistic
     /// view-space Z values matching probe world positions.
-    /// 
+    ///
     /// The depth formula uses standard OpenGL perspective:
     /// depth = (A*z + B) / z where:
     ///   A = -(zFar + zNear) / (zFar - zNear)
@@ -557,10 +419,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             ZNear,          // 0.1
             ZFar            // 100
         );
-        
+
         invProjection = LumOnTestInputFactory.CreateInverseMatrix(projection);
         viewMatrix = LumOnTestInputFactory.CreateIdentityMatrix();
-        
+
         // Calculate what view-space Z the depth buffer value maps to
         // Using the standard OpenGL depth formula: depth = (A*z + B) / z
         // where A = -(zFar + zNear) / (zFar - zNear), B = -2*zFar*zNear / (zFar - zNear)
@@ -569,12 +431,12 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         float B = -2f * ZFar * ZNear / (ZFar - ZNear);
         float ndcZ = depthBufferValue * 2f - 1f;
         float viewZ = B / (ndcZ - A);
-        
+
         // With identity view matrix, world Z = view Z
         probeWorldZ = viewZ;  // Negative, into screen
         hitDistance = -viewZ; // Positive distance
     }
-    
+
     /// <summary>
     /// Creates a complete set of realistic test matrices for shaders that need
     /// projection, view, and their inverses.
@@ -582,7 +444,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// <remarks>
     /// This is the comprehensive version for shaders like probe_trace that need
     /// all four matrices (projection, invProjection, view, invView).
-    /// 
+    ///
     /// The matrices are consistent with each other:
     /// - projection * invProjection = identity
     /// - view * invView = identity
@@ -609,23 +471,23 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             ZNear,          // 0.1
             ZFar            // 100
         );
-        
+
         invProjection = LumOnTestInputFactory.CreateInverseMatrix(projection);
-        
+
         // Use identity view for simplicity (camera at origin, looking down -Z)
         viewMatrix = LumOnTestInputFactory.CreateIdentityMatrix();
         invViewMatrix = LumOnTestInputFactory.CreateIdentityMatrix();
-        
+
         // Calculate view-space Z for the given depth buffer value
         float A = -(ZFar + ZNear) / (ZFar - ZNear);
         float B = -2f * ZFar * ZNear / (ZFar - ZNear);
         float ndcZ = depthBufferValue * 2f - 1f;
         float viewZ = B / (ndcZ - A);
-        
+
         // With identity view matrix, world Z = view Z
         probeWorldZ = viewZ;
     }
-    
+
     /// <summary>
     /// Computes the view-space Z coordinate for a given depth buffer value.
     /// </summary>
@@ -638,7 +500,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         float ndcZ = depthBufferValue * 2f - 1f;
         return B / (ndcZ - A);
     }
-    
+
     /// <summary>
     /// Computes the depth buffer value for a given view-space Z coordinate.
     /// </summary>
@@ -671,7 +533,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// </summary>
     protected static void AssertApproximatelyEqual(float expected, float actual, float epsilon, string message)
     {
-        Assert.True(MathF.Abs(expected - actual) < epsilon, 
+        Assert.True(MathF.Abs(expected - actual) < epsilon,
             $"{message}: expected {expected:F4}, got {actual:F4} (diff: {MathF.Abs(expected - actual):F6})");
     }
 
@@ -689,17 +551,13 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             if (disposing)
             {
                 sceneInputs?.Dispose();
+                programs?.Dispose();
+                programs = null;
                 sceneInputs = null;
                 _shaderHelper?.Dispose();
                 _testFramework?.Dispose();
                 _lumOnUbos?.Dispose();
                 _lumOnUbos = null;
-
-                _lumOnCombineParamsUbo?.Dispose();
-                _lumOnCombineParamsUbo = null;
-
-                _lumOnDebugParamsUbo?.Dispose();
-                _lumOnDebugParamsUbo = null;
             }
 
             _pmjJitterTexture?.Dispose();

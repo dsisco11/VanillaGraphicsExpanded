@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -26,11 +27,11 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages", debugName: "Tests.PatchIdFeedbackLimits.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits.Compact");
-        int markProgram = markComputeProgram.ProgramId;
-        int compactProgram = compactComputeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var markComputeProgramOwner, out string markComputeProgramLog), markComputeProgramLog);
+        using var markComputeProgram = markComputeProgramOwner!;
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactComputeProgramOwner, out string compactComputeProgramLog), compactComputeProgramLog);
+        using var compactComputeProgram = compactComputeProgramOwner!;
 
         const int desiredPages = 4096;
         const int gW = 128;
@@ -79,32 +80,30 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
         // Pass A: mark pages.
-        GL.UseProgram(markProgram);
-        markCounters.BindBase(bindingIndex: 0);
-        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
-        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        using var markParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits.Mark.ParamsUBO");
-        LumonSceneFeedbackParamsUbo.BindMark(markParamsUbo, frameStamp: 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        using var markComputeProgramScope = markComputeProgram.UseScope();
+        markComputeProgram.BindDebugCounters(markCounters);
+        markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
+        markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
+
+        markComputeProgram.FrameStamp = 1u;
+        markComputeProgram.BindPageUsageStampImage(usageStamp);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 1)");
 
         // Pass B: compact.
-        GL.UseProgram(compactProgram);
-        pageRequestCounter.BindBase(bindingIndex: 0);
-        pageRequests.BindBase(bindingIndex: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits.Compact.ParamsUBO");
-        LumonSceneFeedbackParamsUbo.BindCompact(
-            compactParamsUbo,
-            maxRequests: (uint)desiredPages,
-            frameStamp: 1u,
-            scanOffset: 0u,
-            compactMode: 1u);
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        using var compactComputeProgramScope = compactComputeProgram.UseScope();
+        compactComputeProgram.BindRequestCounter(pageRequestCounter);
+        compactComputeProgram.BindRequestsSsbo(pageRequests);
+        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
+        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+
+        compactComputeProgram.MaxRequests = (uint)desiredPages;
+        compactComputeProgram.FrameStamp = 1u;
+        compactComputeProgram.ScanOffset = 0u;
+        compactComputeProgram.CompactMode = 1u;
+        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 1)");
@@ -128,7 +127,6 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         // With patchId = 1..4096 and virtualPageIndex = patchId % 16384, we expect 4096 unique vpages.
         Assert.Equal(desiredPages, seen.Count);
 
-        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -136,11 +134,11 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages", debugName: "Tests.PatchIdFeedbackLimits2.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits2.Compact");
-        int markProgram = markComputeProgram.ProgramId;
-        int compactProgram = compactComputeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var markComputeProgramOwner, out string markComputeProgramLog), markComputeProgramLog);
+        using var markComputeProgram = markComputeProgramOwner!;
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactComputeProgramOwner, out string compactComputeProgramLog), compactComputeProgramLog);
+        using var compactComputeProgram = compactComputeProgramOwner!;
 
         const int gW = 16;
         const int gH = 16;
@@ -185,31 +183,29 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
-        GL.UseProgram(markProgram);
-        markCounters.BindBase(bindingIndex: 0);
-        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
-        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        using var markParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits2.Mark.ParamsUBO");
-        LumonSceneFeedbackParamsUbo.BindMark(markParamsUbo, frameStamp: 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        using var markComputeProgramScope = markComputeProgram.UseScope();
+        markComputeProgram.BindDebugCounters(markCounters);
+        markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
+        markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
+
+        markComputeProgram.FrameStamp = 1u;
+        markComputeProgram.BindPageUsageStampImage(usageStamp);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 2)");
 
-        GL.UseProgram(compactProgram);
-        pageRequestCounter.BindBase(bindingIndex: 0);
-        pageRequests.BindBase(bindingIndex: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits2.Compact.ParamsUBO");
-        LumonSceneFeedbackParamsUbo.BindCompact(
-            compactParamsUbo,
-            maxRequests: (uint)desiredPages,
-            frameStamp: 1u,
-            scanOffset: 0u,
-            compactMode: 1u);
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        using var compactComputeProgramScope = compactComputeProgram.UseScope();
+        compactComputeProgram.BindRequestCounter(pageRequestCounter);
+        compactComputeProgram.BindRequestsSsbo(pageRequests);
+        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
+        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+
+        compactComputeProgram.MaxRequests = (uint)desiredPages;
+        compactComputeProgram.FrameStamp = 1u;
+        compactComputeProgram.ScanOffset = 0u;
+        compactComputeProgram.CompactMode = 1u;
+        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 2)");
@@ -217,7 +213,6 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal(0u, requestCount);
 
-        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -225,11 +220,11 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var markComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages", debugName: "Tests.PatchIdFeedbackLimits3.Mark");
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits3.Compact");
-        int markProgram = markComputeProgram.ProgramId;
-        int compactProgram = compactComputeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var markComputeProgramOwner, out string markComputeProgramLog), markComputeProgramLog);
+        using var markComputeProgram = markComputeProgramOwner!;
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactComputeProgramOwner, out string compactComputeProgramLog), compactComputeProgramLog);
+        using var compactComputeProgram = compactComputeProgramOwner!;
 
         const int desiredPages = 1024;
         const int gW = 64;
@@ -276,31 +271,29 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
-        GL.UseProgram(markProgram);
-        markCounters.BindBase(bindingIndex: 0);
-        BindSampler2DUint(markProgram, "vge_patchIdGBuffer", patchIdGBuffer.TextureId, unit: 0);
-        BindSampler2DUint(markProgram, "vge_chunkSlotGenerationTex", genTex.TextureId, unit: 1);
-        using var markParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits3.Mark.ParamsUBO");
-        LumonSceneFeedbackParamsUbo.BindMark(markParamsUbo, frameStamp: 1u);
-        GL.BindImageTexture(0, usageStamp.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.ReadWrite, format: SizedInternalFormat.R32ui);
+        using var markComputeProgramScope = markComputeProgram.UseScope();
+        markComputeProgram.BindDebugCounters(markCounters);
+        markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
+        markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
+
+        markComputeProgram.FrameStamp = 1u;
+        markComputeProgram.BindPageUsageStampImage(usageStamp);
         GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 3)");
 
-        GL.UseProgram(compactProgram);
-        pageRequestCounter.BindBase(bindingIndex: 0);
-        pageRequests.BindBase(bindingIndex: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits3.Compact.ParamsUBO");
-        LumonSceneFeedbackParamsUbo.BindCompact(
-            compactParamsUbo,
-            maxRequests: (uint)desiredPages,
-            frameStamp: 1u,
-            scanOffset: 0u,
-            compactMode: 1u);
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        using var compactComputeProgramScope = compactComputeProgram.UseScope();
+        compactComputeProgram.BindRequestCounter(pageRequestCounter);
+        compactComputeProgram.BindRequestsSsbo(pageRequests);
+        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
+        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+
+        compactComputeProgram.MaxRequests = (uint)desiredPages;
+        compactComputeProgram.FrameStamp = 1u;
+        compactComputeProgram.ScanOffset = 0u;
+        compactComputeProgram.CompactMode = 1u;
+        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 3)");
@@ -311,7 +304,6 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         LumonScenePageRequestGpu[] requests = ReadSsbo<LumonScenePageRequestGpu>(pageRequests, itemCount: 1);
         Assert.Equal(1u, requests[0].VirtualPageIndex);
 
-        // Programs are disposed via ComputeProgram.
     }
 
     [Fact]
@@ -319,9 +311,9 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var compactComputeProgram = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages", debugName: "Tests.PatchIdFeedbackLimits4.Compact");
-        int compactProgram = compactComputeProgram.ProgramId;
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactComputeProgramOwner, out string compactComputeProgramLog), compactComputeProgramLog);
+        using var compactComputeProgram = compactComputeProgramOwner!;
 
         const int chunkSlotCount = 1;
         using var usageStamp = Texture3D.Create(
@@ -351,19 +343,17 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: 8);
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
 
-        GL.UseProgram(compactProgram);
-        pageRequestCounter.BindBase(bindingIndex: 0);
-        pageRequests.BindBase(bindingIndex: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageUsageStamp", usageStamp.TextureId, unit: 0);
-        BindSampler2DArrayUint(compactProgram, "vge_pageTableMip0", pageTableMip0.TextureId, unit: 1);
-        using var compactParamsUbo = new ObjectParamsUbo("Tests.PatchIdFeedbackLimits4.Compact.ParamsUBO");
-        LumonSceneFeedbackParamsUbo.BindCompact(
-            compactParamsUbo,
-            maxRequests: 8u,
-            frameStamp: 2u, // mismatch => no requests
-            scanOffset: 0u,
-            compactMode: 1u);
-        GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        using var compactComputeProgramScope = compactComputeProgram.UseScope();
+        compactComputeProgram.BindRequestCounter(pageRequestCounter);
+        compactComputeProgram.BindRequestsSsbo(pageRequests);
+        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
+        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+
+        compactComputeProgram.MaxRequests = 8u;
+        compactComputeProgram.FrameStamp = 2u;
+        compactComputeProgram.ScanOffset = 0u;
+        compactComputeProgram.CompactMode = 1u;
+        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 4)");
@@ -371,46 +361,6 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         uint requestCount = ReadAtomicCounter(pageRequestCounter, counterIndex: 0);
         Assert.Equal(0u, requestCount);
 
-        // Program disposed via ComputeProgram.
-    }
-
-    private static ShaderTestHelper CreateShaderHelperOrSkip()
-    {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
-        {
-            Assert.Skip("Shader assets not available - test output content may be missing");
-        }
-
-        return new ShaderTestHelper(shaderPath, includePath);
-    }
-
-    private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
-    }
-
-    private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
-    }
-
-    private static void SetUniform1ui(int program, string name, uint value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
     }
 
     private static GpuAtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue, int counterCount)

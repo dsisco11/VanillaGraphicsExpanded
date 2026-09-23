@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,7 +10,6 @@ using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
-using VanillaGraphicsExpanded.Tests.GPU.Shaders;
 
 using Xunit;
 
@@ -26,12 +26,13 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
     {
         EnsureContextValid();
 
-        using var helper = CreateShaderHelperOrSkip();
-        using var markShader = new LumonSceneFeedbackMarkPagesShader(helper, debugName: "Tests.MultiSlotCaptureConvergence.Mark");
-        using var compactShader = new LumonSceneFeedbackCompactPagesShader(helper, debugName: "Tests.MultiSlotCaptureConvergence.Compact");
-        using var captureComputeProgram = ComputeProgram.Create(helper, "lumonscene_capture_voxel", debugName: "Tests.MultiSlotCaptureConvergence.Capture");
-        int captureProgram = captureComputeProgram.ProgramId;
-        using var captureParamsUbo = new ObjectParamsUbo("Tests.MultiSlotCaptureConvergence.CaptureParams");
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var markShaderOwner, out string markShaderLog), markShaderLog);
+        using var markShader = markShaderOwner!;
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var compactShaderOwner, out string compactShaderLog), compactShaderLog);
+        using var compactShader = compactShaderOwner!;
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api, out var captureComputeProgramOwner, out string captureComputeProgramLog), captureComputeProgramLog);
+        using var captureComputeProgram = captureComputeProgramOwner!;
 
         const int chunkSlotCount = 100;
         const int pagesPerChunk = 4;
@@ -150,8 +151,8 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         const int maxRequestsPerFrame = 64;
         const int maxNewAllocsPerFrame = 16;
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: maxRequestsPerFrame);
-        using var pageRequestCounter = CreateAtomicCounterBuffer(counterCount: 1);
-        using var markCounters = CreateAtomicCounterBuffer(counterCount: 3);
+        using var pageRequestCounter = new ComponentAtomicCounters(counterCount: 1);
+        using var markCounters = new ComponentAtomicCounters(counterCount: 3);
 
         var captureOut = new LumonSceneCaptureWorkGpu[maxRequestsPerFrame];
         var relightOut = new LumonSceneRelightWorkGpu[maxRequestsPerFrame];
@@ -164,12 +165,12 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         for (uint frameStamp = 1u; frameStamp <= maxFrames && virtualToPhysical.Count < totalPages; frameStamp++)
         {
             // Pass A: mark.
-            markCounters.BindBase(bindingIndex: 0);
-            markShader.Use();
+            markShader.BindDebugCounters(markCounters.Buffer);
+            using var markShaderScope = markShader.UseScope();
             markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
             markShader.BindChunkSlotGenerationTex(genTex.TextureId);
             markShader.FrameStamp = frameStamp;
-            markShader.BindPageUsageStampImage(usageStamp.TextureId, access: TextureAccess.ReadWrite);
+            markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
             GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -177,23 +178,23 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
 
             // Pass B: compact.
             pageRequestCounter.UploadZeros(counterCount: 1);
-            pageRequestCounter.BindBase(bindingIndex: 0);
-            pageRequests.BindBase(bindingIndex: 0);
-            compactShader.Use();
+            compactShader.BindRequestCounter(pageRequestCounter.Buffer);
+            compactShader.BindRequestsSsbo(pageRequests);
+            using var compactShaderScope = compactShader.UseScope();
             compactShader.BindPageUsageStamp(usageStamp.TextureId);
             compactShader.BindPageTableMip0(pageTableMip0.TextureId);
             compactShader.MaxRequests = (uint)maxRequestsPerFrame;
             compactShader.FrameStamp = frameStamp;
             compactShader.ScanOffset = scanOffset;
             compactShader.CompactMode = 1u;
-            GL.DispatchCompute((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+            compactShader.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("MultiSlotCapture compact pass dispatch");
 
             scanOffset = (scanOffset + (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk) % (uint)(LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount);
 
-            uint requestCount = pageRequestCounter.Read(counterIndex: 0);
+            uint requestCount = pageRequestCounter.Read();
             int toRead = Math.Min((int)requestCount, maxRequestsPerFrame);
             LumonScenePageRequestGpu[] requests = ReadSsbo<LumonScenePageRequestGpu>(pageRequests, itemCount: toRead);
 
@@ -218,31 +219,18 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
 
             using var captureSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_CaptureWorkSSBO", (ReadOnlySpan<LumonSceneCaptureWorkGpu>)captureOut.AsSpan(0, captureCount));
 
-            GL.UseProgram(captureProgram);
-            captureSsbo.BindBase(bindingIndex: 0);
-            patchMetaSsbo.BindBase(bindingIndex: 1);
-            slotInfoSsbo.BindBase(bindingIndex: 2);
+            using var captureComputeProgramScope = captureComputeProgram.UseScope();
+            captureComputeProgram.BindCaptureWorkSsbo(captureSsbo);
+            captureComputeProgram.BindPatchMetaSsbo(patchMetaSsbo);
+            captureComputeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
 
-            GL.BindImageTexture(0, depthAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.R16f);
-            GL.BindImageTexture(1, materialAtlas.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba8);
+            captureComputeProgram.BindDepthAtlasImage(depthAtlas);
+            captureComputeProgram.BindMaterialAtlasImage(materialAtlas);
 
-            BindSampler3D(unit: 2, occL0.TextureId);
-            BindSampler2D(unit: 3, materialPalette.TextureId);
-        using var sharedSurface = new SharedSurfaceInputFixture(captureProgram, occL0, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occL0, materialPalette);
+        captureComputeProgram.BindSharedGeometry(sharedSurface.Scene);
 
-            LumonSceneCaptureVoxelParamsUbo.Bind(
-                captureParamsUbo,
-                tileSizeTexels: (uint)tileSize,
-                tilesPerAxis: (uint)tilesPerAxis,
-                tilesPerAtlas: (uint)tilesPerAtlas,
-                borderTexels: 0u,
-                occOriginMinCell0X: 0,
-                occOriginMinCell0Y: 0,
-                occOriginMinCell0Z: 0,
-                occRing0X: 0,
-                occRing0Y: 0,
-                occRing0Z: 0,
-                occResolution: occRes);
+            captureComputeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
@@ -279,58 +267,11 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             Assert.True((r | g) != 0, $"Expected tile for physicalPageId={physicalPageId} to be written (oct-normal!=0).");
         }
 
-        // Programs are disposed via ComputeProgram.
     }
 
     private sealed class NoopPageTableWriter : ILumonScenePageTableWriter
     {
         public void WriteMip0(int chunkSlot, int virtualPageIndex, uint packedEntry) { }
-    }
-
-    private sealed class AtomicCounterBuffer : IDisposable
-    {
-        private int bufferId;
-
-        public AtomicCounterBuffer(int bufferId) => this.bufferId = bufferId;
-
-        public void BindBase(int bindingIndex)
-            => GL.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, bindingIndex, bufferId);
-
-        public uint Read(int counterIndex)
-        {
-            uint value = 0u;
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
-            GL.GetBufferSubData(BufferTarget.AtomicCounterBuffer, (IntPtr)(counterIndex * sizeof(uint)), sizeof(uint), ref value);
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-            return value;
-        }
-
-        public void UploadZeros(int counterCount)
-        {
-            counterCount = Math.Max(1, counterCount);
-            uint[] zeros = new uint[counterCount];
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, bufferId);
-            GL.BufferSubData(BufferTarget.AtomicCounterBuffer, IntPtr.Zero, sizeof(uint) * counterCount, zeros);
-            GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-        }
-
-        public void Dispose()
-        {
-            int id = bufferId;
-            bufferId = 0;
-            if (id != 0) GL.DeleteBuffer(id);
-        }
-    }
-
-    private static AtomicCounterBuffer CreateAtomicCounterBuffer(int counterCount)
-    {
-        counterCount = Math.Max(1, counterCount);
-        int id = GL.GenBuffer();
-        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, id);
-        uint[] zeros = new uint[counterCount];
-        GL.BufferData(BufferTarget.AtomicCounterBuffer, sizeof(uint) * counterCount, zeros, BufferUsageHint.DynamicDraw);
-        GL.BindBuffer(BufferTarget.AtomicCounterBuffer, 0);
-        return new AtomicCounterBuffer(id);
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, int capacityItems) where T : unmanaged
@@ -363,72 +304,6 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         Assert.True(mapped.IsMapped);
         mapped.Span.CopyTo(dst);
         return dst;
-    }
-
-    private static void BindSampler2DUint(int program, string uniformName, int textureId, int unit)
-    {
-        // Compute shaders use layout(binding=...) for sampler units; SPIR-V uniform names may not be reflectable.
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
-    }
-
-    private static void BindSampler2DArrayUint(int program, string uniformName, int textureId, int unit)
-    {
-        // Compute shaders use layout(binding=...) for sampler units; SPIR-V uniform names may not be reflectable.
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
-    }
-
-    private static void SetUniform1ui(int program, string name, uint value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static void SetUniform1i(int program, string name, int value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform1(loc, value);
-    }
-
-    private static void SetUniform3i(int program, string name, int x, int y, int z)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name);
-        if (loc < 0 && ComputeProgram.TryGetExplicitUniformLocation(program, name, out int explicitLoc))
-        {
-            loc = explicitLoc;
-        }
-
-        Assert.True(loc >= 0, $"Missing uniform {name}");
-        GL.Uniform3(loc, x, y, z);
-    }
-
-    private static void BindSampler3D(int unit, int textureId)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
-    }
-
-    private static void BindSampler2D(int unit, int textureId)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-        GL.ActiveTexture(TextureUnit.Texture0);
     }
 
     private static void FillR16f2DArray(int textureId, int width, int height, int depth, float value)
@@ -465,16 +340,4 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         return data;
     }
 
-    private static ShaderTestHelper CreateShaderHelperOrSkip()
-    {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
-        {
-            Assert.Skip("Shader assets not available - test output content may be missing");
-        }
-
-        return new ShaderTestHelper(shaderPath, includePath);
-    }
 }

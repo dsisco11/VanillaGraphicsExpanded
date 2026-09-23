@@ -1,51 +1,61 @@
 using OpenTK.Graphics.OpenGL;
-using VanillaGraphicsExpanded.LumOn.Shaders;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
-using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.WorldPartition;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Supplies explicit geometry/readiness for existing surface-lighting fixtures with packed lighting inputs.</summary>
+/// <summary>Publishes authored legacy voxels and face identities through the production geometry backend.</summary>
 internal sealed class SharedSurfaceInputFixture : IDisposable
 {
-    private readonly Texture3D geometry, readiness;
-    private readonly Texture2D faces;
-    private readonly GpuUniformBuffer parameters = GpuUniformBuffer.Create(debugName: "Tests.SharedSurface.Parameters");
+    public TraceGeometryGpuScene Scene { get; }
 
-    #region Fixture binding
-    /// <summary>Declares every fixture voxel loaded, classifies its authored material words, and preserves their lighting.</summary>
-    public SharedSurfaceInputFixture(int program, Texture3D legacy, Texture2D palette)
+    #region Controlled scene publication
+    /// <summary>Reads the fixture inputs and publishes complete cells without duplicating shader binding slots.</summary>
+    public SharedSurfaceInputFixture(Texture3D legacy, Texture2D palette)
     {
-        GlStateCache.Current.InvalidateAll();
-        int size = legacy.Width;
-        uint[] words = new uint[size * size * size];
+        int size = legacy.Width, resolution = (size + 15) / 16 * 16;
+        var words = new uint[size * size * size];
+        // Integer texture readback is an observation seam; the ordinary shader inputs below
+        // are published and subsequently bound by their actual production owners.
         using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, legacy.TextureId))
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, words);
-        for (int i = 0; i < words.Length; i++)
-        {
-            uint material = words[i] >> 18;
-            words[i] = material != 0 ? 2u | material << 2 : 1u;
-        }
-        geometry = Texture3D.Create(size, size, size, PixelInternalFormat.R32ui);
-        geometry.UploadDataImmediate(words, 0, 0, 0, size, size, size);
-        int cellSize = Math.Min(16, size), slots = size / cellSize;
-        readiness = Texture3D.Create(slots, slots, slots, PixelInternalFormat.R8ui);
-        readiness.UploadDataImmediate(Enumerable.Repeat((byte)1, slots * slots * slots).ToArray(), 0, 0, 0, slots, slots, slots);
-        uint[] entries = new uint[palette.Width * palette.Height * 4];
+        var entries = new uint[palette.Width * palette.Height * 4];
         using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, palette.TextureId))
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, entries);
-        for (int i = 0; i < entries.Length; i += 4)
-            entries[i + 3] = (entries[i] | entries[i + 1] | entries[i + 2]) != 0 ? 1u : 0u;
-        faces = Texture2D.Create(palette.Width, palette.Height, PixelInternalFormat.Rgba32ui);
-        faces.UploadDataImmediate(entries);
-        var mapping = new LumOnNearFieldParamsUbo(); mapping.Set(default, size, cellSize: cellSize);
-        parameters.UploadOrResize(mapping.Bytes, growExponentially: false); parameters.BindBase(LumOnNearFieldParamsUbo.Binding);
-        UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
-        geometry.Bind(8); readiness.Bind(9); legacy.Bind(10); faces.Bind(11);
-        for (int i = 8; i <= 11; i++) GpuSamplers.NearestClamp.Bind(i);
+        var faces = new uint[16384 * 4];
+        entries.CopyTo(faces, 0);
+        for (int i = 0; i < faces.Length; i += 4)
+            faces[i + 3] = (faces[i] | faces[i + 1] | faces[i + 2]) != 0 ? 1u : 0u;
+        var tables = new TraceGeometryTables(1, faces, new byte[16384 * 48], new uint[65536 * 4], new float[256]);
+        // Publish whole production cells while preserving the authored logical tracing extent.
+        Scene = new(resolution);
+        var window = new PartitionBounds(new(0, 0, 0), new(resolution, resolution, resolution));
+        var domain = new PartitionBounds(new(0, 0, 0), new(size, size, size));
+        Scene.SetWindow(new(domain, domain, window, resolution, int.MaxValue));
+        Scene.UploadTableRange(tables, 0, (int)TraceGeometryTables.MaximumUploadBytes);
+        // Native upload order is X/Y/Z; each cell keeps geometry and packed lighting coherent.
+        for (int cz = 0; cz < resolution / 16; cz++)
+        for (int cy = 0; cy < resolution / 16; cy++)
+        for (int cx = 0; cx < resolution / 16; cx++)
+        {
+            var geometry = new uint[4096];
+            var lighting = new uint[4096];
+            for (int z = 0; z < 16; z++) for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++)
+            {
+                int wx = cx * 16 + x, wy = cy * 16 + y, wz = cz * 16 + z;
+                int index = (z * 16 + y) * 16 + x;
+                uint word = wx < size && wy < size && wz < size ? words[(wz * size + wy) * size + wx] : 0;
+                lighting[index] = word;
+                uint material = word >> 18;
+                geometry[index] = material != 0 ? 2u | material << 2 : 1u;
+            }
+            var request = new PartitionRequest(1, new(1, "component", new(cx, cy, cz)), 1, 1, 1, default);
+            Assert.True(Scene.Publish(request, new(geometry, lighting, new byte[16384], false), tables));
+        }
     }
 
-    /// <summary>Releases only companion fixture resources, preserving caller-owned light and material inputs.</summary>
-    public void Dispose() { geometry.Dispose(); readiness.Dispose(); faces.Dispose(); parameters.Dispose(); }
+    /// <summary>Releases the production scene while preserving caller-owned authored inputs.</summary>
+    public void Dispose() => Scene.Dispose();
     #endregion
 }

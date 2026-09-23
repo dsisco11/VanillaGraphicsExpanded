@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -5,8 +8,6 @@ using System.Numerics;
 
 using OpenTK.Graphics.OpenGL;
 
-using PbrDirectLightingParamsUboCpu = VanillaGraphicsExpanded.PBR.PbrDirectLightingParamsUbo;
-using PbrCompositeParamsUboCpu = VanillaGraphicsExpanded.PBR.PbrCompositeParamsUbo;
 
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
@@ -83,29 +84,13 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         using var baselineComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
         using var injectedComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
 
-        int pbrDirectProg = 0;
-        int velocityProg = 0;
-        int hzbCopyProg = 0;
-        int hzbDownProg = 0;
-        int anchorProg = 0;
-        int traceProg = 0;
-        int temporalProg = 0;
-        int filterProg = 0;
-        int gatherProg = 0;
-        int upsampleProg = 0;
-        int pbrCompositeProg = 0;
-
-        try
         {
-            pbrDirectProg = PbrShaderPrograms.CompilePbrDirectLightingProgram(ShaderHelper);
-            velocityProg = CompileShader("lumon_velocity.vsh", "lumon_velocity.fsh");
-            hzbCopyProg = CompileShader("lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh");
-            hzbDownProg = CompileShader("lumon_hzb_downsample.vsh", "lumon_hzb_downsample.fsh");
-            anchorProg = CompileShader("lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh");
-                traceProg = CompileShaderWithDefines(
-                    "lumon_probe_atlas_trace.vsh",
-                    "lumon_probe_atlas_trace.fsh",
-                    new Dictionary<string, string?>
+            var pbrDirectProg = Programs.Create<PBRDirectLightingShaderProgram>();
+            var velocityProg = Programs.Create<LumOnVelocityShaderProgram>();
+            var hzbCopyProg = Programs.Create<LumOnHzbCopyShaderProgram>();
+            var hzbDownProg = Programs.Create<LumOnHzbDownsampleShaderProgram>();
+            var anchorProg = Programs.Create<LumOnProbeAnchorShaderProgram>();
+                var traceProg = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
                     {
                         ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64",
                         ["VGE_LUMON_RAY_STEPS"] = "8",
@@ -114,98 +99,60 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                         ["VGE_LUMON_HZB_COARSE_MIP"] = "0",
                         ["VGE_LUMON_SKY_MISS_WEIGHT"] = "1.0"
                     });
-                temporalProg = CompileShaderWithDefines(
-                    "lumon_probe_atlas_temporal.vsh",
-                    "lumon_probe_atlas_temporal.fsh",
-                    new Dictionary<string, string?>
+                var temporalProg = Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(settings: new Dictionary<string, string?>
                     {
                         ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = "64"
                     });
-            filterProg = CompileShader("lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh");
-            gatherProg = CompileShader("lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh");
-            upsampleProg = CompileShader("lumon_upsample.vsh", "lumon_upsample.fsh");
-            pbrCompositeProg = PbrShaderPrograms.CompilePbrCompositeProgram(ShaderHelper);
-
-            using var lumOnProbeParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.LumOnProbeParamsUBO");
-            using var lumOnUpsampleParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.LumOnUpsampleParamsUBO");
-            using var pbrCompositeParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.PbrComposite.ParamsUBO");
+            var filterProg = Programs.Create<LumOnScreenProbeAtlasFilterShaderProgram>();
+            var gatherProg = Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>();
+            var upsampleProg = Programs.Create<LumOnUpsampleShaderProgram>();
+            var pbrCompositeProg = Programs.Create<PBRCompositeShaderProgram>();
 
             // -----------------------------------------------------------------
             // Stage: PBR Direct Lighting (MRT)
             // -----------------------------------------------------------------
-            GL.UseProgram(pbrDirectProg);
-            SetSampler(pbrDirectProg, "primaryScene", 0);
-            SetSampler(pbrDirectProg, "primaryDepth", 1);
-            SetSampler(pbrDirectProg, "gBufferNormal", 2);
-            SetSampler(pbrDirectProg, "gBufferMaterial", 3);
-            SetSampler(pbrDirectProg, "shadowMapNear", 4);
-            SetSampler(pbrDirectProg, "shadowMapFar", 5);
-
-            SetMat4(pbrDirectProg, "invProjectionMatrix", invProj);
-            SetMat4(pbrDirectProg, "invModelViewMatrix", identity);
-
-            SetFloat(pbrDirectProg, "zNear", ZNear);
-            SetFloat(pbrDirectProg, "zFar", ZFar);
-
-            SetVec3(pbrDirectProg, "cameraOriginFloor", 0f, 0f, 0f);
-            SetVec3(pbrDirectProg, "cameraOriginFrac", 0f, 0f, 0f);
+            using var pbrDirectProgUse = pbrDirectProg.UseScope();
 
             // Directional light aligned with the test normal.
-            SetVec3(pbrDirectProg, "lightDirection", 0f, 0f, 1f);
-            SetVec3(pbrDirectProg, "rgbaLightIn", 0.35f, 0.55f, 0.75f);
-            SetVec3(pbrDirectProg, "rgbaAmbientIn", 0.0f, 0.0f, 0.0f);
-
-            SetInt(pbrDirectProg, "pointLightsCount", 0);
 
             // Shadow uniforms are present but currently not used by the fragment shader.
             // These calls safely no-op if uniforms are optimized out.
-            SetFloat(pbrDirectProg, "shadowRangeNear", 0f);
-            SetFloat(pbrDirectProg, "shadowRangeFar", 0f);
-            SetFloat(pbrDirectProg, "shadowZExtendNear", 0f);
-            SetFloat(pbrDirectProg, "shadowZExtendFar", 0f);
-            SetFloat(pbrDirectProg, "dropShadowIntensity", 0f);
 
             // Phase 23: UBO-backed direct lighting params (VgePbrDirectLightingParamsUBO @ object binding).
             // The shader now aliases former uniform names to this UBO; without binding it, outputs will be black.
-            using var pbrDirectParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.PbrDirect.ParamsUBO");
-            UniformBlockBindingUtil.EnsureBlockBound(pbrDirectProg, PbrDirectLightingParamsUboCpu.BlockName, GpuBindingRegistry.Ubo.Object);
 
-            var cpuDirectParams = new PbrDirectLightingParamsUboCpu();
-            using (cpuDirectParams.BeginBatchUpdate())
             {
-                cpuDirectParams.InvProjectionMatrix = invProj;
-                cpuDirectParams.InvModelViewMatrix = identity;
+                pbrDirectProg.InvProjectionMatrix = invProj;
+                pbrDirectProg.InvModelViewMatrix = identity;
 
                 // Shadows are wired but effectively disabled for this test.
-                cpuDirectParams.ToShadowMapSpaceMatrixNear = identity;
-                cpuDirectParams.ToShadowMapSpaceMatrixFar = identity;
-                cpuDirectParams.ZPlanesAndShadowRanges = (zNear: ZNear, zFar: ZFar, shadowRangeNear: 0f, shadowRangeFar: 0f);
-                cpuDirectParams.ShadowExtendAndDrop = (shadowZExtendNear: 0f, shadowZExtendFar: 0f, dropShadowIntensity: 0f);
+                pbrDirectProg.ToShadowMapSpaceMatrixNear = identity;
+                pbrDirectProg.ToShadowMapSpaceMatrixFar = identity;
+                pbrDirectProg.ZPlanesAndShadowRanges = (zNear: ZNear, zFar: ZFar, shadowRangeNear: 0f, shadowRangeFar: 0f);
+                pbrDirectProg.ShadowZExtendNear = 0; pbrDirectProg.ShadowZExtendFar = 0; pbrDirectProg.DropShadowIntensity = 0;
 
-                cpuDirectParams.CameraOriginFloor = Vector3.Zero;
-                cpuDirectParams.CameraOriginFrac = Vector3.Zero;
+                pbrDirectProg.CameraOriginFloor = new(0,0,0);
+                pbrDirectProg.CameraOriginFrac = new(0,0,0);
 
-                cpuDirectParams.LightDirection = new Vector3(0f, 0f, 1f);
-                cpuDirectParams.RgbaLightIn = new Vector3(0.35f, 0.55f, 0.75f);
-                cpuDirectParams.RgbaAmbientIn = Vector3.Zero;
+                pbrDirectProg.LightDirection = new(0f, 0f, 1f);
+                pbrDirectProg.RgbaLightIn = new(0.35f, 0.55f, 0.75f);
+                pbrDirectProg.RgbaAmbientIn = new(0,0,0);
 
-                cpuDirectParams.SetPointLights(0, positions3: null, colors3: null);
+                pbrDirectProg.SetPointLights(0, null, null);
             }
 
-            pbrDirectParamsUbo.UploadAndBind(cpuDirectParams.Bytes);
-
-            primaryScene.Bind(0);
-            primaryDepth.Bind(1);
-            gBufferNormal.Bind(2);
-            gBufferMaterial.Bind(3);
-            shadowNear.Bind(4);
-            shadowFar.Bind(5);
+            pbrDirectProg.PrimaryScene = primaryScene.TextureId;
+            pbrDirectProg.PrimaryDepth = primaryDepth.TextureId;
+            pbrDirectProg.GBufferNormal = gBufferNormal.TextureId;
+            pbrDirectProg.GBufferMaterial = gBufferMaterial.TextureId;
+            pbrDirectProg.ShadowMapNear = shadowNear.TextureId;
+            pbrDirectProg.ShadowMapFar = shadowFar.TextureId;
 
             // Binding audit (used samplers only)
-            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "primaryScene", 0, primaryScene);
-            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "primaryDepth", 1, primaryDepth);
-            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "gBufferNormal", 2, gBufferNormal);
-            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "gBufferMaterial", 3, gBufferMaterial);
+            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "primaryScene", primaryScene);
+            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "primaryDepth", primaryDepth);
+            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "gBufferNormal", gBufferNormal);
+            AssertSampler2DBinding("Stage: PBR Direct", pbrDirectProg, "gBufferMaterial", gBufferMaterial);
 
             AssertGBufferFboAttachments("Stage: PBR Direct", targets.DirectLightingMrt);
             TestFramework.RenderQuadTo(pbrDirectProg, targets.DirectLightingMrt);
@@ -224,12 +171,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Velocity
             // -----------------------------------------------------------------
-            GL.UseProgram(velocityProg);
-            SetSampler(velocityProg, "primaryDepth", 0);
-            SetVec2(velocityProg, "screenSize", ScreenWidth, ScreenHeight);
-            SetMat4(velocityProg, "invCurrViewProjMatrix", invProj);
-            SetMat4(velocityProg, "prevViewProjMatrix", proj);
-            SetInt(velocityProg, "historyValid", 1);
+            using var velocityProgUse = velocityProg.UseScope();
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -237,11 +179,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 invCurrViewProjMatrix: invProj,
                 prevViewProjMatrix: proj,
                 historyValid: 1);
-            GL.UseProgram(0);
 
-            primaryDepth.Bind(0);
+            velocityProg.PrimaryDepth = primaryDepth.TextureId;
 
-            AssertSampler2DBinding("Stage: Velocity", velocityProg, "primaryDepth", 0, primaryDepth);
+            AssertSampler2DBinding("Stage: Velocity", velocityProg, "primaryDepth", primaryDepth);
             AssertGBufferFboAttachments("Stage: Velocity", targets.Velocity);
             TestFramework.RenderQuadTo(velocityProg, targets.Velocity);
             AssertNoGLError("Stage: Velocity");
@@ -261,11 +202,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Copy mip0
             targets.Hzb.BindMipForWrite(0);
-            GL.UseProgram(hzbCopyProg);
-            primaryDepth.Bind(0);
-            SetSampler(hzbCopyProg, "primaryDepth", 0);
+            using var hzbCopyProgUse = hzbCopyProg.UseScope();
+            hzbCopyProg.PrimaryDepth = primaryDepth.TextureId;
 
-            AssertSampler2DBinding("Stage: HZB Copy", hzbCopyProg, "primaryDepth", 0, primaryDepth);
+            AssertSampler2DBinding("Stage: HZB Copy", hzbCopyProg, "primaryDepth", primaryDepth);
             AssertFboColorAttachment0("Stage: HZB Copy", expectedTextureId: targets.Hzb.Texture.TextureId, expectedMipLevel: 0);
             AssertDrawBuffersForSingleColorTarget("Stage: HZB Copy");
             AssertTexture2DLevelFormatAndSize(
@@ -280,21 +220,17 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertNoGLError("Stage: HZB Copy");
 
             // Downsample mip0->mip1 and mip1->mip2
-            using var hzbParamsUbo = new ObjectParamsUbo("Tests.PbrLumOn.Integration.Hzb.ParamsUBO");
-            var hzbParams = new Helpers.LumOnHzbDownsampleParamsUbo();
             for (int dstMip = 1; dstMip <= 2; dstMip++)
             {
                 int srcMip = dstMip - 1;
 
                 targets.Hzb.BindMipForWrite(dstMip);
-                GL.UseProgram(hzbDownProg);
-                targets.Hzb.Texture.Bind(0);
-                SetSampler(hzbDownProg, "hzbDepth", 0);
+                using var hzbDownProgUse = hzbDownProg.UseScope();
+                hzbDownProg.HzbDepth = targets.Hzb.Texture;
                 // The source mip belongs to the HZB parameter block, not a standalone uniform.
-                hzbParams.SrcMip = srcMip;
-                hzbParamsUbo.UploadAndBind(hzbParams.Bytes);
+                hzbDownProg.SrcMip = srcMip;
 
-                AssertSampler2DBinding($"Stage: HZB Downsample mip{dstMip}", hzbDownProg, "hzbDepth", 0, targets.Hzb.Texture);
+                AssertSampler2DBinding($"Stage: HZB Downsample mip{dstMip}", hzbDownProg, "hzbDepth", targets.Hzb.Texture);
                 AssertFboColorAttachment0($"Stage: HZB Downsample mip{dstMip}", expectedTextureId: targets.Hzb.Texture.TextureId, expectedMipLevel: dstMip);
                 AssertDrawBuffersForSingleColorTarget($"Stage: HZB Downsample mip{dstMip}");
                 AssertTexture2DLevelFormatAndSize(
@@ -321,20 +257,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Probe Anchor
             // -----------------------------------------------------------------
-            GL.UseProgram(anchorProg);
-            SetSampler(anchorProg, "primaryDepth", 0);
-            SetSampler(anchorProg, "gBufferNormal", 1);
-
-            SetMat4(anchorProg, "invProjectionMatrix", invProj);
-            SetMat4(anchorProg, "invViewMatrix", identity);
-
-            SetInt(anchorProg, "probeSpacing", ProbeSpacing);
-            SetVec2(anchorProg, "probeGridSize", ProbeGridWidth, ProbeGridHeight);
-            SetVec2(anchorProg, "screenSize", ScreenWidth, ScreenHeight);
-
-            SetInt(anchorProg, "frameIndex", 0);
-            SetInt(anchorProg, "anchorJitterEnabled", 0);
-            SetFloat(anchorProg, "anchorJitterScale", 0f);
+            using var anchorProgUse = anchorProg.UseScope();
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -347,19 +270,14 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 anchorJitterScale: 0f,
                 pmjCycleLength: 1);
 
-            SetFloat(anchorProg, "zNear", ZNear);
-            SetFloat(anchorProg, "zFar", ZFar);
-            SetFloat(anchorProg, "depthDiscontinuityThreshold", 0.1f);
-
             // Phase 23: UBO-backed probe params.
-            UpdateAndBindLumOnProbeParamsUbo(anchorProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
-            GL.UseProgram(0);
+            anchorProg.DepthDiscontinuityThreshold = .1f;
 
-            primaryDepth.Bind(0);
-            gBufferNormal.Bind(1);
+            anchorProg.PrimaryDepth = primaryDepth.TextureId;
+            anchorProg.GBufferNormal = gBufferNormal.TextureId;
 
-            AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "primaryDepth", 0, primaryDepth);
-            AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "gBufferNormal", 1, gBufferNormal);
+            AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "primaryDepth", primaryDepth);
+            AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "gBufferNormal", gBufferNormal);
 
             AssertGBufferFboAttachments("Stage: Probe Anchor", targets.ProbeAnchor);
             TestFramework.RenderQuadTo(anchorProg, targets.ProbeAnchor);
@@ -385,37 +303,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Stage: LumOn Atlas Trace
             // -----------------------------------------------------------------
 
-            GL.UseProgram(traceProg);
-            SetSampler(traceProg, "probeAnchorPosition", 0);
-            SetSampler(traceProg, "probeAnchorNormal", 1);
-            SetSampler(traceProg, "primaryDepth", 2);
-            SetSampler(traceProg, "surfaceAlbedo", 3);
-            SetSampler(traceProg, "gBufferMaterial", 4);
-            SetSampler(traceProg, "octahedralHistory", 5);
-            SetSampler(traceProg, "hzbDepth", 6);
-            SetSampler(traceProg, "probeAtlasMetaHistory", 7);
-
-
-            SetMat4(traceProg, "invProjectionMatrix", invProj);
-            SetMat4(traceProg, "projectionMatrix", proj);
-            SetMat4(traceProg, "viewMatrix", identity);
-            SetMat4(traceProg, "invViewMatrix", identity);
-
-            SetVec2(traceProg, "probeGridSize", ProbeGridWidth, ProbeGridHeight);
-            SetVec2(traceProg, "screenSize", ScreenWidth, ScreenHeight);
-
-            SetInt(traceProg, "frameIndex", 0);
-
-            SetFloat(traceProg, "zNear", ZNear);
-            SetFloat(traceProg, "zFar", ZFar);
+            using var traceProgUse = traceProg.UseScope();
 
             // Deterministic non-zero indirect: allow sky miss fallback to contribute.
             // This makes the one-frame integration test robust even if ray hits are rare.
-            SetVec3(traceProg, "sunPosition", 0f, 1f, 0f);
-            SetVec3(traceProg, "sunColor", 0.2f, 0.2f, 0.2f);
-            SetVec3(traceProg, "ambientColor", 0.1f, 0.1f, 0.1f);
-
-            SetVec3(traceProg, "indirectTint", 1f, 1f, 1f);
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -430,26 +321,25 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 ambientColor: new Vintagestory.API.MathTools.Vec3f(0.1f, 0.1f, 0.1f));
 
             // Phase 23: UBO-backed probe params (indirectTint/intensity etc).
-            UpdateAndBindLumOnProbeParamsUbo(traceProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
-            GL.UseProgram(0);
+            traceProg.IndirectTint = new(1,1,1);
 
-            targets.ProbeAnchor[0].Bind(0);
-            targets.ProbeAnchor[1].Bind(1);
-            primaryDepth.Bind(2);
-            gBufferAlbedo.Bind(3);
-            gBufferMaterial.Bind(4);
-            historyRadiance.Bind(5);
-            targets.Hzb.Texture.Bind(6);
-            historyMeta.Bind(7);
+            traceProg.ProbeAnchorPosition = targets.ProbeAnchor[0];
+            traceProg.ProbeAnchorNormal = targets.ProbeAnchor[1];
+            traceProg.PrimaryDepth = primaryDepth.TextureId;
+            traceProg.SurfaceAlbedo = gBufferAlbedo;
+            traceProg.GBufferMaterial = gBufferMaterial.TextureId;
+            traceProg.ScreenProbeAtlasHistory = historyRadiance;
+            traceProg.HzbDepth = targets.Hzb.Texture;
+            traceProg.ScreenProbeAtlasMetaHistory = historyMeta;
 
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAnchorPosition", 0, targets.ProbeAnchor[0]);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAnchorNormal", 1, targets.ProbeAnchor[1]);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "primaryDepth", 2, primaryDepth);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "surfaceAlbedo", 3, gBufferAlbedo);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "gBufferMaterial", 4, gBufferMaterial);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "octahedralHistory", 5, historyRadiance);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "hzbDepth", 6, targets.Hzb.Texture);
-            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAtlasMetaHistory", 7, historyMeta);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAnchorPosition", targets.ProbeAnchor[0]);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAnchorNormal", targets.ProbeAnchor[1]);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "primaryDepth", primaryDepth);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "surfaceAlbedo", gBufferAlbedo);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "gBufferMaterial", gBufferMaterial);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "octahedralHistory", historyRadiance);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "hzbDepth", targets.Hzb.Texture);
+            AssertSampler2DBinding("Stage: Atlas Trace", traceProg, "probeAtlasMetaHistory", historyMeta);
 
             AssertGBufferFboAttachments("Stage: Atlas Trace", targets.AtlasTrace);
             TestFramework.RenderQuadTo(traceProg, targets.AtlasTrace);
@@ -471,30 +361,11 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Temporal
             // -----------------------------------------------------------------
-            GL.UseProgram(temporalProg);
-            SetVec2(temporalProg, "probeGridSize", ProbeGridWidth, ProbeGridHeight);
-            SetInt(temporalProg, "probeSpacing", ProbeSpacing);
-            SetVec2(temporalProg, "screenSize", ScreenWidth, ScreenHeight);
+            using var temporalProgUse = temporalProg.UseScope();
 
             // Keep jitter off in this test (matches Probe Anchor stage).
-            SetInt(temporalProg, "anchorJitterEnabled", 0);
-            SetFloat(temporalProg, "anchorJitterScale", 0f);
-            SetInt(temporalProg, "pmjCycleLength", 1);
-
-            SetInt(temporalProg, "frameIndex", 0);
-            SetFloat(temporalProg, "temporalAlpha", 0.9f);
-            SetFloat(temporalProg, "hitDistanceRejectThreshold", 0.3f);
 
             // Phase 14: enable velocity reprojection (velocity is near-zero in this test)
-            SetInt(temporalProg, "enableVelocityReprojection", 1);
-            SetFloat(temporalProg, "velocityRejectThreshold", 0.01f);
-
-            SetSampler(temporalProg, "octahedralCurrent", 0);
-            SetSampler(temporalProg, "octahedralHistory", 1);
-            SetSampler(temporalProg, "probeAnchorPosition", 2);
-            SetSampler(temporalProg, "probeAtlasMetaCurrent", 3);
-            SetSampler(temporalProg, "probeAtlasMetaHistory", 4);
-            SetSampler(temporalProg, "velocityTex", 5);
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -508,22 +379,21 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 velocityRejectThreshold: 0.01f);
 
             // Phase 23: UBO-backed probe params (temporalAlpha/hitDistanceRejectThreshold).
-            UpdateAndBindLumOnProbeParamsUbo(temporalProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
-            GL.UseProgram(0);
+            temporalProg.TemporalAlpha = .9f; temporalProg.HitDistanceRejectThreshold = .3f;
 
-            targets.AtlasTrace[0].Bind(0);
-            historyRadiance.Bind(1);
-            targets.ProbeAnchor[0].Bind(2);
-            targets.AtlasTrace[1].Bind(3);
-            historyMeta.Bind(4);
-            targets.Velocity[0].Bind(5);
+            temporalProg.ScreenProbeAtlasCurrent = targets.AtlasTrace[0];
+            temporalProg.ScreenProbeAtlasHistory = historyRadiance;
+            temporalProg.ProbeAnchorPosition = targets.ProbeAnchor[0];
+            temporalProg.ScreenProbeAtlasMetaCurrent = targets.AtlasTrace[1];
+            temporalProg.ScreenProbeAtlasMetaHistory = historyMeta;
+            temporalProg.VelocityTex = targets.Velocity[0];
 
-            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralCurrent", 0, targets.AtlasTrace[0]);
-            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralHistory", 1, historyRadiance);
-            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAnchorPosition", 2, targets.ProbeAnchor[0]);
-            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAtlasMetaCurrent", 3, targets.AtlasTrace[1]);
-            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAtlasMetaHistory", 4, historyMeta);
-            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "velocityTex", 5, targets.Velocity[0]);
+            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralCurrent", targets.AtlasTrace[0]);
+            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralHistory", historyRadiance);
+            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAnchorPosition", targets.ProbeAnchor[0]);
+            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAtlasMetaCurrent", targets.AtlasTrace[1]);
+            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "probeAtlasMetaHistory", historyMeta);
+            AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "velocityTex", targets.Velocity[0]);
 
             AssertGBufferFboAttachments("Stage: Atlas Temporal", targets.AtlasTemporal);
             TestFramework.RenderQuadTo(temporalProg, targets.AtlasTemporal);
@@ -536,29 +406,21 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Filter
             // -----------------------------------------------------------------
-            GL.UseProgram(filterProg);
-            SetVec2(filterProg, "probeGridSize", ProbeGridWidth, ProbeGridHeight);
-            SetInt(filterProg, "filterRadius", 1);
-            SetFloat(filterProg, "hitDistanceSigma", 1.0f);
-
-            SetSampler(filterProg, "octahedralAtlas", 0);
-            SetSampler(filterProg, "probeAtlasMeta", 1);
-            SetSampler(filterProg, "probeAnchorPosition", 2);
+            using var filterProgUse = filterProg.UseScope();
 
             // Phase 23: UBO-backed frame state (probeGridSize).
             UpdateAndBindLumOnFrameUbo(filterProg);
 
             // Phase 23: UBO-backed probe params (filterRadius/hitDistanceSigma).
-            UpdateAndBindLumOnProbeParamsUbo(filterProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
-            GL.UseProgram(0);
+            filterProg.FilterRadius = 1; filterProg.HitDistanceSigma = 1;
 
-            targets.AtlasTemporal[0].Bind(0);
-            targets.AtlasTemporal[1].Bind(1);
-            targets.ProbeAnchor[0].Bind(2);
+            filterProg.ScreenProbeAtlas = targets.AtlasTemporal[0];
+            filterProg.ScreenProbeAtlasMeta = targets.AtlasTemporal[1];
+            filterProg.ProbeAnchorPosition = targets.ProbeAnchor[0];
 
-            AssertSampler2DBinding("Stage: Atlas Filter", filterProg, "octahedralAtlas", 0, targets.AtlasTemporal[0]);
-            AssertSampler2DBinding("Stage: Atlas Filter", filterProg, "probeAtlasMeta", 1, targets.AtlasTemporal[1]);
-            AssertSampler2DBinding("Stage: Atlas Filter", filterProg, "probeAnchorPosition", 2, targets.ProbeAnchor[0]);
+            AssertSampler2DBinding("Stage: Atlas Filter", filterProg, "octahedralAtlas", targets.AtlasTemporal[0]);
+            AssertSampler2DBinding("Stage: Atlas Filter", filterProg, "probeAtlasMeta", targets.AtlasTemporal[1]);
+            AssertSampler2DBinding("Stage: Atlas Filter", filterProg, "probeAnchorPosition", targets.ProbeAnchor[0]);
 
             AssertGBufferFboAttachments("Stage: Atlas Filter", targets.AtlasFiltered);
             TestFramework.RenderQuadTo(filterProg, targets.AtlasFiltered);
@@ -570,28 +432,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Gather (half-res)
             // -----------------------------------------------------------------
-            GL.UseProgram(gatherProg);
-            SetMat4(gatherProg, "invProjectionMatrix", invProj);
-            SetMat4(gatherProg, "viewMatrix", identity);
-
-            SetInt(gatherProg, "probeSpacing", ProbeSpacing);
-            SetVec2(gatherProg, "probeGridSize", ProbeGridWidth, ProbeGridHeight);
-            SetVec2(gatherProg, "screenSize", ScreenWidth, ScreenHeight);
-            SetVec2(gatherProg, "halfResSize", HalfResWidth, HalfResHeight);
-
-            SetFloat(gatherProg, "zNear", ZNear);
-            SetFloat(gatherProg, "zFar", ZFar);
-
-            SetFloat(gatherProg, "intensity", 1.0f);
-            SetVec3(gatherProg, "indirectTint", 1.0f, 1.0f, 1.0f);
-            SetFloat(gatherProg, "leakThreshold", 0.5f);
-            SetInt(gatherProg, "sampleStride", 1);
-
-            SetSampler(gatherProg, "octahedralAtlas", 0);
-            SetSampler(gatherProg, "probeAnchorPosition", 1);
-            SetSampler(gatherProg, "probeAnchorNormal", 2);
-            SetSampler(gatherProg, "primaryDepth", 3);
-            SetSampler(gatherProg, "gBufferNormal", 4);
+            using var gatherProgUse = gatherProg.UseScope();
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -601,20 +442,19 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 probeSpacing: ProbeSpacing);
 
             // Phase 23: UBO-backed probe params (intensity/indirectTint/leakThreshold/sampleStride).
-            UpdateAndBindLumOnProbeParamsUbo(gatherProg, lumOnProbeParamsUbo, ConfigureDefaultLumOnProbeParams);
-            GL.UseProgram(0);
+            gatherProg.Intensity = 1; gatherProg.IndirectTint = [1,1,1]; gatherProg.LeakThreshold = .5f; gatherProg.SampleStride = 1;
 
-            targets.AtlasFiltered[0].Bind(0);
-            targets.ProbeAnchor[0].Bind(1);
-            targets.ProbeAnchor[1].Bind(2);
-            primaryDepth.Bind(3);
-            gBufferNormal.Bind(4);
+            gatherProg.ScreenProbeAtlas = targets.AtlasFiltered[0];
+            gatherProg.ProbeAnchorPosition = targets.ProbeAnchor[0];
+            gatherProg.ProbeAnchorNormal = targets.ProbeAnchor[1];
+            gatherProg.PrimaryDepth = primaryDepth.TextureId;
+            gatherProg.GBufferNormal = gBufferNormal.TextureId;
 
-            AssertSampler2DBinding("Stage: Gather", gatherProg, "octahedralAtlas", 0, targets.AtlasFiltered[0]);
-            AssertSampler2DBinding("Stage: Gather", gatherProg, "probeAnchorPosition", 1, targets.ProbeAnchor[0]);
-            AssertSampler2DBinding("Stage: Gather", gatherProg, "probeAnchorNormal", 2, targets.ProbeAnchor[1]);
-            AssertSampler2DBinding("Stage: Gather", gatherProg, "primaryDepth", 3, primaryDepth);
-            AssertSampler2DBinding("Stage: Gather", gatherProg, "gBufferNormal", 4, gBufferNormal);
+            AssertSampler2DBinding("Stage: Gather", gatherProg, "octahedralAtlas", targets.AtlasFiltered[0]);
+            AssertSampler2DBinding("Stage: Gather", gatherProg, "probeAnchorPosition", targets.ProbeAnchor[0]);
+            AssertSampler2DBinding("Stage: Gather", gatherProg, "probeAnchorNormal", targets.ProbeAnchor[1]);
+            AssertSampler2DBinding("Stage: Gather", gatherProg, "primaryDepth", primaryDepth);
+            AssertSampler2DBinding("Stage: Gather", gatherProg, "gBufferNormal", gBufferNormal);
 
             AssertGBufferFboAttachments("Stage: Gather", targets.IndirectHalf);
             TestFramework.RenderQuadTo(gatherProg, targets.IndirectHalf);
@@ -627,40 +467,21 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Upsample (full-res)
             // -----------------------------------------------------------------
-            GL.UseProgram(upsampleProg);
-            SetVec2(upsampleProg, "screenSize", ScreenWidth, ScreenHeight);
-            SetVec2(upsampleProg, "halfResSize", HalfResWidth, HalfResHeight);
-
-            SetFloat(upsampleProg, "zNear", ZNear);
-            SetFloat(upsampleProg, "zFar", ZFar);
-
-            SetInt(upsampleProg, "denoiseEnabled", 1);
-            SetFloat(upsampleProg, "upsampleDepthSigma", 0.1f);
-            SetFloat(upsampleProg, "upsampleNormalSigma", 16.0f);
-            SetFloat(upsampleProg, "upsampleSpatialSigma", 1.0f);
-
-            SetInt(upsampleProg, "holeFillEnabled", 0);
-            SetInt(upsampleProg, "holeFillRadius", 2);
-            SetFloat(upsampleProg, "holeFillMinConfidence", 0.05f);
-
-            SetSampler(upsampleProg, "indirectHalf", 0);
-            SetSampler(upsampleProg, "primaryDepth", 1);
-            SetSampler(upsampleProg, "gBufferNormal", 2);
+            using var upsampleProgUse = upsampleProg.UseScope();
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(upsampleProg);
 
             // Phase 23: UBO-backed upsample params (depth/normal/spatial sigmas, hole-fill thresholds).
-            UpdateAndBindLumOnUpsampleParamsUbo(upsampleProg, lumOnUpsampleParamsUbo, ConfigureDefaultLumOnUpsampleParams);
-            GL.UseProgram(0);
+            upsampleProg.UpsampleDepthSigma = .1f; upsampleProg.UpsampleNormalSigma = 16; upsampleProg.UpsampleSpatialSigma = 1; upsampleProg.HoleFillMinConfidence = .05f; upsampleProg.HoleFillRadius = 2;
 
-            targets.IndirectHalf[0].Bind(0);
-            primaryDepth.Bind(1);
-            gBufferNormal.Bind(2);
+            upsampleProg.IndirectHalf = targets.IndirectHalf[0];
+            upsampleProg.PrimaryDepth = primaryDepth.TextureId;
+            upsampleProg.GBufferNormal = gBufferNormal.TextureId;
 
-            AssertSampler2DBinding("Stage: Upsample", upsampleProg, "indirectHalf", 0, targets.IndirectHalf[0]);
-            AssertSampler2DBinding("Stage: Upsample", upsampleProg, "primaryDepth", 1, primaryDepth);
-            AssertSampler2DBinding("Stage: Upsample", upsampleProg, "gBufferNormal", 2, gBufferNormal);
+            AssertSampler2DBinding("Stage: Upsample", upsampleProg, "indirectHalf", targets.IndirectHalf[0]);
+            AssertSampler2DBinding("Stage: Upsample", upsampleProg, "primaryDepth", primaryDepth);
+            AssertSampler2DBinding("Stage: Upsample", upsampleProg, "gBufferNormal", gBufferNormal);
 
             AssertGBufferFboAttachments("Stage: Upsample", targets.IndirectFull);
             TestFramework.RenderQuadTo(upsampleProg, targets.IndirectFull);
@@ -673,41 +494,27 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: PBR Composite
             // -----------------------------------------------------------------
+            using var compositeUse = pbrCompositeProg.UseScope();
             // Full composite (indirect from pipeline)
             SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
-            // Phase 23: UBO-backed composite params (VgePbrCompositeParamsUBO @ object binding).
-            // This carries indirectTint/indirectIntensity and view/projection matrices.
-            UniformBlockBindingUtil.EnsureBlockBound(pbrCompositeProg, PbrCompositeParamsUboCpu.BlockName, GpuBindingRegistry.Ubo.Object);
-            var cpuCompositeParams = new PbrCompositeParamsUboCpu();
-            using (cpuCompositeParams.BeginBatchUpdate())
-            {
-                cpuCompositeParams.InvProjectionMatrix = invProj;
-                cpuCompositeParams.ViewMatrix = identity;
-                cpuCompositeParams.RgbaFogIn = Vector4.Zero;
-                cpuCompositeParams.FogParams = (fogDensity: 0f, fogMin: 0f);
-                cpuCompositeParams.IndirectTintAndIntensity = (tint: Vector3.One, intensity: 1.0f);
-                cpuCompositeParams.AOStrengths = (diffuse: 1.0f, specular: 1.0f);
-            }
-            pbrCompositeParamsUbo.UploadAndBind(cpuCompositeParams.Bytes);
+            pbrCompositeProg.DirectDiffuse = targets.DirectLightingMrt[0];
+            pbrCompositeProg.DirectSpecular = targets.DirectLightingMrt[1];
+            pbrCompositeProg.Emissive = targets.DirectLightingMrt[2];
+            pbrCompositeProg.IndirectDiffuse = targets.IndirectFull[0];
+            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
+            pbrCompositeProg.GBufferMaterial = gBufferMaterial.TextureId;
+            pbrCompositeProg.GBufferNormal = gBufferNormal.TextureId;
+            pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
 
-            targets.DirectLightingMrt[0].Bind(0);
-            targets.DirectLightingMrt[1].Bind(1);
-            targets.DirectLightingMrt[2].Bind(2);
-            targets.IndirectFull[0].Bind(3);
-            gBufferAlbedo.Bind(4);
-            gBufferMaterial.Bind(5);
-            gBufferNormal.Bind(6);
-            primaryDepth.Bind(7);
-
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "directDiffuse", 0, targets.DirectLightingMrt[0]);
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "directSpecular", 1, targets.DirectLightingMrt[1]);
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "emissive", 2, targets.DirectLightingMrt[2]);
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "indirectDiffuse", 3, targets.IndirectFull[0]);
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "gBufferAlbedo", 4, gBufferAlbedo);
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "gBufferMaterial", 5, gBufferMaterial);
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "gBufferNormal", 6, gBufferNormal);
-            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "primaryDepth", 7, primaryDepth);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "directDiffuse", targets.DirectLightingMrt[0]);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "directSpecular", targets.DirectLightingMrt[1]);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "emissive", targets.DirectLightingMrt[2]);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "indirectDiffuse", targets.IndirectFull[0]);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "gBufferAlbedo", gBufferAlbedo);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "gBufferMaterial", gBufferMaterial);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "gBufferNormal", gBufferNormal);
+            AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "primaryDepth", primaryDepth);
 
             AssertGBufferFboAttachments("Stage: Composite (full)", targets.Composite);
             TestFramework.RenderQuadTo(pbrCompositeProg, targets.Composite);
@@ -719,23 +526,23 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Baseline (same wiring, but indirectDiffuse is forced to 0)
             SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
-            targets.DirectLightingMrt[0].Bind(0);
-            targets.DirectLightingMrt[1].Bind(1);
-            targets.DirectLightingMrt[2].Bind(2);
-            zeroIndirectFull.Bind(3);
-            gBufferAlbedo.Bind(4);
-            gBufferMaterial.Bind(5);
-            gBufferNormal.Bind(6);
-            primaryDepth.Bind(7);
+            pbrCompositeProg.DirectDiffuse = targets.DirectLightingMrt[0];
+            pbrCompositeProg.DirectSpecular = targets.DirectLightingMrt[1];
+            pbrCompositeProg.Emissive = targets.DirectLightingMrt[2];
+            pbrCompositeProg.IndirectDiffuse = zeroIndirectFull;
+            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
+            pbrCompositeProg.GBufferMaterial = gBufferMaterial.TextureId;
+            pbrCompositeProg.GBufferNormal = gBufferNormal.TextureId;
+            pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
 
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "directDiffuse", 0, targets.DirectLightingMrt[0]);
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "directSpecular", 1, targets.DirectLightingMrt[1]);
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "emissive", 2, targets.DirectLightingMrt[2]);
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "indirectDiffuse", 3, zeroIndirectFull);
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "gBufferAlbedo", 4, gBufferAlbedo);
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "gBufferMaterial", 5, gBufferMaterial);
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "gBufferNormal", 6, gBufferNormal);
-            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "primaryDepth", 7, primaryDepth);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "directDiffuse", targets.DirectLightingMrt[0]);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "directSpecular", targets.DirectLightingMrt[1]);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "emissive", targets.DirectLightingMrt[2]);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "indirectDiffuse", zeroIndirectFull);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "gBufferAlbedo", gBufferAlbedo);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "gBufferMaterial", gBufferMaterial);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "gBufferNormal", gBufferNormal);
+            AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "primaryDepth", primaryDepth);
 
             AssertGBufferFboAttachments("Stage: Composite (baseline)", baselineComposite);
             TestFramework.RenderQuadTo(pbrCompositeProg, baselineComposite);
@@ -757,23 +564,23 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // composite brightens vs baseline. This isolates composite binding/uniform logic.
             SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
-            targets.DirectLightingMrt[0].Bind(0);
-            targets.DirectLightingMrt[1].Bind(1);
-            targets.DirectLightingMrt[2].Bind(2);
-            injectedIndirectFull.Bind(3);
-            gBufferAlbedo.Bind(4);
-            gBufferMaterial.Bind(5);
-            gBufferNormal.Bind(6);
-            primaryDepth.Bind(7);
+            pbrCompositeProg.DirectDiffuse = targets.DirectLightingMrt[0];
+            pbrCompositeProg.DirectSpecular = targets.DirectLightingMrt[1];
+            pbrCompositeProg.Emissive = targets.DirectLightingMrt[2];
+            pbrCompositeProg.IndirectDiffuse = injectedIndirectFull;
+            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
+            pbrCompositeProg.GBufferMaterial = gBufferMaterial.TextureId;
+            pbrCompositeProg.GBufferNormal = gBufferNormal.TextureId;
+            pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
 
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "directDiffuse", 0, targets.DirectLightingMrt[0]);
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "directSpecular", 1, targets.DirectLightingMrt[1]);
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "emissive", 2, targets.DirectLightingMrt[2]);
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "indirectDiffuse", 3, injectedIndirectFull);
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "gBufferAlbedo", 4, gBufferAlbedo);
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "gBufferMaterial", 5, gBufferMaterial);
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "gBufferNormal", 6, gBufferNormal);
-            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "primaryDepth", 7, primaryDepth);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "directDiffuse", targets.DirectLightingMrt[0]);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "directSpecular", targets.DirectLightingMrt[1]);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "emissive", targets.DirectLightingMrt[2]);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "indirectDiffuse", injectedIndirectFull);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "gBufferAlbedo", gBufferAlbedo);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "gBufferMaterial", gBufferMaterial);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "gBufferNormal", gBufferNormal);
+            AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "primaryDepth", primaryDepth);
 
             AssertGBufferFboAttachments("Stage: Composite (injected)", injectedComposite);
             TestFramework.RenderQuadTo(pbrCompositeProg, injectedComposite);
@@ -799,20 +606,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Final hygiene checkpoint: no GL errors should remain queued for subsequent tests.
             AssertNoGLError("PbrLumOnFullPipelineIntegrationTests end");
         }
-        finally
-        {
-            if (pbrDirectProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(pbrDirectProg);
-            if (velocityProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(velocityProg);
-            if (hzbCopyProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(hzbCopyProg);
-            if (hzbDownProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(hzbDownProg);
-            if (anchorProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(anchorProg);
-            if (traceProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(traceProg);
-            if (temporalProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(temporalProg);
-            if (filterProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(filterProg);
-            if (gatherProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(gatherProg);
-            if (upsampleProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(upsampleProg);
-            if (pbrCompositeProg != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(pbrCompositeProg);
-        }
+
     }
 
     private static void AssertAllFinite(float[] values, string stage)
@@ -909,16 +703,17 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         return count == 0 ? 0f : sum / count;
     }
 
-    private static void AssertSampler2DBinding(string stage, int programId, string samplerUniform, int expectedUnit, DynamicTexture2D expectedTexture)
+    private static void AssertSampler2DBinding(string stage, GpuProgram program, string samplerUniform, DynamicTexture2D expectedTexture)
     {
         ArgumentNullException.ThrowIfNull(expectedTexture);
         Assert.True(expectedTexture.IsValid, $"{stage}: expected texture for '{samplerUniform}' is invalid/disposed");
         Assert.NotEqual(0, expectedTexture.TextureId);
 
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, samplerUniform);
+        int loc = program.ProgramLayout.BinaryInterface!.GetUniformLocation(samplerUniform);
         Assert.True(loc >= 0, $"{stage}: sampler uniform '{samplerUniform}' not found");
 
-        GL.GetUniform(programId, loc, out int actualUnit);
+        Assert.True(program.ProgramLayout.TryGetContractSamplerUnit(samplerUniform, out int expectedUnit));
+        GL.GetUniform(program.ProgramId, loc, out int actualUnit);
         Assert.Equal(expectedUnit, actualUnit);
 
         // Preserve active texture unit.
@@ -1040,145 +835,15 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         return values[0];
     }
 
-    private static void SetSampler(int programId, string name, int unit)
+    /// <summary>Uses production setters for composition parameters, preserving the controlled lighting comparison.</summary>
+    private static void SetupPbrCompositeUniforms(PBRCompositeShaderProgram program, float[] invProjection, float[] viewMatrix, int lumOnEnabled)
     {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0)
-        {
-            GL.Uniform1(loc, unit);
-        }
-    }
-
-    private static void SetInt(int programId, string name, int value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0)
-        {
-            GL.Uniform1(loc, value);
-        }
-    }
-
-    private static void SetFloat(int programId, string name, float value)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0)
-        {
-            GL.Uniform1(loc, value);
-        }
-    }
-
-    private static void SetVec2(int programId, string name, float x, float y)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0)
-        {
-            GL.Uniform2(loc, x, y);
-        }
-    }
-
-    private static void SetVec3(int programId, string name, float x, float y, float z)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0)
-        {
-            GL.Uniform3(loc, x, y, z);
-        }
-    }
-
-    private static void SetMat4(int programId, string name, float[] matrix)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (loc >= 0)
-        {
-            GL.UniformMatrix4(loc, 1, false, matrix);
-        }
-    }
-
-    private static void UpdateAndBindLumOnProbeParamsUbo(int programId, ObjectParamsUbo objectParamsUbo, Action<LumOnProbeParamsUbo> configure)
-    {
-        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-
-        var cpu = new LumOnProbeParamsUbo();
-        using (cpu.BeginBatchUpdate())
-        {
-            configure(cpu);
-        }
-
-        objectParamsUbo.UploadAndBind(cpu.Bytes);
-    }
-
-    private static void ConfigureDefaultLumOnProbeParams(LumOnProbeParamsUbo cpu)
-    {
-        cpu.IndirectTint = Vector3.One;
-        cpu.Intensity = 1.0f;
-        cpu.TemporalAlpha = 0.9f;
-        cpu.HitDistanceRejectThreshold = 0.3f;
-        cpu.HitDistanceSigma = 1.0f;
-        cpu.LeakThreshold = 0.5f;
-        cpu.FilterRadius = 1;
-        cpu.SampleStride = 1;
-        cpu.DepthDiscontinuityThreshold = 0.1f;
-    }
-
-    private static void UpdateAndBindLumOnUpsampleParamsUbo(int programId, ObjectParamsUbo objectParamsUbo, Action<LumOnUpsampleParamsUbo> configure)
-    {
-        UniformBlockBindingUtil.EnsureBlockBound(programId, LumOnUpsampleParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-
-        var cpu = new LumOnUpsampleParamsUbo();
-        using (cpu.BeginBatchUpdate())
-        {
-            configure(cpu);
-        }
-
-        objectParamsUbo.UploadAndBind(cpu.Bytes);
-    }
-
-    private static void ConfigureDefaultLumOnUpsampleParams(LumOnUpsampleParamsUbo cpu)
-    {
-        cpu.UpsampleDepthSigma = 0.1f;
-        cpu.UpsampleNormalSigma = 16.0f;
-        cpu.UpsampleSpatialSigma = 1.0f;
-        cpu.HoleFillMinConfidence = 0.05f;
-        cpu.HoleFillRadius = 2;
-    }
-
-    private static void SetupPbrCompositeUniforms(int programId, float[] invProjection, float[] viewMatrix, int lumOnEnabled)
-    {
-        GL.UseProgram(programId);
-
-        SetSampler(programId, "directDiffuse", 0);
-        SetSampler(programId, "directSpecular", 1);
-        SetSampler(programId, "emissive", 2);
-        SetSampler(programId, "indirectDiffuse", 3);
-        SetSampler(programId, "gBufferAlbedo", 4);
-        SetSampler(programId, "gBufferMaterial", 5);
-        SetSampler(programId, "gBufferNormal", 6);
-        SetSampler(programId, "primaryDepth", 7);
-
-        // Fog disabled
-        int fogColorLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "rgbaFogIn");
-        if (fogColorLoc >= 0)
-        {
-            GL.Uniform4(fogColorLoc, 0f, 0f, 0f, 0f);
-        }
-        SetFloat(programId, "fogDensityIn", 0f);
-        SetFloat(programId, "fogMinIn", 0f);
-
-        // Indirect enabled, but intensity/tint can still be tuned.
-        SetFloat(programId, "indirectIntensity", 1.0f);
-        SetVec3(programId, "indirectTint", 1.0f, 1.0f, 1.0f);
-        SetInt(programId, "lumOnEnabled", lumOnEnabled);
-
-        // Keep composite deterministic (no AO/short-range AO).
-        SetInt(programId, "enablePbrComposite", 1);
-        SetInt(programId, "enableAO", 0);
-        SetInt(programId, "enableShortRangeAo", 0);
-        SetFloat(programId, "diffuseAOStrength", 1.0f);
-        SetFloat(programId, "specularAOStrength", 1.0f);
-
-        SetMat4(programId, "invProjectionMatrix", invProjection);
-        SetMat4(programId, "viewMatrix", viewMatrix);
-
-        GL.UseProgram(0);
+        using var use = program.UseScope();
+        program.InvProjectionMatrix = invProjection;
+        program.ViewMatrix = viewMatrix;
+        program.RgbaFogIn = new(0,0,0,0);
+        program.FogDensityIn = 0; program.FogMinIn = 0;
+        program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
+        program.DiffuseAOStrength = 1; program.SpecularAOStrength = 1;
     }
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -25,14 +26,12 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
     public void NearField_CompilesWithImportanceSelection(string worldCache)
     {
         EnsureShaderTestAvailable();
-        int program = CompileShaderWithDefines("lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh",
-            new Dictionary<string, string?>
-            {
-                ["VGE_LUMON_NEAR_FIELD_ENABLED"] = "1",
-                ["VGE_LUMON_PROBE_PIS_ENABLED"] = "1",
-                ["VGE_LUMON_WORLDPROBE_ENABLED"] = worldCache,
-            });
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
+        _ = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(shader =>
+        {
+            shader.NearField = true;
+            shader.ImportanceSampling = true;
+            shader.WorldProbes = worldCache == "1";
+        });
     }
     #endregion
 
