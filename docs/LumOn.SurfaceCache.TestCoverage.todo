@@ -1,8 +1,15 @@
 # LumOn Surface Cache Test Coverage
 
 ## 1. Dynamic lighting history
-- [ ] Add reusable controlled-scene tests for closing a doorway and removing a light after the surface cache has accumulated illumination.
-- [ ] Verify invalidation and relighting remove stale illumination within a defined update budget, and reopening/restoring the light restores illumination.
+- [x] Add a reusable controlled-scene test for removing and restoring light after the surface cache has accumulated illumination.
+- [x] Verify production history invalidation removes stale illumination, unresolved geometry adds no samples, and one complete page update produces the new lighting; unchanged inputs retain accumulation.
+- [x] Extend the fixture with doorway closure/reopening and verify stale illumination disappears within a defined update budget.
+
+Verified by `SurfaceCacheDynamicLightingTests.LightRemovalAndRestorationDiscardAccumulatedHistory`: four initial bright samples, light off/on, all 64 texels checked for RGB and sample weight. Each settled transition uses one page update with one ray per texel and a 256-step traversal limit. This exercises shared geometry publication and the production history-reset owner, not the complete renderer lifecycle or its page requeue orchestration.
+
+`SurfaceCacheDynamicLightingTests.DoorwayClosureAndReopeningInvalidateIllumination` covers a dark enclosed room with fixed bright exterior lighting. Only the doorway occupancy changes; GPU readback verifies the door changes and the captured back wall remains unchanged. After four accumulated open-door samples, closing the door clears history and produces valid dark samples across all 64 texels. Reopening restores the original attenuated RGB pattern. Unpublished geometry must fail relighting without adding sample weight. Each transition settles within one complete page update after publication, using one ray per texel and a 256-step traversal limit.
+
+Validation: normal SPIR-V-enabled build passed; both dynamic-history cases and existing shared-surface tests passed 13/13 with no skips. Receipts: `artifacts/shader-variant-contracts/surface-cache-doorway-finalv2-build.log` and `surface-cache-doorway-finalv2.trx` in the same directory.
 
 ## 2. Full runtime orchestration
 - [ ] Exercise the production surface-cache renderer lifecycle: initialization, feedback, allocation, capture, relighting, debug-view activation, and disposal.

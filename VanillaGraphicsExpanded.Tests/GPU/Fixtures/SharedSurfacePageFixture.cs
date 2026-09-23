@@ -21,6 +21,9 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     private readonly Texture3D material = Texture3D.Create(Size, Size, 1, PixelInternalFormat.Rgba8, textureTarget: TextureTarget.Texture2DArray);
     private readonly Texture3D irradiance = Texture3D.Create(Size, Size, 1, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture2DArray);
 
+    /// <summary>Exposes the actual history atlas to the production invalidation owner.</summary>
+    internal GpuTexture IrradianceAtlas => irradiance;
+
     #region Setup and execution
     /// <summary>Creates a +X page with an exact integer chunk origin, including coordinates beyond float precision.</summary>
     public SharedSurfacePageFixture(int chunkX = 0)
@@ -71,7 +74,8 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public void ResetLighting()
     {
         using var reset = ComputeProgram.Create(helper, "lumonscene_reset_irradiance");
-        GlStateCache.Current.UseProgram(reset.ProgramId);
+        // Restore the prior live program before the temporary reset pipeline is disposed.
+        using var program = GlStateCache.Current.UseProgramScope(reset.ProgramId);
         irradiance.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
         Dispatch();
     }
@@ -117,6 +121,8 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Releases the page and its programs on the owning context.</summary>
     public void Dispose()
     {
+        // Capture and relight bind directly; release that binding before deleting their programs.
+        GlStateCache.Current.UnbindProgram();
         capture.Dispose(); relight.Dispose(); geometry.Dispose(); parameters.Dispose();
         captureWork.Dispose(); relightWork.Dispose(); metadata.Dispose(); slots.Dispose();
         depth.Dispose(); material.Dispose(); irradiance.Dispose(); helper.Dispose();

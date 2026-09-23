@@ -1,16 +1,9 @@
-using OpenTK.Graphics.OpenGL;
-using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
-using VanillaGraphicsExpanded.Rendering;
-
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>Invalidates surface-cache captures and irradiance after shared geometry changes.</summary>
 internal sealed partial class LumonSceneFeedbackUpdateRenderer
 {
-    private TraceGeometryGpuScene? historyGeometry;
-    private long historyInvalidation = -1;
-    private int historyAtlas;
-    private GpuComputePipeline? resetIrradiance;
+    private LumonSceneIrradianceHistory? irradianceHistory;
 
     /// <summary>Identifies the current capture and lighting history for partial relight schedules.</summary>
     internal long GeometryHistoryRevision { get; private set; }
@@ -22,17 +15,9 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
         var atlas = physicalPools.Near.GpuResources?.IrradianceAtlas;
         if (!configured || atlas == null) return false;
         var scene = traceGeometry?.PrepareScene();
-        long revision = scene?.InvalidationRevision ?? -1;
-        if (ReferenceEquals(historyGeometry, scene) && historyInvalidation == revision && historyAtlas == atlas.TextureId) return true;
-        if (resetIrradiance == null && !GpuComputePipeline.TryCreateFromAssets(capi, Shaders.LumonSceneResetIrradianceComputeShader.Contract.Identity,
-            out resetIrradiance, out _, out var log, preferSpirv: true))
-        { capi.Logger.Warning("[VGE] Cannot invalidate surface lighting: {0}", log); return false; }
-        using (resetIrradiance!.UseScope())
-        {
-            atlas.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
-            GL.DispatchCompute((atlas.Width + 7) / 8, (atlas.Height + 7) / 8, atlas.Depth);
-        }
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+        irradianceHistory ??= new(capi);
+        if (!irradianceHistory.TrySynchronize(scene, atlas, out bool invalidated)) return false;
+        if (!invalidated) return true;
         // Conservative invalidation covers indirect ray dependencies beyond the page's own chunk.
         foreach (var pair in virtualToPhysical)
         {
@@ -47,7 +32,6 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
             UploadPageTableEntryMip0((int)slot, page, updated.Packed);
         }
         ResetRecaptureList();
-        historyGeometry = scene; historyInvalidation = revision; historyAtlas = atlas.TextureId;
         GeometryHistoryRevision++;
         return true;
     }
@@ -55,8 +39,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
     /// <summary>Releases invalidation resources and forgets the prior world generation.</summary>
     private void ReleaseGeometryHistory()
     {
-        resetIrradiance?.Dispose(); resetIrradiance = null;
-        historyGeometry = null; historyInvalidation = -1; historyAtlas = 0;
+        irradianceHistory?.Dispose(); irradianceHistory = null;
     }
     #endregion
 }
