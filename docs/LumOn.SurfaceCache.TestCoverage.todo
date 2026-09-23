@@ -1,0 +1,16 @@
+# LumOn Surface Cache Test Coverage
+
+## 1. Dynamic lighting history
+- [ ] Add reusable controlled-scene tests for closing a doorway and removing a light after the surface cache has accumulated illumination.
+- [ ] Verify invalidation and relighting remove stale illumination within a defined update budget, and reopening/restoring the light restores illumination.
+
+## 2. Full runtime orchestration
+- [ ] Exercise the production surface-cache renderer lifecycle: initialization, feedback, allocation, capture, relighting, debug-view activation, and disposal.
+- [ ] Verify published resources and rendered output across multiple frames, including resource recreation, without OpenGL errors.
+
+## 3. Cache-to-final-lighting behavior
+- [ ] Identify the currently implemented surface-cache consumers and explicitly record any missing integration before defining end-to-end expectations.
+- [ ] Trace controlled changes in cached irradiance through implemented probe/gather consumers to final indirect-lighting pixels; verify both illumination and its removal.
+- [ ] Keep missing consumer implementation separate from test coverage work; do not substitute injected downstream lighting for proof of cache consumption.
+
+Use modular fixtures shared across scenarios. Record executed tests and results when completing each item.
