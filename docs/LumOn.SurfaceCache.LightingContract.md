@@ -1,6 +1,6 @@
 # Surface-cache lighting contract
 
-This is the controlling contract for Sections 4–7 and 9–12 of `LumOn.SurfaceCache.TestCoverage.todo`. It defines the target storage and producer/consumer semantics; lighting producers and publication are implemented in Section 5, and geometry-hit consumers are implemented in Section 6.
+This is the controlling contract for Sections 4–7 and 9–13 of `LumOn.SurfaceCache.TestCoverage.todo`. It defines the target storage and producer/consumer semantics; lighting producers and publication are implemented in Section 5, and geometry-hit consumers are implemented in Section 6.
 
 ## Lighting terms and units
 
