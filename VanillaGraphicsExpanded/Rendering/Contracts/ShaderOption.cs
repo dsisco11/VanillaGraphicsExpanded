@@ -59,8 +59,8 @@ internal abstract class ShaderOption
     /// <summary>Compares declarations when consumers explicitly share a canonical option.</summary>
     internal bool Equivalent(ShaderOption other) => Name == other.Name && ValueType == other.ValueType &&
         Default == other.Default && Minimum == other.Minimum && Maximum == other.Maximum &&
-        Aliases.Order(StringComparer.Ordinal).SequenceEqual(other.Aliases.Order(StringComparer.Ordinal)) &&
-        (Domain == null ? other.Domain == null : other.Domain != null && Domain.ToHashSet().SetEquals(other.Domain));
+        Aliases.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(other.Aliases.OrderBy(value => value, StringComparer.Ordinal)) &&
+        (Domain == null ? other.Domain == null : other.Domain != null && new HashSet<ShaderScalar>(Domain).SetEquals(other.Domain));
     #endregion
 }
 

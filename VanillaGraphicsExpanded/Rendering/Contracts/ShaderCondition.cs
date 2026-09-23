@@ -50,6 +50,6 @@ internal sealed class ShaderCondition
     /// <summary>Compares the declared expression tree when validating shared stage definitions.</summary>
     internal bool Equivalent(ShaderCondition other) => operation == other.operation && value == other.value &&
         (option == null ? other.option == null : other.option != null && option.Equivalent(other.option)) &&
-        children.Length == other.children.Length && children.Zip(other.children).All(p => p.First.Equivalent(p.Second));
+        children.Length == other.children.Length && children.Zip(other.children, (left, right) => left.Equivalent(right)).All(equal => equal);
     #endregion
 }

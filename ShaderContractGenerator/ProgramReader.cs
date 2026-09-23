@@ -39,9 +39,9 @@ internal sealed class ProgramReader(Dictionary<INamedTypeSymbol, OwnerDeclaratio
                     throw new ArgumentException($"Program '{identity}' references unknown group '{type}.{group}'.");
                 return (declaration.Model, Expression: target.Name + "." + group);
             }).ToArray();
-            var used = stages.SelectMany(s => s.Model.Structural.Concat(s.Model.Specializations.Select(c => c.Option))).DistinctBy(o => o.Name).ToArray();
+            var used = stages.SelectMany(s => s.Model.Structural.Concat(s.Model.Specializations.Select(c => c.Option))).GroupBy(o => o.Name).Select(g => g.First()).ToArray();
             var rows = Attributes(owner.Symbol, "ShaderAssignment").Where(a => Text(a, 0) == member).Select(a =>
-                (IReadOnlyDictionary<string, string>)Argument(a, 1).Values.Select(v => ((string)v.Value!).Split('=', 2)).ToDictionary(p => p[0], p => p.Length == 2 ? p[1] : throw new ArgumentException("Assignments require NAME=value pairs."), StringComparer.Ordinal)).ToArray();
+                (IReadOnlyDictionary<string, string>)Argument(a, 1).Values.Select(v => ((string)v.Value!).Split(new[] { '=' }, 2)).ToDictionary(p => p[0], p => p.Length == 2 ? p[1] : throw new ArgumentException("Assignments require NAME=value pairs."), StringComparer.Ordinal)).ToArray();
             var model = new GpuShaderContract(identity, stages.Select(s => s.Model), budget, used, groups.Select(g => g.Model), rows.Length == 0 ? null : rows);
             string optionsExpression = string.Join(", ", used.Select(o => owner.Options.Values.First(p => p.Model.Name == o.Name).KeyExpression));
             string assignments = rows.Length == 0 ? "null" : "new System.Collections.Generic.IReadOnlyDictionary<string, string>[] { " + string.Join(", ", rows.Select(row =>
@@ -68,7 +68,7 @@ internal sealed class ProgramReader(Dictionary<INamedTypeSymbol, OwnerDeclaratio
     {
         var kind = (ShaderStageKind)(int)Argument(attribute, 1).Value!;
         string source = Text(attribute, 2), identity = Text(attribute, "Identity", source)!;
-        string layout = Text(attribute, "Layout", source.Contains('.') ? source[..source.LastIndexOf('.')] : source)!;
+        string layout = Text(attribute, "Layout", source.Contains('.') ? source.Substring(0, source.LastIndexOf('.')) : source)!;
         string entry = Text(attribute, "EntryPoint", "main")!, binary = Text(attribute, "BinaryAsset", identity)!;
         var uses = Attributes(owner.Symbol, "ShaderUse").Where(a => Text(a, 0) == program && (int)Argument(a, 1).Value! == (int)kind).ToArray();
         // Gather structural dependencies first so attribute order cannot change condition validity.

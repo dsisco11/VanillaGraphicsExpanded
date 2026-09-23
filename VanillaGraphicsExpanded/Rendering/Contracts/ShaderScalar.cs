@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -21,7 +22,7 @@ internal readonly record struct ShaderScalar
         ShaderScalarType.Bool => Bits == 0 ? "0" : "1",
         ShaderScalarType.Int => unchecked((int)Bits).ToString(CultureInfo.InvariantCulture),
         ShaderScalarType.UInt => Bits.ToString(CultureInfo.InvariantCulture),
-        _ => BitConverter.UInt32BitsToSingle(Bits).ToString("R", CultureInfo.InvariantCulture)
+        _ => new FloatBits { Unsigned = Bits }.Float.ToString("R", CultureInfo.InvariantCulture)
     };
     /// <summary>Uses integer Boolean tokens in preprocessor conditions and typed literals for other macros.</summary>
     public string MacroLiteral => Type == ShaderScalarType.Bool ? Canonical : GlslLiteral;
@@ -32,6 +33,14 @@ internal readonly record struct ShaderScalar
         ShaderScalarType.Float when !Canonical.Contains('.') && !Canonical.Contains('E') => Canonical + ".0",
         _ => Canonical
     };
+
+    /// <summary>Reinterprets IEEE 754 bits without allocation on every supported compiler-host framework.</summary>
+    [StructLayout(LayoutKind.Explicit)]
+    private struct FloatBits
+    {
+        [FieldOffset(0)] public float Float;
+        [FieldOffset(0)] public uint Unsigned;
+    }
 
     #region Conversion
     /// <summary>Creates a validated scalar and canonicalizes signed zero.</summary>
@@ -64,8 +73,8 @@ internal readonly record struct ShaderScalar
     /// <summary>Rejects NaN/infinity and normalizes negative zero for stable equality and encoding.</summary>
     private static ShaderScalar FromFloat(float value)
     {
-        if (!float.IsFinite(value)) throw new ArgumentException($"Nonfinite shader value '{value}' is invalid.");
-        return new(ShaderScalarType.Float, BitConverter.SingleToUInt32Bits(value == 0 ? 0 : value));
+        if (float.IsNaN(value) || float.IsInfinity(value)) throw new ArgumentException($"Nonfinite shader value '{value}' is invalid.");
+        return new(ShaderScalarType.Float, new FloatBits { Float = value == 0 ? 0 : value }.Unsigned);
     }
 
     /// <summary>Accepts equivalent integral decimal spellings without truncation or double conversion.</summary>
@@ -99,7 +108,7 @@ internal readonly record struct ShaderScalar
         return Type switch
         {
             ShaderScalarType.Int => unchecked((int)Bits).CompareTo(unchecked((int)other.Bits)),
-            ShaderScalarType.Float => BitConverter.UInt32BitsToSingle(Bits).CompareTo(BitConverter.UInt32BitsToSingle(other.Bits)),
+            ShaderScalarType.Float => new FloatBits { Unsigned = Bits }.Float.CompareTo(new FloatBits { Unsigned = other.Bits }.Float),
             _ => Bits.CompareTo(other.Bits)
         };
     }

@@ -32,7 +32,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
         var originalCompilation = compilation;
         if (offline)
         {
-            var existing = compilation.SyntaxTrees.Where(t => !string.IsNullOrEmpty(t.FilePath)).Select(t => Path.GetFullPath(t.FilePath)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var existing = new HashSet<string>(compilation.SyntaxTrees.Where(t => !string.IsNullOrEmpty(t.FilePath)).Select(t => Path.GetFullPath(t.FilePath)), StringComparer.OrdinalIgnoreCase);
             var parseOptions = (compilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions ?? new CSharpParseOptions()).WithLanguageVersion(LanguageVersion.CSharp13);
             compilation = compilation.AddSyntaxTrees(files.Where(f => !existing.Contains(Path.GetFullPath(f.Path)))
                 .Select(f => CSharpSyntaxTree.ParseText(f.Text, parseOptions, f.Path, Encoding.UTF8)));
@@ -83,7 +83,8 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
             {
                 foreach (var program in owner.Programs)
                 {
-                    if (!programs.TryAdd(program.Scope + ":" + program.Model.Identity, program.Model)) throw new ArgumentException($"Duplicate program identity '{program.Model.Identity}' in scope '{program.Scope}'.");
+                    if (programs.ContainsKey(program.Scope + ":" + program.Model.Identity)) throw new ArgumentException($"Duplicate program identity '{program.Model.Identity}' in scope '{program.Scope}'.");
+                    programs.Add(program.Scope + ":" + program.Model.Identity, program.Model);
                     foreach (var stage in program.Model.Stages)
                     {
                         string key = program.Scope + ":" + stage.Identity;
@@ -106,7 +107,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
                 foreach (var stage in Attributes(owner.Symbol, "ShaderStage"))
                 {
                     string source = Text(stage, 2), identity = Text(stage, "Identity", source)!;
-                    string layout = Text(stage, "Layout", source.Contains('.') ? source[..source.LastIndexOf('.')] : source)!;
+                    string layout = Text(stage, "Layout", source.Contains('.') ? source.Substring(0, source.LastIndexOf('.')) : source)!;
                     string scope = owner.Programs.Single(p => p.Member == Text(stage, 0)).Scope;
                     string key = scope + ":" + identity;
                     if (layoutExpressions.TryGetValue(key, out string? prior) && prior != layout) throw new ArgumentException($"Shared stage '{identity}' has conflicting binding layouts.");

@@ -39,7 +39,7 @@ internal static class AttributeValues
             bool value => value ? "true" : "false",
             int value => value.ToString(CultureInfo.InvariantCulture),
             uint value => value.ToString(CultureInfo.InvariantCulture) + "u",
-            float value when float.IsFinite(value) => value.ToString("R", CultureInfo.InvariantCulture) + "f",
+            float value when !float.IsNaN(value) && !float.IsInfinity(value) => value.ToString("R", CultureInfo.InvariantCulture) + "f",
             _ => throw new ArgumentException("Expected bool, int, uint, finite float or a 32-bit enum constant.")
         };
     }

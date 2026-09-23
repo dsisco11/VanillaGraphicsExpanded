@@ -39,7 +39,10 @@ internal sealed class GpuShaderContract
             }
             canonical.Add(option.Name, option);
             foreach (string name in option.Aliases.Prepend(option.Name))
-                if (!names.TryAdd(name, option)) throw new ArgumentException($"Program '{identity}' repeats option/alias '{name}'.");
+            {
+                if (names.ContainsKey(name)) throw new ArgumentException($"Program '{identity}' repeats option/alias '{name}'.");
+                names.Add(name, option);
+            }
         }
         Options = Array.AsReadOnly(canonical.Values.OrderBy(o => o.Name, StringComparer.Ordinal).ToArray());
         foreach (var stage in Stages)
@@ -50,14 +53,14 @@ internal sealed class GpuShaderContract
             foreach (string fixedName in stage.FixedDefines.Keys)
                 if (names.ContainsKey(fixedName)) throw new ArgumentException($"Program '{identity}', stage '{stage.Identity}' fixed name '{fixedName}' conflicts with a setting.");
         }
-        Structural = Array.AsReadOnly(Stages.SelectMany(s => s.Structural).DistinctBy(o => o.Name).OrderBy(o => o.Name, StringComparer.Ordinal).ToArray());
+        Structural = Array.AsReadOnly(Stages.SelectMany(s => s.Structural).GroupBy(o => o.Name).Select(g => g.First()).OrderBy(o => o.Name, StringComparer.Ordinal).ToArray());
         Assignments = ShaderAssignments.Create(this, supportedAssignments);
     }
 
     /// <summary>Rejects duplicate/invalid stage combinations without accessing source assets.</summary>
     private void ValidateStages()
     {
-        var kinds = Stages.Select(s => s.Kind).ToHashSet();
+        var kinds = new HashSet<ShaderStageKind>(Stages.Select(s => s.Kind));
         bool compute = kinds.Contains(ShaderStageKind.Compute);
         if (Stages.Count == 0 || kinds.Count != Stages.Count || Stages.Select(s => s.Identity).Distinct(StringComparer.Ordinal).Count() != Stages.Count ||
             (compute ? Stages.Count != 1 : !kinds.Contains(ShaderStageKind.Vertex) || !kinds.Contains(ShaderStageKind.Fragment)) ||

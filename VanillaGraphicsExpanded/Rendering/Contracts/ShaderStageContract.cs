@@ -29,12 +29,12 @@ internal sealed class ShaderStageContract
     {
         ShaderContractNames.ValidatePath(identity); ShaderContractNames.ValidatePath(source);
         ShaderContractNames.ValidatePath(binaryAsset ?? identity); ShaderContractNames.ValidateIdentifier(entryPoint);
-        if (!Enum.IsDefined(kind)) throw new ArgumentException($"Stage '{identity}' has invalid type '{kind}'.");
+        if (!Enum.IsDefined(typeof(ShaderStageKind), kind)) throw new ArgumentException($"Stage '{identity}' has invalid type '{kind}'.");
         Identity = identity; Source = source; Kind = kind; EntryPoint = entryPoint; BinaryAsset = binaryAsset ?? identity;
         Bindings = bindings.Snapshot();
         Structural = Array.AsReadOnly((structural ?? []).OrderBy(o => o.Name, StringComparer.Ordinal).ToArray());
         Specializations = Array.AsReadOnly((specializations ?? []).OrderBy(s => s.Id).ToArray());
-        FixedDefines = new ReadOnlyDictionary<string, ShaderScalar>(new Dictionary<string, ShaderScalar>(fixedDefines ?? new Dictionary<string, ShaderScalar>(), StringComparer.Ordinal));
+        FixedDefines = new ReadOnlyDictionary<string, ShaderScalar>((fixedDefines ?? new Dictionary<string, ShaderScalar>()).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal));
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var option in Structural.Concat(Specializations.Select(s => s.Option)))
             foreach (string name in option.Aliases.Prepend(option.Name))
@@ -55,8 +55,8 @@ internal sealed class ShaderStageContract
     /// <summary>Compares immutable definitions, allowing equal declarations from independent owners.</summary>
     internal bool Equivalent(ShaderStageContract other) => Identity == other.Identity && Source == other.Source &&
         BinaryAsset == other.BinaryAsset && EntryPoint == other.EntryPoint && Kind == other.Kind && Bindings.Equivalent(other.Bindings) &&
-        Structural.Count == other.Structural.Count && Structural.Zip(other.Structural).All(p => p.First.Equivalent(p.Second)) &&
-        Specializations.Count == other.Specializations.Count && Specializations.Zip(other.Specializations).All(p => p.First.Equivalent(p.Second)) &&
+        Structural.Count == other.Structural.Count && Structural.Zip(other.Structural, (left, right) => left.Equivalent(right)).All(equal => equal) &&
+        Specializations.Count == other.Specializations.Count && Specializations.Zip(other.Specializations, (left, right) => left.Equivalent(right)).All(equal => equal) &&
         FixedDefines.Count == other.FixedDefines.Count && FixedDefines.All(p => other.FixedDefines.TryGetValue(p.Key, out var v) && p.Value == v);
     #endregion
 }
