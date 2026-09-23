@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Diagnostics;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace ShaderBuildTool.Spirv;
@@ -9,33 +10,67 @@ internal static class ShaderVariantBuild
 {
     #region Build and publication
     /// <summary>Publishes compiler output unchanged; program assignments and shared stages come from the resolver.</summary>
-    public static void Run(string assetsRoot, string outputRoot, string domain, string workingDirectory, string target, bool warningsAsErrors, ShaderVariantResolver? registry = null)
+    public static async Task RunAsync(string assetsRoot, string outputRoot, string domain, string workingDirectory,
+        string target, bool warningsAsErrors, ShaderVariantResolver registry, int concurrency, CancellationToken cancellationToken)
     {
-        registry ??= GpuShaderContracts.Registry;
+        var elapsed = Stopwatch.StartNew();
         ValidateSources(Path.Combine(assetsRoot, domain, "shaders"), registry);
         var sources = new ShaderVariantSource(assetsRoot, domain);
         var expanded = new Dictionary<string, string>(StringComparer.Ordinal);
         Console.WriteLine($"[SPIR-V] Programs: {registry.Programs.Count} programs, {registry.Programs.Values.Sum(p => p.Assignments.Count)} combinations");
-        // Binaries already projects supported program assignments, retaining only unique stage/key pairs.
-        // Cache expansion by source while preserving distinct stage identities and binding declarations.
+        // Expand each source once; workers share only immutable text, never editable syntax trees.
+        foreach (string source in registry.Binaries.Select(selection => selection.Stage.Source).Distinct(StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            expanded.Add(source, sources.Expand(source));
+        }
+        double expansionMilliseconds = elapsed.Elapsed.TotalMilliseconds;
+        long emissionTicks = 0, compilerTicks = 0;
+        var jobs = new List<ShaderCompilationJob>();
+        var outputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var selection in registry.Binaries)
         {
             var stage = selection.Stage;
-            if (!expanded.TryGetValue(stage.Source, out string? source))
-                expanded.Add(stage.Source, source = sources.Expand(stage.Source));
             string binary = Path.Combine(outputRoot, domain, "shaders", selection.BinaryPath);
+            if (!outputs.Add(Path.GetFullPath(binary)))
+                throw new InvalidOperationException("Duplicate shader binary output: " + binary);
             string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(selection.Key))).ToLowerInvariant();
             string input = Path.Combine(outputRoot, "_tmp", stage.Identity + "." + hash + ".glsl");
-            Directory.CreateDirectory(Path.GetDirectoryName(input)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(binary)!);
             string extension = StageExtension(stage.Kind);
-            File.WriteAllText(input, ShaderSourceLayout.Apply(sources.Emit(source, selection), extension, stage.Bindings));
-            int status = Program.RunDotnetShaderc(workingDirectory, input, binary, Program.StageFromExtension(extension), target, warningsAsErrors, stage.EntryPoint);
-            if (status != 0) throw new InvalidOperationException($"SPIR-V compilation failed: stage '{stage.Identity}', source '{stage.Source}', configuration '{selection.Key}'.");
+            jobs.Add(new ShaderCompilationJob($"stage '{stage.Identity}', source '{stage.Source}', configuration '{selection.Key}'", CompileVariantAsync));
+
+            /// <summary>Emits, compiles and publishes this variant while recording work and removing partial output.</summary>
+            async Task<ShaderCompilerResult> CompileVariantAsync(CancellationToken token)
+            {
+                string pending = input + ".spv";
+                Directory.CreateDirectory(Path.GetDirectoryName(input)!);
+                Directory.CreateDirectory(Path.GetDirectoryName(binary)!);
+                File.Delete(binary);
+                File.Delete(pending);
+                try
+                {
+                    var timer = Stopwatch.StartNew();
+                    var emitter = new ShaderVariantSource(assetsRoot, domain);
+                    File.WriteAllText(input, ShaderSourceLayout.Apply(emitter.Emit(expanded[stage.Source], selection), extension, stage.Bindings));
+                    Interlocked.Add(ref emissionTicks, timer.ElapsedTicks);
+                    token.ThrowIfCancellationRequested();
+                    timer.Restart();
+                    var result = await ShaderCompilerProcess.CompileAsync(workingDirectory, input, pending,
+                        Program.StageFromExtension(extension), target, warningsAsErrors, stage.EntryPoint, token);
+                    Interlocked.Add(ref compilerTicks, timer.ElapsedTicks);
+                    token.ThrowIfCancellationRequested();
+                    // Compiler failure can leave a partial file; publish only a successful invocation's output.
+                    if (result.ExitCode == 0) File.Move(pending, binary, overwrite: true);
+                    return result;
+                }
+                finally { File.Delete(pending); }
+            }
         }
+        await ShaderCompilationBatch.RunAsync(jobs, concurrency, Console.Out, Console.Error, cancellationToken);
         foreach (var stage in registry.Binaries.GroupBy(s => s.Stage.Identity))
             Console.WriteLine($"[SPIR-V] {stage.Key}: {stage.Count()} structural variants");
         Console.WriteLine($"[SPIR-V] Stages: {registry.Stages.Count} stages, {registry.Binaries.Count} variants");
+        Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Timing: concurrency={concurrency}; expansionMs={expansionMilliseconds:F1}; emissionWorkMs={emissionTicks * 1000.0 / Stopwatch.Frequency:F1}; compilerWorkMs={compilerTicks * 1000.0 / Stopwatch.Frequency:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}"));
     }
 
     /// <summary>Checks owned entry-point coverage without inferring contracts or assuming source names are identities.</summary>

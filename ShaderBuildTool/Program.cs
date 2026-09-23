@@ -1,15 +1,9 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 
 using ShaderBuildTool.Spirv;
 using VanillaGraphicsExpanded.Rendering.Contracts;
-
-using TinyPreprocessor;
-using TinyPreprocessor.Core;
-using TinyTokenizer.Ast;
 
 using VanillaGraphicsExpanded;
 
@@ -56,6 +50,7 @@ internal static class Program
                 "build-validation-graphics" => BuildValidationShaderPrograms.Create(includeCompute: false),
                 _ => throw new OptionsException("Unknown registry scope: " + options.RegistryScope)
             };
+            using var outputLease = ShaderOutputLease.Acquire(outputRoot);
             string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain,
                 options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors) + "|" + options.RegistryScope;
             if (options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
@@ -70,7 +65,18 @@ internal static class Program
 
             Directory.CreateDirectory(outputRoot);
 
-            ShaderVariantBuild.Run(assetsRoot, outputRoot, domain, options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, registry);
+            // Invalidate the old success marker even for non-clean rebuilds before scheduling any work.
+            File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
+            using var cancellation = new CancellationTokenSource();
+            ConsoleCancelEventHandler cancel = (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
+            Console.CancelKeyPress += cancel;
+            try
+            {
+                ShaderVariantBuild.RunAsync(assetsRoot, outputRoot, domain,
+                    options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv,
+                    options.WarningsAsErrors, registry, options.Concurrency, cancellation.Token).GetAwaiter().GetResult();
+            }
+            finally { Console.CancelKeyPress -= cancel; }
             ShaderBuildReceipt.Publish(outputRoot, fingerprint);
             return 0;
         }
@@ -101,67 +107,17 @@ internal static class Program
         };
     }
 
-    /// <summary>Runs the pinned local shader compiler and relays its diagnostics.</summary>
-    internal static int RunDotnetShaderc(
-        string workingDir,
-        string inputFile,
-        string outputFile,
-        string stage,
-        string targetEnv,
-        bool warningsAsErrors, string entryPoint = "main")
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(outputFile) ?? ".");
-
-        string werror = warningsAsErrors ? " -Werror" : string.Empty;
-
-        // Retain compiler names for diagnostics; publish the compiler binary unchanged.
-        const string keepNames = " -g";
-
-        string args =
-            $"tool run dotnet-shaderc -- --shader-stage={stage} --entry-point={entryPoint} --target-env={targetEnv}{keepNames} -x=glsl{werror} -o \"{outputFile}\" \"{inputFile}\"";
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = args,
-            WorkingDirectory = workingDir,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        using var proc = Process.Start(psi);
-        if (proc is null)
-        {
-            throw new InvalidOperationException("Failed to start dotnet process for dotnet-shaderc.");
-        }
-
-        string stdout = proc.StandardOutput.ReadToEnd();
-        string stderr = proc.StandardError.ReadToEnd();
-
-        proc.WaitForExit();
-
-        if (!string.IsNullOrWhiteSpace(stdout))
-        {
-            Console.WriteLine(stdout.TrimEnd());
-        }
-
-        if (!string.IsNullOrWhiteSpace(stderr))
-        {
-            Console.Error.WriteLine(stderr.TrimEnd());
-        }
-
-        return proc.ExitCode;
-    }
-
+    /// <summary>Distinguishes command-line usage failures from compiler failures.</summary>
     private sealed class OptionsException : Exception
     {
+        /// <summary>Records the invalid option for a usage diagnostic.</summary>
         public OptionsException(string message) : base(message) { }
     }
 
+    /// <summary>Defines asset selection, output policy and the bounded compiler job limit.</summary>
     private sealed class Options
     {
+        public int Concurrency { get; private init; }
         public bool ShowHelp { get; private init; }
         public string? AssetsRoot { get; private init; }
         public string? OutputRoot { get; private init; }
@@ -173,6 +129,8 @@ internal static class Program
         public string? WorkingDirectory { get; private init; }
         public string RegistryScope { get; private init; } = "production";
 
+        #region Command-line parsing
+        /// <summary>Parses switches and validates the concurrency limit before any output mutation.</summary>
         public static Options Parse(string[] args)
         {
             var dict = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -229,8 +187,14 @@ internal static class Program
                 dict[key] = value;
             }
 
+            int concurrency = Math.Min(8, Environment.ProcessorCount);
+            if (dict.TryGetValue("concurrency", out string? requestedConcurrency) &&
+                (!int.TryParse(requestedConcurrency, out concurrency) || concurrency < 1))
+                throw new OptionsException("--concurrency must be a positive integer; use 1 for serial compilation.");
+
             return new Options
             {
+                Concurrency = concurrency,
                 ShowHelp = flags.Contains("help"),
                 AssetsRoot = dict.TryGetValue("assetsRoot", out var assets) ? assets : null,
                 OutputRoot = dict.TryGetValue("outputRoot", out var outRoot) ? outRoot : null,
@@ -244,6 +208,7 @@ internal static class Program
             };
         }
 
+        /// <summary>Prints build policy and serial/parallel invocation options.</summary>
         public static void PrintHelp()
         {
             Console.WriteLine("ShaderBuildTool (VGE)\n");
@@ -252,6 +217,7 @@ internal static class Program
             Console.WriteLine("  --assetsRoot <path>   Path to the mod's assets directory (contains <domain>/shaders/...) ");
             Console.WriteLine("  --outputRoot <path>   Output root for artifacts (e.g. <project>/artifacts/spirv)");
             Console.WriteLine("\nOptional:");
+            Console.WriteLine("  --concurrency <count>        Maximum concurrent compiler jobs (default: min(8, logical CPU count); 1 is serial)");
             Console.WriteLine("  --registry <scope>   production, build-validation, or build-validation-graphics");
             Console.WriteLine("  --domain <name>       Asset domain (default: vanillagraphicsexpanded)");
             Console.WriteLine("  --targetEnv <env>     shaderc target env (default: opengl4.5)");
@@ -260,5 +226,6 @@ internal static class Program
             Console.WriteLine("  --clean               Delete outputRoot before building");
             Console.WriteLine("  --workingDir <path>   Working directory (should contain .config/dotnet-tools.json)");
         }
+        #endregion
     }
 }

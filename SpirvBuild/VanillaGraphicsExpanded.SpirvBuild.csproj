@@ -12,6 +12,8 @@
     <SpirvDomain Condition="'$(SpirvDomain)' == ''">vanillagraphicsexpanded</SpirvDomain>
     <SpirvTargetEnv Condition="'$(SpirvTargetEnv)' == ''">opengl4.5</SpirvTargetEnv>
     <SpirvWarningsAsErrors Condition="'$(SpirvWarningsAsErrors)' == ''">false</SpirvWarningsAsErrors>
+    <!-- Empty uses the tool's bounded CPU-based default; 1 retains serial compilation. -->
+    <SpirvConcurrencyArg Condition="'$(SpirvConcurrency)' != ''">--concurrency $(SpirvConcurrency)</SpirvConcurrencyArg>
 
     <SpirvWarningsAsErrorsArg Condition="'$(SpirvWarningsAsErrors)' == 'true' Or '$(SpirvWarningsAsErrors)' == 'True'">--warningsAsErrors</SpirvWarningsAsErrorsArg>
     <SpirvWarningsAsErrorsArg Condition="'$(SpirvWarningsAsErrors)' != 'true' And '$(SpirvWarningsAsErrors)' != 'True'"></SpirvWarningsAsErrorsArg>
@@ -41,7 +43,7 @@
           AfterTargets="Build">
     <Exec
       WorkingDirectory="$(VgeSolutionRoot)"
-      Command="dotnet run --no-build --no-restore --configuration $(Configuration) --project &quot;$(SpirvBuildToolProject)&quot; -- --clean --incremental --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
+      Command="dotnet run --no-build --no-restore --configuration $(Configuration) --project &quot;$(SpirvBuildToolProject)&quot; -- --clean --incremental $(SpirvConcurrencyArg) --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
   </Target>
 
 </Project>

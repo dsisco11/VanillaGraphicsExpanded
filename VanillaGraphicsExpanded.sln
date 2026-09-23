@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderContractGenerator", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderContractGenerator.Tests", "ShaderContractGenerator.Tests\ShaderContractGenerator.Tests.csproj", "{6D7362F6-E853-4462-A8F1-269F3EE822DE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderBuildTool.Tests", "ShaderBuildTool.Tests\ShaderBuildTool.Tests.csproj", "{5DC14309-5C04-4638-861D-2C2EF4A17AF3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,6 +31,18 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|x64.Build.0 = Debug|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|x86.Build.0 = Debug|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Release|x64.ActiveCfg = Release|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Release|x64.Build.0 = Release|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Release|x86.ActiveCfg = Release|Any CPU
+		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Release|x86.Build.0 = Release|Any CPU
 		{2FC3A34E-F505-4B87-B787-2C9AA830F16B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2FC3A34E-F505-4B87-B787-2C9AA830F16B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2FC3A34E-F505-4B87-B787-2C9AA830F16B}.Debug|x64.ActiveCfg = Debug|Any CPU
