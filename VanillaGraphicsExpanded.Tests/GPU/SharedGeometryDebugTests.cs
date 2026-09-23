@@ -97,11 +97,11 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             localBuffer.UploadOrResize(local.Bytes, growExponentially: false);
             localBuffer.BindBase(LumOnNearFieldParamsUbo.Binding);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnNearFieldParamsUbo.BlockName, LumOnNearFieldParamsUbo.Binding);
-            using var depth = CreateUniformDepthTexture(ScreenWidth, ScreenHeight, .5f);
-            using var normal = CreateUniformNormalTexture(ScreenWidth, ScreenHeight, 0, 0, 1);
-            using var patch = Texture2D.Create(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32ui, TextureFilterMode.Nearest);
-            patch.UploadDataImmediate(new uint[ScreenWidth * ScreenHeight * 4]);
-            depth.Bind(0); normal.Bind(1); patch.Bind(2);
+            SceneInputs.EnsureSize(ScreenWidth,ScreenHeight);
+            SceneInputs.Engine.Depth.UploadDataImmediate(CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
+            SceneInputs.Terrain.Normal.UploadDataImmediate(CreateUniformNormalData(ScreenWidth,ScreenHeight,0,0,1));
+            SceneInputs.Terrain.PatchId.UploadDataImmediate(new uint[ScreenWidth * ScreenHeight * 4]);
+            SceneInputs.Engine.Depth.Bind(0); SceneInputs.Terrain.Normal.Bind(1); SceneInputs.Terrain.PatchId.Bind(2);
             scene.Geometry.Bind(34); scene.Readiness.Bind(35); scene.Legacy.Bind(20);
             GL.UseProgram(program);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "primaryDepth"), 0);
@@ -111,7 +111,7 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "nearFieldRegions"), 35);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, "traceSceneLegacy"), 20);
             GL.UseProgram(0);
-            using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+            var output = SceneInputs.Engine.Output;
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }

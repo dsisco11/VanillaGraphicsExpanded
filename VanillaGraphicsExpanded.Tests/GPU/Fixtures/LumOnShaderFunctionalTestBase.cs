@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// - Shader compilation via ShaderTestHelper
 /// - Fullscreen rendering via ShaderTestFramework
 /// - Common test constants (screen sizes, Z-planes, epsilon)
-/// - Standard texture creation helpers
+/// - Reusable scene-owned input resources
 /// - Proper resource cleanup
 /// 
 /// Usage:
@@ -118,7 +118,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private readonly LumOnDebugParamsUbo _lumOnDebugParams = new();
     private GpuUniformBuffer? _lumOnDebugParamsUbo;
     private bool _disposed;
-    private readonly System.Collections.Generic.List<IDisposable> inputOwners = new();
+    private ShaderSceneInputs? sceneInputs;
+
+    /// <summary>Owns this test scene's borrowed inputs; independent scenes must create their own set.</summary>
+    private protected ShaderSceneInputs SceneInputs => sceneInputs ??= new();
 
     private LumOnPmjJitterTexture? _pmjJitterTexture;
     private int _pmjJitterCycleLength;
@@ -513,55 +516,6 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     }
 
     /// <summary>
-    /// Creates a texture with uniform color (RGBA16F).
-    /// </summary>
-    protected DynamicTexture2D CreateUniformColorTexture(int width, int height, float r, float g, float b, float a = 1.0f)
-    {
-        var data = CreateUniformColorData(width, height, r, g, b, a);
-        var owner = new EngineTerrainBuffers(width, height);
-        inputOwners.Add(owner);
-        owner.Color.UploadDataImmediate(data);
-        return owner.Color;
-    }
-
-    /// <summary>
-    /// Creates a depth texture with uniform depth (R32F).
-    /// </summary>
-    protected DynamicTexture2D CreateUniformDepthTexture(int width, int height, float depth)
-    {
-        var data = CreateUniformDepthData(width, height, depth);
-        var owner = new EngineTerrainBuffers(width, height);
-        inputOwners.Add(owner);
-        owner.Depth.UploadDataImmediate(data);
-        return owner.Depth;
-    }
-
-    /// <summary>
-    /// Creates a normal texture with uniform normals (RGBA16F, encoded to [0,1]).
-    /// </summary>
-    protected DynamicTexture2D CreateUniformNormalTexture(int width, int height, float nx, float ny, float nz)
-    {
-        var data = CreateUniformNormalData(width, height, nx, ny, nz);
-        var owner = new GBufferTextures(width, height);
-        inputOwners.Add(owner);
-        owner.Normal.UploadDataImmediate(data);
-        return owner.Normal;
-    }
-
-    /// <summary>
-    /// Creates a material texture (RGBA16F).
-    /// Layout: R=roughness, G=metallic, B=emissive, A=reflectivity
-    /// </summary>
-    protected DynamicTexture2D CreateMaterialTexture(int width, int height, float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
-    {
-        var data = CreateUniformMaterialData(width, height, roughness, metallic, emissive, reflectivity);
-        var owner = new GBufferTextures(width, height);
-        inputOwners.Add(owner);
-        owner.Material.UploadDataImmediate(data);
-        return owner.Material;
-    }
-
-    /// <summary>
     /// Creates an identity 4×4 matrix.
     /// </summary>
     protected static float[] CreateIdentityMatrix() => LumOnTestInputFactory.CreateIdentityMatrix();
@@ -734,8 +688,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         {
             if (disposing)
             {
-                foreach (var owner in inputOwners) owner.Dispose();
-                inputOwners.Clear();
+                sceneInputs?.Dispose();
+                sceneInputs = null;
                 _shaderHelper?.Dispose();
                 _testFramework?.Dispose();
                 _lumOnUbos?.Dispose();
