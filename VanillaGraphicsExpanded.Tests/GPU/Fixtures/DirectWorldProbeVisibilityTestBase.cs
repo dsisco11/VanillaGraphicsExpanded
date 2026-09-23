@@ -28,7 +28,8 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         Vector3 ring = default, bool suppress = false,
         Vector3[]? levelOrigins = null, Vector3[]? levelRings = null,
         Vector3d? playerOrigin = null, float cameraBob = 0,
-        VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null)
+        VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null,
+        Vector3? receiverNormal = null)
     {
         bool debug = consumer >= 0;
         bool sh9 = consumer == -2;
@@ -63,7 +64,10 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             var normals = new float[depth.Length * 4];
             for (int i = 0; i < normals.Length; i += 4)
             {
-                normals[i] = normals[i + 1] = 0.5f;
+                var normal = receiverNormal ?? -Vector3.UnitZ;
+                normals[i] = normal.X * .5f + .5f;
+                normals[i + 1] = normal.Y * .5f + .5f;
+                normals[i + 2] = normal.Z * .5f + .5f;
                 normals[i + 3] = 1;
             }
             Add("primaryDepth", debug ? 0 : sh9 ? 9 : 3, guideSize, guideSize, PixelInternalFormat.R32f, depth);

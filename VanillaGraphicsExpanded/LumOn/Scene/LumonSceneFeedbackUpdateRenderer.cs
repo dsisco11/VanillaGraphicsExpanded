@@ -1166,8 +1166,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             int oz = unchecked(newOwner.Z * 32);
 
             var info = new LumonSceneChunkSlotInfoGpu(
-                ChunkOriginBlocksAndGeneration: new VectorInt4(ox, oy, oz, slotGenerations[slot]),
-                Reserved0: default);
+                ChunkOriginBlocksAndGeneration: new VectorInt4(ox, oy, oz, slotGenerations[slot]));
 
             Span<LumonSceneChunkSlotInfoGpu> one = stackalloc LumonSceneChunkSlotInfoGpu[1] { info };
             slotInfoBuffer.Ssbo.UploadSubData((ReadOnlySpan<LumonSceneChunkSlotInfoGpu>)one, dstOffsetBytes: checked((int)slot * System.Runtime.InteropServices.Marshal.SizeOf<LumonSceneChunkSlotInfoGpu>()));

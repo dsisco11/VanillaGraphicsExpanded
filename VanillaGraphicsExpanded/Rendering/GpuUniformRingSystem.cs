@@ -63,6 +63,7 @@ internal static class GpuUniformRingSystem
             warn: null);
     }
 
+    #region Test lifetime
     /// <summary>
     /// Ensures a ring is active on the current thread for GPU tests.
     /// </summary>
@@ -85,4 +86,14 @@ internal static class GpuUniformRingSystem
         // Don't fence in tests by default; just clear the thread-local.
         ClearCurrent();
     }
+
+    /// <summary>Releases test-owned mapped storage while its GL context is still current, before that context is destroyed.</summary>
+    internal static void DisposeTestResources()
+    {
+        ClearCurrent();
+        testRing?.Dispose();
+        testRing = null;
+        testFrameIndex = 0;
+    }
+    #endregion
 }

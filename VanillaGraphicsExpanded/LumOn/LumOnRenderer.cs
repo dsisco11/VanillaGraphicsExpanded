@@ -1161,6 +1161,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.NearFieldVisibility.Bind(shader, nearFieldScene);
         shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
 
+        // Keep the paired diagnostic's gather replacement consistent with its trace branch.
+        shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
         shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!;
         shader.ProbeSh2 = bufferManager.ProbeSh9Tex2!;

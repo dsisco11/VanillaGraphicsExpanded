@@ -175,6 +175,11 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     {
         if (_glfwWindow != null)
         {
+            // Collections own separate, unshared contexts. Retire the test ring's
+            // buffer names and persistent mapping before another context can reuse them.
+            GLFW.MakeContextCurrent(_glfwWindow);
+            GL.LoadBindings(new GLFWBindingsContext());
+            VanillaGraphicsExpanded.Rendering.GpuUniformRingSystem.DisposeTestResources();
             GLFW.DestroyWindow(_glfwWindow);
             _glfwWindow = null;
         }

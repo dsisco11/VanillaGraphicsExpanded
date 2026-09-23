@@ -17,6 +17,8 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     private readonly RuntimeLightingPrograms programs = new();
     private readonly VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem worldSystem = new();
     private readonly LumOnRenderer renderer;
+    private readonly SpatialLightingScene? spatial;
+    private readonly int edge;
     private readonly float[] projection = LumOnTestInputFactory.CreateRealisticProjection();
     public SurfaceCacheRuntimeFixture Cache { get; }
     public RuntimeProbeWorld World { get; }
@@ -29,10 +31,11 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
 
     #region Composition
     /// <summary>Registers real consumers with the producer's engine events and injects real publication providers.</summary>
-    public SurfaceLightingConsumerRuntimeFixture(bool sh9)
+    public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null)
     {
-        Cache = new(requestedPages:24,enclosure:true);
-        World = new(Cache.SourceBlock);
+        this.spatial=spatial; edge=spatial==null?2:4;
+        Cache = new(requestedPages:24,enclosure:true,spatial:spatial);
+        World = new(Cache.SourceBlock,spatial);
         var cfg=Cache.Config.LumOn;
         cfg.ProbeSpacingPx=1; cfg.ProbeAtlasTexelsPerFrame=8; cfg.RayMaxDistance=16;
         cfg.AnchorJitterEnabled=false; cfg.EnableProbePIS=false; cfg.EnableReprojectionVelocity=false;
@@ -43,7 +46,13 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
         wp.OctahedralTileSize=8; wp.AtlasTexelsPerUpdate=64; wp.TraceMaxProbesPerFrame=1;
         wp.PerLevelProbeUpdateBudget=[1]; wp.UploadBudgetBytesPerFrame=1576; wp.EnableDirectionPIS=false;
         /// <summary>Supplies an engine camera positioned inside the controlled enclosure.</summary>
-        LumOnCameraState? Camera() => new(4,36,6,4,36,6,0);
+        LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(4,36,6,4,36,6,0);
+        if(spatial!=null)
+        {
+            wp.ClipmapResolution=2; wp.ClipmapBaseSpacing=2; wp.TraceMaxProbesPerFrame=8;
+            wp.PerLevelProbeUpdateBudget=[8]; wp.UploadBudgetBytesPerFrame=8*1576;
+            cfg.ProbeAtlasTexelsPerFrame=64; cfg.TemporalAlpha=0;
+        }
         var world=RuntimeRenderEvents.Adapt<IClientWorldAccessor>((method,_)=>method.Name switch
         {
             "get_Player"=>null,"get_BlockAccessor"=>World.Accessor,"get_Calendar"=>null,"get_MapSizeY"=>256,
@@ -52,6 +61,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
         var render=RuntimeRenderEvents.Adapt<IRenderAPI>((method,args)=>method.Name switch
         {
             "get_CurrentProjectionMatrix"=>projection,
+            "get_CameraMatrixOriginf" when spatial!=null=>spatial.View(),
             "UploadMesh"=>new RuntimeMesh(),
             "DeleteMesh"=>DeleteMesh((MeshRef)args![0]!),
             "RenderMesh"=>Draw(),
@@ -81,10 +91,11 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     {
         var primary=Cache.Api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         float z=-5,depth=(projection[10]*z+projection[14])/(projection[11]*z+projection[15])*.5f+.5f;
-        Upload(primary.DepthTextureId,PixelFormat.Red,Enumerable.Repeat(depth,4).ToArray());
-        Upload(Cache.Buffers.NormalTextureId,PixelFormat.Rgba,Enumerable.Range(0,4).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray());
-        Upload(Cache.Buffers.MaterialTextureId,PixelFormat.Rgba,Enumerable.Range(0,4).SelectMany(_=>new[]{1f,0f,0f,0f}).ToArray());
-        Upload(primary.ColorTextureIds[0],PixelFormat.Rgba,Enumerable.Repeat(.5f,16).ToArray());
+        var raster=spatial?.Raster(edge,projection);
+        Upload(primary.DepthTextureId,PixelFormat.Red,raster?.Depth ?? Enumerable.Repeat(depth,edge*edge).ToArray());
+        Upload(Cache.Buffers.NormalTextureId,PixelFormat.Rgba,raster?.Normal ?? Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray());
+        Upload(Cache.Buffers.MaterialTextureId,PixelFormat.Rgba,Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{1f,0f,0f,0f}).ToArray());
+        Upload(primary.ColorTextureIds[0],PixelFormat.Rgba,Enumerable.Repeat(.5f,edge*edge*4).ToArray());
         Cache.Frame();
         if(Screen.IndirectFullTex!=null) Energy(FinalPixels());
         if(WorldBuffers.Resources!=null) Energy(WorldPixels());
@@ -117,17 +128,19 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     }
 
     /// <summary>Uploads only engine raster inputs; no probe or cache radiance is synthesized.</summary>
-    private static void Upload(int texture,PixelFormat format,float[] values)
+    private void Upload(int texture,PixelFormat format,float[] values)
     {
         using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,texture);
-        GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,2,2,format,PixelType.Float,values);
+        GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,edge,edge,format,PixelType.Float,values);
     }
 
     /// <summary>Submits the currently bound production shader through a real GPU fullscreen primitive.</summary>
     private object? Draw()
     {
         int program=GL.GetInteger(GetPName.CurrentProgram); Assert.NotEqual(0,program);
-        DrawnPrograms.Add(program); drawing.RenderQuad(program); return null;
+        DrawnPrograms.Add(program); drawing.RenderQuad(program);
+        // Engine RenderMesh preserves the active shader across repeated draws (including HZB mip levels).
+        GL.UseProgram(program); return null;
     }
     /// <summary>Implements the engine blend-state boundary.</summary>
     private static object? Blend(bool enabled) { if(enabled) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend); return null; }

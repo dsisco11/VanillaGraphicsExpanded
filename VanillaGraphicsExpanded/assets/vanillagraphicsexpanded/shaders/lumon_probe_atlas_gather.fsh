@@ -103,6 +103,8 @@ ProbeData loadProbe(ivec2 probeCoord, ivec2 probeGridSizeI) {
  */
 vec3 integrateHemisphere(ivec2 probeCoord, vec3 normalWS, float pixelDepthVS,
                          ivec2 probeGridSizeI, out float avgHitDist) {
+    // Match loadProbe's edge clamping before addressing its radiance tile.
+    probeCoord = clamp(probeCoord, ivec2(0), probeGridSizeI - 1);
     vec3 irradiance = vec3(0.0);
     float totalWeight = 0.0;
     float hitDistSum = 0.0;
@@ -150,6 +152,8 @@ vec3 integrateHemisphere(ivec2 probeCoord, vec3 normalWS, float pixelDepthVS,
 
 float computeProbeToPixelVisibility(ivec2 probeCoord, vec3 probePosWS, vec3 pixelPosWS)
 {
+    // Border neighbors refer to the clamped anchor, so visibility must use that same tile.
+    probeCoord = clamp(probeCoord, ivec2(0), ivec2(probeGridSize) - 1);
     vec3 probeToPixel = pixelPosWS - probePosWS;
     float probeToPixelDistance = length(probeToPixel);
     if (probeToPixelDistance <= 1e-4)

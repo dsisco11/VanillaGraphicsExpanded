@@ -31,7 +31,12 @@ LumOnWorldProbeGatherFallback lumonGatherWorldProbeFallback(
 #if VGE_LUMON_WORLDPROBE_ENABLED
     if (screenWeight < LUMON_WORLDPROBE_SCREEN_WEIGHT_THRESHOLD)
     {
-        LumOnWorldProbeSample worldProbe = lumonWorldProbeSampleClipmapBound(pixelPosWS, pixelNormalWS);
+        // Reconstructed depth can lie a few ulps inside its voxel face. A probe
+        // exactly on that face would otherwise trace into the wall immediately,
+        // even after shortening the segment's far endpoint. Move the receiver
+        // toward its visible side by a fixed sub-voxel amount, never by probe spacing.
+        vec3 receiver = pixelPosWS + pixelNormalWS * 0.001;
+        LumOnWorldProbeSample worldProbe = lumonWorldProbeSampleClipmapBound(receiver, pixelNormalWS);
         if (worldProbe.confidence > LUMON_WORLDPROBE_CONFIDENCE_THRESHOLD)
         {
             result.irradiance = worldProbe.irradiance;

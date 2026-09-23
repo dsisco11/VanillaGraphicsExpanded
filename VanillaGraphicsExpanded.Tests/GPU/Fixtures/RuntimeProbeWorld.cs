@@ -12,6 +12,7 @@ internal sealed class RuntimeProbeWorld : IDisposable
     private readonly object gate = new();
     private bool hold, entered;
     private readonly Block solid;
+    private readonly SpatialLightingScene? spatial;
     private readonly Block air = new() { BlockId=0 };
     private readonly IWorldChunk chunk = DispatchProxy.Create<IWorldChunk,LoadedChunkSentinel>();
     private int workerReads;
@@ -21,9 +22,9 @@ internal sealed class RuntimeProbeWorld : IDisposable
 
     #region Engine boundary
     /// <summary>Shares the exact block identity used by GPU geometry capture.</summary>
-    public RuntimeProbeWorld(Block solid)
+    public RuntimeProbeWorld(Block solid, SpatialLightingScene? spatial = null)
     {
-        this.solid=solid;
+        this.solid=solid; this.spatial=spatial;
         Accessor=RuntimeRenderEvents.Adapt<IBlockAccessor>(Invoke);
     }
 
@@ -33,7 +34,10 @@ internal sealed class RuntimeProbeWorld : IDisposable
         switch(method.Name)
         {
             case "get_MapSizeY": return 256;
-            case "GetChunkAtBlockPos": return chunk;
+            case "GetChunkAtBlockPos":
+                var location=(BlockPos)args![0]!;
+                var key=VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(location.X>>5,location.Y>>5,location.Z>>5);
+                return spatial?.Loaded(key)==false?null:chunk;
             case "GetRainMapHeightAt": return 40;
             case "GetLightLevel": return 0;
             case "GetLightRGBs": return new Vec4f(0,0,0,0);
@@ -48,7 +52,7 @@ internal sealed class RuntimeProbeWorld : IDisposable
                     }
                 }
                 var pos=(BlockPos)args![0]!;
-                return pos.X<=0 || pos.X>=7 || pos.Y<=32 || pos.Y>=39 || pos.Z<=0 || pos.Z>=7 ? solid : air;
+                return (spatial?.Solid(pos.X,pos.Y,pos.Z) ?? (pos.X<=0 || pos.X>=7 || pos.Y<=32 || pos.Y>=39 || pos.Z<=0 || pos.Z>=7)) ? solid : air;
             default: throw new NotSupportedException("Probe world: "+method.Name);
         }
     }

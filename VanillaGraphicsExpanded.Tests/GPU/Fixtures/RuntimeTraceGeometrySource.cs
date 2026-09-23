@@ -15,10 +15,10 @@ internal sealed class RuntimeTraceGeometrySource : ITraceGeometrySource
 
     #region Source lifetime
     /// <summary>Connects deterministic chunk capture to the production source cache.</summary>
-    public RuntimeTraceGeometrySource(Func<int, int, int, TraceGeometryVoxel> sample, Func<bool>? available = null)
+    public RuntimeTraceGeometrySource(Func<int, int, int, TraceGeometryVoxel> sample, Func<bool>? available = null, Func<ChunkKey,bool>? loaded = null)
     {
         this.sample = sample;
-        Cache = new(Capture, _ => version, _ => available?.Invoke() ?? true);
+        Cache = new(Capture, _ => version, key => (available?.Invoke() ?? true) && (loaded?.Invoke(key) ?? true));
     }
 
     /// <summary>Copies whole chunks using the same cell ordering as the game source adapter.</summary>

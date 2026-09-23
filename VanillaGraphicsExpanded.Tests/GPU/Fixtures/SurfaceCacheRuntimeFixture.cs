@@ -23,11 +23,12 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     private readonly LumOnDebugRenderer debug;
     private readonly LumonSceneRelightUpdateRenderer relight;
     private readonly DebugViewController controller;
-    private readonly int requestedPages;
     private readonly uint[] feedbackPatches;
+    private readonly SpatialLightingScene? spatial;
+    private readonly int edge;
     public Block SourceBlock => material.Cube;
-    private readonly DynamicTexture2D color = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
-    private readonly DynamicTexture2D depth = DynamicTexture2D.Create(2, 2, PixelInternalFormat.R32f);
+    private readonly DynamicTexture2D color;
+    private readonly DynamicTexture2D depth;
     private readonly GpuFramebuffer output;
     public RuntimeRenderEvents Events { get; } = new();
     public VgeConfig Config { get; } = new();
@@ -47,11 +48,24 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Queries the production publication owner without retaining resources across frames.</summary>
     public bool TryGetLighting(out SurfaceLightingSnapshot snapshot) => relight.TryGetSurfaceLighting(out snapshot);
 
+    /// <summary>Requires every requested room page to have coherent produced lighting before a test freezes the producer budget.</summary>
+    public bool AllRequestedLightingReady()
+    {
+        if (!TryGetLighting(out var snapshot) || !Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _) ||
+            mapping.Count < (spatial?.Feedback().Length ?? feedbackPatches.Length)) return false;
+        using var ready = snapshot.Readiness.MapRange<uint>(0, checked((int)mapping.Keys.Max()+1), MapBufferAccessMask.MapReadBit);
+        if (!ready.IsMapped) return false;
+        foreach (uint page in mapping.Keys) if (ready.Span[(int)page] == 0) return false;
+        return true;
+    }
+
     #region Runtime setup
     /// <summary>Mocks camera and terrain raster inputs while retaining renderer registration, cache work and viewer selection.</summary>
-    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false)
+    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null)
     {
-        this.requestedPages = requestedPages;
+        this.spatial=spatial; edge=spatial==null?2:4;
+        color=DynamicTexture2D.Create(edge,edge,PixelInternalFormat.Rgba16f);
+        depth=DynamicTexture2D.Create(edge,edge,PixelInternalFormat.R32f);
         feedbackPatches = enclosure
             ? Enumerable.Range(0,6).SelectMany(axis => Enumerable.Range(0,4).Select(tile =>
                 1u + 6u * (uint)((axis%2==0?0:7)*64 + (tile/2)*8 + tile%2) + (uint)axis)).ToArray()
@@ -64,20 +78,22 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         cfg.NearTexelsPerVoxelFaceEdge = 1;
         cfg.TraceScene.ClipmapResolution = 32;
         cfg.RelightMaxPagesPerFrame = 1; cfg.RelightTexelsPerPagePerFrame = 64; cfg.RelightRaysPerTexel = 1; cfg.RelightMaxDdaSteps = 256;
-        LumOnCameraState? Camera() => new(0, 32, 0, 0, 32, 0, 0);
+        LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(0, 32, 0, 0, 32, 0, 0);
+        if(spatial!=null) { cfg.NearRadiusChunks=cfg.FarRadiusChunks=2; cfg.NearPagesPerChunkBudget=48; }
         var world = RuntimeRenderEvents.Adapt<IClientWorldAccessor>((method, _) => method.Name switch
         {
             "get_Player" => null, "get_MapSizeY" => 256, "get_Calendar" => null,
             _ => throw new NotSupportedException("World: " + method.Name)
         });
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-        depth.UploadDataImmediate(new float[] { .5f, .5f, .5f, .5f });
+        depth.UploadDataImmediate(Enumerable.Repeat(.5f,edge*edge).ToArray());
         output = GpuFramebuffer.CreateSingle(color)!;
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
-        framebuffers[(int)EnumFrameBuffer.Primary] = new() { FboId = output.FboId, Width = 2, Height = 2, DepthTextureId = depth.TextureId, ColorTextureIds = [color.TextureId] };
+        framebuffers[(int)EnumFrameBuffer.Primary] = new() { FboId = output.FboId, Width = edge, Height = edge, DepthTextureId = depth.TextureId, ColorTextureIds = [color.TextureId] };
         var render = RuntimeRenderEvents.Adapt<IRenderAPI>((method, args) => method.Name switch
         {
-            "get_FrameWidth" or "get_FrameHeight" => 2,
+            "get_FrameWidth" or "get_FrameHeight" => edge,
+            "get_CameraMatrixOriginf" when spatial!=null => spatial.View(),
             "get_CameraMatrixOriginf" or "get_CurrentProjectionMatrix" => identity,
             "get_FrameBuffers" => framebuffers,
             "get_AmbientColor" => new Vintagestory.API.MathTools.Vec3f(0, 0, 0),
@@ -101,12 +117,12 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         selected = shader;
         partitions.StartClientSide(api);
         Buffers = new(api);
-        Assert.True(Buffers.EnsureBuffers(2, 2));
+        Assert.True(Buffers.EnsureBuffers(edge, edge));
         Geometry = new(api, Config, partitions, materials =>
         {
             uint id = materials.Resolve(material.Cube);
             MaterialId = id;
-            var source = new RuntimeTraceGeometrySource((x, y, z) => new((enclosure ? x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7 : !exposedWall || x<=0) ? 2u | id << 2 : 1u, LumonSceneOccupancyPacking.PackClamped(BlockLight, 0, 0, (int)id), 0), () => GeometryAvailable);
+            var source = new RuntimeTraceGeometrySource((x, y, z) => new((spatial?.Solid(x,y,z) ?? (enclosure ? x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7 : !exposedWall || x<=0)) ? 2u | id << 2 : 1u, LumonSceneOccupancyPacking.PackClamped(spatial?.Light(x,y,z) ?? BlockLight, 0, 0, (int)id), 0), () => GeometryAvailable, key => spatial?.Loaded(key) ?? true);
             Sources.Add(source); return source;
         }, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
@@ -128,7 +144,19 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     {
         GpuUniformRingSystem.BeginTestFrame();
         Events.Render(EnumRenderStage.Opaque);
-        if (Feedback.TryGetNearChunkSlotAndGeneration(new(0, 1, 0), out uint slot, out ushort generation))
+        if(spatial!=null)
+        {
+            var patches=spatial.Feedback(); var pixels=new uint[edge*edge*4];
+            for(int i=0;i<edge*edge;i++)
+            {
+                var patch=patches[(Frames*edge*edge+i)%patches.Length];
+                if(!Feedback.TryGetNearChunkSlotAndGeneration(patch.Chunk,out uint s,out ushort g)) continue;
+                pixels[i*4]=s; pixels[i*4+1]=patch.Patch; pixels[i*4+3]=g;
+            }
+            using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,Buffers.PatchIdTextureId);
+            GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,edge,edge,PixelFormat.RgbaInteger,PixelType.UnsignedInt,pixels);
+        }
+        else if (Feedback.TryGetNearChunkSlotAndGeneration(new(0, 1, 0), out uint slot, out ushort generation))
         {
             uint[] pixels = Enumerable.Range(0, 4).SelectMany(index => new uint[] { slot, feedbackPatches[(Frames*4+index)%feedbackPatches.Length], 0, generation }).ToArray();
             using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, Buffers.PatchIdTextureId);
@@ -223,8 +251,8 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public float[] ReadPixels()
     {
         output.BindWithViewport();
-        float[] result = new float[16];
-        GL.ReadPixels(0, 0, 2, 2, PixelFormat.Rgba, PixelType.Float, result);
+        float[] result = new float[edge*edge*4];
+        GL.ReadPixels(0, 0, edge, edge, PixelFormat.Rgba, PixelType.Float, result);
         return result;
     }
 

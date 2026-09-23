@@ -41,7 +41,9 @@ internal sealed class BinaryShaderApiFixture : IDisposable
         });
         var logger = Proxy<ILogger>((method, args) =>
         {
-            Logs.Add(method.Name + ": " + string.Join(" ", args ?? []));
+            // Logger overloads pack format arguments into an array; retain their error details.
+            Logs.Add(method.Name + ": " + string.Join(" ", (args ?? []).SelectMany(
+                value => value is object[] values ? values : new[] { value })));
             return null;
         });
         var events = Proxy<IClientEventAPI>((method, args) =>
