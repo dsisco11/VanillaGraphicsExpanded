@@ -22,6 +22,9 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private readonly LumonSceneCaptureWorkGpu[] captureItems;
     private readonly LumonSceneRelightWorkGpu[] lightingItems;
     private int generation;
+    public long DependencyRevision { get; set; }
+    public bool DividedRoom { get; }
+    public bool DoorOpen { get; set; } = true;
     private readonly uint materialId;
     private readonly int offsetX, firstChunk, chunkCount;
     public SharedTraceGeometryFixture Geometry { get; }
@@ -31,12 +34,13 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public int? ExteriorBlockLight { get; set; }
     public bool EmissionPolicy { get; set; }
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
-        metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation);
+        metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation, DependencyRevision);
 
     #region Setup
     /// <summary>Captures every inward facing patch of an eight-voxel enclosure.</summary>
-    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0)
+    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0, bool dividedRoom = false)
     {
+        DividedRoom=dividedRoom;
         offsetX=xOffset; firstChunk=xOffset>>5; chunkCount=((xOffset+7)>>5)-firstChunk+1;
         BlockLight = blockLight;
         material.SetReadiness(true,true,new System.Numerics.Vector3(reflectance), emission / 32f);
@@ -49,11 +53,12 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         pages = Texture3D.Create(128,128,chunkCount,PixelInternalFormat.R32ui,textureTarget:TextureTarget.Texture2DArray);
         var entries = new uint[128*128*chunkCount]; var capture = new List<LumonSceneCaptureWorkGpu>();
         var seen=new HashSet<(uint Slot,uint Patch)>();
-        for (uint axis=0; axis<6; axis++)
+        foreach (var face in Enumerable.Range(0,6).Select(axis => (Axis:(uint)axis, Plane:axis%2==0?0:7))
+            .Concat(dividedRoom ? new[]{(Axis:4u,Plane:5),(Axis:5u,Plane:5)} : []))
         for (int v=0; v<8; v++)
         for (int u=0; u<8; u++)
         {
-            int plane=axis%2==0?0:7;
+            uint axis=face.Axis; int plane=face.Plane;
             int x=offsetX+(axis<2?plane:u), y=32+(axis<2?v:axis<4?plane:v), z=axis<2?u:axis<4?v:plane;
             int px=x&31, py=y&31, pz=z&31;
             int localPlane=axis<2?px:axis<4?py:pz;
@@ -72,6 +77,14 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         slots = Buffer<int>(slotData); readiness = Buffer<uint>(new uint[captureItems.Length+1]);
         work = Buffer<LumonSceneCaptureWorkGpu>(captureItems);
         pages.UploadDataImmediate(entries,0,0,0,128,128,chunkCount);
+        Capture();
+        producer = new(assets.Api);
+    }
+
+    /// <summary>Recaptures the authored faces after geometry changes, retaining the physical atlas allocation.</summary>
+    public void Capture()
+    {
+        work.UploadSubData<LumonSceneCaptureWorkGpu>(captureItems,0,captureItems.Length*16);
         Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api,out var captureShader,out string log),log);
         using (captureShader)
         using (captureShader!.UseScope())
@@ -85,15 +98,15 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         }
         using (var result=work.MapRange<LumonSceneCaptureWorkGpu>(0,captureItems.Length,MapBufferAccessMask.MapReadBit))
         { Assert.True(result.IsMapped); foreach (var item in result.Span) Assert.Equal(0u,item.VirtualPageIndex & 0x80000000u); }
-        producer = new(assets.Api);
     }
 
     /// <summary>Defines a solid boundary with explicit effective light values in all adjacent cells.</summary>
-    private TraceGeometryVoxel Sample(int x,int y,int z)
+    internal TraceGeometryVoxel Sample(int x,int y,int z)
     {
         bool wall=x<=offsetX || x>=offsetX+7 || y<=32 || y>=39 || z<=0 || z>=7;
+        if (DividedRoom && z==5 && (!DoorOpen || x<offsetX+2 || x>offsetX+5 || y<34 || y>37)) wall=true;
         bool exterior=x<offsetX || x>offsetX+7 || y<32 || y>39 || z<0 || z>7;
-        int light=exterior ? ExteriorBlockLight ?? BlockLight : BlockLight;
+        int light=DividedRoom ? (z>=6 ? 32 : 0) : exterior ? ExteriorBlockLight ?? BlockLight : BlockLight;
         return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(light,SunLight,0,0),0);
     }
 

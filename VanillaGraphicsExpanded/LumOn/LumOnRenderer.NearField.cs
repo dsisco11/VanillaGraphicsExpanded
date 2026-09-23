@@ -8,11 +8,10 @@ public partial class LumOnRenderer
 {
     private ITraceGeometrySceneProvider? nearFieldProvider;
     private TraceGeometryGpuScene? nearFieldScene;
-    private long nearFieldRevision = -1;
+    private readonly ProbeLightingHistoryDependencies historyDependencies = new();
     private ISurfaceLightingProvider? surfaceLightingProvider;
     private SurfaceLightingSnapshot? surfaceLighting;
     private SurfaceLightingBindings? surfaceLightingBindings;
-    private long surfaceLightingRevision = -1;
 
     #region Published Scene
     /// <summary>Injects the owner of coherent outgoing radiance used at geometry hits.</summary>
@@ -24,17 +23,10 @@ public partial class LumOnRenderer
     /// <summary>Invalidates temporal histories when published geometry or its mapping changes.</summary>
     private void PrepareNearFieldScene()
     {
-        var scene = nearFieldProvider?.PrepareScene();
-        long revision = scene?.Revision ?? -1;
-        if (!ReferenceEquals(scene, nearFieldScene) || revision != nearFieldRevision)
-            isFirstFrame = true;
-        nearFieldScene = scene;
-        nearFieldRevision = revision;
+        nearFieldScene = nearFieldProvider?.PrepareScene();
         surfaceLighting = surfaceLightingProvider != null && surfaceLightingProvider.TryGetSurfaceLighting(out var lighting)
             ? lighting : null;
-        long dependency = surfaceLighting?.DependencyRevision ?? -1;
-        if (dependency != surfaceLightingRevision) isFirstFrame = true;
-        surfaceLightingRevision = dependency;
+        if (historyDependencies.Synchronize(nearFieldScene, surfaceLighting)) isFirstFrame = true;
     }
     #endregion
 }

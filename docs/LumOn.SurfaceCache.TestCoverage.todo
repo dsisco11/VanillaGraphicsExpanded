@@ -126,12 +126,28 @@ Timing, count, resource and hash receipts: `artifacts/spirv-parallel/{baseline-1
 
 ## 9. Persistent temporal history
 
-- [ ] Extend the cache-to-pixel fixture with production temporal accumulation, retained probe history and partial directional updates across frames. Verify unchanged inputs preserve accumulation rather than resetting each frame.
-- [ ] Accumulate bright lighting, remove and restore its source, and verify stale illumination disappears and lighting returns within a defined frame/update budget through both gather modes.
-- [ ] Exercise cache unavailability, dependency revision changes and resource recreation with populated history. Verify invalidation rejects obsolete lighting while ordinary bounce-generation publication preserves valid history.
-- [ ] Extend the controlled doorway fixture through final pixels: accumulate open-door illumination, close the doorway with the exterior still bright, then reopen it. Assert occlusion, disappearance of stale lighting and restoration across frames.
+- [x] Extend the cache-to-pixel fixture with production temporal accumulation, retained probe history and partial directional updates across frames. Verify unchanged inputs preserve accumulation rather than resetting each frame.
+- [x] Accumulate bright lighting, remove and restore its source, and verify stale illumination disappears and lighting returns within a defined frame/update budget through both gather modes.
+- [x] Exercise cache unavailability, dependency revision changes and resource recreation with populated history. Verify invalidation rejects obsolete lighting while ordinary bounce-generation publication preserves valid history.
+- [x] Extend the controlled doorway fixture through final pixels: accumulate open-door illumination, close the doorway with the exterior still bright, then reopen it. Assert occlusion, disappearance of stale lighting and restoration across frames.
 
 Completion: multi-frame GPU tests demonstrate correct history retention and rejection; rebuilding an empty pipeline for each observation does not satisfy this section.
+
+
+Traceability and executed evidence:
+
+| Task | Controlling document sections | Requirements and evidence |
+| --- | --- | --- |
+| Retained temporal processing | LumOn.SurfaceCache.LightingContract.md: Indirect estimator and history; Geometry-hit consumers | Real temporal SPIR-V, production buffer ping-pong, 8/64 directions per probe per frame; bit-identical retained directions and numerical evidence of blending during a bounce publication (`RetainedHistoryFollowsSourceLighting`, `BounceGenerationPreservesAndAccumulatesHistory`). |
+| Source removal/restoration | LumOn.SurfaceCache.LightingContract.md: Lighting terms and units; Geometry-hit consumers | Change source voxel light only, retain downstream buffers; inspect trace, temporal, filter, both gathers and final composition (`RetainedHistoryFollowsSourceLighting`). |
+| Dependency/resource lifetime | LumOn.SurfaceCache.LightingContract.md: Atlas and publication design; Geometry-hit consumers | Reuse the renderer's dependency decision and production ClearHistory; unavailable provider, dependency-only revision and replaced cache resources reject populated history; bounce generation preserves it (`UnavailabilityAndDependencyRevisionRejectHistory`, `CacheResourceRecreationRejectsPopulatedHistory`, and the bounce case). |
+| Doorway transitions | LumOn.SurfaceCache.LightingContract.md: Supported light adaptation; Geometry-hit consumers | A divided voxel enclosure keeps its exterior light fixed while doorway occupancy changes; real recapture/seed and ray distances prove occlusion; retained final output becomes dark then returns (`DoorwayClosureAndReopeningReachRetainedFinalPixels`). |
+
+Acceptance bounds: eight directions per probe per frame, a 16-block trace reach enclosing the fixture (the general trace helper defaults to 4), eight frames per complete directional sweep, temporal alpha 0.9, hit-distance rejection 0.3. Dependency invalidation must remove obsolete RGB on the first observed frame; one complete sweep restores all supported directions. All dark RGB channels must be within 0.0001 of zero, lit boundaries exceed 0.001, restored final RGB must match within absolute 0.01. Untraced retained RGBA is exact binary16 equality. Ordinary bounce publication must produce at least one genuinely blended freshly traced sample as well as preserve untraced energy. Histories and atlas allocations survive observations; transient downstream pass targets do not own temporal state. Full callback orchestration and moving anchors remain Sections 10–11.
+
+Validation: final-source shader-enabled application/test build passed; the initial clean compile produced 100 stages / 245 variants and the final incremental invocation verified current binaries/contracts. GPU suites passed 48/48 with zero failures or skips: persistent history 10, existing final pixels 14, surface producers 7, temporal shader functional tests 17. Receipts: `artifacts/surface-temporal/history-and-neighbors.{log,trx}`; focused doorway verification passed 2/2 in `doorway.{log,trx}` in the same directory. The first run exposed an insufficient fixture trace reach (4 blocks); the explicit 16-block reach fixed it while retaining full-confidence and occlusion assertions. The source build also exposed the shader-build wrapper's obsolete .NET 8 target after the compiler moved to .NET 10; the wrapper now targets .NET 10. Initial failed receipts are retained. Five existing unrelated analyzer warnings appeared during compilation. These are headless GPU results, not live in-game verification.
+
+Second implementation review and independent completion audit passed with no outstanding findings. All four tasks are complete; the existing invalidation decision was extracted into "ProbeLightingHistoryDependencies" without changing its semantics, and the tests share that decision plus production buffer clearing/swapping.
 
 ## 10. Full consumer runtime orchestration
 
