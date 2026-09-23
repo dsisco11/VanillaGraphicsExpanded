@@ -871,6 +871,9 @@ public class VgeConfig
             [JsonProperty]
             public int RelightRaysPerTexel { get; set; } = 1;
 
+            /// <summary>Selects material emission instead of aggregate block light, avoiding duplicate source energy.</summary>
+            public bool SurfaceLightingMaterialEmission { get; set; } = false;
+
             /// <summary>
             /// Max voxel steps for the DDA tracer (per ray).
             /// </summary>
@@ -911,9 +914,9 @@ public class VgeConfig
 
             private static int SanitizeTexelsPerVoxelFaceEdge(int v)
             {
-                // Keep tile division exact for 4096x4096 physical atlases:
-                // tileSize = (texelsPerVoxelFaceEdge * patchSizeVoxels) must evenly divide 4096.
-                // With patchSizeVoxels = 4, this means texelsPerVoxelFaceEdge must divide 1024.
+                // Keep tile division exact for 1024x1024 physical atlases:
+                // tileSize = (texelsPerVoxelFaceEdge * patchSizeVoxels) must evenly divide 1024.
+                // With patchSizeVoxels = 4, this means texelsPerVoxelFaceEdge must divide 256.
                 // v1 restricts to power-of-two values within [1..64].
                 v = Math.Clamp(v, 1, 64);
                 return (int)BitOperations.RoundUpToPowerOf2((uint)v);

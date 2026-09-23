@@ -17,11 +17,11 @@ public sealed class LumonScenePhysicalPoolPlannerTests
 
         Assert.Equal(LumonSceneField.Near, p.Field);
         Assert.Equal(16, p.TileSizeTexels);
-        Assert.Equal(256, p.TilesPerAxis);
-        Assert.Equal(256 * 256, p.TilesPerAtlas);
+        Assert.Equal(64, p.TilesPerAxis);
+        Assert.Equal(64 * 64, p.TilesPerAtlas);
         Assert.Equal(323 * 16, p.RequestedPages);
         Assert.Equal(323 * 16, p.CapacityPages);
-        Assert.Equal(1, p.AtlasCount);
+        Assert.Equal(2, p.AtlasCount);
         Assert.False(p.IsClampedByMaxAtlases);
     }
 
@@ -39,12 +39,11 @@ public sealed class LumonScenePhysicalPoolPlannerTests
 
         Assert.Equal(LumonSceneField.Far, p.Field);
         Assert.Equal(4, p.TileSizeTexels);
-        Assert.Equal(1024, p.TilesPerAxis);
-        Assert.Equal(1024 * 1024, p.TilesPerAtlas);
+        Assert.Equal(256, p.TilesPerAxis);
+        Assert.Equal(256 * 256, p.TilesPerAtlas);
         Assert.Equal((4225 - 289) + 130, p.RequestedPages);
         Assert.Equal(p.RequestedPages, p.CapacityPages);
         Assert.Equal(1, p.AtlasCount);
         Assert.False(p.IsClampedByMaxAtlases);
     }
 }
-

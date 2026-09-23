@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal static class LumonScenePhysicalPoolPlanner
 {
     public const int PatchSizeVoxels = LumonSceneVoxelPatchLayout.VoxelsPerPatchEdge; // 4
-    public const int PhysicalAtlasSizeTexels = LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels; // 4096
+    public const int PhysicalAtlasSizeTexels = LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels; // 1024
 
     public static LumonScenePhysicalPoolPlan CreateNearPlan(int nearTexelsPerVoxelFaceEdge, int nearRadiusXZChunks, int nearRadiusYChunks, int nearPagesPerChunkBudget, int maxAtlasCount)
     {

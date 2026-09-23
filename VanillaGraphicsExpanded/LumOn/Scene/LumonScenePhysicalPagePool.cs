@@ -20,7 +20,7 @@ internal readonly struct LumonScenePhysicalPage
 
 /// <summary>
 /// Budgeted physical page pool for a single field (Near or Far).
-/// Pages are backed by a fixed set of 4096x4096 atlas textures; each physical page corresponds to one tile in an atlas layer.
+/// Pages are backed by a bounded set of physical atlas textures; each physical page corresponds to one tile in an atlas layer.
 /// </summary>
 internal sealed class LumonScenePhysicalPagePool
 {

@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// v1 payload:
 /// - RGBA32UI, one texel per surface id.
 /// - x/y/z: base color (0..255) (linear)
-/// - w: roughness (0..255)
+/// - w: low byte roughness (0..255), upper half binary16 neutral emission in engine units
 /// </remarks>
 internal sealed class LumonScenePbrSurfaceLutRegistry
 {
@@ -164,6 +164,7 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
         return upgraded;
     }
 
+    /// <summary>Packs diffuse reflectance, roughness and HDR neutral emission into one immutable surface row.</summary>
     private void WriteSurfaceUnsafe(int surfaceId, PbrMaterialSurface surface)
     {
         int o = surfaceId * 4;
@@ -171,7 +172,9 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
         lutData[o + 0] = Float01ToByte(surface.DiffuseAlbedo.X);
         lutData[o + 1] = Float01ToByte(surface.DiffuseAlbedo.Y);
         lutData[o + 2] = Float01ToByte(surface.DiffuseAlbedo.Z);
-        lutData[o + 3] = Float01ToByte(surface.Roughness);
+        // Upper half stores neutral emitted radiance in engine units without LDR clipping.
+        float emission = float.IsFinite(surface.Emissive) ? Math.Clamp(surface.Emissive * 32f, 0f, 65504f) : 0f;
+        lutData[o + 3] = Float01ToByte(surface.Roughness) | ((uint)BitConverter.HalfToUInt16Bits((Half)emission) << 16);
     }
 
     private static AssetLocation NormalizeTextureKey(AssetLocation key)

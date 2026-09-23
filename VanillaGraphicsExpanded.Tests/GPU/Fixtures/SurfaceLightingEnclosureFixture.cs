@@ -1,0 +1,171 @@
+using System.Runtime.InteropServices;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+
+namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+
+/// <summary>Reusable closed voxel enclosure with real captured pages and two outgoing lighting generations.</summary>
+internal sealed class SurfaceLightingEnclosureFixture : IDisposable
+{
+    private const int Edge = 8, AtlasEdge = 64, TilesPerAxis = 8;
+    private readonly ScopedPbrMaterialFixture material = new();
+    private readonly BinaryShaderApiFixture assets = new();
+    private readonly SurfaceLightingDispatch producer;
+    private readonly GpuShaderStorageBuffer work, metadata, slots, readiness;
+    private readonly Texture3D depth, captured, direct, indirect, pages;
+    private readonly Texture3D[] outgoing;
+    private readonly LumonSceneCaptureWorkGpu[] captureItems;
+    private readonly LumonSceneRelightWorkGpu[] lightingItems;
+    private int generation;
+    private readonly uint materialId;
+    public SharedTraceGeometryFixture Geometry { get; }
+    public int BlockLight { get; set; }
+    public int SunLight { get; set; }
+    public bool EmissionPolicy { get; set; }
+    public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
+        metadata, slots, readiness, new(0,1,0), new(1,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation);
+
+    #region Setup
+    /// <summary>Captures every inward facing patch of an eight-voxel enclosure.</summary>
+    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f)
+    {
+        BlockLight = blockLight;
+        material.SetReadiness(true,true,new System.Numerics.Vector3(reflectance), emission / 32f);
+        var materials = new TraceGeometryMaterials(); materialId = materials.Resolve(material.Cube);
+        Geometry = new(TraceGeometryCoverage.Plan(new(4,36,4),true,32,256),materials,Sample);
+        Geometry.Publish();
+        depth = Texture(PixelInternalFormat.R16f); captured = Texture(PixelInternalFormat.Rgba8);
+        direct = Texture(PixelInternalFormat.Rgba16f); indirect = Texture(PixelInternalFormat.Rgba16f);
+        outgoing = [Texture(PixelInternalFormat.Rgba16f),Texture(PixelInternalFormat.Rgba16f)];
+        pages = Texture3D.Create(128,128,1,PixelInternalFormat.R32ui,textureTarget:TextureTarget.Texture2DArray);
+        var entries = new uint[128*128]; var capture = new List<LumonSceneCaptureWorkGpu>();
+        for (uint axis=0; axis<6; axis++)
+        for (uint v=0; v<2; v++)
+        for (uint u=0; u<2; u++)
+        {
+            uint plane = axis % 2 == 0 ? 0u : 7u;
+            uint patch = 1+6*(plane*64+v*8+u)+axis;
+            uint id = (uint)capture.Count+1;
+            capture.Add(new(id,0,patch,patch));
+            entries[patch] = LumonScenePageTableEntryPacking.Pack(id,LumonScenePageTableEntryPacking.Flags.Resident).Packed;
+        }
+        captureItems = capture.ToArray();
+        lightingItems = captureItems.Select(item=>new LumonSceneRelightWorkGpu(item.PhysicalPageId,0,0,item.VirtualPageIndex)).ToArray();
+        metadata = Buffer<LumonScenePatchMetadataGpu>(new LumonScenePatchMetadataGpu[captureItems.Length+1]);
+        slots = Buffer<int>([0,32,0,0]); readiness = Buffer<uint>(new uint[captureItems.Length+1]);
+        work = Buffer<LumonSceneCaptureWorkGpu>(captureItems);
+        pages.UploadDataImmediate(entries,0,0,0,128,128,1);
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api,out var captureShader,out string log),log);
+        using (captureShader)
+        using (captureShader!.UseScope())
+        {
+            captureShader.BindSharedGeometry(Geometry.Scene); captureShader.BindCaptureWorkSsbo(work);
+            captureShader.BindPatchMetaSsbo(metadata); captureShader.BindChunkSlotInfoSsbo(slots);
+            captureShader.BindDepthAtlasImage(depth); captureShader.BindMaterialAtlasImage(captured);
+            captureShader.SetAtlasLayout(Edge,TilesPerAxis,TilesPerAxis*TilesPerAxis,0);
+            GL.DispatchCompute(1,1,captureItems.Length);
+            GL.MemoryBarrier(MemoryBarrierFlags.AllBarrierBits);
+        }
+        using (var result=work.MapRange<LumonSceneCaptureWorkGpu>(0,captureItems.Length,MapBufferAccessMask.MapReadBit))
+        { Assert.True(result.IsMapped); foreach (var item in result.Span) Assert.Equal(0u,item.VirtualPageIndex & 0x80000000u); }
+        producer = new(assets.Api);
+    }
+
+    /// <summary>Defines a solid boundary with explicit effective light values in all adjacent cells.</summary>
+    private TraceGeometryVoxel Sample(int x,int y,int z)
+    {
+        bool wall=x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7;
+        return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(BlockLight,SunLight,0,0),0);
+    }
+
+    /// <summary>Allocates a small fixture atlas with production formats.</summary>
+    private static Texture3D Texture(PixelInternalFormat format) =>
+        Texture3D.Create(AtlasEdge,AtlasEdge,1,format,TextureFilterMode.Nearest,TextureTarget.Texture2DArray);
+
+    /// <summary>Creates a typed buffer using production storage ownership.</summary>
+    private static GpuShaderStorageBuffer Buffer<T>(ReadOnlySpan<T> data) where T:unmanaged
+    {
+        var buffer=GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw);
+        int bytes=data.Length*Marshal.SizeOf<T>(); buffer.EnsureCapacity(bytes,growExponentially:false);
+        buffer.UploadSubData(data,0,bytes); return buffer;
+    }
+    #endregion
+
+    #region Lighting execution and readback
+    /// <summary>Seeds direct and emitted lighting, resetting dependent indirect history.</summary>
+    public void Seed()
+    {
+        Run(0);
+        Publish();
+        readiness.UploadSubData<uint>(Enumerable.Repeat(1u,captureItems.Length+1).ToArray(),0,(captureItems.Length+1)*4);
+    }
+
+    /// <summary>Runs one previous-generation bounce and publishes its complete numerical results.</summary>
+    public void Bounce() { Run(1); Publish(); }
+
+    /// <summary>Dispatches all captured pages without injecting any downstream light values.</summary>
+    private void Run(uint operation)
+    {
+        work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems,0,lightingItems.Length*16);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,operation,64,4,256,(uint)generation,EmissionPolicy);
+        using var result = work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,MapBufferAccessMask.MapReadBit);
+        Assert.True(result.IsMapped);
+        foreach (var item in result.Span) Assert.Equal(0u,item.VirtualPageIndex & 0x80000000u);
+    }
+
+    /// <summary>Combines into the separate generation; all fixture pages update together so no carry-forward is needed.</summary>
+    private void Publish()
+    {
+        Run(2); generation++; GpuTestFence.WaitForGpuOrSkip("Surface outgoing generation");
+        var pixels = new float[AtlasEdge * AtlasEdge * 4];
+        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,Snapshot.OutgoingRadiance.TextureId);
+        GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,pixels);
+        foreach (var item in lightingItems)
+        {
+            int local = (int)item.PhysicalPageId - 1;
+            for (int y=0; y<Edge; y++) for (int x=0; x<Edge; x++)
+            {
+                int offset = ((local / TilesPerAxis * Edge + y) * AtlasEdge + local % TilesPerAxis * Edge + x) * 4;
+                Assert.Equal(1f,pixels[offset+3]);
+                for (int c=0;c<3;c++) Assert.InRange(pixels[offset+c],0f,65504f);
+            }
+        }
+    }
+
+    /// <summary>Withholds every cached page, exercising unavailable hit lighting without altering geometry.</summary>
+    public void WithholdPages() => readiness.UploadSubData<uint>(new uint[captureItems.Length+1],0,(captureItems.Length+1)*4);
+
+    /// <summary>Runs an expected incomplete bounce without combining or publishing its partially updated scratch history.</summary>
+    public bool TryIncompleteBounce()
+    {
+        work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems,0,lightingItems.Length*16);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,1,64,4,256,(uint)generation,EmissionPolicy);
+        using var result=work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,MapBufferAccessMask.MapReadBit);
+        Assert.True(result.IsMapped);
+        return result.Span.ToArray().All(item => (item.VirtualPageIndex & 0x80000000u)==0);
+    }
+
+    /// <summary>Reads a central texel of the first +X patch, avoiding non-surface corners of the voxel enclosure.</summary>
+    public float[] Read(GpuTexture texture)
+    {
+        var pixels=new float[AtlasEdge*AtlasEdge*4];
+        using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,texture.TextureId);
+        GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,pixels);
+        return pixels.AsSpan((3*AtlasEdge+3)*4,4).ToArray();
+    }
+
+    /// <summary>Releases fixture resources in producer-before-input order.</summary>
+    public void Dispose()
+    {
+        producer.Dispose(); work.Dispose();metadata.Dispose();slots.Dispose();readiness.Dispose();
+        depth.Dispose();captured.Dispose();direct.Dispose();indirect.Dispose();pages.Dispose();
+        foreach(var texture in outgoing) texture.Dispose();
+        Geometry.Dispose(); assets.Dispose(); material.Dispose();
+    }
+    #endregion
+}

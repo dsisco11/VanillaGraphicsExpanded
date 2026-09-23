@@ -47,11 +47,17 @@ Controlling design and task traceability: [Surface-cache lighting contract](LumO
 Validation: second implementation review and independent completion audit passed. The normal shader-enabled build compiled 98 stages / 243 SPIR-V variants. Focused GPU suites passed 18/18 with zero failures or skips: lighting terms 5/5, dynamic history 2/2, shared surface 11/11. Receipts: artifacts/shader-variant-contracts/surface-cache-terms-{lighting,dynamic,shared}.{log,trx}. New coverage checks distance invariance, nonwhite hit reflectance, rejection of incomplete hemisphere batches, and capped-history energy stability.
 
 ## 5. Produce and publish complete surface lighting
-- [ ] Capture the material data needed for diffuse reflectance and emission; compute direct irradiance from supported scene lighting with the documented visibility and sky treatment.
-- [ ] Update indirect irradiance by tracing against previously published surface outgoing radiance, with correct integration weights and bounded temporal accumulation. Prevent same-dispatch read/write feedback and double-counting direct light or emission.
-- [ ] Combine the lighting terms into outgoing radiance and publish coherent page mappings, generations, readiness, and lighting resources through a read-only provider.
-- [ ] Invalidate affected lighting and dependent indirect history when lights, materials, geometry, residency, or atlas resources change; verify bounded convergence after light removal and restoration.
-- [ ] Add reusable numerical tests for isolated direct, indirect, and emissive terms, albedo scaling, normalization, valid darkness, and stable multi-bounce updates.
+
+Controlling design and task traceability: [Surface-cache lighting contract](LumOn.SurfaceCache.LightingContract.md).
+- [x] Capture the material data needed for diffuse reflectance and emission; compute direct irradiance from supported scene lighting with the documented visibility and sky treatment.
+- [x] Update indirect irradiance by tracing against previously published surface outgoing radiance, with correct integration weights and bounded temporal accumulation. Prevent same-dispatch read/write feedback and double-counting direct light or emission.
+- [x] Combine the lighting terms into outgoing radiance and publish coherent page mappings, generations, readiness, and lighting resources through a read-only provider.
+- [x] Invalidate affected lighting and dependent indirect history when lights, materials, geometry, residency, or atlas resources change; verify bounded convergence after light removal and restoration.
+- [x] Add reusable numerical tests for isolated direct, indirect, and emissive terms, albedo scaling, normalization, valid darkness, and stable multi-bounce updates.
+
+Validation: second implementation review and independent completion audit passed. Normal shader-enabled build compiled 99 stages / 244 variants. Focused suites passed 44/44 with zero failures or skips: producers 7, runtime 5, pool/budget units 10, dynamic history 2, shared surface 11, estimator terms 5, debug bindings 4. Producer coverage uses real capture and previous-generation transport, checks every page completion marker and outgoing texel validity, and verifies direct/albedo/emission accounting, normalization, unavailable-page history, removal/restoration and stable multiple bounces. The runtime test verifies partial-page readiness and bitwise preservation of a previously lit tile across publication swaps, plus configuration/resource invalidation. Receipts: artifacts/shader-variant-contracts/surface-lighting-build.log, surface-lighting-producer.trx, surface-lighting-runtime-final.{log,trx}, surface-lighting-pool.{log,trx}, and surface-lighting-{SurfaceCacheDynamicLightingTests,SharedTraceSceneSurfaceTests,SurfaceCacheLightingTermsTests,SurfaceCacheDebugBindingTests}.{log,trx}.
+
+The production provider is ready for consumer integration. Screen/world probe consumers and final-lighting proof remain Sections 6–7.
 
 ## 6. Consume surface lighting at geometry hits
 - [ ] Implement shared hit-to-surface addressing from geometry hit position, face/material identity, and chunk generation through the page table to cached outgoing radiance. Test cross-chunk hits, boundaries, stale mappings, and unavailable pages.

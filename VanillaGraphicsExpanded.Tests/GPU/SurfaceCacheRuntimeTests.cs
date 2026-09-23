@@ -93,5 +93,74 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         Assert.True(page.Capture(scene));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
+    /// <summary>Sampling changes invalidate publication immediately and reseed valid darkness within the configured page budget.</summary>
+    [Fact]
+    public void PublicationRejectsChangedSettingsAndResourcesBeforeReuse()
+    {
+        EnsureContextValid();
+        using var runtime = new SurfaceCacheRuntimeFixture();
+        runtime.PrimeGeometry();
+        runtime.RunUntil(() => runtime.TryGetLighting(out _));
+        Assert.True(runtime.TryGetLighting(out var first));
+        runtime.Config.LumOn.LumonScene.RelightRaysPerTexel = 4;
+        Assert.False(runtime.TryGetLighting(out _));
+        runtime.RunUntil(() => runtime.TryGetLighting(out _));
+        Assert.True(runtime.TryGetLighting(out var second));
+        Assert.True(second.Generation > first.Generation);
+        runtime.RequestAtlasRecreation();
+        runtime.Frame();
+        runtime.RunUntil(() => runtime.TryGetLighting(out var value) && !ReferenceEquals(value.OutgoingRadiance, second.OutgoingRadiance));
+        Assert.False(second.OutgoingRadiance.IsValid);
+        runtime.LeaveWorld();
+        Assert.False(runtime.TryGetLighting(out _));
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    /// <summary>Partial pages stay unavailable while a later publication preserves another complete tile.</summary>
+    [Fact]
+    public void PartialPagePublicationCarriesForwardUnchangedTiles()
+    {
+        EnsureContextValid();
+        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages:2,exposedWall:true);
+        runtime.Config.LumOn.LumonScene.RelightTexelsPerPagePerFrame=4;
+        runtime.PrimeGeometry();
+        runtime.RunUntil(() => runtime.TryGetLighting(out _));
+        Assert.True(runtime.TryGetLighting(out var first));
+        Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mappings,out _));
+        uint[] ids=mappings.Keys.ToArray();
+        Assert.Equal(2,ids.Length);
+        int readCount=checked((int)ids.Max()+1);
+        uint firstId;
+        using (var ready=first.Readiness.MapRange<uint>(0,readCount,MapBufferAccessMask.MapReadBit))
+        {
+            Assert.True(ready.IsMapped);
+            Assert.Equal(1u,ready.Span[(int)ids[0]]+ready.Span[(int)ids[1]]);
+            firstId=ready.Span[(int)ids[0]]==1 ? ids[0] : ids[1];
+        }
+        float[] before=ReadTile(first,firstId);
+        Assert.True(before[0]>0);
+        Assert.All(Enumerable.Range(0,before.Length/4),index=>Assert.Equal(1f,before[index*4+3]));
+        runtime.Frame();
+        Assert.True(runtime.TryGetLighting(out var second));
+        Assert.True(second.Generation>first.Generation);
+        using (var ready=second.Readiness.MapRange<uint>(0,readCount,MapBufferAccessMask.MapReadBit))
+        { Assert.True(ready.IsMapped);Assert.Equal(1u,ready.Span[(int)ids[0]]);Assert.Equal(1u,ready.Span[(int)ids[1]]); }
+        Assert.Equal(before,ReadTile(second,firstId));
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+
+    /// <summary>Reads one published tile using its production physical-address layout.</summary>
+    private static float[] ReadTile(in SurfaceLightingSnapshot snapshot,uint id)
+    {
+        var atlas=snapshot.OutgoingRadiance;
+        var all=new float[atlas.Width*atlas.Height*atlas.Depth*4];
+        using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,atlas.TextureId);
+        GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,all);
+        int local=(int)((id-1)%(uint)snapshot.TilesPerAtlas), layer=(int)((id-1)/(uint)snapshot.TilesPerAtlas);
+        int x=local%snapshot.TilesPerAxis*snapshot.TileSize,y=local/snapshot.TilesPerAxis*snapshot.TileSize;
+        var tile=new float[snapshot.TileSize*snapshot.TileSize*4];
+        for(int row=0;row<snapshot.TileSize;row++)
+            all.AsSpan(((layer*atlas.Height+y+row)*atlas.Width+x)*4,snapshot.TileSize*4).CopyTo(tile.AsSpan(row*snapshot.TileSize*4));
+        return tile;
+    }
     #endregion
 }

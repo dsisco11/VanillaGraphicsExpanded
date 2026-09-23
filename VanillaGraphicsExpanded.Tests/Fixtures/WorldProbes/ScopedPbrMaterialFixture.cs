@@ -35,9 +35,9 @@ internal sealed class ScopedPbrMaterialFixture : IDisposable
     }
 
     /// <summary>Publishes or withholds the surface and derived lookup independently, using the production lookup builder.</summary>
-    public void SetReadiness(bool surfaceReady, bool derivedReady, Vector3? diffuseAlbedo = null)
+    public void SetReadiness(bool surfaceReady, bool derivedReady, Vector3? diffuseAlbedo = null, float emissive = 0f)
     {
-        var surface = new PbrMaterialSurface(0.5f, 0f, 0f, diffuseAlbedo ?? Vector3.One, new Vector3(0.04f));
+        var surface = new PbrMaterialSurface(0.5f, 0f, emissive, diffuseAlbedo ?? Vector3.One, new Vector3(0.04f));
         if (surfaceReady) surfaces[texture] = surface;
         else surfaces.Remove(texture);
         // Build complete face data from the same material even when only its surface publication is withheld.

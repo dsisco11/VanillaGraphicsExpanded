@@ -14,8 +14,14 @@ internal sealed class LumonScenePhysicalPoolManager : IDisposable
     public LumonScenePhysicalFieldPool Near => near;
     public LumonScenePhysicalFieldPool Far => far;
 
+    /// <summary>Plans both fields under the shared live byte budget before admitting GPU allocations.</summary>
     public void ConfigureFrom(in VgeConfig.LumOnSettingsConfig.LumonSceneConfig cfg, int maxAtlasCount = MaxAtlasCountDefault)
     {
+        // Split the total layer budget between the two fields before allocating either.
+        int byteLimitedAtlases = (int)(LumonScenePhysicalAtlasGpuResources.TotalByteBudget /
+            (2L * LumonScenePhysicalAtlasGpuResources.BytesPerTexel *
+             LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels * LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels));
+        maxAtlasCount = Math.Min(maxAtlasCount, byteLimitedAtlases);
         LumonScenePhysicalPoolPlan nearPlan = LumonScenePhysicalPoolPlanner.CreateNearPlan(
             cfg.NearTexelsPerVoxelFaceEdge,
             cfg.NearRadiusChunks,
@@ -51,4 +57,3 @@ internal sealed class LumonScenePhysicalPoolManager : IDisposable
         far.Dispose();
     }
 }
-

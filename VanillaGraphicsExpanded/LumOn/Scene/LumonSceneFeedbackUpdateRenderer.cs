@@ -461,6 +461,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
 
         EnsureConfigured();
+        if (!configured) return;
         if (!EnsureGeometryHistoryCurrent()) return;
         UpdateSlotWindowForNextFrame();
         UpdateWorldCoordUniformState();
@@ -786,6 +787,12 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         nearGpu.EnsureCreated();
 
         physicalPools.EnsureGpuResources();
+        if (physicalPools.Near.GpuResources is null)
+        {
+            // Defer publication until another live pool releases enough total-byte credit.
+            configured = false;
+            return;
+        }
         EnsurePageUsageStampCreated();
 
         if (chunkResidency is not null)

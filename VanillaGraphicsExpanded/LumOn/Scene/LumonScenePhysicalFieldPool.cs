@@ -97,6 +97,7 @@ internal sealed class LumonScenePhysicalFieldPool : IDisposable
             return;
         }
 
+        if (!LumonScenePhysicalAtlasGpuResources.CanAllocate(plan.AtlasCount)) return;
         gpuResources = new LumonScenePhysicalAtlasGpuResources(field, plan.AtlasCount, plan.TileSizeTexels);
     }
 
@@ -135,4 +136,3 @@ internal sealed class LumonScenePhysicalFieldPool : IDisposable
         pagePool = null;
     }
 }
-

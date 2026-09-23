@@ -45,6 +45,7 @@ internal static partial class GpuShaderContracts
             case "lumonscene_feedback_gather": FeedbackGather(contract); break;
             case "lumonscene_capture_voxel": CaptureVoxel(contract); break;
             case "lumonscene_capture_meshcard": CaptureMeshCard(contract); break;
+            case "lumonscene_surface_lighting": SurfaceLighting(contract); break;
             case "lumonscene_relight_voxel_dda": RelightVoxelDda(contract); break;
         }
         // Shared includes declare these blocks even when a variant eliminates all uses.
@@ -56,4 +57,3 @@ internal static partial class GpuShaderContracts
     }
     #endregion
 }
-
