@@ -20,9 +20,10 @@ internal static class GeneratorFixture
 
     #region Compilation
     /// <summary>Runs the same generator on normal source or semantic-only additional files.</summary>
-    internal static Result Generate(string source, bool offline = false, GeneratorDriver? previous = null, string[]? symbols = null)
+    internal static Result Generate(string source, bool offline = false, GeneratorDriver? previous = null, string[]? symbols = null,
+        LanguageVersion languageVersion = LanguageVersion.CSharp13)
     {
-        var parseOptions = ParseOptions.WithPreprocessorSymbols(symbols ?? []);
+        var parseOptions = ParseOptions.WithLanguageVersion(languageVersion).WithPreprocessorSymbols(symbols ?? []);
         var syntax = CSharpSyntaxTree.ParseText(Prelude + source, parseOptions, "Owner.cs");
         var compilation = CSharpCompilation.Create("GeneratedTest" + Guid.NewGuid().ToString("N"),
             (offline ? Models : Models.Append(syntax)).Select(tree => tree.WithRootAndOptions(tree.GetRoot(), parseOptions)), References, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));

@@ -33,7 +33,8 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
         if (offline)
         {
             var existing = new HashSet<string>(compilation.SyntaxTrees.Where(t => !string.IsNullOrEmpty(t.FilePath)).Select(t => Path.GetFullPath(t.FilePath)), StringComparer.OrdinalIgnoreCase);
-            var parseOptions = (compilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions ?? new CSharpParseOptions()).WithLanguageVersion(LanguageVersion.CSharp13);
+            // Additional trees belong to this compilation and must retain its language version and symbols.
+            var parseOptions = compilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions ?? new CSharpParseOptions();
             compilation = compilation.AddSyntaxTrees(files.Where(f => !existing.Contains(Path.GetFullPath(f.Path)))
                 .Select(f => CSharpSyntaxTree.ParseText(f.Text, parseOptions, f.Path, Encoding.UTF8)));
         }

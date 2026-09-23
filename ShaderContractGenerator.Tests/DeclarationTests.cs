@@ -16,6 +16,16 @@ public sealed class DeclarationTests
         """;
 
     #region Generated output
+    /// <summary>Additional shader declarations retain non-pinned consumer parse options without mixed-version trees.</summary>
+    [Fact]
+    public void OfflineDeclarationsUseConsumerLanguageVersion()
+    {
+        var result = GeneratorFixture.Generate(Basic, offline: true,
+            languageVersion: Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview);
+        result.Compile();
+        Assert.NotEmpty(result.Generated);
+    }
+
     /// <summary>Offline and runtime declarations produce identical metadata without a mod assembly reference.</summary>
     [Fact]
     public void OfflineAndRuntimeGenerateIdenticalContracts()

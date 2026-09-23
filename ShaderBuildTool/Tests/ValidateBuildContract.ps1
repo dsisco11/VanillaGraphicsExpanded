@@ -14,7 +14,7 @@ $output = Join-Path $root 'output'
 $tool = Join-Path $root 'tool'
 $config = Join-Path $root '.config'
 New-Item -ItemType Directory -Force $shaders,$tool,$config | Out-Null
-Copy-Item -Path "$RepositoryRoot/ShaderBuildTool/bin/Debug/net8.0/*" -Destination $tool -Recurse
+Copy-Item -Path "$RepositoryRoot/ShaderBuildTool/bin/Debug/net10.0/*" -Destination $tool -Recurse
 Copy-Item -LiteralPath "$RepositoryRoot/.config/dotnet-tools.json" -Destination $config
 $compilerVersion = (Get-Content "$config/dotnet-tools.json" -Raw | ConvertFrom-Json).tools.'dotnet-shaderc'.version
 $originalPackages = $env:NUGET_PACKAGES
