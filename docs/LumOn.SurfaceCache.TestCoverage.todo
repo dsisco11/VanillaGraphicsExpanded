@@ -89,4 +89,45 @@ The runtime transition test exposed and now guards a recapture stall: invalidate
 
 Receipts in artifacts/shader-variant-contracts/: surface-final-build-initial.log; surface-final-build-verified.log; surface-final-{world,runtime}-verified.{log,trx}; surface-final-{pixels,producer,consumer,contract}-validated.{log,trx}. Original failing receipts remain available. This is headless GPU evidence; no live in-game visual verification is claimed.
 
-Implementation order: 4 → 5 → 6 → 7. Sections 4–6 own production integration; Section 7 owns the behavioral verification moved from Section 3. Missing consumer implementation must remain distinct from test coverage, and injected downstream lighting cannot substitute for cache consumption. Existing Sections 1–2 remain historical validation of the earlier estimator and lifecycle, and their numerical expectations must be updated where the lighting contract changes.
+Implementation order: 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11. Sections 4–6 own production integration; Section 7 owns the behavioral verification moved from Section 3. Missing consumer implementation must remain distinct from test coverage, and injected downstream lighting cannot substitute for cache consumption. Existing Sections 1–2 remain historical validation of the earlier estimator and lifecycle, and their numerical expectations must be updated where the lighting contract changes.
+
+## Follow-up coverage requirements
+
+Section 7 proves controlled cache-to-pixel transport, not the complete live pipeline across frames. Its fixture skips temporal accumulation, supplies fixed anchors, connects consumer components manually, and ends with `lumon_combine`. Sections 8–11 close these remaining gaps without weakening the completed tests.
+
+Controlling design for every task below: [Surface-cache lighting contract](LumOn.SurfaceCache.LightingContract.md), especially Lighting terms and units, Indirect estimator and history, Atlas and publication design, and Geometry-hit consumers. Reuse modular fixtures and real production shaders/owners; change controlled scene inputs rather than injecting downstream radiance. Exercise both gather modes where applicable. Define numerical tolerances and update budgets before evaluating results, check intermediate outputs and final pixels, and record executed build/GPU-test receipts separately from any live visual verification.
+
+## 8. Persistent temporal history
+
+- [ ] Extend the cache-to-pixel fixture with production temporal accumulation, retained probe history and partial directional updates across frames. Verify unchanged inputs preserve accumulation rather than resetting each frame.
+- [ ] Accumulate bright lighting, remove and restore its source, and verify stale illumination disappears and lighting returns within a defined frame/update budget through both gather modes.
+- [ ] Exercise cache unavailability, dependency revision changes and resource recreation with populated history. Verify invalidation rejects obsolete lighting while ordinary bounce-generation publication preserves valid history.
+- [ ] Extend the controlled doorway fixture through final pixels: accumulate open-door illumination, close the doorway with the exterior still bright, then reopen it. Assert occlusion, disappearance of stale lighting and restoration across frames.
+
+Completion: multi-frame GPU tests demonstrate correct history retention and rejection; rebuilding an empty pipeline for each observation does not satisfy this section.
+
+## 9. Full consumer runtime orchestration
+
+- [ ] Extend the runtime fixture to drive `LumOnRenderer` and the world-probe update renderer alongside the production geometry/cache owners through registered callbacks and real provider wiring. Include production anchor generation, tracing, temporal processing, filtering, gather and final output.
+- [ ] Exercise actual worker scheduling, delayed CPU completion, pending GPU queries and bounded upload admission. Invalidate or replace dependencies while work is pending; prove obsolete results cannot repopulate cleared atlases or final pixels.
+- [ ] Run illumination/removal/restoration, resource recreation, world teardown and restart through the composed runtime. Verify callback ordering, history/atlas resets, republishing and finite final output without OpenGL errors.
+
+Completion: the runtime owns consumer scheduling and invalidation end to end; manually calling the integrator, resolver and uploader in test order is supplementary evidence only.
+
+## 10. Movement, streaming and mixed probe contribution
+
+- [ ] Move and rotate the controlled camera, including view bobbing, while observing fixed world geometry. Verify lighting and debug-independent final output stay aligned with world surfaces using corresponding world positions or a defined reference view.
+- [ ] Cross positive and negative chunk boundaries, wrap geometry/probe storage, unload/reload cells and move cache coverage. Verify overlap continuity, rejection of reused stale slots and bounded recovery after newly resident data publishes.
+- [ ] Enable screen and world probes together, including gather fallback. Transition geometry between visible and offscreen states and vary screen-probe confidence through actual tracing/availability changes; verify contribution follows the documented confidence policy without unexplained loss or double counting.
+- [ ] Use bright and dark neighboring regions separated by a wall to check per-pixel leakage and visibility discontinuities during movement, streaming and confidence transitions in both gather modes.
+
+Completion: moving, mixed-consumer tests assert spatial correspondence and transition behavior; stationary isolated-path energy checks do not satisfy this section.
+
+## 11. Numerical final-image and PBR composition coverage
+
+- [ ] Add analytically controlled scenes with expected per-channel lighting, receiver albedo scaling, metallic rejection and exposure behavior. Assert defined pixel regions and error bounds rather than only the maximum nonzero pixel.
+- [ ] Check spatial coverage, localized leakage and channel correctness, and compare both gather modes against their documented integration conventions with explicit approximation tolerances.
+- [ ] Extend the real cache-originating chain through the production PBR composition path. Isolate indirect contribution using controlled source changes or a matched disabled-light baseline; verify direct lighting, emission and diffuse material response are accounted for exactly once.
+- [ ] Repeat source removal/restoration and history invalidation through PBR composition with retained runtime state. Preserve existing `lumon_combine` coverage and record the numerical and lifecycle evidence for both composition paths.
+
+Completion: tests constrain lighting magnitude and spatial distribution through PBR composition as well as proving that some cache energy reaches a pixel.
