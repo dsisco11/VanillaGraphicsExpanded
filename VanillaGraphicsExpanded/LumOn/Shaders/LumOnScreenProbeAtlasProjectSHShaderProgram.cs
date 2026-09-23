@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
@@ -15,7 +16,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_probe_atlas_project_sh", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_project_sh.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_project_sh.fsh")]
-public partial class LumOnScreenProbeAtlasProjectSHShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasProjectSHShaderProgram : LumOnShaderProgram
 {
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>

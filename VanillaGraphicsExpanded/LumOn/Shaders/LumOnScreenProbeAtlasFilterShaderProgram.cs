@@ -18,7 +18,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_probe_atlas_filter", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_filter.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_filter.fsh")]
-public partial class LumOnScreenProbeAtlasFilterShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasFilterShaderProgram : LumOnShaderProgram
 {
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>

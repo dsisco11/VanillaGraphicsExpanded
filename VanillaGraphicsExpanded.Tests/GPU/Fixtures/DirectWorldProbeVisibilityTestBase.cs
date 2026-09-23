@@ -17,7 +17,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
 {
     // The fixture owns production programs until disposal. Multi-frame scenarios
     // reuse the same compiled variant, matching runtime behavior instead of relinking each draw.
-    private readonly Dictionary<string, GpuProgram> visibilityPrograms = new();
+    private readonly Dictionary<string, LumOnShaderProgram> visibilityPrograms = new();
     /// <summary>Uses the shared mandatory GPU fixture.</summary>
     protected DirectWorldProbeVisibilityTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -87,6 +87,9 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             screen.ProbeAnchorPositionTex!.UploadDataImmediate(new float[screen.ProbeAnchorPositionTex.Width * screen.ProbeAnchorPositionTex.Height * 4]);
             screen.ProbeAnchorNormalTex!.UploadDataImmediate(new float[screen.ProbeAnchorNormalTex.Width * screen.ProbeAnchorNormalTex.Height * 4]);
             var geometry = shared ?? scene?.Backend;
+            var traceSettings = shared is null
+                ? new LumOnNearFieldTraceSettings(budget)
+                : new LumOnNearFieldTraceSettings(budget, shared.Coverage?.NearField, float.MaxValue);
             switch (program)
             {
                 case LumOnDebugShaderProgram viewProgram:
@@ -95,7 +98,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                     viewProgram.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas;
                     viewProgram.WorldProbeVis0 = world.ProbeVis0;
                     viewProgram.WorldProbeMeta0 = world.ProbeMeta0;
-                    viewProgram.NearFieldVisibility.Bind(viewProgram, geometry);
+                    viewProgram.NearFieldVisibility.Bind(viewProgram, geometry, traceSettings);
                     viewProgram.DebugMode = consumer;
                     break;
                 case LumOnProbeSh9GatherShaderProgram gather:
@@ -106,7 +109,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                     gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
                     gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
                     gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
-                    gather.NearFieldVisibility.Bind(gather, geometry);
+                    gather.NearFieldVisibility.Bind(gather, geometry, traceSettings);
                     gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SuppressWorldProbeRadiance = suppress;
                     break;
                 case LumOnScreenProbeAtlasGatherShaderProgram gather:
@@ -115,16 +118,10 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                     gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
                     gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
                     gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
-                    gather.NearFieldVisibility.Bind(gather, geometry);
+                    gather.NearFieldVisibility.Bind(gather, geometry, traceSettings);
                     gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SampleStride = 1; gather.SuppressWorldProbeRadiance = suppress;
                     break;
             }
-            // Component scenarios override the traversal budget through the existing
-            // parameter contract. Production scene binding still owns every sampler.
-            var local = new LumOnNearFieldParamsUbo();
-            if (shared != null) local.SetShared(shared, budget);
-            else local.Set(scene?.Origin ?? default, scene?.Resolution ?? 0, budget, scene?.CellSize ?? 16);
-            local.BindTo(program, LumOnNearFieldParamsUbo.BlockName, "Tests.DirectVisibility");
             // Move the camera while compensating the view-space receiver so the
             // reconstructed player-relative surface remains stationary.
             float cameraHeight = playerOrigin.HasValue ? 1.625f : 0;

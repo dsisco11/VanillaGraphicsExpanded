@@ -578,8 +578,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
@@ -627,8 +627,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind G-buffer textures
         shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -692,7 +692,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         shader.Use();
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
 
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
         shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
@@ -813,10 +813,10 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
         shader.SuppressWorldProbeRadiance = comparisonPass;
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.BindNearFieldScene(nearFieldScene);
         (surfaceLightingBindings ??= new()).Bind(surfaceLighting);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind probe anchor textures
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
@@ -977,8 +977,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind trace output (fresh traced texels + history copies for non-traced)
         var traceTex = bufferManager.ScreenProbeAtlasTraceTex;
@@ -1080,8 +1080,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
@@ -1157,9 +1157,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.NearFieldVisibility.Bind(shader, nearFieldScene);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Keep the paired diagnostic's gather replacement consistent with its trace branch.
         shader.SuppressWorldProbeRadiance = comparisonPass;
@@ -1261,9 +1261,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
         shader.SuppressWorldProbeRadiance = comparisonPass;
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.NearFieldVisibility.Bind(shader, nearFieldScene);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind screen-probe atlas radiance
         shader.ScreenProbeAtlas = probeAtlas;
@@ -1371,8 +1371,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
@@ -1434,8 +1434,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        shader.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, uniformBuffers.FrameUbo);
-        shader.TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, uniformBuffers.WorldProbeUbo);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind half-res indirect diffuse
         shader.IndirectHalf = bufferManager.IndirectHalfTex!;

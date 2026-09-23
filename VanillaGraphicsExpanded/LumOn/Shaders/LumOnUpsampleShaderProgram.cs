@@ -21,7 +21,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Upsample")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DenoiseEnabled))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(HoleFillEnabled))]
-public partial class LumOnUpsampleShaderProgram : GpuProgram
+public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram
 {
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>

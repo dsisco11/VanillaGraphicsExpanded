@@ -101,7 +101,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbeEnabled")]
 [ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbeEnabled")]
 [ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
-public partial class LumOnDebugShaderProgram : GpuProgram
+public partial class LumOnDebugShaderProgram : LumOnShaderProgram
 {
     #region Shader options
     /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>

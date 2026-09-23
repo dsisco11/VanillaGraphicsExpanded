@@ -21,7 +21,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             var project = Programs.Create<LumOnScreenProbeAtlasProjectSh9ShaderProgram>();
             var shGather = sh9 ? Programs.Create<LumOnProbeSh9GatherShaderProgram>() : null;
             var atlasGather = !sh9 ? Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>() : null;
-            VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram gather = shGather ?? (VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram)atlasGather!;
+            VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram gather = shGather ?? (VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram)atlasGather!;
             using var assets = new BinaryShaderApiFixture();
             var config = new VgeConfig(); config.LumOn.ProbeSpacingPx = ProbeSpacing;
             using var inputs = new LumOnBufferManager(assets.Api, config);

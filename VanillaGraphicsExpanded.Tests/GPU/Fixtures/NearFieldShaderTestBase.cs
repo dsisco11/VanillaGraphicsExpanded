@@ -53,18 +53,15 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         program.ProbeTraceMask = Populate(buffers.ProbeTraceMaskTex!, 0, 0);
         program.WorldProbeVis0 = worldResources?.ProbeVis0 ?? Populate(worldInputs.ProbeVis0, 0, 0, 1, 1);
         program.WorldProbeMeta0 = worldResources?.ProbeMeta0 ?? Populate(worldInputs.ProbeMeta0, 1, 0);
-        program.BindNearFieldScene(shared ?? fixture.Scene.Backend);
+        var traceSettings = shared is null
+            ? new LumOnNearFieldTraceSettings(budget, supportedOrigins, maximumTraceReach)
+            : new LumOnNearFieldTraceSettings(budget, shared.Coverage?.NearField, float.MaxValue);
+        program.BindNearFieldScene(shared ?? fixture.Scene.Backend, traceSettings);
         UpdateAndBindLumOnFrameUbo(program, frameIndex: frameIndex, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection(),
             projectionMatrix: LumOnTestInputFactory.CreateRealisticProjection(),
             matrixSpaceWorldChunkCoordOffset: new VanillaGraphicsExpanded.Numerics.VectorInt3(worldOffset.X >> 5, worldOffset.Y >> 5, worldOffset.Z >> 5), matrixSpaceWorldBlockOffsetRem: matrixRemainder);
         UpdateAndBindLumOnWorldProbeUbo(program, skyTint: new Vintagestory.API.MathTools.Vec3f(1, 1, 1), cameraPosWS: Vector3.Zero, originMinCorner: [new Vector3(-cacheSpacing * .5f * cacheResolution, -cacheSpacing * .5f * cacheResolution, (worldResources != null ? -3 : -5) - cacheSpacing * .5f * cacheResolution)]);
 
-        var local = new LumOnNearFieldParamsUbo();
-        if (shared != null) local.SetShared(shared, budget);
-        else local.Set(fixture.Scene.Origin, fixture.Scene.Resolution, budget, fixture.Scene.CellSize, supportedOrigins, maximumTraceReach);
-        // Traversal-limit cases deliberately override the production default through
-        // its existing CPU-buffer contract; texture and scene binding remain production-owned.
-        local.BindTo(program, LumOnNearFieldParamsUbo.BlockName, "Tests.NearField");
         program.SuppressWorldProbeRadiance = suppress;
         program.IndirectTint = new(1,1,1);
         var output = buffers.ScreenProbeAtlasTraceFbo!;

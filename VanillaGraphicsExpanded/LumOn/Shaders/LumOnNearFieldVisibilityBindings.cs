@@ -19,10 +19,10 @@ internal sealed class LumOnNearFieldVisibilityBindings
         this.layout = layout;
     }
 
-    /// <summary>Binds a coherent local snapshot; unavailable geometry never implies visibility.</summary>
-    public void Bind(GpuProgram program, TraceGeometryGpuScene? scene)
+    /// <summary>Binds a coherent snapshot and optional traversal policy; unavailable geometry never implies visibility.</summary>
+    public void Bind(GpuProgram program, TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)
     {
-        parameters.SetShared(scene);
+        parameters.SetShared(scene, settings);
         parameters.BindTo(program, LumOnNearFieldParamsUbo.BlockName, "LumOn.DirectVisibility");
         layout.TryBindSamplerTextureActive(program.ProgramId, "nearFieldGeometry", TextureTarget.Texture3D,
             scene?.Geometry.TextureId ?? 0, GpuSamplers.NearestClamp.SamplerId, warn: null);

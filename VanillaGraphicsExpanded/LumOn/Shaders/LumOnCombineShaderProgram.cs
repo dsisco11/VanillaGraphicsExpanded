@@ -26,7 +26,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(LumOnEnabled))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
-public partial class LumOnCombineShaderProgram : GpuProgram
+public partial class LumOnCombineShaderProgram : LumOnShaderProgram
 {
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>

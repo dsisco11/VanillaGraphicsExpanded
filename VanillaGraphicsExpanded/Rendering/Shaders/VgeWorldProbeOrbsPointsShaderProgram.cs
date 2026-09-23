@@ -18,7 +18,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13)]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14)]
-public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : GpuProgram
+public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram
 {
     #region Shader options
     /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>

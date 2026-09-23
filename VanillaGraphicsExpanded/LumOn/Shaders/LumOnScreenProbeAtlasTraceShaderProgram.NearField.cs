@@ -16,10 +16,10 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram
     /// <summary>Enables production near-field tracing; shader tests may explicitly compile the legacy path.</summary>
     internal bool EnsureNearFieldDefines() => !SetShaderOption(LumOnShaderOptions.NearField, true);
 
-    /// <summary>Binds one coherent published scene, or an explicit unavailable scene.</summary>
-    internal void BindNearFieldScene(TraceGeometryGpuScene? scene)
+    /// <summary>Binds one coherent scene with optional traversal policy; null scenes remain unavailable regardless of policy.</summary>
+    internal void BindNearFieldScene(TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)
     {
-        nearFieldParams.SetShared(scene);
+        nearFieldParams.SetShared(scene, settings);
         nearFieldParams.BindTo(this, LumOnNearFieldParamsUbo.BlockName, "LumOn.NearField.Parameters");
         BindTexture3D("nearFieldGeometry", scene?.Geometry, 10);
         BindTexture3D("nearFieldLight", scene?.Light, 13);

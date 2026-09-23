@@ -30,12 +30,13 @@ internal sealed class LumOnNearFieldParamsUbo : CpuUniformBuffer
     }
 
     /// <summary>Writes shared allocation mapping while keeping each consumer's logical bounds independent.</summary>
-    public void SetShared(TraceGeometryGpuScene? scene, int maxSteps = 256)
+    public void SetShared(TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)
     {
         var plan = scene?.Coverage;
         var min = plan?.Window.Min ?? default;
-        Set(new((int)min.X, (int)min.Y, (int)min.Z), scene?.Resolution ?? 0, maxSteps,
-            supportedOrigins: plan?.NearField, maximumTraceReach: float.MaxValue);
+        Set(new((int)min.X, (int)min.Y, (int)min.Z), scene?.Resolution ?? 0, settings?.MaxSteps ?? 256,
+            supportedOrigins: settings is null ? plan?.NearField : settings.SupportedOrigins,
+            maximumTraceReach: settings?.MaximumTraceReach ?? float.MaxValue);
         WriteDomain(64, plan?.NearField);
         WriteDomain(96, plan?.Surface);
         MarkDirty(0, 128);

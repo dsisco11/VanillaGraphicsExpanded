@@ -27,7 +27,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(TexelsPerFrame), SpecializationId = 1)]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(BatchSlicing))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ImportanceSampling))]
-public partial class LumOnScreenProbeAtlasTemporalShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderProgram
 {
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>

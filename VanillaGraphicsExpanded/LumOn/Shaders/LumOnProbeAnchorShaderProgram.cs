@@ -28,7 +28,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_probe_anchor", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_anchor.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_anchor.fsh")]
-public partial class LumOnProbeAnchorShaderProgram : GpuProgram
+public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram
 {
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>

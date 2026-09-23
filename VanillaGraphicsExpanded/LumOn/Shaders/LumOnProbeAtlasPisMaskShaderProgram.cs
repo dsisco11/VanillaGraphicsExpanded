@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System.Globalization;
 
@@ -26,7 +27,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(MinConfidenceWeight), SpecializationId = 7)]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(UniformMask))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WeightEpsilon), SpecializationId = 10, When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
-public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : GpuProgram
+public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderProgram
 {
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>

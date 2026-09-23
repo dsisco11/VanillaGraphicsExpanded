@@ -120,8 +120,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private LumOnUniformBuffers LumOnUbos => _lumOnUbos ??= new LumOnUniformBuffers();
 
     /// <summary>Uploads controlled inputs through the production buffer owner and shader block contract.</summary>
-    protected void UpdateAndBindLumOnFrameUbo(
-        GpuProgram? program,
+    private protected void UpdateAndBindLumOnFrameUbo(
+        ILumOnFrameShader? program,
         float[]? invProjectionMatrix = null,
         float[]? projectionMatrix = null,
         float[]? viewMatrix = null,
@@ -178,13 +178,13 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             matrixSpaceWorldChunkCoordOffset: matrixSpaceWorldChunkCoordOffset,
             matrixSpaceWorldBlockOffsetRem: matrixSpaceWorldBlockOffsetRem);
 
-        if (program is not null) program.TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, LumOnUbos.FrameUbo);
+        if (program is not null) program.FrameUniformBuffer = LumOnUbos.FrameUbo;
         else LumOnUbos.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding); // Retired L1 comparison has no production owner.
     }
 
     /// <summary>Uploads controlled inputs through the production buffer owner and shader block contract.</summary>
-    protected void UpdateAndBindLumOnWorldProbeUbo(
-        GpuProgram program,
+    private protected void UpdateAndBindLumOnWorldProbeUbo(
+        ILumOnWorldProbeShader program,
         Vec3f skyTint,
         System.Numerics.Vector3 cameraPosWS,
         System.Numerics.Vector3[]? originMinCorner = null,
@@ -196,7 +196,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             originMinCorner: originMinCorner,
             ringOffset: ringOffset);
 
-        program.TryBindUniformBlock("LumOnWorldProbeUBO", LumOnUbos.WorldProbeUbo);
+        program.WorldProbeUniformBuffer = LumOnUbos.WorldProbeUbo;
     }
 
     #endregion

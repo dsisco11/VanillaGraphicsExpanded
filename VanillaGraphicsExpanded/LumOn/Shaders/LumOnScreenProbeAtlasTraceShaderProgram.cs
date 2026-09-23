@@ -41,7 +41,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
-public partial class LumOnScreenProbeAtlasTraceShaderProgram : GpuProgram
+public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgram
 {
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>

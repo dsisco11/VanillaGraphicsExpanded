@@ -289,7 +289,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 shader.WorldProbeResolution = worldProbeResolution; shader.WorldProbeBaseSpacing = worldProbeBaseSpacing;
                 shader.WorldProbeOctahedralSize = worldProbeTileSize;
             });
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram programId = sh ?? (VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram)atlas!;
+        VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram programId = sh ?? (VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram)atlas!;
         using var programUse = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: viewMatrix);
         UpdateAndBindLumOnWorldProbeUbo(programId, new(0,0,0), Vector3.Zero,
