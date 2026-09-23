@@ -89,15 +89,26 @@ The runtime transition test exposed and now guards a recapture stall: invalidate
 
 Receipts in artifacts/shader-variant-contracts/: surface-final-build-initial.log; surface-final-build-verified.log; surface-final-{world,runtime}-verified.{log,trx}; surface-final-{pixels,producer,consumer,contract}-validated.{log,trx}. Original failing receipts remain available. This is headless GPU evidence; no live in-game visual verification is claimed.
 
-Implementation order: 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11. Sections 4–6 own production integration; Section 7 owns the behavioral verification moved from Section 3. Missing consumer implementation must remain distinct from test coverage, and injected downstream lighting cannot substitute for cache consumption. Existing Sections 1–2 remain historical validation of the earlier estimator and lifecycle, and their numerical expectations must be updated where the lighting contract changes.
+Implementation order: 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12. Sections 4–6 own production integration; Section 7 owns the behavioral verification moved from Section 3. Missing consumer implementation must remain distinct from test coverage, and injected downstream lighting cannot substitute for cache consumption. Existing Sections 1–2 remain historical validation of the earlier estimator and lifecycle, and their numerical expectations must be updated where the lighting contract changes.
 
 ## Follow-up coverage requirements
 
-Section 7 proves controlled cache-to-pixel transport, not the complete live pipeline across frames. Its fixture skips temporal accumulation, supplies fixed anchors, connects consumer components manually, and ends with `lumon_combine`. Sections 8–11 close these remaining gaps without weakening the completed tests.
+Section 7 proves controlled cache-to-pixel transport, not the complete live pipeline across frames. Its fixture skips temporal accumulation, supplies fixed anchors, connects consumer components manually, and ends with `lumon_combine`. Section 8 improves shader-build throughput before Sections 9–12 close these remaining gaps without weakening the completed tests.
 
-Controlling design for every task below: [Surface-cache lighting contract](LumOn.SurfaceCache.LightingContract.md), especially Lighting terms and units, Indirect estimator and history, Atlas and publication design, and Geometry-hit consumers. Reuse modular fixtures and real production shaders/owners; change controlled scene inputs rather than injecting downstream radiance. Exercise both gather modes where applicable. Define numerical tolerances and update budgets before evaluating results, check intermediate outputs and final pixels, and record executed build/GPU-test receipts separately from any live visual verification.
+Controlling design for the lighting coverage tasks in Sections 9–12: [Surface-cache lighting contract](LumOn.SurfaceCache.LightingContract.md), especially Lighting terms and units, Indirect estimator and history, Atlas and publication design, and Geometry-hit consumers. Reuse modular fixtures and real production shaders/owners; change controlled scene inputs rather than injecting downstream radiance. Exercise both gather modes where applicable. Define numerical tolerances and update budgets before evaluating results, check intermediate outputs and final pixels, and record executed build/GPU-test receipts separately from any live visual verification.
 
-## 8. Persistent temporal history
+## 8. Parallel SPIR-V shader compilation
+
+- [ ] Profile the current shader-build pipeline and record a reproducible serial baseline: elapsed build time, compiled stage/variant counts, and preprocessing versus external compiler time. Identify shared mutable state, output ownership and build-target ordering before introducing concurrency.
+- [ ] Refactor independent stage/variant compilation into bounded concurrent jobs, using worker threads and/or multiple compiler processes as appropriate. Expose a configurable concurrency limit with a serial mode; preserve TinyAst preprocessing, shader-owned contracts, variant selection and the existing build entry points.
+- [ ] Isolate per-job preprocessing state, temporary files and compiler outputs. Complete artifact cleanup before scheduling jobs, publish only successful artifacts, and prevent duplicate jobs or simultaneous builds from racing over shared output paths.
+- [ ] Preserve deterministic artifact naming and diagnostics tied to their shader/stage/variant. Propagate compiler failures and cancellation to the build, stop outstanding work safely, and ensure failed jobs cannot leave apparently successful artifacts or orphan compiler processes.
+- [ ] Add reusable tests for serial/parallel artifact equivalence, concurrency limits, output isolation, deterministic diagnostic reporting and failure/cancellation handling. Verify the normal application/test build still compiles all required shader variants before consumption.
+- [ ] Compare serial and parallel clean builds under matched conditions with identical stage/variant counts and correctness checks. Record repeated timings, peak resource usage and the chosen default concurrency; separate incremental-build results from full compilation.
+
+Completion: the normal build uses bounded parallel compilation, preserves artifact and failure behavior, and has measured shader-build speedup over the retained serial mode. Record executed tests and benchmark receipts; successful concurrent execution alone does not establish a performance improvement.
+
+## 9. Persistent temporal history
 
 - [ ] Extend the cache-to-pixel fixture with production temporal accumulation, retained probe history and partial directional updates across frames. Verify unchanged inputs preserve accumulation rather than resetting each frame.
 - [ ] Accumulate bright lighting, remove and restore its source, and verify stale illumination disappears and lighting returns within a defined frame/update budget through both gather modes.
@@ -106,7 +117,7 @@ Controlling design for every task below: [Surface-cache lighting contract](LumOn
 
 Completion: multi-frame GPU tests demonstrate correct history retention and rejection; rebuilding an empty pipeline for each observation does not satisfy this section.
 
-## 9. Full consumer runtime orchestration
+## 10. Full consumer runtime orchestration
 
 - [ ] Extend the runtime fixture to drive `LumOnRenderer` and the world-probe update renderer alongside the production geometry/cache owners through registered callbacks and real provider wiring. Include production anchor generation, tracing, temporal processing, filtering, gather and final output.
 - [ ] Exercise actual worker scheduling, delayed CPU completion, pending GPU queries and bounded upload admission. Invalidate or replace dependencies while work is pending; prove obsolete results cannot repopulate cleared atlases or final pixels.
@@ -114,7 +125,7 @@ Completion: multi-frame GPU tests demonstrate correct history retention and reje
 
 Completion: the runtime owns consumer scheduling and invalidation end to end; manually calling the integrator, resolver and uploader in test order is supplementary evidence only.
 
-## 10. Movement, streaming and mixed probe contribution
+## 11. Movement, streaming and mixed probe contribution
 
 - [ ] Move and rotate the controlled camera, including view bobbing, while observing fixed world geometry. Verify lighting and debug-independent final output stay aligned with world surfaces using corresponding world positions or a defined reference view.
 - [ ] Cross positive and negative chunk boundaries, wrap geometry/probe storage, unload/reload cells and move cache coverage. Verify overlap continuity, rejection of reused stale slots and bounded recovery after newly resident data publishes.
@@ -123,7 +134,7 @@ Completion: the runtime owns consumer scheduling and invalidation end to end; ma
 
 Completion: moving, mixed-consumer tests assert spatial correspondence and transition behavior; stationary isolated-path energy checks do not satisfy this section.
 
-## 11. Numerical final-image and PBR composition coverage
+## 12. Numerical final-image and PBR composition coverage
 
 - [ ] Add analytically controlled scenes with expected per-channel lighting, receiver albedo scaling, metallic rejection and exposure behavior. Assert defined pixel regions and error bounds rather than only the maximum nonzero pixel.
 - [ ] Check spatial coverage, localized leakage and channel correctness, and compare both gather modes against their documented integration conventions with explicit approximation tolerances.
