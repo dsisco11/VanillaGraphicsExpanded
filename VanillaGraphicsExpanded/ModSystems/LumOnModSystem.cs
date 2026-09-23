@@ -16,6 +16,22 @@ namespace VanillaGraphicsExpanded;
 
 public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 {
+    private readonly System.Func<VgeConfig> readConfig;
+    private readonly System.Func<ICoreClientAPI, LumOnCameraState?> readCamera;
+    private readonly System.Func<ICoreClientAPI, TraceGeometryMaterials, ITraceGeometrySource> createGeometrySource;
+
+    #region Engine dependencies
+    /// <summary>Uses the live mod configuration and game world adapters during normal engine startup.</summary>
+    public LumOnModSystem() : this(() => ConfigModSystem.Config, LumOnCameraState.Read, (api, materials) => new TraceGeometryWorldSource(api, materials)) { }
+
+    /// <summary>Receives configuration and world adapters while retaining mod-owned initialization and provider wiring.</summary>
+    internal LumOnModSystem(System.Func<VgeConfig> readConfig, System.Func<ICoreClientAPI, LumOnCameraState?> readCamera, System.Func<ICoreClientAPI, TraceGeometryMaterials, ITraceGeometrySource> createGeometrySource)
+    {
+        this.readConfig = readConfig ?? throw new ArgumentNullException(nameof(readConfig));
+        this.readCamera = readCamera ?? throw new ArgumentNullException(nameof(readCamera));
+        this.createGeometrySource = createGeometrySource ?? throw new ArgumentNullException(nameof(createGeometrySource));
+    }
+    #endregion
     private ICoreClientAPI? capi;
     private IEventAPI? commonEvents;
 
@@ -58,20 +74,20 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         capi = api;
         commonEvents = ((ICoreAPI)api).Event;
 
-        ConfigModSystem.Config.Sanitize();
-        lastLiveConfigSnapshot = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
+        readConfig().Sanitize();
+        lastLiveConfigSnapshot = LumOnLiveConfigSnapshot.From(readConfig());
 
         EnsureInitializedIfReady("startup");
 
         EnsureLumOnStatsPanelInitialized("startup");
-        if (ConfigModSystem.Config.Debug.LumOnStatsOverlayEnabled)
+        if (readConfig().Debug.LumOnStatsOverlayEnabled)
         {
             lumOnStatsPanel?.Show();
         }
     }
 
     internal bool IsLumOnEnabled()
-        => ConfigModSystem.Config.LumOn.Enabled;
+        => readConfig().LumOn.Enabled;
 
     internal void ToggleLumOnEnabled()
     {
@@ -80,11 +96,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             return;
         }
 
-        ConfigModSystem.Config.LumOn.Enabled = !ConfigModSystem.Config.LumOn.Enabled;
-        string status = ConfigModSystem.Config.LumOn.Enabled ? "enabled" : "disabled";
+        readConfig().LumOn.Enabled = !readConfig().LumOn.Enabled;
+        string status = readConfig().LumOn.Enabled ? "enabled" : "disabled";
         capi.TriggerIngameError(this, "vgelumon", $"[LumOn] {status}");
 
-        if (ConfigModSystem.Config.LumOn.Enabled)
+        if (readConfig().LumOn.Enabled)
         {
             EnsureInitializedIfReady("tools toggle enable");
             TryBindWorldProbeClipmap(capi, reason: "tools toggle enable");
@@ -95,7 +111,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         => lumOnStatsPanel?.IsOpened() ?? false;
 
     internal bool IsLumOnRuntimeSelfCheckEnabled()
-        => ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled;
+        => readConfig().Debug.LumOnRuntimeSelfCheckEnabled;
 
     internal void ToggleLumOnStatsOverlay()
     {
@@ -113,18 +129,18 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         if (lumOnStatsPanel.IsOpened())
         {
             lumOnStatsPanel.Hide();
-            ConfigModSystem.Config.Debug.LumOnStatsOverlayEnabled = false;
+            readConfig().Debug.LumOnStatsOverlayEnabled = false;
         }
         else
         {
             lumOnStatsPanel.Show();
-            ConfigModSystem.Config.Debug.LumOnStatsOverlayEnabled = true;
+            readConfig().Debug.LumOnStatsOverlayEnabled = true;
         }
 
         // Persist the debug choice so the overlay stays enabled across runs.
         try
         {
-            capi.StoreModConfig(ConfigModSystem.Config, Constants.ConfigFileName);
+            capi.StoreModConfig(readConfig(), Constants.ConfigFileName);
         }
         catch
         {
@@ -139,11 +155,11 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             return;
         }
 
-        ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled = !ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled;
+        readConfig().Debug.LumOnRuntimeSelfCheckEnabled = !readConfig().Debug.LumOnRuntimeSelfCheckEnabled;
 
         try
         {
-            capi.StoreModConfig(ConfigModSystem.Config, Constants.ConfigFileName);
+            capi.StoreModConfig(readConfig(), Constants.ConfigFileName);
         }
         catch
         {
@@ -153,7 +169,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
     internal string[] GetLumOnStatsOverlayLines()
     {
-        if (!ConfigModSystem.Config.LumOn.Enabled)
+        if (!readConfig().LumOn.Enabled)
         {
             return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty, string.Empty, string.Empty];
         }
@@ -165,7 +181,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
         string[] baseLines = lumOnRenderer.DebugCounters.GetDebugLines();
 
-        if (ConfigModSystem.Config.Debug.LumOnRuntimeSelfCheckEnabled)
+        if (readConfig().Debug.LumOnRuntimeSelfCheckEnabled)
         {
             return
             [
@@ -195,7 +211,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         try
         {
-            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            if (!readConfig().LumOn.LumonScene.Enabled)
             {
                 return "TS scheduler: off";
             }
@@ -217,7 +233,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         try
         {
-            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            if (!readConfig().LumOn.LumonScene.Enabled)
             {
                 return "LS scheduler: off";
             }
@@ -242,7 +258,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         try
         {
-            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            if (!readConfig().LumOn.LumonScene.Enabled)
             {
                 return "LS: off";
             }
@@ -264,7 +280,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         try
         {
-            if (!ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+            if (!readConfig().LumOn.LumonScene.Enabled)
             {
                 return "LSR: off";
             }
@@ -286,7 +302,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     {
         try
         {
-            if (!ConfigModSystem.Config.LumOn.Enabled)
+            if (!readConfig().LumOn.Enabled)
             {
                 return "Shared geometry: off";
             }
@@ -326,9 +342,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             return;
         }
 
-        ConfigModSystem.Config.Sanitize();
+        readConfig().Sanitize();
 
-        var current = LumOnLiveConfigSnapshot.From(ConfigModSystem.Config);
+        var current = LumOnLiveConfigSnapshot.From(readConfig());
         if (lastLiveConfigSnapshot is null)
         {
             lastLiveConfigSnapshot = current;
@@ -362,12 +378,12 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
         // Phase 22: ensure LumonScene feedback renderer exists when enabled.
         if (current.LumOnEnabled
-            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
+            && readConfig().LumOn.LumonScene.Enabled
             && lumonSceneFeedbackUpdateRenderer is null
             && gBufferManager is not null)
         {
             PartitionCoordinator worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(clientApi, ConfigModSystem.Config, gBufferManager, worldPartition);
+            lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(clientApi, readConfig(), gBufferManager, worldPartition, () => readCamera(capi!));
         }
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
@@ -375,7 +391,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             && traceGeometryRenderer is null)
         {
             PartitionCoordinator worldPartition = clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            traceGeometryRenderer = new TraceGeometryRenderer(clientApi, ConfigModSystem.Config, clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>());
+            traceGeometryRenderer = new TraceGeometryRenderer(clientApi, readConfig(), clientApi.ModLoader.GetModSystem<WorldPartitionModSystem>(), materials => createGeometrySource(clientApi, materials), () => readCamera(clientApi));
         }
         lumOnDebugRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
         lumOnRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
@@ -383,14 +399,14 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumonSceneFeedbackUpdateRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
 
         if (current.LumOnEnabled
-            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
+            && readConfig().LumOn.LumonScene.Enabled
             && lumonSceneRelightUpdateRenderer is null
             && lumonSceneFeedbackUpdateRenderer is not null
             && traceGeometryRenderer is not null)
         {
             lumonSceneRelightUpdateRenderer = new LumonSceneRelightUpdateRenderer(
                 clientApi,
-                ConfigModSystem.Config,
+                readConfig(),
                 lumonSceneFeedbackUpdateRenderer,
                 traceGeometryRenderer);
         }
@@ -467,19 +483,19 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
 
         // Initialize LumOn based on config (loaded by ConfigModSystem).
-        if (!ConfigModSystem.Config.LumOn.Enabled)
+        if (!readConfig().LumOn.Enabled)
         {
             return;
         }
 
-        lumOnBufferManager ??= new LumOnBufferManager(capi, ConfigModSystem.Config);
+        lumOnBufferManager ??= new LumOnBufferManager(capi, readConfig());
 
         var clipmapManager = capi.ModLoader.GetModSystem<WorldProbeModSystem>().EnsureClipmapResources(capi, $"LumOn ensure ({reason})");
 
         if (lumOnRenderer is null)
         {
             capi.Logger.Notification("[VGE] LumOn enabled - using Screen Probe Gather");
-            lumOnRenderer = new LumOnRenderer(capi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, clipmapManager);
+            lumOnRenderer = new LumOnRenderer(capi, readConfig(), lumOnBufferManager, gBufferManager, clipmapManager, () => readCamera(capi));
         }
         else
         {
@@ -488,43 +504,43 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
 
         if (lumOnDebugRenderer is null)
         {
-            lumOnDebugRenderer = new LumOnDebugRenderer(capi, ConfigModSystem.Config, lumOnBufferManager, gBufferManager, directLightingBufferManager, clipmapManager);
+            lumOnDebugRenderer = new LumOnDebugRenderer(capi, readConfig(), lumOnBufferManager, gBufferManager, directLightingBufferManager, clipmapManager, () => readCamera(capi));
         }
         else
         {
             lumOnDebugRenderer.SetWorldProbeClipmapBufferManager(clipmapManager);
         }
 
-        if (lumonSceneFeedbackUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        if (lumonSceneFeedbackUpdateRenderer is null && readConfig().LumOn.LumonScene.Enabled)
         {
             PartitionCoordinator worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(capi, ConfigModSystem.Config, gBufferManager, worldPartition);
+            lumonSceneFeedbackUpdateRenderer = new LumonSceneFeedbackUpdateRenderer(capi, readConfig(), gBufferManager, worldPartition, () => readCamera(capi!));
         }
         lumOnDebugRenderer?.SetLumonSceneFeedbackUpdateRenderer(lumonSceneFeedbackUpdateRenderer);
 
         if (traceGeometryRenderer is null)
         {
             PartitionCoordinator worldPartition = capi.ModLoader.GetModSystem<WorldPartitionModSystem>().GetCoordinator();
-            traceGeometryRenderer = new TraceGeometryRenderer(capi, ConfigModSystem.Config, capi.ModLoader.GetModSystem<WorldPartitionModSystem>());
+            traceGeometryRenderer = new TraceGeometryRenderer(capi, readConfig(), capi.ModLoader.GetModSystem<WorldPartitionModSystem>(), materials => createGeometrySource(capi, materials), () => readCamera(capi));
         }
         lumOnDebugRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
         lumOnRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
         lumOnDebugRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
 
-        if (lumOnTerrainBridgeUpdateRenderer is null && ConfigModSystem.Config.LumOn.LumonScene.Enabled)
+        if (lumOnTerrainBridgeUpdateRenderer is null && readConfig().LumOn.LumonScene.Enabled)
         {
-            lumOnTerrainBridgeUpdateRenderer = new LumOnTerrainBridgeUpdateRenderer(capi, ConfigModSystem.Config);
+            lumOnTerrainBridgeUpdateRenderer = new LumOnTerrainBridgeUpdateRenderer(capi, readConfig());
         }
 
         if (lumonSceneRelightUpdateRenderer is null
-            && ConfigModSystem.Config.LumOn.LumonScene.Enabled
+            && readConfig().LumOn.LumonScene.Enabled
             && lumonSceneFeedbackUpdateRenderer is not null
             && traceGeometryRenderer is not null)
         {
             lumonSceneRelightUpdateRenderer = new LumonSceneRelightUpdateRenderer(
                 capi,
-                ConfigModSystem.Config,
+                readConfig(),
                 lumonSceneFeedbackUpdateRenderer,
                 traceGeometryRenderer);
         }

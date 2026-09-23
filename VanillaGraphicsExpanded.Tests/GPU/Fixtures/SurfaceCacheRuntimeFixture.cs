@@ -1,3 +1,4 @@
+using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
@@ -29,9 +30,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     private readonly SpatialLightingScene? spatial;
     private readonly int edge;
     public Block SourceBlock => material.Cube;
-    private readonly DynamicTexture2D color;
-    private readonly DynamicTexture2D depth;
-    private readonly GpuFramebuffer output;
+    public EngineTerrainBuffers Terrain { get; }
     public RuntimeRenderEvents Events { get; } = new();
     public VgeConfig Config { get; } = new();
     public TraceGeometryRenderer Geometry { get; private set; } = null!;
@@ -86,8 +85,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     {
         this.spatial=spatial; edge=spatial==null?2:4;
         this.productionOwned=productionOwned; this.enclosure=enclosure; this.exposedWall=exposedWall;
-        color=DynamicTexture2D.Create(edge,edge,PixelInternalFormat.Rgba16f);
-        depth=DynamicTexture2D.Create(edge,edge,PixelInternalFormat.R32f);
+        Terrain = new(edge,edge);
         feedbackPatches = enclosure
             ? Enumerable.Range(0,6).SelectMany(axis => Enumerable.Range(0,4).Select(tile =>
                 1u + 6u * (uint)((axis%2==0?0:7)*64 + (tile/2)*8 + tile%2) + (uint)axis)).ToArray()
@@ -102,36 +100,19 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         cfg.RelightMaxPagesPerFrame = 1; cfg.RelightTexelsPerPagePerFrame = 64; cfg.RelightRaysPerTexel = 1; cfg.RelightMaxDdaSteps = 256;
         LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(0, 32, 0, 0, 32, 0, 0);
         if(spatial!=null) { cfg.NearRadiusChunks=cfg.FarRadiusChunks=2; cfg.NearPagesPerChunkBudget=48; }
-        var world = RuntimeRenderEvents.Adapt<IClientWorldAccessor>((method, _) => method.Name switch
-        {
-            "get_Player" => null, "get_MapSizeY" => 256, "get_Calendar" => null,
-            _ => throw new NotSupportedException("World: " + method.Name)
-        });
+        var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
+        world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
+        world.SetupGet(api => api.MapSizeY).Returns(256);
+        world.SetupGet(api => api.Calendar).Returns((IClientGameCalendar)null!);
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-        depth.UploadDataImmediate(Enumerable.Repeat(.5f,edge*edge).ToArray());
-        output = GpuFramebuffer.CreateSingle(color)!;
+        Terrain.Depth.UploadDataImmediate(Enumerable.Repeat(.5f,edge*edge).ToArray());
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
-        framebuffers[(int)EnumFrameBuffer.Primary] = new() { FboId = output.FboId, Width = edge, Height = edge, DepthTextureId = depth.TextureId, ColorTextureIds = [color.TextureId] };
-        var render = RuntimeRenderEvents.Adapt<IRenderAPI>((method, args) => method.Name switch
-        {
-            "get_FrameWidth" or "get_FrameHeight" => edge,
-            "get_CameraMatrixOriginf" when spatial!=null => spatial.View(),
-            "get_CameraMatrixOriginf" or "get_CurrentProjectionMatrix" => identity,
-            "get_FrameBuffers" => framebuffers,
-            "get_AmbientColor" => new Vintagestory.API.MathTools.Vec3f(0, 0, 0),
-            "get_ShaderUniforms" => new DefaultShaderUniforms { ZNear = .1f, ZFar = 100 },
-            "UploadMesh" => new RuntimeMesh(),
-            "DeleteMesh" => DeleteMesh((MeshRef)args![0]!),
-            "RenderMesh" => Draw(),
-            _ => throw new NotSupportedException("Render: " + method.Name)
-        });
+        framebuffers[(int)EnumFrameBuffer.Primary] = Terrain.Primary;
+        var render = RuntimeEngineServices.Render(edge,framebuffers,() => spatial?.View() ?? identity,() => identity,() => Draw());
         LumOnDebugShaderProgram? selected = null;
-        var shaders = RuntimeRenderEvents.Adapt<IShaderAPI>((method, _) => method.Name == "GetProgramByName" ? selected : throw new NotSupportedException(method.Name));
-        var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
-        {
-            "get_Event" => Events.Api, "get_World" => world, "get_Render" => render, "get_Shader" => shaders,
-            _ => method.Invoke(assets.Api, args)
-        });
+        var shaders = new Mock<IShaderAPI>(MockBehavior.Strict);
+        shaders.Setup(service => service.GetProgramByName(It.IsAny<string>())).Returns(() => selected!);
+        var api = RuntimeEngineServices.Client(assets.Api,Events.Api,world.Object,render,shaders.Object);
         Api = api;
         partitions.StartClientSide(api);
         Buffers = new(api);
@@ -192,17 +173,15 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
                 if(!Feedback.TryGetNearChunkSlotAndGeneration(patch.Chunk,out uint s,out ushort g)) continue;
                 pixels[i*4]=s; pixels[i*4+1]=patch.Patch; pixels[i*4+3]=g;
             }
-            using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,Buffers.PatchIdTextureId);
-            GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,edge,edge,PixelFormat.RgbaInteger,PixelType.UnsignedInt,pixels);
+            Terrain.UploadFeedback(Buffers,pixels);
         }
         else if (Feedback.TryGetNearChunkSlotAndGeneration(new(0, 1, 0), out uint slot, out ushort generation))
         {
             uint[] pixels = Enumerable.Range(0, 4).SelectMany(index => new uint[] { slot, feedbackPatches[(Frames*4+index)%feedbackPatches.Length], 0, generation }).ToArray();
-            using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, Buffers.PatchIdTextureId);
-            GL.TexSubImage2D(TextureTarget.Texture2D, 0, 0, 0, 2, 2, PixelFormat.RgbaInteger, PixelType.UnsignedInt, pixels);
+            Terrain.UploadFeedback(Buffers,pixels);
         }
         Events.Render(EnumRenderStage.Done);
-        output.BindWithViewport();
+        Terrain.Output.BindWithViewport();
         Events.Render(EnumRenderStage.AfterBlit);
         Frames++;
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -297,16 +276,14 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Reads the rendered viewer output without inspecting shader internals.</summary>
     public float[] ReadPixels()
     {
-        output.BindWithViewport();
+        Terrain.Output.BindWithViewport();
         float[] result = new float[edge*edge*4];
         GL.ReadPixels(0, 0, edge, edge, PixelFormat.Rgba, PixelType.Float, result);
         return result;
     }
 
     /// <summary>Implements the engine mesh draw using a real fullscreen GPU triangle.</summary>
-    private object? Draw() { Draws++; drawing.RenderQuad(shader!.ProgramId); return null; }
-    /// <summary>Releases the engine mesh token owned by the debug renderer.</summary>
-    private static object? DeleteMesh(MeshRef mesh) { mesh.Dispose(); return null; }
+    private void Draw() { Draws++; drawing.RenderQuad(shader!.ProgramId); }
     #endregion
 
     #region Teardown
@@ -316,13 +293,8 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         controller?.Dispose(); debug?.Dispose();
         if (!productionOwned) { relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); }
         partitions.Dispose();
-        shader?.Dispose(); Buffers.Dispose(); output.Dispose(); color.Dispose(); depth.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
+        shader?.Dispose(); Buffers.Dispose(); Terrain.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
     }
 
-    /// <summary>Represents the engine-owned mesh handle while draw submission is provided by the GPU fixture.</summary>
-    private sealed class RuntimeMesh : MeshRef
-    {
-        public override bool Initialized => !Disposed;
-    }
     #endregion
 }

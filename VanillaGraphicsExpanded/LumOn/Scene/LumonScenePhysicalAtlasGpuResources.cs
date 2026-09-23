@@ -12,6 +12,7 @@ internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
     private readonly int atlasCount;
     private readonly int tileSizeTexels;
 
+    private readonly SurfaceAtlasTextures textures;
     private readonly Texture3D depthAtlas;
     private readonly Texture3D materialAtlas;
     private readonly Texture3D irradianceAtlas;
@@ -70,47 +71,17 @@ internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
             // - Irradiance: RGBA16F (RGB=irradiance, A=weight/age)
             string prefix = field == LumonSceneField.Near ? "LumonScene_Near" : "LumonScene_Far";
 
-            depthAtlas = Texture3D.Create(
-                LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,
-                LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,
-                atlasCount,
-                PixelInternalFormat.R16f,
-                TextureFilterMode.Nearest,
-                TextureTarget.Texture2DArray,
-                $"{prefix}_DepthAtlas");
-
-            materialAtlas = Texture3D.Create(
-                LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,
-                LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,
-                atlasCount,
-                PixelInternalFormat.Rgba8,
-                TextureFilterMode.Nearest,
-                TextureTarget.Texture2DArray,
-                $"{prefix}_MaterialAtlas");
-
-            irradianceAtlas = Texture3D.Create(
-                LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,
-                LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,
-                atlasCount,
-                PixelInternalFormat.Rgba16f,
-                TextureFilterMode.Nearest,
-                TextureTarget.Texture2DArray,
-                $"{prefix}_IrradianceAtlas");
-
-            directAtlas = Texture3D.Create(depthAtlas.Width, depthAtlas.Height, atlasCount, PixelInternalFormat.Rgba16f,
-                TextureFilterMode.Nearest, TextureTarget.Texture2DArray, $"{prefix}_DirectIrradiance");
-            outgoing = new Texture3D[2];
-            for (int i = 0; i < outgoing.Length; i++)
-                outgoing[i] = Texture3D.Create(depthAtlas.Width, depthAtlas.Height, atlasCount, PixelInternalFormat.Rgba16f,
-                    TextureFilterMode.Nearest, TextureTarget.Texture2DArray, $"{prefix}_OutgoingRadiance{i}");
+            textures = new(LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,
+                LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,atlasCount,prefix);
+            depthAtlas = textures.Depth; materialAtlas = textures.Material;
+            irradianceAtlas = textures.Indirect; directAtlas = textures.Direct; outgoing = textures.Outgoing;
             Label(depthAtlas);
             Label(materialAtlas);
             Label(irradianceAtlas);
-            }
+        }
         catch
         {
-            depthAtlas?.Dispose(); materialAtlas?.Dispose(); irradianceAtlas?.Dispose(); directAtlas?.Dispose();
-            if (outgoing != null) foreach (var texture in outgoing) texture?.Dispose();
+            textures?.Dispose();
             System.Threading.Interlocked.Add(ref allocatedBytes, -allocationBytes);
             throw;
         }
@@ -124,10 +95,7 @@ internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
     {
         if (disposed) return;
         disposed = true;
-        directAtlas.Dispose(); foreach (var texture in outgoing) texture.Dispose();
-        depthAtlas.Dispose();
-        materialAtlas.Dispose();
-        irradianceAtlas.Dispose();
+        textures.Dispose();
         // Disposal/recreation is a cold lifecycle path. Finish submitted readers before
         // returning byte credit, so deferred GL deletion cannot hide recreation overlap.
         GL.Finish();

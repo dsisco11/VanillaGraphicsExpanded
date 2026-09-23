@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -15,9 +17,17 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
         int program = CompileShader("lumon_debug.vsh", "lumon_debug_worldprobe.fsh");
         try
         {
-            using var normalTexture = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, normal);
-            using var suppressedTexture = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, suppressed);
-            using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+            using var assets = new BinaryShaderApiFixture();
+            using var normalBuffers = new LumOnBufferManager(assets.Api, new VgeConfig());
+            using var suppressedBuffers = new LumOnBufferManager(assets.Api, new VgeConfig());
+            normalBuffers.EnsureBuffers(HalfResWidth, HalfResHeight);
+            suppressedBuffers.EnsureBuffers(HalfResWidth, HalfResHeight);
+            var normalTexture = normalBuffers.IndirectFullTex!;
+            var suppressedTexture = suppressedBuffers.IndirectFullTex!;
+            normalTexture.UploadDataImmediate(normal);
+            suppressedTexture.UploadDataImmediate(suppressed);
+            using var terrain = new EngineTerrainBuffers(HalfResWidth, HalfResHeight);
+            var output = terrain.Output;
             using var parameters = new ObjectParamsUbo("Tests.SealedRoom.LightingEffect");
             var cpu = new LumOnDebugParamsUbo { DebugMode = 43, WorldProbeComparisonReady = true };
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnDebugParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);

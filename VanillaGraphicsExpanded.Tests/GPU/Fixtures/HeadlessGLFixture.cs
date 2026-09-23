@@ -180,6 +180,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             GLFW.MakeContextCurrent(_glfwWindow);
             GL.LoadBindings(new GLFWBindingsContext());
             TestUniformRing.Dispose();
+            VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();
             GLFW.DestroyWindow(_glfwWindow);
             _glfwWindow = null;
         }

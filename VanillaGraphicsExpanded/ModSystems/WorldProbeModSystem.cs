@@ -15,6 +15,22 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
 {
     private const int MaxPendingWorldProbeDirtyChunks = 2048;
 
+    private readonly System.Func<VgeConfig> readConfig;
+    private readonly System.Func<ICoreClientAPI, LumOnCameraState?> readCamera;
+
+
+    #region Engine dependencies
+    /// <summary>Uses the live mod configuration and game world adapters during normal engine startup.</summary>
+    public WorldProbeModSystem() : this(() => ConfigModSystem.Config, LumOnCameraState.Read) { }
+
+    /// <summary>Receives configuration and world adapters while retaining mod-owned initialization and provider wiring.</summary>
+    internal WorldProbeModSystem(System.Func<VgeConfig> readConfig, System.Func<ICoreClientAPI, LumOnCameraState?> readCamera)
+    {
+        this.readConfig = readConfig ?? throw new ArgumentNullException(nameof(readConfig));
+        this.readCamera = readCamera ?? throw new ArgumentNullException(nameof(readCamera));
+
+    }
+    #endregion
     private ICoreClientAPI? capi;
     private IEventAPI? commonEvents;
 
@@ -76,17 +92,17 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         commonEvents.ChunkDirty += OnChunkDirty;
 
         // Snapshot initial config state so live reload deltas are correct.
-        ConfigModSystem.Config.Sanitize();
-        lastSnapshot = WorldProbeLiveConfigSnapshot.From(ConfigModSystem.Config);
+        readConfig().Sanitize();
+        lastSnapshot = WorldProbeLiveConfigSnapshot.From(readConfig());
 
         // If LumOn starts enabled, initialize clipmap resources immediately so the renderer can run Phase 18.
-        if (ConfigModSystem.Config.LumOn.Enabled)
+        if (readConfig().LumOn.Enabled)
         {
             var clipmap = EnsureClipmapResources(api, "startup");
             worldProbeUpdateRenderer ??= new VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeUpdateRenderer(
                 api,
-                ConfigModSystem.Config,
-                clipmap);
+                readConfig(),
+                clipmap, () => readCamera(api));
             worldProbeUpdateRenderer.SetSurfaceLightingProvider(surfaceLightingProvider,surfaceGeometryProvider);
         }
     }
@@ -111,7 +127,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
     {
         capi ??= api;
 
-        clipmapBufferManager ??= new LumOnWorldProbeClipmapBufferManager(capi, ConfigModSystem.Config);
+        clipmapBufferManager ??= new LumOnWorldProbeClipmapBufferManager(capi, readConfig());
         clipmapBufferManager.EnsureResources();
         capi.Logger.Debug("[VGE] World-probe clipmap resources ensured: {0}", reason);
         return clipmapBufferManager;
@@ -120,7 +136,7 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
     internal void NotifyWorldProbeChunkDirty(int chunkX, int chunkY, int chunkZ, string reason)
     {
         // Buffering only; the world-probe update renderer will drain + apply to the scheduler.
-        if (!ConfigModSystem.Config.LumOn.Enabled)
+        if (!readConfig().LumOn.Enabled)
         {
             return;
         }
@@ -174,9 +190,9 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
     {
         if (api is not ICoreClientAPI clientApi) return;
 
-        ConfigModSystem.Config.Sanitize();
+        readConfig().Sanitize();
 
-        var current = WorldProbeLiveConfigSnapshot.From(ConfigModSystem.Config);
+        var current = WorldProbeLiveConfigSnapshot.From(readConfig());
         if (lastSnapshot is null)
         {
             lastSnapshot = current;
@@ -198,8 +214,8 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
             var clipmap = clipmapBufferManager ?? EnsureClipmapResources(clientApi, "live config reload");
             worldProbeUpdateRenderer = new VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeUpdateRenderer(
                 clientApi,
-                ConfigModSystem.Config,
-                clipmap);
+                readConfig(),
+                clipmap, () => readCamera(clientApi));
             worldProbeUpdateRenderer.SetSurfaceLightingProvider(surfaceLightingProvider,surfaceGeometryProvider);
         }
 

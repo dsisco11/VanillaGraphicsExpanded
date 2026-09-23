@@ -45,6 +45,8 @@ public sealed class GpuResourceManagerModSystem : ModSystem
             }
         }
 
+        // Retire shared objects while the deletion service can still accept and drain their handles.
+        GpuSamplers.Dispose();
         renderer?.Dispose();
         renderer = null;
         rendererRegistered = false;

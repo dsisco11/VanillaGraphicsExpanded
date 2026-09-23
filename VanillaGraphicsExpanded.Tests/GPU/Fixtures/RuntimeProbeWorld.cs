@@ -1,4 +1,4 @@
-using System.Reflection;
+using Moq;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -14,7 +14,7 @@ internal sealed class RuntimeProbeWorld : IDisposable
     private readonly Block solid;
     private readonly SpatialLightingScene? spatial;
     private readonly Block air = new() { BlockId=0 };
-    private readonly IWorldChunk chunk = DispatchProxy.Create<IWorldChunk,LoadedChunkSentinel>();
+    private readonly IWorldChunk chunk = Mock.Of<IWorldChunk>();
     private int workerReads;
     public IBlockAccessor Accessor { get; }
     public int WorkerReads => Volatile.Read(ref workerReads);
@@ -25,38 +25,34 @@ internal sealed class RuntimeProbeWorld : IDisposable
     public RuntimeProbeWorld(Block solid, SpatialLightingScene? spatial = null)
     {
         this.solid=solid; this.spatial=spatial;
-        Accessor=RuntimeRenderEvents.Adapt<IBlockAccessor>(Invoke);
-    }
-
-    /// <summary>Supplies only the engine calls needed by production center validation and voxel traversal.</summary>
-    private object? Invoke(MethodInfo method,object?[]? args)
-    {
-        switch(method.Name)
+        var accessor = new Mock<IBlockAccessor>(MockBehavior.Strict);
+        accessor.SetupGet(api => api.MapSizeY).Returns(256);
+        accessor.Setup(api => api.GetChunkAtBlockPos(It.IsAny<BlockPos>())).Returns((BlockPos location) =>
         {
-            case "get_MapSizeY": return 256;
-            case "GetChunkAtBlockPos":
-                var location=(BlockPos)args![0]!;
-                var key=VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(location.X>>5,location.Y>>5,location.Z>>5);
-                return spatial?.Loaded(key)==false?null:chunk;
-            case "GetRainMapHeightAt": return 40;
-            case "GetLightLevel": return 0;
-            case "GetLightRGBs": return new Vec4f(0,0,0,0);
-            case "GetMostSolidBlock":
-                if(Environment.CurrentManagedThreadId!=renderThread)
-                {
-                    Interlocked.Increment(ref workerReads);
-                    lock(gate)
-                    {
-                        if(hold) Volatile.Write(ref entered,true);
-                        while(hold) Monitor.Wait(gate);
-                    }
-                }
-                var pos=(BlockPos)args![0]!;
-                return (spatial?.Solid(pos.X,pos.Y,pos.Z) ?? (pos.X<=0 || pos.X>=7 || pos.Y<=32 || pos.Y>=39 || pos.Z<=0 || pos.Z>=7)) ? solid : air;
-            default: throw new NotSupportedException("Probe world: "+method.Name);
-        }
+            var key=VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(location.X>>5,location.Y>>5,location.Z>>5);
+            return spatial?.Loaded(key)==false ? null! : chunk;
+        });
+        accessor.Setup(api => api.GetRainMapHeightAt(It.IsAny<int>(),It.IsAny<int>())).Returns(40);
+        accessor.Setup(api => api.GetLightLevel(It.IsAny<int>(),It.IsAny<int>(),It.IsAny<int>(),It.IsAny<EnumLightLevelType>())).Returns(0);
+        accessor.Setup(api => api.GetLightRGBs(It.IsAny<BlockPos>())).Returns(new Vec4f(0,0,0,0));
+        accessor.Setup(api => api.GetMostSolidBlock(It.IsAny<BlockPos>())).Returns(ReadBlock);
+        Accessor=accessor.Object;
     }
 
+    /// <summary>Delays actual worker reads at the engine boundary, then supplies the controlled scene's block.</summary>
+    private Block ReadBlock(BlockPos pos)
+    {
+        if(Environment.CurrentManagedThreadId!=renderThread)
+        {
+            Interlocked.Increment(ref workerReads);
+            lock(gate)
+            {
+                if(hold) Volatile.Write(ref entered,true);
+                while(hold) Monitor.Wait(gate);
+            }
+        }
+        return (spatial?.Solid(pos.X,pos.Y,pos.Z) ?? (pos.X<=0 || pos.X>=7 || pos.Y<=32 || pos.Y>=39 || pos.Z<=0 || pos.Z>=7)) ? solid : air;
+    }
     /// <summary>Holds the next actual worker read while render callbacks continue.</summary>
     public void HoldWorker() { lock(gate) { Volatile.Write(ref entered,false); hold=true; } }
     /// <summary>Releases delayed traversal, including retired requests that must never publish.</summary>

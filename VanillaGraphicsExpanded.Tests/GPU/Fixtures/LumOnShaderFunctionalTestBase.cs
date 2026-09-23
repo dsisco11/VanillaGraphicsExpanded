@@ -118,6 +118,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private readonly LumOnDebugParamsUbo _lumOnDebugParams = new();
     private GpuUniformBuffer? _lumOnDebugParamsUbo;
     private bool _disposed;
+    private readonly System.Collections.Generic.List<IDisposable> inputOwners = new();
 
     private LumOnPmjJitterTexture? _pmjJitterTexture;
     private int _pmjJitterCycleLength;
@@ -517,7 +518,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     protected DynamicTexture2D CreateUniformColorTexture(int width, int height, float r, float g, float b, float a = 1.0f)
     {
         var data = CreateUniformColorData(width, height, r, g, b, a);
-        return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
+        var owner = new EngineTerrainBuffers(width, height);
+        inputOwners.Add(owner);
+        owner.Color.UploadDataImmediate(data);
+        return owner.Color;
     }
 
     /// <summary>
@@ -526,7 +530,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     protected DynamicTexture2D CreateUniformDepthTexture(int width, int height, float depth)
     {
         var data = CreateUniformDepthData(width, height, depth);
-        return TestFramework.CreateTexture(width, height, PixelInternalFormat.R32f, data);
+        var owner = new EngineTerrainBuffers(width, height);
+        inputOwners.Add(owner);
+        owner.Depth.UploadDataImmediate(data);
+        return owner.Depth;
     }
 
     /// <summary>
@@ -535,7 +542,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     protected DynamicTexture2D CreateUniformNormalTexture(int width, int height, float nx, float ny, float nz)
     {
         var data = CreateUniformNormalData(width, height, nx, ny, nz);
-        return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
+        var owner = new GBufferTextures(width, height);
+        inputOwners.Add(owner);
+        owner.Normal.UploadDataImmediate(data);
+        return owner.Normal;
     }
 
     /// <summary>
@@ -545,7 +555,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     protected DynamicTexture2D CreateMaterialTexture(int width, int height, float roughness, float metallic, float emissive = 0f, float reflectivity = 0f)
     {
         var data = CreateUniformMaterialData(width, height, roughness, metallic, emissive, reflectivity);
-        return TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba16f, data);
+        var owner = new GBufferTextures(width, height);
+        inputOwners.Add(owner);
+        owner.Material.UploadDataImmediate(data);
+        return owner.Material;
     }
 
     /// <summary>
@@ -721,6 +734,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         {
             if (disposing)
             {
+                foreach (var owner in inputOwners) owner.Dispose();
+                inputOwners.Clear();
                 _shaderHelper?.Dispose();
                 _testFramework?.Dispose();
                 _lumOnUbos?.Dispose();

@@ -52,13 +52,19 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             program = CompileShaderWithDefines(declaration.Stages[0].Source, declaration.Stages[1].Source, defines);
             visibilityPrograms.Add(key, program);
         }
-        var textures = new List<DynamicTexture2D>();
-        try
+        using var assets = new BinaryShaderApiFixture();
+        int guideSize = debug ? size : size * 2;
+        using var terrain = new EngineTerrainBuffers(guideSize,guideSize);
+        using var terrainAttachments = new GBufferTextures(guideSize,guideSize);
+        using var world = new VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources(atlas.Resolution,atlas.Levels,atlas.TileSize);
+        var config = new VgeConfig(); config.LumOn.ProbeSpacingPx = Math.Max(1,guideSize/2);
+        using var screen = new LumOnBufferManager(assets.Api,config);
+        screen.EnsureBuffers(guideSize,guideSize);
         {
             // Match production sampler units, including SH9's sixteen-unit limit.
             // Gather uses integer full-resolution guide fetches; every addressed texel
             // must exist rather than relying on undefined out-of-range sampling.
-            int guideSize = debug ? size : size * 2;
+
             var depth = new float[guideSize * guideSize];
             Array.Fill(depth, 0.5f);
             var normals = new float[depth.Length * 4];
@@ -70,18 +76,18 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                 normals[i + 2] = normal.Z * .5f + .5f;
                 normals[i + 3] = 1;
             }
-            Add("primaryDepth", debug ? 0 : sh9 ? 9 : 3, guideSize, guideSize, PixelInternalFormat.R32f, depth);
-            Add("gBufferNormal", debug ? 1 : sh9 ? 10 : 4, guideSize, guideSize, PixelInternalFormat.Rgba16f, normals);
-            Add("worldProbeRadianceAtlas", debug ? 19 : sh9 ? 11 : 5, atlas.Width, atlas.Height, PixelInternalFormat.Rgba16f, atlas.Radiance);
-            Add("worldProbeVis0", debug ? 22 : sh9 ? 14 : 8, atlas.ScalarWidth, atlas.ScalarHeight, PixelInternalFormat.Rgba16f, atlas.Visibility);
-            Add("worldProbeMeta0", debug ? 24 : sh9 ? 15 : 9, atlas.ScalarWidth, atlas.ScalarHeight, PixelInternalFormat.Rg32f, atlas.Metadata);
+            Add("primaryDepth", debug ? 0 : sh9 ? 9 : 3, terrain.Depth, depth);
+            Add("gBufferNormal", debug ? 1 : sh9 ? 10 : 4, terrainAttachments.Normal, normals);
+            Add("worldProbeRadianceAtlas", debug ? 19 : sh9 ? 11 : 5, world.ProbeRadianceAtlas, atlas.Radiance);
+            Add("worldProbeVis0", debug ? 22 : sh9 ? 14 : 8, world.ProbeVis0, atlas.Visibility);
+            Add("worldProbeMeta0", debug ? 24 : sh9 ? 15 : 9, world.ProbeMeta0, atlas.Metadata);
             if (!debug)
             {
-                Add("probeAnchorPosition", sh9 ? 7 : 1, 2, 2, PixelInternalFormat.Rgba16f, new float[16]);
-                Add("probeAnchorNormal", sh9 ? 8 : 2, 2, 2, PixelInternalFormat.Rgba16f, new float[16]);
+                Add("probeAnchorPosition", sh9 ? 7 : 1, screen.ProbeAnchorPositionTex!, new float[16]);
+                Add("probeAnchorNormal", sh9 ? 8 : 2, screen.ProbeAnchorNormalTex!, new float[16]);
                 if (sh9)
-                    for (int i = 0; i < 7; i++) Add("probeSh" + i, i, 2, 2, PixelInternalFormat.Rgba16f, new float[16]);
-                else Add("octahedralAtlas", 0, 16, 16, PixelInternalFormat.Rgba16f, new float[1024]);
+                    for (int i = 0; i < 7; i++) Add("probeSh" + i, i, (DynamicTexture2D)screen.ProbeSh9Fbo![i], new float[16]);
+                else Add("octahedralAtlas", 0, screen.ScreenProbeAtlasFilteredTex!, new float[1024]);
             }
             int geometryUnit = debug ? 34 : sh9 ? 12 : 6;
             int readinessUnit = debug ? 35 : sh9 ? 13 : 7;
@@ -129,20 +135,16 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                 }.Bytes);
                 UniformBlockBindingUtil.EnsureBlockBound(program, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
             }
-            using var output = TestFramework.CreateTestGBuffer(size, size, PixelInternalFormat.Rgba16f);
+            var output = debug ? terrain.Output : screen.IndirectHalfFbo!;
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }
-        finally
-        {
-            foreach (var texture in textures) texture.Dispose();
-        }
 
-        /// <summary>Creates and binds an explicitly packed input texture.</summary>
-        void Add(string name, int unit, int width, int height, PixelInternalFormat format, float[] data)
+
+        /// <summary>Populates an owned input texture without duplicating its storage format.</summary>
+        void Add(string name, int unit, DynamicTexture2D texture, float[] data)
         {
-            var texture = TestFramework.CreateTexture(width, height, format, data);
-            textures.Add(texture);
+            texture.UploadDataImmediate(data);
             texture.Bind(unit);
             GL.UseProgram(program);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name), unit);

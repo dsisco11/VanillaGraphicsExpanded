@@ -1,4 +1,6 @@
 using System.Numerics;
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
@@ -34,21 +36,29 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
             });
         using var cacheBinding=new VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingBindings();
         cacheBinding.Bind(surfaceLighting);
-        var textures = new List<DynamicTexture2D>();
+        using var assets = new BinaryShaderApiFixture();
+        var config = new VgeConfig();
+        config.LumOn.ProbeSpacingPx = 2;
+        using var buffers = new LumOnBufferManager(assets.Api, config);
+        buffers.EnsureBuffers(4,4);
+        using var worldInputs = new LumOnWorldProbeClipmapGpuResources(cacheResolution,1,16);
+        using var terrain = new EngineTerrainBuffers(4,4);
+        using var gbuffer = new GBufferTextures(4,4);
+        gbuffer.Material.UploadDataImmediate(CreateUniformColorData(4,4,0,0,screenEmission,0));
         try
         {
-            AddTexture("probeAnchorPosition", 0, 2, 2, PixelInternalFormat.Rgba16f, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1);
-            AddTexture("probeAnchorNormal", 1, 2, 2, PixelInternalFormat.Rgba16f, 0.5f, 0.5f, 1, 0);
-            AddTexture("primaryDepth", 2, 4, 4, PixelInternalFormat.R32f, screenDepth);
-            AddTexture("surfaceAlbedo", 3, 4, 4, PixelInternalFormat.Rgba16f, 1, 1, 1, 1);
-            AddTexture("gBufferMaterial", 4, 4, 4, PixelInternalFormat.Rgba16f, 0, 0, screenEmission, 0);
-            AddTexture("octahedralHistory", 5, 16, 16, PixelInternalFormat.Rgba16f, 0, 0, 0, 0);
-            AddTexture("hzbDepth", 6, 4, 4, PixelInternalFormat.R32f, screenDepth);
-            AddTexture("probeAtlasMetaHistory", 7, 16, 16, PixelInternalFormat.Rg32f, 0, 0);
-            AddTexture("worldProbeRadianceAtlas", 8, 16 * cacheResolution * cacheResolution, 16 * cacheResolution, PixelInternalFormat.Rgba16f, 10, 10, 10, MathF.Log(1 + cacheDistance));
-            AddTexture("probeTraceMask", 9, 2, 2, PixelInternalFormat.Rg32f, 0, 0);
-            AddTexture("worldProbeVis0", 11, cacheResolution * cacheResolution, cacheResolution, PixelInternalFormat.Rgba16f, 0, 0, 1, 1);
-            AddTexture("worldProbeMeta0", 12, cacheResolution * cacheResolution, cacheResolution, PixelInternalFormat.Rg32f, 1, 0);
+            AddTexture("probeAnchorPosition", 0, buffers.ProbeAnchorPositionTex!, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1);
+            AddTexture("probeAnchorNormal", 1, buffers.ProbeAnchorNormalTex!, 0.5f, 0.5f, 1, 0);
+            AddTexture("primaryDepth", 2, terrain.Depth, screenDepth);
+            AddTexture("surfaceAlbedo", 3, buffers.SurfaceAlbedoTex!, 1, 1, 1, 1);
+            BindSampler("gBufferMaterial",4,gbuffer.Material.TextureId);
+            AddTexture("octahedralHistory", 5, buffers.ScreenProbeAtlasHistoryTex!, 0, 0, 0, 0);
+            AddTexture("hzbDepth", 6, buffers.HzbDepthTex!, screenDepth);
+            AddTexture("probeAtlasMetaHistory", 7, buffers.ScreenProbeAtlasMetaHistoryTex!, 0, 0);
+            AddTexture("worldProbeRadianceAtlas", 8, worldInputs.ProbeRadianceAtlas, 10, 10, 10, MathF.Log(1 + cacheDistance));
+            AddTexture("probeTraceMask", 9, buffers.ProbeTraceMaskTex!, 0, 0);
+            AddTexture("worldProbeVis0", 11, worldInputs.ProbeVis0, 0, 0, 1, 1);
+            AddTexture("worldProbeMeta0", 12, worldInputs.ProbeMeta0, 1, 0);
             (shared?.Geometry ?? fixture.Scene.Geometry).Bind(10); (shared?.Light ?? fixture.Scene.Light).Bind(13);
             (shared?.Readiness ?? fixture.Scene.Regions).Bind(14); (shared?.Materials ?? fixture.Scene.Materials).Bind(15);
             if(shared != null) shared.Faces.Bind(19);
@@ -77,7 +87,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
             using var parameters = new ObjectParamsUbo("Tests.NearField.Params");
             parameters.UploadAndBind(new LumOnProbeParamsUbo { SuppressWorldProbeRadiance = suppress, IndirectTint = Vector3.One }.Bytes);
             UniformBlockBindingUtil.EnsureBlockBound(program, LumOnProbeParamsUbo.BlockName, GpuBindingRegistry.Ubo.Object);
-            using var output = TestFramework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
+            var output = buffers.ScreenProbeAtlasTraceFbo!;
             TestFramework.RenderQuadTo(program, output);
             var result = (output[0].ReadPixels(), output[1].ReadPixels());
             consume?.Invoke(output);
@@ -85,12 +95,18 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         }
         finally
         {
-            foreach (var texture in textures) texture.Dispose();
             global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
         }
 
-        /// <summary>Creates uniform inputs that isolate traversal from unrelated screen-buffer contents.</summary>
-        void AddTexture(string name, int unit, int width, int height, PixelInternalFormat format, params float[] value)
+        /// <summary>Binds an engine-owned attachment without duplicating its allocation or storage format.</summary>
+        void BindSampler(string name, int unit, int texture)
+        {
+            GlStateCache.Current.BindTexture(TextureTarget.Texture2D,unit,texture);
+            GL.UseProgram(program); GL.Uniform1(TestShaderInterfaces.GetUniformLocation(program,name),unit); GL.UseProgram(0);
+        }
+
+        /// <summary>Populates owned inputs that isolate traversal from unrelated screen-buffer contents.</summary>
+        void AddTexture(string name, int unit, DynamicTexture2D texture, params float[] value)
         {
             GpuTexture? published = name switch
             {
@@ -109,14 +125,14 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
                 GL.UseProgram(0);
                 return;
             }
+            int width=texture.Width, height=texture.Height;
             var data = new float[width * height * value.Length];
             for (int i = 0; i < data.Length; i++) data[i] = value[i % value.Length];
             if (directionalCache && name == "worldProbeRadianceAtlas")
                 for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
                     data[(y * width + x) * 4] = (x % 16 + 0.5f) / 16;
-            var texture = TestFramework.CreateTexture(width, height, format, data);
-            textures.Add(texture); texture.Bind(unit);
+            texture.UploadDataImmediate(data); texture.Bind(unit);
             GL.UseProgram(program);
             GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(program, name), unit);
             GL.UseProgram(0);

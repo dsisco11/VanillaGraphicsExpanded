@@ -17,6 +17,18 @@ internal static class GpuSamplers
 
     public static GpuSampler ShadowCompareLinearClamp => shadowCompareLinearClamp ??= CreateShadowCompareLinearClamp();
 
+    #region Lifetime
+    /// <summary>Retires shared sampler names before their rendering context and deletion service shut down.</summary>
+    public static void Dispose()
+    {
+        lock (Sync)
+        {
+            nearestClamp?.Dispose(); linearClamp?.Dispose(); shadowCompareLinearClamp?.Dispose();
+            nearestClamp = null; linearClamp = null; shadowCompareLinearClamp = null;
+        }
+    }
+    #endregion
+
     private static GpuSampler CreateNearestClamp()
     {
         lock (Sync)

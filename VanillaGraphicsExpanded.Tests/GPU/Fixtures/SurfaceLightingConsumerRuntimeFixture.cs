@@ -1,3 +1,4 @@
+using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
@@ -19,7 +20,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     private readonly EngineShaderPlatformScope platform = new();
     private readonly ShaderTestFramework drawing = new();
     private readonly RuntimeLightingPrograms programs = new();
-    private readonly VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem worldSystem = new();
+    private readonly VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem worldSystem;
     private readonly RuntimeLightingHost host;
     private readonly SpatialLightingScene? spatial;
     private readonly int edge;
@@ -61,37 +62,22 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
             wp.PerLevelProbeUpdateBudget=[8]; wp.UploadBudgetBytesPerFrame=8*1576;
             cfg.ProbeAtlasTexelsPerFrame=64; cfg.TemporalAlpha=0;
         }
-        var world=RuntimeRenderEvents.Adapt<IClientWorldAccessor>((method,_)=>method.Name switch
-        {
-            "get_Player"=>null,"get_BlockAccessor"=>World.Accessor,"get_Calendar"=>null,"get_MapSizeY"=>256,
-            _=>throw new NotSupportedException(method.Name)
-        });
-        var render=RuntimeRenderEvents.Adapt<IRenderAPI>((method,args)=>method.Name switch
-        {
-            "get_CurrentProjectionMatrix"=>projection,
-            "get_CameraMatrixOriginf" when spatial!=null=>spatial.View(),
-            "UploadMesh"=>new RuntimeMesh(),
-            "DeleteMesh"=>DeleteMesh((MeshRef)args![0]!),
-            "RenderMesh"=>Draw(),
-            "GlToggleBlend"=>Blend((bool)args![0]!),
-            _=>method.Invoke(Cache.Api.Render,args)
-        });
-        var shader=programs.Api;
-        var input=RuntimeRenderEvents.Adapt<IInputAPI>((method,_)=>method.Name is "RegisterHotKey" or "SetHotKeyHandler"?null:throw new NotSupportedException(method.Name));
-        var mods=RuntimeRenderEvents.Adapt<IModLoader>((method,_)=>method.Name=="GetModSystem"
-            ? method.GetGenericArguments().Single()==typeof(VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem)
-                ? worldSystem : method.GetGenericArguments().Single()==typeof(VanillaGraphicsExpanded.ModSystems.WorldPartitionModSystem)
-                    ? Cache.Partitions : throw new NotSupportedException(method.ToString())
-            : throw new NotSupportedException(method.Name));
-        var api=RuntimeRenderEvents.Adapt<ICoreClientAPI>((method,args)=>method.Name switch
-        {
-            "get_ModLoader"=>mods,"get_World"=>world,"get_Render"=>render,"get_Shader"=>shader,"get_Input"=>input,
-            _=>method.Invoke(Cache.Api,args)
-        });
+        var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
+        world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
+        world.SetupGet(api => api.BlockAccessor).Returns(World.Accessor);
+        world.SetupGet(api => api.Calendar).Returns((IClientGameCalendar)null!);
+        world.SetupGet(api => api.MapSizeY).Returns(256);
+        var render = RuntimeEngineServices.Render(edge,Cache.Api.Render.FrameBuffers,
+            () => spatial?.View() ?? Cache.Api.Render.CameraMatrixOriginf,() => projection,() => Draw());
+        worldSystem = new(() => Cache.Config, _ => Camera());
+        var mods = new Mock<IModLoader>(MockBehavior.Strict);
+        mods.Setup(api => api.GetModSystem<VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem>(It.IsAny<bool>())).Returns(worldSystem);
+        mods.Setup(api => api.GetModSystem<VanillaGraphicsExpanded.ModSystems.WorldPartitionModSystem>(It.IsAny<bool>())).Returns(Cache.Partitions);
+        var api = RuntimeEngineServices.Client(Cache.Api,Cache.Events.Api,world.Object,render,programs.Api,mods.Object,RuntimeEngineServices.Input());
         programs.Initialize(api);
         host=new(api,Cache,worldSystem,Camera);
         WorldRenderer=host.WorldRenderer;
-        Screen=RuntimeLightingHost.Read<LumOnBufferManager>(host.Renderer,"primaryBuffers");
+        Screen=host.Screen;
         WorldBuffers=worldSystem.GetClipmapBufferManagerOrNull()!;
     }
     #endregion
@@ -100,13 +86,13 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     /// <summary>Supplies terrain raster data, then invokes the registered engine stages without calling individual lighting passes.</summary>
     public void Frame()
     {
-        var primary=Cache.Api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         float z=-5,depth=(projection[10]*z+projection[14])/(projection[11]*z+projection[15])*.5f+.5f;
         var raster=spatial?.Raster(edge,projection);
-        Upload(primary.DepthTextureId,PixelFormat.Red,raster?.Depth ?? Enumerable.Repeat(depth,edge*edge).ToArray());
-        Upload(Cache.Buffers.NormalTextureId,PixelFormat.Rgba,raster?.Normal ?? Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray());
-        Upload(Cache.Buffers.MaterialTextureId,PixelFormat.Rgba,Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{1f,0f,0f,0f}).ToArray());
-        Upload(primary.ColorTextureIds[0],PixelFormat.Rgba,Enumerable.Repeat(.5f,edge*edge*4).ToArray());
+        Cache.Terrain.UploadTerrain(Cache.Buffers,
+            raster?.Depth ?? Enumerable.Repeat(depth,edge*edge).ToArray(),
+            raster?.Normal ?? Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray(),
+            Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{1f,0f,0f,0f}).ToArray(),
+            Enumerable.Repeat(.5f,edge*edge*4).ToArray());
         Cache.Frame();
         if(Screen.IndirectFullTex!=null) Energy(FinalPixels());
         if(WorldBuffers.Resources!=null) Energy(WorldPixels());
@@ -138,25 +124,14 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
         return peak;
     }
 
-    /// <summary>Uploads only engine raster inputs; no probe or cache radiance is synthesized.</summary>
-    private void Upload(int texture,PixelFormat format,float[] values)
-    {
-        using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,texture);
-        GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,edge,edge,format,PixelType.Float,values);
-    }
-
     /// <summary>Submits the currently bound production shader through a real GPU fullscreen primitive.</summary>
-    private object? Draw()
+    private void Draw()
     {
         int program=GL.GetInteger(GetPName.CurrentProgram); Assert.NotEqual(0,program);
         DrawnPrograms.Add(program); drawing.RenderQuad(program);
         // Engine RenderMesh preserves the active shader across repeated draws (including HZB mip levels).
-        GL.UseProgram(program); return null;
+        GL.UseProgram(program);
     }
-    /// <summary>Implements the engine blend-state boundary.</summary>
-    private static object? Blend(bool enabled) { if(enabled) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend); return null; }
-    /// <summary>Releases the engine mesh token.</summary>
-    private static object? DeleteMesh(MeshRef mesh) { mesh.Dispose(); return null; }
     #endregion
 
     #region Disposal
@@ -166,7 +141,5 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
         World.ReleaseWorker(); host.Dispose();
         programs.Dispose(); drawing.Dispose(); World.Dispose(); Cache.Dispose(); platform.Dispose();
     }
-    /// <summary>Represents the engine mesh while draws use the controlled GPU triangle.</summary>
-    private sealed class RuntimeMesh : MeshRef { public override bool Initialized=>!Disposed; }
     #endregion
 }

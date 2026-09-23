@@ -31,6 +31,7 @@ public sealed class GBufferManager : IDisposable
     private readonly ICoreClientAPI capi;
     
     // G-buffer textures using DynamicTexture
+    private GBufferTextures? textures;
     private DynamicTexture2D? normalTex;
     private DynamicTexture2D? materialTex;
     private DynamicTexture2D? patchIdTex;
@@ -432,42 +433,18 @@ public sealed class GBufferManager : IDisposable
         // Delete old textures if they exist
         DeleteTextures();
 
-        // Create Normal texture (RGBA16F)
-        normalTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gNormal");
-        ConfigureAsNonMipRenderTarget(normalTex);
-
-        // Create Material texture (RGBA16F) - Roughness, Metallic, Emissive, Reflectivity
-        materialTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, debugName: "gMaterial");
-        ConfigureAsNonMipRenderTarget(materialTex);
-
-        // Create PatchId texture (RGBA32UI)
-        patchIdTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba32ui, debugName: "gPatchId");
-        ConfigureAsNonMipRenderTarget(patchIdTex);
+        textures = new(width, height);
+        normalTex = textures.Normal; materialTex = textures.Material; patchIdTex = textures.PatchId;
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
         capi.Logger.Notification($"[VGE]   Normal ID={NormalTextureId}, Material ID={MaterialTextureId}, PatchId ID={PatchIdTextureId}");
     }
 
-    private static void ConfigureAsNonMipRenderTarget(DynamicTexture2D texture)
-    {
-        if (texture is null || !texture.IsValid)
-        {
-            return;
-        }
-
-        // These textures are render targets and are sampled by raw texture ID in some paths.
-        // Explicitly disable mipmapping on the texture object (not just via sampler objects).
-        texture.DisableMipmaps();
-        texture.SetTexFilter(TextureMinFilter.Nearest, TextureMagFilter.Nearest);
-        texture.SetTexWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
-    }
-
     private void DeleteTextures()
     {
-        normalTex?.Dispose();
-        materialTex?.Dispose();
-        patchIdTex?.Dispose();
+        textures?.Dispose();
+        textures = null;
         normalTex = null;
         materialTex = null;
         patchIdTex = null;

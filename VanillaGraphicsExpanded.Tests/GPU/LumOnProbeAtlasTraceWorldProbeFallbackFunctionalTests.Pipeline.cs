@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -27,15 +29,22 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 sh9 ? "lumon_probe_sh9_gather.fsh" : "lumon_probe_atlas_gather.fsh");
             programs.Add(gather);
 
-            using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
-                CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, 0, 0, -5, 1));
-            using var normals = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f,
-                CreateUniformData(ScreenWidth, ScreenHeight, 4, 0.5f, 0.5f, 1, 0));
-            // Standard perspective projection maps the accepted anchor's z=-5 to this hardware depth.
+            using var assets = new BinaryShaderApiFixture();
+            var config = new VgeConfig(); config.LumOn.ProbeSpacingPx = ProbeSpacing;
+            using var inputs = new LumOnBufferManager(assets.Api, config);
+            inputs.EnsureBuffers(ScreenWidth, ScreenHeight);
+            using var terrain = new EngineTerrainBuffers(ScreenWidth, ScreenHeight);
+            using var guides = new GBufferTextures(ScreenWidth, ScreenHeight);
+            var anchors = inputs.ProbeAnchorPositionTex!;
+            anchors.UploadDataImmediate(CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, 0, 0, -5, 1));
+            var normals = guides.Normal;
+            normals.UploadDataImmediate(CreateUniformData(ScreenWidth, ScreenHeight, 4, 0.5f, 0.5f, 1, 0));
+            // Project the accepted anchor at z=-5 into hardware depth.
             float depthValue = ZFar / (ZFar - ZNear) - ZFar * ZNear / ((ZFar - ZNear) * 5f);
-            using var depth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f,
-                CreateUniformData(ScreenWidth, ScreenHeight, 1, depthValue));
-            using var meta = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metadata);
+            var depth = terrain.Depth;
+            depth.UploadDataImmediate(CreateUniformData(ScreenWidth, ScreenHeight, 1, depthValue));
+            var meta = inputs.ScreenProbeAtlasMetaHistoryTex!;
+            meta.UploadDataImmediate(metadata);
             using var paramsBuffer = new ObjectParamsUbo("Tests.WorldProbePairedPipeline");
             var parameters = new LumOnProbeParamsUbo
             {
@@ -51,15 +60,15 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             float[][] gathered = new float[2][];
             for (int branch = 0; branch < 2; branch++)
             {
-                using var trace = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f,
-                    branch == 0 ? normalTrace : suppressedTrace);
-                using var first = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
-                using var second = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
-                using var filtered = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f);
-                using var projected = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight,
-                    Enumerable.Repeat(PixelInternalFormat.Rgba16f, 7).ToArray());
-                using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
-
+                using var buffers = new LumOnBufferManager(assets.Api, config);
+                buffers.EnsureBuffers(ScreenWidth, ScreenHeight);
+                var trace = buffers.ScreenProbeAtlasHistoryTex!;
+                trace.UploadDataImmediate(branch == 0 ? normalTrace : suppressedTrace);
+                var first = buffers.ScreenProbeAtlasCurrentFbo!;
+                var second = buffers.ScreenProbeAtlasTraceFbo!;
+                var filtered = buffers.ScreenProbeAtlasFilteredFbo!;
+                var projected = buffers.ProbeSh9Fbo!;
+                var output = buffers.IndirectHalfFbo!;
                 for (int frame = 0; frame < 2; frame++)
                 {
                     UpdateAndBindLumOnFrameUbo(temporal, frameIndex: frame, historyValid: frame, enableVelocityReprojection: 0);

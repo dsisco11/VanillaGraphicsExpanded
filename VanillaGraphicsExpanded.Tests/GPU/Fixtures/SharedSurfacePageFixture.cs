@@ -17,9 +17,10 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     private readonly TraceGeometryComputeBindings geometry = new();
     private readonly ObjectParamsUbo parameters = new("Tests.SharedSurfacePage");
     private readonly GpuShaderStorageBuffer captureWork, relightWork, metadata, slots;
-    private readonly Texture3D depth = Texture3D.Create(Size, Size, 1, PixelInternalFormat.R16f, textureTarget: TextureTarget.Texture2DArray);
-    private readonly Texture3D material = Texture3D.Create(Size, Size, 1, PixelInternalFormat.Rgba8, textureTarget: TextureTarget.Texture2DArray);
-    private readonly Texture3D irradiance = Texture3D.Create(Size, Size, 1, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture2DArray);
+    private readonly SurfaceAtlasTextures textures = new(Size,Size,1,"Tests.SurfacePage");
+    private Texture3D depth => textures.Depth;
+    private Texture3D material => textures.Material;
+    private Texture3D irradiance => textures.Indirect;
 
     /// <summary>Exposes the actual history atlas to the production invalidation owner.</summary>
     internal GpuTexture IrradianceAtlas => irradiance;
@@ -78,6 +79,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Runs bounded relighting and returns the page completion marker written by the shader.</summary>
     public bool Relight(TraceGeometryGpuScene scene, uint steps = 256, uint rays = 1)
     {
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         relightWork.UploadSubData<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)], 0, 16);
         GlStateCache.Current.UseProgram(relight.ProgramId);
         geometry.Bind(scene);
@@ -95,6 +97,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Clears temporal history using the production GL 4.3 reset shader.</summary>
     public void ResetLighting()
     {
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var reset = ComputeProgram.Create(helper, "lumonscene_reset_irradiance");
         // Restore the prior live program before the temporary reset pipeline is disposed.
         using var program = GlStateCache.Current.UseProgramScope(reset.ProgramId);
@@ -108,8 +111,11 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public float[] ReadLighting()
     {
         var data = new float[Size * Size * 4];
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, irradiance.TextureId);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.Float, data);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         return data;
     }
 
@@ -125,7 +131,9 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Dispatches one page and makes both image results and completion flags available for inspection.</summary>
     private static void Dispatch()
     {
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         GL.DispatchCompute(1, 1, 1);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
         GpuTestFence.WaitForGpuOrSkip("Shared surface page");
     }
@@ -147,7 +155,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         GlStateCache.Current.UnbindProgram();
         capture.Dispose(); relight.Dispose(); geometry.Dispose(); parameters.Dispose();
         captureWork.Dispose(); relightWork.Dispose(); metadata.Dispose(); slots.Dispose();
-        depth.Dispose(); material.Dispose(); irradiance.Dispose(); helper.Dispose();
+        textures.Dispose(); helper.Dispose();
     }
     #endregion
 }

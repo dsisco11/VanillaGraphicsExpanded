@@ -1,4 +1,4 @@
-using System.Reflection;
+using Moq;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.API.Client;
 
@@ -14,20 +14,19 @@ internal sealed class RuntimeLightingPrograms : IDisposable
 
     #region Engine registration
     /// <summary>Accepts the same registration and lookup calls as the game shader service.</summary>
-    public RuntimeLightingPrograms() => Api = RuntimeRenderEvents.Adapt<IShaderAPI>((method, args) => method.Name switch
+    public RuntimeLightingPrograms()
     {
-        "NewShader" => new Vintagestory.Client.NoObf.Shader(),
-        "RegisterMemoryShaderProgram" => Register((string)args![0]!, (GpuProgram)args[1]!),
-        "GetProgramByName" => Get((string)args![0]!),
-        _ => throw new NotSupportedException(method.Name)
-    });
-
+        var shader = new Mock<IShaderAPI>(MockBehavior.Strict);
+        shader.Setup(api => api.NewShader(It.IsAny<EnumShaderType>())).Returns(() => new Vintagestory.Client.NoObf.Shader());
+        shader.Setup(api => api.RegisterMemoryShaderProgram(It.IsAny<string>(), It.IsAny<IShaderProgram>()))
+            .Returns((string name, IShaderProgram program) => Register(name, (GpuProgram)program));
+        shader.Setup(api => api.GetProgramByName(It.IsAny<string>())).Returns((string name) => Get(name));
+        Api = shader.Object;
+    }
     /// <summary>Invokes the production registration entry without running unrelated mod UI or Harmony startup.</summary>
     public void Initialize(ICoreClientAPI api)
     {
-        var entry = typeof(VanillaGraphicsExpandedModSystem).GetMethod("LoadShaders", BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new MissingMethodException("Production shader registration entry was not found.");
-        Assert.True((bool)entry.Invoke(null, [api])!);
+        Assert.True(VgeShaderPrograms.RegisterAll(api));
         Assert.NotEmpty(programs);
         Assert.All(programs.Values, program => Assert.True(program.ProgramId != 0, $"Shader registration failed: {program.PassName}"));
     }

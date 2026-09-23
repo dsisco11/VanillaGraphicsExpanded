@@ -1,4 +1,3 @@
-using System.Reflection;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -9,57 +8,42 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Bootstraps the real mod owners and confines private engine-boundary adaptation to the test assembly.</summary>
+/// <summary>Starts the production mod owners with controlled engine dependencies and observes registered renderers.</summary>
 internal sealed class RuntimeLightingHost : IDisposable
 {
-    private readonly VgeConfig previousConfig = ConfigModSystem.Config;
-    private readonly LumOnModSystem lighting = new();
+    private readonly LumOnModSystem lighting;
     private readonly WorldProbeModSystem world;
     private readonly DirectLightingBufferManager direct;
-    public LumOnRenderer Renderer => Read<LumOnRenderer>(lighting, "lumOnRenderer");
-    public LumOnWorldProbeUpdateRenderer WorldRenderer => Read<LumOnWorldProbeUpdateRenderer>(world, "worldProbeUpdateRenderer");
+    public LumOnWorldProbeUpdateRenderer WorldRenderer { get; }
+    public LumOnBufferManager Screen => lighting.GetLumOnBufferManagerOrNull()!;
 
     #region Production initialization
-    /// <summary>Runs production resource creation and provider wiring, then supplies the simulated engine camera/source boundaries.</summary>
+    /// <summary>Runs normal mod wiring; camera and source dependencies are provided before owner construction.</summary>
     public RuntimeLightingHost(ICoreClientAPI api, SurfaceCacheRuntimeFixture cache, WorldProbeModSystem world,
         Func<LumOnCameraState?> camera)
     {
         this.world = world;
-        typeof(ConfigModSystem).GetProperty(nameof(ConfigModSystem.Config))!.SetValue(null, cache.Config);
+        lighting = new(() => cache.Config, _ => camera(), (_, materials) => cache.CreateSource(materials));
         int resolution = cache.Config.WorldProbeClipmap.ClipmapResolution;
         world.StartClientSide(api);
-        // Small controlled scenes use a reduced runtime topology after normal startup validation.
+        // The bounded authored world uses a smaller runtime topology than the game's configuration minimum.
         cache.Config.WorldProbeClipmap.ClipmapResolution = resolution;
         world.GetClipmapBufferManagerOrNull()!.RequestRecreate("controlled engine scene topology");
         direct = new(api);
-        // SetDependencies is the normal main-mod handoff; it executes LumOn's initialization and wiring.
         lighting.SetDependencies(api, cache.Buffers, direct);
-        var geometry = Read<TraceGeometryRenderer>(lighting, "traceGeometryRenderer");
-        var feedback = Read<LumonSceneFeedbackUpdateRenderer>(lighting, "lumonSceneFeedbackUpdateRenderer");
-        var debug = Read<LumOnDebugRenderer>(lighting, "lumOnDebugRenderer");
-        foreach (var owner in new object[] { Renderer, WorldRenderer, geometry, feedback, debug })
-            Set(owner, "readCamera", camera);
-        Set(geometry, "createSource", (Func<TraceGeometryMaterials, ITraceGeometrySource>)cache.CreateSource);
-        cache.AttachProduction(geometry, feedback, Read<LumonSceneRelightUpdateRenderer>(lighting, "lumonSceneRelightUpdateRenderer"));
+        var registered = cache.Events.Registrations.Select(entry => entry.Renderer).Distinct().ToArray();
+        WorldRenderer = Assert.Single(registered.OfType<LumOnWorldProbeUpdateRenderer>());
+        cache.AttachProduction(Assert.Single(registered.OfType<TraceGeometryRenderer>()),
+            Assert.Single(registered.OfType<LumonSceneFeedbackUpdateRenderer>()),
+            Assert.Single(registered.OfType<LumonSceneRelightUpdateRenderer>()));
     }
-
-    /// <summary>Reads existing owners for observations without creating production inspection APIs.</summary>
-    internal static T Read<T>(object owner, string name) => (T)Field(owner, name).GetValue(owner)!;
-
-    /// <summary>Substitutes an engine boundary only; production provider references and pipeline state remain untouched.</summary>
-    private static void Set(object owner, string name, object value) => Field(owner, name).SetValue(owner, value);
-
-    /// <summary>Fails immediately if an engine-adapter field changes rather than silently skipping the test boundary.</summary>
-    private static FieldInfo Field(object owner, string name) => owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new MissingFieldException(owner.GetType().Name, name);
     #endregion
 
     #region Lifetime
-    /// <summary>Exercises mod-owned teardown before restoring the process-wide configuration.</summary>
+    /// <summary>Exercises normal mod disposal without changing process-wide configuration.</summary>
     public void Dispose()
     {
         world.Dispose(); lighting.Dispose(); direct.Dispose();
-        typeof(ConfigModSystem).GetProperty(nameof(ConfigModSystem.Config))!.SetValue(null, previousConfig);
     }
     #endregion
 }

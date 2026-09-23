@@ -17,7 +17,9 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private readonly BinaryShaderApiFixture assets = new();
     private readonly SurfaceLightingDispatch producer;
     private readonly GpuShaderStorageBuffer work, metadata, slots, readiness;
+    private readonly SurfaceAtlasTextures textures = new(AtlasEdge,AtlasEdge,1,"Tests.SurfaceEnclosure");
     private readonly Texture3D depth, captured, direct, indirect, pages;
+    private readonly LumonScenePageTableGpuResources pageStorage;
     private readonly Texture3D[] outgoing;
     private readonly LumonSceneCaptureWorkGpu[] captureItems;
     private readonly LumonSceneRelightWorkGpu[] lightingItems;
@@ -47,10 +49,10 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         var materials = new TraceGeometryMaterials(); materialId = materials.Resolve(material.Cube);
         Geometry = new(TraceGeometryCoverage.Plan(new(4+offsetX,36,4),true,32,256),materials,Sample);
         Geometry.Publish();
-        depth = Texture(PixelInternalFormat.R16f); captured = Texture(PixelInternalFormat.Rgba8);
-        direct = Texture(PixelInternalFormat.Rgba16f); indirect = Texture(PixelInternalFormat.Rgba16f);
-        outgoing = [Texture(PixelInternalFormat.Rgba16f),Texture(PixelInternalFormat.Rgba16f)];
-        pages = Texture3D.Create(128,128,chunkCount,PixelInternalFormat.R32ui,textureTarget:TextureTarget.Texture2DArray);
+        depth=textures.Depth; captured=textures.Material; direct=textures.Direct; indirect=textures.Indirect; outgoing=textures.Outgoing;
+        pageStorage = new(LumonSceneField.Near,chunkCount);
+        pageStorage.EnsureCreated();
+        pages = pageStorage.PageTableMip0;
         var entries = new uint[128*128*chunkCount]; var capture = new List<LumonSceneCaptureWorkGpu>();
         var seen=new HashSet<(uint Slot,uint Patch)>();
         foreach (var face in Enumerable.Range(0,6).Select(axis => (Axis:(uint)axis, Plane:axis%2==0?0:7))
@@ -110,9 +112,6 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(light,SunLight,0,0),0);
     }
 
-    /// <summary>Allocates a small fixture atlas with production formats.</summary>
-    private static Texture3D Texture(PixelInternalFormat format) =>
-        Texture3D.Create(AtlasEdge,AtlasEdge,1,format,TextureFilterMode.Nearest,TextureTarget.Texture2DArray);
 
     /// <summary>Creates a typed buffer using production storage ownership.</summary>
     private static GpuShaderStorageBuffer Buffer<T>(ReadOnlySpan<T> data) where T:unmanaged
@@ -206,8 +205,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public void Dispose()
     {
         producer.Dispose(); work.Dispose();metadata.Dispose();slots.Dispose();readiness.Dispose();
-        depth.Dispose();captured.Dispose();direct.Dispose();indirect.Dispose();pages.Dispose();
-        foreach(var texture in outgoing) texture.Dispose();
+        textures.Dispose(); pageStorage.Dispose();
         Geometry.Dispose(); assets.Dispose(); material.Dispose();
     }
     #endregion

@@ -85,7 +85,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // Ensure all VGE memory shader programs are registered before any renderer can request them.
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
         // which can lead to engine-side NREs when stage instances are null.
-        LoadShaders(api);
+        VgeShaderPrograms.RegisterAll(api);
         api.Event.ReloadShader += OnReloadShader;
         api.Event.LevelFinalize += OnLevelFinalize;
         api.Event.LeaveWorld += OnLeaveWorld;
@@ -180,7 +180,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
                 () =>
                 {
                     memoryShaderRegistrationQueued = false;
-                    LoadShaders(capi);
+                    VgeShaderPrograms.RegisterAll(capi);
                 },
                 "vge-register-memory-shaders-after-reload");
         }
@@ -252,38 +252,4 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         }
     }
 
-    private static bool LoadShaders(ICoreClientAPI api)
-    {
-        // General-purpose debug line shader (C#-rendered overlays).
-        VgeDebugLinesShaderProgram.Register(api);
-        VgeWorldProbeOrbsPointsShaderProgram.Register(api);
-
-        // PBR direct lighting shader
-        PBRDirectLightingShaderProgram.Register(api);
-
-        // PBR final composite shader
-        PBRCompositeShaderProgram.Register(api);
-
-        // Phase 18.7: World-probe clipmap resolve (CPU -> GPU textures)
-        LumOnWorldProbeClipmapResolveShaderProgram.Register(api);
-        LumOnWorldProbeRadianceTileResolveShaderProgram.Register(api);
-
-        // LumOn shaders
-        LumOnProbeAnchorShaderProgram.Register(api);
-        LumOnProbeAtlasPisMaskShaderProgram.Register(api);
-        LumOnHzbCopyShaderProgram.Register(api);
-        LumOnHzbDownsampleShaderProgram.Register(api);
-        LumOnScreenProbeAtlasTraceShaderProgram.Register(api);
-        LumOnVelocityShaderProgram.Register(api);
-        LumOnScreenProbeAtlasTemporalShaderProgram.Register(api);
-        LumOnScreenProbeAtlasFilterShaderProgram.Register(api);
-        LumOnScreenProbeAtlasProjectSh9ShaderProgram.Register(api);
-        LumOnProbeSh9GatherShaderProgram.Register(api);
-        LumOnScreenProbeAtlasGatherShaderProgram.Register(api);
-        LumOnUpsampleShaderProgram.Register(api);
-        LumOnCombineShaderProgram.Register(api);
-        LumOnDebugShaderProgram.Register(api);
-
-        return true;
-    }
 }

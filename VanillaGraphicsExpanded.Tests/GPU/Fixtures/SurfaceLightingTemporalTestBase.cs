@@ -41,10 +41,13 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     {
         int program = CompileShaderWithDefines("lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh",
             new Dictionary<string,string?> { ["VGE_LUMON_ATLAS_TEXELS_PER_FRAME"] = SurfaceLightingHistoryFixture.DirectionsPerFrame.ToString() });
-        using var anchor = TestFramework.CreateTexture(2,2,PixelInternalFormat.Rgba16f,CreateUniformColorData(2,2,0,0,-3,1));
-        using var mask = TestFramework.CreateTexture(2,2,PixelInternalFormat.Rg32f,new float[8]);
-        using var velocity = TestFramework.CreateTexture(4,4,PixelInternalFormat.Rgba32f,new float[64]);
-        using var jitter = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rg32f,new float[2]);
+        var anchor = history.Buffers.ProbeAnchorPositionTex!;
+        var mask = history.Buffers.ProbeTraceMaskTex!;
+        var velocity = history.Buffers.VelocityTex!;
+        anchor.UploadDataImmediate(CreateUniformColorData(anchor.Width,anchor.Height,0,0,-3,1));
+        mask.UploadDataImmediate(new float[mask.Width*mask.Height*2]);
+        velocity.UploadDataImmediate(new float[velocity.Width*velocity.Height*4]);
+        using var jitter = VanillaGraphicsExpanded.LumOn.LumOnPmjJitterTexture.Create(1,0);
         using var parameters = new ObjectParamsUbo("Tests.SurfaceLighting.Temporal");
         try
         {
