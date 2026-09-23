@@ -28,6 +28,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public int BlockId => material.Cube.Id;
     public int BlockLight { get; set; }
     public int SunLight { get; set; }
+    public int? ExteriorBlockLight { get; set; }
     public bool EmissionPolicy { get; set; }
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
         metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation);
@@ -91,7 +92,9 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private TraceGeometryVoxel Sample(int x,int y,int z)
     {
         bool wall=x<=offsetX || x>=offsetX+7 || y<=32 || y>=39 || z<=0 || z>=7;
-        return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(BlockLight,SunLight,0,0),0);
+        bool exterior=x<offsetX || x>offsetX+7 || y<32 || y>39 || z<0 || z>7;
+        int light=exterior ? ExteriorBlockLight ?? BlockLight : BlockLight;
+        return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(light,SunLight,0,0),0);
     }
 
     /// <summary>Allocates a small fixture atlas with production formats.</summary>

@@ -112,4 +112,17 @@ Publication exposes a dependency revision separate from the progressively increa
 | World-probe ownership | Atlas and publication; Geometry-hit consumers | Worker descriptors, render-thread asynchronous query batch, admission tickets and atomic probe uploads; CPU/GPU transport and stale-request tests |
 | Downstream ownership | Lighting terms; Geometry-hit consumers | Positive hit-consumer binding tests and negative gather/combine cache-binding tests; no reflection pipeline introduced |
 
-Executed receipts and final independent review remain recorded in the task list. Full cache-to-final-pixel behavioral coverage remains Section 7.
+Executed receipts and final independent review remain recorded in the task list. Full cache-to-final-pixel behavioral coverage is recorded in Section 7.
+
+## Final-lighting verification traceability
+
+| Section 7 task | Controlling sections | Behavioral evidence |
+| --- | --- | --- |
+| Positive consumer contract | Geometry-hit consumers | Existing positive hit-consumer declarations; gather/composition remain downstream |
+| Cache to final pixels | Lighting terms; Indirect estimator and history; Geometry-hit consumers | SurfaceLightingFinalPixelsTests: real captured/produced outgoing radiance, offscreen hit textures, filtering, direct atlas and SH9 gather, upsample and composition; source removal/restoration checked at each boundary |
+| Scene and residency scenarios | Supported light adaptation; Atlas and publication design | Emission with zero reflectance, sealed darkness, successive published bounces, unavailable/stale pages, recreated resources; no injected downstream lighting |
+| World probes and runtime publication | Geometry-hit consumers; Implemented publication and verification boundaries | SurfaceLightingWorldProbeFlowTests: real CPU traversal, asynchronous GPU lookup, production atlas upload; registered runtime cache callbacks publish lighting changes and recreated resources across frames |
+
+These fixtures substitute controlled engine scene inputs, not cached or downstream radiance. Screen-hit tests bind no world-probe fallback and no screen emission. The GPU attachments produced by tracing are passed directly to downstream shaders. Executed build/test receipts and the successful independent completion audit are recorded in the task list. Headless GPU evidence does not claim live in-game verification.
+
+Runtime transition coverage exposed two scheduling omissions: dependency invalidation set `NeedsCapture` without requesting a recapture sweep, and failed GPU captures were discarded after their first attempt. The feedback owner now schedules invalidated pages and retains unresolved keys for a subsequent bounded sweep. Retired or already resolved pages are skipped; retries resume after the current sweep so later pages keep their admission opportunity. `FailedCaptureRetriesAfterGeometryBecomesAvailable` verifies an actual GPU capture failure followed by successful publication after the controlled source becomes available.

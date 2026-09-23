@@ -23,13 +23,13 @@ Validation: normal incremental build passed; `SurfaceCacheRuntimeTests` passed 3
 
 ## 3. Surface-cache consumer audit
 
-Status: historical consumer audit complete; hit-consumer implementation is tracked in Section 6 and full behavioral verification remains Section 7.
+Status: historical consumer audit complete; hit-consumer implementation is tracked in Section 6 and full behavioral verification is recorded in Section 7.
 
 - [x] Identify the currently implemented surface-cache consumers and explicitly record any missing integration before defining end-to-end expectations.
 
 The original audit found only a diagnostic surface-cache consumer. Production screen/world-probe hit lighting had no connection to the cache. Section 6 now implements that connection and replaces the missing-integration assertion with positive hit-consumer coverage. Gather and final composition remain downstream of probe radiance and do not bind the surface cache directly.
 
-The illumination/removal proof across filtering, gather and final pixels remains Section 7. The validation below records the original audit, not that later end-to-end behavior.
+The illumination/removal proof across filtering, gather and final pixels is recorded in Section 7. The validation below records the original audit, not that later end-to-end behavior.
 Validation: the focused consumer-contract run passed 2/2 with no failures or skips and built all 98 shader stages / 243 SPIR-V variants. Receipts: `artifacts/shader-variant-contracts/surface-cache-consumer-contract-tests.log` and `surface-cache-consumer-contract.trx`.
 
 Use modular fixtures shared across scenarios. Record executed tests and results when completing each item.
@@ -73,9 +73,20 @@ World-probe geometry tracing remains on workers. The implemented dependency is b
 
 Receipts: artifacts/shader-variant-contracts/surface-consumer-build-confirmed.log; surface-consumer-{lookup,runtime,bindings,contract}-verified.{log,trx}; surface-consumer-{nearfield,world,scheduler}-current.{log,trx}; surface-consumer-shared-final.{log,trx}; surface-consumer-producer.{log,trx}.
 ## 7. End-to-end lighting proof
+
+Controlling design and traceability: [Surface-cache lighting contract](LumOn.SurfaceCache.LightingContract.md), including Final-lighting verification traceability.
+
 - [x] Replace `FinalLightingShadersDoNotYetDeclareSurfaceCacheInputs` with positive consumer coverage; absence of integration must not remain a required behavior.
-- [ ] Trace controlled scene lighting changes through real cache production, hit sampling, probe radiance, filtering, both gather modes, and final indirect-lighting pixels. Verify illumination, removal, and restoration without injecting downstream lighting.
-- [ ] Cover screen misses with offscreen geometry, emissive-only illumination, sealed-room darkness, multi-bounce transfer, missing/stale pages, and resource recreation. Check intermediate radiance as well as final pixels to identify the failing boundary.
-- [ ] Extend world-probe coverage through its implemented cache consumer and exercise runtime publication/invalidation across frames. Record build and executed GPU-test evidence separately from live visual verification.
+- [x] Trace controlled scene lighting changes through real cache production, hit sampling, probe radiance, filtering, both gather modes, and final indirect-lighting pixels. Verify illumination, removal, and restoration without injecting downstream lighting.
+- [x] Cover screen misses with offscreen geometry, emissive-only illumination, sealed-room darkness, multi-bounce transfer, missing/stale pages, and resource recreation. Check intermediate radiance as well as final pixels to identify the failing boundary.
+- [x] Extend world-probe coverage through its implemented cache consumer and exercise runtime publication/invalidation across frames. Record build and executed GPU-test evidence separately from live visual verification.
+
+Validation: second implementation review and independent completion audit passed. The normal shader-enabled build compiled 100 stages / 245 variants; the final incremental build confirmed binaries and contracts current with zero errors (five existing analyzer warnings). GPU/contract suites passed 45 distinct tests with zero failures or skips: final pixels 14, world-probe flow 5, runtime publication 5, producers 7, hit consumers 12, consumer contracts 2.
+
+The reusable downstream fixture passes actual traced GPU attachments through filtering, direct atlas or SH9 gather, upsample and final material composition. Tests change only source lighting/material policy or cache availability; no downstream illumination is injected. Both paths cover removal/restoration, emission, sealed darkness with bright exterior fields, successive bounces, missing/stale pages and recreated resources. World-probe coverage includes CPU hits, GPU queries, actual directional atlas uploads, final pixels and registered runtime cache transitions.
+
+The runtime transition test exposed and now guards a recapture stall: invalidated pages were marked but never scheduled, and failed captures had no retry. The feedback owner now requests recapture after invalidation and retains unresolved pages for later bounded sweeps. A separate case observes the GPU failure marker before enabling geometry, then verifies recovery without allocating a replacement page.
+
+Receipts in artifacts/shader-variant-contracts/: surface-final-build-initial.log; surface-final-build-verified.log; surface-final-{world,runtime}-verified.{log,trx}; surface-final-{pixels,producer,consumer,contract}-validated.{log,trx}. Original failing receipts remain available. This is headless GPU evidence; no live in-game visual verification is claimed.
 
 Implementation order: 4 → 5 → 6 → 7. Sections 4–6 own production integration; Section 7 owns the behavioral verification moved from Section 3. Missing consumer implementation must remain distinct from test coverage, and injected downstream lighting cannot substitute for cache consumption. Existing Sections 1–2 remain historical validation of the earlier estimator and lifecycle, and their numerical expectations must be updated where the lighting contract changes.

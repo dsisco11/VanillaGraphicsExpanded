@@ -1871,10 +1871,12 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
     }
 
+    /// <summary>Admits an explicit invalidation sweep or resumes failed captures after the previous sweep drains.</summary>
     private void EnsureRecaptureListIfRequested()
     {
         if (Interlocked.Exchange(ref recaptureAllRequested, 0) == 0)
         {
+            ResumeCaptureRetries();
             return;
         }
 
@@ -2006,6 +2008,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             | MemoryBarrierFlags.TextureFetchBarrierBit);
     }
 
+    /// <summary>Publishes successful captures and retains unresolved pages for bounded later retries.</summary>
     private void FinalizeCaptureFlagsFromGpuQueue(int captureCount)
     {
         if (captureCount <= 0)
@@ -2028,7 +2031,11 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             for (int i = 0; i < captureCount; i++)
             {
                 // The shader marks unavailable material/geometry with the high bit; retry the page.
-                if ((items[i].VirtualPageIndex & 0x80000000u) != 0) continue;
+                if ((items[i].VirtualPageIndex & 0x80000000u) != 0)
+                {
+                    captureRetries.Add(LumonSceneVirtualPageKeyUtil.Pack(items[i].ChunkSlot, items[i].VirtualPageIndex & 0x7fffffffu));
+                    continue;
+                }
                 uint chunkSlot = items[i].ChunkSlot;
                 int vpage = (int)items[i].VirtualPageIndex;
                 if ((uint)vpage >= (uint)VirtualPagesPerChunk)

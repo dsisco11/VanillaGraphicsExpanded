@@ -35,6 +35,9 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public List<RuntimeTraceGeometrySource> Sources { get; } = [];
     public int Draws { get; private set; }
     public int Frames { get; private set; }
+    public int BlockLight { get; private set; } = 32;
+    public int BlockId => material.Cube.Id;
+    public bool GeometryAvailable { get; set; } = true;
     public uint MaterialId { get; private set; }
     public List<string> Logs => assets.Logs;
     public ICoreClientAPI Api { get; }
@@ -96,7 +99,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         {
             uint id = materials.Resolve(material.Cube);
             MaterialId = id;
-            var source = new RuntimeTraceGeometrySource((x, _, _) => new(!exposedWall || x <= 0 ? 2u | id << 2 : 1u, LumonSceneOccupancyPacking.PackClamped(32, 0, 0, (int)id), 0));
+            var source = new RuntimeTraceGeometrySource((x, _, _) => new(!exposedWall || x <= 0 ? 2u | id << 2 : 1u, LumonSceneOccupancyPacking.PackClamped(BlockLight, 0, 0, (int)id), 0), () => GeometryAvailable);
             Sources.Add(source); return source;
         }, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
@@ -151,7 +154,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         Feedback.TryGetSelfCheckLine(out string feedback);
         relight.TryGetSelfCheckLine(out string relightState);
         string sources = string.Join(",", Sources.Select(source => $"captures={source.CaptureCount},disposed={source.Disposed}"));
-        Assert.True(condition(), $"Runtime condition did not settle within {maximumFrames} frames. Feedback: {feedback}. Relight: {relightState}. Sources: {sources}. Executed: {string.Join(", ", Events.Executed.TakeLast(16))}. Logs: {string.Join(" | ", Logs)}");
+        Assert.True(condition(), $"Runtime condition did not settle within {maximumFrames} frames. Feedback: {feedback}. Relight: {relightState}. Sources: {sources}. Geometry: revision={Geometry.Resources?.Revision}, invalidation={Geometry.Resources?.InvalidationRevision}. Executed: {string.Join(", ", Events.Executed.TakeLast(16))}. Logs: {string.Join(" | ", Logs)}");
     }
 
     /// <summary>Returns whether registered capture and relight callbacks produced a sampleable resident page.</summary>
@@ -198,6 +201,13 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
 
     /// <summary>Changes the physical tile layout so the production pool must replace its atlases.</summary>
     public void RequestAtlasRecreation() => Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 2;
+
+    /// <summary>Changes the source field and versions captured chunks so production invalidates dependent lighting.</summary>
+    public void ChangeBlockLight(int value)
+    {
+        BlockLight=value;
+        foreach(var source in Sources.Where(s=>!s.Disposed)) source.MarkDirty(VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(0,1,0));
+    }
 
     /// <summary>Raises the real world-lifetime event consumed by every production owner.</summary>
     public void LeaveWorld() => Events.LeaveWorld();
