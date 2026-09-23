@@ -19,10 +19,12 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     private readonly ScopedPbrMaterialFixture material = new();
     private readonly ShaderTestFramework drawing = new();
     private readonly WorldPartitionModSystem partitions = new();
-    private readonly LumOnDebugShaderProgram shader;
-    private readonly LumOnDebugRenderer debug;
-    private readonly LumonSceneRelightUpdateRenderer relight;
-    private readonly DebugViewController controller;
+    private readonly LumOnDebugShaderProgram? shader;
+    private readonly LumOnDebugRenderer? debug;
+    private LumonSceneRelightUpdateRenderer relight = null!;
+    private readonly DebugViewController? controller;
+    private readonly bool productionOwned;
+    private readonly bool enclosure, exposedWall;
     private readonly uint[] feedbackPatches;
     private readonly SpatialLightingScene? spatial;
     private readonly int edge;
@@ -32,8 +34,8 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     private readonly GpuFramebuffer output;
     public RuntimeRenderEvents Events { get; } = new();
     public VgeConfig Config { get; } = new();
-    public TraceGeometryRenderer Geometry { get; }
-    public LumonSceneFeedbackUpdateRenderer Feedback { get; }
+    public TraceGeometryRenderer Geometry { get; private set; } = null!;
+    public LumonSceneFeedbackUpdateRenderer Feedback { get; private set; } = null!;
     public GBufferManager Buffers { get; }
     public List<RuntimeTraceGeometrySource> Sources { get; } = [];
     public int Draws { get; private set; }
@@ -45,6 +47,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public List<string> Logs => assets.Logs;
     public ICoreClientAPI Api { get; }
     public ISurfaceLightingProvider LightingProvider => relight;
+    #region Publication observations
     /// <summary>Queries the production publication owner without retaining resources across frames.</summary>
     public bool TryGetLighting(out SurfaceLightingSnapshot snapshot) => relight.TryGetSurfaceLighting(out snapshot);
 
@@ -59,18 +62,37 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         return true;
     }
 
+    /// <summary>Observes completion of all requested terrain captures without accepting allocation as successful capture.</summary>
+    public bool AllRequestedCaptured()
+    {
+        if (!Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out var mirror) ||
+            mapping.Count < (spatial?.Feedback().Length ?? feedbackPatches.Length)) return false;
+        foreach (ulong key in mapping.Values)
+        {
+            int index = checked((int)LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key) * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk
+                + (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key));
+            var flags = LumonScenePageTableEntryPacking.UnpackFlags(mirror[index]);
+            if ((flags & LumonScenePageTableEntryPacking.Flags.Resident) == 0 ||
+                (flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0) return false;
+        }
+        return true;
+    }
+
+    #endregion
+
     #region Runtime setup
     /// <summary>Mocks camera and terrain raster inputs while retaining renderer registration, cache work and viewer selection.</summary>
-    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null)
+    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null, bool productionOwned = false)
     {
         this.spatial=spatial; edge=spatial==null?2:4;
+        this.productionOwned=productionOwned; this.enclosure=enclosure; this.exposedWall=exposedWall;
         color=DynamicTexture2D.Create(edge,edge,PixelInternalFormat.Rgba16f);
         depth=DynamicTexture2D.Create(edge,edge,PixelInternalFormat.R32f);
         feedbackPatches = enclosure
             ? Enumerable.Range(0,6).SelectMany(axis => Enumerable.Range(0,4).Select(tile =>
                 1u + 6u * (uint)((axis%2==0?0:7)*64 + (tile/2)*8 + tile%2) + (uint)axis)).ToArray()
             : Enumerable.Range(0,requestedPages).Select(index=>1u+6u*(uint)index).ToArray();
-        material.SetReadiness(true, true);
+        material.SetReadiness(true, true, new System.Numerics.Vector3(spatial?.Reflectance ?? 1), (spatial?.Emission ?? 0)/32f);
         Config.LumOn.Enabled = true;
         var cfg = Config.LumOn.LumonScene;
         cfg.Enabled = true; cfg.NearRadiusChunks = cfg.NearRadiusYChunks = cfg.FarRadiusChunks = cfg.FarRadiusYChunks = 0;
@@ -111,20 +133,15 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
             _ => method.Invoke(assets.Api, args)
         });
         Api = api;
+        partitions.StartClientSide(api);
+        Buffers = new(api);
+        Assert.True(Buffers.EnsureBuffers(edge, edge));
+        if (productionOwned) return;
         shader = new() { PassName = "lumon_debug_gbuffer", VertexShader = new Vintagestory.Client.NoObf.Shader(), FragmentShader = new Vintagestory.Client.NoObf.Shader() };
         shader.Initialize(api);
         Assert.True(shader.CompileAndLink(), string.Join('\n', Logs));
         selected = shader;
-        partitions.StartClientSide(api);
-        Buffers = new(api);
-        Assert.True(Buffers.EnsureBuffers(edge, edge));
-        Geometry = new(api, Config, partitions, materials =>
-        {
-            uint id = materials.Resolve(material.Cube);
-            MaterialId = id;
-            var source = new RuntimeTraceGeometrySource((x, y, z) => new((spatial?.Solid(x,y,z) ?? (enclosure ? x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7 : !exposedWall || x<=0)) ? 2u | id << 2 : 1u, LumonSceneOccupancyPacking.PackClamped(spatial?.Light(x,y,z) ?? BlockLight, 0, 0, (int)id), 0), () => GeometryAvailable, key => spatial?.Loaded(key) ?? true);
-            Sources.Add(source); return source;
-        }, Camera);
+        Geometry = new(api, Config, partitions, CreateSource, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
         Feedback.SetTraceGeometryRenderer(Geometry);
         relight = new(api, Config, Feedback, Geometry);
@@ -136,6 +153,28 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         controller.Initialize(new(api, Config));
         Assert.True(controller.TryActivate("vge.lumon.surfaceCache", out string? error), error);
     }
+    /// <summary>Exposes the already initialized engine partition mod to production dependency lookup.</summary>
+    internal WorldPartitionModSystem Partitions => partitions;
+
+    /// <summary>Supplies controlled engine geometry while retaining the production source cache and partition scheduler.</summary>
+    internal ITraceGeometrySource CreateSource(TraceGeometryMaterials materials)
+    {
+        uint id = materials.Resolve(material.Cube);
+        MaterialId = id;
+        var source = new RuntimeTraceGeometrySource((x, y, z) => new(
+            (spatial?.Solid(x,y,z) ?? (enclosure ? x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7 : !exposedWall || x<=0)) ? 2u | id << 2 : 1u,
+            LumonSceneOccupancyPacking.PackClamped(spatial?.Light(x,y,z) ?? BlockLight, 0, 0, (int)id), 0),
+            () => GeometryAvailable, key => spatial?.Loaded(key) ?? true);
+        Sources.Add(source);
+        return source;
+    }
+
+    /// <summary>Observes mod-created owners; this does not change production wiring or registration.</summary>
+    internal void AttachProduction(TraceGeometryRenderer geometry, LumonSceneFeedbackUpdateRenderer feedback, LumonSceneRelightUpdateRenderer lighting)
+    {
+        Geometry = geometry; Feedback = feedback; relight = lighting;
+    }
+
     #endregion
 
     #region Engine frames and observations
@@ -240,8 +279,16 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Changes the source field and versions captured chunks so production invalidates dependent lighting.</summary>
     public void ChangeBlockLight(int value)
     {
-        BlockLight=value;
-        foreach(var source in Sources.Where(s=>!s.Disposed)) source.MarkDirty(VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(0,1,0));
+        BlockLight=value; if (spatial != null) spatial.BlockLight=value;
+        InvalidateGeometry();
+    }
+
+    /// <summary>Versions controlled source chunks after a source edit without changing cache mappings or lighting outputs.</summary>
+    public void InvalidateGeometry()
+    {
+        var keys = spatial?.Feedback().Select(p => VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(p.Chunk.X,p.Chunk.Y,p.Chunk.Z)).Distinct()
+            ?? [VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(0,1,0)];
+        foreach (var source in Sources.Where(s=>!s.Disposed)) foreach (var key in keys) source.MarkDirty(key);
     }
 
     /// <summary>Raises the real world-lifetime event consumed by every production owner.</summary>
@@ -257,7 +304,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     }
 
     /// <summary>Implements the engine mesh draw using a real fullscreen GPU triangle.</summary>
-    private object? Draw() { Draws++; drawing.RenderQuad(shader.ProgramId); return null; }
+    private object? Draw() { Draws++; drawing.RenderQuad(shader!.ProgramId); return null; }
     /// <summary>Releases the engine mesh token owned by the debug renderer.</summary>
     private static object? DeleteMesh(MeshRef mesh) { mesh.Dispose(); return null; }
     #endregion
@@ -266,8 +313,10 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Disposes production owners before their mocked engine and material dependencies.</summary>
     public void Dispose()
     {
-        controller.Dispose(); debug.Dispose(); relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); partitions.Dispose();
-        shader.Dispose(); Buffers.Dispose(); output.Dispose(); color.Dispose(); depth.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
+        controller?.Dispose(); debug?.Dispose();
+        if (!productionOwned) { relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); }
+        partitions.Dispose();
+        shader?.Dispose(); Buffers.Dispose(); output.Dispose(); color.Dispose(); depth.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
     }
 
     /// <summary>Represents the engine-owned mesh handle while draw submission is provided by the GPU fixture.</summary>

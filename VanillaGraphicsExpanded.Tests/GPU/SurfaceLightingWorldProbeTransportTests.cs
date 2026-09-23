@@ -12,10 +12,10 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Tests CPU hits, asynchronous cache queries and real GPU atlas publication across source changes.</summary>
 [Collection("NearFieldMaterialCapture")]
 [Trait("Category","GPU")]
-public sealed class SurfaceLightingWorldProbeFlowTests : SurfaceLightingPipelineTestBase
+public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHitTestBase
 {
     /// <summary>Uses the shared material-isolated GPU context.</summary>
-    public SurfaceLightingWorldProbeFlowTests(HeadlessGLFixture fixture):base(fixture) { }
+    public SurfaceLightingWorldProbeTransportTests(HeadlessGLFixture fixture):base(fixture) { }
 
     #region World-probe publication
     /// <summary>Every worker direction receives produced lighting, then updates the real directional atlas after removal and restoration.</summary>
@@ -39,29 +39,6 @@ public sealed class SurfaceLightingWorldProbeFlowTests : SurfaceLightingPipeline
         room.WithholdPages();
         Assert.False(Resolve(room.Geometry.Scene,room.Snapshot,traced).Success);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
-    }
-
-    /// <summary>GPU-uploaded world-probe lighting supplies screen misses and reaches both final gather paths.</summary>
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void WorldProbeCacheContributionReachesFinalPixels(bool sh9)
-    {
-        EnsureShaderTestAvailable();
-        using var engine=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
-        using var atlas=new SurfaceLightingWorldProbeFixture();
-        using var placeholder=new NearFieldVoxelFixture();
-        var world=new ControlledVoxelWorld();world.AddRoom((0,32,0),(7,39,7),materialId:room.BlockId);
-        var traced=TraceWorker(world,64,0,new(4,36,4));
-        foreach(int light in new[]{32,0,32})
-        {
-            room.BlockLight=light;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
-            atlas.Upload(Resolve(room.Geometry.Scene,room.Snapshot,traced));
-            LightingPixels? pixels=null;
-            Trace(placeholder,nearFieldTracing:false,anchorPosition:new(0,0,-3),worldResources:atlas.Resources,
-                consume:output=>pixels=FinishLighting(output,sh9));
-            AssertPipeline(Assert.IsType<LightingPixels>(pixels),light!=0);
-        }
     }
 
     /// <summary>A GPU capture rejected before geometry publication is retried without new page feedback allocation.</summary>

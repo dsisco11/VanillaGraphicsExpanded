@@ -5,18 +5,18 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Extends cache-originating transport with persistent production temporal accumulation.</summary>
-public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingPipelineTestBase
+/// <summary>Isolates temporal shader retention with fixed anchors; full runtime coverage uses mod-owned callbacks.</summary>
+public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBase
 {
     /// <summary>Uses the shared material-isolated graphics context.</summary>
     protected SurfaceLightingTemporalTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
-    /// <summary>Exposes raw traces, temporal results and downstream pixels for independent boundary assertions.</summary>
-    protected sealed record HistoryFrame(float[] Raw, float[] RawMeta, LightingPixels Pixels, bool Reset);
+    /// <summary>Exposes raw traces and temporal output for independent component assertions.</summary>
+    protected sealed record HistoryFrame(float[] Raw, float[] RawMeta, HitPixels Pixels, bool Reset);
 
     #region Frame execution
     /// <summary>Traces eight directions per probe and retains the other fifty-six through the real temporal shader.</summary>
-    private protected HistoryFrame RenderHistory(SurfaceLightingEnclosureFixture room, SurfaceLightingHistoryFixture history, bool sh9, bool available = true)
+    private protected HistoryFrame RenderHistory(SurfaceLightingEnclosureFixture room, SurfaceLightingHistoryFixture history, bool available = true)
     {
         var lighting = available ? room.Snapshot : (VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot?)null;
         history.BeginFrame(room, lighting);
@@ -30,7 +30,7 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingPipelineT
             {
                 Accumulate(traced, history);
                 result = new(traced[0].ReadPixels(), traced[1].ReadPixels(),
-                    FinishLighting(history.Buffers.ScreenProbeAtlasCurrentFbo!, sh9), history.ResetThisFrame);
+                    new HitPixels(history.Buffers.ScreenProbeAtlasCurrentTex!.ReadPixels(), history.Buffers.ScreenProbeAtlasMetaCurrentTex!.ReadPixels()), history.ResetThisFrame);
             });
         history.EndFrame();
         return Assert.IsType<HistoryFrame>(result);

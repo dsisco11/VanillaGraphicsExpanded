@@ -13,6 +13,11 @@ internal sealed class SpatialLightingScene
     public float Bob { get; set; }
     public float EyeOffsetX { get; set; }
     public bool AlternateDarkRooms { get; set; }
+    public int BlockLight { get; set; } = 32;
+    public bool DividedRoom { get; set; }
+    public bool DoorOpen { get; set; } = true;
+    public float Reflectance { get; set; } = 1;
+    public float Emission { get; set; }
     public System.Collections.Concurrent.ConcurrentDictionary<ChunkKey,byte> Unloaded { get; } = new();
     public Vector3[] VisiblePoints { get; private set; } = [];
     public Vector3[] VisibleNormals { get; private set; } = [];
@@ -21,10 +26,10 @@ internal sealed class SpatialLightingScene
 
     #region Source geometry
     /// <summary>Defines two-voxel separators between repeating six-voxel-wide closed interiors.</summary>
-    public bool Solid(int x,int y,int z) => ((x+4)%8+8)%8 is 0 or 7 || y<=32 || y>=39 || z<=0 || z>=7;
+    public bool Solid(int x,int y,int z) => ((x+4)%8+8)%8 is 0 or 7 || y<=32 || y>=39 || z<=0 || z>=7 || (DividedRoom && z==5 && (!DoorOpen || ((x+4)%8+8)%8 is <2 or >5 || y<34 || y>37));
 
     /// <summary>Supplies independent direct-light fields; a dark room remains adjacent to a bright one.</summary>
-    public int Light(int x,int y,int z) => AlternateDarkRooms && (((int)Math.Floor((x+4)/8.0))&1)!=0 ? 0 : 32;
+    public int Light(int x,int y,int z) => DividedRoom ? (z>=6 ? 32 : 0) : AlternateDarkRooms && (((int)Math.Floor((x+4)/8.0))&1)!=0 ? 0 : BlockLight;
 
     /// <summary>Uses actual chunk identities for source unload/reload without changing geometry elsewhere.</summary>
     public bool Loaded(ChunkKey key) => !Unloaded.ContainsKey(key);
@@ -33,9 +38,11 @@ internal sealed class SpatialLightingScene
     public (VectorInt3 Chunk,uint Patch)[] Feedback()
     {
         var result=new HashSet<(VectorInt3,uint)>();
-        for(int axis=0;axis<6;axis++) for(int u=0;u<8;u++) for(int v=0;v<8;v++)
+        foreach (var face in Enumerable.Range(0,6).Select(axis => (Axis:axis, Plane:axis%2==0?0:7))
+            .Concat(DividedRoom ? new[]{(Axis:4,Plane:5),(Axis:5,Plane:5)} : []))
+        for(int u=0;u<8;u++) for(int v=0;v<8;v++)
         {
-            int plane=axis%2==0?0:7;
+            int axis=face.Axis, plane=face.Plane;
             int x=RoomOrigin+(axis<2?plane:u), y=32+(axis<2?v:axis<4?plane:v), z=axis<2?u:axis<4?v:plane;
             int px=x&31,py=y&31,pz=z&31;
             int p=axis<2?px:axis<4?py:pz, uc=axis<2?pz:px,vc=axis<2?py:axis<4?pz:py;

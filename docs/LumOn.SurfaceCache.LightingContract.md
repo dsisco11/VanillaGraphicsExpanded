@@ -120,6 +120,8 @@ Executed receipts and final independent review remain recorded in the task list.
 
 ## Final-lighting verification traceability
 
+The table below records the original shader-chain verification. Current coverage uses mod-owned startup and registered callbacks for broad runtime scenarios, with fixed-ray and temporal numerical assertions retained as explicit component tests. The original test names and final-composition boundary are historical; [Production runtime lighting coverage](LumOn.SurfaceCache.RuntimeCoverage.md) maps every scenario to its current owner and documents the simulated engine and composition boundaries.
+
 | Section 7 task | Controlling sections | Behavioral evidence |
 | --- | --- | --- |
 | Positive consumer contract | Geometry-hit consumers | Existing positive hit-consumer declarations; gather/composition remain downstream |

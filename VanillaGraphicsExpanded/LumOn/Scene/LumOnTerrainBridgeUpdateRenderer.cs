@@ -96,8 +96,10 @@ internal sealed class LumOnTerrainBridgeUpdateRenderer : IRenderer, IDisposable
             new Vector3d(remX, remY, remZ));
     }
 
+    /// <summary>Removes the terrain callback before releasing its world-owned uniform state.</summary>
     public void Dispose()
     {
+        capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
         capi.Event.LeaveWorld -= OnLeaveWorld;
         OnLeaveWorld();
     }

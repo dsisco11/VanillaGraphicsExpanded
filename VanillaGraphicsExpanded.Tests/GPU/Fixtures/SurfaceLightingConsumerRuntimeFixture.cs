@@ -20,7 +20,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     private readonly ShaderTestFramework drawing = new();
     private readonly RuntimeLightingPrograms programs = new();
     private readonly VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem worldSystem = new();
-    private readonly LumOnRenderer renderer;
+    private readonly RuntimeLightingHost host;
     private readonly SpatialLightingScene? spatial;
     private readonly int edge;
     private readonly float[] projection = LumOnTestInputFactory.CreateRealisticProjection();
@@ -42,7 +42,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null)
     {
         this.spatial=spatial; edge=spatial==null?2:4;
-        Cache = new(requestedPages:24,enclosure:true,spatial:spatial);
+        Cache = new(requestedPages:24,enclosure:true,spatial:spatial,productionOwned:true);
         World = new(Cache.SourceBlock,spatial);
         var cfg=Cache.Config.LumOn;
         cfg.ProbeSpacingPx=1; cfg.ProbeAtlasTexelsPerFrame=8; cfg.RayMaxDistance=16;
@@ -76,20 +76,23 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
             "GlToggleBlend"=>Blend((bool)args![0]!),
             _=>method.Invoke(Cache.Api.Render,args)
         });
-        var shader=RuntimeRenderEvents.Adapt<IShaderAPI>((method,args)=>method.Name=="GetProgramByName"?programs.Get((string)args![0]!):throw new NotSupportedException(method.Name));
+        var shader=programs.Api;
         var input=RuntimeRenderEvents.Adapt<IInputAPI>((method,_)=>method.Name is "RegisterHotKey" or "SetHotKeyHandler"?null:throw new NotSupportedException(method.Name));
-        var mods=RuntimeRenderEvents.Adapt<IModLoader>((method,_)=>method.Name=="GetModSystem" && method.GetGenericArguments().Single()==typeof(VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem)?worldSystem:throw new NotSupportedException(method.Name));
+        var mods=RuntimeRenderEvents.Adapt<IModLoader>((method,_)=>method.Name=="GetModSystem"
+            ? method.GetGenericArguments().Single()==typeof(VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem)
+                ? worldSystem : method.GetGenericArguments().Single()==typeof(VanillaGraphicsExpanded.ModSystems.WorldPartitionModSystem)
+                    ? Cache.Partitions : throw new NotSupportedException(method.ToString())
+            : throw new NotSupportedException(method.Name));
         var api=RuntimeRenderEvents.Adapt<ICoreClientAPI>((method,args)=>method.Name switch
         {
             "get_ModLoader"=>mods,"get_World"=>world,"get_Render"=>render,"get_Shader"=>shader,"get_Input"=>input,
             _=>method.Invoke(Cache.Api,args)
         });
-        programs.Api=api;
-        Screen=new(api,Cache.Config); WorldBuffers=new(api,Cache.Config);
-        WorldRenderer=new(api,Cache.Config,WorldBuffers,Camera);
-        WorldRenderer.SetSurfaceLightingProvider(Cache.LightingProvider,Cache.Geometry);
-        renderer=new(api,Cache.Config,Screen,Cache.Buffers,WorldBuffers,Camera);
-        renderer.SetNearFieldSceneProvider(Cache.Geometry); renderer.SetSurfaceLightingProvider(Cache.LightingProvider);
+        programs.Initialize(api);
+        host=new(api,Cache,worldSystem,Camera);
+        WorldRenderer=host.WorldRenderer;
+        Screen=RuntimeLightingHost.Read<LumOnBufferManager>(host.Renderer,"primaryBuffers");
+        WorldBuffers=worldSystem.GetClipmapBufferManagerOrNull()!;
     }
     #endregion
 
@@ -160,8 +163,8 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     /// <summary>Unblocks workers before retiring consumers, then their producer and engine dependencies.</summary>
     public void Dispose()
     {
-        World.ReleaseWorker(); WorldRenderer.Dispose(); renderer.Dispose();
-        WorldBuffers.Dispose(); Screen.Dispose(); programs.Dispose(); drawing.Dispose(); World.Dispose(); worldSystem.Dispose(); Cache.Dispose(); platform.Dispose();
+        World.ReleaseWorker(); host.Dispose();
+        programs.Dispose(); drawing.Dispose(); World.Dispose(); Cache.Dispose(); platform.Dispose();
     }
     /// <summary>Represents the engine mesh while draws use the controlled GPU triangle.</summary>
     private sealed class RuntimeMesh : MeshRef { public override bool Initialized=>!Disposed; }
