@@ -5,6 +5,7 @@ Issues:
 
     DebugViews:
       ☐ Create debug-view for LumOns geometry irradience surface cache.
+      ☐ BUG: SurfaceCache view: has the view bobbing bug due to camera matrix transforms.
       ☐ BUG: Debug-view GUI doesnt update to show custom view info when the view-mode is changed.
       ☐ BUG: NearField Geometry view not working.
       ☐ BUG: WorldProbe views not working.
