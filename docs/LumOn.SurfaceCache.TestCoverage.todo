@@ -12,8 +12,14 @@ Verified by `SurfaceCacheDynamicLightingTests.LightRemovalAndRestorationDiscardA
 Validation: normal SPIR-V-enabled build passed; both dynamic-history cases and existing shared-surface tests passed 13/13 with no skips. Receipts: `artifacts/shader-variant-contracts/surface-cache-doorway-finalv2-build.log` and `surface-cache-doorway-finalv2.trx` in the same directory.
 
 ## 2. Full runtime orchestration
-- [ ] Exercise the production surface-cache renderer lifecycle: initialization, feedback, allocation, capture, relighting, debug-view activation, and disposal.
-- [ ] Verify published resources and rendered output across multiple frames, including resource recreation, without OpenGL errors.
+- [x] Exercise the production surface-cache renderer lifecycle: initialization, feedback, allocation, capture, relighting, debug-view activation, and disposal.
+- [x] Verify published resources and rendered output across multiple frames, including resource recreation, without OpenGL errors.
+
+Verified by `SurfaceCacheRuntimeTests.RegisteredCallbacksDriveSurfaceCacheAcrossRecreationAndWorldRestart`, which drives the registered production callbacks through controlled engine boundaries. The reusable fixture publishes controlled geometry before submitting feedback, then verifies allocation, successful capture and relight completion, debug-view callback execution, physical-atlas recreation, world teardown and restart, and callback cleanup. `DisposedRenderersRemoveTheirEngineCallbacks` independently guards renderer unregistration, while `RuntimePublishedGeometrySupportsSurfaceCapture` correlates runtime-published geometry with both the established source-compiled capture fixture and the production SPIR-V capture owner.
+
+The runtime fixture intentionally treats nonzero final lighting as separate coverage. This section proves that a resident page becomes sampleable and survives the required lifecycle transitions; Section 3 owns proof that cached irradiance reaches final indirect-lighting pixels.
+
+Validation: normal incremental build passed; `SurfaceCacheRuntimeTests` passed 3/3 with no skips. Isolated neighboring runs also passed: `SurfaceCacheDynamicLightingTests` 2/2 and `SharedTraceSceneSurfaceTests` 11/11. Receipts: `artifacts/shader-variant-contracts/surface-cache-runtime-current-v40-tests.log`, `surface-cache-dynamic-isolated-tests.log`, and `surface-cache-shared-surface-isolated-tests.log`, with their corresponding `.trx` files.
 
 ## 3. Cache-to-final-lighting behavior
 - [ ] Identify the currently implemented surface-cache consumers and explicitly record any missing integration before defining end-to-end expectations.

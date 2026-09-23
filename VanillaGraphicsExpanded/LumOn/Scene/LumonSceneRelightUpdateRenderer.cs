@@ -378,13 +378,9 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
+        capi.Event.UnregisterRenderer(this, EnumRenderStage.Done);
         capi.Event.LeaveWorld -= OnLeaveWorld;
-
-        relightVoxelShader?.Dispose();
-        relightVoxelShader = null;
-
-        debugCounters?.Dispose();
-        debugCounters = null;
+        OnLeaveWorld();
     }
 
     private void OnLeaveWorld()

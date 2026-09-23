@@ -11,7 +11,7 @@ using Vintagestory.API.MathTools;
 namespace VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 
 /// <summary>Game adapter for the shared worker source; consumers never capture voxels themselves.</summary>
-internal sealed class TraceGeometryWorldSource : IDisposable
+internal sealed class TraceGeometryWorldSource : ITraceGeometrySource
 {
     private readonly ICoreClientAPI api;
     private readonly LumonSceneTraceSceneChunkVersionProvider versions = new();

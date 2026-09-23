@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -278,6 +279,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     // Matrix buffers
     private readonly LumOnUniformBuffers uniformBuffers = new();
+    private readonly System.Func<LumOnCameraState?> readCamera;
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invViewMatrix = new float[16];
     private readonly float[] prevViewProjMatrix = new float[16];
@@ -304,7 +306,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         LumOnBufferManager? bufferManager,
         GBufferManager? gBufferManager,
         DirectLightingBufferManager? directLightingBufferManager,
-        LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager)
+        LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager,
+        System.Func<LumOnCameraState?>? readCamera = null)
     {
         this.capi = capi;
         this.config = config;
@@ -312,6 +315,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         this.gBufferManager = gBufferManager;
         this.directLightingBufferManager = directLightingBufferManager;
         this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
+        this.readCamera = readCamera ?? (() => LumOnCameraState.Read(capi));
 
         // Create fullscreen quad mesh (-1 to 1 in NDC)
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
@@ -646,13 +650,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
         }
 
-        var entity = capi.World?.Player?.Entity;
-        var frameBridge = entity is null
+        var camera = readCamera();
+        var frameBridge = camera is null
             ? (default(VectorInt3), default(Vector3d))
             : LumOnFrameWorldSpaceBridge.Compute(
-                entity.Pos.X,
-                entity.Pos.Y,
-                entity.Pos.Z);
+                camera.Value.PositionX,
+                camera.Value.PositionY,
+                camera.Value.PositionZ);
 
         int halfW = bufferManager?.HalfResWidth ?? (capi.Render.FrameWidth / 2);
         int halfH = bufferManager?.HalfResHeight ?? (capi.Render.FrameHeight / 2);
@@ -819,7 +823,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Phase 18 world-probe defines must be set before Use() as well.
         // Make this robust across initialization order / live reloads: if the renderer's buffer manager reference
         // is stale/missing, re-acquire it from the mod system.
-        if (worldProbeClipmapBufferManager is null || worldProbeClipmapBufferManager.Resources is null)
+        // Surface-cache and G-buffer programs do not sample the world cache or own its initialization.
+        bool samplesWorldProbes = shader.ProgramContract.Groups.Contains(LumOnShaderGroups.World);
+        if (samplesWorldProbes && (worldProbeClipmapBufferManager is null || worldProbeClipmapBufferManager.Resources is null))
         {
             var clipmapMs = capi.ModLoader.GetModSystem<ModSystems.WorldProbeModSystem>();
             SetWorldProbeClipmapBufferManager(clipmapMs.EnsureClipmapResources(capi, "LumOnDebugRenderer bind"));
@@ -827,9 +833,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Keep resources alive for debug modes even if the main renderer is temporarily not running.
         // (Defines are compile-time; we want stable behavior when switching debug modes.)
-        worldProbeClipmapBufferManager?.EnsureResources();
+        if (samplesWorldProbes) worldProbeClipmapBufferManager?.EnsureResources();
 
-        bool hasWorldProbeResources = worldProbeClipmapBufferManager?.Resources is not null;
+        bool hasWorldProbeResources = samplesWorldProbes && worldProbeClipmapBufferManager?.Resources is not null;
 
         // Runtime params are optional; debug overlays can still compile the enabled variant from the known topology.
         // (If runtime params are missing, sampling will likely show no contribution, but it should not force-disable.)

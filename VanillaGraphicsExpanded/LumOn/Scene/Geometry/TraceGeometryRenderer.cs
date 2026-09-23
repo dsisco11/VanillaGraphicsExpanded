@@ -20,7 +20,9 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
     private readonly VgeConfig config;
     private readonly WorldPartitionModSystem partitions;
     private readonly IEventAPI events;
-    private TraceGeometryWorldSource? source;
+    private readonly System.Func<TraceGeometryMaterials, ITraceGeometrySource> createSource;
+    private readonly System.Func<LumOnCameraState?> readCamera;
+    private ITraceGeometrySource? source;
     private TraceGeometryPartition? partition;
     private TraceGeometryCoverage? plan;
     private int materialGeneration = -1;
@@ -37,8 +39,16 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
     #region Lifetime
     /// <summary>Runs before screen tracing and later surface-cache consumers.</summary>
     public TraceGeometryRenderer(ICoreClientAPI api, VgeConfig config, WorldPartitionModSystem partitions)
+        : this(api, config, partitions, materials => new TraceGeometryWorldSource(api, materials), () => LumOnCameraState.Read(api)) { }
+
+    /// <summary>Allows a world source adapter while retaining production planning, publication and event ownership.</summary>
+    internal TraceGeometryRenderer(ICoreClientAPI api, VgeConfig config, WorldPartitionModSystem partitions,
+        System.Func<TraceGeometryMaterials, ITraceGeometrySource> createSource,
+        System.Func<LumOnCameraState?>? readCamera = null)
     {
         this.api = api; this.config = config; this.partitions = partitions;
+        this.createSource = createSource;
+        this.readCamera = readCamera ?? (() => LumOnCameraState.Read(api));
         events = ((ICoreAPI)api).Event;
         api.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "vge_shared_trace_geometry");
         api.Event.LeaveWorld += Release;
@@ -68,7 +78,8 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
     /// <summary>Plans both domains, recreates changed generations and services only coordinator-authorized work.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (!config.LumOn.Enabled || api.World?.Player?.Entity is not { } entity)
+        LumOnCameraState? cameraState = readCamera();
+        if (!config.LumOn.Enabled || cameraState is not { } camera)
         { Release(); partitions.Pump(); return; }
         var trace = config.LumOn.LumonScene.TraceScene;
         int? surface = config.LumOn.LumonScene.Enabled ? trace.ClipmapResolution : null;
@@ -81,15 +92,14 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
         bool pumped = false;
         try
         {
-            if (entity.Pos.Dimension != 0) throw new InvalidOperationException("Shared geometry supports the primary world only.");
-            var camera = entity.CameraPos;
-            var next = TraceGeometryCoverage.Plan(new(camera.X, camera.Y, camera.Z), true, surface, api.World.MapSizeY);
+            if (camera.Dimension != 0) throw new InvalidOperationException("Shared geometry supports the primary world only.");
+            var next = TraceGeometryCoverage.Plan(new(camera.CameraX, camera.CameraY, camera.CameraZ), true, surface, api.World.MapSizeY);
             int generation = PbrMaterialRegistry.Instance.GeometryGeneration;
             if (Resources == null || surfaceResolution != surface || materialGeneration != generation)
             {
                 Release();
                 var materials = new TraceGeometryMaterials();
-                source = new(api, materials);
+                source = createSource(materials);
                 Resources = new(next.Resolution);
                 partition = new(partitions.GetCoordinator(), source.Cache, materials, Resources);
                 surfaceResolution = surface; materialGeneration = generation;

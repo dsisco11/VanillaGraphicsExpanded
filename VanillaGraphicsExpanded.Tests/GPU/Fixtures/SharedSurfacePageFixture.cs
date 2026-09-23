@@ -53,6 +53,28 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         return (read.Span[0].VirtualPageIndex & 0x80000000u) == 0;
     }
 
+    /// <summary>Runs the same capture resources through the production shader owner and binary loading path.</summary>
+    public bool CaptureWithProductionOwner(Vintagestory.API.Common.ICoreAPI api, TraceGeometryGpuScene scene)
+    {
+        Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(api, out var owner, out string log, preferSpirv: true), log);
+        using (owner)
+        {
+            captureWork.UploadSubData<LumonSceneCaptureWorkGpu>([new(1, 0, 1, 0)], 0, 16);
+            using var program = owner!.UseScope();
+            owner.BindSharedGeometry(scene);
+            owner.BindCaptureWorkSsbo(captureWork);
+            owner.BindPatchMetaSsbo(metadata);
+            owner.BindChunkSlotInfoSsbo(slots);
+            owner.BindDepthAtlasImage(depth);
+            owner.BindMaterialAtlasImage(material);
+            owner.SetAtlasLayout(Size, 1, 1, 0);
+            Dispatch();
+        }
+        using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
+        Assert.True(read.IsMapped);
+        return (read.Span[0].VirtualPageIndex & 0x80000000u) == 0;
+    }
+
     /// <summary>Runs bounded relighting and returns the page completion marker written by the shader.</summary>
     public bool Relight(TraceGeometryGpuScene scene, uint steps = 256)
     {

@@ -25,6 +25,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// </summary>
 internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 {
+    private readonly System.Func<LumOnCameraState?> readCamera;
     private const double RenderOrderValue = 0.9998;
     private const int RenderRangeValue = 1;
 
@@ -418,10 +419,16 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
     public int RenderRange => RenderRangeValue;
 
     public LumonSceneFeedbackUpdateRenderer(ICoreClientAPI capi, VgeConfig config, GBufferManager gBufferManager, PartitionCoordinator worldPartition)
+        : this(capi, config, gBufferManager, worldPartition, () => LumOnCameraState.Read(capi)) { }
+
+    /// <summary>Creates the renderer with an explicit per-frame camera source for controlled runtime hosts.</summary>
+    internal LumonSceneFeedbackUpdateRenderer(ICoreClientAPI capi, VgeConfig config, GBufferManager gBufferManager,
+        PartitionCoordinator worldPartition, System.Func<LumOnCameraState?> readCamera)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
         this.gBufferManager = gBufferManager ?? throw new ArgumentNullException(nameof(gBufferManager));
+        this.readCamera = readCamera ?? throw new ArgumentNullException(nameof(readCamera));
         _ = worldPartition ?? throw new ArgumentNullException(nameof(worldPartition));
 
         nearRegionScheduler = new LumonSceneRegionScheduler(worldPartition, RetireNearRegion);
@@ -552,31 +559,13 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
     public void Dispose()
     {
-        ReleaseGeometryHistory();
+        capi.Event.UnregisterRenderer(this, EnumRenderStage.Done);
         capi.Event.LeaveWorld -= OnLeaveWorld;
-
-        if (chunkResidency is not null)
-        {
-            chunkResidency.PageReleased -= OnChunkResidencyPageReleased;
-            chunkResidency = null;
-        }
-
-        feedbackMarkShader?.Dispose();
-        feedbackMarkShader = null;
-
-        feedbackCompactShader?.Dispose();
-        feedbackCompactShader = null;
-
-        captureVoxelShader?.Dispose();
-        captureVoxelShader = null;
-
+        OnLeaveWorld();
         pageUsageStamp?.Dispose();
         pageUsageStamp = null;
-
-        feedbackMarkDebugCounters?.Dispose();
-        feedbackMarkDebugCounters = null;
-
         nearGpu.Dispose();
+        physicalPools.Dispose();
     }
 
     private void OnLeaveWorld()
@@ -929,17 +918,15 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         chunkCoord = default;
         try
         {
-            var player = capi.World?.Player;
-            var entity = player?.Entity;
-            if (entity is null)
+            if (readCamera() is not { } camera)
             {
                 return false;
             }
 
             // Entity positions are in block units.
-            double x = entity.Pos.X;
-            double y = entity.Pos.Y;
-            double z = entity.Pos.Z;
+            double x = camera.PositionX;
+            double y = camera.PositionY;
+            double z = camera.PositionZ;
 
             int cx = (int)Math.Floor(x * (1.0 / 32.0));
             int cy = (int)Math.Floor(y * (1.0 / 32.0));
@@ -1066,17 +1053,15 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
     {
         try
         {
-            var player = capi.World?.Player;
-            var entity = player?.Entity;
-            if (entity is null)
+            if (readCamera() is not { } camera)
             {
                 return;
             }
 
             // World camera position (double precision, world coords).
-            double camWorldX = entity.CameraPos.X;
-            double camWorldY = entity.CameraPos.Y;
-            double camWorldZ = entity.CameraPos.Z;
+            double camWorldX = camera.CameraX;
+            double camWorldY = camera.CameraY;
+            double camWorldZ = camera.CameraZ;
 
             // Camera position in render "matrix space" (derived from the camera matrix origin).
             // This matches the coordinate system used by terrain shaders for `worldPos`.
