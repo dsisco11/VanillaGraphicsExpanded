@@ -7,7 +7,6 @@ Issues:
       ☐ Create debug-view for LumOns geometry irradience surface cache.
     Shaders:
       ☐ Seperate massive debug shaders into individual, more manageable shader files for easier maintenance, debugging, and better loading times.
-      ☐ Implement a new "shader variants" system to allow precompiled SPIRV shaders to compile all of their variants based on their preprocessor `#ifdef` conditions.
       ☐ Implement a system for automatically reloading modified shader files during development to speed up iteration.
   
   Debug View System:
