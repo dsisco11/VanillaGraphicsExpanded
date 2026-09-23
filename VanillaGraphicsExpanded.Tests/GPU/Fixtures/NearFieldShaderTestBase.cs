@@ -17,8 +17,8 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
 
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
-    private protected (float[] Radiance, float[] Meta) Trace(NearFieldVoxelFixture fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
-        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default, Action<GpuFramebuffer>? consume = null, VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources? worldResources = null, GpuTexture? history = null, GpuTexture? historyMeta = null, int texelsPerFrame = 64, int frameIndex = 0, float rayMaxDistance = 4)
+    private protected (float[] Radiance, float[] Meta) Trace(NearFieldVoxelFixture? fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
+        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default, Action<GpuFramebuffer>? consume = null, VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources? worldResources = null, GpuTexture? history = null, GpuTexture? historyMeta = null, int texelsPerFrame = 64, int frameIndex = 0, float rayMaxDistance = 4, ShaderLightingResources? resources = null)
     {
         var program = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(shader =>
         {
@@ -31,14 +31,14 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         using var use = program.UseScope();
         using var cacheBinding=new VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingBindings();
         cacheBinding.Bind(surfaceLighting);
-        using var assets = new BinaryShaderApiFixture();
-        var config = new VgeConfig();
-        config.LumOn.ProbeSpacingPx = 2;
-        using var buffers = new LumOnBufferManager(assets.Api, config);
-        buffers.EnsureBuffers(4,4);
-        using var worldInputs = new LumOnWorldProbeClipmapGpuResources(cacheResolution,1,16);
-        using var terrain = new EngineTerrainBuffers(4,4);
-        using var gbuffer = new GBufferTextures(4,4);
+        // A retained history supplies its own branch. Otherwise reuse this test's sequential component inputs.
+        resources ??= LightingResources;
+        var buffers = resources.EnsureScreen(4, 4, 2);
+        resources.Scene.EnsureSize(4, 4);
+        var terrain = resources.Scene.Engine;
+        var gbuffer = resources.Scene.Terrain;
+        // External world resources are borrowed, with no redundant fallback atlas allocation.
+        var worldInputs = worldResources ?? resources.EnsureWorldProbes(cacheResolution, 1, 16);
         gbuffer.Material.UploadDataImmediate(CreateUniformColorData(4,4,0,0,screenEmission,0));
         program.ProbeAnchorPosition = Populate(buffers.ProbeAnchorPositionTex!, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1);
         program.ProbeAnchorNormal = Populate(buffers.ProbeAnchorNormalTex!, .5f, .5f, 1, 0);
@@ -56,7 +56,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         var traceSettings = shared is null
             ? new LumOnNearFieldTraceSettings(budget, supportedOrigins, maximumTraceReach)
             : new LumOnNearFieldTraceSettings(budget, shared.Coverage?.NearField, float.MaxValue);
-        program.BindNearFieldScene(shared ?? fixture.Scene.Backend, traceSettings);
+        program.BindNearFieldScene(shared ?? fixture?.Scene.Backend, traceSettings);
         UpdateAndBindLumOnFrameUbo(program, frameIndex: frameIndex, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection(),
             projectionMatrix: LumOnTestInputFactory.CreateRealisticProjection(),
             matrixSpaceWorldChunkCoordOffset: new VanillaGraphicsExpanded.Numerics.VectorInt3(worldOffset.X >> 5, worldOffset.Y >> 5, worldOffset.Z >> 5), matrixSpaceWorldBlockOffsetRem: matrixRemainder);

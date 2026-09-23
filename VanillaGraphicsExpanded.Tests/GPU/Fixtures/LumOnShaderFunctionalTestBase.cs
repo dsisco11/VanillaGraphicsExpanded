@@ -98,14 +98,17 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private ShaderTestFramework? _testFramework;
     private LumOnUniformBuffers? _lumOnUbos;
     private bool _disposed;
-    private ShaderSceneInputs? sceneInputs;
+    private ShaderLightingResources? lightingResources;
     private ComponentShaderPrograms? programs;
 
     /// <summary>Owns the real shader classes used by isolated pass tests.</summary>
     private protected ComponentShaderPrograms Programs => programs ??= new();
 
     /// <summary>Owns this test scene's borrowed inputs; independent scenes must create their own set.</summary>
-    private protected ShaderSceneInputs SceneInputs => sceneInputs ??= new();
+    private protected ShaderSceneInputs SceneInputs => LightingResources.Scene;
+
+    /// <summary>Retains one default sequential component branch; simultaneous histories use explicit separate owners.</summary>
+    private protected ShaderLightingResources LightingResources => lightingResources ??= new(Programs.Api);
 
     private LumOnPmjJitterTexture? _pmjJitterTexture;
     private int _pmjJitterCycleLength;
@@ -550,10 +553,10 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         {
             if (disposing)
             {
-                sceneInputs?.Dispose();
+                lightingResources?.Dispose();
                 programs?.Dispose();
                 programs = null;
-                sceneInputs = null;
+                lightingResources = null;
                 _shaderHelper?.Dispose();
                 _testFramework?.Dispose();
                 _lumOnUbos?.Dispose();

@@ -12,22 +12,13 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
 {
     #region Diagnostic Output
     /// <summary>Renders gathered lighting directly at its native resolution to isolate the diagnostic from upsampling.</summary>
-    private void AssertGatherLightingEffect(float[] normal, float[] suppressed, bool expectLighting)
+    private void AssertGatherLightingEffect(GpuTexture normalTexture, GpuTexture suppressedTexture, GpuFramebuffer output,
+        float[] normal, float[] suppressed, bool expectLighting)
     {
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.WorldprobeContract.Identity);
         using var use = program.UseScope();
         {
-            using var assets = new BinaryShaderApiFixture();
-            using var normalBuffers = new LumOnBufferManager(assets.Api, new VgeConfig());
-            using var suppressedBuffers = new LumOnBufferManager(assets.Api, new VgeConfig());
-            normalBuffers.EnsureBuffers(HalfResWidth, HalfResHeight);
-            suppressedBuffers.EnsureBuffers(HalfResWidth, HalfResHeight);
-            var normalTexture = normalBuffers.IndirectFullTex!;
-            var suppressedTexture = suppressedBuffers.IndirectFullTex!;
-            normalTexture.UploadDataImmediate(normal);
-            suppressedTexture.UploadDataImmediate(suppressed);
-            using var terrain = new EngineTerrainBuffers(HalfResWidth, HalfResHeight);
-            var output = terrain.Output;
+            // Borrow simultaneous gather outputs directly; no upload copies or duplicate lighting managers.
             program.DebugMode = 43;
             program.WorldProbeEffectGain = 1;
             UpdateAndBindLumOnFrameUbo(program);

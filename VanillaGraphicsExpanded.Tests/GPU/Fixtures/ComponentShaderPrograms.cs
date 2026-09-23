@@ -10,6 +10,9 @@ internal sealed class ComponentShaderPrograms : IDisposable
     private readonly EngineShaderPlatformScope platform = new();
     private readonly List<GpuProgram> programs = [];
 
+    /// <summary>Shares the owned engine boundary with scene resources that are disposed before this owner.</summary>
+    internal Vintagestory.API.Client.ICoreClientAPI Api => assets.Api;
+
     #region Program lifetime
     /// <summary>Configures a real shader before loading its declared variant; retains ownership through test teardown.</summary>
     public T Create<T>(Action<T>? configure = null, IReadOnlyDictionary<string, string?>? settings = null, string? identity = null) where T : GpuProgram, new()

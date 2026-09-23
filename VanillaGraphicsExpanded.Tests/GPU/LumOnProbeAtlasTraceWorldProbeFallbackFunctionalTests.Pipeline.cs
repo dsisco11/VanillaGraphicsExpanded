@@ -13,7 +13,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
 {
     #region Paired Pipeline
     /// <summary>Processes actual trace outputs for two frames with separate history textures.</summary>
-    private void AssertPairedHistoryReachesGather(float[] normalTrace, float[] suppressedTrace, float[] metadata, bool sh9, bool expectLighting = true)
+    private void AssertPairedHistoryReachesGather(ShaderLightingResources normalBranch, ShaderLightingResources suppressedBranch, float[] normalTrace, float[] suppressedTrace, float[] metadata, bool sh9, bool expectLighting = true)
     {
         {
             var temporal = Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = 64);
@@ -22,12 +22,11 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             var shGather = sh9 ? Programs.Create<LumOnProbeSh9GatherShaderProgram>() : null;
             var atlasGather = !sh9 ? Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>() : null;
             VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram gather = shGather ?? (VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram)atlasGather!;
-            using var assets = new BinaryShaderApiFixture();
-            var config = new VgeConfig(); config.LumOn.ProbeSpacingPx = ProbeSpacing;
-            using var inputs = new LumOnBufferManager(assets.Api, config);
-            inputs.EnsureBuffers(ScreenWidth, ScreenHeight);
-            using var terrain = new EngineTerrainBuffers(ScreenWidth, ScreenHeight);
-            using var guides = new GBufferTextures(ScreenWidth, ScreenHeight);
+            // Share authored guides, but retain separate screen/history owners for the two branches.
+            var inputs = normalBranch.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing);
+            normalBranch.Scene.EnsureSize(ScreenWidth, ScreenHeight);
+            var terrain = normalBranch.Scene.Engine;
+            var guides = normalBranch.Scene.Terrain;
             var anchors = inputs.ProbeAnchorPositionTex!;
             anchors.UploadDataImmediate(CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, 0, 0, -5, 1));
             var normals = guides.Normal;
@@ -42,8 +41,8 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             float[][] gathered = new float[2][];
             for (int branch = 0; branch < 2; branch++)
             {
-                using var buffers = new LumOnBufferManager(assets.Api, config);
-                buffers.EnsureBuffers(ScreenWidth, ScreenHeight);
+                var resources = branch == 0 ? normalBranch : suppressedBranch;
+                var buffers = resources.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing);
                 var trace = buffers.ScreenProbeAtlasHistoryTex!;
                 trace.UploadDataImmediate(branch == 0 ? normalTrace : suppressedTrace);
                 var first = buffers.ScreenProbeAtlasCurrentFbo!;
@@ -113,7 +112,11 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 Assert.Equal(gathered[0][i + 3], gathered[1][i + 3]);
                 for (int channel = 0; channel < 3; channel++) Assert.Equal(0f, gathered[1][i + channel]);
             }
-            AssertGatherLightingEffect(gathered[0], gathered[1], expectLighting);
+            var normalOutput = normalBranch.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing).IndirectHalfTex!;
+            var suppressedOutput = suppressedBranch.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing).IndirectHalfTex!;
+            suppressedBranch.Scene.EnsureSize(HalfResWidth, HalfResHeight);
+            AssertGatherLightingEffect(normalOutput, suppressedOutput, suppressedBranch.Scene.Engine.Output,
+                gathered[0], gathered[1], expectLighting);
         }
     }
 

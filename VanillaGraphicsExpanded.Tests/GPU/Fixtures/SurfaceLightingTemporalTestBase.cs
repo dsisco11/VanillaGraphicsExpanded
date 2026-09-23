@@ -21,9 +21,8 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     {
         var lighting = available ? room.Snapshot : (VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot?)null;
         history.BeginFrame(room, lighting);
-        using var placeholder = new NearFieldVoxelFixture();
         HistoryFrame? result = null;
-        Trace(placeholder, worldCache: false, shared: room.Geometry.Scene, surfaceLighting: lighting,
+        Trace(null, resources: history.Resources, worldCache: false, shared: room.Geometry.Scene, surfaceLighting: lighting,
             anchorPosition: new(0,0,-3), worldOffset: new(0,32,0), matrixRemainder: new(4,4,7),
             history: history.Buffers.ScreenProbeAtlasHistoryTex, historyMeta: history.Buffers.ScreenProbeAtlasMetaHistoryTex,
             texelsPerFrame: SurfaceLightingHistoryFixture.DirectionsPerFrame, frameIndex: history.FrameIndex, rayMaxDistance: 16,
@@ -48,7 +47,7 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
         anchor.UploadDataImmediate(CreateUniformColorData(anchor.Width,anchor.Height,0,0,-3,1));
         mask.UploadDataImmediate(new float[mask.Width*mask.Height*2]);
         velocity.UploadDataImmediate(new float[velocity.Width*velocity.Height*4]);
-        using var jitter = VanillaGraphicsExpanded.LumOn.LumOnPmjJitterTexture.Create(1,0);
+        var jitter = GetOrCreatePmjJitterTexture(1, 0);
         program.ScreenProbeAtlasCurrent = traced[0];
         program.ScreenProbeAtlasHistory = history.Buffers.ScreenProbeAtlasHistoryTex;
         program.ProbeAnchorPosition = anchor;

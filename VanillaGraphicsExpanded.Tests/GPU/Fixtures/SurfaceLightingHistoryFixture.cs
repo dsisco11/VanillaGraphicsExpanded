@@ -8,6 +8,7 @@ internal sealed class SurfaceLightingHistoryFixture : IDisposable
 {
     private readonly BinaryShaderApiFixture assets = new();
     private readonly ProbeLightingHistoryDependencies dependencies = new();
+    public ShaderLightingResources Resources { get; }
     public LumOnBufferManager Buffers { get; }
     public int FrameIndex { get; private set; }
     public bool ResetThisFrame { get; private set; }
@@ -18,10 +19,8 @@ internal sealed class SurfaceLightingHistoryFixture : IDisposable
     /// <summary>Allocates the same atlas formats and ping-pong ownership used by the renderer.</summary>
     public SurfaceLightingHistoryFixture()
     {
-        var config = new VgeConfig();
-        config.LumOn.ProbeSpacingPx = 2;
-        Buffers = new(assets.Api, config);
-        Buffers.EnsureBuffers(4, 4);
+        Resources = new(assets.Api);
+        Buffers = Resources.EnsureScreen(4, 4, 2);
         Buffers.ClearHistory();
     }
 
@@ -40,7 +39,7 @@ internal sealed class SurfaceLightingHistoryFixture : IDisposable
     }
 
     /// <summary>Disposes retained GPU resources before their API boundary.</summary>
-    public void Dispose() { Buffers.Dispose(); assets.Dispose(); }
+    public void Dispose() { Resources.Dispose(); assets.Dispose(); }
     #endregion
 }
 

@@ -262,9 +262,11 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 Assert.Equal(0f, suppressedRadiance[i + 2]);
                 Assert.Equal(radianceOut[i + 3], suppressedRadiance[i + 3]);
             }
+            using var normalBranch = new ShaderLightingResources(Programs.Api);
+            using var suppressedBranch = new ShaderLightingResources(Programs.Api);
             foreach (bool sh9 in runPipeline ? new[] { false, true } : Array.Empty<bool>())
             {
-                AssertPairedHistoryReachesGather(radianceOut, suppressedRadiance, metaOut, sh9, expectedRadiance != 0);
+                AssertPairedHistoryReachesGather(normalBranch, suppressedBranch, radianceOut, suppressedRadiance, metaOut, sh9, expectedRadiance != 0);
             }
         }
     }
