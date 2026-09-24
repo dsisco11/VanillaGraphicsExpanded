@@ -25,9 +25,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         ("Vintagestory.Client.NoObf.ShaderProgramChunktransparent", "TerrainTex2D"),
     };
 
-    private static readonly Dictionary<int, int> originMinLocCache = new();
-    private static readonly Dictionary<int, int> dimsLocCache = new();
-    private static readonly Dictionary<int, int> ringLocCache = new();
     private static readonly Dictionary<int, int> genSamplerLocCache = new();
 
     private static readonly Dictionary<int, int> terrainBridgeBlockIndexCache = new();
@@ -115,16 +112,13 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
 
         try
         {
-            int originLoc = GetUniformLocCached(originMinLocCache, programId, LumonSceneChunkSlotUniformState.OriginMinChunkUniform);
-            int dimsLoc = GetUniformLocCached(dimsLocCache, programId, LumonSceneChunkSlotUniformState.DimsUniform);
-            int ringLoc = GetUniformLocCached(ringLocCache, programId, LumonSceneChunkSlotUniformState.RingUniform);
             int genLoc = GetUniformLocCached(genSamplerLocCache, programId, LumonSceneChunkSlotUniformState.GenerationSamplerUniform);
 
             int blockIndex = GetUniformBlockIndexCached(terrainBridgeBlockIndexCache, programId, LumOnTerrainBridgeUboState.BlockName);
             int slotBlockIndex = GetUniformBlockIndexCached(slotBlockIndexCache, programId, LumonSceneChunkSlotUniformState.BlockName);
 
             // Fast path: if this program doesn't have any of the LumOn uniforms/UBO, ignore it.
-            if (originLoc < 0 && dimsLoc < 0 && ringLoc < 0 && genLoc < 0 && blockIndex < 0 && slotBlockIndex < 0)
+            if (genLoc < 0 && blockIndex < 0 && slotBlockIndex < 0)
             {
                 return;
             }
@@ -134,14 +128,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             if (stateChanged)
             {
                 lastAppliedVersionByProgramId[programId] = version;
-
-                var origin = LumonSceneChunkSlotUniformState.OriginMinChunk;
-                var dims = LumonSceneChunkSlotUniformState.Dims;
-                var ring = LumonSceneChunkSlotUniformState.Ring;
-
-                if (originLoc >= 0) GL.Uniform3(originLoc, origin.X, origin.Y, origin.Z);
-                if (dimsLoc >= 0) GL.Uniform3(dimsLoc, dims.X, dims.Y, dims.Z);
-                if (ringLoc >= 0) GL.Uniform3(ringLoc, ring.X, ring.Y, ring.Z);
 
                 // Bind the terrain bridge UBO (if the shader declares it). The binding point is per-program.
                 if (blockIndex >= 0)
@@ -229,9 +215,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
     /// <summary>Invalidates reflected locations and bindings when vanilla shader programs are recreated.</summary>
     public static void ClearUniformCache()
     {
-        originMinLocCache.Clear();
-        dimsLocCache.Clear();
-        ringLocCache.Clear();
         genSamplerLocCache.Clear();
         terrainBridgeBlockIndexCache.Clear();
         slotBlockIndexCache.Clear();

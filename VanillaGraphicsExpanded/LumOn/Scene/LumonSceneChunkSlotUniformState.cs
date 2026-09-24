@@ -15,9 +15,6 @@ internal static class LumonSceneChunkSlotUniformState
     private static int uploadedVersion = -1;
     public const int GenerationTextureUnit = 13;
 
-    public const string OriginMinChunkUniform = "vge_lumonSceneChunkSlotOriginMinChunk";
-    public const string DimsUniform = "vge_lumonSceneChunkSlotDims";
-    public const string RingUniform = "vge_lumonSceneChunkSlotRing";
     public const string GenerationSamplerUniform = "vge_lumonSceneChunkSlotGenerationTex";
 
     private static int version;
