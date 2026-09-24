@@ -2,7 +2,8 @@
 //
 // Uses Vintage Story's near/far shadow coordinate weighting logic (ported from
 // assets/game/shaderincludes/shadowcoords.vsh) and PCF sampling style (ported from
-// assets/game/shaderincludes/fogandlight.fsh).
+// assets/game/shaderincludes/fogandlight.fsh). Cascade occlusion controls only direct
+// sunlight here; vanilla's half-strength darkening of combined lighting does not apply.
 //
 // IMPORTANT: All positions passed to these helpers must be in the same space as
 // the engine's shadow matrices expect: camera-relative world space ("worldPos" in
@@ -20,6 +21,7 @@
 // uniform float shadowRangeFar;
 // uniform float dropShadowIntensity;
 
+/// Computes terrain-relative shadow coordinates and complementary cascade coverage.
 void pbrCalcShadowMapCoords(vec3 worldPosRel, out vec4 shadowCoordsNear, out vec4 shadowCoordsFar)
 {
     shadowCoordsNear = vec4(0.0);
@@ -63,6 +65,7 @@ void pbrCalcShadowMapCoords(vec3 worldPosRel, out vec4 shadowCoordsNear, out vec
     }
 }
 
+/// Measures the occluded fraction of a 3x3 comparison-sampled shadow footprint.
 float pbrShadowOcclusionPcf3x3(sampler2DShadow shadowMap, vec4 shadowCoords, float bias)
 {
     // Returns occlusion in [0,1] (0=fully lit, 1=fully shadowed)
@@ -83,6 +86,7 @@ float pbrShadowOcclusionPcf3x3(sampler2DShadow shadowMap, vec4 shadowCoords, flo
     return 1.0 - lit;
 }
 
+/// Returns direct-sun visibility without retaining an artificial ambient-light floor.
 float pbrComputeSunShadowVisibility(vec3 worldPosRel)
 {
     // When intensity is 0, avoid sampling shadow maps at all.
@@ -98,14 +102,16 @@ float pbrComputeSunShadowVisibility(vec3 worldPosRel)
     // Bias values taken from vanilla fogandlight.fsh.
     if (scFar.w > 0.0)
     {
-        occlusion += pbrShadowOcclusionPcf3x3(shadowMapFar, scFar, 0.0009) * scFar.w * 0.5;
+        occlusion += pbrShadowOcclusionPcf3x3(shadowMapFar, scFar, 0.0009) * scFar.w;
     }
 
     if (scNear.w > 0.0)
     {
-        occlusion += pbrShadowOcclusionPcf3x3(shadowMapNear, scNear, 0.0005) * scNear.w * 0.5;
+        occlusion += pbrShadowOcclusionPcf3x3(shadowMapNear, scNear, 0.0005) * scNear.w;
     }
 
+    // Full cascade coverage and full shadow strength must remove all direct sunlight.
+    // Indirect lighting and emissive terms are combined separately after this pass.
     float visibility = 1.0 - dropShadowIntensity * occlusion;
     return clamp(visibility, 0.0, 1.0);
 }

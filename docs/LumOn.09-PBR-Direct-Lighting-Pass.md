@@ -122,8 +122,8 @@ This section is the authoritative _C# → GLSL_ binding contract for the direct 
 | `primaryDepth`    |    1 | Primary FBO depth                                  | Used for sky discard + position reconstruction  |
 | `gBufferNormal`   |    2 | `GBufferManager.NormalTextureId` (`Attachment4`)   | Packed normalWS = `n*0.5+0.5`                   |
 | `gBufferMaterial` |    3 | `GBufferManager.MaterialTextureId` (`Attachment5`) | `(roughness, metallic, emissive, reflectivity)` |
-| `shadowMapNear`   |    4 | `EnumFrameBuffer.ShadowmapNear` depth              | Bound for future shadow sampling                |
-| `shadowMapFar`    |    5 | `EnumFrameBuffer.ShadowmapFar` depth               | Bound for future shadow sampling                |
+| `shadowMapNear`   |    4 | `EnumFrameBuffer.ShadowmapNear` depth              | Used for direct-sun visibility                |
+| `shadowMapFar`    |    5 | `EnumFrameBuffer.ShadowmapFar` depth               | Used for direct-sun visibility                |
 
 **Uniforms (GLSL uniform → source):**
 
@@ -136,10 +136,12 @@ This section is the authoritative _C# → GLSL_ binding contract for the direct 
 | `rgbaAmbientIn`                                                       | `capi.Render.AmbientColor`                      | Ambient term (currently unused in shader)       |
 | `rgbaLightIn`                                                         | `ColorUtil.WhiteArgbVec.XYZ`                    | Directional light color                         |
 | `pointLightsCount` / `pointLights3[]` / `pointLightColors3[]`         | `DefaultShaderUniforms.PointLights*`            | View-space positions; arrays sized `[100]`                  |
-| `toShadowMapSpaceMatrixNear/Far`                                      | `DefaultShaderUniforms.ToShadowMapSpaceMatrix*` | Bound for future shadow sampling                |
-| `shadowRangeNear/Far`, `shadowZExtendNear/Far`, `dropShadowIntensity` | `DefaultShaderUniforms.*`                       | Bound for future shadow sampling                |
+| `toShadowMapSpaceMatrixNear/Far`                                      | `DefaultShaderUniforms.ToShadowMapSpaceMatrix*` | Used for direct-sun visibility                |
+| `shadowRangeNear/Far`, `shadowZExtendNear/Far`, `dropShadowIntensity` | `DefaultShaderUniforms.*`                       | Used for direct-sun visibility                |
 
 Point-light coordinates follow the actual vanilla call chain: `chunkopaque.vsh` passes `camPos = modelViewMatrix * worldPos` into `applyLight`, and `fogandlight.vsh` forwards that position to `getPointLightRgbv`. The helper parameter named `worldPos` is therefore a view-space position at this call site. PBR must subtract reconstructed `viewPos` from the supplied light position, measure attenuation in view space, and transform the resulting direction through the inverse view with homogeneous W = 0 for the world-space normal and BRDF. Neither absolute camera coordinates nor terrain-relative receiver positions belong in the point-light subtraction.
+
+Direct-sun shadows use the near/far depth comparison maps and their cascade coverage weights. Unlike vanilla darkening of an already-lit scene, this visibility term must not halve occlusion: with full coverage and shadow intensity 1, a fully occluded receiver gets zero direct diffuse and specular sunlight. Point lights, emission and indirect lighting remain separate. Engine shadow strength and coverage fades still apply; disabled shadows or receivers outside available shadow coverage retain the existing unshadowed fallback.
 
 **Numerical stability note:** the pass clamps minimum roughness to `0.04` to avoid GGX singularities overflowing `RGBA16F` outputs.
 
