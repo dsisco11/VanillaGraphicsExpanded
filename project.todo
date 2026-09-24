@@ -5,7 +5,6 @@ Issues:
 
     DebugViews:
       ☐ Create debug-view for LumOns geometry irradience surface cache.
-      ☐ BUG: WorldProbe views not working.
     Shaders:
       ☐ WorldProbe Probes View: says "Runtime params missing" for closest probe info.
       ☐ Seperate massive debug shaders into individual, more manageable shader files for easier maintenance, debugging, and better loading times.

@@ -75,6 +75,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 		capi.Logger.Notification("[VGE] World-probe update renderer registered (Done @ {0})", RenderOrderValue);
 	}
 
+    /// <summary>Publishes the current clipmap layout and schedules probes when surface lighting is ready.</summary>
 	public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
 	{
 		if (stage != EnumRenderStage.Done)
@@ -99,7 +100,6 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 
 		EnsureScheduler(resources);
         PrepareSurfaceLighting(resources);
-        if (surfaceRevision < 0) return;
 		if (scheduler is null)
 		{
 			return;
@@ -123,6 +123,10 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 		ApplyPendingWorldProbeDirtyChunks(baseSpacing);
 
 		UpdateRuntimeParams(resources, playerOriginWorld, baseSpacing);
+
+        // Bounds and probe diagnostics need the real clipmap layout while lighting initializes.
+        // Keep tracing and radiance publication gated on a valid surface-lighting generation.
+        if (surfaceRevision < 0) return;
 
 		// World-space tracing requires the game world to be ready.
 		traceBlockAccessor ??= capi.World?.BlockAccessor;

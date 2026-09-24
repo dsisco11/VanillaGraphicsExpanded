@@ -701,6 +701,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     #region IRenderer
 
+    /// <summary>Renders the selected diagnostic using its required resources and matching shader layout.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         var lum = config.LumOn;
@@ -854,37 +855,35 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             hasWorldProbeRuntimeParams = worldProbeClipmapBufferManager.TryGetRuntimeParams(
                 out wpCamPosWorld,
                 out wpCamPosWS,
-                out wpBaseSpacing,
-                out wpLevels,
-                out wpResolution,
+                out _,
+                out _,
+                out _,
                 out wpOrigins,
                 out wpRings);
 
-            float baseSpacing = Math.Max(1e-6f, config.WorldProbeClipmap.ClipmapBaseSpacing);
-            int levels = Math.Clamp(worldProbeClipmapBufferManager.Resources!.Levels, 1, MaxWorldProbeLevels);
-            int resolution = Math.Max(1, worldProbeClipmapBufferManager.Resources!.Resolution);
+            // Allocation determines the shader layout even before the first runtime publication.
+            wpBaseSpacing = Math.Max(1e-6f, config.WorldProbeClipmap.ClipmapBaseSpacing);
+            wpLevels = Math.Clamp(worldProbeClipmapBufferManager.Resources!.Levels, 1, MaxWorldProbeLevels);
+            wpResolution = Math.Max(1, worldProbeClipmapBufferManager.Resources!.Resolution);
+        }
 
-            // If defines changed for the active program, a recompile has been queued; skip rendering this frame.
-            // Apply to all debug programs so switching kinds later is consistent.
-            if (!LumOnDebugShaderProgramFamily.ApplyWorldProbeClipmapDefines(
-                enabled: true,
-                baseSpacing,
-                levels,
-                resolution,
-                activeProgram: shader))
-            {
-                return;
-            }
-        }
-        else
-        {
-            LumOnDebugShaderProgramFamily.ApplyWorldProbeClipmapDefines(
-                enabled: false,
-                baseSpacing: 0,
-                levels: 0,
-                resolution: 0,
-                activeProgram: shader);
-        }
+        // Select the complete variant before binding it. Runtime data supplies coordinates,
+        // not a second layout that can repeatedly invalidate the selected variant.
+        bool topologyStable = LumOnDebugShaderProgramFamily.ApplyWorldProbeClipmapDefines(
+            enabled: hasWorldProbeResources,
+            baseSpacing: wpBaseSpacing,
+            levels: wpLevels,
+            resolution: wpResolution,
+            activeProgram: shader);
+        bool layoutStable = shader.EnsureWorldProbeClipmapDefines(
+            enabled: hasWorldProbeResources,
+            baseSpacing: wpBaseSpacing,
+            levels: wpLevels,
+            resolution: wpResolution,
+            worldProbeOctahedralTileSize: hasWorldProbeResources ? config.WorldProbeClipmap.OctahedralTileSize : 0,
+            worldProbeAtlasTexelsPerUpdate: hasWorldProbeResources ? config.WorldProbeClipmap.AtlasTexelsPerUpdate : 0,
+            worldProbeDiffuseStride: hasWorldProbeResources ? 2 : 0);
+        if (!topologyStable || !layoutStable) return;
 
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
         using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
@@ -983,23 +982,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
             if (hasWorldProbeResources && worldProbeClipmapBufferManager?.Resources is not null)
             {
-                // Ensure the debug shader is compiled with the active world-probe layout/defines.
-                int wpTileSize = config.WorldProbeClipmap.OctahedralTileSize;
-                int wpAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
-                const int worldProbeDiffuseStride = 2;
-                if (!shader.EnsureWorldProbeClipmapDefines(
-                    enabled: true,
-                    baseSpacing: wpBaseSpacing,
-                    levels: wpLevels,
-                    resolution: wpResolution,
-                    worldProbeOctahedralTileSize: wpTileSize,
-                    worldProbeAtlasTexelsPerUpdate: wpAtlasTexelsPerUpdate,
-                    worldProbeDiffuseStride: worldProbeDiffuseStride))
-                {
-                    shader.Stop();
-                    return;
-                }
-
                 shader.WorldProbeRadianceAtlas = worldProbeClipmapBufferManager.Resources.ProbeRadianceAtlas;
                 shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0;
                 shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0;
@@ -1026,14 +1008,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
             else
             {
-                shader.EnsureWorldProbeClipmapDefines(
-                    enabled: false,
-                    baseSpacing: 0,
-                    levels: 0,
-                    resolution: 0,
-                    worldProbeOctahedralTileSize: 0,
-                    worldProbeAtlasTexelsPerUpdate: 0,
-                    worldProbeDiffuseStride: 0);
                 shader.WorldProbeRadianceAtlas = null;
                 shader.WorldProbeVis0 = null;
                 shader.WorldProbeDist0 = null;
@@ -1971,6 +1945,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
     }
 
+    /// <summary>Draws probe diagnostics using the published clipmap layout and a matching shader variant.</summary>
     private void RenderWorldProbeOrbsPointsLive()
     {
         if (worldProbeClipmapBufferManager?.Resources is null || clipmapProbeOrbsCount <= 0)
@@ -1999,6 +1974,19 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             || !clipmapProbeOrbsAtlasVbo.IsValid)
         {
             RateLimitedClipmapDebugLog("World-probe orbs: missing vao/vbo");
+            return;
+        }
+
+        // Complete variant selection before Use so uniforms target the matching program.
+        if (!shader.EnsureWorldProbeClipmapDefines(
+            enabled: true,
+            baseSpacing: clipmapDebugBaseSpacing,
+            levels: clipmapDebugLevels,
+            resolution: clipmapDebugResolution,
+            worldProbeOctahedralTileSize: config.WorldProbeClipmap.OctahedralTileSize,
+            worldProbeAtlasTexelsPerUpdate: config.WorldProbeClipmap.AtlasTexelsPerUpdate,
+            worldProbeDiffuseStride: 2))
+        {
             return;
         }
 
@@ -2031,23 +2019,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 float maxSize = maxSpacing * clipmapDebugResolution;
                 shader.FadeNear = maxSize * 0.5f;
                 shader.FadeFar = maxSize * 1.05f;
-
-                int wpTileSize = config.WorldProbeClipmap.OctahedralTileSize;
-                int wpAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
-                const int worldProbeDiffuseStride = 2;
-                if (!shader.EnsureWorldProbeClipmapDefines(
-                    enabled: true,
-                    baseSpacing: clipmapDebugBaseSpacing,
-                    levels: clipmapDebugLevels,
-                    resolution: clipmapDebugResolution,
-                    worldProbeOctahedralTileSize: wpTileSize,
-                    worldProbeAtlasTexelsPerUpdate: wpAtlasTexelsPerUpdate,
-                    worldProbeDiffuseStride: worldProbeDiffuseStride))
-                {
-                    shader.Stop();
-                    shaderUsed = false;
-                    return;
-                }
 
                 // Bind world-probe textures (binds both texture + sampler).
                 var res = worldProbeClipmapBufferManager.Resources;

@@ -1,4 +1,5 @@
 using Moq;
+using VanillaGraphicsExpanded.DebugView;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -13,14 +14,14 @@ using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Exercises geometry diagnostics through the registered production renderer.</summary>
+/// <summary>Exercises geometry and world-probe diagnostics through the registered production renderer.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class LumOnNearFieldGeometryRendererTests : LumOnShaderFunctionalTestBase
+public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTestBase
 {
     #region Construction
     /// <summary>Uses the shared mandatory GPU context.</summary>
-    public LumOnNearFieldGeometryRendererTests(HeadlessGLFixture fixture) : base(fixture) { }
+    public LumOnDebugRendererFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
     #endregion
 
     #region Renderer dependencies
@@ -31,6 +32,17 @@ public sealed class LumOnNearFieldGeometryRendererTests : LumOnShaderFunctionalT
     [InlineData(true, true)]
     [InlineData(false, true)]
     public void GeometryView_DrawsWithoutWorldProbeRuntimeParameters(bool lightingResources, bool publishedGeometry)
+        => RenderViews(lightingResources, publishedGeometry);
+
+    /// <summary>World-probe views must settle on one shader variant across absent and published runtime data.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WorldProbeView_DrawsAndSwitchesFromGeometry(bool runtimeParameters)
+        => RenderViews(true, false, runtimeParameters);
+
+    /// <summary>Runs actual callback frames against controlled GPU resources and optional world-probe placement.</summary>
+    private void RenderViews(bool lightingResources, bool publishedGeometry, bool? worldProbeRuntime = null)
     {
         EnsureShaderTestAvailable();
         using var engine = new EngineShaderPlatformScope();
@@ -70,6 +82,11 @@ public sealed class LumOnNearFieldGeometryRendererTests : LumOnShaderFunctionalT
         using var gbuffer = new GBufferManager(api);
         using var probes = new LumOnWorldProbeClipmapBufferManager(api, config);
         probes.EnsureResources();
+        if (worldProbeRuntime == true)
+        {
+            probes.UpdateRuntimeParams(new Vec3d(), default, config.WorldProbeClipmap.ClipmapBaseSpacing,
+                1, 4, [new System.Numerics.Vector3(-2)], [default]);
+        }
         using var geometry = new NearFieldVoxelFixture();
         if (publishedGeometry)
         {
@@ -84,6 +101,9 @@ public sealed class LumOnNearFieldGeometryRendererTests : LumOnShaderFunctionalT
             () => new LumOnCameraState(0, 0, 0, 0, 0, 0, 0));
         if (publishedGeometry) renderer.SetNearFieldSceneProvider(new GeometryProvider(geometry.Scene.Backend));
         LumOnDebugShaderProgramFamily.Register(api);
+        var probeView = VgeBuiltInDebugViews.ProbesDebugViewState.Instance;
+        bool previousHeatmap = probeView.GetImportanceSurfaceHeatmapEnabled();
+        probeView.SetImportanceSurfaceHeatmapEnabled(true);
         try
         {
             // Both published geometry and the unavailable-provider diagnostic must render
@@ -109,9 +129,36 @@ public sealed class LumOnNearFieldGeometryRendererTests : LumOnShaderFunctionalT
                 Assert.InRange(pixel[1], .199f, .201f);
                 Assert.InRange(pixel[2], .799f, .801f);
             }
+            if (worldProbeRuntime.HasValue)
+            {
+                // A mode switch must settle rather than repeatedly queue incompatible layouts.
+                foreach (var mode in new[]
+                {
+                    LumOnDebugMode.WorldProbeIrradianceCombined, LumOnDebugMode.WorldProbeIrradianceLevel,
+                    LumOnDebugMode.WorldProbeConfidence, LumOnDebugMode.WorldProbeShortRangeAoDirection,
+                    LumOnDebugMode.WorldProbeShortRangeAoConfidence, LumOnDebugMode.WorldProbeHitDistance,
+                    LumOnDebugMode.WorldProbeMetaFlagsHeatmap, LumOnDebugMode.WorldProbeBlendWeights,
+                    LumOnDebugMode.WorldProbeCrossLevelBlend, LumOnDebugMode.WorldProbeRawConfidences,
+                    LumOnDebugMode.WorldProbeLightingEffect, LumOnDebugMode.WorldProbeSuppressedLighting,
+                    LumOnDebugMode.WorldProbeImportance, LumOnDebugMode.NearFieldGeometry
+                })
+                {
+                    config.LumOn.DebugMode = mode;
+                    int before = draws;
+                    for (int frame = 0; frame < 8; frame++)
+                    {
+                        TestUniformRing.BeginFrame();
+                        terrain.Output.BindWithViewport();
+                        events.Render(EnumRenderStage.AfterBlit);
+                    }
+                    Assert.True(draws >= before + 2, $"{mode} produced {draws - before} draws across eight callbacks.\n{string.Join("\n", assets.Logs)}");
+                    Assert.Empty(events.MainThreadTasks);
+                }
+            }
         }
         finally
         {
+            probeView.SetImportanceSurfaceHeatmapEnabled(previousHeatmap);
             foreach (var program in programs.Values) program.Dispose();
         }
     }
