@@ -1,5 +1,36 @@
 # VanillaGraphicsExpanded
 
+## Development game data
+
+All game launch profiles use `VGE_DATA_PATH` for settings, saves, logs, and mod
+configuration. `VINTAGE_STORY` still identifies the game installation and the
+assemblies used when building. On this workstation the development data directory
+is `D:\CODE\VintageStory\VintagestoryAutomation\Data`, beside the repository.
+
+Set the environment variable before starting your IDE. For Windows PowerShell:
+
+```powershell
+[Environment]::SetEnvironmentVariable('VGE_DATA_PATH', 'D:\CODE\VintageStory\VintagestoryAutomation\Data', 'User')
+$env:VGE_DATA_PATH = [Environment]::GetEnvironmentVariable('VGE_DATA_PATH', 'User')
+```
+
+Restart already-running IDEs and terminals so their launches inherit the value.
+On other systems, export `VGE_DATA_PATH` as an absolute path before starting the IDE.
+The log tasks and development package script reject a missing or relative path.
+The workspace Logs folder points to `../VintagestoryAutomation/Data/Logs`; update
+that folder entry if you choose a different directory.
+
+Debug and RenderDoc profiles add the current build output with `--addModPath`.
+Keep that output directory out of the persistent `clientsettings.json` mod paths.
+The install/uninstall tasks manage the development archive in
+`VGE_DATA_PATH/Mods`. Uninstall that archive before using a debug profile to avoid
+loading two copies of VGE. To test the installed archive, launch the game with
+`--dataPath "<VGE_DATA_PATH>"` and omit `--addModPath` and `--addOrigin`.
+
+The automation profile enables `boolSettings.multipleInstances`. Use separate
+saves for concurrent game instances. These profiles select the data directory;
+they do not automatically load a world or close the game on a timer.
+
 ## Graphics Debugging with RenderDoc
 
 This project includes launch configurations for debugging graphics with [RenderDoc](https://renderdoc.org/).
@@ -38,7 +69,7 @@ If you prefer using the RenderDoc GUI directly:
 3. Configure:
    - **Executable Path**: `<VINTAGE_STORY>/Vintagestory.exe`
    - **Working Directory**: `<VINTAGE_STORY>`
-   - **Command-line Arguments**: `--tracelog --addModPath "<path-to-mod>/bin/Debug/Mods" --addOrigin "<path-to-mod>/assets"`
+   - **Command-line Arguments**: `--tracelog --dataPath "<VGE_DATA_PATH>" --addModPath "<path-to-mod>/bin/Debug/Mods" --addOrigin "<path-to-mod>/assets"`
 4. Click **Launch**
 5. Play the game and press **F12** to capture frames
 6. Close the game to load captures in RenderDoc for analysis
