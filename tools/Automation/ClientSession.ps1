@@ -94,7 +94,8 @@ function Invoke-AutomationClient {
         [Parameter(Mandatory)][int]$StartupTimeoutSeconds,
         [Parameter(Mandatory)][int]$ShutdownTimeoutSeconds,
         [switch]$CreateWorld,
-        [switch]$ForceOnTimeout
+        [switch]$ForceOnTimeout,
+        [switch]$Foreground
     )
 
     if (-not $IsWindows) { throw 'Run-Automation currently requires Windows for normal client window closure.' }
@@ -112,6 +113,10 @@ function Invoke-AutomationClient {
     $executablePath = Join-Path $GamePath 'Vintagestory.exe'
     $settingsPath = Join-Path $DataPath 'clientsettings.json'
     $modPath = Join-Path $RepositoryPath 'VanillaGraphicsExpanded/bin/Debug/Mods'
+    $startupHookPath = Join-Path $RepositoryPath 'tools/Automation/StartupHook/bin/Debug/net10.0/Automation.StartupHook.dll'
+    if (-not $Foreground -and -not (Test-Path -LiteralPath $startupHookPath -PathType Leaf)) {
+        throw 'Automation startup hook is missing. Build Debug first, or use -Foreground for normal window activation.'
+    }
     foreach ($requiredFile in @($executablePath, $settingsPath, (Join-Path $modPath 'mod/VanillaGraphicsExpanded.dll'))) {
         if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) { throw "Required file is missing: $requiredFile. Prepare the automation profile and build Debug first." }
     }
@@ -152,6 +157,15 @@ function Invoke-AutomationClient {
         }
         $startInfo.Environment['AUTOMATION_ID'] = $runId
         $startInfo.Environment['VGE_DATA_PATH'] = $DataPath
+        if (-not $Foreground) {
+            # Window creation precedes mod loading, so activation must be prevented before Main.
+            $existingHooks = $startInfo.Environment['DOTNET_STARTUP_HOOKS']
+            $startInfo.Environment['DOTNET_STARTUP_HOOKS'] = if ([string]::IsNullOrWhiteSpace($existingHooks)) {
+                $startupHookPath
+            } else {
+                $startupHookPath + [IO.Path]::PathSeparator + $existingHooks
+            }
+        }
         $client = [Diagnostics.Process]::Start($startInfo)
         Write-Host "Automation client PID $($client.Id); run $runId; logs: $logPath"
         Wait-AutomationReadiness -ClientProcess $client -LogPath $logPath -RunId $runId -TimeoutSeconds $StartupTimeoutSeconds

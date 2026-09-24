@@ -14,10 +14,12 @@ Wall-clock seconds to wait after the run-specific PlayerReady log marker.
 Allows the game to create a missing world. Initial character selection may require interaction.
 .PARAMETER ForceOnTimeout
 Allows killing only the launched process if normal window closure times out.
+.PARAMETER Foreground
+Allows normal window activation instead of the default visible background window.
 .EXAMPLE
 ./Run-Automation.ps1 -World TestWorld -SecondsAfterReady 30
 .EXAMPLE
-./Run-Automation.ps1 -CreateWorld -StartupTimeoutSeconds 600
+./Run-Automation.ps1 -CreateWorld -Foreground -StartupTimeoutSeconds 600
 #>
 [CmdletBinding()]
 param(
@@ -28,7 +30,8 @@ param(
     [string]$GamePath,
     [string]$DataPath,
     [switch]$CreateWorld,
-    [switch]$ForceOnTimeout
+    [switch]$ForceOnTimeout,
+    [switch]$Foreground
 )
 
 Set-StrictMode -Version Latest
@@ -42,4 +45,4 @@ if (-not $PSBoundParameters.ContainsKey('DataPath')) { $DataPath = $configuratio
 
 Invoke-AutomationClient -GamePath $GamePath -DataPath $DataPath -RepositoryPath $PSScriptRoot `
     -World $World -SecondsAfterReady $SecondsAfterReady -StartupTimeoutSeconds $StartupTimeoutSeconds `
-    -ShutdownTimeoutSeconds $ShutdownTimeoutSeconds -CreateWorld:$CreateWorld -ForceOnTimeout:$ForceOnTimeout
+    -ShutdownTimeoutSeconds $ShutdownTimeoutSeconds -CreateWorld:$CreateWorld -ForceOnTimeout:$ForceOnTimeout -Foreground:$Foreground

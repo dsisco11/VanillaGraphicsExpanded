@@ -45,11 +45,18 @@ and `VGE_DATA_PATH` from explicit `-GamePath` / `-DataPath` arguments, then the
 process environment, then `.env.local`, then `.env`. Local files accept literal
 `KEY=value` assignments and quoted values; they are never executed as scripts.
 
+Automation creates the client hidden, then shows it windowed behind existing
+windows without requesting foreground focus.
+Use `-Foreground` for normal activation, for example during first-time character
+selection. This policy is scoped to the launched automation process. Debug builds
+also build the small startup hook used to apply the policy before the game creates
+its window; it stays outside the mod loader's search directory.
+
 The selected save is `<VGE_DATA_PATH>/Saves/TestWorld.vcdbs`. A missing save is an
 error unless `-CreateWorld` is supplied. For a first interactive setup run:
 
 ```powershell
-./Run-Automation.ps1 -CreateWorld -StartupTimeoutSeconds 600
+./Run-Automation.ps1 -CreateWorld -Foreground -StartupTimeoutSeconds 600
 ```
 
 Complete login and character selection if prompted. The server-side readiness

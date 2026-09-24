@@ -12,6 +12,11 @@
     <UserSecretsId>d27ba35c-e681-4545-ab59-471e15a8b36b</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Keep the pre-window automation hook outside the mod loader's search tree. -->
+    <ProjectReference Include="../tools/Automation/StartupHook/Automation.StartupHook.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
   <!-- Expose internal types to test project -->
   <ItemGroup>
     <InternalsVisibleTo Include="VanillaGraphicsExpanded.Tests" />
