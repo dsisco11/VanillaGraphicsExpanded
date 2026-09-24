@@ -1,0 +1,42 @@
+LumOn - World-Probe Tracing and Surface Cache Lighting:
+
+  Goal:
+  Trace geometry independently of lighting readiness; resolve surface hits from the Surface Cache,
+  distinguish sky from incomplete traces, and prevent unresolved work from starving publication.
+
+  References:
+  - docs/LumOn.SurfaceCache.LightingContract.md
+  - docs/LumOn.TraceSceneGeometryContract.md
+  - docs/LumOn.WorldProbeLighting.ArchitectureAndIssues.md
+
+  Tasks:
+  ✔ Diagnose the live Surface Cache readiness failure. Expose capture, direct-seed, and publication
+    failure reasons; establish which condition prevents the first ready page before changing policy.
+    - Diagnosed: prerequisite status and cumulative capture/seed/indirect/combine failure counters
+      are exposed in runtime self-checks and periodic "[VGE] Surface cache readiness:" log entries.
+      GPU rejection counters identify the failing operation, not the exact failing texel or input.
+      Live run: all 24,948 captures failed; 38 pages awaited capture and no seed work started.
+      Terrain feedback collapsed to slot 0. The terrain shader reads slot mapping from
+      VgeLumonSceneChunkSlotParamsUBO, but its hook only uploaded obsolete standalone uniforms.
+      Added the missing owned UBO and per-use binding restoration. The GPU regression maps to slot 232;
+      removing only the new binding reproduces slot 0 with generation 0 while preserving the patch ID.
+      Post-fix in-game publication remains to be verified under the live-validation task below.
+  ☐ Remove vanilla GetLightRGBs and neighboring-light availability dependencies from world-probe
+    geometry tracing when hit lighting is deferred to the Surface Cache.
+  ☐ Separate surface hits, established sky visibility, distance/budget exhaustion, and unavailable
+    geometry. Define distant-light completion explicitly; do not turn incomplete traces into sky.
+  ☐ Add Surface Cache indirect sky/distant-light completion using those outcomes. Reconcile it with
+    the existing vanilla sunlight seed to avoid double-counting; retain retries for missing data.
+  ☐ Preserve valid world-probe directional samples while retrying unresolved cache hits, with bounded
+    work, per-direction validity, and generation-safe history so missing samples cannot publish light.
+  ☐ Fix the confirmed initial-readiness blocker and prevent whole-page retry starvation, preserving
+    valid progress without publishing uncaptured or uninitialized texels.
+  ☐ Validate through subagent-run focused tests: missing cache, unavailable geometry, distance limits,
+    sky openings, mixed ready/unready hits, movement, streaming, edits, and resource recreation.
+  ☐ Verify in-game: first cache publication, continuing probe traces/updates, sealed-room darkness,
+    and sky through an opening. Report live evidence separately from controlled test results.
+
+  Constraints:
+  Keep geometry tracing independent of cache readiness (already implemented; preserve regression coverage).
+  Use integer shifts for power-of-two scaling where equivalent, preserving overflow behavior.
+  Initial direct-seed publication must not depend on indirect convergence or ready world probes.

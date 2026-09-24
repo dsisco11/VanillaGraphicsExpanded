@@ -26,6 +26,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 {
     private readonly System.Func<LumOnCameraState?> readCamera;
+    private long diagnosticCaptureAttempts, diagnosticCaptureFailures, diagnosticCaptureReadFailures;
     private const double RenderOrderValue = 0.9998;
     private const int RenderRangeValue = 1;
 
@@ -568,6 +569,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
     private void OnLeaveWorld()
     {
+        diagnosticCaptureAttempts = diagnosticCaptureFailures = diagnosticCaptureReadFailures = 0;
         ReleaseGeometryHistory();
         if (chunkResidency is not null)
         {
@@ -1988,11 +1990,13 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
         // Read back the capture work items (small, bounded) so we can clear NeedsCapture flags in the page table.
         LumonSceneCaptureWorkGpu[] items = ArrayPool<LumonSceneCaptureWorkGpu>.Shared.Rent(captureCount);
+        diagnosticCaptureAttempts += captureCount;
         try
         {
             using var mapped = nearGpu.CaptureWork.Items.MapRange<LumonSceneCaptureWorkGpu>(0, captureCount, MapBufferAccessMask.MapReadBit);
             if (!mapped.IsMapped)
             {
+                diagnosticCaptureReadFailures++;
                 return;
             }
 
@@ -2003,6 +2007,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 // The shader marks unavailable material/geometry with the high bit; retry the page.
                 if ((items[i].VirtualPageIndex & 0x80000000u) != 0)
                 {
+                    diagnosticCaptureFailures++;
                     captureRetries.Add(LumonSceneVirtualPageKeyUtil.Pack(items[i].ChunkSlot, items[i].VirtualPageIndex & 0x7fffffffu));
                     continue;
                 }
@@ -2112,7 +2117,8 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             $"wOff:{lastWorldChunkCoordOffset.X},{lastWorldChunkCoordOffset.Y},{lastWorldChunkCoordOffset.Z} " +
             $"wRem:{lastWorldBlockOffsetRem.X:0.##},{lastWorldBlockOffsetRem.Y:0.##},{lastWorldBlockOffsetRem.Z:0.##} " +
             $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +
-            $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted}";
+            $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted} " +
+            $"captureFail:{diagnosticCaptureFailures}/{diagnosticCaptureAttempts} captureReadFail:{diagnosticCaptureReadFailures}";
 
         return true;
     }

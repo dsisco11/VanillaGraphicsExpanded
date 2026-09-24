@@ -65,21 +65,26 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Done || !config.LumOn.Enabled || !config.LumOn.LumonScene.Enabled) return;
-        if (!feedback.TryGetNearDispatchState(out var pool, out var gpu, out var mapping, out var mirror) ||
-            pool.GpuResources is not { } resources || feedback.LightingSlots is not { } slots ||
-            geometry.PrepareScene() is not { } current) { published = false; return; }
+        lastWorkCount = 0;
+        if (!feedback.TryGetNearDispatchState(out var pool, out var gpu, out var mapping, out var mirror))
+        { published = false; ReportReadiness("feedback-unavailable"); return; }
+        if (pool.GpuResources is not { } resources || feedback.LightingSlots is not { } slots)
+        { published = false; ReportReadiness("atlas-or-slots-unavailable"); return; }
+        if (geometry.PrepareScene() is not { } current)
+        { published = false; ReportReadiness("geometry-unavailable"); return; }
         var cfg = config.LumOn.LumonScene;
         int tile = pool.Plan.TileSizeTexels;
         int texels = Math.Min(tile * tile, cfg.RelightTexelsPerPagePerFrame);
         // Combining and carry-forward each have a separate fixed 64K-texel ceiling.
         int maxPages = Math.Min(cfg.RelightMaxPagesPerFrame, 65536 / (tile * tile));
-        if (texels <= 0 || maxPages <= 0) return;
+        if (texels <= 0 || maxPages <= 0) { ReportReadiness("zero-budget"); return; }
         int hash = SettingsHash();
         bool changed = !ReferenceEquals(atlas, resources) || !ReferenceEquals(scene, current) ||
             sceneRevision != current.InvalidationRevision || historyRevision != feedback.GeometryHistoryRevision ||
             settingsHash != hash;
         if (changed)
         {
+            diagnosticResets++;
             dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
             published = false; seeded.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); cursor = 0;
             atlas = resources; scene = current; sceneRevision = current.InvalidationRevision;
@@ -91,7 +96,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         }
         if (readyBuffer == null) return;
         SynchronizePages(mapping, mirror, selectCandidates: true);
-        if (candidates.Length == 0) return;
+        if (candidates.Length == 0) { ReportReadiness(mapping.Count == 0 ? "no-resident-pages" : "awaiting-capture"); return; }
         dispatch ??= new SurfaceLightingDispatch(capi);
         snapshot = new(resources.PublishedOutgoing, resources.DirectAtlas, resources.IrradianceAtlas,
             gpu.PageTable.PageTableMip0, resources.MaterialAtlas, gpu.PatchMetadata.Ssbo, slots, readyBuffer,
@@ -124,6 +129,9 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             for (int i = 0; i < work.Length; i++)
             {
                 bool success = result.IsMapped && (result.Span[i].VirtualPageIndex & 0x80000000u) == 0;
+                if (!result.IsMapped) diagnosticReadbackFailures++;
+                if (operation == 0) { diagnosticSeedAttempts++; if (!success) diagnosticSeedFailures++; }
+                else { diagnosticIndirectAttempts++; if (!success) diagnosticIndirectFailures++; }
                 if (batches.Complete(identities[work[i].PhysicalPageId], batchCount, success)) complete.Add(work[i]);
             }
             lastWorkCount += work.Length;
@@ -143,12 +151,16 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                     if (result.IsMapped && (result.Span[i].VirtualPageIndex & 0x80000000u) == 0)
                         complete.Add(work[i]);
                     else
+                    {
+                        diagnosticCombineFailures++;
+                        if (!result.IsMapped) diagnosticReadbackFailures++;
                         // A moving domain can make the final combine unavailable. Undo partial writes
                         // so swapping another successful tile never exposes an incomplete generation.
                         CopyOutgoingTile(resources.PublishedOutgoing, resources.PendingOutgoing, work[i].PhysicalPageId, pool.Plan);
+                    }
                 }
             }
-            if (complete.Count == 0) { frame++; return; }
+            if (complete.Count == 0) { ReportReadiness("combine-rejected"); frame++; return; }
             resources.Publish();
             // The previous destination already mirrors unchanged tiles. Only changed complete tiles
             // need copying back after the swap; GL command ordering protects submitted readers.
@@ -164,6 +176,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             snapshot = snapshot with { OutgoingRadiance = resources.PublishedOutgoing, Generation = resources.LightingGeneration };
             published = true;
         }
+        ReportReadiness(published ? "published" : "seeding");
         frame++;
     }
 
@@ -189,7 +202,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     /// <summary>Reports bounded producer progress without reading GPU counters.</summary>
     internal bool TryGetSelfCheckLine(out string line)
     {
-        line = $"LSR: pages:{lastWorkCount} ready:{seeded.Count} generation:{snapshot.Generation}";
+        line = ReadinessDiagnosticLine();
         return config.LumOn.Enabled && config.LumOn.LumonScene.Enabled;
     }
 
@@ -199,7 +212,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         published = false; snapshot = default; atlas = null; scene = null;
         identities.Clear(); pageGenerations.Clear(); seeded.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
         readyBuffer?.Dispose(); readyBuffer = null; dispatch?.Dispose(); dispatch = null;
-        cursor = frame = 0; sceneRevision = historyRevision = -1;
+        cursor = frame = lastWorkCount = 0; sceneRevision = historyRevision = -1;
+        ResetReadinessDiagnostics();
     }
 
     /// <summary>Unregisters callbacks and releases producer-owned resources.</summary>

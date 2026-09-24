@@ -12,6 +12,7 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
+/// <summary>Restores Surface Cache mapping resources when vanilla terrain programs are used.</summary>
 internal static class TerrainLumonSceneChunkSlotUniformBindingHook
 {
     private static readonly (string TypeName, string PropertyName)[] TargetProperties =
@@ -30,6 +31,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
     private static readonly Dictionary<int, int> genSamplerLocCache = new();
 
     private static readonly Dictionary<int, int> terrainBridgeBlockIndexCache = new();
+    private static readonly Dictionary<int, int> slotBlockIndexCache = new();
 
     private static readonly Dictionary<int, int> lastAppliedVersionByProgramId = new();
 
@@ -101,6 +103,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         ApplyUniformsIfNeeded(__instance);
     }
 
+    /// <summary>Restores both slot mapping and world-coordinate resources required by terrain feedback.</summary>
     private static void ApplyUniformsIfNeeded(ShaderProgramBase program)
     {
         // Only run for valid program ids; ignore early init/shutdown.
@@ -118,9 +121,10 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             int genLoc = GetUniformLocCached(genSamplerLocCache, programId, LumonSceneChunkSlotUniformState.GenerationSamplerUniform);
 
             int blockIndex = GetUniformBlockIndexCached(terrainBridgeBlockIndexCache, programId, LumOnTerrainBridgeUboState.BlockName);
+            int slotBlockIndex = GetUniformBlockIndexCached(slotBlockIndexCache, programId, LumonSceneChunkSlotUniformState.BlockName);
 
             // Fast path: if this program doesn't have any of the LumOn uniforms/UBO, ignore it.
-            if (originLoc < 0 && dimsLoc < 0 && ringLoc < 0 && genLoc < 0 && blockIndex < 0)
+            if (originLoc < 0 && dimsLoc < 0 && ringLoc < 0 && genLoc < 0 && blockIndex < 0 && slotBlockIndex < 0)
             {
                 return;
             }
@@ -144,6 +148,8 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                 {
                     GL.UniformBlockBinding(programId, blockIndex, LumOnTerrainBridgeUboState.Binding);
                 }
+                if (slotBlockIndex >= 0)
+                    GL.UniformBlockBinding(programId, slotBlockIndex, LumonSceneChunkSlotUniformState.Binding);
 
                 // The sampler uniform value (texture unit) is per-program; update it when state changes.
                 if (genLoc >= 0 && LumonSceneChunkSlotUniformState.GenerationTextureId != 0)
@@ -175,6 +181,8 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                     GL.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
                 }
             }
+            // Compute passes reuse the Object binding; a version check alone cannot restore it.
+            if (slotBlockIndex >= 0) LumonSceneChunkSlotUniformState.BindParameters();
         }
         catch
         {
@@ -218,6 +226,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         return blockIndex;
     }
 
+    /// <summary>Invalidates reflected locations and bindings when vanilla shader programs are recreated.</summary>
     public static void ClearUniformCache()
     {
         originMinLocCache.Clear();
@@ -225,6 +234,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         ringLocCache.Clear();
         genSamplerLocCache.Clear();
         terrainBridgeBlockIndexCache.Clear();
+        slotBlockIndexCache.Clear();
         lastAppliedVersionByProgramId.Clear();
     }
 }
