@@ -53,6 +53,7 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
 
     public override string ToggleKeyCombinationCode => null!;
 
+    /// <summary>Starts from the active view when opened, then preserves explicit browsing selections.</summary>
     public override void OnGuiOpened()
     {
         base.OnGuiOpened();
@@ -62,6 +63,7 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         registry.Changed += OnRegistryChanged;
         controller.StateChanged += OnControllerStateChanged;
 
+        selectedViewId = null;
         Compose();
 
         SingleComposer?.FocusElement(0);
@@ -92,7 +94,11 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
 
         try
         {
-            panel?.Dispose();
+            if (panel is not null)
+            {
+                panel.LayoutChanged -= OnPanelLayoutChanged;
+                panel.Dispose();
+            }
         }
         catch
         {
@@ -308,11 +314,17 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         activateBtn.Enabled = availability.IsAvailable;
     }
 
+    /// <summary>Preserves the browsed view, using active views only when no valid selection remains.</summary>
     private void RestoreSelectedViewId(DebugViewDefinition[] views)
     {
         if (views.Length == 0)
         {
             selectedViewId = null;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedViewId) && views.Any(v => string.Equals(v.Id, selectedViewId, StringComparison.Ordinal)))
+        {
             return;
         }
 
@@ -331,12 +343,6 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
                 return;
             }
         }
-
-        if (!string.IsNullOrWhiteSpace(selectedViewId) && views.Any(v => string.Equals(v.Id, selectedViewId, StringComparison.Ordinal)))
-        {
-            return;
-        }
-
         selectedViewId = views[0].Id;
     }
 
@@ -384,6 +390,7 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         return isActive ? "Deactivate" : "Activate";
     }
 
+    /// <summary>Replaces the selection's panel and transfers its layout notification subscription.</summary>
     private void EnsurePanelForSelection(DebugViewDefinition? selectedView)
     {
         string? id = selectedView?.Id;
@@ -394,6 +401,7 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
 
         if (panel is not null)
         {
+            panel.LayoutChanged -= OnPanelLayoutChanged;
             if (IsOpened())
             {
                 panel.OnClosed();
@@ -415,6 +423,10 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         {
             panel = selectedView.CreatePanel(CreateContext());
             panelViewId = selectedView.Id;
+            if (panel is not null)
+            {
+                panel.LayoutChanged += OnPanelLayoutChanged;
+            }
 
             if (IsOpened() && panel is not null)
             {
@@ -425,9 +437,27 @@ public sealed class GuiDialogVgeDebugViewer : GuiDialog
         catch (Exception ex)
         {
             lastError = ex.Message;
+            if (panel is not null) panel.LayoutChanged -= OnPanelLayoutChanged;
             panel = null;
             panelViewId = null;
         }
+    }
+
+    /// <summary>Rebuilds changed panel controls after the input callback, ignoring retired panels.</summary>
+    private void OnPanelLayoutChanged()
+    {
+        if (!IsOpened() || panel is null) return;
+
+        IDebugViewPanel requestedPanel = panel;
+        capi.Event.EnqueueMainThreadTask(() =>
+        {
+            // Do not dispose the composer from inside one of its own input handlers.
+            // A queued request from a replaced panel must not rebuild the new selection.
+            if (!IsOpened() || !ReferenceEquals(panel, requestedPanel)) return;
+            int? focusedIndex = SingleComposer?.CurrentTabIndexElement?.TabIndex;
+            Compose();
+            if (focusedIndex.HasValue) SingleComposer?.FocusElement(focusedIndex.Value);
+        }, "vge:debugviewer:panel-layout-changed");
     }
 
     private void TryStartPanelTick()

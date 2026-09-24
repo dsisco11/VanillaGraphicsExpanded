@@ -203,8 +203,6 @@ public static partial class VgeBuiltInDebugViews
         private readonly string[] values;
         private readonly string[] names;
 
-        private bool lastImportanceSurfaceHeatmapVisible;
-        private bool lastLegendVisible;
 
         private static bool IsLegendVisible(ProbeVizMode mode) => mode switch
         {
@@ -264,10 +262,8 @@ public static partial class VgeBuiltInDebugViews
                     $"{keyPrefix}-mode");
 
             bool importanceSurfaceHeatmapVisible = selectedMode == ProbeVizMode.WorldProbeImportance;
-            lastImportanceSurfaceHeatmapVisible = importanceSurfaceHeatmapVisible;
 
             bool legendVisible = IsLegendVisible(selectedMode);
-            lastLegendVisible = legendVisible;
 
             double y = rowH + rowGapY;
 
@@ -549,6 +545,7 @@ public static partial class VgeBuiltInDebugViews
                 config.LumOn.WorldProbeEffectGain = gain;
         }
 
+        /// <summary>Updates the renderer mode and asks the dialog to recreate its matching options and legend.</summary>
         private void OnModeChanged(string code, bool selected)
         {
             if (!selected)
@@ -556,17 +553,13 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            if (!Enum.TryParse(code, out ProbeVizMode mode))
+            if (!Enum.TryParse(code, out ProbeVizMode mode) || !Enum.IsDefined(mode))
             {
                 return;
             }
 
             ProbeVizMode previousMode = ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault();
-            bool prevImportanceSurfaceHeatmapVisible = previousMode == ProbeVizMode.WorldProbeImportance;
-            bool prevLegendVisible = IsLegendVisible(ProbesDebugViewState.Instance.GetSelectedProbeVizModeOrDefault());
             ProbesDebugViewState.Instance.SetSelectedProbeVizMode(mode);
-            bool nextImportanceSurfaceHeatmapVisible = mode == ProbeVizMode.WorldProbeImportance;
-            bool nextLegendVisible = IsLegendVisible(mode);
 
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
             {
@@ -574,21 +567,11 @@ public static partial class VgeBuiltInDebugViews
                 DebugViewController.Instance.NotifyExclusiveModeChanged();
             }
 
-            if (prevImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
-                || lastImportanceSurfaceHeatmapVisible != nextImportanceSurfaceHeatmapVisible
-                || prevLegendVisible != nextLegendVisible || lastLegendVisible != nextLegendVisible
-                || (previousMode != mode && nextLegendVisible))
+            // ReCompose only redraws existing GUI elements; the dialog must rerun Compose
+            // to replace legends and add/remove controls, including while this view is inactive.
+            if (previousMode != mode)
             {
-                lastImportanceSurfaceHeatmapVisible = nextImportanceSurfaceHeatmapVisible;
-                lastLegendVisible = nextLegendVisible;
-                try
-                {
-                    composer?.ReCompose();
-                }
-                catch
-                {
-                    // Ignore UI refresh failures.
-                }
+                RequestLayoutRefresh();
             }
 
             RefreshClosestProbeText();
