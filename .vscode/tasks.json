@@ -211,6 +211,16 @@
             }
         },
         {
+            "label": "Run automation",
+            "group": "build",
+            "type": "process",
+            "command": "pwsh",
+            "args": ["-NoProfile", "-File", "${workspaceFolder}/Run-Automation.ps1"],
+            "dependsOn": "Build (dotnet)",
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        },
+        {
             "label": "Install development mod",
             "type": "shell",
             "group": "build",

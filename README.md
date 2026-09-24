@@ -31,6 +31,47 @@ The automation profile enables `boolSettings.multipleInstances`. Use separate
 saves for concurrent game instances. These profiles select the data directory;
 they do not automatically load a world or close the game on a timer.
 
+## Timed automation
+
+Build Debug, then run the Windows PowerShell 7 launcher from the repository root:
+
+```powershell
+./Run-Automation.ps1 -World TestWorld -SecondsAfterReady 30
+```
+
+The VS Code **Run automation** task builds Debug before running the same default
+session. The script itself uses the existing build. It resolves `VINTAGE_STORY`
+and `VGE_DATA_PATH` from explicit `-GamePath` / `-DataPath` arguments, then the
+process environment, then `.env.local`, then `.env`. Local files accept literal
+`KEY=value` assignments and quoted values; they are never executed as scripts.
+
+The selected save is `<VGE_DATA_PATH>/Saves/TestWorld.vcdbs`. A missing save is an
+error unless `-CreateWorld` is supplied. For a first interactive setup run:
+
+```powershell
+./Run-Automation.ps1 -CreateWorld -StartupTimeoutSeconds 600
+```
+
+Complete login and character selection if prompted. The server-side readiness
+observer logs `[VGE.Automation] PlayerReady RunId=<id>` after character selection.
+It starts observing at `PlayerNowPlaying` and waits for `EnumClientState.Playing`;
+the installed 1.22.7 engine does not forward the public `PlayerReady` event to mods.
+The launcher starts its wall-clock timer only after finding that run's marker.
+Normal singleplayer launches log the same marker with `RunId=manual`; dedicated
+servers do not register the observer.
+
+Each run retains its logs in `<VGE_DATA_PATH>/Logs/Automation/<id>`. Startup has a
+300-second default timeout. On completion or startup failure, the launcher asks
+only its own client window to close and allows 60 seconds for normal shutdown.
+`-ShutdownTimeoutSeconds` changes this limit. If closure fails, it reports the
+remaining PID instead of killing the process. `-ForceOnTimeout` explicitly permits
+forced termination of that process; forced closure still reports a failed run.
+
+Do not open the automation profile manually while the script uses it. Concurrent
+script runs against the same profile are rejected by an exclusive file handle.
+Your ordinary game can keep running with its separate data directory. This does
+not guarantee isolated performance measurements because both games share hardware.
+
 ## Graphics Debugging with RenderDoc
 
 This project includes launch configurations for debugging graphics with [RenderDoc](https://renderdoc.org/).
