@@ -6,7 +6,6 @@ using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
-using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -28,6 +27,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager bufferManager;
+    private readonly Func<Vec3d> cameraPosition;
 
     private MeshRef? quadMeshRef;
 
@@ -42,14 +42,17 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
     public int RenderRange => RenderRangeValue;
 
+    /// <summary>Registers direct lighting with a live camera position provider from the engine.</summary>
     public DirectLightingRenderer(
         ICoreClientAPI capi,
         GBufferManager gBufferManager,
-        DirectLightingBufferManager bufferManager)
+        DirectLightingBufferManager bufferManager,
+        Func<Vec3d>? cameraPosition = null)
     {
         this.capi = capi;
         this.gBufferManager = gBufferManager;
         this.bufferManager = bufferManager;
+        this.cameraPosition = cameraPosition ?? (() => capi.World.Player.Entity.CameraPos);
 
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
@@ -63,11 +66,6 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Opaque || quadMeshRef is null)
-        {
-            return;
-        }
-
-        if (ConfigModSystem.Config.LumOn.Enabled)
         {
             return;
         }
@@ -123,7 +121,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
 
         // Camera origin split for stable world position reconstruction
-        var camPos = capi.World.Player.Entity.CameraPos;
+        var camPos = cameraPosition();
         const double ModuloRange = 4096.0;
 
         var cameraOriginFloor = new Vec3f(

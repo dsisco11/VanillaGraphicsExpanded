@@ -1,6 +1,6 @@
 # Production runtime lighting coverage
 
-Status: the original migration and seven earlier dependency/resource-ownership tasks have recorded validation below. Section 12 is reopened for production shader-interface usage and allocation reuse. Existing component exceptions and per-input owner allocation do not satisfy these newly added requirements. Earlier receipts preserve all original 101 cases and disclose 16 baseline-confirmed pre-existing failures and three existing skips; they do not establish completion of the new tasks.
+Status: Section 12's migration, dependency interfaces and allocation reuse are complete, with successive validation recorded below. Earlier receipts preserve all original 101 cases and disclose their baseline-confirmed failures/skips; later sections record subsequent results. The Section 13 PBR extension and its numerical, lifetime and display-boundary verification are documented in [Numerical runtime composition verification](LumOn.SurfaceCache.NumericalVerification.md).
 
 ## Contract and traceability
 
@@ -17,7 +17,7 @@ Section 12 of `LumOn.SurfaceCache.TestCoverage.todo` is governed by `LumOn.Surfa
 
 ## Engine boundary
 
-The headless host supplies terrain raster/feedback, voxel source data, material tables and camera state. It invokes the existing production registration entry and dependency initialization. The full game startup (Harmony installation, UI, networking, terrain tessellation and `ClientMain` bulk snapshot adapter) is outside this harness. Constructor injection supplies the camera and voxel adapter. Remaining reflection is confined to the explicitly listed engine/material fixtures and a read-only pending-query observation; it never replaces provider wiring, pass execution, shader parameters, scheduling or history. Full PBR composition is subsequent work.
+The headless host supplies terrain raster/feedback, voxel source data, material tables and camera state. It invokes the existing production registration entry and dependency initialization. The full game startup (Harmony installation, UI, networking, terrain tessellation and `ClientMain` bulk snapshot adapter) is outside this harness. Constructor injection supplies the camera and voxel adapter. Remaining reflection is confined to the explicitly listed engine/material fixtures and a read-only pending-query observation; it never replaces provider wiring, pass execution, shader parameters, scheduling or history. The PBR extension registers production direct/composite renderers and observes the primary scene-linear output; stock engine display grading remains outside the harness.
 
 ## Scenario inventory
 
@@ -53,7 +53,7 @@ The primary terrain framebuffer and G-buffer are simulated engine inputs, not li
 
 The standalone `SurfaceCacheRuntimeFixture` mode remains focused cache lifecycle/capture coverage. Broad consumer tests use its engine inputs with mod-owned composition. `SurfaceLightingHitComponentTests` retains fixed-ray numerical/validity checks; `SurfaceLightingTemporalComponentTests` retains exact untouched-direction, blend, rejection, confidence and hit-distance checks. Neither component fixture assembles filtering/gather/upsample/composition. `SurfaceLightingWorldProbeTransportTests` isolates CPU-hit/query/upload transport and capture retry semantics. The duplicated downstream pipeline helper has been removed.
 
-`LumOnCombineFunctionalTests` remains dedicated composition coverage. Migrated E2E output is the production full-resolution indirect texture passed to composition, not an independently assembled `lumon_combine` result. Full production PBR accounting remains the next planned item.
+`LumOnCombineFunctionalTests` remains dedicated composition coverage. The original migrated E2E output is the production full-resolution indirect texture passed to composition, not an independently assembled `lumon_combine` result. Section 13 extends that same runtime fixture through registered PBR composition and observes the engine primary target; its separate verification document records the accounting checks.
 
 ## Coverage mapping after migration
 
@@ -137,7 +137,7 @@ Intentional low-level allocation exceptions are not evidence of production alloc
 - HZB component tests retain `HzbTestPyramid` for explicitly selected mip counts and odd/edge dimensions. The runtime uses `LumOnBufferManager`'s pyramid.
 - Older voxel-capture/relight/feedback compute cases and `SharedSurfaceInputFixture` retain hand-packed page/voxel/face tables to isolate packing, misses, counters, bounds, work completion and sub-production-size volumes. Shared runtime/source fixtures use `TraceGeometryGpuScene` and partition publication. These low-level tables must not be reused as production-runtime setup.
 - Debug-only functional tests retain synthetic channel/mode inputs and display targets so color decoding is tested independently of upstream lighting.
-- `PbrLumOnPipelineTargets` and the older PBR full-chain integration cases remain explicitly shader-chain coverage. They do not satisfy Section 13's future cache-originating, production-PBR requirement; that work must extend the mod-driven host rather than reuse that manually sequenced chain.
+- `PbrLumOnPipelineTargets` and the older PBR full-chain integration cases remain explicitly shader-chain coverage. They do not satisfy Section 13's cache-originating, production-PBR requirement; its new coverage extends the mod-driven host instead of reusing that manually sequenced chain.
 
 No lighting assertion was removed or relaxed. Component fixtures retain only their stated operation or comparative diagnostic chain; all broad source/history/movement/lifetime scenarios remain production-driven. The executed normal SPIR-V build, cross-context regression, baseline comparison and independent completion review are recorded below.
 Second implementation review of the follow-up confirmed that default configuration/camera/source adapters, shader registration order, atlas byte admission and terrain sampling policy remain unchanged. Constructor dependencies also flow through live-reload creation paths. The fixture diff preserves the previous numerical/confidence/occlusion assertions; new assertions query driver storage, retirement and framebuffer completeness. All renderer/provider wiring and broad pipeline execution remain with production owners. The independent source review found no further implementation defect; final completion audit also passed after independently checking the combined run and baseline receipts below.

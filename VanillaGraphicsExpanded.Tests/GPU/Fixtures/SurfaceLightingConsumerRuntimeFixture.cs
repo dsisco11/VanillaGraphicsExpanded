@@ -30,9 +30,13 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     public LumOnBufferManager Screen { get; }
     public LumOnWorldProbeClipmapBufferManager WorldBuffers { get; }
     public LumOnWorldProbeUpdateRenderer WorldRenderer { get; }
+    public VanillaGraphicsExpanded.PBR.DirectLightingBufferManager Direct => host.Direct;
+    public DefaultShaderUniforms EngineUniforms { get; } = new() { ZNear = .1f, ZFar = 100 };
     public List<int> DrawnPrograms { get; } = [];
     public IReadOnlyCollection<string> LoadedPrograms => programs.Loaded;
     public const int FrameBudget = 160;
+    /// <summary>Supplies authored receiver pixels before any registered lighting callback runs.</summary>
+    public System.Func<int, int, RuntimeReceiverSurface>? Receiver { get; set; }
 
     /// <summary>Observes in-flight queries from the test boundary without adding a production inspection API or polling the fence.</summary>
     public bool HasPendingSurfaceLightingQueries =>
@@ -40,7 +44,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
 
     #region Composition
     /// <summary>Registers real consumers with the producer's engine events and injects real publication providers.</summary>
-    public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null)
+    public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null, bool pbrComposition = false)
     {
         this.spatial=spatial; edge=spatial==null?2:4;
         Cache = new(requestedPages:24,enclosure:true,spatial:spatial,productionOwned:true);
@@ -63,19 +67,23 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
             cfg.ProbeAtlasTexelsPerFrame=64; cfg.TemporalAlpha=0;
         }
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
+        if (pbrComposition)
+        {
+            EngineUniforms.SunPosition3D = new Vintagestory.API.MathTools.Vec3f(0, 0, -1);
+        }
         world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
         world.SetupGet(api => api.BlockAccessor).Returns(World.Accessor);
         world.SetupGet(api => api.Calendar).Returns((IClientGameCalendar)null!);
         world.SetupGet(api => api.MapSizeY).Returns(256);
         var render = RuntimeEngineServices.Render(edge,Cache.Api.Render.FrameBuffers,
-            () => spatial?.View() ?? Cache.Api.Render.CameraMatrixOriginf,() => projection,() => Draw());
+            () => spatial?.View() ?? Cache.Api.Render.CameraMatrixOriginf,() => projection,() => Draw(), EngineUniforms);
         worldSystem = new(() => Cache.Config, _ => Camera());
         var mods = new Mock<IModLoader>(MockBehavior.Strict);
         mods.Setup(api => api.GetModSystem<VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem>(It.IsAny<bool>())).Returns(worldSystem);
         mods.Setup(api => api.GetModSystem<VanillaGraphicsExpanded.ModSystems.WorldPartitionModSystem>(It.IsAny<bool>())).Returns(Cache.Partitions);
         var api = RuntimeEngineServices.Client(Cache.Api,Cache.Events.Api,world.Object,render,programs.Api,mods.Object,RuntimeEngineServices.Input());
         programs.Initialize(api);
-        host=new(api,Cache,worldSystem,Camera);
+        host=new(api,Cache,worldSystem,Camera,pbrComposition);
         WorldRenderer=host.WorldRenderer;
         Screen=host.Screen;
         WorldBuffers=worldSystem.GetClipmapBufferManagerOrNull()!;
@@ -88,11 +96,20 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     {
         float z=-5,depth=(projection[10]*z+projection[14])/(projection[11]*z+projection[15])*.5f+.5f;
         var raster=spatial?.Raster(edge,projection);
+        var materials = new float[edge * edge * 4];
+        var colors = new float[edge * edge * 4];
+        for (int y = 0; y < edge; y++) for (int x = 0; x < edge; x++)
+        {
+            var receiver = Receiver?.Invoke(x, y) ?? new RuntimeReceiverSurface(new(.5f, .5f, .5f));
+            int index = (y * edge + x) * 4;
+            colors[index] = receiver.Albedo.X; colors[index + 1] = receiver.Albedo.Y; colors[index + 2] = receiver.Albedo.Z; colors[index + 3] = .5f;
+            materials[index] = receiver.Roughness; materials[index + 1] = receiver.Metallic;
+            materials[index + 2] = receiver.Emission; materials[index + 3] = receiver.Reflectivity;
+        }
         Cache.Terrain.UploadTerrain(Cache.Buffers,
             raster?.Depth ?? Enumerable.Repeat(depth,edge*edge).ToArray(),
             raster?.Normal ?? Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray(),
-            Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{1f,0f,0f,0f}).ToArray(),
-            Enumerable.Repeat(.5f,edge*edge*4).ToArray());
+            materials, colors);
         Cache.Frame();
         if(Screen.IndirectFullTex!=null) Energy(FinalPixels());
         if(WorldBuffers.Resources!=null) Energy(WorldPixels());
@@ -108,6 +125,9 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
 
     /// <summary>Reads the final full-resolution indirect output that the renderer publishes to composition.</summary>
     public float[] FinalPixels() => Screen.IndirectFullTex?.ReadPixels() ?? [];
+
+    /// <summary>Reads the primary engine target after registered PBR composition.</summary>
+    public float[] ComposedPixels() => Cache.Terrain.Color.ReadPixels();
 
     /// <summary>Reads the actual worker/query/upload-owned world radiance atlas.</summary>
     public float[] WorldPixels() => WorldBuffers.Resources?.ProbeRadianceAtlas.ReadPixels() ?? [];

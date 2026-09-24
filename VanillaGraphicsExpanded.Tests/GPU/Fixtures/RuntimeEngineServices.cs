@@ -11,7 +11,7 @@ internal static class RuntimeEngineServices
     #region Engine services
     /// <summary>Provides the headless render boundary with authored matrices and observed mesh submission.</summary>
     public static IRenderAPI Render(int edge, List<FrameBufferRef> framebuffers, Func<float[]> view,
-        Func<float[]> projection, Action draw)
+        Func<float[]> projection, Action draw, DefaultShaderUniforms? uniforms = null)
     {
         var render = new Mock<IRenderAPI>(MockBehavior.Strict);
         render.SetupGet(api => api.FrameWidth).Returns(edge);
@@ -19,8 +19,12 @@ internal static class RuntimeEngineServices
         render.SetupGet(api => api.CameraMatrixOriginf).Returns(view);
         render.SetupGet(api => api.CurrentProjectionMatrix).Returns(projection);
         render.SetupGet(api => api.FrameBuffers).Returns(framebuffers);
+        render.SetupGet(api => api.FogColor).Returns(new Vec4f());
+        render.SetupGet(api => api.FogDensity).Returns(0f);
+        render.SetupGet(api => api.FogMin).Returns(0f);
+        render.Setup(api => api.GLDepthMask(It.IsAny<bool>())).Callback((bool enabled) => OpenTK.Graphics.OpenGL.GL.DepthMask(enabled));
         render.SetupGet(api => api.AmbientColor).Returns(new Vec3f());
-        render.SetupGet(api => api.ShaderUniforms).Returns(new DefaultShaderUniforms { ZNear = .1f, ZFar = 100 });
+        render.SetupGet(api => api.ShaderUniforms).Returns(uniforms ?? new DefaultShaderUniforms { ZNear = .1f, ZFar = 100 });
         render.Setup(api => api.UploadMesh(It.IsAny<MeshData>())).Returns(() => new RuntimeMesh());
         render.Setup(api => api.DeleteMesh(It.IsAny<MeshRef>())).Callback((MeshRef mesh) => mesh.Dispose());
         render.Setup(api => api.RenderMesh(It.IsAny<MeshRef>())).Callback(draw);

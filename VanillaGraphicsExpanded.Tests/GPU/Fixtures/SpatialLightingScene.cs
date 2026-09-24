@@ -18,6 +18,8 @@ internal sealed class SpatialLightingScene
     public bool DoorOpen { get; set; } = true;
     public float Reflectance { get; set; } = 1;
     public float Emission { get; set; }
+    /// <summary>Optional per-channel reflectance of the cached source surfaces; scalar scenes retain their original behavior.</summary>
+    public Vector3? SourceAlbedo { get; set; }
     public System.Collections.Concurrent.ConcurrentDictionary<ChunkKey,byte> Unloaded { get; } = new();
     public Vector3[] VisiblePoints { get; private set; } = [];
     public Vector3[] VisibleNormals { get; private set; } = [];

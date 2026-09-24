@@ -72,11 +72,6 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (lumOnConfig?.LumOn.Enabled == true)
-        {
-            return;
-        }
-
         int screenW = capi.Render.FrameWidth;
         int screenH = capi.Render.FrameHeight;
         if (screenW <= 0 || screenH <= 0)
@@ -188,16 +183,10 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.FogDensityIn = capi.Render.FogDensity;
         shader.FogMinIn = capi.Render.FogMin;
 
-        // Indirect controls
-        shader.IndirectIntensity = lumOnConfig?.LumOn.Intensity ?? 1.0f;
-        if (lumOnConfig?.LumOn.IndirectTint is not null && lumOnConfig.LumOn.IndirectTint.Length >= 3)
-        {
-            shader.IndirectTint = new Vec3f(lumOnConfig.LumOn.IndirectTint[0], lumOnConfig.LumOn.IndirectTint[1], lumOnConfig.LumOn.IndirectTint[2]);
-        }
-        else
-        {
-            shader.IndirectTint = new Vec3f(1, 1, 1);
-        }
+        // The published LumOn gather output already includes intensity and tint.
+        // Composition applies receiver material response without scaling that signal twice.
+        shader.IndirectIntensity = 1.0f;
+        shader.IndirectTint = new Vec3f(1, 1, 1);
 
         shader.DiffuseAOStrength = Math.Clamp(lumOnConfig?.LumOn.DiffuseAOStrength ?? 1.0f, 0f, 1f);
         shader.SpecularAOStrength = Math.Clamp(lumOnConfig?.LumOn.SpecularAOStrength ?? 1.0f, 0f, 1f);

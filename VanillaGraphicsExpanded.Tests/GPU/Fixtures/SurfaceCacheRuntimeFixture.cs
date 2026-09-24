@@ -54,10 +54,10 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public bool AllRequestedLightingReady()
     {
         if (!TryGetLighting(out var snapshot) || !Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _) ||
-            mapping.Count < (spatial?.Feedback().Length ?? feedbackPatches.Length)) return false;
-        using var ready = snapshot.Readiness.MapRange<uint>(0, checked((int)mapping.Keys.Max()+1), MapBufferAccessMask.MapReadBit);
+            !TryGetRequestedPages(mapping, out var pages)) return false;
+        using var ready = snapshot.Readiness.MapRange<uint>(0, checked((int)pages.Max(page => page.Physical)+1), MapBufferAccessMask.MapReadBit);
         if (!ready.IsMapped) return false;
-        foreach (uint page in mapping.Keys) if (ready.Span[(int)page] == 0) return false;
+        foreach (var page in pages) if (ready.Span[(int)page.Physical] == 0) return false;
         return true;
     }
 
@@ -65,9 +65,10 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public bool AllRequestedCaptured()
     {
         if (!Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out var mirror) ||
-            mapping.Count < (spatial?.Feedback().Length ?? feedbackPatches.Length)) return false;
-        foreach (ulong key in mapping.Values)
+            !TryGetRequestedPages(mapping, out var pages)) return false;
+        foreach (var page in pages)
         {
+            ulong key = page.Virtual;
             int index = checked((int)LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key) * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk
                 + (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key));
             var flags = LumonScenePageTableEntryPacking.UnpackFlags(mirror[index]);
@@ -75,6 +76,24 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
                 (flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0) return false;
         }
         return true;
+    }
+
+    /// <summary>Resolves every authored request by identity, excluding older resident pages outside the current room.</summary>
+    private bool TryGetRequestedPages(IReadOnlyDictionary<uint, ulong> mapping, out List<(uint Physical, ulong Virtual)> pages)
+    {
+        pages = [];
+        var reverse = mapping.ToDictionary(pair => pair.Value, pair => pair.Key);
+        var requests = spatial?.Feedback() ?? feedbackPatches.Select(patch =>
+            (Chunk: new VanillaGraphicsExpanded.Numerics.VectorInt3(0, 1, 0), Patch: patch)).ToArray();
+        foreach (var request in requests)
+        {
+            if (!Feedback.TryGetNearChunkSlotAndGeneration(request.Chunk, out uint slot, out _)) return false;
+            ulong key = LumonSceneVirtualPageKeyUtil.Pack(slot,
+                request.Patch % (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
+            if (!reverse.TryGetValue(key, out uint physical)) return false;
+            pages.Add((physical, key));
+        }
+        return pages.Count != 0;
     }
 
     #endregion
@@ -90,7 +109,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
             ? Enumerable.Range(0,6).SelectMany(axis => Enumerable.Range(0,4).Select(tile =>
                 1u + 6u * (uint)((axis%2==0?0:7)*64 + (tile/2)*8 + tile%2) + (uint)axis)).ToArray()
             : Enumerable.Range(0,requestedPages).Select(index=>1u+6u*(uint)index).ToArray();
-        material.SetReadiness(true, true, new System.Numerics.Vector3(spatial?.Reflectance ?? 1), (spatial?.Emission ?? 0)/32f);
+        material.SetReadiness(true, true, spatial?.SourceAlbedo ?? new System.Numerics.Vector3(spatial?.Reflectance ?? 1), (spatial?.Emission ?? 0)/32f);
         Config.LumOn.Enabled = true;
         var cfg = Config.LumOn.LumonScene;
         cfg.Enabled = true; cfg.NearRadiusChunks = cfg.NearRadiusYChunks = cfg.FarRadiusChunks = cfg.FarRadiusYChunks = 0;
