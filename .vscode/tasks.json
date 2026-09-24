@@ -103,7 +103,8 @@
             "problemMatcher": []
         },
         {
-            "label": "build",
+            "label": "Build (dotnet)",
+            "group": "build",
             "type": "process",
             "command": "dotnet",
             "args": [
@@ -130,7 +131,8 @@
             }
         },
         {
-            "label": "package",
+            "label": "Package (dotnet)",
+            "group": "build",
             "command": "dotnet",
             "type": "process",
             "args": [
@@ -148,7 +150,8 @@
             }
         },
         {
-            "label": "build (Cake)",
+            "label": "Build (Cake)",
+            "group": "build",
             "command": "dotnet",
             "type": "process",
             "args": [
@@ -167,7 +170,8 @@
             }
         },
         {
-            "label": "clean",
+            "label": "Clean",
+            "group": "build",
             "type": "dotnet",
             "task": "clean",
             "options": {
@@ -205,6 +209,20 @@
                 "kind": "test",
                 "isDefault": true
             }
+        },
+        {
+            "label": "Install development mod",
+            "type": "shell",
+            "group": "build",
+            "dependsOn": "Package",
+            "dependsOrder": "sequence",
+            "command": "& '${workspaceFolder}/tools/ManageDevelopmentMod.ps1' -Action Install"
+        },
+        {
+            "label": "Uninstall development mod",
+            "type": "shell",
+            "group": "build",
+            "command": "& '${workspaceFolder}/tools/ManageDevelopmentMod.ps1' -Action Uninstall"
         }
     ]
 }
