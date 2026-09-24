@@ -5,6 +5,23 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 /// <summary>Prevents unavailable geometry in one texel bucket from starving the remainder of a surface page.</summary>
 public sealed class LumonSceneRelightBatchScheduleTests
 {
+    /// <summary>Retiring one mapping restarts only that page while preserving an unrelated partial sweep.</summary>
+    [Fact]
+    public void RemovingOnePagePreservesOtherPartialSweeps()
+    {
+        var schedule = new LumonSceneRelightBatchSchedule();
+        foreach (ulong page in new ulong[] { 1, 2 })
+        {
+            Assert.Equal(0u, schedule.Next(page, 2));
+            Assert.False(schedule.Complete(page, 2, true));
+        }
+        schedule.Remove(1);
+        Assert.Equal(0u, schedule.Next(1, 2));
+        Assert.False(schedule.Complete(1, 2, true));
+        Assert.Equal(1u, schedule.Next(2, 2));
+        Assert.True(schedule.Complete(2, 2, true));
+    }
+
     /// <summary>Mixed failed and valid buckets progress round-robin but never falsely finish a page.</summary>
     [Fact]
     public void FailedBucketDoesNotStarveValidBuckets()

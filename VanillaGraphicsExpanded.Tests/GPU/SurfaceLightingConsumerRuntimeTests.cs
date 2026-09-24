@@ -13,6 +13,26 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public SurfaceLightingConsumerRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Runtime transport
+    /// <summary>Default-resolution cache sweeps feed real probe workers while the camera crosses block boundaries.</summary>
+    [Fact]
+    public void MovingCamera_AllowsWorldProbeTracingAndPublication()
+    {
+        EnsureContextValid();
+        var scene = new SpatialLightingScene();
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene);
+        runtime.Cache.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 4;
+        bool published = false;
+        for (int frame = 0; frame < 160 && !published; frame++)
+        {
+            scene.Position = new(frame % 2, 36, 5);
+            runtime.Frame();
+            published = runtime.World.WorkerReads > 0 &&
+                SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()) > .001f;
+            Thread.Yield();
+        }
+        Assert.True(published, $"Moving camera failed to produce world-probe radiance; worker reads={runtime.World.WorkerReads}, cache={runtime.Cache.TryGetLighting(out _)}.");
+    }
+
     /// <summary>Registered callbacks generate anchors and propagate real produced lighting into both probe paths and full-resolution output.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]

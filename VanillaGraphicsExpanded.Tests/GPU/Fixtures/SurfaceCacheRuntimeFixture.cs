@@ -42,6 +42,10 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public int BlockLight { get; private set; } = 32;
     public int BlockId => material.Cube.Id;
     public bool GeometryAvailable { get; set; } = true;
+    /// <summary>Moves the non-spatial fixture camera without changing its authored geometry or feedback pages.</summary>
+    public double CameraX { get; set; }
+    /// <summary>Limits authored visible pages so tests can introduce residency gradually without changing geometry.</summary>
+    public int VisibleFeedbackPages { get; set; } = int.MaxValue;
     public uint MaterialId { get; private set; }
     public List<string> Logs => assets.Logs;
     public ICoreClientAPI Api { get; }
@@ -100,7 +104,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
 
     #region Runtime setup
     /// <summary>Mocks camera and terrain raster inputs while retaining renderer registration, cache work and viewer selection.</summary>
-    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null, bool productionOwned = false)
+    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null, bool productionOwned = false, int feedbackPlaneX = 0)
     {
         this.spatial=spatial; edge=spatial==null?2:4;
         this.productionOwned=productionOwned; this.enclosure=enclosure; this.exposedWall=exposedWall;
@@ -108,7 +112,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         feedbackPatches = enclosure
             ? Enumerable.Range(0,6).SelectMany(axis => Enumerable.Range(0,4).Select(tile =>
                 1u + 6u * (uint)((axis%2==0?0:7)*64 + (tile/2)*8 + tile%2) + (uint)axis)).ToArray()
-            : Enumerable.Range(0,requestedPages).Select(index=>1u+6u*(uint)index).ToArray();
+            : Enumerable.Range(0,requestedPages).Select(index=>1u+6u*(uint)(feedbackPlaneX * 64 + index)).ToArray();
         material.SetReadiness(true, true, spatial?.SourceAlbedo ?? new System.Numerics.Vector3(spatial?.Reflectance ?? 1), (spatial?.Emission ?? 0)/32f);
         Config.LumOn.Enabled = true;
         var cfg = Config.LumOn.LumonScene;
@@ -117,7 +121,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         cfg.NearTexelsPerVoxelFaceEdge = 1;
         cfg.TraceScene.ClipmapResolution = 32;
         cfg.RelightMaxPagesPerFrame = 1; cfg.RelightTexelsPerPagePerFrame = 64; cfg.RelightRaysPerTexel = 1; cfg.RelightMaxDdaSteps = 256;
-        LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(0, 32, 0, 0, 32, 0, 0);
+        LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(CameraX, 32, 0, CameraX, 32, 0, 0);
         if(spatial!=null) { cfg.NearRadiusChunks=cfg.FarRadiusChunks=2; cfg.NearPagesPerChunkBudget=48; }
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
         world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
@@ -196,7 +200,8 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         }
         else if (Feedback.TryGetNearChunkSlotAndGeneration(new(0, 1, 0), out uint slot, out ushort generation))
         {
-            uint[] pixels = Enumerable.Range(0, 4).SelectMany(index => new uint[] { slot, feedbackPatches[(Frames*4+index)%feedbackPatches.Length], 0, generation }).ToArray();
+            int visiblePages = Math.Clamp(VisibleFeedbackPages, 1, feedbackPatches.Length);
+            uint[] pixels = Enumerable.Range(0, 4).SelectMany(index => new uint[] { slot, feedbackPatches[(Frames*4+index)%visiblePages], 0, generation }).ToArray();
             Terrain.UploadFeedback(Buffers,pixels);
         }
         Events.Render(EnumRenderStage.Done);

@@ -14,9 +14,9 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
     public SharedTraceSceneSurfaceTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Surface consumers
-    /// <summary>Logical surface movement invalidates history even when physical residency stays unchanged.</summary>
+    /// <summary>Logical surface movement preserves history when physical residency stays unchanged.</summary>
     [Fact]
-    public void LogicalDomainMovementInvalidatesHistoryWithoutSlotEviction()
+    public void LogicalDomainMovementPreservesHistoryWithoutSlotEviction()
     {
         EnsureContextValid();
         using var scene = new TraceGeometryGpuScene(48);
@@ -27,7 +27,7 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         long revision = scene.Revision, history = scene.InvalidationRevision;
         scene.SetWindow(next);
         Assert.True(scene.Revision > revision);
-        Assert.True(scene.InvalidationRevision > history);
+        Assert.Equal(history, scene.InvalidationRevision);
         revision = scene.Revision; history = scene.InvalidationRevision;
         scene.SetWindow(next);
         Assert.Equal(revision, scene.Revision);

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
@@ -9,7 +8,7 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>Produces and publishes surface radiance through bounded, fair page updates on the render thread.</summary>
-internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLightingProvider, IDisposable
+internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLightingProvider, IDisposable
 {
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
@@ -47,22 +46,17 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
     public bool TryGetSurfaceLighting(out SurfaceLightingSnapshot result)
     {
         result = default;
-        if (!published || !config.LumOn.Enabled || !config.LumOn.LumonScene.Enabled ||
+        if (!config.LumOn.Enabled || !config.LumOn.LumonScene.Enabled ||
             !feedback.TryGetNearDispatchState(out var pool, out _, out var mapping, out var mirror) ||
-            !ReferenceEquals(pool.GpuResources, atlas) || mapping.Count != identities.Count ||
-            mapping.Any(pair => !identities.TryGetValue(pair.Key, out ulong key) || key != pair.Value))
+            !ReferenceEquals(pool.GpuResources, atlas) || readyBuffer == null)
             return false;
-        foreach (uint id in seeded)
-        {
-            ulong key = identities[id];
-            int index = checked((int)LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key) * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk +
-                (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key));
-            var flags = LumonScenePageTableEntryPacking.UnpackFlags(mirror[index]);
-            if ((flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0) return false;
-        }
         var current = geometry.PrepareScene();
         if (!ReferenceEquals(current, scene) || current?.InvalidationRevision != sceneRevision ||
             feedback.GeometryHistoryRevision != historyRevision || SettingsHash() != settingsHash) return false;
+        SynchronizePages(mapping, mirror, selectCandidates: false);
+        if (!published) return false;
+        snapshot = snapshot with { Origin = LumonSceneChunkSlotUniformState.OriginMinChunk,
+            Dimensions = LumonSceneChunkSlotUniformState.Dims, Ring = LumonSceneChunkSlotUniformState.Ring };
         result = snapshot;
         return true;
     }
@@ -83,14 +77,11 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
         int hash = SettingsHash();
         bool changed = !ReferenceEquals(atlas, resources) || !ReferenceEquals(scene, current) ||
             sceneRevision != current.InvalidationRevision || historyRevision != feedback.GeometryHistoryRevision ||
-            settingsHash != hash || mapping.Count != identities.Count ||
-            mapping.Any(pair => !identities.TryGetValue(pair.Key, out ulong key) || key != pair.Value);
+            settingsHash != hash;
         if (changed)
         {
             dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
-            published = false; seeded.Clear(); batches.Clear(); identities.Clear(); cursor = 0;
-            foreach (var pair in mapping) identities.Add(pair.Key, pair.Value);
-            candidates = identities.Keys.OrderBy(id => id).ToArray();
+            published = false; seeded.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); cursor = 0;
             atlas = resources; scene = current; sceneRevision = current.InvalidationRevision;
             historyRevision = feedback.GeometryHistoryRevision; settingsHash = hash;
             readiness = new uint[pool.Plan.CapacityPages + 1];
@@ -98,7 +89,9 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
             readyBuffer.EnsureCapacity(readiness.Length * sizeof(uint), growExponentially: false);
             readyBuffer.UploadSubData<uint>(readiness, 0, readiness.Length * sizeof(uint));
         }
-        if (readyBuffer == null || identities.Count == 0) return;
+        if (readyBuffer == null) return;
+        SynchronizePages(mapping, mirror, selectCandidates: true);
+        if (candidates.Length == 0) return;
         dispatch ??= new SurfaceLightingDispatch(capi);
         snapshot = new(resources.PublishedOutgoing, resources.DirectAtlas, resources.IrradianceAtlas,
             gpu.PageTable.PageTableMip0, resources.MaterialAtlas, gpu.PatchMetadata.Ssbo, slots, readyBuffer,
@@ -142,20 +135,29 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
             gpu.RelightWork.ResetAndUpload(work.AsSpan());
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, 2u,
                 (uint)(tile*tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission);
+            complete.Clear();
+            using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit))
+            {
+                for (int i = 0; i < work.Length; i++)
+                {
+                    if (result.IsMapped && (result.Span[i].VirtualPageIndex & 0x80000000u) == 0)
+                        complete.Add(work[i]);
+                    else
+                        // A moving domain can make the final combine unavailable. Undo partial writes
+                        // so swapping another successful tile never exposes an incomplete generation.
+                        CopyOutgoingTile(resources.PublishedOutgoing, resources.PendingOutgoing, work[i].PhysicalPageId, pool.Plan);
+                }
+            }
+            if (complete.Count == 0) { frame++; return; }
             resources.Publish();
             // The previous destination already mirrors unchanged tiles. Only changed complete tiles
             // need copying back after the swap; GL command ordering protects submitted readers.
-            foreach (var item in work)
+            foreach (var item in complete)
             {
-                uint index = item.PhysicalPageId - 1;
-                int layer = (int)(index / (uint)pool.Plan.TilesPerAtlas);
-                int local = (int)(index % (uint)pool.Plan.TilesPerAtlas);
-                int x = local % pool.Plan.TilesPerAxis * tile, y = local / pool.Plan.TilesPerAxis * tile;
-                GL.CopyImageSubData(resources.PublishedOutgoing.TextureId, ImageTarget.Texture2DArray, 0, x, y, layer,
-                    resources.PendingOutgoing.TextureId, ImageTarget.Texture2DArray, 0, x, y, layer, tile, tile, 1);
+                CopyOutgoingTile(resources.PublishedOutgoing, resources.PendingOutgoing, item.PhysicalPageId, pool.Plan);
                 seeded.Add(item.PhysicalPageId);
                 readiness[item.PhysicalPageId] = 1;
-                readyBuffer.UploadSubData<uint>(readiness.AsSpan((int)item.PhysicalPageId, 1), checked((int)item.PhysicalPageId * 4), 4);
+                readyBuffer.UploadSubData<uint>(readiness.AsSpan((int)item.PhysicalPageId, 1), checked((int)((long)item.PhysicalPageId << 2)), 4);
                 feedback.TryClearNearPageFlagsMip0(item.ChunkSlot, (int)item.VirtualPageIndex, LumonScenePageTableEntryPacking.Flags.NeedsRelight);
             }
             GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
@@ -163,6 +165,18 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
             published = true;
         }
         frame++;
+    }
+
+    /// <summary>Copies one complete page between outgoing generations without touching neighboring tiles.</summary>
+    private static void CopyOutgoingTile(Texture3D source, Texture3D destination, uint page, LumonScenePhysicalPoolPlan plan)
+    {
+        uint index = page - 1;
+        int layer = (int)(index / (uint)plan.TilesPerAtlas);
+        int local = (int)(index % (uint)plan.TilesPerAtlas);
+        int x = local % plan.TilesPerAxis * plan.TileSizeTexels;
+        int y = local / plan.TilesPerAxis * plan.TileSizeTexels;
+        GL.CopyImageSubData(source.TextureId, ImageTarget.Texture2DArray, 0, x, y, layer,
+            destination.TextureId, ImageTarget.Texture2DArray, 0, x, y, layer, plan.TileSizeTexels, plan.TileSizeTexels, 1);
     }
 
     /// <summary>Includes all sampling and source-policy changes that alter the meaning of temporal batches.</summary>
@@ -183,7 +197,7 @@ internal sealed class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLight
     private void OnLeaveWorld()
     {
         published = false; snapshot = default; atlas = null; scene = null;
-        identities.Clear(); seeded.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
+        identities.Clear(); pageGenerations.Clear(); seeded.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
         readyBuffer?.Dispose(); readyBuffer = null; dispatch?.Dispose(); dispatch = null;
         cursor = frame = 0; sceneRevision = historyRevision = -1;
     }

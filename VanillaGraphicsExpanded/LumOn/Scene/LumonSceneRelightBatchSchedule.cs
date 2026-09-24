@@ -32,5 +32,7 @@ internal sealed class LumonSceneRelightBatchSchedule
 
     /// <summary>Discards schedules after a configuration, history or world-generation change.</summary>
     public void Clear() => pages.Clear();
+    /// <summary>Discards only the partial sweep belonging to an invalidated or reassigned page.</summary>
+    public void Remove(ulong page) => pages.Remove(page);
     #endregion
 }

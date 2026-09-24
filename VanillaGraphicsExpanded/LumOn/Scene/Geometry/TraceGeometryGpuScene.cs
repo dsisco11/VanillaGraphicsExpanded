@@ -109,15 +109,14 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
     public void SetWindow(TraceGeometryCoverage next)
     {
         if (next.Resolution != Resolution) throw new ArgumentException("Window requires a new backend.");
-        // Logical domains can move while every physical slot remains resident. Histories must
-        // observe that mapping change even when no owner is evicted from the shared ring.
+        // Moving the sampling window changes availability, not the world that produced cached light.
+        // Current domain/readiness checks reject unavailable samples without discarding completed history.
         if (coverage != null && coverage != next)
         {
             Revision++;
-            if (coverage.Surface != next.Surface) InvalidationRevision++;
         }
         for (int i = 0; i < owners.Length; i++)
-            if (owners[i] is { } owner && !Contains(next, owner.Key.Coordinate)) { Clear(owner.Key.Coordinate); owners[i] = null; }
+            if (owners[i] is { } owner && !Contains(next, owner.Key.Coordinate)) { Clear(owner.Key.Coordinate, false); owners[i] = null; }
         coverage = next;
     }
 
@@ -128,7 +127,7 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
         var c = request.Key.Coordinate;
         int slot = Slot(c);
         Clear(c); owners[slot] = request;
-        int x = Wrap(c.X) * 16, y = Wrap(c.Y) * 16, z = Wrap(c.Z) * 16;
+        int x = Wrap(c.X) << 4, y = Wrap(c.Y) << 4, z = Wrap(c.Z) << 4;
         Geometry.UploadDataImmediate(cell.Geometry.ToArray(), x, y, z, 16, 16, 16);
         Legacy.UploadDataImmediate(cell.Legacy.ToArray(), x, y, z, 16, 16, 16);
         Light.UploadDataImmediate(cell.Light.ToArray(), x, y, z, 16, 16, 16);
@@ -145,18 +144,29 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
     {
         int slot = Slot(key.Coordinate);
         if (owners[slot]?.Key != key) return;
-        Clear(key.Coordinate); owners[slot] = null;
+        // Departing demand is a residency change. Edits to still-demanded cells invalidate lighting.
+        var c = key.Coordinate;
+        bool demanded = coverage != null &&
+            ((coverage.NearField is { } near && Intersects(coverage.Clip(near), c)) ||
+             (coverage.Surface is { } surface && Intersects(coverage.Clip(surface), c)));
+        Clear(c, demanded); owners[slot] = null;
     }
+
+    /// <summary>Tests cell overlap against a consumer's current world-clipped demand.</summary>
+    private static bool Intersects(PartitionBounds bounds, PartitionCoordinate c) =>
+        (c.X << 4) < bounds.Max.X && ((c.X + 1) << 4) > bounds.Min.X &&
+        (c.Y << 4) < bounds.Max.Y && ((c.Y + 1) << 4) > bounds.Min.Y &&
+        (c.Z << 4) < bounds.Max.Z && ((c.Z + 1) << 4) > bounds.Min.Z;
 
     /// <summary>Checks the logical coordinate before modulo addressing can alias another owner.</summary>
     private static bool Contains(TraceGeometryCoverage plan, in PartitionCoordinate c) =>
-        c.X * 16 >= plan.Window.Min.X && c.Y * 16 >= plan.Window.Min.Y && c.Z * 16 >= plan.Window.Min.Z &&
-        (c.X + 1) * 16 <= plan.Window.Max.X && (c.Y + 1) * 16 <= plan.Window.Max.Y && (c.Z + 1) * 16 <= plan.Window.Max.Z;
+        (c.X << 4) >= plan.Window.Min.X && (c.Y << 4) >= plan.Window.Min.Y && (c.Z << 4) >= plan.Window.Min.Z &&
+        ((c.X + 1) << 4) <= plan.Window.Max.X && ((c.Y + 1) << 4) <= plan.Window.Max.Y && ((c.Z + 1) << 4) <= plan.Window.Max.Z;
 
     /// <summary>Writes readiness invalidation before recycling or rebuilding storage.</summary>
-    private void Clear(in PartitionCoordinate c)
+    private void Clear(in PartitionCoordinate c, bool invalidateHistory = true)
     {
-        if (owners[Slot(c)] != null) InvalidationRevision++;
+        if (invalidateHistory && owners[Slot(c)] != null) InvalidationRevision++;
         Readiness.UploadDataImmediate(new byte[1], Wrap(c.X), Wrap(c.Y), Wrap(c.Z), 1, 1, 1); UploadedBytes++; Revision++;
     }
 
