@@ -45,9 +45,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
                 rgbaLightIn: (1f, 1f, 1f),
                 pointLightCount: 0,
                 pointLightPos0: (0f, 0f, 0f),
-                pointLightColor0: (0f, 0f, 0f),
-                cameraOriginFloor: (0f, 0f, 0f),
-                cameraOriginFrac: (0f, 0f, 0f));
+                pointLightColor0: (0f, 0f, 0f));
 
             var dd = ReadPixelFromAttachment(output, 0);
             var ds = ReadPixelFromAttachment(output, 1);
@@ -89,9 +87,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
                 rgbaLightIn: (1f, 1f, 1f),
                 pointLightCount: 0,
                 pointLightPos0: (0f, 0f, 0f),
-                pointLightColor0: (0f, 0f, 0f),
-                cameraOriginFloor: (0f, 0f, 0f),
-                cameraOriginFrac: (0f, 0f, 0f));
+                pointLightColor0: (0f, 0f, 0f));
 
             var dd = ReadPixelFromAttachment(output, 0);
 
@@ -138,9 +134,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
                 rgbaLightIn: (1f, 1f, 1f),
                 pointLightCount: 0,
                 pointLightPos0: (0f, 0f, 0f),
-                pointLightColor0: (0f, 0f, 0f),
-                cameraOriginFloor: (0f, 0f, 0f),
-                cameraOriginFrac: (0f, 0f, 0f));
+                pointLightColor0: (0f, 0f, 0f));
 
             var dd = ReadPixelFromAttachment(output, 0);
             var ds = ReadPixelFromAttachment(output, 1);
@@ -184,9 +178,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
                 rgbaLightIn: (0f, 0f, 0f),
                 pointLightCount: 0,
                 pointLightPos0: (0f, 0f, 0f),
-                pointLightColor0: (0f, 0f, 0f),
-                cameraOriginFloor: (0f, 0f, 0f),
-                cameraOriginFrac: (0f, 0f, 0f));
+                pointLightColor0: (0f, 0f, 0f));
 
             var dd = ReadPixelFromAttachment(output, 0);
             var ds = ReadPixelFromAttachment(output, 1);
@@ -201,8 +193,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
     }
 
-    [Fact]
-    public void DirectLighting_StableUnderCameraMotion()
+    /// <summary>View-space lights ignore inverse-view translation and retain their response under camera rotation.</summary>
+    [Theory]
+    [InlineData(1000f, -36f, 17f, 0f)]
+    [InlineData(-4096.25f, 36.5f, -17.75f, .7f)]
+    [InlineData(.125f, 1.85f, 0f, -.6f)]
+    public void DirectLighting_ViewSpaceLightsIgnoreWorldOrigin(float offsetX, float offsetY, float offsetZ, float yaw)
     {
         EnsureShaderTestAvailable();
 
@@ -223,12 +219,13 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.0f, 1.0f });
             using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
 
-            // Only a point light; directional disabled.
-            // For depth=0 and uv=center, viewPos=(0,0,-1) with identity invProjection.
-            // worldPos = cameraOrigin + (0,0,-1). If we shift cameraOrigin and the point light by the same delta,
-            // the relative vector to the light is preserved and output should match.
-
-            var delta = (x: 1000f, y: 0f, z: 0f);
+            // Depth zero at the center reconstructs viewPos=(0,0,-1).
+            // Vanilla passes model-view transformed positions to applyLight, so its light arrays
+            // stay in view space while the inverse view and world normals rotate together.
+            var delta = (x: offsetX, y: offsetY, z: offsetZ);
+            var worldNormal = Vector3.TransformNormal(Vector3.UnitZ, Matrix4x4.CreateRotationY(yaw));
+            using var rotatedNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f,
+                new[] { worldNormal.X * .5f + .5f, worldNormal.Y * .5f + .5f, worldNormal.Z * .5f + .5f, 1f });
 
             RenderDirectLighting(programId, outputA,
                 primaryScene, primaryDepth, gBufferNormal, gBufferMaterial,
@@ -237,20 +234,17 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
                 rgbaLightIn: (0f, 0f, 0f),
                 pointLightCount: 1,
                 pointLightPos0: (0f, 0f, 0f),
-                pointLightColor0: (1f, 1f, 1f),
-                cameraOriginFloor: (0f, 0f, 0f),
-                cameraOriginFrac: (0f, 0f, 0f));
+                pointLightColor0: (1f, 1f, 1f));
 
             RenderDirectLighting(programId, outputB,
-                primaryScene, primaryDepth, gBufferNormal, gBufferMaterial,
+                primaryScene, primaryDepth, rotatedNormal, gBufferMaterial,
                 dummyShadow, dummyShadow,
                 lightDirection: (0f, 0f, 1f),
                 rgbaLightIn: (0f, 0f, 0f),
                 pointLightCount: 1,
-                pointLightPos0: (delta.x, delta.y, delta.z),
+                pointLightPos0: (0f, 0f, 0f),
                 pointLightColor0: (1f, 1f, 1f),
-                cameraOriginFloor: (delta.x, delta.y, delta.z),
-                cameraOriginFrac: (0f, 0f, 0f));
+                inverseViewTranslation: delta, inverseViewYaw: yaw);
 
             var ddA = ReadPixelFromAttachment(outputA, 0);
             var dsA = ReadPixelFromAttachment(outputA, 1);
@@ -258,6 +252,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             var ddB = ReadPixelFromAttachment(outputB, 0);
             var dsB = ReadPixelFromAttachment(outputB, 1);
 
+            Assert.True(ddA.R > .5f && dsA.R > .001f, "The comparison requires a lit receiver.");
             AssertNear(ddA.R, ddB.R, 2e-2f);
             AssertNear(ddA.G, ddB.G, 2e-2f);
             AssertNear(ddA.B, ddB.B, 2e-2f);
@@ -346,8 +341,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         int pointLightCount,
         (float x, float y, float z) pointLightPos0,
         (float r, float g, float b) pointLightColor0,
-        (float x, float y, float z) cameraOriginFloor,
-        (float x, float y, float z) cameraOriginFrac)
+        (float x, float y, float z) inverseViewTranslation = default,
+        float inverseViewYaw = 0)
     {
         output.BindWithViewport();
         GL.ClearColor(0f, 0f, 0f, 0f);
@@ -372,7 +367,18 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             0, 0, 0, 1
         ];
 
-        // Phase 23: UBO-backed params (VgePbrDirectLightingParamsUBO @ object binding).
+        // The inverse view maps reconstructed receiver positions into the engine's relative terrain space.
+        var rotation = Matrix4x4.CreateRotationY(inverseViewYaw);
+        float[] inverseView =
+        [
+            rotation.M11, rotation.M12, rotation.M13, rotation.M14,
+            rotation.M21, rotation.M22, rotation.M23, rotation.M24,
+            rotation.M31, rotation.M32, rotation.M33, rotation.M34,
+            0, 0, 0, 1
+        ];
+        inverseView[12] = inverseViewTranslation.x;
+        inverseView[13] = inverseViewTranslation.y;
+        inverseView[14] = inverseViewTranslation.z;
 
         float[]? pointLightPositions3 = null;
         float[]? pointLightColors3 = null;
@@ -382,13 +388,11 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             pointLightColors3 = [pointLightColor0.r, pointLightColor0.g, pointLightColor0.b];
         }
         programId.InvProjectionMatrix = identity;
-        programId.InvModelViewMatrix = identity;
+        programId.InvModelViewMatrix = inverseView;
         programId.ToShadowMapSpaceMatrixNear = identity;
         programId.ToShadowMapSpaceMatrixFar = identity;
         programId.ZPlanesAndShadowRanges = (zNear: 0.1f, zFar: 100f, shadowRangeNear: 1f, shadowRangeFar: 1f);
         programId.ShadowZExtendNear = 1; programId.ShadowZExtendFar = 1; programId.DropShadowIntensity = 0;
-        programId.CameraOriginFloor = new(cameraOriginFloor.x, cameraOriginFloor.y, cameraOriginFloor.z);
-        programId.CameraOriginFrac = new(cameraOriginFrac.x, cameraOriginFrac.y, cameraOriginFrac.z);
         programId.LightDirection = new(lightDirection.x, lightDirection.y, lightDirection.z);
         programId.RgbaLightIn = new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b);
         programId.RgbaAmbientIn = new(0,0,0);

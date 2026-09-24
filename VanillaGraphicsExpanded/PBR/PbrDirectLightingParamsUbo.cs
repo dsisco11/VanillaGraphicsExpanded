@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>
 /// CPU-side UBO for PBR direct lighting shader parameters.
-/// Layout matches VgePbrDirectLightingParamsUBO in GLSL (3584 bytes).
+/// Layout matches VgePbrDirectLightingParamsUBO in GLSL (3552 bytes).
 /// </summary>
 internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
 {
@@ -17,17 +17,16 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     private const int OffsetToShadowFar = 192;          // mat4 at 192
     private const int OffsetZPlanes = 256;              // vec4 at 256 (zNear, zFar, shadowRangeNear, shadowRangeFar)
     private const int OffsetShadowExtend = 272;         // vec4 at 272 (shadowZExtendNear, shadowZExtendFar, dropShadowIntensity, 0)
-    private const int OffsetCameraOriginFloor = 288;    // vec4 at 288
-    private const int OffsetCameraOriginFrac = 304;     // vec4 at 304
-    private const int OffsetLightDirection = 320;       // vec4 at 320
-    private const int OffsetRgbaAmbient = 336;          // vec4 at 336
-    private const int OffsetRgbaLight = 352;            // vec4 at 352
-    private const int OffsetPointLightsCount = 368;     // ivec4 at 368 (count, 0, 0, 0)
-    private const int OffsetPointLightsPos = 384;       // vec4[100] at 384 (1600 bytes)
-    private const int OffsetPointLightsColor = 1984;    // vec4[100] at 1984 (1600 bytes)
-    // Total: 3584 bytes
+    private const int OffsetLightDirection = 288;       // vec4 at 288
+    private const int OffsetRgbaAmbient = 304;          // vec4 at 304
+    private const int OffsetRgbaLight = 320;            // vec4 at 320
+    private const int OffsetPointLightsCount = 336;     // ivec4 at 336 (count, 0, 0, 0)
+    private const int OffsetPointLightsPos = 352;       // vec4[100] at 352 (1600 bytes)
+    private const int OffsetPointLightsColor = 1952;    // vec4[100] at 1952 (1600 bytes)
+    // Total: 3552 bytes
 
-    public PbrDirectLightingParamsUbo() : base(3584)
+    /// <summary>Allocates the packed lighting parameters shared with the GLSL block.</summary>
+    public PbrDirectLightingParamsUbo() : base(3552)
     {
     }
 
@@ -94,28 +93,6 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
         {
             UboPacking.WriteVec4(DataWritable, OffsetShadowExtend, value.shadowZExtendNear, value.shadowZExtendFar, value.dropShadowIntensity, 0f);
             MarkDirty(OffsetShadowExtend, 16);
-        }
-    }
-
-    #endregion
-
-    #region Camera
-
-    public Vector3 CameraOriginFloor
-    {
-        set
-        {
-            UboPacking.WriteVec4(DataWritable, OffsetCameraOriginFloor, value.X, value.Y, value.Z, 0f);
-            MarkDirty(OffsetCameraOriginFloor, 16);
-        }
-    }
-
-    public Vector3 CameraOriginFrac
-    {
-        set
-        {
-            UboPacking.WriteVec4(DataWritable, OffsetCameraOriginFrac, value.X, value.Y, value.Z, 0f);
-            MarkDirty(OffsetCameraOriginFrac, 16);
         }
     }
 

@@ -24,12 +24,6 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
     // shadowZExtendNear.x, shadowZExtendFar.y, dropShadowIntensity.z, reserved.w
     vec4 shadowFloats0;
 
-    // cameraOriginFloor.xyz
-    vec4 cameraOriginFloor0;
-
-    // cameraOriginFrac.xyz
-    vec4 cameraOriginFrac0;
-
     // lightDirection.xyz
     vec4 lightDir0;
 
@@ -42,7 +36,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
     // pointLightsCount.x, reserved.yzw
     ivec4 pointLightsInts0;
 
-    // pointLight positions (xyz), w reserved
+    // View-space pointLight positions from the engine (xyz), w reserved
     vec4 pointLightPos[VGE_PBR_MAX_POINT_LIGHTS];
 
     // pointLight colors (rgb), w reserved
@@ -65,8 +59,6 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
 #define shadowZExtendFar (vgePbrDirect.shadowFloats0.y)
 #define dropShadowIntensity (vgePbrDirect.shadowFloats0.z)
 
-#define cameraOriginFloor (vgePbrDirect.cameraOriginFloor0.xyz)
-#define cameraOriginFrac (vgePbrDirect.cameraOriginFrac0.xyz)
 
 #define lightDirection (vgePbrDirect.lightDir0.xyz)
 #define rgbaAmbientIn (vgePbrDirect.ambient0.xyz)

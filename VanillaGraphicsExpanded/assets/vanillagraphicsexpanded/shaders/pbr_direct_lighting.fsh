@@ -92,11 +92,8 @@ void main()
 
     vec3 viewPos = reconstructViewPos(uv, depth);
 
-    // Camera-relative world position (matches vanilla shader 'worldPos' space)
+    // Shadow lookup uses the terrain position reconstructed through the full inverse view.
     vec3 worldPosRel = (invModelViewMatrix * vec4(viewPos, 1.0)).xyz;
-
-    // Absolute world position (used for point light positions which are in world space)
-    vec3 worldPos = worldPosRel + cameraOriginFrac + cameraOriginFloor;
 
     vec4 nPacked = texture(gBufferNormal, uv);
     vec3 N = normalize(nPacked.rgb * 2.0 - 1.0);
@@ -132,16 +129,18 @@ void main()
         accumDiffuse,
         accumSpecular);
 
-    // Point lights (best-effort initial implementation; refined during Phase 16.3 wiring)
+    // Vanilla passes camPos into applyLight: its point-light array is in view space.
+    // Measure distance there, then rotate the direction into the world space of N and V.
     int count = clamp(pointLightsCount, 0, 100);
     for (int i = 0; i < count; i++)
     {
         vec3 lp = VgePbrPointLightPos(i);
         vec3 lc = VgePbrPointLightColor(i);
 
-        vec3 toLight = lp - worldPos;
-        float distSq = max(dot(toLight, toLight), 0.0001);
-        vec3 L = toLight * inversesqrt(distSq);
+        vec3 toLightVS = lp - viewPos;
+        float distSq = max(dot(toLightVS, toLightVS), 0.0001);
+        vec3 toLightWS = (invModelViewMatrix * vec4(toLightVS, 0.0)).xyz;
+        vec3 L = toLightWS * inversesqrt(max(dot(toLightWS, toLightWS), 0.0001));
 
         // Simple inverse-square attenuation (clamped)
         float att = min(1.0 / distSq, 1.0);

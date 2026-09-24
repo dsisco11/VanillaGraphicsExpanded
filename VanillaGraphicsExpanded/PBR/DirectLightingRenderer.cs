@@ -27,7 +27,6 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager bufferManager;
-    private readonly Func<Vec3d> cameraPosition;
 
     private MeshRef? quadMeshRef;
 
@@ -42,17 +41,16 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
     public int RenderRange => RenderRangeValue;
 
-    /// <summary>Registers direct lighting with a live camera position provider from the engine.</summary>
+    #region Rendering
+    /// <summary>Registers direct lighting using the engine view-space light coordinates.</summary>
     public DirectLightingRenderer(
         ICoreClientAPI capi,
         GBufferManager gBufferManager,
-        DirectLightingBufferManager bufferManager,
-        Func<Vec3d>? cameraPosition = null)
+        DirectLightingBufferManager bufferManager)
     {
         this.capi = capi;
         this.gBufferManager = gBufferManager;
         this.bufferManager = bufferManager;
-        this.cameraPosition = cameraPosition ?? (() => capi.World.Player.Entity.CameraPos);
 
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
@@ -63,6 +61,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         capi.Logger.Notification("[VGE] DirectLightingRenderer registered (Opaque @ 9.0)");
     }
 
+    /// <summary>Reconstructs terrain-relative receivers and renders direct lighting into its split targets.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Opaque || quadMeshRef is null)
@@ -119,20 +118,6 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         // Compute inverse matrices
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
-
-        // Camera origin split for stable world position reconstruction
-        var camPos = cameraPosition();
-        const double ModuloRange = 4096.0;
-
-        var cameraOriginFloor = new Vec3f(
-            (float)(Math.Floor(camPos.X) % ModuloRange),
-            (float)(Math.Floor(camPos.Y) % ModuloRange),
-            (float)(Math.Floor(camPos.Z) % ModuloRange));
-
-        var cameraOriginFrac = new Vec3f(
-            (float)(camPos.X - Math.Floor(camPos.X)),
-            (float)(camPos.Y - Math.Floor(camPos.Y)),
-            (float)(camPos.Z - Math.Floor(camPos.Z)));
 
         // Shader program
         var shader = capi.Shader.GetProgramByName("pbr_direct_lighting") as PBRDirectLightingShaderProgram;
@@ -192,16 +177,12 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         shader.ZNear = capi.Render.ShaderUniforms.ZNear;
         shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
-        // Camera
-        shader.CameraOriginFloor = cameraOriginFloor;
-        shader.CameraOriginFrac = cameraOriginFrac;
-
         // Lighting
         shader.LightDirection = capi.Render.ShaderUniforms.SunPosition3D;
         shader.RgbaAmbientIn = capi.Render.AmbientColor;
         shader.RgbaLightIn = ColorUtil.WhiteArgbVec.XYZ;
 
-        // Point lights
+        // Vanilla supplies view-space point lights; the shader compares them with view-space receivers.
         shader.SetPointLights(
             capi.Render.ShaderUniforms.PointLightsCount,
             capi.Render.ShaderUniforms.PointLights3,
@@ -229,6 +210,10 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
     }
 
+    #endregion
+
+    #region Diagnostics
+    /// <summary>Drains existing OpenGL errors so resize diagnostics identify the responsible pass.</summary>
     private bool DrainGlErrors(string where)
     {
         bool hadError = false;
@@ -247,6 +232,10 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         return hadError;
     }
 
+    #endregion
+
+    #region Lifetime
+    /// <summary>Releases the fullscreen mesh and unregisters the lighting callback.</summary>
     public void Dispose()
     {
         if (quadMeshRef is not null)
@@ -257,4 +246,5 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
     }
+    #endregion
 }

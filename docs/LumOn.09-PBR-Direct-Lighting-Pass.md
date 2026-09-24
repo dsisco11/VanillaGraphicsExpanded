@@ -131,14 +131,15 @@ This section is the authoritative _C# → GLSL_ binding contract for the direct 
 | --------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
 | `invProjectionMatrix`                                                 | `capi.Render.CurrentProjectionMatrix` inverted  | View-pos reconstruction                         |
 | `invModelViewMatrix`                                                  | `capi.Render.CameraMatrixOriginf` inverted      | World-pos reconstruction (camera-relative)      |
-| `cameraOriginFloor` / `cameraOriginFrac`                              | `capi.World.Player.Entity.CameraPos` split      | Stable world reconstruction across large coords |
 | `zNear` / `zFar`                                                      | `capi.Render.ShaderUniforms.ZNear/ZFar`         | Depth linearization support                     |
 | `lightDirection`                                                      | `capi.Render.ShaderUniforms.SunPosition3D`      | Normalized direction toward sun                 |
 | `rgbaAmbientIn`                                                       | `capi.Render.AmbientColor`                      | Ambient term (currently unused in shader)       |
 | `rgbaLightIn`                                                         | `ColorUtil.WhiteArgbVec.XYZ`                    | Directional light color                         |
-| `pointLightsCount` / `pointLights3[]` / `pointLightColors3[]`         | `DefaultShaderUniforms.PointLights*`            | Arrays sized `[100]` in shader                  |
+| `pointLightsCount` / `pointLights3[]` / `pointLightColors3[]`         | `DefaultShaderUniforms.PointLights*`            | View-space positions; arrays sized `[100]`                  |
 | `toShadowMapSpaceMatrixNear/Far`                                      | `DefaultShaderUniforms.ToShadowMapSpaceMatrix*` | Bound for future shadow sampling                |
 | `shadowRangeNear/Far`, `shadowZExtendNear/Far`, `dropShadowIntensity` | `DefaultShaderUniforms.*`                       | Bound for future shadow sampling                |
+
+Point-light coordinates follow the actual vanilla call chain: `chunkopaque.vsh` passes `camPos = modelViewMatrix * worldPos` into `applyLight`, and `fogandlight.vsh` forwards that position to `getPointLightRgbv`. The helper parameter named `worldPos` is therefore a view-space position at this call site. PBR must subtract reconstructed `viewPos` from the supplied light position, measure attenuation in view space, and transform the resulting direction through the inverse view with homogeneous W = 0 for the world-space normal and BRDF. Neither absolute camera coordinates nor terrain-relative receiver positions belong in the point-light subtraction.
 
 **Numerical stability note:** the pass clamps minimum roughness to `0.04` to avoid GGX singularities overflowing `RGBA16F` outputs.
 
@@ -151,7 +152,7 @@ Implementation note: the pass should **reuse the same lighting inputs and helper
 Concrete input surface (from `DefaultShaderUniforms` / standard shader conventions):
 
 - Sun / main directional: `SunPosition3D` (direction), `SunSpecularIntensity` (scalar), plus the existing ambient/light colors used across vanilla programs (`rgbaAmbientIn`, `rgbaLightIn`).
-- Point lights: `PointLightsCount`, `PointLights3` (positions), `PointLightColors3` (colors).
+- Point lights: `PointLightsCount`, `PointLights3` (view-space positions), `PointLightColors3` (colors).
 - Shadows: near/far shadow maps + matrices and ranges (`ToShadowMapSpaceMatrixNear/Far`, `ShadowRangeNear/Far`, `ShadowZExtendNear/Far`, `DropShadowIntensity`).
 - Sky/atmosphere textures: `SkyTextureId`, `GlowTextureId`, `SunLightTextureId`.
 - Fog: global fog inputs (standard program uniforms like `rgbaFogIn`, `fogMinIn`, `fogDensityIn`) plus local fog volumes (`FogSpheres`, `FogSphereQuantity`).

@@ -12,6 +12,50 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
     public SurfaceLightingPbrRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Composition and spatial material response
+    /// <summary>Engine view-space lights retain their analytic response with eye height, bob, yaw and signed world origins.</summary>
+    [Theory]
+    [InlineData(0f, 0f, 0f)]
+    [InlineData(8192f, .25f, .6f)]
+    [InlineData(-8192f, -.25f, -.5f)]
+    public void RegisteredPointLightsUseViewSpaceReceivers(float playerX, float bob, float yaw)
+    {
+        EnsureContextValid();
+        var scene = new SpatialLightingScene { Position = new(playerX, 36, 5), Bob = 1.6f + bob, EyeOffsetX = .125f, Yaw = yaw };
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene, pbrComposition: true);
+        var material = new RuntimeReceiverSurface(new(.5f, .25f, .125f), Reflectivity: 1);
+        runtime.Receiver = (_, _) => material;
+        var light = new Vector3(.5f, 1.35f, -.25f);
+        // Follow chunkopaque.vsh: applyLight receives modelViewMatrix * worldPos.
+        // Transform the authored hand-height light through the actual scene matrix.
+        var viewMatrix = scene.View();
+        var lightVS = new Vector3(
+            viewMatrix[0] * light.X + viewMatrix[4] * light.Y + viewMatrix[8] * light.Z + viewMatrix[12],
+            viewMatrix[1] * light.X + viewMatrix[5] * light.Y + viewMatrix[9] * light.Z + viewMatrix[13],
+            viewMatrix[2] * light.X + viewMatrix[6] * light.Y + viewMatrix[10] * light.Z + viewMatrix[14]);
+        runtime.EngineUniforms.PointLightsCount = 1;
+        runtime.EngineUniforms.PointLights3 = [lightVS.X, lightVS.Y, lightVS.Z];
+        runtime.EngineUniforms.PointLightColors3 = [1f, 1f, 1f];
+        runtime.Frame();
+
+        // Compare to independently evaluated BRDF and attenuation using absolute scene points
+        // only on the CPU. Production receives the engine's view-space light position.
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.Direct.DirectDiffuseTex!.ReadPixels(), (x, y) =>
+        {
+            int index = y * 4 + x;
+            var point = scene.VisiblePoints[index];
+            var toLight = scene.Position + light - point;
+            float distanceSquared = toLight.LengthSquared();
+            var direction = Vector3.Normalize(toLight);
+            var eye = scene.Position + new Vector3(scene.EyeOffsetX, scene.Bob, 0);
+            var view = Vector3.Normalize(eye - point);
+            var halfway = Vector3.Normalize(direction + view);
+            float fresnel = .04f + .96f * MathF.Pow(1 - Math.Clamp(Vector3.Dot(halfway, view), 0, 1), 5);
+            float cosine = Math.Max(0, Vector3.Dot(scene.VisibleNormals[index], direction));
+            return material.Albedo * ((1 - fresnel) * cosine * Math.Min(1 / distanceSquared, 1));
+        }, .002f, "view-space point light");
+        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Direct.DirectDiffuseTex.ReadPixels()) > .01f);
+    }
+
     /// <summary>Four authored receiver regions constrain channel order, linear albedo scaling, black diffuse response and metallic rejection.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]

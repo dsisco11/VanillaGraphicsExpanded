@@ -131,8 +131,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 pbrDirectProg.ZPlanesAndShadowRanges = (zNear: ZNear, zFar: ZFar, shadowRangeNear: 0f, shadowRangeFar: 0f);
                 pbrDirectProg.ShadowZExtendNear = 0; pbrDirectProg.ShadowZExtendFar = 0; pbrDirectProg.DropShadowIntensity = 0;
 
-                pbrDirectProg.CameraOriginFloor = new(0,0,0);
-                pbrDirectProg.CameraOriginFrac = new(0,0,0);
 
                 pbrDirectProg.LightDirection = new(0f, 0f, 1f);
                 pbrDirectProg.RgbaLightIn = new(0.35f, 0.55f, 0.75f);

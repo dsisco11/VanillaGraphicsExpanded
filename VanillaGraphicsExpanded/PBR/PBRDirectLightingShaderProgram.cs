@@ -197,28 +197,6 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
 
     #endregion
 
-    #region Camera
-
-    public Vec3f CameraOriginFloor
-    {
-        set
-        {
-            Params.CameraOriginFloor = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            UploadAndBindParamsUbo();
-        }
-    }
-
-    public Vec3f CameraOriginFrac
-    {
-        set
-        {
-            Params.CameraOriginFrac = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            UploadAndBindParamsUbo();
-        }
-    }
-
-    #endregion
-
     #region Lighting
 
     public Vec3f LightDirection

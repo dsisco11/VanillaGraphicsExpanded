@@ -36,11 +36,7 @@ internal sealed class RuntimeLightingHost : IDisposable
         lighting.SetDependencies(api, cache.Buffers, direct);
         if (pbrComposition)
         {
-            directRenderer = new(api, cache.Buffers, direct, () =>
-            {
-                var current = camera() ?? throw new InvalidOperationException("The controlled scene requires a camera.");
-                return new(current.CameraX, current.CameraY, current.CameraZ);
-            });
+            directRenderer = new(api, cache.Buffers, direct);
             compositeRenderer = new(api, cache.Buffers, direct, cache.Config, Screen);
         }
         var registered = cache.Events.Registrations.Select(entry => entry.Renderer).Distinct().ToArray();
