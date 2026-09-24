@@ -72,8 +72,10 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
             }
             pendingSurfaceResults.Clear();
         }
-        if (surfaceProvider == null || !surfaceProvider.TryGetSurfaceLighting(out var snapshot) ||
-            snapshot.DependencyRevision!=surfaceRevision || geometryProvider?.PrepareScene() is not { } scene) return;
+        SurfaceLightingSnapshot snapshot = default;
+        var scene = geometryProvider?.PrepareScene();
+        bool canResolveHits = surfaceProvider != null && surfaceProvider.TryGetSurfaceLighting(out snapshot) &&
+            snapshot.DependencyRevision == surfaceRevision && scene != null;
 
         var queries=new List<SurfaceLightingQuery>();
         int admittedBytes=0;
@@ -94,6 +96,13 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
                 if (uploaded) admittedBytes+=bytes;
                 continue;
             }
+            // Drain completed CPU work even when the cache is unavailable. Leaving results queued
+            // would strand in-flight scheduler slots; publishing unresolved hits would invent light.
+            if (!canResolveHits)
+            {
+                scheduler.Complete(result.Request, frameIndex, false);
+                continue;
+            }
             admittedBytes+=bytes;
             pendingSurfaceResults.Add(result);
             foreach (var sample in result.AtlasSamples)
@@ -101,7 +110,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         }
         if (queries.Count==0) return;
         surfaceQueries ??= new(capi);
-        surfaceQueries.Submit(scene,snapshot,queries.ToArray());
+        surfaceQueries.Submit(scene!,snapshot,queries.ToArray());
     }
     #endregion
 }

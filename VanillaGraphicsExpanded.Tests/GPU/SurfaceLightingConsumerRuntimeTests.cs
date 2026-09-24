@@ -13,6 +13,32 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public SurfaceLightingConsumerRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Runtime transport
+    /// <summary>Unavailable surface lighting keeps geometry workers active, retries unresolved hits, and resumes publication when ready.</summary>
+    [Fact]
+    public void MissingSurfaceLighting_ContinuesTracingAndRetriesUntilReady()
+    {
+        EnsureContextValid();
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.WorldRenderer.SetSurfaceLightingProvider(null, null);
+        runtime.Cache.Config.LumOn.DebugMode = VanillaGraphicsExpanded.LumOn.LumOnDebugMode.WorldProbeOrbsPoints;
+        int firstReads = 0;
+        bool exposedQueuedRays = false;
+        for (int frame = 0; frame < 96; frame++)
+        {
+            runtime.Frame();
+            exposedQueuedRays |= runtime.WorldBuffers.TryGetDebugTraceRays(out _, out int count, out _) && count > 0;
+            if (frame == 47) firstReads = runtime.World.WorkerReads;
+            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()), 0, .0001f);
+            Assert.False(runtime.HasPendingSurfaceLightingQueries);
+            Thread.Yield();
+        }
+        Assert.True(firstReads > 0, "Unavailable surface lighting prevented CPU geometry tracing.");
+        Assert.True(exposedQueuedRays, "The queued-ray debug path never received trace requests.");
+        Assert.True(runtime.World.WorkerReads > firstReads, "Unresolved surface results stopped being retried.");
+        runtime.WorldRenderer.SetSurfaceLightingProvider(runtime.Cache.LightingProvider, runtime.Cache.Geometry);
+        runtime.RunUntil(() => SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()) > .001f);
+    }
+
     /// <summary>Default-resolution cache sweeps feed real probe workers while the camera crosses block boundaries.</summary>
     [Fact]
     public void MovingCamera_AllowsWorldProbeTracingAndPublication()

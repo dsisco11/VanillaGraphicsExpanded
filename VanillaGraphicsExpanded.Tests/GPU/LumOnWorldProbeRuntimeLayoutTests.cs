@@ -32,6 +32,7 @@ public sealed class LumOnWorldProbeRuntimeLayoutTests : LumOnShaderFunctionalTes
         config.WorldProbeClipmap.ClipmapLevels = 1;
         config.WorldProbeClipmap.ClipmapBaseSpacing = 2;
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
+        world.SetupGet(value => value.BlockAccessor).Returns((IBlockAccessor)null!);
         var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object,
             Mock.Of<IRenderAPI>(), Mock.Of<IShaderAPI>(), Mock.Of<IModLoader>());
         using var buffers = new LumOnWorldProbeClipmapBufferManager(api, config);
@@ -50,8 +51,8 @@ public sealed class LumOnWorldProbeRuntimeLayoutTests : LumOnShaderFunctionalTes
             Assert.Equal(4, resolution);
             Assert.InRange(origins[0].X, -8f, 0f);
         }
-        // A strict world mock rejects any trace access while surface lighting remains unavailable.
-        world.VerifyNoOtherCalls();
+        // Placement remains available before the engine exposes a block accessor for tracing.
+        world.VerifyGet(value => value.BlockAccessor, Times.AtLeastOnce);
     }
     #endregion
 }
