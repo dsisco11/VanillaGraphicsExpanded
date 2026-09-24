@@ -1,13 +1,6 @@
 using System;
 
-using OpenTK.Graphics.OpenGL;
-
-using VanillaGraphicsExpanded.Numerics;
-using VanillaGraphicsExpanded.Rendering;
-
 using Vintagestory.API.Client;
-using Vintagestory.API.Common;
-using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
@@ -23,22 +16,28 @@ internal sealed class LumOnTerrainBridgeUpdateRenderer : IRenderer, IDisposable
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
-
-    private readonly float[] modelViewMatrix = new float[16];
-    private readonly float[] invModelViewMatrix = new float[16];
+    private readonly Func<LumOnCameraState?> readCamera;
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => RenderRangeValue;
 
+    #region Frame publication
+    /// <summary>Registers the terrain origin publisher before opaque geometry is drawn.</summary>
     public LumOnTerrainBridgeUpdateRenderer(ICoreClientAPI capi, VgeConfig config)
+        : this(capi, config, () => LumOnCameraState.Read(capi)) { }
+
+    /// <summary>Creates the publisher with an explicit per-frame camera source for controlled runtime hosts.</summary>
+    internal LumOnTerrainBridgeUpdateRenderer(ICoreClientAPI capi, VgeConfig config, Func<LumOnCameraState?> readCamera)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
         this.config = config ?? throw new ArgumentNullException(nameof(config));
+        this.readCamera = readCamera ?? throw new ArgumentNullException(nameof(readCamera));
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "vge_lumon_terrain_bridge");
         capi.Event.LeaveWorld += OnLeaveWorld;
     }
 
+    /// <summary>Publishes the stable player origin for terrain PatchIds and chunk-slot lookup.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Opaque)
@@ -51,51 +50,21 @@ internal sealed class LumOnTerrainBridgeUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
-        var player = capi.World?.Player;
-        var entity = player?.Entity;
-        if (entity is null)
+        if (readCamera() is not { } camera)
         {
             return;
         }
 
-        // World camera position (double precision, world coords).
-        double camWorldX = entity.CameraPos.X;
-        double camWorldY = entity.CameraPos.Y;
-        double camWorldZ = entity.CameraPos.Z;
-
-        // Camera position in render "matrix space" (derived from the camera matrix origin).
-        // This matches the coordinate system used by terrain shaders for `worldPos`.
-        Array.Copy(capi.Render.CameraMatrixOriginf, modelViewMatrix, 16);
-        Array.Copy(modelViewMatrix, invModelViewMatrix, 16);
-        MatrixHelper.Invert(invModelViewMatrix, invModelViewMatrix);
-
-        double camMatrixX = invModelViewMatrix[12];
-        double camMatrixY = invModelViewMatrix[13];
-        double camMatrixZ = invModelViewMatrix[14];
-
-        // offsetBlocks = camWorld - camMatrix.
-        double offX = camWorldX - camMatrixX;
-        double offY = camWorldY - camMatrixY;
-        double offZ = camWorldZ - camMatrixZ;
-
-        int offChunkX = (int)Math.Floor(offX * (1.0 / 32.0));
-        int offChunkY = (int)Math.Floor(offY * (1.0 / 32.0));
-        int offChunkZ = (int)Math.Floor(offZ * (1.0 / 32.0));
-
-        double remX = offX - (offChunkX * 32.0);
-        double remY = offY - (offChunkY * 32.0);
-        double remZ = offZ - (offChunkZ * 32.0);
-
-        LumonSceneWorldCoordUniformState.Update(
-            new VectorInt3(offChunkX, offChunkY, offChunkZ),
-            new Vector3d(remX, remY, remZ));
-
-        // Upload UBO.
-        LumOnTerrainBridgeUboState.Update(
-            new VectorInt3(offChunkX, offChunkY, offChunkZ),
-            new Vector3d(remX, remY, remZ));
+        // Terrain worldPos is player-relative before the view transform. Camera bob belongs
+        // only to that transform, so it must not shift voxel identities or patch UVs.
+        var (chunkOffset, blockRemainder) = LumOnFrameWorldSpaceBridge.Compute(
+            camera.PositionX, camera.PositionY, camera.PositionZ);
+        LumonSceneWorldCoordUniformState.Update(chunkOffset, blockRemainder);
+        LumOnTerrainBridgeUboState.Update(chunkOffset, blockRemainder);
     }
+    #endregion
 
+    #region Lifetime
     /// <summary>Removes the terrain callback before releasing its world-owned uniform state.</summary>
     public void Dispose()
     {
@@ -104,9 +73,11 @@ internal sealed class LumOnTerrainBridgeUpdateRenderer : IRenderer, IDisposable
         OnLeaveWorld();
     }
 
+    /// <summary>Clears world-owned coordinate and GPU state when leaving the world.</summary>
     private void OnLeaveWorld()
     {
         LumonSceneWorldCoordUniformState.Disable();
         LumOnTerrainBridgeUboState.Dispose();
     }
+    #endregion
 }

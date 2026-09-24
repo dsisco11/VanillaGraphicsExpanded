@@ -44,9 +44,6 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
     private readonly LumonScenePhysicalPoolManager physicalPools = new();
     private readonly LumonSceneFieldGpuResources nearGpu = new(LumonSceneField.Near);
 
-    private readonly float[] modelViewMatrix = new float[16];
-    private readonly float[] invModelViewMatrix = new float[16];
-
     private LumonSceneFeedbackMarkPagesComputeShader? feedbackMarkShader;
     private LumonSceneFeedbackCompactPagesComputeShader? feedbackCompactShader;
     private LumonSceneCaptureVoxelComputeShader? captureVoxelShader;
@@ -1056,6 +1053,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
     }
 
+    /// <summary>Publishes the stable player origin shared by terrain PatchIds and cache feedback.</summary>
     private void UpdateWorldCoordUniformState()
     {
         try
@@ -1065,40 +1063,13 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 return;
             }
 
-            // World camera position (double precision, world coords).
-            double camWorldX = camera.CameraX;
-            double camWorldY = camera.CameraY;
-            double camWorldZ = camera.CameraZ;
-
-            // Camera position in render "matrix space" (derived from the camera matrix origin).
-            // This matches the coordinate system used by terrain shaders for `worldPos`.
-            Array.Copy(capi.Render.CameraMatrixOriginf, modelViewMatrix, 16);
-            Array.Copy(modelViewMatrix, invModelViewMatrix, 16);
-            MatrixHelper.Invert(invModelViewMatrix, invModelViewMatrix);
-
-            double camMatrixX = invModelViewMatrix[12];
-            double camMatrixY = invModelViewMatrix[13];
-            double camMatrixZ = invModelViewMatrix[14];
-
-            // offsetBlocks = camWorld - camMatrix.
-            double offX = camWorldX - camMatrixX;
-            double offY = camWorldY - camMatrixY;
-            double offZ = camWorldZ - camMatrixZ;
-
-            int offChunkX = (int)Math.Floor(offX * (1.0 / 32.0));
-            int offChunkY = (int)Math.Floor(offY * (1.0 / 32.0));
-            int offChunkZ = (int)Math.Floor(offZ * (1.0 / 32.0));
-
-            double remX = offX - (offChunkX * 32.0);
-            double remY = offY - (offChunkY * 32.0);
-            double remZ = offZ - (offChunkZ * 32.0);
-
-            LumonSceneWorldCoordUniformState.Update(
-                new VectorInt3(offChunkX, offChunkY, offChunkZ),
-                new Vector3d(remX, remY, remZ));
-
-            lastWorldChunkCoordOffset = new VectorInt3(offChunkX, offChunkY, offChunkZ);
-            lastWorldBlockOffsetRem = new Vector3d(remX, remY, remZ);
+            // Match the terrain publisher: worldPos is player-relative, and inverse-view
+            // translation must not be subtracted again when assigning surface-cache cells.
+            var (chunkOffset, blockRemainder) = LumOnFrameWorldSpaceBridge.Compute(
+                camera.PositionX, camera.PositionY, camera.PositionZ);
+            LumonSceneWorldCoordUniformState.Update(chunkOffset, blockRemainder);
+            lastWorldChunkCoordOffset = chunkOffset;
+            lastWorldBlockOffsetRem = blockRemainder;
         }
         catch
         {

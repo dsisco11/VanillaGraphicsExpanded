@@ -2,6 +2,12 @@
 
 This is the controlling contract for Sections 4–7 and 9–13 of `LumOn.SurfaceCache.TestCoverage.todo`. It defines the target storage and producer/consumer semantics; lighting producers and publication are implemented in Section 5, and geometry-hit consumers are implemented in Section 6.
 
+## Terrain coordinates and camera motion
+
+Terrain `worldPos` is player-relative before the view transform. Both `LumOnTerrainBridgeUpdateRenderer` and `LumonSceneFeedbackUpdateRenderer` must publish `Entity.Pos` through `LumOnFrameWorldSpaceBridge.Compute`, retaining double precision until the integer chunk and fractional remainder are separated. Camera position and inverse-view translation do not belong in that origin conversion: using `CameraPos - inverseView.translation` makes stationary voxel identities and patch UVs depend on camera bob.
+
+SurfaceCache irradiance, material, page-ready and patch-UV views consume the terrain PatchId buffer. Their alignment therefore depends on this producer contract even when the fullscreen debug shader does not reconstruct a position. Camera movement alone must not change the world cell, patch identity or patch UV of a stationary surface.
+
 ## Lighting terms and units
 
 All values are scene-linear RGB in consistent engine-relative lighting units, with no camera exposure baked into persistent caches. These are not calibrated SI measurements. Irradiance integrates radiance over solid angle with the receiving cosine. Display exposure is applied downstream, once; an exposure change alone must not invalidate the cache.
