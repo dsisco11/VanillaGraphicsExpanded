@@ -763,9 +763,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         if (mode == LumOnDebugMode.Off || quadMeshRef is null)
             return;
 
-        // Most debug modes require the GBuffer to be ready.
-        // Direct lighting debug modes do not.
-        if (!IsDirectLightingMode(mode))
+        // Geometry traces use the published near-field scene, independently of screen-space lighting targets.
+        bool isNearFieldGeometry = mode == LumOnDebugMode.NearFieldGeometry;
+        if (!IsDirectLightingMode(mode) && !isNearFieldGeometry)
         {
             if (gBufferManager is null || !gBufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
                 return;
@@ -823,8 +823,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Phase 18 world-probe defines must be set before Use() as well.
         // Make this robust across initialization order / live reloads: if the renderer's buffer manager reference
         // is stale/missing, re-acquire it from the mod system.
-        // Surface-cache and G-buffer programs do not sample the world cache or own its initialization.
-        bool samplesWorldProbes = shader.ProgramContract.Groups.Contains(LumOnShaderGroups.World);
+        // The geometry view shares this shader family but does not sample world-probe lighting.
+        // Keep its variant independent of probe runtime readiness and topology changes.
+        bool samplesWorldProbes = !isNearFieldGeometry && shader.ProgramContract.Groups.Contains(LumOnShaderGroups.World);
         if (samplesWorldProbes && (worldProbeClipmapBufferManager is null || worldProbeClipmapBufferManager.Resources is null))
         {
             var clipmapMs = capi.ModLoader.GetModSystem<ModSystems.WorldProbeModSystem>();
@@ -2759,6 +2760,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         return capi.Shader.GetProgramByName(programName) as LumOnDebugShaderProgram;
     }
 
+    /// <summary>Reports whether a view needs initialized LumOn screen-space targets.</summary>
     private static bool RequiresLumOnBuffers(LumOnDebugMode mode)
     {
         // Anything involving probes/atlases/temporal/indirect assumes LumOn is enabled.
@@ -2777,8 +2779,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 or LumOnDebugMode.ProbeAtlasTemporalRejection
                 or LumOnDebugMode.ProbeAtlasPisTraceMask
                 or LumOnDebugMode.ProbePisEnergy
-                or LumOnDebugMode.ProbeAtlasTraceOutcome
-                or LumOnDebugMode.NearFieldGeometry;
+                or LumOnDebugMode.ProbeAtlasTraceOutcome;
     }
 
     #endregion

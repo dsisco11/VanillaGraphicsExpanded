@@ -37,9 +37,9 @@ public sealed class LumOnDebugRendererRoutingTests
         Assert.True((bool)requiresBuffers.Invoke(null, [LumOnDebugMode.ProbeAtlasTraceOutcome])!);
     }
 
-    /// <summary>The near-field geometry view receives the world-probe family's geometry bindings and requires LumOn targets.</summary>
+    /// <summary>The near-field geometry view uses the family's geometry bindings without requiring screen-space targets.</summary>
     [Fact]
-    public void NearFieldGeometry_RoutesToWorldProbeAndRequiresLumOnBuffers()
+    public void NearFieldGeometry_RoutesToWorldProbeWithoutRequiringLumOnBuffers()
     {
         var kind = typeof(LumOnDebugRenderer).GetMethod("GetShaderProgramKind", BindingFlags.NonPublic | BindingFlags.Static);
         var requiresBuffers = typeof(LumOnDebugRenderer).GetMethod("RequiresLumOnBuffers", BindingFlags.NonPublic | BindingFlags.Static);
@@ -47,7 +47,6 @@ public sealed class LumOnDebugRendererRoutingTests
         Assert.NotNull(requiresBuffers);
         Assert.Equal(70, (int)LumOnDebugMode.NearFieldGeometry);
         Assert.Equal(LumOnDebugShaderProgramKind.WorldProbe, (LumOnDebugShaderProgramKind)kind.Invoke(null, [LumOnDebugMode.NearFieldGeometry])!);
-        Assert.True((bool)requiresBuffers.Invoke(null, [LumOnDebugMode.NearFieldGeometry])!);
+        Assert.False((bool)requiresBuffers.Invoke(null, [LumOnDebugMode.NearFieldGeometry])!);
     }
 }
-
