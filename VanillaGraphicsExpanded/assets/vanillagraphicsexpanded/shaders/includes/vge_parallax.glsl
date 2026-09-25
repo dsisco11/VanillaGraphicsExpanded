@@ -91,6 +91,7 @@ float VgeReadPomDepth01(vec2 uv)
     return depth01;
 }
 
+/// Applies atlas-safe parallax using the eye direction and distance in the supplied world tangent frame.
 vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs, vec2 uvBase, vec2 uvExtent)
 {
 #if VGE_PBR_ENABLE_POM
@@ -104,8 +105,10 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
         return uv;
     }
 
-    // Camera-relative convention: fragment-to-camera is -worldPosWs.
-    vec3 viewDirWs = normalize(-worldPosWs);
+    // The render origin is not necessarily the eye; preserve the view matrix's camera offset.
+    vec3 fragmentToEyeWs = VgeFragmentToEyeWorld(worldPosWs);
+    float dist = length(fragmentToEyeWs);
+    vec3 viewDirWs = fragmentToEyeWs / max(dist, 1e-8);
 
     // Transform view direction into tangent space.
     vec3 viewDirTs = transpose(tbn) * viewDirWs;
@@ -115,7 +118,6 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
 
     // Angle + distance stability fades.
     float angleWeight = smoothstep(0.35, 0.85, viewDirTs.z);
-    float dist = length(worldPosWs);
     float distWeight = 1.0 - smoothstep(float(VGE_PBR_POM_FADE_START), float(VGE_PBR_POM_FADE_END), dist);
     float weight = angleWeight * distWeight;
 

@@ -31,13 +31,20 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       translation/rotation/bob and invalid history (6), normal/debug renderer uploads (2), imported
       debug reprojection (1), and dependent probe-atlas temporal behavior (17). No tests skipped.
       In-game visual confirmation remains under the live-validation task below.
-  ☐ Correct eye-relative view direction and distance in vge_parallax.glsl and vge_normaldepth.glsl.
+  ✔ Correct eye-relative view direction and distance in vge_parallax.glsl and vge_normaldepth.glsl.
     Account for the eye offset in the view matrix; validate parallax and normal-map fading with
     camera bob and camera offsets, without applying view translation twice.
+    - Shared terrain view helper derives the eye from the existing draw's rigid modelViewMatrix.
+      POM direction, POM distance fade, and normal-map distance fade use that same eye-relative
+      vector. Surface positions remain render-relative and tangent frames remain in world axes.
+    - Fresh build: 32 focused tests passed, including three imported GPU material regressions;
+      one existing TinyTokenizer insertion test remains explicitly skipped. Verified shared
+      vertex/fragment matrix linkage, rotation/bob offsets, POM displacement and normal fading.
+      Full installed terrain variants and in-game visual behavior remain live-validation work.
   ☐ Make terrain PatchId and chunk-slot selection use the same inward-biased owning block in
     VanillaShaderPatches.cs and lumonscene_patchid.glsl. Validate all six faces at positive and
     negative chunk boundaries, including capture and sampling of the selected surface.
-    - These two remaining coordinate findings are source-backed; visible effects still need reproduction.
+    - This remaining coordinate finding is source-backed; visible effects still need reproduction.
   ☐ Remove vanilla GetLightRGBs and neighboring-light availability dependencies from world-probe
     geometry tracing when hit lighting is deferred to the Surface Cache.
   ☐ Separate surface hits, established sky visibility, distance/budget exhaustion, and unavailable

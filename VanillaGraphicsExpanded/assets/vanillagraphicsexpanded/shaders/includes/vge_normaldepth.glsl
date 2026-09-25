@@ -1,6 +1,8 @@
 #ifndef VGE_NORMALDEPTH_GLSL
 #define VGE_NORMALDEPTH_GLSL
 
+@import "./vge_view.glsl"
+
 #ifndef VGE_PBR_ENABLE_NORMAL_MAPS
     #define VGE_PBR_ENABLE_NORMAL_MAPS 1
 #endif
@@ -137,6 +139,7 @@ bool VgeIsNeutralNormalSigned(vec3 normalSigned)
 // NOTE: Intentionally no per-texel "strength" gating.
 // Strength heuristics can introduce visible bands when mip levels change.
 
+/// Computes packed world normal and height using the supplied tangent frame and eye-relative fading.
 // TBN-reuse helper: caller supplies tangent frame and handedness (usually computed once per-fragment).
 // Optionally also supplies the already-sampled atlas normal/height to avoid resampling.
 vec4 VgeComputePackedWorldNormal01Height01_WithTbn(
@@ -158,11 +161,10 @@ vec4 VgeComputePackedWorldNormal01Height01_WithTbn(
     vec3 nWsMap = normalize(tbn * nAtlasSigned);
 
     // VGE: Distance attenuation for normal-map contribution.
-    // Assumption: `worldPosWs` is camera-relative world-space (common in VS terrain shaders),
-    // so distance-to-camera is simply length(worldPosWs).
+    // Terrain positions are render-relative; the eye can be offset from that origin.
     const float VGE_NORMALMAP_FADE_START = 8.0;
     const float VGE_NORMALMAP_FADE_END = 24.0;
-    float vge_dist = length(worldPosWs);
+    float vge_dist = length(VgeFragmentToEyeWorld(worldPosWs));
     float vge_normalMapWeight = 1.0 - smoothstep(VGE_NORMALMAP_FADE_START, VGE_NORMALMAP_FADE_END, vge_dist);
     float normalMapStrength = clamp(float(VGE_PBR_NORMAL_MAP_SCALE), 0.0, 4.0);
     float normalMapBlend = clamp(vge_normalMapWeight * normalMapStrength, 0.0, 1.0);
