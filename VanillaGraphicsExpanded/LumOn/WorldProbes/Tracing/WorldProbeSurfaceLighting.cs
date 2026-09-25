@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using VanillaGraphicsExpanded.LumOn.Scene;
 
@@ -8,22 +9,24 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 internal static class WorldProbeSurfaceLighting
 {
     #region Completion
-    /// <summary>Requires every hit in a probe batch to resolve; valid black adds a sample while unavailable data retries.</summary>
+    /// <summary>Separates ready directions from unresolved hits; missing answers never become valid black samples.</summary>
     public static LumOnWorldProbeTraceResult Resolve(in LumOnWorldProbeTraceResult source,
         ReadOnlySpan<SurfaceLightingQuery> answers, ref int index)
     {
-        var samples=(LumOnWorldProbeAtlasSample[])source.AtlasSamples.Clone();
-        bool valid=source.Success;
-        for (int i=0;i<samples.Length;i++)
+        var readySamples = new List<LumOnWorldProbeAtlasSample>(source.AtlasSamples.Length);
+        var retrySamples = new List<LumOnWorldProbeAtlasSample>();
+        foreach (var sample in source.AtlasSamples)
         {
-            if (!samples[i].SurfaceHit.HasValue) continue;
-            if (index>=answers.Length) { valid=false; continue; }
+            if (!sample.SurfaceHit.HasValue) { readySamples.Add(sample); continue; }
+            if (index>=answers.Length) { retrySamples.Add(sample); continue; }
             Vector4 value=answers[index++].Result;
             bool ready=value.W==1 && float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
-            valid &= ready;
-            samples[i]=samples[i] with { RadianceRgb=ready ? Vector3.Max(Vector3.Zero,new(value.X,value.Y,value.Z)) : Vector3.Zero, SurfaceHit=null };
+            if (ready)
+                readySamples.Add(sample with { RadianceRgb=Vector3.Max(Vector3.Zero,new(value.X,value.Y,value.Z)), SurfaceHit=null });
+            else retrySamples.Add(sample);
         }
-        return source with { Success=valid, AtlasSamples=samples };
+        return source with { Success=source.Success && readySamples.Count>0,
+            AtlasSamples=readySamples.ToArray(), RetrySamples=retrySamples.ToArray() };
     }
     #endregion
 }

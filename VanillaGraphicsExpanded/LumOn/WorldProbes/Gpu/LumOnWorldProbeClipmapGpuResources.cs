@@ -3,10 +3,12 @@ using System;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
-internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
+/// <summary>Owns clipmap textures and their generation-scoped contents.</summary>
+internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
 {
     private readonly int resolution;
     private readonly int levels;
@@ -112,22 +114,13 @@ internal sealed class LumOnWorldProbeClipmapGpuResources : IDisposable
         debugState0.UploadData(data);
     }
 
+    /// <summary>Clears all directional and scalar history independently of inherited GL scissor state.</summary>
     public void ClearAll()
     {
-        // Clear on create to keep deterministic sampling when uninitialized.
-        radianceFbo.Bind();
-        GL.Viewport(0, 0, RadianceAtlasWidth, RadianceAtlasHeight);
-        GL.ClearColor(0, 0, 0, 0);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        fbo.Bind();
-        GL.Viewport(0, 0, AtlasWidth, AtlasHeight);
-        GL.ClearColor(0, 0, 0, 0);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GpuFramebuffer.Unbind();
+        var zero = new VectorInt3();
+        var last = new VectorInt3(resolution - 1, resolution - 1, resolution - 1);
+        for (int level = 0; level < levels; level++) ClearLocalBox(level, zero, zero, last);
     }
-
     public void Dispose()
     {
         radianceFbo.Dispose();

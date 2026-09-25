@@ -24,4 +24,5 @@ internal readonly record struct LumOnWorldProbeTraceResult(
     float ShortRangeAoConfidence,
     float Confidence,
     float MeanLogHitDistance,
-    LumOnWorldProbeImportanceFlags ImportanceFlags, long SurfaceRevision = 0);
+    LumOnWorldProbeImportanceFlags ImportanceFlags, long SurfaceRevision = 0,
+    LumOnWorldProbeAtlasSample[]? RetrySamples = null, int SurfaceRetryCount = 0);

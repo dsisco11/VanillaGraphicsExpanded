@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Numerics;
 using System.Numerics;
 
 using Vintagestory.API.Client;
@@ -163,6 +164,11 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 		{
 			var validation = validationResults[i];
 			SetUnavailableProbeSlot(validation.Request, validation.Occupancy == LumOnWorldProbeCenterOccupancy.Unavailable);
+            if (IsProbeCenterSuppressed(validation.Occupancy))
+                {
+                var storage = new VectorInt3(validation.Request.StorageIndex.X, validation.Request.StorageIndex.Y, validation.Request.StorageIndex.Z);
+                resources.ClearLocalBox(validation.Request.Level, VectorInt3.Zero, storage, storage);
+            }
 		}
 
 		// Hit radiance is resolved from the Surface Cache; workers need only collision geometry.
@@ -227,7 +233,9 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 				{
 					// Probes with unavailable center chunks wait for ChunkDirty/NewlyLoaded to re-enable them.
 					// Centers inside solid collision cannot contribute and are likewise re-checked on ring reuse.
-					scheduler.Disable(req);
+					var storage = new VectorInt3(req.StorageIndex.X, req.StorageIndex.Y, req.StorageIndex.Z);
+                    resources.ClearLocalBox(req.Level, VectorInt3.Zero, storage, storage);
+                    scheduler.Disable(req);
 					continue;
 				}
 
@@ -341,7 +349,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 
 		scheduler = new LumOnWorldProbeScheduler(resources.Levels, resources.Resolution);
 
-		schedulerAnchorShiftHandler ??= evt => clipmapBufferManager.NotifyAnchorShifted(in evt);
+		schedulerAnchorShiftHandler ??= OnProbeAnchorShifted;
 		scheduler.AnchorShifted += schedulerAnchorShiftHandler;
 	}
 
@@ -398,6 +406,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 				for (int level = 0; level < levels; level++)
 				{
 					scheduler.MarkDirtyWorldAabb(level, min, max, baseSpacing);
+                    ClearDirtyProbeHistory(level, new Vector3d(min.X, min.Y, min.Z), new Vector3d(max.X, max.Y, max.Z), baseSpacing);
 				}
 			},
 			overflowCount: out int overflow);
@@ -409,6 +418,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 			var min = originMin;
 			var max = new Vec3d(min.X + size, min.Y + size, min.Z + size);
 			scheduler.MarkDirtyWorldAabb(level: 0, min, max, baseSpacing);
+            ClearDirtyProbeHistory(0, new Vector3d(min.X, min.Y, min.Z), new Vector3d(max.X, max.Y, max.Z), baseSpacing);
 		}
 	}
 

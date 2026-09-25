@@ -162,7 +162,8 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                     radianceRgb = Vector3.Zero;
                 }
                 else radianceRgb = EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0);
-                alphaSigned = (float)Math.Log(Math.Max(0.0, hitDist) + 1.0);
+                // Zero alpha is the atlas's unresolved marker, including for valid black contact hits.
+                alphaSigned = Math.Max(0.0001f, (float)Math.Log(Math.Max(0.0, hitDist) + 1.0));
 
                 if (!item.DeferSurfaceLighting)
                 {

@@ -16,6 +16,24 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 public sealed class WorldProbeTraceIntegratorTests
 {
     #region Surface-cache lighting independence
+    /// <summary>A valid black contact at zero distance still carries nonzero directional readiness.</summary>
+    [Fact]
+    public void ZeroDistanceBlackContactHasPublishedDistanceMarker()
+    {
+        var scene=new AlwaysHitScene(0,Vector4.Zero,new VectorInt3(0,-1,0));
+        var request=new LumOnWorldProbeUpdateRequest(0,new Vec3i(),new Vec3i(),0);
+        var work=new LumOnWorldProbeTraceWorkItem(0,request,new Vector3d(.5,.5,.5),32,4,4,false,.25f,-1,1e-6f,
+            DeferSurfaceLighting:true);
+        var result=new LumOnWorldProbeTraceIntegrator().TraceProbe(scene,work,CancellationToken.None);
+        Assert.True(result.Success);
+        Assert.All(result.AtlasSamples,s=>
+        {
+            Assert.True(s.AlphaEncodedDistSigned>0);
+            Assert.Equal(Vector3.Zero,s.RadianceRgb);
+            Assert.NotNull(s.SurfaceHit);
+        });
+    }
+
     /// <summary>Cached hits keep sky scaling neutral; legacy hits retain their vanilla sunlight estimate.</summary>
     [Theory]
     [InlineData(true, 0f, 1f)]

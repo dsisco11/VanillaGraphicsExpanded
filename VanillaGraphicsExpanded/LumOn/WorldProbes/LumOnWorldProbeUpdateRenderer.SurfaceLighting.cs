@@ -46,29 +46,59 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     #endregion
 
     #region Resolution and upload
-    /// <summary>Reads only signaled GPU work, retries unresolved hits, and admits whole probe uploads within budget.</summary>
+    private const int MaximumSurfaceRetries = 3;
+
+    /// <summary>Publishes ready directions and retains only unresolved descriptors for bounded GPU retries.</summary>
+    private void PublishSurfaceResult(LumOnWorldProbeClipmapGpuResources resources,
+        LumOnWorldProbeClipmapGpuUploader uploader, in LumOnWorldProbeTraceResult source,
+        in LumOnWorldProbeTraceResult resolved, ref int budget, bool limited,
+        List<LumOnWorldProbeTraceResult>? retries)
+    {
+        if (scheduler == null) return;
+        if (source.SurfaceRevision != surfaceRevision || !scheduler.IsCurrent(source.Request))
+        { scheduler.Complete(source.Request, frameIndex, false); return; }
+        bool uploaded = false;
+        if (resolved.Success && resolved.AtlasSamples.Length > 0)
+        {
+            int bytes = 40 + 24 * resolved.AtlasSamples.Length;
+            uploaded = (!limited || bytes <= budget) && uploader.Upload(resources, new[] { resolved }, bytes) > 0;
+            if (!uploaded)
+            {
+                // Retry the original admission through normal scheduling if its ready subset
+                // cannot fit. Never retain only unresolved hits while silently losing ready work.
+                scheduler.Complete(source.Request, frameIndex, false);
+                return;
+            }
+            if (limited) budget -= bytes;
+            scheduler.MergeImportanceFlags(source.Request.Level, source.Request.StorageLinearIndex, source.ImportanceFlags);
+        }
+        var unresolved = resolved.RetrySamples;
+        if (unresolved is { Length: > 0 } && retries != null && source.SurfaceRetryCount < MaximumSurfaceRetries)
+        {
+            // The same ticket stays in flight, so dirtying, relocation and cache revisions
+            // reject delayed answers. Already uploaded directions are never queried again here.
+            retries.Add(source with { AtlasSamples = unresolved, RetrySamples = null,
+                SurfaceRetryCount = source.SurfaceRetryCount + 1 });
+            return;
+        }
+        scheduler.Complete(source.Request, frameIndex, uploaded && (unresolved == null || unresolved.Length == 0));
+    }
+
+    /// <summary>Polls one bounded query batch and shares the existing upload budget across partial and complete results.</summary>
     private void ResolveSurfaceLighting(LumOnWorldProbeClipmapGpuResources resources, LumOnWorldProbeClipmapGpuUploader uploader)
     {
         if (scheduler == null || traceService == null) return;
-        int budget=config.WorldProbeClipmap.UploadBudgetBytesPerFrame;
-        bool limited=budget>0;
+        int budget = config.WorldProbeClipmap.UploadBudgetBytesPerFrame;
+        bool limited = budget > 0;
+        var retries = new List<LumOnWorldProbeTraceResult>();
         if (surfaceQueries?.Pending == true)
         {
             if (!surfaceQueries.TryRead(out var completed)) return;
-            int query=0;
+            int query = 0;
             foreach (var result in pendingSurfaceResults)
             {
-                var resolved=WorldProbeSurfaceLighting.Resolve(result, completed, ref query);
-                bool current=resolved.Success && resolved.SurfaceRevision==surfaceRevision && scheduler.IsCurrent(resolved.Request);
-                int bytes=40+24*resolved.AtlasSamples.Length;
-                bool admitted=current && (!limited || bytes<=budget);
-                bool uploaded=admitted && uploader.Upload(resources,new[]{resolved},bytes)>0;
-                if (uploaded)
-                {
-                    if (limited) budget-=bytes;
-                    scheduler.MergeImportanceFlags(resolved.Request.Level,resolved.Request.StorageLinearIndex,resolved.ImportanceFlags);
-                }
-                scheduler.Complete(resolved.Request,frameIndex,uploaded);
+                var resolved = WorldProbeSurfaceLighting.Resolve(result, completed, ref query);
+                PublishSurfaceResult(resources, uploader, result, resolved, ref budget, limited, retries);
             }
             pendingSurfaceResults.Clear();
         }
@@ -77,42 +107,43 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         bool canResolveHits = surfaceProvider != null && surfaceProvider.TryGetSurfaceLighting(out snapshot) &&
             snapshot.DependencyRevision == surfaceRevision && scene != null;
 
-        var queries=new List<SurfaceLightingQuery>();
-        int admittedBytes=0;
-        int maxProbes=Math.Max(1,config.WorldProbeClipmap.TraceMaxProbesPerFrame);
-        // CPU result draining is bounded too; a missing cache cannot grow an extra renderer queue.
-        for (int i=0;i<maxProbes && traceService.TryDequeueResult(out var result);i++)
+        var queries = new List<SurfaceLightingQuery>();
+        int admittedBytes = 0;
+        foreach (var retry in retries)
         {
-            int needed=result.AtlasSamples.Count(sample=>sample.SurfaceHit.HasValue);
-            int bytes=40+24*result.AtlasSamples.Length;
-            if (!result.Success || result.SurfaceRevision!=surfaceRevision || !scheduler.IsCurrent(result.Request) ||
-                queries.Count+needed>SurfaceLightingQueryBatch.MaximumQueries ||
-                (limited && admittedBytes+bytes>budget))
-            { scheduler.Complete(result.Request,frameIndex,false, aborted:result.FailureReason==WorldProbeTraceFailureReason.Aborted); continue; }
-            if (needed==0)
+            if (!canResolveHits || !scheduler.IsCurrent(retry.Request))
+            { scheduler.Complete(retry.Request, frameIndex, false); continue; }
+            // Retry descriptors are a strict subset of the previous <=4096-query batch.
+            pendingSurfaceResults.Add(retry);
+            admittedBytes += 40 + 24 * retry.AtlasSamples.Length;
+            foreach (var sample in retry.AtlasSamples) queries.Add(sample.SurfaceHit!.Value);
+        }
+        int maxProbes = Math.Max(1, config.WorldProbeClipmap.TraceMaxProbesPerFrame);
+        for (int i = 0; i < maxProbes && traceService.TryDequeueResult(out var result); i++)
+        {
+            int needed = result.AtlasSamples.Count(sample => sample.SurfaceHit.HasValue);
+            int bytes = 40 + 24 * result.AtlasSamples.Length;
+            if (!result.Success || result.SurfaceRevision != surfaceRevision || !scheduler.IsCurrent(result.Request) ||
+                queries.Count + needed > SurfaceLightingQueryBatch.MaximumQueries ||
+                (limited && admittedBytes + bytes > budget))
+            { scheduler.Complete(result.Request, frameIndex, false, aborted: result.FailureReason == WorldProbeTraceFailureReason.Aborted); continue; }
+            if (needed == 0 || !canResolveHits)
             {
-                bool uploaded=uploader.Upload(resources,new[]{result},bytes)>0;
-                scheduler.Complete(result.Request,frameIndex,uploaded);
-                if (uploaded) admittedBytes+=bytes;
+                // Even without a cache, established sky directions can publish. Missing
+                // surface directions remain absent from the atlas and retry via scheduling.
+                int answer = 0;
+                var resolved = WorldProbeSurfaceLighting.Resolve(result, ReadOnlySpan<SurfaceLightingQuery>.Empty, ref answer);
+                PublishSurfaceResult(resources, uploader, result, resolved, ref budget, limited, null);
                 continue;
             }
-            // Drain completed CPU work even when the cache is unavailable. Leaving results queued
-            // would strand in-flight scheduler slots; publishing unresolved hits would invent light.
-            if (!canResolveHits)
-            {
-                scheduler.Complete(result.Request, frameIndex, false);
-                continue;
-            }
-            admittedBytes+=bytes;
+            admittedBytes += bytes;
             pendingSurfaceResults.Add(result);
             foreach (var sample in result.AtlasSamples)
                 if (sample.SurfaceHit is { } hit) queries.Add(hit);
         }
-        if (queries.Count==0) return;
+        if (queries.Count == 0) return;
         surfaceQueries ??= new(capi);
-        surfaceQueries.Submit(scene!,snapshot,queries.ToArray());
+        surfaceQueries.Submit(scene!, snapshot, queries.ToArray());
     }
     #endregion
 }
-
-

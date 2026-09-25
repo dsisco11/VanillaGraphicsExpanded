@@ -145,9 +145,9 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.Equal("lumon",opaque[^1]);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
-    /// <summary>A pending real GPU query cannot publish under a budget smaller than one complete probe.</summary>
+    /// <summary>A pending real GPU query cannot publish below the metadata plus one-direction upload cost.</summary>
     [Fact]
-    public void WholeProbeUploadBudgetDefersPendingQueries()
+    public void MinimumDirectionalUploadBudgetDefersPendingQueries()
     {
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
@@ -157,7 +157,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
         Assert.Equal(0,runtime.WorldConfidence);
-        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1575;
+        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=63;
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();

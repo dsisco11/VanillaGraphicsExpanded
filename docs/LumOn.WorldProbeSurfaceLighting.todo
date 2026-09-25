@@ -91,8 +91,24 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       The preceding broader run passed 217 tests and failed 12; all 12 reproduced on isolated pristine HEAD,
       with one timing-sensitive doorway failure reproduced on its first isolated repeat.
       In-game visual confirmation remains under the live-validation task below.
-  ☐ Preserve valid world-probe directional samples while retrying unresolved cache hits, with bounded
+  ✔ Preserve valid world-probe directional samples while retrying unresolved cache hits, with bounded
     work, per-direction validity, and generation-safe history so missing samples cannot publish light.
+    - Ready cache answers publish independently; unresolved hit descriptors receive at most three
+      additional GPU retries under the same admission ticket, then return to normal scheduling.
+      Existing valid directions survive retry exhaustion. Queries remain bounded to 4096 hits and
+      partial uploads share the configured byte budget. Primary geometry failures still reject
+      their batch; they cannot be converted into sky or valid black.
+    - Directional alpha zero remains invalid for direct and final-gather consumers. Valid black
+      contact hits now encode a positive distance marker. Ring movement clears introduced slots
+      while preserving overlapping probes; geometry dirtying, suppressed centers and dependency
+      replacement retire affected history. Delayed answers must still match current tickets.
+    - Validation: 148 distinct focused tests passed (147 regression tests plus one additional
+      partial-upload budget test), with no skips; subagent review found no remaining production gap.
+      Coverage includes mixed ready/unready/black answers, real subset retries, bounded work,
+      direct/final-gather invalid samples, dirty-ticket rejection, wrapped slots, positive/negative
+      anchor shifts, large moves, and existing cache/lifecycle/trace regressions. Shader validation
+      built 65 programs across 244 combinations. Receipts: artifacts/TestResults/partial-worldprobe-final.trx
+      and artifacts/TestResults/partial-worldprobe-subset-budget.trx. In-game validation remains open.
   ☐ Fix the confirmed initial-readiness blocker and prevent whole-page retry starvation, preserving
     valid progress without publishing uncaptured or uninitialized texels.
   ☐ Validate through subagent-run focused tests: missing cache, unavailable geometry, distance limits,
