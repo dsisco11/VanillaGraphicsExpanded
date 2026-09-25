@@ -15,6 +15,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
     private readonly IBlockAccessor blockAccessor;
     private readonly bool sampleVanillaLighting;
     private readonly int maxTraversalSteps;
+    private readonly Action<VectorInt3, object?>? observeChunk;
 
     private const double DirEpsilon = 1e-12;
     private const double PointInsideEpsilon = 1e-12;
@@ -24,12 +25,14 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
     /// <param name="blockAccessor">Geometry source and authoritative world height; nonpositive height establishes no sky boundary.</param>
     /// <param name="sampleVanillaLighting">Whether hits require vanilla lighting from the exterior cell.</param>
     /// <param name="maxTraversalSteps">Maximum visited cells per ray, including the initial cell.</param>
-    public BlockAccessorWorldProbeTraceScene(IBlockAccessor blockAccessor, bool sampleVanillaLighting = true, int maxTraversalSteps = 512)
+    public BlockAccessorWorldProbeTraceScene(IBlockAccessor blockAccessor, bool sampleVanillaLighting = true, int maxTraversalSteps = 512,
+        Action<VectorInt3, object?>? observeChunk = null)
     {
         this.blockAccessor = blockAccessor ?? throw new ArgumentNullException(nameof(blockAccessor));
         this.sampleVanillaLighting = sampleVanillaLighting;
         if (maxTraversalSteps < 0) throw new ArgumentOutOfRangeException(nameof(maxTraversalSteps));
         this.maxTraversalSteps = maxTraversalSteps;
+        this.observeChunk = observeChunk;
     }
 
     /// <summary>Returns geometry hits independently of neighboring light data when sampling is disabled.</summary>
@@ -123,7 +126,9 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
             {
                 // Avoid forcing chunk loads; unavailable geometry aborts the trace.
                 // Note: some implementations may surface placeholder chunk objects that do not support all queries.
-                if (blockAccessor.GetChunkAtBlockPos(pos) == null)
+                var chunk = blockAccessor.GetChunkAtBlockPos(pos);
+                observeChunk?.Invoke(new(x >> 5, y >> 5, z >> 5), chunk);
+                if (chunk == null)
                 {
                     hit = default;
                     return WorldProbeTraceOutcome.Unavailable;

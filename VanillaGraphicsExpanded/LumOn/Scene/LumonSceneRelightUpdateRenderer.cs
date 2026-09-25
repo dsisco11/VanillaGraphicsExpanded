@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
+using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
@@ -54,6 +55,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         this.capi = capi; this.config = config; this.feedback = feedback; geometry = occupancy;
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_relight");
         capi.Event.LeaveWorld += OnLeaveWorld;
+        ((ICoreAPI)capi).Event.ChunkDirty += OnFallbackChunkDirty;
     }
 
     /// <summary>Returns retained lighting for verified surface identities, independently of lighting freshness.</summary>
@@ -103,6 +105,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             settingsHash != hash;
         if (changed)
         {
+            ResetFallback();
             diagnosticSeedQueue.Clear();
             diagnosticIndirectQueue.Clear();
             diagnosticResets++;
@@ -126,8 +129,9 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             LumonSceneChunkSlotUniformState.Ring, tile, pool.Plan.TilesPerAxis, pool.Plan.TilesPerAtlas, resources.LightingGeneration, dependencyRevision,
             LightingIsStale: current.InvalidationRevision != sceneRevision);
 
-        int count = Math.Min(maxPages, candidates.Length), batchCount = (tile * tile + texels - 1) / texels;
         publishable.Clear();
+        int fallbackPagesApplied = ApplyFallback(current,resources,gpu.RelightWork.Items,maxPages,tile);
+        int count = Math.Min(maxPages-fallbackPagesApplied, candidates.Length), batchCount = (tile * tile + texels - 1) / texels;
         lastWorkCount = 0;
         seedWork.Clear();
         traceWork.Clear();
@@ -164,8 +168,11 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             var work = CollectionsMarshal.AsSpan(operation == 0 ? seedWork : operation == 1 ? traceWork : refreshWork);
             if (work.Length == 0) continue;
             gpu.RelightWork.ResetAndUpload(work);
+            var fallbackBuffer = operation == 1 ? BeginFallbackCapture(current,work) : null;
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, operation,
-                (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated);
+                (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated,
+                fallbackRequests:fallbackBuffer);
+            if (fallbackBuffer != null) fallbackQueue!.Submit();
             // One completion read per operation, rather than a GPU synchronization for every page.
             long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
             using var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit);
@@ -264,13 +271,16 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     /// <summary>Reports bounded producer progress without reading GPU counters.</summary>
     internal bool TryGetSelfCheckLine(out string line)
     {
-        line = ReadinessDiagnosticLine();
+        line = ReadinessDiagnosticLine() + $" fallbackAdmitted:{fallbackAdmitted} fallbackCommitted:{fallbackCommitted} fallbackRejected:{fallbackRejected}";
         return config.LumOn.Enabled && config.LumOn.LumonScene.Enabled;
     }
 
     /// <summary>Retires borrowed publication references before disposing private GPU resources.</summary>
     private void OnLeaveWorld()
     {
+        ResetFallback();
+        fallbackCommitBuffer?.Dispose(); fallbackCommitBuffer = null;
+        System.Threading.Interlocked.Increment(ref fallbackWorldRevision);
         published = false; snapshot = default; atlas = null; scene = null;
         identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); seeded.Clear(); initialized.Clear(); publishedPages.Clear(); refreshSchedule.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
         readyBuffer?.Dispose(); readyBuffer = null; dispatch?.Dispose(); dispatch = null;
@@ -283,7 +293,9 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     public void Dispose()
     {
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Done);
-        capi.Event.LeaveWorld -= OnLeaveWorld; OnLeaveWorld();
+        capi.Event.LeaveWorld -= OnLeaveWorld;
+        ((ICoreAPI)capi).Event.ChunkDirty -= OnFallbackChunkDirty;
+        OnLeaveWorld(); fallbackWorker?.Dispose(); fallbackWorker = null;
     }
     #endregion
 }

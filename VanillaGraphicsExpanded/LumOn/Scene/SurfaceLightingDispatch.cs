@@ -16,6 +16,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
     private readonly TraceGeometryComputeBindings geometry = new();
     private readonly GpuUniformBuffer parameters = GpuUniformBuffer.Create(debugName: "SurfaceLighting.Parameters");
     private readonly byte[] bytes = new byte[96];
+    private readonly GpuShaderStorageBuffer disabledFallback = GpuShaderStorageBuffer.Create(debugName: "SurfaceLighting.DisabledFallback");
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
 
     #region Execution
@@ -26,15 +27,18 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             out var created, out _, out string log, preferSpirv: true))
             throw new InvalidOperationException(log);
         pipeline = created!;
+        disabledFallback.EnsureCapacity(32, growExponentially:false);
+        disabledFallback.UploadSubData<uint>(new uint[8],0,32);
     }
 
     /// <summary>Binds a coherent input snapshot and writes only the explicitly selected page batches.</summary>
     public void Run(TraceGeometryGpuScene scene, in SurfaceLightingSnapshot input, GpuTexture destination,
-        GpuShaderStorageBuffer work, int count, uint operation, uint texels, uint rays, uint steps, uint frame, bool emission, int maxFramesAccumulated = 4)
+        GpuShaderStorageBuffer work, int count, uint operation, uint texels, uint rays, uint steps, uint frame, bool emission, int maxFramesAccumulated = 4,
+        GpuShaderStorageBuffer? fallbackRequests = null, GpuShaderStorageBuffer? fallbackCommits = null)
     {
         if (input.OutgoingRadiance.TextureId == destination.TextureId)
             throw new ArgumentException("Surface lighting requires distinct outgoing generations.");
-        var stage = operation switch { 0 => SurfaceWorkStage.Seed, 1 => SurfaceWorkStage.Indirect,
+        var stage = operation switch { 0 => SurfaceWorkStage.Seed, 1 or 5 => SurfaceWorkStage.Indirect,
             2 => SurfaceWorkStage.Combine, 3 => SurfaceWorkStage.Reset, _ => SurfaceWorkStage.Direct };
         bool measured = Diagnostics.Begin(stage, count);
         try
@@ -51,6 +55,8 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             parameters.BindBase(GpuBindingRegistry.Ubo.Lights);
             geometry.Bind(scene);
             work.BindBase(0); input.Patches.BindBase(1); input.Slots.BindBase(2); input.Readiness.BindBase(3);
+            (fallbackRequests ?? disabledFallback).BindBase(5);
+            (fallbackCommits ?? disabledFallback).BindBase(6);
             input.Material.Bind(16); input.OutgoingRadiance.Bind(17);
             scene.LightColors.Bind(3); scene.BlockLevels.Bind(4); scene.SunLevels.Bind(5);
             input.PageTable.Bind(18); scene.Surfaces.Bind(7);
@@ -69,6 +75,6 @@ internal sealed class SurfaceLightingDispatch : IDisposable
 
     #region Lifetime
     /// <summary>Releases the program and per-dispatch parameters on the owning render context.</summary>
-    public void Dispose() { Diagnostics.Dispose(); pipeline.Dispose(); parameters.Dispose(); geometry.Dispose(); }
+    public void Dispose() { Diagnostics.Dispose(); pipeline.Dispose(); parameters.Dispose(); geometry.Dispose(); disabledFallback.Dispose(); }
     #endregion
 }

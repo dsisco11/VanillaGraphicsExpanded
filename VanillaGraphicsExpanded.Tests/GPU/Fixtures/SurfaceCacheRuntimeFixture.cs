@@ -126,7 +126,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
 
     #region Runtime setup
     /// <summary>Mocks camera and terrain raster inputs while retaining renderer registration, cache work and viewer selection.</summary>
-    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null, bool productionOwned = false, int feedbackPlaneX = 0)
+    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null, bool productionOwned = false, int feedbackPlaneX = 0, ControlledVoxelWorld? fallbackWorld = null)
     {
         this.spatial=spatial; edge=spatial==null?2:4;
         this.productionOwned=productionOwned; this.enclosure=enclosure; this.exposedWall=exposedWall;
@@ -147,7 +147,9 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         if(spatial!=null) { cfg.NearRadiusChunks=cfg.FarRadiusChunks=2; cfg.NearPagesPerChunkBudget=48; }
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
         world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
-        world.SetupGet(api => api.MapSizeY).Returns(256);
+        world.SetupGet(api => api.MapSizeY).Returns(fallbackWorld?.MapSizeY ?? 256);
+        if (fallbackWorld != null)
+            world.SetupGet(api => api.BlockAccessor).Returns(ControlledBlockAccessor.Create(fallbackWorld));
         world.SetupGet(api => api.Calendar).Returns((IClientGameCalendar)null!);
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         Terrain.Depth.UploadDataImmediate(Enumerable.Repeat(.5f,edge*edge).ToArray());

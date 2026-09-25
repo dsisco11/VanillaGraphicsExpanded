@@ -391,7 +391,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       build/deployment has zero warnings/errors. Five obsolete screen fixture cases remain excluded,
       documented with original failure receipts and replacement real-cache consumer coverage.
       No live gameplay performance or convergence claim; later user-run acceptance remains open.
-  ☐ Add bounded continuation or fallback for Surface Cache rays outside GPU coverage or unsupported
+  ☑ Add bounded continuation or fallback for Surface Cache rays outside GPU coverage or unsupported
     by GPU geometry.
     - Select and document the continuation representation/backend, reusing existing tracing
       infrastructure where appropriate. The world-probe fallback does not currently serve this path.
@@ -399,6 +399,12 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       page reuse or resource replacement. Preserve completed texels and valid displayed history.
     - Only established sky visibility completes a sky sample under the existing lighting contract;
       coverage exits and missing geometry must never become artificial sky or black contributions.
+    - Implemented one bounded collision-only CPU batch, asynchronous Surface Cache hit queries and
+      normal temporal accumulation/publication. Preserves retained history and rejects obsolete work.
+      Backend, bounds and limitations: docs/LumOn.SurfaceCache.GeometryFallback.md.
+    - Subagent-run focused validation: 86/86 pass; production build/deployment has zero warnings/errors.
+      Broader consumer/runtime validation remains unresolved as recorded in the validation task below;
+      no in-game convergence or performance claim.
   ☐ Resolve traversal-budget exhaustion for the intended Surface Cache trace distance.
     - Set suitable configurable traversal limits or implement bounded continuation, coordinated with
       expanded coverage and fallback. Raising coverage alone must not leave rays capped too early.
@@ -419,6 +425,9 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       synchronization bottlenecks through existing GPU abstractions rather than masking them.
   ☐ Validate Surface Cache throughput changes through subagent-run focused tests and a separate
     implementation review.
+    - Resolve or baseline-attribute the 19 broader consumer/runtime failures recorded during fallback
+      validation; see docs/LumOn.SurfaceCache.GeometryFallback.md. The interrupted broad run is not
+      a clean regression receipt.
     - Cover coverage deferral/wakeup, signed movement, streaming, unsupported geometry, long rays,
       sky boundaries, missing hit lighting, partial progress, fairness, edits and resource reuse.
     - Verify no false sky, uninitialized publication, dependency deadlock or whole-cache reset;

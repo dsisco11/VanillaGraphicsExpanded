@@ -15,6 +15,7 @@ layout(binding=7) uniform usampler2D surfaces;
 layout(binding=0, rgba16f) uniform image2DArray indirectIrradiance;
 layout(binding=1, rgba16f) uniform image2DArray directIrradiance;
 layout(binding=2, rgba16f) writeonly uniform image2DArray nextOutgoing;
+@import "./includes/surface_fallback.glsl"
 /** Rejects invalid inputs before conversion to bounded half-float storage. */
 bool finiteLight(vec3 value) { return !any(isnan(value)) && !any(isinf(value)); }
 /** Maps an axial normal into the engine face order. */
@@ -72,6 +73,22 @@ void main()
         return;
     }
     vec4 directState = imageLoad(directIrradiance, address);
+    if (operation == 5u)
+    {
+        // Render-thread lifetime validation precedes this dispatch; repeat GPU page/texel checks before accumulation.
+        if (directState.a != 1.0 || meta.chunkSlot != item.y || meta.patchId != (item.w & 0x3fffffffu)) return;
+        for (uint i=0u; i<uint(fallbackCommits.length()); i++)
+        {
+            SurfaceFallbackCommit commit = fallbackCommits[i];
+            if (all(equal(commit.identity,uvec4(id,item.y,item.w & 0x3fffffffu,linear))) && commit.estimate.a == 1.0)
+            {
+                if (surfaceAccumulate(address,commit.estimate.rgb))
+                { surfaceCount(SD_COMPLETED); atomicOr(work[wi].w,0x40000000u); }
+                return;
+            }
+        }
+        return;
+    }
     if (operation == 0u && (directState.a == 1.0 || directState.a == 2.0)) { surfaceCount(SD_UNCHANGED); return; }
     if (operation == 1u && directState.a != 1.0 && directState.a != 2.0)
     { surfaceCount(SD_UNSEEDED); atomicOr(work[wi].w, 0x80000000u); return; }
@@ -90,7 +107,11 @@ void main()
     uint outsideGeometry;
     int originStatus = lumonTraceSceneReadGeometry(cell, TRACE_SCENE_SURFACE, outsideGeometry);
     if (originStatus != TRACE_SCENE_READY)
-    { surfaceOriginFailure(originStatus); atomicOr(work[wi].w, 0x80000000u); return; }
+    {
+        if (operation == 1u && (originStatus == TRACE_SCENE_OUTSIDE || originStatus == TRACE_SCENE_UNSUPPORTED))
+            surfaceQueueFallback(wi,item,linear,batchCount,cell,fract(origin),n);
+        surfaceOriginFailure(originStatus); atomicOr(work[wi].w, 0x80000000u); return;
+    }
     // Preserve hidden-face identity in direct alpha so combining cannot add their material emission.
     if ((outsideGeometry & 3u) == 2u)
     {
@@ -137,6 +158,9 @@ void main()
         vec3 radiance; uint hitSurface;
         if (hit.outcome != LUMON_NEAR_FIELD_HIT)
         {
+            if (hit.outcome == LUMON_NEAR_FIELD_UNAVAILABLE &&
+                (hit.reason == TRACE_SCENE_OUTSIDE || hit.reason == TRACE_SCENE_UNSUPPORTED))
+                surfaceQueueFallback(wi,item,linear,batchCount,cell,fract(origin),n);
             surfaceCount(hit.outcome == LUMON_NEAR_FIELD_BUDGET ? SD_BUDGET :
                 hit.outcome == LUMON_NEAR_FIELD_CLEAR ? SD_DISTANCE :
                 hit.reason == TRACE_SCENE_OUTSIDE ? SD_OUTSIDE :
@@ -153,14 +177,7 @@ void main()
     vec3 estimate = sum / float(rays);
     // A failed/nonfinite batch must not age history or replace valid lighting with an artificial zero.
     if (!finiteLight(estimate)) { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
-    vec4 previous = imageLoad(indirectIrradiance,address);
-    if (!finiteLight(previous.rgb) || isnan(previous.a) || isinf(previous.a)) previous = vec4(0);
-    // Match UE radiosity: blend using the previous count, then cap the stored next count.
-    // A lower runtime limit takes effect after this successful sample; unresolved work changes nothing.
-    float previousWeight = max(0.0,previous.a);
-    float weight = min(previousWeight+1.0,float(max(1u,lighting.policy.z)));
-    float alpha = 1.0/(1.0+previousWeight);
-    imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,estimate,alpha),vec3(0),vec3(65504)),weight));
+    surfaceAccumulate(address,estimate);
     surfaceCount(SD_COMPLETED);
     atomicOr(work[wi].w, 0x40000000u);
 }

@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
+using VanillaGraphicsExpanded.LumOn.Scene.Fallback;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -161,12 +162,13 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     }
 
     /// <summary>Dispatches a bounded prefix without readback or publication so timing excludes fixture synchronization.</summary>
-    public void DispatchDiagnosticWork(uint operation, int pageCount=4, uint texels=64, uint rays=1, uint steps=64, uint frame=1)
+    public void DispatchDiagnosticWork(uint operation, int pageCount=4, uint texels=64, uint rays=1, uint steps=64, uint frame=1, GpuShaderStorageBuffer? fallbackRequests=null, uint bucket=0)
     {
         int count=Math.Min(pageCount,lightingItems.Length);
-        work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems.AsSpan(0,count),0,count<<4);
+        var selected=lightingItems.Take(count).Select(item=>new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,bucket,item.VirtualPageIndex)).ToArray();
+        work.UploadSubData<LumonSceneRelightWorkGpu>(selected,0,count<<4);
         producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,count,operation,texels,rays,steps,frame,
-            EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
+            EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests);
     }
 
     /// <summary>Seeds direct and emitted lighting, resetting dependent indirect history.</summary>
@@ -264,18 +266,30 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     }
 
     /// <summary>Runs one selected texel through the real producer, then combines its result for numerical observation.</summary>
-    public bool BounceSample(int page = 0, int linear = 27, uint rays = 4, uint steps = 256, uint frame = 1)
+    public bool BounceSample(int page = 0, int linear = 27, uint rays = 4, uint steps = 256, uint frame = 1, GpuShaderStorageBuffer? fallbackRequests=null)
     {
         var item=lightingItems[page];
         var selected=new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,(uint)linear,item.VirtualPageIndex);
         work.UploadSubData<LumonSceneRelightWorkGpu>(new[]{selected},0,16);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests);
         bool complete;
         using(var result=work.MapRange<LumonSceneRelightWorkGpu>(0,1,MapBufferAccessMask.MapReadBit))
         { Assert.True(result.IsMapped); complete=(result.Span[0].VirtualPageIndex & 0x80000000u)==0; }
         // This controlled estimator test combines immediately; production page scheduling is exercised separately.
         if(complete) Publish();
         return complete;
+    }
+
+    /// <summary>Applies validated fallback estimates through the packaged producer and its normal combine operation.</summary>
+    public void CommitFallback(ReadOnlySpan<SurfaceFallbackCommit> commits, int page=0, int linear=27)
+    {
+        using var estimates=Buffer(commits);
+        var item=lightingItems[page];
+        var selected=new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,(uint)linear,item.VirtualPageIndex);
+        work.UploadSubData<LumonSceneRelightWorkGpu>(new[]{selected},0,16);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,5,1,1,256,1,EmissionPolicy,
+            maxFramesAccumulated:MaxFramesAccumulated,fallbackCommits:estimates);
+        Publish();
     }
 
     /// <summary>Reads a selected physical page texel, defaulting to the first patch interior.</summary>
