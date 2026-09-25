@@ -74,6 +74,26 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     #endregion
 
     #region History lifetime
+    /// <summary>A submitted bright query cannot publish after source readiness is withdrawn, without replacing the cache generation.</summary>
+    [Fact]
+    public void PendingQueryRejectsSourceInvalidationWithoutGlobalCacheReplacement()
+    {
+        EnsureContextValid();
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
+        Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
+        Assert.True(runtime.Cache.TryGetLighting(out var before));
+        runtime.Cache.GeometryAvailable=false;
+        runtime.Cache.InvalidateGeometry();
+        runtime.Frame();
+        Assert.True(runtime.Cache.TryGetLighting(out var suspended));
+        Assert.Equal(before.DependencyRevision,suspended.DependencyRevision);
+        Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
+        runtime.Cache.GeometryAvailable=true;
+        runtime.Cache.InvalidateGeometry();
+        runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+    }
+
     /// <summary>An unavailable engine accessor cannot postpone already queued slot retirement past the frame callback.</summary>
     [Fact]
     public void MissingWorldAccessorStillFlushesQueuedHistory()

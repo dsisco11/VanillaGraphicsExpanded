@@ -54,7 +54,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         capi.Event.LeaveWorld += OnLeaveWorld;
     }
 
-    /// <summary>Returns only a generation whose geometry, settings and capture history still match its producer.</summary>
+    /// <summary>Returns retained lighting for verified surface identities, independently of lighting freshness.</summary>
     public bool TryGetSurfaceLighting(out SurfaceLightingSnapshot result)
     {
         result = default;
@@ -63,12 +63,14 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             !ReferenceEquals(pool.GpuResources, atlas) || readyBuffer == null)
             return false;
         var current = geometry.PrepareScene();
-        if (!ReferenceEquals(current, scene) || current?.InvalidationRevision != sceneRevision ||
+        if (current == null || !ReferenceEquals(current, scene) ||
             feedback.GeometryHistoryRevision != historyRevision || SettingsHash() != settingsHash) return false;
+        feedback.SynchronizeCaptureIdentities(current);
         SynchronizePages(mapping, mirror, selectCandidates: false);
         if (!published) return false;
         snapshot = snapshot with { Origin = LumonSceneChunkSlotUniformState.OriginMinChunk,
-            Dimensions = LumonSceneChunkSlotUniformState.Dims, Ring = LumonSceneChunkSlotUniformState.Ring };
+            Dimensions = LumonSceneChunkSlotUniformState.Dims, Ring = LumonSceneChunkSlotUniformState.Ring,
+            LightingIsStale = current.InvalidationRevision != sceneRevision };
         result = snapshot;
         return true;
     }
@@ -84,6 +86,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         { published = false; ReportReadiness("atlas-or-slots-unavailable"); return; }
         if (geometry.PrepareScene() is not { } current)
         { published = false; ReportReadiness("geometry-unavailable"); return; }
+        feedback.SynchronizeCaptureIdentities(current);
         var cfg = config.LumOn.LumonScene;
         int tile = pool.Plan.TileSizeTexels;
         int texels = Math.Min(tile * tile, cfg.RelightTexelsPerPagePerFrame);
@@ -92,13 +95,13 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         if (texels <= 0 || maxPages <= 0) { ReportReadiness("zero-budget"); return; }
         int hash = SettingsHash();
         bool changed = !ReferenceEquals(atlas, resources) || !ReferenceEquals(scene, current) ||
-            sceneRevision != current.InvalidationRevision || historyRevision != feedback.GeometryHistoryRevision ||
+            historyRevision != feedback.GeometryHistoryRevision ||
             settingsHash != hash;
         if (changed)
         {
             diagnosticResets++;
             dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
-            published = false; seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); cursor = 0;
+            published = false; seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); cursor = 0;
             atlas = resources; scene = current; sceneRevision = current.InvalidationRevision;
             historyRevision = feedback.GeometryHistoryRevision; settingsHash = hash;
             readiness = new uint[pool.Plan.CapacityPages + 1];
@@ -113,7 +116,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         snapshot = new(resources.PublishedOutgoing, resources.DirectAtlas, resources.IrradianceAtlas,
             gpu.PageTable.PageTableMip0, resources.MaterialAtlas, gpu.PatchMetadata.Ssbo, slots, readyBuffer,
             LumonSceneChunkSlotUniformState.OriginMinChunk, LumonSceneChunkSlotUniformState.Dims,
-            LumonSceneChunkSlotUniformState.Ring, tile, pool.Plan.TilesPerAxis, pool.Plan.TilesPerAtlas, resources.LightingGeneration, dependencyRevision);
+            LumonSceneChunkSlotUniformState.Ring, tile, pool.Plan.TilesPerAxis, pool.Plan.TilesPerAtlas, resources.LightingGeneration, dependencyRevision,
+            LightingIsStale: current.InvalidationRevision != sceneRevision);
 
         int count = Math.Min(maxPages, candidates.Length), batchCount = (tile * tile + texels - 1) / texels;
         publishable.Clear();
@@ -252,7 +256,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private void OnLeaveWorld()
     {
         published = false; snapshot = default; atlas = null; scene = null;
-        identities.Clear(); pageGenerations.Clear(); seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
+        identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
         readyBuffer?.Dispose(); readyBuffer = null; dispatch?.Dispose(); dispatch = null;
         seedWork.Clear(); traceWork.Clear(); resetWork.Clear(); publishable.Clear(); committedWork.Clear();
         cursor = frame = lastWorkCount = 0; sceneRevision = historyRevision = -1;

@@ -301,9 +301,9 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     }
 
     /// <summary>Changes the physical tile layout so the production pool must replace its atlases.</summary>
-    public void RequestAtlasRecreation() => Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 2;
+    public void RequestAtlasRecreation() => Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge == 2 ? 1 : 2;
 
-    /// <summary>Changes the source field and versions captured chunks so production invalidates dependent lighting.</summary>
+    /// <summary>Changes source lighting and withdraws geometry readiness until the replacement source is published.</summary>
     public void ChangeBlockLight(int value)
     {
         BlockLight=value; if (spatial != null) spatial.BlockLight=value;

@@ -64,6 +64,7 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
     /// <remarks>
     /// Requires a current GL context on the calling thread.
     /// The caller must ensure the desired read framebuffer is bound before calling this method.
+    /// Rows use the requested alignment with no skips or byte swapping; prior pack state is restored.
     /// </remarks>
     public void ReadPixels(
         int x,
@@ -92,36 +93,9 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
 
         using var scope = BindScope();
 
-        int previousPackAlignment = 4;
-        try
-        {
-            GL.GetInteger(GetPName.PackAlignment, out previousPackAlignment);
-        }
-        catch
-        {
-            previousPackAlignment = 4;
-        }
-
-        try
-        {
-            GL.PixelStore(PixelStoreParameter.PackAlignment, packAlignment);
-            GL.ReadPixels(x, y, width, height, format, type, (IntPtr)dstOffsetBytes);
-        }
-        finally
-        {
-            try
-            {
-                if (previousPackAlignment != packAlignment)
-                {
-                    GL.PixelStore(PixelStoreParameter.PackAlignment, previousPackAlignment);
-                }
-            }
-            catch
-            {
-            }
-        }
+        using var packScope = GlStateCache.Current.SetPixelPackScope(new GlStateCache.PixelPackState(packAlignment));
+        GL.ReadPixels(x, y, width, height, format, type, (IntPtr)dstOffsetBytes);
     }
-
     /// <summary>
     /// Maps a subrange of the PBO into client address space using <c>glMapBufferRange</c>.
     /// </summary>
@@ -244,4 +218,3 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
         return GL.MapBufferRange(BufferTarget.PixelPackBuffer, IntPtr.Zero, byteCount, mapFlags);
     }
 }
-

@@ -148,7 +148,7 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
         Metrics = new(partition.Instance, Resources.Resolution, source.Cache.SourceReads, source.Cache.InFlight,
             source.Cache.SnapshotBytes, partition.StagedPayloadBytes, Resources.TextureBytes, Resources.UploadedBytes,
             partition.PublishedCells, milliseconds, totalUpdate / updateCount, peakUpdate,
-            near.Count, surface.Count, near.Count(surface.Contains), partitions.GetCoordinator().Statistics(partition.Instance));
+            near.Count, surface.Count, near.Count(surface.Contains), partitions.GetCoordinator().Statistics(partition.Instance), Resources.CaptureIdentityBytes);
         TraceGeometryRuntimeMetrics.Current = Metrics;
         if (partitions.RecordDiagnostics) api.Logger.Notification("[VGE PartitionMetrics] {0}", DumpTraceSceneSchedulerState(0));
     }

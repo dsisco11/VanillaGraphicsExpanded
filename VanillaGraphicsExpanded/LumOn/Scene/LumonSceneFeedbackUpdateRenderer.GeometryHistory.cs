@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
-/// <summary>Invalidates surface-cache captures and irradiance after shared geometry changes.</summary>
+/// <summary>Separates incompatible scene history from per-page capture identity changes.</summary>
 internal sealed partial class LumonSceneFeedbackUpdateRenderer
 {
     private LumonSceneIrradianceHistory? irradianceHistory;
@@ -14,7 +14,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
     internal long GeometryHistoryRevision { get; private set; }
 
     #region Shared geometry invalidation
-    /// <summary>Resets history before sampling and requeues resident pages when previous tracing inputs became stale.</summary>
+    /// <summary>Checks per-page identities, resetting all captures only when their scene or atlas lifetime is incompatible.</summary>
     private bool EnsureGeometryHistoryCurrent()
     {
         var atlas = physicalPools.Near.GpuResources?.IrradianceAtlas;
@@ -22,8 +22,13 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
         var scene = traceGeometry?.PrepareScene();
         irradianceHistory ??= new(capi);
         if (!irradianceHistory.TrySynchronize(scene, atlas, out bool invalidated)) return false;
-        if (!invalidated) return true;
-        // Conservative invalidation covers indirect ray dependencies beyond the page's own chunk.
+        if (!invalidated)
+        {
+            SynchronizeCaptureIdentities(scene!);
+            return true;
+        }
+        captureIdentities.Clear(); unavailableCaptures.Clear(); checkedGeometryRevision = -1;
+        // Only incompatible scene/material identities or replacement atlas storage require a full recapture.
         foreach (var pair in virtualToPhysical)
         {
             uint slot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(pair.Key);
@@ -69,6 +74,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
     {
         captureRetries.Clear();
         irradianceHistory?.Dispose(); irradianceHistory = null;
+        captureIdentities.Clear(); unavailableCaptures.Clear(); checkedGeometryRevision = -1;
     }
     #endregion
 }

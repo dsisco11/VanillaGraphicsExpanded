@@ -2001,11 +2001,12 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             }
 
             mapped.Span.CopyTo(items.AsSpan(0, captureCount));
+            var captureScene = traceGeometry?.PrepareScene();
 
             for (int i = 0; i < captureCount; i++)
             {
                 // The shader marks unavailable material/geometry with the high bit; retry the page.
-                if ((items[i].VirtualPageIndex & 0x80000000u) != 0)
+                if ((items[i].VirtualPageIndex & 0x80000000u) != 0 || !RecordCaptureIdentity(items[i], captureScene))
                 {
                     diagnosticCaptureFailures++;
                     captureRetries.Add(LumonSceneVirtualPageKeyUtil.Pack(items[i].ChunkSlot, items[i].VirtualPageIndex & 0x7fffffffu));

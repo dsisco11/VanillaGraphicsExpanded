@@ -114,6 +114,8 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         foreach(int light in new[]{0,32})
         {
             runtime.Cache.ChangeBlockLight(light);
+            // Exercise a hard storage lifetime; automatic stale-light refresh is a separate scheduling contract.
+            runtime.Cache.RequestAtlasRecreation();
             runtime.Frame();
             runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.WorldConfidence>=.25f &&
                 (light!=0 ? SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f : SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())<=.0001f) &&
@@ -178,7 +180,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.True(runtime.Cache.TryGetLighting(out var before));
-        runtime.Cache.ChangeBlockLight(0); runtime.Frame();
+        runtime.Cache.ChangeBlockLight(0); runtime.Cache.RequestAtlasRecreation(); runtime.Frame();
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out var after)&&after.DependencyRevision!=before.DependencyRevision
             && runtime.WorldConfidence>=.25f);
@@ -200,7 +202,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         runtime.World.HoldWorker();
         runtime.RunUntil(()=>runtime.World.WorkerWaiting);
         Assert.True(runtime.Cache.TryGetLighting(out var before));
-        runtime.Cache.ChangeBlockLight(0); runtime.Frame();
+        runtime.Cache.ChangeBlockLight(0); runtime.Cache.RequestAtlasRecreation(); runtime.Frame();
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
         runtime.World.ReleaseWorker();
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out var after)&&after.DependencyRevision!=before.DependencyRevision

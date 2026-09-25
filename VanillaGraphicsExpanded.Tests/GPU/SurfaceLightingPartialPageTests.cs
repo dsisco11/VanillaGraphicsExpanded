@@ -43,13 +43,14 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         Assert.DoesNotContain(runtime.Events.Registrations,r=>r.Name=="vge_worldprobe_update");
         for(int frame=0;frame<16;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var snapshot));
-        var pixels=ReadFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
-        Assert.Equal((density*density)<<3,pixels.Where((_,i)=>(i&3)==3).Count(value=>value==1));
-        Assert.Equal((density*density)<<3,pixels.Where((_,i)=>(i&3)==3).Count(value=>value==0));
+        using var pixelsOwner=ReadFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
+        var pixels=pixelsOwner.Span;
+        Assert.Equal((density*density)<<3,CountValidity(pixels,1));
+        Assert.Equal((density*density)<<3,CountValidity(pixels,0));
         for(int index=0;index<pixels.Length;index+=4)
         {
-            Assert.All(pixels[index..(index+4)],value=>Assert.True(float.IsFinite(value)));
-            if(pixels[index+3]==0) Assert.Equal(new float[4],pixels[index..(index+4)]);
+            foreach(float value in pixels.Slice(index,4)) Assert.True(float.IsFinite(value));
+            if(pixels[index+3]==0) { foreach(float value in pixels.Slice(index,4)) Assert.Equal(0,value); }
             else Assert.True(pixels[index]>.001f);
         }
         using var queries=new SurfaceLightingQueryBatch(runtime.Api);
@@ -70,14 +71,19 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(()=>runtime.TryGetLighting(out _));
         Assert.True(runtime.TryGetLighting(out var before));
-        runtime.TransformVoxel=(x,y,z,voxel)=>x==1 && y>=34 ? voxel with { Geometry=3 } : voxel;
+        Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _));
+        uint page=pages.Single().Key;
+        long capture=runtime.Feedback.GetCaptureRevision(page);
+        runtime.TransformVoxel=(x,y,z,voxel)=>x==0 && y>=34 ? voxel with { Geometry=1 } : x==1 && y<34 ? voxel with { Geometry=3 } : voxel;
         runtime.ChangeBlockLight(0);
-        runtime.RunUntil(()=>runtime.TryGetLighting(out var after) && after.DependencyRevision!=before.DependencyRevision);
-        for(int frame=0;frame<8;frame++) runtime.Frame();
+        for(int frame=0;frame<24;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var snapshot));
-        var pixels=ReadFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
-        Assert.Equal(8,pixels.Where((_,i)=>(i&3)==3).Count(value=>value==1));
-        Assert.Equal(8,pixels.Where((_,i)=>(i&3)==3).Count(value=>value==0));
+        Assert.True(runtime.Feedback.GetCaptureRevision(page)>capture);
+        Assert.Equal(before.DependencyRevision,snapshot.DependencyRevision);
+        using var pixelsOwner=ReadFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
+        var pixels=pixelsOwner.Span;
+        Assert.Equal(8,CountValidity(pixels,1));
+        Assert.Equal(8,CountValidity(pixels,0));
         for(int index=0;index<pixels.Length;index++) if((index&3)!=3) Assert.Equal(0,pixels[index]);
     }
     #endregion
@@ -98,9 +104,12 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         bool publishedBounce=false;
         foreach(uint physical in mapping.Keys)
         {
-            var outgoing=ReadPage(snapshot.OutgoingRadiance,snapshot,physical);
-            var direct=ReadPage(snapshot.DirectIrradiance,snapshot,physical);
-            var indirect=ReadPage(snapshot.IndirectIrradiance,snapshot,physical);
+            using var outgoingOwner=SurfaceLightingPageReadback.Read(snapshot.OutgoingRadiance,snapshot,physical);
+            var outgoing=outgoingOwner.Span;
+            using var directOwner=SurfaceLightingPageReadback.Read(snapshot.DirectIrradiance,snapshot,physical);
+            var direct=directOwner.Span;
+            using var indirectOwner=SurfaceLightingPageReadback.Read(snapshot.IndirectIrradiance,snapshot,physical);
+            var indirect=indirectOwner.Span;
             for(int index=0;index<outgoing.Length;index+=4)
             {
                 Assert.Equal(1,outgoing[index+3]);
@@ -115,29 +124,19 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     #endregion
 
     #region Atlas observations
+    /// <summary>Counts initialized texels directly from the borrowed readback span.</summary>
+    private static int CountValidity(ReadOnlySpan<float> pixels,float value)
+    {
+        int count=0;
+        for(int i=3;i<pixels.Length;i+=4) if(pixels[i]==value) count++;
+        return count;
+    }
     /// <summary>Reads one real resident tile without copying the full physical atlas.</summary>
-    private static float[] ReadFirstPage(SurfaceCacheRuntimeFixture runtime,Texture3D texture,in SurfaceLightingSnapshot snapshot)
+    private static VanillaGraphicsExpanded.Collections.PooledArray<float> ReadFirstPage(SurfaceCacheRuntimeFixture runtime,Texture3D texture,in SurfaceLightingSnapshot snapshot)
     {
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
-        return ReadPage(texture,snapshot,mapping.Keys.Min());
+        return SurfaceLightingPageReadback.Read(texture,snapshot,mapping.Keys.Min());
     }
 
-    /// <summary>Reads a selected physical page through its actual array layer and tile coordinates.</summary>
-    private static float[] ReadPage(Texture3D texture,in SurfaceLightingSnapshot snapshot,uint page)
-    {
-        int physical=checked((int)page)-1;
-        int local=physical%snapshot.TilesPerAtlas;
-        int x=(local%snapshot.TilesPerAxis)*snapshot.TileSize;
-        int y=(local/snapshot.TilesPerAxis)*snapshot.TileSize;
-        using var framebuffer=GpuFramebuffer.CreateEmpty("Tests.PartialSurfacePage.Readback");
-        framebuffer.Bind();
-        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,texture.TextureId,0,physical/snapshot.TilesPerAtlas);
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-        var pixels=new float[(snapshot.TileSize*snapshot.TileSize)<<2];
-        GL.ReadPixels(x,y,snapshot.TileSize,snapshot.TileSize,PixelFormat.Rgba,PixelType.Float,pixels);
-        GpuFramebuffer.Unbind();
-        Assert.Equal(ErrorCode.NoError,GL.GetError());
-        return pixels;
-    }
     #endregion
 }

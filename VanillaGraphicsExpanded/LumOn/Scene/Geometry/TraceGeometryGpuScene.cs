@@ -6,7 +6,7 @@ using VanillaGraphicsExpanded.WorldPartition;
 namespace VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 
 /// <summary>One ring of coherent geometry, dual lighting and material tables for both consumers.</summary>
-internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
+internal sealed partial class TraceGeometryGpuScene : ITraceGeometryBackend
 {
     private readonly PartitionRequest?[] owners;
     private TraceGeometryCoverage? coverage;
@@ -36,6 +36,7 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
         Resolution = resolution;
         int slots = resolution / 16;
         owners = new PartitionRequest[slots * slots * slots];
+        geometryCells = new System.Collections.Immutable.ImmutableArray<uint>[owners.Length];
         Geometry = Texture3D.Create(resolution, resolution, resolution, PixelInternalFormat.R32ui, TextureFilterMode.Nearest);
         Legacy = Texture3D.Create(resolution, resolution, resolution, PixelInternalFormat.R32ui, TextureFilterMode.Nearest);
         Light = Texture3D.Create(resolution, resolution, resolution, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest);
@@ -62,6 +63,7 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
     /// <summary>Releases all storage on the render thread after registration retirement.</summary>
     public void Dispose()
     {
+        Array.Clear(geometryCells);
         Geometry.Dispose(); Legacy.Dispose(); Light.Dispose(); Readiness.Dispose(); Faces.Dispose(); Materials.Dispose();
         Surfaces.Dispose(); LightColors.Dispose(); BlockLevels.Dispose(); SunLevels.Dispose();
     }
@@ -135,6 +137,7 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
         GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
         if (request.Cancellation.IsCancellationRequested || owners[slot] != request) return false;
         Readiness.UploadDataImmediate(new byte[] { 1 }, Wrap(c.X), Wrap(c.Y), Wrap(c.Z), 1, 1, 1);
+        geometryCells[slot] = cell.GeometrySnapshot;
         UploadedBytes++; Revision++;
         return true;
     }
@@ -167,6 +170,7 @@ internal sealed class TraceGeometryGpuScene : ITraceGeometryBackend
     private void Clear(in PartitionCoordinate c, bool invalidateHistory = true)
     {
         if (invalidateHistory && owners[Slot(c)] != null) InvalidationRevision++;
+        geometryCells[Slot(c)] = default;
         Readiness.UploadDataImmediate(new byte[1], Wrap(c.X), Wrap(c.Y), Wrap(c.Z), 1, 1, 1); UploadedBytes++; Revision++;
     }
 

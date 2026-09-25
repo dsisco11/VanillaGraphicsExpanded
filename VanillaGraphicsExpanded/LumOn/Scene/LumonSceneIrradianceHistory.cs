@@ -6,13 +6,12 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
-/// <summary>Owns irradiance history validity and clears stale lighting before consumers can reuse it.</summary>
+/// <summary>Clears incompatible storage while retaining valid lighting through source freshness changes.</summary>
 internal sealed class LumonSceneIrradianceHistory : IDisposable
 {
     private readonly ICoreClientAPI capi;
     private TraceGeometryGpuScene? previousScene;
-    private long previousInvalidation = -1;
-    private int previousAtlas;
+    private GpuTexture? previousAtlas;
     private GpuComputePipeline? reset;
 
     /// <summary>Counts successful history resets for consumers with partial relight schedules.</summary>
@@ -26,8 +25,9 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
     public bool TrySynchronize(TraceGeometryGpuScene? scene, GpuTexture atlas, out bool invalidated)
     {
         invalidated = false;
-        long revision = scene?.InvalidationRevision ?? -1;
-        if (ReferenceEquals(previousScene, scene) && previousInvalidation == revision && previousAtlas == atlas.TextureId)
+        // Temporary loss of geometry is not permission to erase a retained generation.
+        if (scene == null) return false;
+        if (ReferenceEquals(previousScene, scene) && ReferenceEquals(previousAtlas, atlas))
             return true;
         if (reset == null && !GpuComputePipeline.TryCreateFromAssets(capi, Shaders.LumonSceneResetIrradianceComputeShader.Contract.Identity,
             out reset, out _, out var log, preferSpirv: true))
@@ -36,7 +36,7 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
             return false;
         }
 
-        // Clear the entire atlas: rays can depend on changed geometry outside their own page's chunk.
+        // Scene replacement changes immutable material identities; atlas replacement is new storage.
         using (reset!.UseScope())
         {
             atlas.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
@@ -44,8 +44,7 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
         }
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
         previousScene = scene;
-        previousInvalidation = revision;
-        previousAtlas = atlas.TextureId;
+        previousAtlas = atlas;
         Revision++;
         invalidated = true;
         return true;
@@ -59,8 +58,7 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
         reset?.Dispose();
         reset = null;
         previousScene = null;
-        previousInvalidation = -1;
-        previousAtlas = 0;
+        previousAtlas = null;
     }
     #endregion
 }

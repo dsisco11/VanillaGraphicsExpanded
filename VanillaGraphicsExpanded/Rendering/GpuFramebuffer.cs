@@ -684,6 +684,20 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
     }
 
+    /// <summary>Attaches one base-level color layer without taking ownership of its texture.</summary>
+    public void AttachColorLayer(Texture3D texture, int layer, int attachmentIndex = 0)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        if (!IsValid || !texture.IsValid) throw new InvalidOperationException("Framebuffer and texture must be valid.");
+        if ((uint)layer >= (uint)texture.Depth) throw new ArgumentOutOfRangeException(nameof(layer));
+        if ((uint)attachmentIndex > 15) throw new ArgumentOutOfRangeException(nameof(attachmentIndex));
+        Bind();
+        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0 + attachmentIndex, texture.TextureId, 0, layer);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + attachmentIndex);
+    }
+
     /// <summary>
     /// Attaches a depth texture to this framebuffer.
     /// Useful for reusing a single FBO as a scratch target.

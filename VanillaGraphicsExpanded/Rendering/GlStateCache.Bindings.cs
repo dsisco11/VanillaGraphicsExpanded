@@ -23,12 +23,13 @@ internal sealed partial class GlStateCache
     private readonly Dictionary<int, int> elementArrayBufferByVao = new();
 
     /// <summary>
-    /// Clears all cached GL bindings so the next access refetches from GL.
+    /// Clears cached GL bindings and pixel-pack layout so the next access refetches from GL.
     /// Useful when running alongside a mixed system that also mutates GL state.
     /// </summary>
     public void PurgeCache()
     {
         InvalidateBindings();
+        DirtyPixelPackState();
     }
 
     /// <summary>

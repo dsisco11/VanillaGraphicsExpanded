@@ -21,6 +21,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     private readonly List<SurfaceLightingQuery> surfaceQueryWork = new();
     private long surfaceRevision = -1;
     private LumOnWorldProbeClipmapGpuResources? lightingProbeResources;
+    private TraceGeometryGpuScene? queriedGeometry;
+    private long queriedGeometryInvalidation;
 
     #region Cache ownership
     /// <summary>Injects render-thread providers; neither provider is passed to CPU tracing workers.</summary>
@@ -35,6 +37,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         lightingProbeResources=resources;
         surfaceRevision=revision;
         surfaceQueries?.Dispose(); surfaceQueries=null; pendingSurfaceResults.Clear();
+        queriedGeometry = null;
         // Retiring the service prevents obsolete workers from publishing into the new scheduler generation.
         traceService?.Dispose(); traceService=null;
         scheduler?.ResetAll(); resources.ClearAll();
@@ -45,6 +48,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     {
         surfaceQueries?.Dispose(); surfaceQueries=null;
         pendingSurfaceResults.Clear(); surfaceRetries.Clear(); surfaceQueryWork.Clear(); surfaceRevision=-1; lightingProbeResources=null;
+        queriedGeometry = null;
     }
     #endregion
 
@@ -99,9 +103,19 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         if (surfaceQueries?.Pending == true)
         {
             if (!surfaceQueries.TryRead(out var completed)) return;
+            var currentGeometry = geometryProvider?.PrepareScene();
+            bool geometryMatches = ReferenceEquals(currentGeometry, queriedGeometry) &&
+                currentGeometry?.InvalidationRevision == queriedGeometryInvalidation;
             int query = 0;
             foreach (var result in pendingSurfaceResults)
             {
+                // A completed GPU answer belongs to the geometry it queried. Retire delayed
+                // answers after source invalidation without erasing already published directions.
+                if (!geometryMatches)
+                {
+                    scheduler.Complete(result.Request, frameIndex, false);
+                    continue;
+                }
                 var resolved = WorldProbeSurfaceLighting.Resolve(result, completed, ref query);
                 PublishSurfaceResult(resources, uploader, result, resolved, ref budget, limited, retries);
             }
@@ -150,6 +164,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         if (queries.Count == 0) return;
         surfaceQueries ??= new(capi);
         surfaceQueries.Submit(scene!, snapshot, CollectionsMarshal.AsSpan(queries));
+        queriedGeometry = scene;
+        queriedGeometryInvalidation = scene!.InvalidationRevision;
     }
     #endregion
 }

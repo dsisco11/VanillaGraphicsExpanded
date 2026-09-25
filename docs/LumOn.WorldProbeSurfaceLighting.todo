@@ -145,12 +145,30 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       artifacts/surface-sky-baseline-receipts/baseline.trx. Live validation remains below.
   Surface Cache refresh without global erasure:
   Evidence: docs/LumOn.SurfaceCache.ResetDiagnostics.md records the stationary dirty-chunk reset.
-  ☐ Separate valid-but-stale lighting from invalid surface identity; update the lighting contract.
+  ✔ Separate valid-but-stale lighting from invalid surface identity; update the lighting contract.
     - Preserve published lighting and unchanged captures after ordinary chunk/light notifications.
       Determine affected capture identities from relevant geometry/material changes; a dirty
       notification alone is not proof that every surface in the chunk changed.
     - Reject removed/replaced surfaces, reassigned pages, and delayed results with obsolete identities.
       Keep explicit initialization for new storage and hard invalidation for incompatible resources.
+    - Implemented exact immutable sixteen-voxel capture identities, page content revisions and
+      temporary source-availability gating. Unchanged/light-only notifications preserve captured
+      material and lighting; changed patches alone recapture. Same-frame recapture cannot reuse
+      prior lighting readiness. Scene/material and atlas lifetime changes retain hard initialization.
+    - Source freshness no longer changes the cache dependency lifetime. LightingIsStale explicitly
+      reports retained source-stale values. Pending GPU probe answers reject changed source
+      invalidation revisions without globally erasing previously published probe directions.
+    - Validation: 35 focused GPU/runtime tests passed; a final repeat also passed the strengthened
+      capture-revision assertion. Coverage includes signed six-axis addressing, bounded identity
+      storage, retained direct/indirect/outgoing data, suspended query rejection/recovery, selective
+      same-chunk recapture, partial publication, hard replacement and delayed probe answers.
+      Independent production review found no remaining identity-validity gap. Receipts:
+      artifacts/TestResults/surface-identity-final.trx and
+      artifacts/TestResults/surface-identity-capture-revision.trx.
+      Normal mod build/deployment passed with zero warnings/errors; receipt:
+      artifacts/surface-identity-deploy.log.
+    - Direct-light freshness scheduling and temporal adaptation remain the following tasks;
+      retained old lighting is not a claim of updated-light convergence. In-game validation remains open.
   ☐ Replace global erase/recapture with bounded refresh scheduling for direct and indirect lighting.
     - Revisit already seeded pages for direct-light changes; keep successful partial work and fair
       retries. Geometry changes may affect lighting beyond the edited chunk: ensure all resident

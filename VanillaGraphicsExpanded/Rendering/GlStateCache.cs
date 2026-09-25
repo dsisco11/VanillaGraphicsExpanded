@@ -58,6 +58,7 @@ internal sealed partial class GlStateCache
         if (blendFuncIndexed is not null) Array.Fill(blendFuncIndexed, null);
 
         InvalidateBindings();
+        DirtyPixelPackState();
     }
 
     public void DirtyIndexedBlendFunc()
