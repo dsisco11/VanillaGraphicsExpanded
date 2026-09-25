@@ -23,6 +23,8 @@ public sealed class SharedGeometryCostMeasurementsTests : RenderTestBase
     [Theory]
     [InlineData(0)]
     [InlineData(128)]
+    [InlineData(192)]
+    [InlineData(256)]
     public void StartupMovementAndEdit(int surfaceSize)
     {
         EnsureContextValid();
@@ -53,11 +55,12 @@ public sealed class SharedGeometryCostMeasurementsTests : RenderTestBase
             var layout = new PartitionLayout(new(16, 16, 16));
             var expectedCells = new[] { plan.NearField, plan.Surface }.Where(bounds => bounds.HasValue)
                 .SelectMany(bounds => layout.Intersecting(plan.Clip(bounds!.Value))).ToHashSet();
-            Assert.Equal(surfaceSize == 0 ? 27 : 512, expectedCells.Count);
+            int side=surfaceSize >> 4, sourceSide=surfaceSize >> 5;
+            Assert.Equal(surfaceSize == 0 ? 27 : side*side*side, expectedCells.Count);
             int expectedCaptures = scenario switch
             {
-                "startup" => surfaceSize == 0 ? 8 : 64,
-                "movement16" => surfaceSize == 0 ? 4 : 16,
+                "startup" => surfaceSize == 0 ? 8 : sourceSide*sourceSide*sourceSide,
+                "movement16" => surfaceSize == 0 ? 4 : sourceSide*sourceSide,
                 "edit-one-chunk" => 1,
                 _ => throw new ArgumentOutOfRangeException(nameof(scenario))
             };

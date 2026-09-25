@@ -1,5 +1,10 @@
 # Shared TraceScene geometry contract
 
+The later [bounded coverage implementation](LumOn.SurfaceCache.GeometryCoverage.md) extends the
+surface domain to 192 blocks by default, supports up to 256 and exposes live bounded work settings.
+Its settings and cost table supersede the original 128-block coverage/default limits below; the
+historical consolidation measurements remain unchanged.
+
 This is the implementation contract for [the consolidation task list](LumOn.TraceSceneGeometryConsolidation.todo). It defines the shared backend contract; the implementation and measured costs are recorded below. The approved conversation requires one geometry pipeline, the fixed 48-block NearField domain, preserved surface-cache consumers, worker capture, explicit validity and unchanged world-probe scheduling.
 
 ## Consumer inventory

@@ -35,9 +35,9 @@ internal sealed class SharedTraceGeometryFixture : IDisposable
     }
 
     /// <summary>Settles bounded work without replacing production admission decisions.</summary>
-    public void Publish()
+    public void Publish(int frames = 40)
     {
-        for (int i = 0; i < 40; i++)
+        for (int i = 0; i < frames; i++)
         { partition.Prepare(Plan); coordinator.Pump(++tick); partition.Service(Plan); }
     }
 

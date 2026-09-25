@@ -103,11 +103,11 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     #region Screen probe consumption
     /// <summary>Real offscreen traces read produced outgoing radiance, while missing pages retain opaque distances at zero confidence.</summary>
     [Theory]
-    [InlineData(0f)] [InlineData(.25f)]
-    public void ScreenProbesConsumePublishedCache(float albedo)
+    [InlineData(0f,32)] [InlineData(.25f,32)] [InlineData(.25f,192)] [InlineData(.25f,256)]
+    public void ScreenProbesConsumePublishedCache(float albedo,int surfaceResolution)
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(albedo); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(albedo,surfaceResolution:surfaceResolution); room.Seed();
         using var placeholder=new NearFieldVoxelFixture();
         var lit=Trace(placeholder,shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,anchorPosition:new(4,36,4));
         int hits=0;

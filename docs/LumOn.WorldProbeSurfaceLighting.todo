@@ -375,13 +375,22 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       production build/deployment: zero warnings/errors. Two existing ring-retention test cases failed
       and were excluded from that passing selection; the linked report preserves evidence and the
       unresolved fixture/validation gap. User-run gameplay acceptance remains a later task.
-  ☐ Expand useful GPU geometry coverage with bounded storage and upload work.
+  ☑ Expand useful GPU geometry coverage with bounded storage and upload work.
     - Size coverage for the intended Surface Cache tracing region; reconcile the current 128-block
       coverage with roughly 480-block active capture demand in the recorded configuration.
     - Evaluate memory and upload cost before choosing larger dense storage or additional coverage
       levels. Do not blindly match the entire residency window with a cubic dense allocation.
     - Expose supported coverage settings and bounded upload budgets through existing GPU owners;
       preserve signed origins, publication identity, movement and shared world-probe consumers.
+    - Added 192-block default / 256-block maximum full-resolution coverage and live bounded source,
+      cell and byte settings. Existing saved 128 remains 128. Dense 480-block storage was rejected
+      after memory/residency evaluation; the separate outer-domain fallback task remains necessary.
+      Design, exact storage costs and controlled startup/movement/edit measurements:
+      docs/LumOn.SurfaceCache.GeometryCoverage.md.
+    - Subagent validation: 284 distinct cases pass across broad and final targeted runs; production
+      build/deployment has zero warnings/errors. Five obsolete screen fixture cases remain excluded,
+      documented with original failure receipts and replacement real-cache consumer coverage.
+      No live gameplay performance or convergence claim; later user-run acceptance remains open.
   ☐ Add bounded continuation or fallback for Surface Cache rays outside GPU coverage or unsupported
     by GPU geometry.
     - Select and document the continuation representation/backend, reusing existing tracing

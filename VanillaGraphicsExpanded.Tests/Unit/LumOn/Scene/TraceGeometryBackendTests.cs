@@ -13,7 +13,7 @@ public sealed class TraceGeometryBackendTests
     #region Shared coverage and publication
     /// <summary>Every camera offset retains both logical windows inside the cell-aligned allocation.</summary>
     [Theory]
-    [InlineData(16)] [InlineData(32)] [InlineData(64)] [InlineData(128)]
+    [InlineData(16)] [InlineData(32)] [InlineData(64)] [InlineData(128)] [InlineData(192)] [InlineData(256)]
     public void CoveragePreservesDomainsAtEveryOffset(int n)
     {
         foreach (int anchor in new[] { -16777216, -32, 0, 16777216 })
@@ -165,8 +165,10 @@ public sealed class TraceGeometryBackendTests
         Assert.NotEqual(0u, a); Assert.NotEqual(a, b);
         Assert.Equal(a, cell.Legacy[0] >> 18); Assert.Equal(b, cell.Legacy[1] >> 18);
         var tables = materials.Snapshot();
-        Assert.Equal(0u, tables.Faces[(int)a * 4 + 3]);
-        Assert.Equal(0u, tables.Faces[(int)b * 4 + 3]);
+        Assert.Equal(0u, tables.Faces[(int)a * 4 + 3] & 3u);
+        Assert.Equal(0u, tables.Faces[(int)b * 4 + 3] & 3u);
+        Assert.Equal(1u, tables.Faces[(int)a * 4 + 3] >> 2);
+        Assert.Equal(16385u, tables.Faces[(int)b * 4 + 3] >> 2);
         Assert.True(cell.Unsupported);
     }
 

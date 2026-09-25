@@ -38,10 +38,12 @@ internal sealed class TraceGeometrySourceCache : IDisposable
     { this.load = load; this.version = version; this.available = available; }
 
     #region Capture selection
-    /// <summary>Coalesces demand and admits at most two captures, giving surface-only work one opportunity first.</summary>
+    /// <summary>Coalesces nearby demand under a per-frame admission ceiling and eight-source lifetime bound.</summary>
     public void Update(IReadOnlyList<PartitionCoordinate> demand, TraceGeometryCoverage coverage,
-        IReadOnlySet<PartitionCoordinate>? waiting = null, Func<PartitionCoordinate, Action?>? authorize = null)
+        IReadOnlySet<PartitionCoordinate>? waiting = null, Func<PartitionCoordinate, Action?>? authorize = null,
+        int maxCapturesPerFrame = 2)
     {
+        if (maxCapturesPerFrame is < 0 or > 8) throw new ArgumentOutOfRangeException(nameof(maxCapturesPerFrame));
         frame++; cancelled.RemoveAll(t => t.IsCompleted);
         var groups = demand.GroupBy(c => TraceGeometryCoverage.SourceChunk(c)).ToDictionary(g => g.Key, g => g.ToArray());
         foreach (var key in retries.Keys.Where(key => !groups.ContainsKey(key)).ToArray()) retries.Remove(key);
@@ -58,14 +60,17 @@ internal sealed class TraceGeometrySourceCache : IDisposable
             }
         }
         var missing = groups.Where(g => !entries.ContainsKey(g.Key) && (waiting == null || g.Value.Any(waiting.Contains))).ToArray();
-        var eligible = missing.Where(g => Eligible(g.Key)).ToArray();
+        var eligible = missing.Where(g => Eligible(g.Key)).OrderBy(g => g.Value.Min(c => coverage.DistanceSquared(c))).ToArray();
         var near = eligible.Where(g => g.Value.Any(c => coverage.IsNear(c))).ToArray();
         var surface = eligible.Where(g => !g.Value.Any(c => coverage.IsNear(c))).ToArray();
         int issued = 0;
-        // A surface-only source gets the first eligible admission, leaving the second to near-field demand.
-        foreach (var group in surface.Take(1).Concat(near).Concat(surface.Skip(1)))
+        // Preserve both consumers' opportunities. With one admission, alternate the preferred consumer.
+        var ordered = maxCapturesPerFrame == 1 && (frame & 1) == 0
+            ? near.Take(1).Concat(surface).Concat(near.Skip(1))
+            : surface.Take(1).Concat(near).Concat(surface.Skip(1));
+        foreach (var group in ordered)
         {
-            if (issued >= 2 || InFlight >= 8) break;
+            if (issued >= maxCapturesPerFrame || InFlight >= 8) break;
             if (retries.TryGetValue(group.Key, out var retry) && retry.At > frame) continue;
             if (!available(group.Key)) { retries[group.Key] = (frame + 64, 6); continue; }
             if (entries.Count >= 8)

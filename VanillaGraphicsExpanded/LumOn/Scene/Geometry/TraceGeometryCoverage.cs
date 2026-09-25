@@ -21,11 +21,11 @@ internal sealed record TraceGeometryCoverage(PartitionBounds? NearField, Partiti
             throw new ArgumentOutOfRangeException(nameof(coordinate), "Source chunk exceeds its packed coordinate range.");
         return ChunkKey.FromChunkCoords((int)x, (int)y, (int)z);
     }
-    /// <summary>Preserves the old L0 camera-floor box and the fixed near-field box without expanding either domain.</summary>
+    /// <summary>Plans bounded full-resolution surface coverage alongside the fixed near-field domain.</summary>
     public static TraceGeometryCoverage Plan(in PartitionPoint camera, bool nearField, int? surfaceResolution, int worldHeight)
     {
         if (!nearField && surfaceResolution == null) throw new ArgumentException("No geometry consumer requested.");
-        if (worldHeight <= 0 || surfaceResolution is not (null or 16 or 32 or 64 or 128)) throw new ArgumentOutOfRangeException(nameof(surfaceResolution));
+        if (worldHeight <= 0 || surfaceResolution is not (null or 16 or 32 or 64 or 128 or 192 or 256)) throw new ArgumentOutOfRangeException(nameof(surfaceResolution));
         if (!double.IsFinite(camera.X) || !double.IsFinite(camera.Y) || !double.IsFinite(camera.Z)) throw new ArgumentException("Nonfinite camera.");
         var nearMin = new PartitionPoint((Math.Floor(camera.X / 16) - 1) * 16,
             (Math.Floor(camera.Y / 16) - 1) * 16, (Math.Floor(camera.Z / 16) - 1) * 16);
@@ -47,6 +47,25 @@ internal sealed record TraceGeometryCoverage(PartitionBounds? NearField, Partiti
     public PartitionBounds Clip(in PartitionBounds bounds) => new(
         new(bounds.Min.X, Math.Clamp(bounds.Min.Y, 0, WorldHeight), bounds.Min.Z),
         new(bounds.Max.X, Math.Clamp(bounds.Max.Y, 0, WorldHeight), bounds.Max.Z));
+
+    /// <summary>Computes exact texture payload including companions, readiness and shared tables, excluding driver overhead.</summary>
+    public static long TextureBytes(int physicalResolution)
+    {
+        if (physicalResolution < 16 || physicalResolution > 272 || (physicalResolution & 15) != 0)
+            throw new ArgumentOutOfRangeException(nameof(physicalResolution));
+        long slots = physicalResolution >> 4;
+        return (long)physicalResolution * physicalResolution * physicalResolution * 12 + slots * slots * slots + 2097152 + 644;
+    }
+
+    /// <summary>Orders source publication around the surface domain center, or the near-field center when used alone.</summary>
+    public double DistanceSquared(in PartitionCoordinate cell)
+    {
+        var bounds = Surface ?? NearField!.Value;
+        double x = (cell.X << 4) + 8 - (bounds.Min.X + bounds.Max.X) * .5;
+        double y = (cell.Y << 4) + 8 - (bounds.Min.Y + bounds.Max.Y) * .5;
+        double z = (cell.Z << 4) + 8 - (bounds.Min.Z + bounds.Max.Z) * .5;
+        return x * x + y * y + z * z;
+    }
 
     /// <summary>Returns whether a cell belongs to the higher-priority consumer.</summary>
     public bool IsNear(in PartitionCoordinate cell) => NearField is { } bounds &&

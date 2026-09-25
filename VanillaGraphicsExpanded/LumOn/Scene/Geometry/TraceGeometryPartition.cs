@@ -22,6 +22,7 @@ internal sealed class TraceGeometryPartition : IPartitionResidencyBackend, IDisp
     private (bool Near, double? SurfaceSize)? configuration;
     private TraceGeometryTables? stagingTables;
     private int tableOffset;
+    private long serviceFrame;
     public long Instance { get; }
     public long StagedPayloadBytes => pending.Count * TraceGeometryCell.UploadBytes;
     public long PublishedCells { get; private set; }
@@ -64,24 +65,36 @@ internal sealed class TraceGeometryPartition : IPartitionResidencyBackend, IDisp
     }
 
     /// <summary>Services source and upload work after the host pumps global budgets; does not pump a second frame.</summary>
-    public void Service(TraceGeometryCoverage coverage)
+    public void Service(TraceGeometryCoverage coverage, TraceGeometryWorkBudget? budget = null)
     {
+        budget ??= TraceGeometryWorkBudget.Default;
+        budget.Validate();
+        // Pausing does not cancel leases or discard completed sources; resume continues the same publication.
+        if (budget.CellsPerFrame == 0 || budget.UploadBytesPerFrame == 0) return;
+        serviceFrame++;
+        long remainingUpload = Math.Min(budget.UploadBytesPerFrame, coordinator.GetUploadLimit(Instance));
         var demand = new HashSet<PartitionCoordinate>();
         if (coverage.NearField is { } near) demand.UnionWith(layout.Intersecting(coverage.Clip(near)));
         if (coverage.Surface is { } surface) demand.UnionWith(layout.Intersecting(coverage.Clip(surface)));
         var wanted = demand.Where(c => coordinator.TryGetCell(new(Instance, world, c), out var info) && !info.Ready).ToArray();
-        source.Update(demand.ToArray(), coverage, wanted.Where(c => !pending.ContainsKey(new(Instance, world, c))).ToHashSet(), AuthorizeCapture);
+        source.Update(demand.ToArray(), coverage, wanted.Where(c => !pending.ContainsKey(new(Instance, world, c))).ToHashSet(), AuthorizeCapture,
+            budget.SourceChunksPerFrame);
         foreach (var pair in captures.ToArray())
             if (Volatile.Read(ref pair.Value.Completed) != 0 && !source.HasSnapshot(pair.Key.Coordinate))
                 coordinator.FinishUpdate(pair.Value.Request, true);
-        var nearCells = wanted.Where(c => coverage.IsNear(c)).ToArray();
+        var nearCells = wanted.Where(c => coverage.IsNear(c)).OrderBy(c => coverage.DistanceSquared(c)).ToArray();
         var surfaceCells = wanted.Where(c => !coverage.IsNear(c) &&
-            (pending.ContainsKey(new(Instance, world, c)) || source.HasSnapshot(c))).ToArray();
+            (pending.ContainsKey(new(Instance, world, c)) || source.HasSnapshot(c))).OrderBy(c => coverage.DistanceSquared(c)).ToArray();
         var tables = materials.Snapshot();
         int published = 0;
-        foreach (var coordinate in surfaceCells.Take(1).Concat(nearCells).Concat(surfaceCells.Skip(1)))
+        // When only one cell fits, alternate consumer preference rather than starving NearField behind surface work.
+        bool singleCell = budget.CellsPerFrame == 1 || remainingUpload < ((TraceGeometryCell.UploadBytes + 2) << 1);
+        var ordered = singleCell && (serviceFrame & 1) == 0
+            ? nearCells.Take(1).Concat(surfaceCells).Concat(nearCells.Skip(1))
+            : surfaceCells.Take(1).Concat(nearCells).Concat(surfaceCells.Skip(1));
+        foreach (var coordinate in ordered)
         {
-            if (published >= 16) break;
+            if (published >= budget.CellsPerFrame) break;
             var key = new PartitionCellKey(Instance, world, coordinate);
             if (!pending.TryGetValue(key, out var work))
             {
@@ -103,18 +116,22 @@ internal sealed class TraceGeometryPartition : IPartitionResidencyBackend, IDisp
                 stagingTables ??= tables;
                 int remaining = (int)TraceGeometryTables.MaximumUploadBytes - tableOffset;
                 // Four-kilobyte alignment spans complete rows in every table, including the final light LUT.
-                int batch = (int)Math.Min(remaining, coordinator.GetUploadLimit(Instance) / 4096 * 4096);
+                int batch = (int)Math.Min(remaining, (remainingUpload >> 12) << 12);
                 if (batch == 0 || !coordinator.TryStageUpdate(work.Request, batch,
                     () => backend.UploadTableRange(stagingTables, tableOffset, batch))) continue;
-                tableOffset += batch;
+                tableOffset += batch; remainingUpload -= batch;
                 if (tableOffset == TraceGeometryTables.MaximumUploadBytes) { stagingTables = null; tableOffset = 0; }
                 if (backend.TablesRevision != tables.Revision) break;
             }
             long bytes = TraceGeometryCell.UploadBytes + 2;
+            if (bytes > remainingUpload) break;
+            bool submitted = false;
             bool success = coordinator.TryPublishUpdate(work.Request, bytes,
                 () => source.IsCurrent(work.Chunk, work.Version),
-                () => backend.Publish(work.Request, work.Cell, tables),
+                () => { submitted = true; return backend.Publish(work.Request, work.Cell, tables); },
                 work.Cell.Unsupported ? PartitionContentStatus.Unsupported : PartitionContentStatus.Supported);
+            // Charge submitted bytes even on rejection, but keep looking for the coordinator's reserved upload turn.
+            if (submitted) remainingUpload -= bytes;
             if (success) { pending.Remove(key); published++; PublishedCells++; }
             else if (!coordinator.IsCurrent(work.Request)) pending.Remove(key);
         }

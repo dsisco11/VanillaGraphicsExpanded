@@ -48,7 +48,8 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
         using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.Faces.TextureId))
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, faces);
         Assert.Equal(expected.Faces.ToArray(), faces);
-        Assert.NotEqual(0u, faces[id * 4]); Assert.Equal(hitReady ? 3u : 1u, faces[id * 4 + 3]);
+        Assert.NotEqual(0u, faces[id * 4]); Assert.Equal(hitReady ? 3u : 1u, faces[id * 4 + 3] & 3u);
+        Assert.Equal((uint)fixture.Cube.Id,faces[id * 4 + 3] >> 2);
         byte[] colors = new byte[16384 * 48];
         using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.Materials.TextureId))
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, colors);

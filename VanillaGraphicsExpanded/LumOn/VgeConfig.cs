@@ -779,75 +779,79 @@ public class VgeConfig
             public sealed class TraceSceneConfig
             {
                 /// <summary>
-                /// Trace scene occupancy clipmap resolution (per level, per axis).
-                /// Larger values increase update cost and VRAM. Power-of-two values are recommended.
+                /// Shared full-resolution geometry coverage per axis: 16, 32, 64, 128, 192 or 256 blocks.
+                /// Physical storage includes one 16-block alignment cell; 192 uses about 105 MiB of textures.
                 /// </summary>
                 [JsonProperty]
-                public int ClipmapResolution { get; set; } = 128;
+                public int ClipmapResolution { get; set; } = 192;
+
+                /// <summary>New 32-block source snapshots admitted per frame, bounded to 0..8 with eight retained/in-flight sources.</summary>
+                [JsonProperty]
+                public int SourceChunksPerFrame { get; set; } = 2;
+
+                /// <summary>Complete 16-block cells published per frame, bounded to 0..32; zero pauses geometry work.</summary>
+                [JsonProperty]
+                public int CellUploadsPerFrame { get; set; } = 16;
+
+                /// <summary>Table and cell publication bytes per frame: zero pauses, otherwise 64 KiB..8 MiB under shared limits.</summary>
+                [JsonProperty]
+                public long UploadBytesPerFrame { get; set; } = 8L << 20;
 
                 /// <summary>
-                /// Trace scene occupancy clipmap level count.
-                /// Level spacing is <c>1 &lt;&lt; level</c> blocks (v1).
+                /// Legacy compatibility setting; the shared backend uses one full-resolution geometry domain.
                 /// </summary>
                 [JsonProperty]
                 public int ClipmapLevels { get; set; } = 3;
 
                 /// <summary>
-                /// Max number of clipmap slice uploads per frame.
-                /// Higher values converge faster but increase CPU cost and GL traffic.
+                /// Legacy compatibility setting; shared geometry uses CellUploadsPerFrame and UploadBytesPerFrame.
                 /// </summary>
                 [JsonProperty]
                 public int ClipmapSlicesPerFrame { get; set; } = 32;
 
                 /// <summary>
-                /// CPU time budget (ms) per frame for refreshing the TraceScene region scheduler priorities and seeding
-                /// the current window (Phase 23).
-                /// This controls how much time we spend doing CPU-only scheduling work (priority updates and window seeding).
-                /// Set to 0 to pause priority refresh (queue order will become stale; not recommended).
+                /// Legacy compatibility setting; the shared WorldPartition coordinator owns coverage refresh.
                 /// </summary>
                 [JsonProperty]
                 public float ClipmapRefreshBudgetMs { get; set; } = 0.25f;
 
                 /// <summary>
-                /// CPU time budget (ms) per frame for issuing new 32^3 region extraction requests (Phase 23).
-                /// This controls how much time we spend draining the pending region queue into the async job system.
-                /// Set to 0 to pause issuing new region requests.
+                /// Legacy compatibility setting; shared geometry uses SourceChunksPerFrame for source admission.
                 /// </summary>
                 [JsonProperty]
                 public float ClipmapIssueBudgetMs { get; set; } = 0.25f;
 
                 /// <summary>
-                /// Max number of in-flight region extraction requests allowed at once (Phase 23).
-                /// This caps memory/CPU pressure and improves spatial convergence stability (less “random scatter”).
-                /// Set to 0 to pause issuing new region requests.
+                /// Legacy compatibility setting; shared geometry retains a fixed eight-source lifetime ceiling.
                 /// </summary>
                 [JsonProperty]
                 public int ClipmapMaxInFlightRegions { get; set; } = 256;
 
                 /// <summary>
-                /// CPU time budget (ms) per frame for consuming completed region jobs and dispatching GPU clipmap updates (Phase 23).
-                /// Set to 0 to pause dispatching region updates (occupancy clipmap will stop updating).
+                /// Legacy compatibility setting; shared geometry uses cell and byte publication limits.
                 /// </summary>
                 [JsonProperty]
                 public float ClipmapDispatchBudgetMs { get; set; } = 0.25f;
 
                 /// <summary>
-                /// Max number of 32^3 region payloads to upload per frame for the GPU-built clipmap path (Phase 23).
-                /// This is a CPU->GPU bandwidth limiter; it does not directly control compute cost.
+                /// Legacy compatibility setting; use CellUploadsPerFrame for shared 16-block publication cells.
                 /// </summary>
                 [JsonProperty]
                 public int ClipmapMaxRegionUploadsPerFrame { get; set; } = 16;
 
                 /// <summary>
-                /// Max number of 32^3 region updates to dispatch per frame for the GPU-built clipmap path (Phase 23).
-                /// This is a compute limiter; it may be further constrained by the dispatcher batch capacity.
+                /// Legacy compatibility setting; use CellUploadsPerFrame for shared geometry publication.
                 /// </summary>
                 [JsonProperty]
                 public int ClipmapMaxRegionsDispatchedPerFrame { get; set; } = 16;
 
+                /// <summary>Bounds supported coverage/work settings while retaining legacy serialized fields.</summary>
                 internal void Sanitize()
                 {
                     ClipmapResolution = SanitizeTraceSceneClipmapResolution(ClipmapResolution);
+                    SourceChunksPerFrame = Math.Clamp(SourceChunksPerFrame, 0, 8);
+                    CellUploadsPerFrame = Math.Clamp(CellUploadsPerFrame, 0, 32);
+                    UploadBytesPerFrame = UploadBytesPerFrame <= 0 ? 0 : Math.Clamp(UploadBytesPerFrame, 1 << 16, 8 << 20);
                     ClipmapLevels = Math.Clamp(ClipmapLevels, 1, 8);
                     ClipmapSlicesPerFrame = Math.Clamp(ClipmapSlicesPerFrame, 0, 512);
                     ClipmapRefreshBudgetMs = Math.Clamp(ClipmapRefreshBudgetMs, 0.0f, 50.0f);
@@ -938,9 +942,10 @@ public class VgeConfig
                 return (int)BitOperations.RoundUpToPowerOf2((uint)v);
             }
 
-            private static int SanitizeTraceSceneClipmapResolution(int v)
+            /// <summary>Chooses the next supported coverage tier without allowing an unbounded dense allocation.</summary>
+            internal static int SanitizeTraceSceneClipmapResolution(int v)
             {
-                // v1: keep power-of-two to simplify ring-buffer math and keep memory predictable.
+                if (v > 128) return v <= 192 ? 192 : 256;
                 v = Math.Clamp(v, 16, 128);
                 return (int)BitOperations.RoundUpToPowerOf2((uint)v);
             }

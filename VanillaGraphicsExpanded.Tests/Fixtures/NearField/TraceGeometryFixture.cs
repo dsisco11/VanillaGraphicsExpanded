@@ -29,8 +29,8 @@ internal sealed class TraceGeometryFixture : IDisposable
     }
 
     /// <summary>Follows the host's preparation/pump/service order.</summary>
-    public void Frame(TraceGeometryCoverage plan)
-    { Partition.Prepare(plan); Coordinator.Pump(++tick); Partition.Service(plan); }
+    public void Frame(TraceGeometryCoverage plan, TraceGeometryWorkBudget? budget = null)
+    { Partition.Prepare(plan); Coordinator.Pump(++tick); Partition.Service(plan, budget); }
 
     /// <summary>Completes currently captured requests with a recognizable source revision.</summary>
     public void Complete(uint kind = 1)

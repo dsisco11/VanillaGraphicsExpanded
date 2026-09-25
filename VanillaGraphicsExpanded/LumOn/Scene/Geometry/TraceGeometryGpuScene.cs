@@ -26,13 +26,13 @@ internal sealed partial class TraceGeometryGpuScene : ITraceGeometryBackend
     public Texture2D LightColors { get; }
     public Texture2D BlockLevels { get; }
     public Texture2D SunLevels { get; }
-    public long TextureBytes => Resolution * (long)Resolution * Resolution * 12 + owners.Length + 2097152 + 644;
+    public long TextureBytes => TraceGeometryCoverage.TextureBytes(Resolution);
 
     #region Lifetime
     /// <summary>Allocates exact contract formats and clears readiness before any voxel can be sampled.</summary>
     public TraceGeometryGpuScene(int resolution)
     {
-        if (resolution < 16 || resolution % 16 != 0) throw new ArgumentOutOfRangeException(nameof(resolution));
+        _ = TraceGeometryCoverage.TextureBytes(resolution);
         Resolution = resolution;
         int slots = resolution / 16;
         owners = new PartitionRequest[slots * slots * slots];

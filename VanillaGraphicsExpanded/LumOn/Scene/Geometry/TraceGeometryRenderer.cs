@@ -82,7 +82,8 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
         if (!config.LumOn.Enabled || cameraState is not { } camera)
         { Release(); partitions.Pump(); return; }
         var trace = config.LumOn.LumonScene.TraceScene;
-        int? surface = config.LumOn.LumonScene.Enabled ? trace.ClipmapResolution : null;
+        int? surface = config.LumOn.LumonScene.Enabled
+            ? VgeConfig.LumOnSettingsConfig.LumonSceneConfig.SanitizeTraceSceneClipmapResolution(trace.ClipmapResolution) : null;
         if (reportedLevels != trace.ClipmapLevels)
         {
             reportedLevels = trace.ClipmapLevels;
@@ -106,7 +107,7 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
             }
             plan = next;
             source!.Prepare(plan); partition!.Prepare(plan);
-            pumped = true; partitions.Pump(); partition.Service(plan);
+            pumped = true; partitions.Pump(); partition.Service(plan, TraceGeometryWorkBudget.From(trace));
             failure = null;
         }
         catch (Exception ex)
@@ -148,7 +149,8 @@ internal sealed class TraceGeometryRenderer : IRenderer, ITraceGeometrySceneProv
         Metrics = new(partition.Instance, Resources.Resolution, source.Cache.SourceReads, source.Cache.InFlight,
             source.Cache.SnapshotBytes, partition.StagedPayloadBytes, Resources.TextureBytes, Resources.UploadedBytes,
             partition.PublishedCells, milliseconds, totalUpdate / updateCount, peakUpdate,
-            near.Count, surface.Count, near.Count(surface.Contains), partitions.GetCoordinator().Statistics(partition.Instance), Resources.CaptureIdentityBytes);
+            near.Count, surface.Count, near.Count(surface.Contains), partitions.GetCoordinator().Statistics(partition.Instance), Resources.CaptureIdentityBytes,
+            surfaceResolution ?? 0, TraceGeometryWorkBudget.From(config.LumOn.LumonScene.TraceScene));
         TraceGeometryRuntimeMetrics.Current = Metrics;
         if (partitions.RecordDiagnostics) api.Logger.Notification("[VGE PartitionMetrics] {0}", DumpTraceSceneSchedulerState(0));
     }

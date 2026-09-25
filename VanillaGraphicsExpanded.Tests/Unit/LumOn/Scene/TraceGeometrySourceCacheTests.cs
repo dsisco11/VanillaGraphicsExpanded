@@ -8,6 +8,22 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 public sealed class TraceGeometrySourceCacheTests
 {
     #region Retry and cancellation
+    /// <summary>Dynamic source issue limits never bypass the retained eight-worker credit ceiling.</summary>
+    [Fact]
+    public void ConfiguredSourceBudgetRetainsWorkerCeiling()
+    {
+        int reads=0;
+        using var cache=new TraceGeometrySourceCache((_,_,_)=>
+        { reads++;return new TaskCompletionSource<TraceGeometryChunk?>().Task; },_=>0,_=>true);
+        var coverage=TraceGeometryCoverage.Plan(new(0,128,0),true,192,256);
+        var demand=new PartitionLayout(new(16,16,16)).Intersecting(coverage.Surface!.Value).ToArray();
+        cache.Update(demand,coverage,maxCapturesPerFrame:0);Assert.Equal(0,reads);
+        cache.Update(demand,coverage,maxCapturesPerFrame:1);Assert.Equal(1,reads);
+        cache.Update(demand,coverage,maxCapturesPerFrame:8);Assert.Equal(8,reads);
+        cache.Update(demand,coverage,maxCapturesPerFrame:8);Assert.Equal(8,reads);
+        Assert.Equal(8,cache.InFlight);
+    }
+
     /// <summary>An explicit load/edit notification bypasses the missing-source retry delay.</summary>
     [Fact]
     public void MissingSourceStaysUnknownUntilLoaded()
