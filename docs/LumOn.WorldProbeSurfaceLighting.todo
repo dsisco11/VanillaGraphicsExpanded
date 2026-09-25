@@ -253,7 +253,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - The historical run retained 145 uncaptured pages out of 216 and rejected most indirect
       updates. The successful visual restart check does not establish capture completion or
       trace convergence; determine whether this backlog persists in a current run.
-  ☐ Remove temporary reset event aggregation and verbose correlated logs after preserving evidence.
+  ✔ Remove temporary reset event aggregation and verbose correlated logs after preserving evidence. @done(26-09-25 00:12)
     - They are diagnostic only and may be removed before implementation; retain existing readiness
       counters/self-checks and genuine failure warnings. Update the diagnostic note when removed.
 
