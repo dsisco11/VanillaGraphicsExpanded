@@ -268,7 +268,8 @@ internal sealed class LumOnWorldProbeScheduler
         int[] perLevelProbeBudgets,
         int traceMaxProbesPerFrame,
         int uploadBudgetBytesPerFrame,
-        int atlasTexelsPerUpdate)
+        int atlasTexelsPerUpdate,
+        int l0UploadBytes = 0)
     {
         ArgumentNullException.ThrowIfNull(cameraPos);
         if (baseSpacing <= 0) throw new ArgumentOutOfRangeException(nameof(baseSpacing));
@@ -280,11 +281,7 @@ internal sealed class LumOnWorldProbeScheduler
         int k = Math.Max(1, atlasTexelsPerUpdate);
         int estimatedBytesPerProbe = EstimatedBytesPerProbeResolveVertex + (k * EstimatedBytesPerTileResolveVertex);
 
-        int globalUploadRemainingProbes = estimatedBytesPerProbe <= 0
-            ? globalCpuRemaining
-            : globalUploadRemainingBytes / estimatedBytesPerProbe;
-
-        int globalRemaining = Math.Min(globalCpuRemaining, globalUploadRemainingProbes);
+        int globalRemaining = globalCpuRemaining;
 
         var list = new List<LumOnWorldProbeUpdateRequest>(capacity: Math.Min(globalRemaining, 1024));
 
@@ -293,7 +290,8 @@ internal sealed class LumOnWorldProbeScheduler
             int budgetL = level < perLevelProbeBudgets.Length ? perLevelProbeBudgets[level] : 0;
             budgetL = Math.Max(0, budgetL);
 
-            int take = Math.Min(budgetL, globalRemaining);
+            int bytesPerProbe = level == 0 && l0UploadBytes > 0 ? l0UploadBytes : estimatedBytesPerProbe;
+            int take = Math.Min(Math.Min(budgetL, globalRemaining), globalUploadRemainingBytes / bytesPerProbe);
             if (take <= 0) continue;
 
             double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, level);
@@ -306,6 +304,7 @@ internal sealed class LumOnWorldProbeScheduler
             }
 
             globalRemaining -= taken;
+            globalUploadRemainingBytes -= taken * bytesPerProbe;
         }
 
         return list;

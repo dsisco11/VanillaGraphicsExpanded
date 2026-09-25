@@ -187,7 +187,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 				perLevelBudgets,
 				cfg.TraceMaxProbesPerFrame,
 				cfg.UploadBudgetBytesPerFrame,
-				cfg.AtlasTexelsPerUpdate);
+				cfg.AtlasTexelsPerUpdate,
+                cfg.EnableGpuTracing ? 48 + (Math.Clamp(wpTexelsPerUpdate, 1, wpTileSize * wpTileSize) << 5) : 0);
 		}
 
 		if (!startupLogged)

@@ -14,8 +14,9 @@ not become sky or trigger a second geometry backend indiscriminately.
 
 Both routes use the existing scheduler, admission tickets, work items, direction
 selection and trace/upload budgets. The CPU queue retains its 2,048-item bound. GPU
-admission holds at most 8,192 queued rays plus one submitted or completed batch of
-8,192 rays. Each ray visits at most 512 cells. The maximum configured 64-by-64 atlas
+admission holds at most 8,192 queued rays. Submitted and retained GPU allocations
+together hold at most 16,384 rays, with at most 8,192 in one dispatch. Each ray visits
+at most 512 cells. The maximum configured 64-by-64 atlas
 update plus its cardinal importance ray fits a batch. Queue overflow returns the
 original admission to scheduling. The router alternates CPU/GPU completion priority.
 
@@ -69,9 +70,51 @@ preserve atlas indices, signed log distance, confidence, sky multiplier, short-r
 occlusion and importance. Any unresolved primary geometry retains the existing
 whole-admission completion gate. Ready hit lighting bypasses a redundant cache query.
 
-The current integration reads back the bounded answer payload and uses the existing
-atlas upload path. Keeping directional payloads GPU-resident remains a subsequent
-task, not a performance claim for this implementation.
+Production completion keeps the answer allocation resident. The full-answer readback
+method remains available for diagnostic parity tests; the backend uses compact completion.
+
+## Hybrid completion and commit
+
+A completion compute pass exports 16 bytes per direction (outcome, reason, distance
+and descriptor index), a four-byte descriptor count, and 80-byte descriptors only for
+hits whose lighting is unresolved. Ready RGB stays in the original GPU answer buffer.
+Coverage/unsupported fallback needs only the outcome and original admission's selectors
+and origin, so it does not copy hit descriptors. The fence covers both traversal and
+completion compaction; CPU mapping occurs only after a nonblocking poll signals completion.
+Readback is `4 + 16 * rays + 80 * unresolvedHits` bytes. The all-unresolved case is larger
+than the previous readback; this is a residency contract, not a measured speedup.
+
+Each admission receives a render-thread lease on its exact resident range. CPU fallback
+workers still receive only immutable CPU values. The backend retains the allocation
+through delayed fallback and cache queries; it cannot recycle or overwrite live ranges.
+The 16,384-ray bound includes retained allocations until their last lease retires.
+Exhaustion holds queued work without claiming new tickets. Backend retirement invalidates
+all leases, and immutable result copies share an idempotent release.
+
+The common CPU geometry integration still computes AO, importance, confidence and signed
+distances from compact metadata. Resolved GPU hits reference their resident indices;
+CPU-confirmed hits and unresolved GPU hits use the existing bounded Surface Cache query
+path. Those query answers still return through CPU staging. Moving that separate query
+resolver entirely onto the GPU is not required for ready trace payload residency.
+
+`WorldProbeHybridCommit` validates the original scheduler ticket, geometry object and
+invalidation revision, and cache dependency immediately before atlas dispatch. One
+workgroup writes all ready directional samples, synchronizes image writes, and then
+writes probe metadata. GPU samples fetch resident RGB; CPU-resolved hits and established
+sky use staged values. Image/texture/framebuffer barriers publish the complete commit.
+Unresolved primary geometry never reaches this dispatch. Missing lighting publishes only
+the ready subset; retry descriptors keep the original ticket without retaining already
+committed RGB. A separate `WorldProbeCommitIdentity` retains the original geometry/cache
+validation after the resident lease retires, including retries with no ready samples.
+Rejection leaves displayed history untouched. Renderer resource replacement
+retires the backend before another clipmap generation can consume its results.
+
+Hybrid staging costs 48 bytes per probe plus 32 bytes per ready sample. CPU-only raster
+publication retains its 40-plus-24-byte cost. Scheduler admission and publication charge
+the corresponding format; for 64 directions an atomic hybrid commit requires 2,096 bytes.
+A smaller configured frame budget does not admit that L0 update; cheaper L1 work may still
+fit. A publication that cannot fit its remaining budget writes neither directions nor
+metadata and returns the admission to normal scheduling.
 
 ## Bounded CPU fallback
 
@@ -182,7 +225,7 @@ with zero warnings/errors (`artifacts/world-probe-compute-deploy.log`). Test com
 retains five existing analyzer warnings in unrelated tests. Source and test review
 found no blocker within this task's boundary.
 
-GPU-resident hybrid publication remains an open task. Live
+At that point GPU-resident hybrid publication remained open. Live
 visual and matched-workload performance validation remain open. No game was launched.
 
 The compact-input/tiled-dispatch follow-up passed **143 regression tests**, zero
@@ -216,5 +259,26 @@ Root review and the testing subagent's independent source audit found no blocker
 selective traversal, backpressure, cancellation or lifetime validation. Receipts:
 `artifacts/TestResults/world-probe-fallback-final.trx`,
 `artifacts/TestResults/world-probe-fallback-worker-final.trx`, and
-`artifacts/world-probe-fallback-deploy.log`. GPU-resident hybrid publication and measured
-runtime/performance validation remain open; no game was launched.
+`artifacts/world-probe-fallback-deploy.log`. GPU-resident hybrid publication was the next
+task. Measured runtime/performance validation remains open; no game was launched.
+
+The hybrid completion/commit task passed **205 expanded regression tests**, zero failures
+or skips, then **30 rebuilt final checks** including three additional retry-identity cases:
+**208 distinct tests** across both runs. The final run includes pooled staging and all
+final ownership fixes. Production build/deployment passed with zero warnings/errors;
+SPIR-V contracts are current. Coverage includes:
+
+- Real resident nonzero/valid-black radiance and all metadata matching diagnostic readback.
+- Mixed CPU collision fallback and untouched GPU radiance in the same atlas commit.
+- Compact readback byte counts, sparse descriptors and old allocations surviving buffer reuse.
+- Inclusive resident bounds and resumption only after every referencing lease retires.
+- Geometry/cache/ticket/backend retirement and provider failures rejecting before atlas writes.
+- CPU-only lighting retries retaining original identity after GPU allocation release.
+- Partial publication/retry histories, flag switching, insufficient-budget atomicity and
+  distinct L0/L1 scheduling costs. Lost resident ownership cannot publish placeholder black.
+
+Root review and the testing subagent's independent source audit found no remaining blocker.
+Receipts: `artifacts/TestResults/world-probe-resident-regression.trx`,
+`artifacts/TestResults/world-probe-resident-final.trx`, and
+`artifacts/world-probe-resident-deploy.log`. Live visual acceptance and matched-workload
+performance measurements remain open; no game was launched.

@@ -30,7 +30,7 @@ internal static class WorldProbeGpuIntegration
     #region Integration
     /// <summary>Replays completed geometry into the common integrator, then attaches exact GPU lighting answers.</summary>
     public static LumOnWorldProbeTraceResult Integrate(in LumOnWorldProbeTraceWorkItem item,
-        ImmutableArray<WorldProbeTraceAnswerGpu> answers, int offset, int count)
+        ImmutableArray<WorldProbeTraceAnswerGpu> answers, int offset, int count, WorldProbeGpuLease? lease = null)
     {
         // Replaying answers performs no collision or lighting queries. It shares the primary
         // completion gate, distance encoding, AO, confidence and importance calculations.
@@ -49,9 +49,10 @@ internal static class WorldProbeGpuIntegration
             {
                 RadianceRgb = ready ? Vector3.Max(Vector3.Zero, new(light.X, light.Y, light.Z)) : Vector3.Zero,
                 SurfaceHit = ready ? null : ray.Hit,
+                GpuRayIndex = ready && lease != null ? lease.First + first + index - offset : -1,
             };
         }
-        return result with { AtlasSamples = samples.ToImmutable() };
+        return result with { AtlasSamples = samples.ToImmutable(), GpuLease = lease, GpuIdentity = lease?.Identity };
     }
 
     /// <summary>Rejects obsolete dispatches without manufacturing valid darkness or losing the admission identity.</summary>

@@ -10,6 +10,22 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
 public sealed class WorldProbeSchedulerBudgetTests
 {
+    /// <summary>Hybrid L0 admission and CPU higher levels consume their own atomic staging costs.</summary>
+    [Theory]
+    [InlineData(2095,0,1)]
+    [InlineData(2096,1,0)]
+    [InlineData(3671,1,0)]
+    [InlineData(3672,1,1)]
+    public void HybridBudgetAccountsForEachTraceBackend(int budget,int levelZero,int levelOne)
+    {
+        var scheduler=new LumOnWorldProbeScheduler(2,4);
+        scheduler.UpdateOrigins(new(0,0,0),1);
+        var admitted=scheduler.BuildUpdateList(0,new(0,0,0),1,[1,1],2,budget,64,l0UploadBytes:2096);
+        Assert.Equal(levelZero,admitted.Count(request=>request.Level==0));
+        Assert.Equal(levelOne,admitted.Count(request=>request.Level==1));
+        Assert.True(admitted.Sum(request=>request.Level==0?2096:1576)<=budget);
+    }
+
     [Fact]
     public void BuildUpdateList_RespectsGlobalTraceBudget()
     {

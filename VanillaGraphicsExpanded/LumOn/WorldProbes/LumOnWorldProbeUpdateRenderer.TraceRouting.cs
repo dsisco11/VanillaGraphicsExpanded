@@ -38,7 +38,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         traceService = null;
         surfaceQueries?.Dispose();
         surfaceQueries = null;
-        pendingSurfaceResults.Clear();
+        RetireSurfaceResults();
         surfaceRetries.Clear();
         surfaceQueryWork.Clear();
         queriedGeometry = null;

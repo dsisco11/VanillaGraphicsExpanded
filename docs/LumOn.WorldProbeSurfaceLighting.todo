@@ -286,7 +286,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Replaced repeated ray inputs with one 64-byte integer-origin probe and 4-byte selected
       texel indices. GPU setup builds 8-byte tile references and indirect arguments; 8x8 groups
       generate octahedral/cardinal directions and write separate 80-byte answers. Existing sparse
-      direction scheduling and metadata remain shared. GPU-resident publication remains below.
+      direction scheduling and metadata remain shared. GPU-resident publication is described below.
     - All 143 regression tests plus 14 rebuilt admission/backend checks passed; production
       build/deployment passed with zero warnings/errors. See docs/LumOn.WorldProbeGpuRouting.md.
   ✔ Add bounded CPU fallback for L0 rays outside GPU coverage or unsupported by GPU geometry.
@@ -302,12 +302,21 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - All 180 regression tests plus 12 rebuilt worker checks passed; production build/deployment
       passed with zero warnings/errors. Root review and independent test-agent audit found no
       blocker. Evidence and remaining runtime limitations: docs/LumOn.WorldProbeGpuRouting.md.
-  ☐ Publish hybrid results through a coherent GPU completion and commit path.
+  ✔ Publish hybrid results through a coherent GPU completion and commit path.
     - Keep GPU directional payloads resident where practical; read back only bounded completion
       metadata and fallback descriptors asynchronously, without blocking the render thread.
     - Validate scheduler tickets, geometry revisions and cache dependency lifetimes before commit.
       Preserve existing partial-publication and primary-geometry completion rules when merging
       backend results; reject obsolete work after dirtying, slot reuse, movement or flag changes.
+    - Implemented 16-byte directional completion metadata plus sparse unresolved-hit descriptors;
+      ready trace radiance remains resident under range leases, bounded to 16,384 retained rays.
+      One compute commit merges resident RGB and CPU-resolved samples before publishing metadata.
+      Lighting-only retries retain original identity checks after releasing resident allocations.
+      Admission/upload budgets account for the actual 48+32-per-sample hybrid staging format.
+    - All 205 expanded regression tests and 30 final rebuilt checks passed (208 distinct tests,
+      including three added retry-identity cases). Production build/deployment passed with zero
+      warnings/errors; root review and independent test-agent audit found no remaining blocker.
+      Receipts and exact residency/remaining runtime limits: docs/LumOn.WorldProbeGpuRouting.md.
   ☐ Validate L0 GPU tracing through subagent-run focused tests and a separate implementation review.
     - Compare CPU/GPU results on supported geometry; cover signed origins, exact sky boundaries,
       unsupported collision shapes, coverage exits, missing inputs, CPU fallback, partial retries,

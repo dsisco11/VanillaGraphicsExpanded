@@ -35,6 +35,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
     private readonly List<ProbeResolveVertex> probeVertices = new();
     private readonly List<TileResolveVertex> tileVertices = new();
     private bool isDisposed;
+    private WorldProbeHybridCommit? hybridCommit;
 
     public LumOnWorldProbeClipmapGpuUploader(ICoreClientAPI capi)
     {
@@ -96,7 +97,50 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
     }
 
     /// <summary>Uploads borrowed results synchronously; neither input spans nor staging views escape this call.</summary>
-    public int Upload(
+    public int Upload(LumOnWorldProbeClipmapGpuResources resources,
+        ReadOnlySpan<LumOnWorldProbeTraceResult> results, int uploadBudgetBytesPerFrame)
+    {
+        int budget = uploadBudgetBytesPerFrame > 0 ? uploadBudgetBytesPerFrame : int.MaxValue;
+        int committed = 0;
+        foreach (ref readonly var result in results)
+        {
+            // Lighting-only retries no longer own resident RGB, but still belong to the original trace.
+            try { if (result.GpuIdentity != null && !result.GpuIdentity.IsCurrent) continue; }
+            catch (Exception error)
+            { capi.Logger.Error("[VGE] World-probe commit identity failed: {0}", error.Message); continue; }
+            int bytes = GetUploadBytes(result);
+            if (bytes > budget) break;
+            if (result.GpuLease == null)
+            {
+                bool missingOwner = false;
+                foreach (var sample in result.AtlasSamples.AsSpan()) missingOwner |= sample.GpuRayIndex >= 0;
+                if (missingOwner) continue;
+                committed += UploadCpu(resources, MemoryMarshal.CreateReadOnlySpan(in result, 1), bytes);
+            }
+            else
+            {
+                // Prepare every resource before publication; failure cannot expose metadata alone.
+                try
+                {
+                    if (!result.GpuLease.IsCurrent) continue;
+                    hybridCommit ??= new WorldProbeHybridCommit(capi);
+                    if (!hybridCommit.Commit(resources, result)) continue;
+                    committed++;
+                }
+                catch (Exception error)
+                { capi.Logger.Error("[VGE] World-probe hybrid commit failed: {0}", error.Message); continue; }
+            }
+            budget -= bytes;
+        }
+        return committed;
+    }
+
+    /// <summary>Charges actual staging bytes for resident commits or compatibility raster uploads.</summary>
+    public static int GetUploadBytes(in LumOnWorldProbeTraceResult result) => result.GpuLease != null
+        ? 48 + (result.AtlasSamples.AsSpan().Length << 5) : 40 + 24 * result.AtlasSamples.AsSpan().Length;
+
+    /// <summary>Publishes CPU-only directional values through the existing raster resolve programs.</summary>
+    private int UploadCpu(
         LumOnWorldProbeClipmapGpuResources resources,
         ReadOnlySpan<LumOnWorldProbeTraceResult> results,
         int uploadBudgetBytesPerFrame)
@@ -238,6 +282,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
     {
         if (isDisposed) return;
         isDisposed = true;
+        hybridCommit?.Dispose(); hybridCommit = null;
 
         probeVbo.Dispose();
         probeVao.Dispose();

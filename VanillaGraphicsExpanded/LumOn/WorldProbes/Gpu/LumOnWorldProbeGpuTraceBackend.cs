@@ -23,6 +23,9 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceB
     private int nextAdmission, nextRay;
     private int queuedRays;
     private WorldProbeTraceBatch? batch;
+    private WorldProbeResidentAnswers? resident;
+    private readonly List<WorldProbeResidentAnswers> residentBatches = new();
+    internal const int MaximumResidentRays = WorldProbeTraceBatch.MaximumRays << 1;
     private TraceGeometryGpuScene? submittedScene;
     private long submittedInvalidation, submittedLightingRevision;
     private bool disposed;
@@ -48,6 +51,8 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceB
         disposed = true;
         fallback?.Dispose(); fallback = null; fallbackPending.Clear();
         batch?.Dispose(); batch = null;
+        foreach (var allocation in residentBatches) allocation.Dispose();
+        residentBatches.Clear(); resident = null;
         queued.Clear(); pending.Clear(); completed.Clear(); queuedRays = 0; submittedScene = null;
         answers = default;
     }
@@ -81,7 +86,8 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceB
         {
             try
             {
-                if (!batch.TryRead(out answers)) return false;
+                if (!batch.TryReadResident(out answers, out resident)) return false;
+                residentBatches.Add(resident!);
             }
             catch (Exception error)
             {
@@ -109,9 +115,14 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceB
                     if (!TryQueueFallback(admission, nextRay)) return false;
                     deferred = true;
                 }
-                else result = currentLifetime
-                    ? WorldProbeGpuIntegration.Integrate(admission.Item, answers, nextRay, admission.Directions.Length)
-                    : WorldProbeGpuIntegration.Reject(admission.Item);
+                else if (currentLifetime)
+                {
+                    var lease = CreateLease(admission, nextRay);
+                    try { result = WorldProbeGpuIntegration.Integrate(admission.Item, answers, nextRay, admission.Directions.Length, lease); }
+                    catch { lease.Dispose(); throw; }
+                    if (!result.Success) lease.Dispose();
+                }
+                else result = WorldProbeGpuIntegration.Reject(admission.Item);
             }
             catch (Exception error)
             {
@@ -121,7 +132,7 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceB
             nextAdmission++;
             nextRay += admission.Directions.Length;
             if (nextAdmission == pending.Count)
-            { pending.Clear(); submittedScene = null; answers = default; nextAdmission = nextRay = 0; }
+            { pending.Clear(); submittedScene = null; answers = default; nextAdmission = nextRay = 0; resident?.Release(); resident = null; }
             if (!deferred) return true;
         }
         SubmitQueued();
@@ -132,6 +143,11 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceB
     private void SubmitQueued()
     {
         if (queued.Count == 0) return;
+        residentBatches.RemoveAll(allocation => !allocation.IsValid);
+        int retained = 0;
+        foreach (var allocation in residentBatches) retained += allocation.Count;
+        // Never overwrite allocations referenced by fallback workers or delayed cache completion.
+        if (queuedRays > MaximumResidentRays - retained) return;
         var directions = ImmutableArray.CreateBuilder<uint>(queuedRays);
         var probes = ImmutableArray.CreateBuilder<WorldProbeTraceProbeGpu>(queued.Count);
         foreach (var admission in queued)
@@ -167,7 +183,20 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceB
         for (int index = nextAdmission; index < pending.Count; index++)
             completed.Enqueue(WorldProbeGpuIntegration.Reject(pending[index].Item));
         pending.Clear(); submittedScene = null; answers = default; nextAdmission = nextRay = 0;
+        resident?.Release(); resident = null;
         batch?.Dispose(); batch = null;
+    }
+
+    /// <summary>Captures the original admission and borrowed resource revisions for commit-time validation.</summary>
+    private WorldProbeGpuLease CreateLease(in Admission admission, int first)
+    {
+        var item = admission.Item;
+        var scene = submittedScene;
+        long invalidation = submittedInvalidation, revision = submittedLightingRevision;
+        return new WorldProbeGpuLease(resident!, first, admission.Directions.Length, () =>
+            !disposed && isCurrent(item.Request) && ReferenceEquals(readGeometry(), scene) &&
+            (scene?.InvalidationRevision ?? -1) == invalidation &&
+            (readLighting()?.DependencyRevision ?? -1) == revision && item.SurfaceRevision == revision);
     }
     #endregion
 }

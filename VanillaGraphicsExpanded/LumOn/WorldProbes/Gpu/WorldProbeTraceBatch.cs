@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Collections;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
@@ -16,7 +17,11 @@ internal sealed class WorldProbeTraceBatch : IDisposable
     private readonly GpuComputePipeline? setup;
     private readonly TraceGeometryComputeBindings geometry = new();
     private readonly SurfaceLightingBindings lighting = new();
-    private readonly GpuShaderStorageBuffer output = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
+    private GpuShaderStorageBuffer output = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
+    private GpuComputePipeline? completion;
+    private readonly GpuShaderStorageBuffer metadata = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
+    private readonly GpuShaderStorageBuffer descriptors = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
+    private readonly GpuShaderStorageBuffer descriptorCount = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
     private readonly GpuShaderStorageBuffer probes = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamDraw);
     private readonly GpuShaderStorageBuffer directions = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamDraw);
     private readonly GpuShaderStorageBuffer tiles = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw);
@@ -37,9 +42,12 @@ internal sealed class WorldProbeTraceBatch : IDisposable
             if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeTraceShader.Contract.Identity,
                 out var created, out _, out string log, preferSpirv: true)) throw new InvalidOperationException(log);
             pipeline = created!;
+            if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeCompletionShader.Contract.Identity,
+                out completion, out _, out string completionLog, preferSpirv: true)) throw new InvalidOperationException(completionLog);
         }
         catch
         {
+            pipeline?.Dispose(); completion?.Dispose(); metadata.Dispose(); descriptors.Dispose(); descriptorCount.Dispose();
             setup?.Dispose(); output.Dispose(); probes.Dispose(); directions.Dispose(); tiles.Dispose(); dispatch.Dispose();
             geometry.Dispose(); lighting.Dispose();
             throw;
@@ -71,6 +79,12 @@ internal sealed class WorldProbeTraceBatch : IDisposable
             geometry.Bind(scene); lighting.Bind(snapshot);
             GL.DispatchComputeIndirect(IntPtr.Zero);
         }
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
+        metadata.EnsureCapacity(count << 4, growExponentially: false); metadata.BindRange(1, 0, count << 4);
+        descriptors.EnsureCapacity(outputBytes, growExponentially: false); descriptors.BindRange(2, 0, outputBytes);
+        descriptorCount.EnsureCapacity(4, growExponentially: false);
+        descriptorCount.UploadSubData<uint>(new uint[] { 0 }, 0, 4); descriptorCount.BindRange(3, 0, 4);
+        using (completion!.UseScope()) GL.DispatchCompute((count + 63) >> 6, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
         fence = GpuFence.Insert();
         GL.Flush();
@@ -117,6 +131,47 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         fence.Dispose(); fence = null; count = 0;
         return true;
     }
+
+    /// <summary>Reads bounded completion metadata and sparse missing-light descriptors, transferring resident RGB ownership.</summary>
+    public bool TryReadResident(out ImmutableArray<WorldProbeTraceAnswerGpu> answers, out WorldProbeResidentAnswers? resident)
+    {
+        answers = default; resident = null;
+        if (fence is null) return false;
+        var status = fence.Poll();
+        if (status == WaitSyncStatus.TimeoutExpired) return false;
+        if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("World-probe completion fence failed.");
+        using var totals = descriptorCount.MapRange<uint>(0, 1, MapBufferAccessMask.MapReadBit);
+        if (!totals.IsMapped || totals.Span[0] > count) throw new InvalidOperationException("Invalid descriptor completion count.");
+        int sparseCount = (int)totals.Span[0];
+        using var sparse = PooledArray<WorldProbeTraceAnswerGpu>.Rent(sparseCount);
+        if (sparseCount > 0)
+        {
+            using var read = descriptors.MapRange<WorldProbeTraceAnswerGpu>(0, sparseCount, MapBufferAccessMask.MapReadBit);
+            if (!read.IsMapped) throw new InvalidOperationException("Descriptor readback failed.");
+            read.Span.CopyTo(sparse.Span);
+        }
+        using var data = metadata.MapRange<WorldProbeCompletionGpu>(0, count, MapBufferAccessMask.MapReadBit);
+        if (!data.IsMapped) throw new InvalidOperationException("Completion readback failed.");
+        var builder = ImmutableArray.CreateBuilder<WorldProbeTraceAnswerGpu>(count);
+        foreach (var item in data.Span)
+        {
+            if (item.Descriptor >= sparseCount || item.Descriptor < -2) throw new InvalidOperationException("Invalid descriptor index.");
+            var answer = item.Descriptor >= 0 ? sparse.Span[item.Descriptor] : new WorldProbeTraceAnswerGpu
+            { Outcome = item.Outcome, Reason = item.Reason };
+            answer.Hit.Fraction.W = item.Distance;
+            if (item.Descriptor == -2) answer.Hit.Result.W = 1;
+            builder.Add(answer);
+        }
+        answers = builder.MoveToImmutable();
+        LastReadbackBytes = 4 + (count << 4) + sparseCount * 80;
+        var replacement = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
+        resident = new WorldProbeResidentAnswers(output, count); output = replacement;
+        fence.Dispose(); fence = null; count = 0;
+        return true;
+    }
+
+    /// <summary>Bytes mapped by the last compact completion, excluding resident directional payloads.</summary>
+    internal int LastReadbackBytes { get; private set; }
     #endregion
 
     #region Lifetime
@@ -125,6 +180,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
     {
         fence?.Dispose(); fence = null;
         output.Dispose(); probes.Dispose(); directions.Dispose(); tiles.Dispose(); dispatch.Dispose();
+        metadata.Dispose(); descriptors.Dispose(); descriptorCount.Dispose(); completion?.Dispose();
         geometry.Dispose(); lighting.Dispose(); pipeline.Dispose(); setup?.Dispose();
     }
     #endregion

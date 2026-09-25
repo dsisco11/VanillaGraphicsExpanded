@@ -21,11 +21,11 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         runtime.WorldRenderer.SetSurfaceLightingProvider(provider,runtime.Cache.Geometry);
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
-        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1575;
+        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=2095;
         runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         int published=runtime.WorldPixels().Where((_,i)=>(i&3)==3).Count(v=>v!=0);
         Assert.InRange(published,1,63);
-        Assert.True(40+24*published<=1575);
+        Assert.True(48+(published<<5)<=2095);
     }
 
     /// <summary>Unavailable pages cannot discard ready directions, and retries query only still unresolved descriptors.</summary>

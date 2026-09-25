@@ -38,6 +38,10 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
         return Resources.ProbeRadianceAtlas.ReadPixels();
     }
 
+    /// <summary>Attempts an atomic publication with an explicit budget and exposes its admission count.</summary>
+    public int TryUpload(in LumOnWorldProbeTraceResult result, int budget)
+        => uploader.Upload(Resources,new[]{result},budget);
+
     /// <summary>Retires uploads before deleting programs and their atlas resources.</summary>
     public void Dispose() { uploader.Dispose();Resources.Dispose();metadata.Dispose();radiance.Dispose();assets.Dispose(); }
     #endregion

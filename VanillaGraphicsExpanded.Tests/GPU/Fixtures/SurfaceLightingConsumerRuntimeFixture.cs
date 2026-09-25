@@ -74,13 +74,13 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
         // The short-range regression deliberately leaves that reach insufficient to resolve all directions.
         wp.ClipmapResolution=shortProbeRange?1:4; wp.ClipmapLevels=1; wp.ClipmapBaseSpacing=4;
         wp.OctahedralTileSize=8; wp.AtlasTexelsPerUpdate=64; wp.TraceMaxProbesPerFrame=1;
-        wp.PerLevelProbeUpdateBudget=[1]; wp.UploadBudgetBytesPerFrame=1576; wp.EnableDirectionPIS=false;
+        wp.PerLevelProbeUpdateBudget=[1]; wp.UploadBudgetBytesPerFrame=2096; wp.EnableDirectionPIS=false;
         /// <summary>Supplies an engine camera positioned inside the controlled enclosure.</summary>
         LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(4,36,6,4,36,6,0);
         if(spatial!=null)
         {
             wp.ClipmapResolution=shortProbeRange?2:8; wp.ClipmapBaseSpacing=2; wp.TraceMaxProbesPerFrame=8;
-            wp.PerLevelProbeUpdateBudget=[8]; wp.UploadBudgetBytesPerFrame=8*1576;
+            wp.PerLevelProbeUpdateBudget=[8]; wp.UploadBudgetBytesPerFrame=8*2096;
             cfg.ProbeAtlasTexelsPerFrame=64; cfg.TemporalAlpha=0;
         }
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);

@@ -17,7 +17,7 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend
     private int fallbackFrame;
 
     /// <summary>Keeps borrowed resource identity on the render thread while workers see only immutable ray answers.</summary>
-    private readonly record struct FallbackLifetime(TraceGeometryGpuScene? Scene, long Invalidation, long LightingRevision);
+    private readonly record struct FallbackLifetime(TraceGeometryGpuScene? Scene, long Invalidation, long LightingRevision, WorldProbeGpuLease Lease);
 
     #region Fallback scheduling
     /// <summary>Grants frame-limited CPU ray credit independently of how often completions are polled.</summary>
@@ -46,7 +46,7 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend
         long id = ++nextFallbackId;
         var work = new WorldProbeCpuFallbackWork(id, admission.Item, admission.Directions, retained.MoveToImmutable());
         if (!fallback.TryEnqueue(work)) return false;
-        fallbackPending.Add(id, new(submittedScene, submittedInvalidation, submittedLightingRevision));
+        fallbackPending.Add(id, new(submittedScene, submittedInvalidation, submittedLightingRevision, CreateLease(admission, first)));
         return true;
     }
 
@@ -65,13 +65,14 @@ internal sealed partial class LumOnWorldProbeGpuTraceBackend
                 !ReferenceEquals(current, lifetime.Scene) || (current?.InvalidationRevision ?? -1) != lifetime.Invalidation ||
                 (readLighting()?.DependencyRevision ?? -1) != lifetime.LightingRevision || work.Item.SurfaceRevision != lifetime.LightingRevision)
                 return true;
-            result = WorldProbeGpuIntegration.Integrate(work.Item, work.Answers, 0, work.Answers.Length);
+            result = WorldProbeGpuIntegration.Integrate(work.Item, work.Answers, 0, work.Answers.Length, lifetime.Lease);
         }
         catch (Exception error)
         {
             // Returning the failed admission releases its scheduler ticket even if providers fail.
             api.Logger.Error("[VGE] World-probe CPU fallback completion failed: {0}", error.Message);
         }
+        finally { if (!result.Success) lifetime.Lease.Dispose(); }
         return true;
     }
     #endregion

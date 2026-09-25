@@ -174,7 +174,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             Assert.Equal(0,runtime.WorldConfidence);
         }
         Assert.False(runtime.HasPendingSurfaceLightingQueries);
-        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1576;
+        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=gpu?2096:1576;
         runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
     }
 

@@ -36,7 +36,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         if (revision==surfaceRevision && ReferenceEquals(resources,lightingProbeResources)) return;
         lightingProbeResources=resources;
         surfaceRevision=revision;
-        surfaceQueries?.Dispose(); surfaceQueries=null; pendingSurfaceResults.Clear();
+        surfaceQueries?.Dispose(); surfaceQueries=null; RetireSurfaceResults();
         queriedGeometry = null;
         // Retiring the service prevents obsolete workers from publishing into the new scheduler generation.
         traceService?.Dispose(); traceService=null;
@@ -47,7 +47,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     private void ReleaseSurfaceLighting()
     {
         surfaceQueries?.Dispose(); surfaceQueries=null;
-        pendingSurfaceResults.Clear(); surfaceRetries.Clear(); surfaceQueryWork.Clear(); surfaceRevision=-1; lightingProbeResources=null;
+        RetireSurfaceResults(); surfaceRetries.Clear(); surfaceQueryWork.Clear(); surfaceRevision=-1; lightingProbeResources=null;
         queriedGeometry = null;
     }
     #endregion
@@ -55,41 +55,58 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     #region Resolution and upload
     private const int MaximumSurfaceRetries = 3;
 
+    /// <summary>Releases resident admissions before delayed query ownership is discarded.</summary>
+    private void RetireSurfaceResults()
+    {
+        foreach (var result in pendingSurfaceResults) result.GpuLease?.Dispose();
+        pendingSurfaceResults.Clear();
+    }
+
     /// <summary>Publishes ready directions and retains only unresolved descriptors for bounded GPU retries.</summary>
     private void PublishSurfaceResult(LumOnWorldProbeClipmapGpuResources resources,
         LumOnWorldProbeClipmapGpuUploader uploader, in LumOnWorldProbeTraceResult source,
         in LumOnWorldProbeTraceResult resolved, ref int budget, bool limited,
         List<LumOnWorldProbeTraceResult>? retries)
     {
-        if (scheduler == null) return;
-        if (source.SurfaceRevision != surfaceRevision || !scheduler.IsCurrent(source.Request))
-        { scheduler.Complete(source.Request, frameIndex, false); return; }
-        bool uploaded = false;
-        if (resolved.Success && !resolved.AtlasSamples.IsDefaultOrEmpty)
+        if (scheduler == null) { source.GpuLease?.Dispose(); return; }
+        try
         {
-            int bytes = 40 + 24 * resolved.AtlasSamples.Length;
-            var uploadResult = resolved;
-            uploaded = (!limited || bytes <= budget) && uploader.Upload(resources, MemoryMarshal.CreateReadOnlySpan(ref uploadResult, 1), bytes) > 0;
-            if (!uploaded)
+            if (source.SurfaceRevision != surfaceRevision || !scheduler.IsCurrent(source.Request) ||
+                (source.GpuIdentity != null && !source.GpuIdentity.IsCurrent))
+            { scheduler.Complete(source.Request, frameIndex, false); return; }
+            bool uploaded = false;
+            if (resolved.Success && !resolved.AtlasSamples.IsDefaultOrEmpty)
             {
-                // Retry the original admission through normal scheduling if its ready subset
-                // cannot fit. Never retain only unresolved hits while silently losing ready work.
-                scheduler.Complete(source.Request, frameIndex, false);
+                int bytes = LumOnWorldProbeClipmapGpuUploader.GetUploadBytes(resolved);
+                var uploadResult = resolved;
+                uploaded = (!limited || bytes <= budget) && uploader.Upload(resources, MemoryMarshal.CreateReadOnlySpan(ref uploadResult, 1), bytes) > 0;
+                if (!uploaded)
+                {
+                    // Retry the original admission through normal scheduling if its ready subset
+                    // cannot fit. Never retain only unresolved hits while silently losing ready work.
+                    scheduler.Complete(source.Request, frameIndex, false);
+                    return;
+                }
+                if (limited) budget -= bytes;
+                scheduler.MergeImportanceFlags(source.Request.Level, source.Request.StorageLinearIndex, source.ImportanceFlags);
+            }
+            var unresolved = resolved.RetrySamples;
+            if (!unresolved.IsDefaultOrEmpty && retries != null && source.SurfaceRetryCount < MaximumSurfaceRetries)
+            {
+                // The same ticket stays in flight, so dirtying, relocation and cache revisions
+                // reject delayed answers. Already uploaded directions are never queried again here.
+                retries.Add(source with { AtlasSamples = unresolved, RetrySamples = default, GpuLease = null,
+                    SurfaceRetryCount = source.SurfaceRetryCount + 1 });
                 return;
             }
-            if (limited) budget -= bytes;
-            scheduler.MergeImportanceFlags(source.Request.Level, source.Request.StorageLinearIndex, source.ImportanceFlags);
+            scheduler.Complete(source.Request, frameIndex, uploaded && unresolved.IsDefaultOrEmpty);
         }
-        var unresolved = resolved.RetrySamples;
-        if (!unresolved.IsDefaultOrEmpty && retries != null && source.SurfaceRetryCount < MaximumSurfaceRetries)
+        catch (Exception error)
         {
-            // The same ticket stays in flight, so dirtying, relocation and cache revisions
-            // reject delayed answers. Already uploaded directions are never queried again here.
-            retries.Add(source with { AtlasSamples = unresolved, RetrySamples = default,
-                SurfaceRetryCount = source.SurfaceRetryCount + 1 });
-            return;
+            capi.Logger.Error("[VGE] World-probe publication failed: {0}", error.Message);
+            scheduler.Complete(source.Request, frameIndex, false);
         }
-        scheduler.Complete(source.Request, frameIndex, uploaded && unresolved.IsDefaultOrEmpty);
+        finally { source.GpuLease?.Dispose(); }
     }
 
     /// <summary>Polls one bounded query batch and shares the existing upload budget across partial and complete results.</summary>
@@ -113,6 +130,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
                 // answers after source invalidation without erasing already published directions.
                 if (!geometryMatches)
                 {
+                    result.GpuLease?.Dispose();
                     scheduler.Complete(result.Request, frameIndex, false);
                     continue;
                 }
@@ -135,18 +153,18 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
             { scheduler.Complete(retry.Request, frameIndex, false); continue; }
             // Retry descriptors are a strict subset of the previous <=4096-query batch.
             pendingSurfaceResults.Add(retry);
-            admittedBytes += 40 + 24 * retry.AtlasSamples.Length;
+            admittedBytes += LumOnWorldProbeClipmapGpuUploader.GetUploadBytes(retry);
             foreach (var sample in retry.AtlasSamples) queries.Add(sample.SurfaceHit!.Value);
         }
         int maxProbes = Math.Max(1, config.WorldProbeClipmap.TraceMaxProbesPerFrame);
         for (int i = 0; i < maxProbes && traceService.TryDequeueResult(out var result); i++)
         {
             int needed = result.AtlasSamples.IsDefaultOrEmpty ? 0 : result.AtlasSamples.Count(sample => sample.SurfaceHit.HasValue);
-            int bytes = 40 + 24 * result.AtlasSamples.AsSpan().Length;
+            int bytes = LumOnWorldProbeClipmapGpuUploader.GetUploadBytes(result);
             if (!result.Success || result.SurfaceRevision != surfaceRevision || !scheduler.IsCurrent(result.Request) ||
                 queries.Count + needed > SurfaceLightingQueryBatch.MaximumQueries ||
                 (limited && admittedBytes + bytes > budget))
-            { scheduler.Complete(result.Request, frameIndex, false, aborted: result.FailureReason == WorldProbeTraceFailureReason.Aborted); continue; }
+            { result.GpuLease?.Dispose(); scheduler.Complete(result.Request, frameIndex, false, aborted: result.FailureReason == WorldProbeTraceFailureReason.Aborted); continue; }
             if (needed == 0 || !canResolveHits)
             {
                 // Even without a cache, established sky directions can publish. Missing
