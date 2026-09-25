@@ -317,13 +317,22 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       including three added retry-identity cases). Production build/deployment passed with zero
       warnings/errors; root review and independent test-agent audit found no remaining blocker.
       Receipts and exact residency/remaining runtime limits: docs/LumOn.WorldProbeGpuRouting.md.
-  ☐ Validate L0 GPU tracing through subagent-run focused tests and a separate implementation review.
+  ✔ Validate L0 GPU tracing through subagent-run focused tests and a separate implementation review.
     - Compare CPU/GPU results on supported geometry; cover signed origins, exact sky boundaries,
       unsupported collision shapes, coverage exits, missing inputs, CPU fallback, partial retries,
       all existing probe metadata, resource reuse and runtime flag switching.
     - Verify flag-off behavior and unchanged L1+ CPU routing. Measure matched workloads with the
       flag off/on, including GPU time, CPU time, fallback frequency and completion latency.
       Record performance evidence separately from user-run in-game visual acceptance.
+    - All 213 unified correctness tests passed, including five added real-worker CPU routing cases.
+      A separate read-only implementation review found no confirmed blocker. Production build/
+      deployment passed with zero warnings/errors; no production fix was required.
+    - Opt-in matched measurements passed: supported/mixed geometry, one/eight probes per batch,
+      three ABBA repetitions, 6,144 measured probes. Report includes GPU/process CPU/worker/render
+      intervals, fallback frequency and GPU-complete latency. Mixed single-probe timing showed no
+      consistent benefit; other controlled cases improved in every block. No gameplay claim.
+    - Coverage, review, commands, hardware, raw receipts and measurement limitations:
+      docs/LumOn.WorldProbeGpuValidation.md. User-run in-game acceptance remains separate below.
 
   Remaining overall validation:
   ☐ Validate through subagent-run focused tests: missing cache, unavailable geometry, distance limits,

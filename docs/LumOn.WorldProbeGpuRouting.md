@@ -282,3 +282,16 @@ Receipts: `artifacts/TestResults/world-probe-resident-regression.trx`,
 `artifacts/TestResults/world-probe-resident-final.trx`, and
 `artifacts/world-probe-resident-deploy.log`. Live visual acceptance and matched-workload
 performance measurements remain open; no game was launched.
+
+## Completed focused validation and measurements
+
+The subsequent validation task passed **213 unified correctness tests**, a separately
+reviewed implementation, and the opt-in matched off/on measurement matrix. The final
+production build/deployment passed with zero warnings/errors. Measurement covers GPU
+intervals, process CPU, worker/render elapsed time, fallback frequency and completion
+latency, with one/eight-probe batches and three ABBA repetitions. Controlled batched
+cases improved consistently; mixed single-probe latency did not. Live gameplay and
+visual acceptance remain separate.
+
+The authoritative coverage table, separate review, exact commands, hardware, numerical
+results and limitations are in [L0 GPU tracing validation](LumOn.WorldProbeGpuValidation.md).

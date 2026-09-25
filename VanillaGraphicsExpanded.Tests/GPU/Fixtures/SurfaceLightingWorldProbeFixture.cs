@@ -16,9 +16,9 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
 
     #region Resource ownership
     /// <summary>Provides shader lookup at the engine boundary while retaining the production upload implementation.</summary>
-    public SurfaceLightingWorldProbeFixture()
+    public SurfaceLightingWorldProbeFixture(int resolution=1)
     {
-        Resources=new(assets.Api,1,1,8);
+        Resources=new(assets.Api,resolution,1,8);
         var shaders=RuntimeRenderEvents.Adapt<IShaderAPI>((method,args)=>method.Name=="GetProgramByName"
             ? (string)args![0]! == "lumon_worldprobe_clipmap_resolve" ? metadata : radiance
             : throw new NotSupportedException(method.Name));
@@ -41,6 +41,10 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
     /// <summary>Attempts an atomic publication with an explicit budget and exposes its admission count.</summary>
     public int TryUpload(in LumOnWorldProbeTraceResult result, int budget)
         => uploader.Upload(Resources,new[]{result},budget);
+
+    /// <summary>Publishes a matched group of admissions through one production uploader call.</summary>
+    public int TryUpload(LumOnWorldProbeTraceResult[] results,int budget)
+        => uploader.Upload(Resources,results,budget);
 
     /// <summary>Retires uploads before deleting programs and their atlas resources.</summary>
     public void Dispose() { uploader.Dispose();Resources.Dispose();metadata.Dispose();radiance.Dispose();assets.Dispose(); }

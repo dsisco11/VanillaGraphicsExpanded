@@ -5,10 +5,42 @@ using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
-/// <summary>Checks routing contracts independently of the temporary CPU compatibility implementation.</summary>
+/// <summary>Checks routing contracts and unchanged production CPU-worker results.</summary>
 public sealed class WorldProbeTraceRoutingTests
 {
     #region Backend selection
+    /// <summary>Flag-off tracing and enabled higher levels retain the exact production CPU integrator results.</summary>
+    [Theory]
+    [InlineData(false,0)] [InlineData(false,1)] [InlineData(false,2)]
+    [InlineData(true,1)] [InlineData(true,2)]
+    public void CpuRoutesPreserveRealWorkerResults(bool enabled,int level)
+    {
+        var world=new VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.ControlledVoxelWorld();
+        world.AddRoom((0,32,0),(7,39,7),materialId:17);
+        var scene=world.CreateTraceScene();
+        var item=new LumOnWorldProbeTraceWorkItem(17,new(level,new(),new(),3,Ticket:123),
+            new(3.5,35.5,3.5),16,8,16,true,.3f,2,.001f,1,true,42);
+        var expected=new LumOnWorldProbeTraceIntegrator().TraceProbe(scene,item,CancellationToken.None);
+        Assert.True(expected.Success);
+        int claims=0;
+        var cpu=new LumOnWorldProbeTraceService(scene,8,(request,frame)=>
+        {
+            Assert.Equal(item.Request,request);Assert.Equal(item.FrameIndex,frame);
+            Interlocked.Increment(ref claims);return true;
+        });
+        var gpu=new Backend {Accept=false};
+        using var router=new LumOnWorldProbeTraceRouter(enabled,cpu,gpu);
+        Assert.True(router.TryEnqueue(item));
+        LumOnWorldProbeTraceResult actual=default;
+        Assert.True(SpinWait.SpinUntil(()=>router.TryDequeueResult(out actual),TimeSpan.FromSeconds(3)));
+        Assert.Equal(1,claims);Assert.Empty(gpu.Items);
+        Assert.Equal(expected.AtlasSamples.Length,actual.AtlasSamples.Length);
+        for(int index=0;index<expected.AtlasSamples.Length;index++)
+            Assert.Equal(expected.AtlasSamples[index],actual.AtlasSamples[index]);
+        Assert.Equal(expected with {AtlasSamples=default},actual with {AtlasSamples=default});
+        Assert.Null(actual.GpuLease);Assert.Null(actual.GpuIdentity);
+    }
+
     /// <summary>Only enabled L0 admissions use the GPU entry point, preserving the complete scheduler work item.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
