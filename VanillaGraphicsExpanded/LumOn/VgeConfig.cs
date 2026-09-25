@@ -871,6 +871,10 @@ public class VgeConfig
             [JsonProperty]
             public int RelightRaysPerTexel { get; set; } = 1;
 
+            /// <summary>Caps completed indirect-light history at 1..255 batches; lower values respond faster with more noise.</summary>
+            [JsonProperty]
+            public int RelightMaxFramesAccumulated { get; set; } = 4;
+
             /// <summary>Selects material emission instead of aggregate block light, avoiding duplicate source energy.</summary>
             public bool SurfaceLightingMaterialEmission { get; set; } = false;
 
@@ -910,6 +914,7 @@ public class VgeConfig
                 RelightTexelsPerPagePerFrame = Math.Clamp(RelightTexelsPerPagePerFrame, 0, 4096 * 4096);
                 RelightRaysPerTexel = Math.Clamp(RelightRaysPerTexel, 0, 64);
                 RelightMaxDdaSteps = Math.Clamp(RelightMaxDdaSteps, 0, 512);
+                RelightMaxFramesAccumulated = Math.Clamp(RelightMaxFramesAccumulated, 1, 255);
             }
 
             private static int SanitizeTexelsPerVoxelFaceEdge(int v)

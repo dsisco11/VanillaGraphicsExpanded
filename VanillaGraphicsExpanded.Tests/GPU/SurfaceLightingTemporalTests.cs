@@ -24,10 +24,10 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
             room.SetIncidentRadiance(target/MathF.PI);
             Assert.True(room.BounceSample());
             var actual=room.Read(room.Snapshot.IndirectIrradiance);
-            Assert.Equal(8,actual[3]);
+            Assert.Equal(4,actual[3]);
             Assert.InRange(actual[0],Math.Min(initial,target),Math.Max(initial,target)+.01f);
             Assert.True(Math.Abs(actual[0]-target)<=Math.Abs(prior-target)+.005f);
-            if(sample==0) Assert.InRange(actual[0],initial+(target-initial)/8-.01f,initial+(target-initial)/8+.01f);
+            if(sample==0) Assert.InRange(actual[0],initial+(target-initial)/1025-.01f,initial+(target-initial)/1025+.01f);
             prior=actual[0];
         }
         Assert.InRange(Math.Abs(prior-target),0,.4f);
@@ -43,13 +43,13 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
         float sum=0;
         for(int sample=1;sample<=40;sample++)
         {
-            float target=sample<=8?sample:4.5f;
+            float target=sample<=4?sample:2.5f;
             room.SetIncidentRadiance(target/MathF.PI);
             Assert.True(room.BounceSample());
             var actual=room.Read(room.Snapshot.IndirectIrradiance);
             sum+=target;
-            Assert.Equal(Math.Min(sample,8),actual[3]);
-            float expected=sample<=8?sum/sample:4.5f;
+            Assert.Equal(Math.Min(sample,4),actual[3]);
+            float expected=sample<=4?sum/sample:2.5f;
             Assert.InRange(actual[0],expected-.025f,expected+.025f);
         }
     }
@@ -70,6 +70,40 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
         Assert.True(room.BounceSample());
         Assert.Equal(new float[]{0,0,0,1},room.Read(room.Snapshot.IndirectIrradiance));
     }
+    /// <summary>Saturated histories blend with the old count before applying the configured storage cap.</summary>
+    [Theory]
+    [InlineData(1)] [InlineData(4)] [InlineData(8)]
+    public void ConfiguredCapControlsSaturatedWeight(int cap)
+    {
+        EnsureContextValid();
+        using var room=new SurfaceLightingEnclosureFixture { MaxFramesAccumulated=cap };
+        room.Seed(); room.SetIndirect(8,cap); room.SetIncidentRadiance(0);
+        Assert.True(room.BounceSample());
+        var actual=room.Read(room.Snapshot.IndirectIrradiance);
+        Assert.Equal(cap,actual[3]);
+        float expected=8f*cap/(cap+1);
+        Assert.InRange(actual[0],expected-.01f,expected+.01f);
+    }
+
+    /// <summary>Lowering a cap preserves history until completion and uses the previous count on that first update.</summary>
+    [Fact]
+    public void LoweringCapUsesPreviousCountForFirstCompletedSample()
+    {
+        EnsureContextValid();
+        using var room=new SurfaceLightingEnclosureFixture { MaxFramesAccumulated=8 };
+        room.Seed(); room.SetIndirect(8,8);
+        var before=room.Read(room.Snapshot.IndirectIrradiance);
+        room.MaxFramesAccumulated=4;
+        Assert.Equal(before,room.Read(room.Snapshot.IndirectIrradiance));
+        Assert.False(room.BounceSample(steps:0));
+        Assert.Equal(before,room.Read(room.Snapshot.IndirectIrradiance));
+        room.SetIncidentRadiance(0); Assert.True(room.BounceSample());
+        var first=room.Read(room.Snapshot.IndirectIrradiance);
+        Assert.Equal(4,first[3]); Assert.InRange(first[0],8f*8/9-.01f,8f*8/9+.01f);
+        room.SetIncidentRadiance(0); Assert.True(room.BounceSample());
+        var second=room.Read(room.Snapshot.IndirectIrradiance);
+        Assert.Equal(4,second[3]); Assert.InRange(second[0],first[0]*.8f-.01f,first[0]*.8f+.01f);
+    }
     #endregion
 
     #region Source refresh
@@ -87,10 +121,10 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
         room.BlockLight=0; room.Geometry.Dirty(); room.Geometry.Publish(); room.RefreshDirect();
         Assert.Same(original.IndirectIrradiance,room.Snapshot.IndirectIrradiance);
         Assert.Equal(initial,room.Read(room.Snapshot.IndirectIrradiance)[0]);
-        Assert.Equal(8,room.Read(room.Snapshot.IndirectIrradiance)[3]);
+        Assert.Equal(4,room.Read(room.Snapshot.IndirectIrradiance)[3]);
         for(int bounce=0;bounce<48;bounce++) room.Bounce();
         Assert.InRange(room.Read(room.Snapshot.IndirectIrradiance)[0],0,initial*.05f);
-        Assert.Equal(8,room.Read(room.Snapshot.IndirectIrradiance)[3]);
+        Assert.Equal(4,room.Read(room.Snapshot.IndirectIrradiance)[3]);
     }
     #endregion
 }

@@ -9,6 +9,38 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Resident refresh
+    /// <summary>Live history-limit edits reach the producer without replacing storage, captures, or published lighting.</summary>
+    [Fact]
+    public void HistoryLimitChangesPreservePublishedSurfaceIdentity()
+    {
+        EnsureContextValid();
+        using var runtime=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f });
+        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
+        Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
+        uint page=mapping.Keys.First();
+        runtime.RunUntil(()=>IndirectWeight(runtime,page)>=4,maximumFrames:256);
+        Assert.True(runtime.TryGetLighting(out var original));
+        long capture=runtime.Feedback.GetCaptureRevision(page);
+        foreach(int cap in new[]{8,1})
+        {
+            runtime.Config.LumOn.LumonScene.RelightMaxFramesAccumulated=cap;
+            bool reached=false;
+            for(int frame=0;frame<256 && !reached;frame++)
+            {
+                runtime.Frame();
+                Assert.True(runtime.TryGetLighting(out var current));
+                Assert.Same(original.IndirectIrradiance,current.IndirectIrradiance);
+                Assert.Equal(original.DependencyRevision,current.DependencyRevision);
+                Assert.Equal(capture,runtime.Feedback.GetCaptureRevision(page));
+                using var outgoing=SurfaceLightingPageReadback.Read(current.OutgoingRadiance,current,page);
+                for(int index=3;index<outgoing.Length;index+=4) Assert.Equal(1,outgoing.Span[index]);
+                reached=IndirectWeight(runtime,page)==cap;
+            }
+            Assert.True(reached,"Runtime history configuration did not reach the retained producer history.");
+        }
+    }
+
     /// <summary>A light edit in one source chunk cannot prevent successful indirect work in an unchanged neighboring chunk.</summary>
     [Fact]
     public void RemoteResidentContinuesIndirectRefreshAfterAnotherChunkChanges()
@@ -22,7 +54,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
         Assert.True(runtime.Feedback.TryGetNearChunkSlotAndGeneration(new(-1,1,0),out uint remoteSlot,out _));
         uint[] remote=mapping.Where(pair=>LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(pair.Value)==remoteSlot).Select(pair=>pair.Key).ToArray();
         Assert.NotEmpty(remote);
-        runtime.RunUntil(()=>remote.Any(page=>IndirectWeight(runtime,page)>=8),maximumFrames:256);
+        runtime.RunUntil(()=>remote.Any(page=>IndirectWeight(runtime,page)>=runtime.Config.LumOn.LumonScene.RelightMaxFramesAccumulated),maximumFrames:256);
         for(int frame=0;frame<160;frame++) runtime.Frame();
         uint page=remote.OrderByDescending(id=>IndirectBrightness(runtime,id)).First();
         float before=IndirectBrightness(runtime,page);

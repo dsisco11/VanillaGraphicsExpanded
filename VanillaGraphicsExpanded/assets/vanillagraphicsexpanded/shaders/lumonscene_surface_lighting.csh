@@ -13,8 +13,6 @@ layout(binding=7) uniform usampler2D surfaces;
 layout(binding=0, rgba16f) uniform image2DArray indirectIrradiance;
 layout(binding=1, rgba16f) uniform image2DArray directIrradiance;
 layout(binding=2, rgba16f) writeonly uniform image2DArray nextOutgoing;
-/** Bounds the effective history so old lighting cannot suppress successful refresh samples indefinitely. */
-const float SURFACE_LIGHTING_MAX_HISTORY_WEIGHT = 8.0;
 /** Rejects invalid inputs before conversion to bounded half-float storage. */
 bool finiteLight(vec3 value) { return !any(isnan(value)) && !any(isinf(value)); }
 /** Maps an axial normal into the engine face order. */
@@ -137,9 +135,11 @@ void main()
     if (!finiteLight(estimate)) { atomicOr(work[wi].w, 0x80000000u); return; }
     vec4 previous = imageLoad(indirectIrradiance,address);
     if (!finiteLight(previous.rgb) || isnan(previous.a) || isinf(previous.a)) previous = vec4(0);
-    // Start with a running mean, then retain a bounded effective history. This also migrates
-    // older high-weight texels lazily on their next resolved sample without clearing displayed RGB.
-    float weight = min(max(0.0,previous.a)+1.0,SURFACE_LIGHTING_MAX_HISTORY_WEIGHT);
-    imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,estimate,1.0/weight),vec3(0),vec3(65504)),weight));
+    // Match UE radiosity: blend using the previous count, then cap the stored next count.
+    // A lower runtime limit takes effect after this successful sample; unresolved work changes nothing.
+    float previousWeight = max(0.0,previous.a);
+    float weight = min(previousWeight+1.0,float(max(1u,lighting.policy.z)));
+    float alpha = 1.0/(1.0+previousWeight);
+    imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,estimate,alpha),vec3(0),vec3(65504)),weight));
     atomicOr(work[wi].w, 0x40000000u);
 }

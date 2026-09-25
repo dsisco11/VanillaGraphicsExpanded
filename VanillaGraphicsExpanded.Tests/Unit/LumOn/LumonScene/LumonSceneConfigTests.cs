@@ -3,8 +3,34 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.LumonScene;
 
+/// <summary>Checks persisted surface-cache configuration and sanitization boundaries.</summary>
 public sealed class LumonSceneConfigTests
 {
+    #region Temporal configuration
+    /// <summary>Existing settings without the new field receive the default; explicit values survive JSON persistence.</summary>
+    [Fact]
+    public void HistoryLimitDefaultsToFourAndRoundTrips()
+    {
+        var restored=Newtonsoft.Json.JsonConvert.DeserializeObject<VgeConfig>("{\"LumOn\":{\"LumonScene\":{}}}")!;
+        Assert.Equal(4,restored.LumOn.LumonScene.RelightMaxFramesAccumulated);
+        restored.LumOn.LumonScene.RelightMaxFramesAccumulated=17;
+        var copy=Newtonsoft.Json.JsonConvert.DeserializeObject<VgeConfig>(Newtonsoft.Json.JsonConvert.SerializeObject(restored))!;
+        Assert.Equal(17,copy.LumOn.LumonScene.RelightMaxFramesAccumulated);
+    }
+
+    /// <summary>Invalid persisted counts are clamped without altering legal limits.</summary>
+    [Theory]
+    [InlineData(-1,1)] [InlineData(0,1)] [InlineData(1,1)] [InlineData(4,4)] [InlineData(255,255)] [InlineData(256,255)]
+    public void HistoryLimitIsSanitized(int requested,int expected)
+    {
+        var config=new VgeConfig();
+        config.LumOn.LumonScene.RelightMaxFramesAccumulated=requested;
+        config.Sanitize();
+        Assert.Equal(expected,config.LumOn.LumonScene.RelightMaxFramesAccumulated);
+    }
+    #endregion
+
+    /// <summary>Sanitization keeps surface coverage and trace budgets within supported ranges.</summary>
     [Fact]
     public void Sanitize_ClampsLumonSceneSurfaceCacheSettings_AndEnsuresFarRadiusAtLeastNear()
     {

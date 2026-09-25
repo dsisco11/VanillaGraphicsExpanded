@@ -9,7 +9,7 @@ layout(std140, binding = 16) uniform SurfaceLightingParams
     ivec4 slotOrigin;
     ivec4 slotDimensions;
     ivec4 slotRing;
-    uvec4 policy;     // explicit material emission, authoritative world height (0 unknown), reserved, reserved
+    uvec4 policy;     // explicit material emission, authoritative world height (0 unknown), maximum accumulated history, reserved
 } lighting;
 /** Captured patchIdentity identity and local basis; matches the capture producer. */
 struct SurfacePatch

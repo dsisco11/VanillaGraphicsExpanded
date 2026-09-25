@@ -150,7 +150,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             // Reset cost shares the same page admission and fixed 64K-texel ceiling as combine/copy.
             gpu.RelightWork.ResetAndUpload(CollectionsMarshal.AsSpan(resetWork));
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, resetWork.Count, 3u,
-                (uint)(tile * tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission);
+                (uint)(tile * tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated);
             foreach (var item in resetWork) initialized.Add(item.PhysicalPageId);
         }
         for (uint pass = 0; pass < 3; pass++)
@@ -160,7 +160,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             if (work.Length == 0) continue;
             gpu.RelightWork.ResetAndUpload(work);
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, operation,
-                (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission);
+                (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated);
             // One completion read per operation, rather than a GPU synchronization for every page.
             using var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit);
             for (int i = 0; i < work.Length; i++)
@@ -184,7 +184,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             var work = CollectionsMarshal.AsSpan(publishable);
             gpu.RelightWork.ResetAndUpload(work);
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, 2u,
-                (uint)(tile*tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission);
+                (uint)(tile*tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated);
             // Keep the submitted list unchanged while its span is borrowed for completion handling.
             committedWork.Clear();
             using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit))
@@ -240,6 +240,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private int SettingsHash()
     {
         var cfg = config.LumOn.LumonScene;
+        // History-limit changes alter future weighting without invalidating retained lighting or scheduling.
         return HashCode.Combine(cfg.RelightRaysPerTexel, cfg.RelightMaxDdaSteps, cfg.RelightTexelsPerPagePerFrame, cfg.SurfaceLightingMaterialEmission);
     }
 

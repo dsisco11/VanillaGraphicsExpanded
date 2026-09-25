@@ -39,6 +39,8 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public bool EmissionPolicy { get; set; }
     /// <summary>Controls real producer ray count for deterministic complete-page environment fixtures.</summary>
     public uint RaysPerTexel { get; set; } = 4;
+    /// <summary>Controls the producer history cap without changing source or surface identity.</summary>
+    public int MaxFramesAccumulated { get; set; } = 4;
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
         metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation, DependencyRevision);
 
@@ -167,7 +169,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private void Run(uint operation)
     {
         work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems,0,lightingItems.Length*16);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,operation,64,RaysPerTexel,256,(uint)generation,EmissionPolicy);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,operation,64,RaysPerTexel,256,(uint)generation,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
         using var result = work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,MapBufferAccessMask.MapReadBit);
         Assert.True(result.IsMapped);
         foreach (var item in result.Span) Assert.Equal(0u,item.VirtualPageIndex & 0x80000000u);
@@ -215,7 +217,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public bool TryIncompleteBounce()
     {
         work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems,0,lightingItems.Length*16);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,1,64,4,256,(uint)generation,EmissionPolicy);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,1,64,4,256,(uint)generation,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
         using var result=work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,MapBufferAccessMask.MapReadBit);
         Assert.True(result.IsMapped);
         return result.Span.ToArray().All(item => (item.VirtualPageIndex & 0x80000000u)==0);
@@ -227,7 +229,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         var item=lightingItems[page];
         var selected=new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,(uint)linear,item.VirtualPageIndex);
         work.UploadSubData<LumonSceneRelightWorkGpu>(new[]{selected},0,16);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
         bool complete;
         using(var result=work.MapRange<LumonSceneRelightWorkGpu>(0,1,MapBufferAccessMask.MapReadBit))
         { Assert.True(result.IsMapped); complete=(result.Span[0].VirtualPageIndex & 0x80000000u)==0; }

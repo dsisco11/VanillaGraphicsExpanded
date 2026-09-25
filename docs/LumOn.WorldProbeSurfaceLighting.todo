@@ -198,7 +198,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Define bounded history weighting/replacement for refreshes, preserving old valid values on
       unresolved attempts. Missing geometry, coverage exits and exhausted budgets remain unresolved.
       Do not publish uninitialized texels, false sky, or artificial black as successful refreshes.
-    - Implemented an eight-completed-batch effective history cap: running mean during warm-up,
+    - Initially implemented an eight-completed-batch effective history cap: running mean during warm-up,
       then 1/8 replacement per successful sample. Higher existing weights migrate on the next
       completed finite sample without clearing RGB or changing publication identity. Fixed-input
       old-value contribution falls below 5% within 24 successful updates before storage rounding.
@@ -215,6 +215,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Normal production deployment passed with zero warnings/errors; receipt:
       artifacts/surface-temporal-deploy.log. Test compilation retained five pre-existing analyzer
       warnings in unrelated test files. In-game noise/response acceptance remains open.
+    - Follow-up: RelightMaxFramesAccumulated is configurable (default 4, sanitized 1..255).
+      Weighting now matches UE radiosity: alpha=1/(1+previousCount), followed by storing
+      min(previousCount+1,limit). Default saturated new-sample weight is 1/5, not 1/4.
+      Runtime limit changes preserve lighting and identity; the first resolved sample uses the
+      previous count before storing the new cap. Default fixed-input residual is below 5% after
+      14 saturated successful updates. Follow-up validation: all 66 focused tests passed, none skipped,
+      including JSON/default/clamping, cap 1/4/8 GPU weighting, lower-cap and 1024-count migration,
+      and live runtime configuration without capture/storage/dependency/readiness reset. Independent
+      source review found no blocker. Receipt: artifacts/TestResults/surface-configurable-history.trx.
+      Normal production build/deployment passed with zero warnings/errors; receipt:
+      artifacts/surface-configurable-history-deploy.log. Test compilation retained the five previously
+      recorded unrelated analyzer warnings. In-game acceptance remains open.
   ☐ Validate refresh behavior through subagent-run focused tests and a separate implementation review.
     - Cover unchanged dirty notifications, local surface edits, light on/off, indirect changes outside
       the edited chunk, missing inputs/recovery, repeated dirtying, page reuse and resource recreation.
