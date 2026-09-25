@@ -13,6 +13,22 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public SurfaceLightingEnvironmentTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Environment completion
+    /// <summary>A fully published open route can exceed the default DDA budget without providing evidence of sky.</summary>
+    [Fact]
+    public void SixtyFourStepsCannotCompleteLongPublishedSkyRoute()
+    {
+        EnsureContextValid();
+        using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:100,surfaceResolution:128);
+        floor.Seed();
+        // Select a nearly vertical cosine ray so coverage contains its complete route to y100.
+        uint frame=(uint)Enumerable.Range(1,100000).First(value=>Hash(Hash(1,27,(uint)value),0,0)/4294967295f<.001f);
+        var before=floor.Read(floor.Snapshot.IndirectIrradiance);
+        Assert.False(floor.BounceSample(rays:1,steps:64,frame:frame));
+        Assert.Equal(before,floor.Read(floor.Snapshot.IndirectIrradiance));
+        Assert.True(floor.BounceSample(rays:1,steps:128,frame:frame));
+        Assert.Equal(1,floor.Read(floor.Snapshot.IndirectIrradiance)[3]);
+    }
+
     /// <summary>Proven sky finishes an indirect batch without counting the seeded vanilla sunlight twice.</summary>
     [Theory]
     [InlineData(false, 0f)]

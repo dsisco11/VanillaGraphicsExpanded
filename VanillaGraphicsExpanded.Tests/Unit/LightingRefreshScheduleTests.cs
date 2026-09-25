@@ -6,6 +6,27 @@ namespace VanillaGraphicsExpanded.Tests.Unit;
 public sealed class LightingRefreshScheduleTests
 {
     #region Scheduling
+    /// <summary>Default near pages require four indirect buckets interleaved with four direct visits.</summary>
+    [Fact]
+    public void DefaultNearPageNeedsEightVisitsForOneIndirectSweep()
+    {
+        var config=new VanillaGraphicsExpanded.LumOn.VgeConfig.LumOnSettingsConfig.LumonSceneConfig();
+        var plan=LumonScenePhysicalPoolPlanner.CreateNearPlan(config.NearTexelsPerVoxelFaceEdge,
+            config.NearRadiusChunks,config.NearRadiusYChunks,config.NearPagesPerChunkBudget,1);
+        Assert.Equal(16,plan.TileSizeTexels);
+        Assert.Equal(64,config.RelightTexelsPerPagePerFrame);Assert.Equal(4,config.RelightMaxPagesPerFrame);
+        int buckets=(plan.TileSizeTexels*plan.TileSizeTexels)/config.RelightTexelsPerPagePerFrame;
+        var schedule=new LumonSceneLightingRefreshSchedule();var indirect=new HashSet<uint>();
+        for(int visit=0;visit<8;visit++)
+        {
+            uint operation=schedule.Select(1,true,true,buckets,out uint bucket);
+            Assert.Equal((visit&1)==0?1u:4u,operation);
+            if(operation==1)Assert.True(indirect.Add(bucket));
+        }
+        Assert.Equal(new uint[]{0,1,2,3},indirect.Order().ToArray());
+        Assert.Equal(1u,schedule.Select(1,true,true,buckets,out uint next));Assert.Equal(0u,next);
+    }
+
     /// <summary>Each published page visits every direct and indirect bucket even when no operation resolves.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
