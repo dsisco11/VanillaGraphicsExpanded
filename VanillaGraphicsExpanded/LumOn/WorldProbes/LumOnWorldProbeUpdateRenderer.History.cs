@@ -8,7 +8,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
 {
     #region Directional history ownership
 
-    /// <summary>Retires introduced ring slots before publishing the new clipmap anchor.</summary>
+    /// <summary>Queues introduced ring slots for retirement before the next atlas publication.</summary>
     private void OnProbeAnchorShifted(LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent evt)
     {
         var resources = clipmapBufferManager.Resources;
@@ -18,7 +18,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
             var ring = new VectorInt3(evt.NewRingOffset.X, evt.NewRingOffset.Y, evt.NewRingOffset.Z);
             int[] delta = { evt.DeltaProbes.X, evt.DeltaProbes.Y, evt.DeltaProbes.Z };
             if (Math.Abs((long)delta[0]) >= n || Math.Abs((long)delta[1]) >= n || Math.Abs((long)delta[2]) >= n)
-                resources.ClearLocalBox(evt.Level, ring, new VectorInt3(), new VectorInt3(n - 1, n - 1, n - 1));
+                resources.QueueClearLocalBox(evt.Level, ring, new VectorInt3(), new VectorInt3(n - 1, n - 1, n - 1));
             else
             {
                 // Only newly introduced slabs change identity; overlapping world probes retain their directions.
@@ -29,7 +29,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
                     int[] max = { n - 1, n - 1, n - 1 };
                     if (delta[axis] > 0) min[axis] = n - delta[axis];
                     else max[axis] = -delta[axis] - 1;
-                    resources.ClearLocalBox(evt.Level, ring,
+                    resources.QueueClearLocalBox(evt.Level, ring,
                         new VectorInt3(min[0], min[1], min[2]), new VectorInt3(max[0], max[1], max[2]));
                 }
             }
@@ -46,7 +46,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         var hi = new Vector3d(Math.Max(min.X, max.X), Math.Max(min.Y, max.Y), Math.Max(min.Z, max.Z));
         double spacing = LumOnClipmapTopology.GetSpacing(baseSpacing, level);
         int last = resources.Resolution - 1;
-        resources.ClearLocalBox(level, new VectorInt3(ring.X, ring.Y, ring.Z),
+        resources.QueueClearLocalBox(level, new VectorInt3(ring.X, ring.Y, ring.Z),
             new VectorInt3(Math.Clamp((int)Math.Floor((lo.X - origin.X) / spacing), 0, last),
                 Math.Clamp((int)Math.Floor((lo.Y - origin.Y) / spacing), 0, last),
                 Math.Clamp((int)Math.Floor((lo.Z - origin.Z) / spacing), 0, last)),

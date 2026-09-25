@@ -3,7 +3,7 @@ using System;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
-using VanillaGraphicsExpanded.Numerics;
+using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
@@ -50,7 +50,8 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
     public int ProbeMeta0TextureId => meta0.TextureId;
     public int ProbeDebugState0TextureId => debugState0.TextureId;
 
-    public LumOnWorldProbeClipmapGpuResources(int resolution, int levels, int worldProbeTileSize)
+    /// <summary>Allocates and initializes probe atlases using the owned compute clear program.</summary>
+    public LumOnWorldProbeClipmapGpuResources(ICoreAPI api, int resolution, int levels, int worldProbeTileSize)
     {
         if (resolution <= 0) throw new ArgumentOutOfRangeException(nameof(resolution));
         if (levels <= 0) throw new ArgumentOutOfRangeException(nameof(levels));
@@ -102,7 +103,16 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
         GlDebug.TryLabelFramebuffer(fbo.FboId, fbo.DebugName);
         GlDebug.TryLabelFramebuffer(radianceFbo.FboId, radianceFbo.DebugName);
 
-        ClearAll();
+        try
+        {
+            InitializeHistoryInvalidation(api);
+            ClearAll();
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 
     public GpuFramebuffer GetFbo() => fbo;
@@ -114,15 +124,11 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
         debugState0.UploadData(data);
     }
 
-    /// <summary>Clears all directional and scalar history independently of inherited GL scissor state.</summary>
-    public void ClearAll()
-    {
-        var zero = new VectorInt3();
-        var last = new VectorInt3(resolution - 1, resolution - 1, resolution - 1);
-        for (int level = 0; level < levels; level++) ClearLocalBox(level, zero, zero, last);
-    }
+    /// <summary>Releases atlas textures, framebuffers and the owned invalidation compute resources.</summary>
     public void Dispose()
     {
+        historyClearSlots?.Dispose();
+        historyClear?.Dispose();
         radianceFbo.Dispose();
         fbo.Dispose();
 

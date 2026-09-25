@@ -27,6 +27,8 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     private readonly float[] projection = LumOnTestInputFactory.CreateRealisticProjection();
     public SurfaceCacheRuntimeFixture Cache { get; }
     public RuntimeProbeWorld World { get; }
+    /// <summary>Models an unavailable engine world accessor while retaining existing GPU resources.</summary>
+    public bool WorldAccessorAvailable { get; set; }=true;
     public LumOnBufferManager Screen { get; }
     public LumOnWorldProbeClipmapBufferManager WorldBuffers { get; }
     public LumOnWorldProbeUpdateRenderer WorldRenderer { get; }
@@ -74,7 +76,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
             EngineUniforms.SunPosition3D = new Vintagestory.API.MathTools.Vec3f(0, 0, -1);
         }
         world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
-        world.SetupGet(api => api.BlockAccessor).Returns(World.Accessor);
+        world.SetupGet(api => api.BlockAccessor).Returns(()=>WorldAccessorAvailable ? World.Accessor : null!);
         world.SetupGet(api => api.Calendar).Returns((IClientGameCalendar)null!);
         world.SetupGet(api => api.MapSizeY).Returns(256);
         var render = RuntimeEngineServices.Render(edge,Cache.Api.Render.FrameBuffers,

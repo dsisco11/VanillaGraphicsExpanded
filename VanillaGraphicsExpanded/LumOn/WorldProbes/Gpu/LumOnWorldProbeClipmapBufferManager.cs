@@ -306,7 +306,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         resources?.Dispose();
         uploader?.Dispose();
 
-        resources = new LumOnWorldProbeClipmapGpuResources(resolution, levels, tileSize);
+        resources = new LumOnWorldProbeClipmapGpuResources(capi, resolution, levels, tileSize);
         uploader = new LumOnWorldProbeClipmapGpuUploader(capi);
 
         lastResolution = resolution;

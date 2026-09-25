@@ -102,6 +102,17 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       contact hits now encode a positive distance marker. Ring movement clears introduced slots
       while preserving overlapping probes; geometry dirtying, suppressed centers and dependency
       replacement retire affected history. Delayed answers must still match current tickets.
+    - Regional invalidation now queues unique physical slots and clears them with one compute
+      dispatch before atlas publication; full resets also use one dispatch. Overlapping regions
+      cannot race or grow the queue beyond the allocated slot count. No per-region scissor or
+      framebuffer-clear commands remain. A no-op flush dispatches nothing.
+      Compute follow-up validation: 107 distinct GPU tests passed (104 regression tests plus
+      three additional cases; final focused run 12/12), with no skips. Tests cover overlapping
+      queue deduplication, empty flush, all four targets, wrapped slots, renderer early exits,
+      shader-load rejection, and a 68,921-slot full reset across two dispatch dimensions.
+      Shader build: 66 programs, 245 combinations. Subagent review found no remaining gap.
+      Receipts: artifacts/TestResults/worldprobe-compute-clear.trx and
+      artifacts/TestResults/worldprobe-compute-clear-final.trx. Live performance is unmeasured.
     - Validation: 148 distinct focused tests passed (147 regression tests plus one additional
       partial-upload budget test), with no skips; subagent review found no remaining production gap.
       Coverage includes mixed ready/unready/black answers, real subset retries, bounded work,

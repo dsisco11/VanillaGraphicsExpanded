@@ -12,12 +12,13 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
     private readonly LumOnWorldProbeClipmapResolveShaderProgram metadata=new();
     private readonly LumOnWorldProbeRadianceTileResolveShaderProgram radiance=new();
     private readonly LumOnWorldProbeClipmapGpuUploader uploader;
-    public LumOnWorldProbeClipmapGpuResources Resources { get; } = new(1,1,8);
+    public LumOnWorldProbeClipmapGpuResources Resources { get; }
 
     #region Resource ownership
     /// <summary>Provides shader lookup at the engine boundary while retaining the production upload implementation.</summary>
     public SurfaceLightingWorldProbeFixture()
     {
+        Resources=new(assets.Api,1,1,8);
         var shaders=RuntimeRenderEvents.Adapt<IShaderAPI>((method,args)=>method.Name=="GetProgramByName"
             ? (string)args![0]! == "lumon_worldprobe_clipmap_resolve" ? metadata : radiance
             : throw new NotSupportedException(method.Name));

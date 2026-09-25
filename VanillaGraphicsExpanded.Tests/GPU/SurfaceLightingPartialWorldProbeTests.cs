@@ -74,6 +74,24 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     #endregion
 
     #region History lifetime
+    /// <summary>An unavailable engine accessor cannot postpone already queued slot retirement past the frame callback.</summary>
+    [Fact]
+    public void MissingWorldAccessorStillFlushesQueuedHistory()
+    {
+        EnsureContextValid();
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);runtime.Frame();
+        var resources=runtime.WorldBuffers.Resources!;
+        resources.GetRadianceFbo().BindWithViewport();
+        OpenTK.Graphics.OpenGL.GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color,0,new[]{1f,1f,1f,1f});
+        resources.QueueClearLocalBox(0,new(),new(),new(3,3,3));
+        long dispatches=resources.InvalidationDispatchCount;
+        runtime.WorldAccessorAvailable=false;
+        runtime.Frame();
+        Assert.Equal(0,resources.PendingInvalidationCount);
+        Assert.Equal(dispatches+1,resources.InvalidationDispatchCount);
+        Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
+    }
+
     /// <summary>Real scheduler anchor events clear introduced physical slots while preserving overlap in either direction.</summary>
     [Theory]
     [InlineData(4,48)] [InlineData(-4,48)] [InlineData(20,0)]
@@ -87,13 +105,15 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         var scheduler=(LumOnWorldProbeScheduler)typeof(LumOnWorldProbeUpdateRenderer)
             .GetField("scheduler",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(runtime.WorldRenderer)!;
         scheduler.UpdateOrigins(new Vintagestory.API.MathTools.Vec3d(4+delta,36,6),4);
+        resources.FlushHistoryInvalidation();
         Assert.Equal(remaining<<6,runtime.WorldPixels().Where((_,i)=>(i&3)==3).Count(v=>v==1));
         Assert.All(runtime.WorldPixels(),v=>Assert.True(v==0 || v==1));
     }
 
     /// <summary>Dirty geometry removes retained directions and rejects the already queued partial retry ticket.</summary>
-    [Fact]
-    public void GeometryDirtyClearsRetainedDirectionsAndRejectsPendingRetry()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void GeometryDirtyClearsRetainedDirectionsAndRejectsPendingRetry(bool explicitFlush)
     {
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
@@ -108,7 +128,12 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         typeof(LumOnWorldProbeUpdateRenderer).GetMethod("ClearDirtyProbeHistory",BindingFlags.Instance|BindingFlags.NonPublic)!
             .Invoke(runtime.WorldRenderer,[0,min,max,4d]);
         Assert.All(pending,r=>Assert.False(scheduler.IsCurrent(r.Request)));
-        Assert.All(runtime.WorldPixels(),v=>Assert.Equal(0,v));
+        Assert.Contains(runtime.WorldPixels(),v=>v>0);
+        if(explicitFlush)
+        {
+            runtime.WorldBuffers.Resources!.FlushHistoryInvalidation();
+            Assert.All(runtime.WorldPixels(),v=>Assert.Equal(0,v));
+        }
         runtime.Frame();
         Assert.All(runtime.WorldPixels(),v=>Assert.Equal(0,v));
     }

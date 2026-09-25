@@ -133,12 +133,14 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 		var worldAccessor = traceBlockAccessor;
 		if (worldAccessor is null)
 		{
+            resources.FlushHistoryInvalidation();
 			return;
 		}
 
 		var mainThreadAccessor = capi.World?.BlockAccessor;
 		if (mainThreadAccessor is null)
 		{
+            resources.FlushHistoryInvalidation();
 			return;
 		}
 
@@ -167,7 +169,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
             if (IsProbeCenterSuppressed(validation.Occupancy))
                 {
                 var storage = new VectorInt3(validation.Request.StorageIndex.X, validation.Request.StorageIndex.Y, validation.Request.StorageIndex.Z);
-                resources.ClearLocalBox(validation.Request.Level, VectorInt3.Zero, storage, storage);
+                resources.QueueClearLocalBox(validation.Request.Level, VectorInt3.Zero, storage, storage);
             }
 		}
 
@@ -234,7 +236,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 					// Probes with unavailable center chunks wait for ChunkDirty/NewlyLoaded to re-enable them.
 					// Centers inside solid collision cannot contribute and are likewise re-checked on ring reuse.
 					var storage = new VectorInt3(req.StorageIndex.X, req.StorageIndex.Y, req.StorageIndex.Z);
-                    resources.ClearLocalBox(req.Level, VectorInt3.Zero, storage, storage);
+                    resources.QueueClearLocalBox(req.Level, VectorInt3.Zero, storage, storage);
                     scheduler.Disable(req);
 					continue;
 				}
@@ -285,6 +287,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 			clipmapBufferManager.ClearDebugTraceRays(frameIndex);
 		}
 
+        // Retire old generations before partial uploads can publish new directional history.
+        resources.FlushHistoryInvalidation();
         ResolveSurfaceLighting(resources, uploader);
 
 		LumOnDebugMode debugMode = config.LumOn.DebugMode;

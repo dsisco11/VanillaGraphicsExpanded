@@ -44,7 +44,7 @@ internal sealed class ShaderLightingResources : IDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
         if (world?.Resolution == resolution && world.Levels == levels && world.WorldProbeTileSize == tileSize)
             return world;
-        var replacement = new LumOnWorldProbeClipmapGpuResources(resolution, levels, tileSize);
+        var replacement = new LumOnWorldProbeClipmapGpuResources(api, resolution, levels, tileSize);
         world?.Dispose();
         world = replacement;
         return world;
