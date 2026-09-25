@@ -228,7 +228,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
     {
         return scene.Trace(
             item.ProbePosWorld,
-            WorldProbeTraceDirectionSelection.NearbyDirection(item),
+            WorldProbeTraceDirectionSelection.CardinalDirection(WorldProbeTraceDirectionSelection.NearbyIndex(item)),
             item.NearbySolidHitDistance,
             cancellationToken,
             out _);

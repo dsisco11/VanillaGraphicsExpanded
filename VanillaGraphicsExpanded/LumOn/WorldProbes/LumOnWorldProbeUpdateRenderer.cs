@@ -175,6 +175,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 		}
 
 		EnsureTraceRouting(worldAccessor);
+		traceService!.BeginFrame(frameIndex);
 
 		System.Collections.Generic.List<LumOnWorldProbeUpdateRequest> requests;
 		using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.BuildList", "LumOn"))

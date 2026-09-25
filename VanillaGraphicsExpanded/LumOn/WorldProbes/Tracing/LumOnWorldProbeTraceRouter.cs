@@ -28,6 +28,12 @@ internal sealed class LumOnWorldProbeTraceRouter : IWorldProbeTraceBackend
     #endregion
 
     #region Admission and completion
+    /// <summary>Shares frame boundaries with both backends without granting extra credit per result poll.</summary>
+    public void BeginFrame(int frameIndex)
+    {
+        cpu.BeginFrame(frameIndex); gpu.BeginFrame(frameIndex);
+    }
+
     /// <summary>Routes only L0 to the optional GPU backend.</summary>
     public bool TryEnqueue(in LumOnWorldProbeTraceWorkItem item) =>
         (EnableGpuTracing && item.Request.Level == 0 ? gpu : cpu).TryEnqueue(item);

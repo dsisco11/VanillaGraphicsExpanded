@@ -14,7 +14,11 @@ void main()
     queries[i].result=vec4(0);
     ivec3 cell=queries[i].cell.xyz, n=queries[i].normal.xyz;
     uint geometry;
-    if (lumonTraceSceneReadGeometry(cell,TRACE_SCENE_SURFACE,geometry)!=TRACE_SCENE_READY || (geometry&3u)!=2u) return;
+    int status=lumonTraceSceneReadGeometry(cell,TRACE_SCENE_SURFACE,geometry);
+    // CPU collision has already established this hit. Published non-cube shapes
+    // may resolve captured face lighting without becoming traversable on the GPU.
+    if ((status!=TRACE_SCENE_READY && status!=TRACE_SCENE_UNSUPPORTED) ||
+        ((geometry&3u)!=2u && (geometry&3u)!=3u)) return;
     uvec4 faces=texelFetch(traceSceneFaces,ivec2(int(geometry>>2),0),0);
     if (queries[i].cell.w!=0 && (faces.w>>2)!=uint(queries[i].cell.w)) return;
     uint face=n.x>0?1u:n.x<0?3u:n.y>0?4u:n.y<0?5u:n.z>0?2u:0u;

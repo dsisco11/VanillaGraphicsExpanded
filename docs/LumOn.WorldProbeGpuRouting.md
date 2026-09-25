@@ -6,9 +6,9 @@ L1 and higher use the CPU backend. Disabling it routes every level to the CPU ba
 
 The GPU backend now traces L0 against existing uploaded geometry and samples the
 Surface Cache at resolved hits. It does not upload additional terrain. Coverage exits
-and unsupported collision shapes are explicitly classified as needing CPU fallback.
-That fallback is the next task: these admissions currently preserve history and retry
-instead of publishing incomplete geometry or fabricated sky.
+and unsupported collision shapes use bounded CPU collision fallback. GPU geometry
+unavailability, distance limits and traversal exhaustion remain unresolved; they do
+not become sky or trigger a second geometry backend indiscriminately.
 
 ## Shared admission and publication
 
@@ -70,8 +70,44 @@ occlusion and importance. Any unresolved primary geometry retains the existing
 whole-admission completion gate. Ready hit lighting bypasses a redundant cache query.
 
 The current integration reads back the bounded answer payload and uses the existing
-atlas upload path. Keeping directional payloads GPU-resident and merging selective
-CPU fallback are subsequent tasks, not performance claims for this implementation.
+atlas upload path. Keeping directional payloads GPU-resident remains a subsequent
+task, not a performance claim for this implementation.
+
+## Bounded CPU fallback
+
+`WorldProbeCpuFallbackService` owns one worker using the existing collision tracer
+with vanilla lighting disabled. Each admitted immutable packet contains the original
+probe ticket, ordered direction selectors and retained GPU answers. Only answers
+explicitly classified as coverage exits or unsupported geometry are retraced. The
+worker restarts those directions from the original double-precision probe origin and
+original distance limit, including the separate short cardinal importance segment.
+Resolved GPU hits, sky and missing-light hit descriptors are copied unchanged.
+
+Limits apply to queued, running and completed-but-undrained work together:
+
+- At most 64 outstanding fallback admissions.
+- At most 8,192 retained directional answers across those admissions.
+- At most 256 CPU ray starts per rendered frame; unused credit does not accumulate.
+- At most 512 visited cells per ray through the production collision tracer.
+
+When storage credit is exhausted, the GPU backend retains the unqueued readback
+admission and its original in-flight ticket until credit becomes available. It does
+not restart the GPU trace or copy answer slices repeatedly while the queue is full.
+The worker waits asynchronously for frame credit and checks ticket validity before
+each CPU trace and after the merge. Cancellation does not wait on terrain access on
+the render thread; worker synchronization resources retire after the worker exits.
+
+CPU hits become Surface Cache descriptors with integer block identity, face normal,
+local hit fraction and distance. The cache query accepts published unsupported shapes
+whose collision was confirmed by CPU, while still validating current block identity,
+capture readiness and initialized lighting. Unsupported shapes remain non-traversable
+by GPU geometry; missing captured lighting remains a lighting retry.
+
+CPU sky, unavailable geometry, distance limits, traversal exhaustion and invalid input
+remain distinct. A CPU-incomplete primary ray fails the admission under the existing
+geometry-completion rule, leaving displayed history intact for normal retry. Once
+geometry completes, ready GPU directions can publish while unresolved hit lighting
+uses the existing partial-publication retry path.
 
 ## Lifetime changes
 
@@ -90,7 +126,10 @@ Each GPU result drain checks the submitted geometry object, its invalidation rev
 and the cache dependency revision, including when results span multiple frames.
 Scheduler tickets are checked by the existing publication path. Failed dispatches or
 readbacks produce failed completions so scheduler requests can retry. The backend
-borrows geometry and cache resources and owns only its dispatch/readback resources.
+borrows geometry and cache resources and owns its dispatch/readback resources and bounded CPU fallback queue.
+Fallback completions repeat the original geometry object/revision, cache dependency
+and ticket checks after worker completion; workers never dereference GPU resources.
+Flag changes, world leave and backend disposal cancel outstanding fallback work.
 
 ## Validation
 
@@ -143,7 +182,7 @@ with zero warnings/errors (`artifacts/world-probe-compute-deploy.log`). Test com
 retains five existing analyzer warnings in unrelated tests. Source and test review
 found no blocker within this task's boundary.
 
-Selective CPU fallback and GPU-resident hybrid publication remain open tasks. Live
+GPU-resident hybrid publication remains an open task. Live
 visual and matched-workload performance validation remain open. No game was launched.
 
 The compact-input/tiled-dispatch follow-up passed **143 regression tests**, zero
@@ -159,3 +198,23 @@ Receipts: `artifacts/TestResults/world-probe-tiled-final.trx`,
 `artifacts/TestResults/world-probe-tiled-admission.trx`, and
 `artifacts/world-probe-tiled-deploy.log`. This validates probe submission and tracing;
 it does not establish GPU-resident atlas publication or a measured performance gain.
+
+The bounded CPU fallback implementation passed **180 regression tests**, zero failures
+or skips, followed by **12 rebuilt worker checks** with strengthened retained-GPU-lighting
+assertions. Production build/deployment passed with zero warnings/errors; test compilation
+retains the five existing unrelated analyzer warnings. Coverage includes:
+
+- Selective fallback preserving ready GPU radiance and missing-light descriptors exactly.
+- Original signed probe origins, retained cardinal selectors and all CPU ray outcomes.
+- Per-frame nonaccumulating ray credit and inclusive queued/running/undrained storage bounds.
+- Real partial collision-box hits and holes, and coverage exits followed by CPU-established sky.
+- Delayed geometry/cache/ticket rejection and nonblocking worker cancellation.
+- Unsupported CPU-confirmed Surface Cache hits, valid-black lighting, stale block identities,
+  withheld capture data and existing consumer/partial-page readiness guards.
+
+Root review and the testing subagent's independent source audit found no blocker in
+selective traversal, backpressure, cancellation or lifetime validation. Receipts:
+`artifacts/TestResults/world-probe-fallback-final.trx`,
+`artifacts/TestResults/world-probe-fallback-worker-final.trx`, and
+`artifacts/world-probe-fallback-deploy.log`. GPU-resident hybrid publication and measured
+runtime/performance validation remain open; no game was launched.

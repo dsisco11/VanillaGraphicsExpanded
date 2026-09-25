@@ -22,7 +22,7 @@ public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : Rende
         bool geometryAvailable=true;
         int claims=0;
         using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>geometryAvailable?room.Geometry.Scene:null,
-            ()=>room.Snapshot,(_,_)=>{claims++;return true;});
+            ()=>room.Snapshot,(_,_)=>{claims++;return true;},new VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.UnexpectedWorldProbeTraceScene(),_=>true);
         var first=new LumOnWorldProbeTraceWorkItem(1,new(0,new(),new(),0,Ticket:11),new(3.5,35.5,3.5),16,8,8,false,.25f,-1,1e-6f,0,true);
         var second=first with { Request=first.Request with { StorageLinearIndex=1,Ticket=12 } };
         Assert.True(backend.TryEnqueue(first));Assert.True(backend.TryEnqueue(second));Assert.Equal(0,claims);
@@ -42,7 +42,7 @@ public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : Rende
         EnsureContextValid();
         using var room=new SurfaceLightingEnclosureFixture();
         using var assets=new BinaryShaderApiFixture();
-        using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>room.Geometry.Scene,()=>null,(_,_)=>true);
+        using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>room.Geometry.Scene,()=>null,(_,_)=>true,new VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.UnexpectedWorldProbeTraceScene(),_=>true);
         var item=new LumOnWorldProbeTraceWorkItem(1,new(0,new(),new(),0,Ticket:11),new(3.5,35.5,3.5),16,8,8,false,.25f,-1,1e-6f,0,true,-1);
         Assert.True(backend.TryEnqueue(item));Assert.False(backend.TryDequeueResult(out _));
         GpuTestFence.WaitForGpuOrSkip("World probe geometry without cache");

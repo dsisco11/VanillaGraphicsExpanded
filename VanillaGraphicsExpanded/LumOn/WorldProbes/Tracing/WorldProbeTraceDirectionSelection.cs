@@ -25,13 +25,14 @@ internal static class WorldProbeTraceDirectionSelection
     public static bool NeedsNearby(in LumOnWorldProbeTraceWorkItem item) => item.NearbySolidHitDistance > 0 &&
         (item.Request.ImportanceFlags & LumOnWorldProbeImportanceFlags.NearbySolidHit) == 0;
 
-    /// <summary>Selects the same signed cardinal axis for a given admission on either backend.</summary>
-    public static Vector3 NearbyDirection(in LumOnWorldProbeTraceWorkItem item)
+    /// <summary>Decodes the retained signed cardinal axis on either tracing backend.</summary>
+    public static Vector3 CardinalDirection(int index)
     {
-        return NearbyIndex(item) switch
+        return index switch
         {
             0 => Vector3.UnitX, 1 => -Vector3.UnitX, 2 => Vector3.UnitY,
-            3 => -Vector3.UnitY, 4 => Vector3.UnitZ, _ => -Vector3.UnitZ,
+            3 => -Vector3.UnitY, 4 => Vector3.UnitZ, 5 => -Vector3.UnitZ,
+            _ => throw new ArgumentOutOfRangeException(nameof(index)),
         };
     }
 

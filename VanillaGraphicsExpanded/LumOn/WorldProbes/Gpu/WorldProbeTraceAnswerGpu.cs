@@ -15,6 +15,7 @@ internal struct WorldProbeTraceAnswerGpu
     {
         1 => WorldProbeTraceOutcome.Hit, 2 => WorldProbeTraceOutcome.DistanceLimit,
         3 => WorldProbeTraceOutcome.BudgetExhausted, 4 => WorldProbeTraceOutcome.Sky,
+        5 => WorldProbeTraceOutcome.Invalid,
         _ => WorldProbeTraceOutcome.Unavailable,
     };
 }

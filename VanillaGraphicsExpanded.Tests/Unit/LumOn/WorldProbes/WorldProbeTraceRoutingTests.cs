@@ -54,7 +54,7 @@ public sealed class WorldProbeTraceRoutingTests
     {
         int claims=0;
         using var backend=new LumOnWorldProbeGpuTraceBackend(new Moq.Mock<Vintagestory.API.Common.ICoreAPI>().Object,256,
-            ()=>null,()=>null,(_,_)=>{claims++;return true;});
+            ()=>null,()=>null,(_,_)=>{claims++;return true;},new VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.UnexpectedWorldProbeTraceScene(),_=>true);
         var item=new LumOnWorldProbeTraceWorkItem(0,new(0,new(),new(),0),new(1,2,3),64,64,4096,false,.25f,-1,1e-6f);
         Assert.Throws<ArgumentOutOfRangeException>(()=>backend.TryEnqueue(item with { ProbePosWorld=new(double.NaN,2,3) }));
         Assert.Equal(0,claims);

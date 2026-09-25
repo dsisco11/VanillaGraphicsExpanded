@@ -5,6 +5,9 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 /// <summary>Accepts shared scheduler admissions and returns results under their original tickets.</summary>
 internal interface IWorldProbeTraceBackend : IDisposable
 {
+    /// <summary>Advances optional backend work credit once per rendered frame.</summary>
+    void BeginFrame(int frameIndex) { }
+
     /// <summary>Accepts work within backend capacity without changing its direction selection or budget.</summary>
     bool TryEnqueue(in LumOnWorldProbeTraceWorkItem item);
 

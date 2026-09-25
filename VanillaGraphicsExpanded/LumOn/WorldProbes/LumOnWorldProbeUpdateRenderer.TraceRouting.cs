@@ -22,7 +22,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
             cpu, new LumOnWorldProbeGpuTraceBackend(capi, worldAccessor.MapSizeY,
                 () => geometryProvider?.PrepareScene(),
                 () => surfaceProvider != null && surfaceProvider.TryGetSurfaceLighting(out var snapshot) ? snapshot : null,
-                (request, frame) => owner.TryClaim(request, frame)));
+                (request, frame) => owner.TryClaim(request, frame), traceScene,
+                request => owner.IsCurrent(request)));
     }
 
     /// <summary>Retires queued, running and delayed lighting admissions before switching routing.</summary>

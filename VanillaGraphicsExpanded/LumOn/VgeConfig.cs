@@ -371,7 +371,7 @@ public class VgeConfig
     {
         /// <summary>
         /// Routes L0 through the GPU backend; higher levels retain CPU tracing.
-        /// GPU coverage exits and unsupported shapes remain unresolved until CPU fallback is available.
+        /// GPU coverage exits and unsupported shapes use bounded CPU collision fallback.
         /// </summary>
         [JsonProperty]
         public bool EnableGpuTracing { get; set; } = true;

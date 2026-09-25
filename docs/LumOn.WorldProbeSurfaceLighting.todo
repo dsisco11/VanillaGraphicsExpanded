@@ -279,7 +279,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Implemented asynchronous batches of at most 8,192 rays, each bounded to 512 visited cells,
       integer origins and shared direction/metadata integration. Existing uploaded geometry is
       traced independently of lighting; ready hits bypass redundant cache queries. Explicit
-      fallback outcomes currently preserve history/retry pending the next task's CPU fallback.
+      fallback outcomes now continue through the bounded CPU fallback described below.
       All 141 focused tests passed; production build/deployment passed with zero warnings/errors.
       Evidence and intermediate readback limits: docs/LumOn.WorldProbeGpuRouting.md.
   ✔ Use compact per-probe records, GPU-generated direction tiles and indirect trace dispatch.
@@ -289,12 +289,19 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       direction scheduling and metadata remain shared. GPU-resident publication remains below.
     - All 143 regression tests plus 14 rebuilt admission/backend checks passed; production
       build/deployment passed with zero warnings/errors. See docs/LumOn.WorldProbeGpuRouting.md.
-  ☐ Add bounded CPU fallback for L0 rays outside GPU coverage or unsupported by GPU geometry.
+  ✔ Add bounded CPU fallback for L0 rays outside GPU coverage or unsupported by GPU geometry.
     - Retrace only fallback directions from their original probe origins using the existing CPU
       collision tracer. Merge results under the same admission identity without retracing or
       overwriting successful GPU directions. Keep fallback queues and work within explicit budgets.
     - Preserve unavailable, distance-limit and budget-exhaustion outcomes; never infer sky from
       leaving GPU coverage. If CPU fallback cannot resolve a ray, preserve history and retry.
+    - Implemented one asynchronous collision-only worker, bounded to 64 outstanding admissions,
+      8,192 retained answers and 256 CPU ray starts per frame (512 visited cells per ray).
+      Retains GPU answers and original tickets; revalidates geometry/cache lifetimes before merge.
+      CPU-confirmed unsupported hits can query captured lighting with existing readiness guards.
+    - All 180 regression tests plus 12 rebuilt worker checks passed; production build/deployment
+      passed with zero warnings/errors. Root review and independent test-agent audit found no
+      blocker. Evidence and remaining runtime limitations: docs/LumOn.WorldProbeGpuRouting.md.
   ☐ Publish hybrid results through a coherent GPU completion and commit path.
     - Keep GPU directional payloads resident where practical; read back only bounded completion
       metadata and fallback descriptors asynchronously, without blocking the render thread.

@@ -9,7 +9,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
 /// <summary>Runs bounded L0 compute admissions on the render thread using existing uploaded resources.</summary>
-internal sealed class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceBackend
+internal sealed partial class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceBackend
 {
     private readonly ICoreAPI api;
     private readonly Func<TraceGeometryGpuScene?> readGeometry;
@@ -34,16 +34,19 @@ internal sealed class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceBackend
     /// <summary>Borrows render-thread providers and captures an owning scheduler's claim function.</summary>
     public LumOnWorldProbeGpuTraceBackend(ICoreAPI api, int worldHeight,
         Func<TraceGeometryGpuScene?> readGeometry, Func<SurfaceLightingSnapshot?> readLighting,
-        System.Func<LumOnWorldProbeUpdateRequest, int, bool> tryClaim)
+        System.Func<LumOnWorldProbeUpdateRequest, int, bool> tryClaim,
+        IWorldProbeTraceScene fallbackScene, System.Func<LumOnWorldProbeUpdateRequest, bool> isCurrent)
     {
         this.api = api; this.worldHeight = worldHeight;
         this.readGeometry = readGeometry; this.readLighting = readLighting; this.tryClaim = tryClaim;
+        this.fallbackScene = fallbackScene; this.isCurrent = isCurrent;
     }
 
     /// <summary>Retires fences and bounded queues; the owner revokes scheduler tickets before replacement.</summary>
     public void Dispose()
     {
         disposed = true;
+        fallback?.Dispose(); fallback = null; fallbackPending.Clear();
         batch?.Dispose(); batch = null;
         queued.Clear(); pending.Clear(); completed.Clear(); queuedRays = 0; submittedScene = null;
         answers = default;
@@ -73,6 +76,7 @@ internal sealed class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceBackend
         result = default;
         if (disposed) return false;
         if (completed.TryDequeue(out result)) return true;
+        if (TryReadFallback(out result)) return true;
         if (batch?.Pending == true)
         {
             try
@@ -85,18 +89,27 @@ internal sealed class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceBackend
                 return completed.TryDequeue(out result);
             }
         }
-        if (!answers.IsDefaultOrEmpty)
+        while (!answers.IsDefaultOrEmpty)
         {
             // Validate each drain, including answers retained across frame/upload budgets.
             // Metadata integration consumes only one admission under the caller's drain limit.
             var admission = pending[nextAdmission];
+            bool deferred = false;
             try
             {
                 var current = readGeometry();
                 bool currentLifetime = ReferenceEquals(current, submittedScene) &&
                     (current?.InvalidationRevision ?? -1) == submittedInvalidation &&
-                    (readLighting()?.DependencyRevision ?? -1) == submittedLightingRevision;
-                result = currentLifetime && admission.Item.SurfaceRevision == submittedLightingRevision
+                    (readLighting()?.DependencyRevision ?? -1) == submittedLightingRevision &&
+                    admission.Item.SurfaceRevision == submittedLightingRevision && isCurrent(admission.Item.Request);
+                if (currentLifetime && NeedsFallback(nextRay, admission.Directions.Length))
+                {
+                    // Keep the readback admission intact when the fallback queue is full.
+                    // No ticket is completed and no successful GPU direction is retraced.
+                    if (!TryQueueFallback(admission, nextRay)) return false;
+                    deferred = true;
+                }
+                else result = currentLifetime
                     ? WorldProbeGpuIntegration.Integrate(admission.Item, answers, nextRay, admission.Directions.Length)
                     : WorldProbeGpuIntegration.Reject(admission.Item);
             }
@@ -109,7 +122,7 @@ internal sealed class LumOnWorldProbeGpuTraceBackend : IWorldProbeTraceBackend
             nextRay += admission.Directions.Length;
             if (nextAdmission == pending.Count)
             { pending.Clear(); submittedScene = null; answers = default; nextAdmission = nextRay = 0; }
-            return true;
+            if (!deferred) return true;
         }
         SubmitQueued();
         return completed.TryDequeue(out result);
