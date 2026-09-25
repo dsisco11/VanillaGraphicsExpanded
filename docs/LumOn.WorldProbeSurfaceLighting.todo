@@ -211,6 +211,40 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - They are diagnostic only and may be removed before implementation; retain existing readiness
       counters/self-checks and genuine failure warnings. Update the diagnostic note when removed.
 
+  Optional GPU tracing for L0 world probes:
+  Scope: reuse existing uploaded local geometry; do not upload distant terrain for this backend.
+  L1 and higher remain on the existing CPU tracer. Implement separately from Surface Cache refresh.
+  ☐ Add an enabled-by-default GPU world-probe tracing feature flag and level-based backend routing.
+    - Flag off: retain CPU tracing for every level. Flag on: route L0 to a separate GPU backend,
+      leaving L1+ on the CPU. Share scheduling, admission tickets, direction selection and budgets.
+    - Retire outstanding backend work safely on flag changes, world leave and resource replacement;
+      prevent duplicate publication or stranded in-flight requests.
+  ☐ Implement bounded L0 compute tracing against the existing GPU geometry and Surface Cache.
+    - Reuse GPU voxel traversal and surface-lighting lookup with integer world origins and local
+      fractions. Preserve ray outcomes, directional distance encoding, confidence, short-range
+      occlusion and importance metadata; geometry tracing must not require lighting readiness.
+    - L0 placement does not guarantee full-ray coverage. Coverage exits and unsupported geometry
+      require CPU fallback; missing lighting at a resolved hit remains a Surface Cache retry.
+  ☐ Add bounded CPU fallback for L0 rays outside GPU coverage or unsupported by GPU geometry.
+    - Retrace only fallback directions from their original probe origins using the existing CPU
+      collision tracer. Merge results under the same admission identity without retracing or
+      overwriting successful GPU directions. Keep fallback queues and work within explicit budgets.
+    - Preserve unavailable, distance-limit and budget-exhaustion outcomes; never infer sky from
+      leaving GPU coverage. If CPU fallback cannot resolve a ray, preserve history and retry.
+  ☐ Publish hybrid results through a coherent GPU completion and commit path.
+    - Keep GPU directional payloads resident where practical; read back only bounded completion
+      metadata and fallback descriptors asynchronously, without blocking the render thread.
+    - Validate scheduler tickets, geometry revisions and cache dependency lifetimes before commit.
+      Preserve existing partial-publication and primary-geometry completion rules when merging
+      backend results; reject obsolete work after dirtying, slot reuse, movement or flag changes.
+  ☐ Validate L0 GPU tracing through subagent-run focused tests and a separate implementation review.
+    - Compare CPU/GPU results on supported geometry; cover signed origins, exact sky boundaries,
+      unsupported collision shapes, coverage exits, missing inputs, CPU fallback, partial retries,
+      all existing probe metadata, resource reuse and runtime flag switching.
+    - Verify flag-off behavior and unchanged L1+ CPU routing. Measure matched workloads with the
+      flag off/on, including GPU time, CPU time, fallback frequency and completion latency.
+      Record performance evidence separately from user-run in-game visual acceptance.
+
   Remaining overall validation:
   ☐ Validate through subagent-run focused tests: missing cache, unavailable geometry, distance limits,
     sky openings, mixed ready/unready hits, movement, streaming, edits, and resource recreation.
