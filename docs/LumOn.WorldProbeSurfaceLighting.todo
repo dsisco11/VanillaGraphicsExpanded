@@ -244,10 +244,15 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Receipt: artifacts/TestResults/surface-refresh-validation-final.trx. Normal production deployment
       passed with zero warnings/errors: artifacts/surface-refresh-validation-deploy.log.
       This completes controlled validation only; the in-game check and separate backlog remain below.
-  ☐ Verify stationary in-game progress and local edits without whole-cache black/yellow restarts.
-    - Investigate the separate unresolved-work backlog: the observed run retained 145 uncaptured
-      pages out of 216 and rejected most indirect updates even before the resets. Track this
-      separately; preserving history does not establish capture completion or trace convergence.
+  ✔ Verify stationary in-game progress and local edits without whole-cache black/yellow restarts.
+    - User confirmed on 2026-09-25 that stationary observation and removing/placing a block were
+      fine, with no whole-cache restart reported. Marked complete at the user's request.
+      Light toggling was not checked in-game; automated light-change coverage remains the evidence
+      for that path. See docs/LumOn.SurfaceCache.InGameValidation.md.
+  ☐ Investigate the separate unresolved-work backlog.
+    - The historical run retained 145 uncaptured pages out of 216 and rejected most indirect
+      updates. The successful visual restart check does not establish capture completion or
+      trace convergence; determine whether this backlog persists in a current run.
   ☐ Remove temporary reset event aggregation and verbose correlated logs after preserving evidence.
     - They are diagnostic only and may be removed before implementation; retain existing readiness
       counters/self-checks and genuine failure warnings. Update the diagnostic note when removed.
