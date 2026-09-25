@@ -425,9 +425,8 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       synchronization bottlenecks through existing GPU abstractions rather than masking them.
   ☐ Validate Surface Cache throughput changes through subagent-run focused tests and a separate
     implementation review.
-    - Resolve or baseline-attribute the 19 broader consumer/runtime failures recorded during fallback
-      validation; see docs/LumOn.SurfaceCache.GeometryFallback.md. The interrupted broad run is not
-      a clean regression receipt.
+    - Track the 19 pre-existing consumer/runtime failures separately in the final task below
+      (user-confirmed). The interrupted broad run is not a clean regression receipt.
     - Cover coverage deferral/wakeup, signed movement, streaming, unsupported geometry, long rays,
       sky boundaries, missing hit lighting, partial progress, fairness, edits and resource reuse.
     - Verify no false sky, uninitialized publication, dependency deadlock or whole-cache reset;
@@ -450,3 +449,15 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
   Keep geometry tracing independent of cache readiness (already implemented; preserve regression coverage).
   Use integer shifts for power-of-two scaling where equivalent, preserving overflow behavior.
   Initial direct-seed publication must not depend on indirect convergence or ready world probes.
+
+  ☐ Investigate and fix the 19 pre-existing lighting-consumer/runtime test failures.
+    - The user confirmed these failures predate the Surface Cache fallback work. Exact coverage:
+      11 methods across display-boundary, numerical-runtime, PBR lifetime/composition and runtime
+      scenario tests; see docs/LumOn.SurfaceCache.GeometryFallback.md and the original receipt
+      artifacts/surface-fallback-regression.log.
+    - Reproduce and diagnose SH9 radiance mismatches, sealed-neighbor and doorway pixel differences,
+      source-change composition mismatches, progressive-bounce assertions, and failure to settle
+      after lighting changes, unavailable geometry or cache recreation. Distinguish production
+      defects from stale fixture assumptions; preserve the intended lighting contracts.
+    - Fix the confirmed causes without weakening assertions to conceal incorrect behavior. Use
+      subagents to rerun all 19 cases and relevant regression tests, and record results and causes.

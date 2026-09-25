@@ -111,7 +111,7 @@ outside the new tests. Shader generation compiled 105 stages and 250 variants be
 
 The broader Surface Cache regression run was stopped after recording 19 failed cases in
 `artifacts/surface-fallback-regression.log`. It did not produce a completed suite total or TRX.
-These failures remain unresolved; no baseline comparison establishes that they predate this change.
+The user confirmed that these failures predate this work; they remain unresolved.
 Assertions were not weakened or removed.
 
 | Test class | Failed methods | Variants |
@@ -122,5 +122,5 @@ Assertions were not weakened or removed.
 | `SurfaceLightingPbrRuntimeTests` | `RegisteredCompositionRespectsReceiverRegions` | SH9 |
 | `SurfaceLightingRuntimeScenariosTests` | `RecreatedDarkCacheRejectsRetainedFinalLighting`, `UnavailableGeometryDiffersFromValidDarkness`, `DoorwayClosureAndReopeningReachRuntimePixels`, `ProgressiveBounceReachesRuntimePixels`, `RetainedHistoryFollowsSourceLighting` | Both |
 
-The separate throughput validation task must resolve or establish baseline attribution for these
-failures before claiming a clean broader regression suite. No gameplay process was launched.
+The final task in the linked checklist tracks investigation and fixes for these pre-existing failures.
+A clean broader regression suite remains unverified. No gameplay process was launched.
