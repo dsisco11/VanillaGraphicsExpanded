@@ -21,6 +21,16 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Added the missing owned UBO and per-use binding restoration. The GPU regression maps to slot 232;
       removing only the new binding reproduces slot 0 with generation 0 while preserving the patch ID.
       Post-fix in-game publication remains to be verified under the live-validation task below.
+  ☐ Correct temporal reprojection in lumon_velocity.fsh and lumon_debug_temporal.glsl: convert
+    current render-relative positions into the previous render-origin space before projection.
+    Validate translation, rotation, camera bob, and the dependent lumon_probe_atlas_temporal history.
+  ☐ Correct eye-relative view direction and distance in vge_parallax.glsl and vge_normaldepth.glsl.
+    Account for the eye offset in the view matrix; validate parallax and normal-map fading with
+    camera bob and camera offsets, without applying view translation twice.
+  ☐ Make terrain PatchId and chunk-slot selection use the same inward-biased owning block in
+    VanillaShaderPatches.cs and lumonscene_patchid.glsl. Validate all six faces at positive and
+    negative chunk boundaries, including capture and sampling of the selected surface.
+    - These three coordinate findings are source-backed; visible effects still need reproduction.
   ☐ Remove vanilla GetLightRGBs and neighboring-light availability dependencies from world-probe
     geometry tracing when hit lighting is deferred to the Surface Cache.
   ☐ Separate surface hits, established sky visibility, distance/budget exhaustion, and unavailable
