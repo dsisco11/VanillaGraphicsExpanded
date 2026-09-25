@@ -165,7 +165,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 			SetUnavailableProbeSlot(validation.Request, validation.Occupancy == LumOnWorldProbeCenterOccupancy.Unavailable);
 		}
 
-		traceScene ??= new BlockAccessorWorldProbeTraceScene(worldAccessor);
+		// Hit radiance is resolved from the Surface Cache; workers need only collision geometry.
+		traceScene ??= new BlockAccessorWorldProbeTraceScene(worldAccessor, sampleVanillaLighting: false);
         // A retired worker must never claim work on a replacement scheduler.
         var traceScheduler = scheduler;
 		traceService ??= new LumOnWorldProbeTraceService(

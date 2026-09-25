@@ -16,8 +16,10 @@ internal sealed class RuntimeProbeWorld : IDisposable
     private readonly Block air = new() { BlockId=0 };
     private readonly IWorldChunk chunk = Mock.Of<IWorldChunk>();
     private int workerReads;
+    private int vanillaLightReads;
     public IBlockAccessor Accessor { get; }
     public int WorkerReads => Volatile.Read(ref workerReads);
+    public int VanillaLightReads => Volatile.Read(ref vanillaLightReads);
     public bool WorkerWaiting => Volatile.Read(ref entered);
 
     #region Engine boundary
@@ -34,7 +36,11 @@ internal sealed class RuntimeProbeWorld : IDisposable
         });
         accessor.Setup(api => api.GetRainMapHeightAt(It.IsAny<int>(),It.IsAny<int>())).Returns(40);
         accessor.Setup(api => api.GetLightLevel(It.IsAny<int>(),It.IsAny<int>(),It.IsAny<int>(),It.IsAny<EnumLightLevelType>())).Returns(0);
-        accessor.Setup(api => api.GetLightRGBs(It.IsAny<BlockPos>())).Returns(new Vec4f(0,0,0,0));
+        accessor.Setup(api => api.GetLightRGBs(It.IsAny<BlockPos>())).Returns((BlockPos _) =>
+        {
+            Interlocked.Increment(ref vanillaLightReads);
+            return new Vec4f(0,0,0,0);
+        });
         accessor.Setup(api => api.GetMostSolidBlock(It.IsAny<BlockPos>())).Returns(ReadBlock);
         Accessor=accessor.Object;
     }

@@ -157,8 +157,11 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                 else radianceRgb = EvaluateHitRadiance(scene, item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, hitInfo, cancellationToken, out specularF0);
                 alphaSigned = (float)Math.Log(Math.Max(0.0, hitDist) + 1.0);
 
-                skyIntensitySum += EvaluateSkyLightIntensity(hitInfo);
-                skyIntensityCount++;
+                if (!item.DeferSurfaceLighting)
+                {
+                    skyIntensitySum += EvaluateSkyLightIntensity(hitInfo);
+                    skyIntensityCount++;
+                }
             }
             else
             {
@@ -200,8 +203,10 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         float confidence = ComputeUnifiedConfidence(aoConfidence, hitCount, sampleCountForConfidence);
 
         float skyIntensity;
-        if (unoccludedCount > 0)
+        if (item.DeferSurfaceLighting || unoccludedCount > 0)
         {
+            // Deferred hits carry no vanilla sunlight. Keep the sky multiplier neutral:
+            // directional visibility controls sky, including directions retained from older batches.
             // Sky misses are encoded in the atlas as a special value and receive the
             // dynamic sky tint at gather time. Do not derive their intensity from
             // unrelated dark wall hits inside the probe's visibility field.

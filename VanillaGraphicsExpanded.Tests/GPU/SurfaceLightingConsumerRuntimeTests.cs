@@ -13,6 +13,17 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public SurfaceLightingConsumerRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Runtime transport
+    /// <summary>The registered renderer publishes cached radiance without requesting vanilla hit lighting.</summary>
+    [Fact]
+    public void WorldProbePublication_DoesNotReadVanillaHitLighting()
+    {
+        EnsureContextValid();
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.RunUntil(() => SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()) > .001f);
+        Assert.True(runtime.World.WorkerReads > 0);
+        Assert.Equal(0, runtime.World.VanillaLightReads);
+    }
+
     /// <summary>Unavailable surface lighting keeps geometry workers active, retries unresolved hits, and resumes publication when ready.</summary>
     [Fact]
     public void MissingSurfaceLighting_ContinuesTracingAndRetriesUntilReady()

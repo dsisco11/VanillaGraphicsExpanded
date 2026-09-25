@@ -12,8 +12,40 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
+/// <summary>Checks directional geometry samples and legacy versus cached lighting integration.</summary>
 public sealed class WorldProbeTraceIntegratorTests
 {
+    #region Surface-cache lighting independence
+    /// <summary>Cached hits keep sky scaling neutral; legacy hits retain their vanilla sunlight estimate.</summary>
+    [Theory]
+    [InlineData(true, 0f, 1f)]
+    [InlineData(true, .25f, 1f)]
+    [InlineData(false, 0f, 0f)]
+    [InlineData(false, .25f, .25f)]
+    public void TraceProbe_AllHits_UsesSkyMultiplierForSelectedLightingPath(bool deferred, float sunlight, float expectedSky)
+    {
+        var scene = new AlwaysHitScene(4, new Vector4(0, 0, 0, sunlight), new VectorInt3(0, -1, 0));
+        var request = new LumOnWorldProbeUpdateRequest(0, new Vec3i(), new Vec3i(), 0);
+        var item = new LumOnWorldProbeTraceWorkItem(
+            FrameIndex: 2, Request: request, ProbePosWorld: new Vector3d(.5, .5, .5),
+            MaxTraceDistanceWorld: 32, WorldProbeOctahedralTileSize: 4, WorldProbeAtlasTexelsPerUpdate: 4,
+            EnableDirectionPIS: false, DirectionPISExploreFraction: .25f, DirectionPISExploreCount: -1,
+            DirectionPISWeightEpsilon: 1e-6f, DeferSurfaceLighting: deferred);
+
+        var result = new LumOnWorldProbeTraceIntegrator().TraceProbe(scene, item, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(expectedSky, result.SkyIntensity, 6);
+        Assert.Equal(4, result.AtlasSamples.Length);
+        Assert.All(result.AtlasSamples, sample =>
+        {
+            Assert.True(sample.AlphaEncodedDistSigned > 0);
+            Assert.Equal(deferred, sample.SurfaceHit.HasValue);
+            Assert.Equal(Vector3.Zero, sample.RadianceRgb);
+        });
+    }
+    #endregion
+
     [Fact]
     public void TraceProbe_WhenNoHits_ProducesAllMissSamples_WithNegativeAlpha_AndAoConfidenceOne()
     {

@@ -9,18 +9,24 @@ using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
+/// <summary>Traces block collision geometry with optional vanilla lighting for legacy consumers.</summary>
 internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 {
     private readonly IBlockAccessor blockAccessor;
+    private readonly bool sampleVanillaLighting;
 
     private const double DirEpsilon = 1e-12;
     private const double PointInsideEpsilon = 1e-12;
 
-    public BlockAccessorWorldProbeTraceScene(IBlockAccessor blockAccessor)
+    #region Public API
+    /// <summary>Creates a trace scene; cached-lighting consumers disable vanilla light sampling.</summary>
+    public BlockAccessorWorldProbeTraceScene(IBlockAccessor blockAccessor, bool sampleVanillaLighting = true)
     {
         this.blockAccessor = blockAccessor ?? throw new ArgumentNullException(nameof(blockAccessor));
+        this.sampleVanillaLighting = sampleVanillaLighting;
     }
 
+    /// <summary>Returns geometry hits independently of neighboring light data when sampling is disabled.</summary>
     public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
     {
         if (maxDistance <= 0)
@@ -80,7 +86,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 
             try
             {
-                // Avoid forcing chunk loads; treat unloaded as miss.
+                // Avoid forcing chunk loads; unavailable geometry aborts the trace.
                 // Note: some implementations may surface placeholder chunk objects that do not support all queries.
                 if (blockAccessor.GetChunkAtBlockPos(pos) == null)
                 {
@@ -109,19 +115,23 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 
                             Vector4 light = Vector4.Zero;
 
-                            samplePos.Set(sx, sy, sz);
-                            if (blockAccessor.GetChunkAtBlockPos(samplePos) == null)
+                            // Surface Cache consumers resolve radiance after tracing. Only legacy
+                            // consumers require a loaded neighboring cell and its vanilla light.
+                            if (sampleVanillaLighting)
                             {
-                                // If we cannot sample light at the "outside" face due to missing chunk data,
-                                // abort so we don't bake a biased/dark lighting sample at streaming boundaries.
-                                hit = default;
-                                return WorldProbeTraceOutcome.Aborted;
-                            }
+                                samplePos.Set(sx, sy, sz);
+                                if (blockAccessor.GetChunkAtBlockPos(samplePos) == null)
+                                {
+                                    // Missing light data cannot become a valid dark legacy sample.
+                                    hit = default;
+                                    return WorldProbeTraceOutcome.Aborted;
+                                }
 
-                            // Vec4f: XYZ = block light rgb, W = sun light brightness.
-                            Vec4f ls = blockAccessor.GetLightRGBs(samplePos);
-                            light = new Vector4(ls.X, ls.Y, ls.Z, ls.W);
-                            WorldProbeLightSampleStats.Record(light);
+                                // Vec4f: XYZ = block light rgb, W = sun light brightness.
+                                Vec4f ls = blockAccessor.GetLightRGBs(samplePos);
+                                light = new Vector4(ls.X, ls.Y, ls.Z, ls.W);
+                                WorldProbeLightSampleStats.Record(light);
+                            }
 
                             hit = new LumOnWorldProbeTraceHit(
                                 HitDistance: tHit,
@@ -173,6 +183,10 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         return WorldProbeTraceOutcome.Miss;
     }
 
+    #endregion
+
+    #region Collision intersection
+    /// <summary>Finds the earliest collision-box intersection inside the current voxel segment.</summary>
     private static bool TryIntersectCollisionBoxes(
         Vector3d originWorld,
         Vector3d dirWorld,
@@ -268,6 +282,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         return true;
     }
 
+    /// <summary>Clips a ray segment against an axis-aligned box and records the entering face.</summary>
     private static bool TryRayAabbIntersection(
         Vector3d origin,
         Vector3d dir,
@@ -337,6 +352,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         return true;
     }
 
+    /// <summary>Clips the running intersection interval against one box axis.</summary>
     private static bool IntersectAxis(
         double origin,
         double dir,
@@ -393,6 +409,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         return true;
     }
 
+    /// <summary>Selects the nearest exit face for a ray originating inside a collision box.</summary>
     private static VectorInt3 ComputeInsideBoxFaceNormal(
         Vector3d p,
         double minX,
@@ -418,6 +435,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         int axis = 0;
         int sign = -1;
 
+        /// <summary>Updates the nearest face while retaining deterministic ties.</summary>
         void Consider(double d, int a, int s)
         {
             if (d + 1e-15 < best)
@@ -475,4 +493,5 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
             _ => new VectorInt3(0, 0, sign),
         };
     }
+    #endregion
 }

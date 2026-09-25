@@ -14,8 +14,75 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
+/// <summary>Checks voxel traversal and the optional legacy hit-light sampling boundary.</summary>
 public sealed class BlockAccessorWorldProbeTraceSceneTests
 {
+    #region Surface-cache geometry tracing
+    /// <summary>A loaded geometric hit remains valid without its exterior lighting neighbor.</summary>
+    [Fact]
+    public void Trace_WithoutVanillaLighting_IgnoresMissingLightNeighbor()
+    {
+        var cfg = new ScriptedBlockAccessorProxy.Config { RejectLightReads = true };
+        cfg.LoadedChunks.Add((0, 0, 0));
+        cfg.Blocks[(0, 0, 0)] = TestBlocks.SolidFull;
+        var scene = new BlockAccessorWorldProbeTraceScene(ScriptedBlockAccessorProxy.Create(cfg), sampleVanillaLighting: false);
+
+        // Starting inside geometry chooses an exterior neighbor that traversal never needed to load.
+        var outcome = scene.Trace(new Vector3d(.5, .5, .5), Vector3.UnitX, 10, CancellationToken.None, out var hit);
+
+        Assert.Equal(WorldProbeTraceOutcome.Hit, outcome);
+        Assert.Equal(0, hit.HitDistance);
+        Assert.Equal(1, hit.HitBlockId);
+        Assert.Equal(new VectorInt3(0, 0, 0), hit.HitBlockPos);
+        Assert.Equal(new VectorInt3(-1, 0, 0), hit.HitFaceNormal);
+        Assert.Equal(new VectorInt3(-1, 0, 0), hit.SampleBlockPos);
+        Assert.Equal(Vector4.Zero, hit.SampleLightRgbS);
+        Assert.Equal(new[] { (0, 0, 0) }, cfg.ChunkReads);
+        Assert.Equal(0, cfg.LightReads);
+    }
+
+    /// <summary>Disabling vanilla lighting preserves every hit field while avoiding even loaded light samples.</summary>
+    [Fact]
+    public void Trace_WithoutVanillaLighting_PreservesGeometryAndNeverReadsLight()
+    {
+        var cfg = new ScriptedBlockAccessorProxy.Config();
+        cfg.LoadedChunks.UnionWith(new[] { (0, 0, 0), (1, 0, 0) });
+        cfg.Blocks[(1, 0, 0)] = TestBlocks.SolidFull;
+        cfg.Lights[(0, 0, 0)] = new Vec4f(10, 20, 30, 40);
+        var accessor = ScriptedBlockAccessorProxy.Create(cfg);
+        var legacy = new BlockAccessorWorldProbeTraceScene(accessor);
+        Assert.Equal(WorldProbeTraceOutcome.Hit, legacy.Trace(new Vector3d(.5, .5, .5), Vector3.UnitX, 10, CancellationToken.None, out var expected));
+        Assert.Equal(new Vector4(10, 20, 30, 40), expected.SampleLightRgbS);
+        Assert.Equal(1, cfg.LightReads);
+
+        cfg.LightReads = 0;
+        cfg.ChunkReads.Clear();
+        cfg.RejectLightReads = true;
+        var scene = new BlockAccessorWorldProbeTraceScene(accessor, sampleVanillaLighting: false);
+        Assert.Equal(WorldProbeTraceOutcome.Hit, scene.Trace(new Vector3d(.5, .5, .5), Vector3.UnitX, 10, CancellationToken.None, out var actual));
+        Assert.Equal(expected with { SampleLightRgbS = Vector4.Zero }, actual);
+        Assert.Equal(new[] { (0, 0, 0), (1, 0, 0) }, cfg.ChunkReads);
+        Assert.Equal(0, cfg.LightReads);
+    }
+
+    /// <summary>Geometry availability remains mandatory even when light sampling is disabled.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Trace_WithoutVanillaLighting_MissingTraversedGeometryAborts(bool originLoaded)
+    {
+        var cfg = new ScriptedBlockAccessorProxy.Config { RejectLightReads = true };
+        if (originLoaded) cfg.LoadedChunks.Add((0, 0, 0));
+        var scene = new BlockAccessorWorldProbeTraceScene(ScriptedBlockAccessorProxy.Create(cfg), sampleVanillaLighting: false);
+
+        var outcome = scene.Trace(new Vector3d(.5, .5, .5), Vector3.UnitX, 10, CancellationToken.None, out var hit);
+
+        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
+        Assert.Equal(default, hit);
+        Assert.Equal(0, cfg.LightReads);
+    }
+    #endregion
+
     [Fact]
     public void Trace_RejectsZeroDirection()
     {
@@ -478,6 +545,9 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
             public HashSet<(int X, int Y, int Z)> LoadedChunks { get; } = new();
             public Dictionary<(int X, int Y, int Z), Block> Blocks { get; } = new();
             public Dictionary<(int X, int Y, int Z), Vec4f> Lights { get; } = new();
+            public List<(int X, int Y, int Z)> ChunkReads { get; } = new();
+            public bool RejectLightReads { get; set; }
+            public int LightReads { get; set; }
         }
 
         private Config cfg = new();
@@ -513,6 +583,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
             if (name == nameof(IBlockAccessor.GetChunkAtBlockPos))
             {
                 var pos = GetPos(args);
+                cfg.ChunkReads.Add(pos);
                 return cfg.LoadedChunks.Contains(pos) ? NullObjectProxy.Create<IWorldChunk>() : null;
             }
 
@@ -524,6 +595,8 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
 
             if (name == nameof(IBlockAccessor.GetLightRGBs))
             {
+                cfg.LightReads++;
+                if (cfg.RejectLightReads) throw new InvalidOperationException("Vanilla lighting is unavailable.");
                 var pos = GetPos(args);
                 return cfg.Lights.TryGetValue(pos, out var v) ? v : new Vec4f(0, 0, 0, 0);
             }

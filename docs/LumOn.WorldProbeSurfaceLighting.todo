@@ -53,8 +53,13 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Fresh build: all 23 focused tests passed, none skipped. Restoring the old slot calculation
       inside the test failed all six positive-face boundary cases while eight controls passed.
       In-game visual confirmation remains under the live-validation task below.
-  ☐ Remove vanilla GetLightRGBs and neighboring-light availability dependencies from world-probe
+  ✔ Remove vanilla GetLightRGBs and neighboring-light availability dependencies from world-probe
     geometry tracing when hit lighting is deferred to the Surface Cache.
+    - Production workers disable vanilla sampling; geometry availability and legacy consumers retain
+      their existing checks. Deferred sky scaling stays neutral for retained directional history.
+    - All 55 focused tests passed, including actual GPU runtime publication with zero vanilla reads.
+      Restoring the old dependency failed five regression cases, including 336 runtime light reads.
+      In-game visual confirmation remains under the live-validation task below.
   ☐ Separate surface hits, established sky visibility, distance/budget exhaustion, and unavailable
     geometry. Define distant-light completion explicitly; do not turn incomplete traces into sky.
   ☐ Add Surface Cache indirect sky/distant-light completion using those outcomes. Reconcile it with
