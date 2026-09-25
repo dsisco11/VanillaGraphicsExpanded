@@ -25,19 +25,13 @@ internal sealed partial class TraceGeometryGpuScene
     /// <summary>Copies the sixteen owning voxels of a four-by-four face patch in capture order.</summary>
     internal bool TryReadCaptureIdentity(VectorInt3 chunk, uint patchId, Span<uint> identity)
     {
-        if (identity.Length != 16 || patchId == 0 || patchId > 12288 || coverage?.Surface is not { } surface) return false;
-        var bounds = coverage.Clip(surface);
-        uint linear = (patchId - 1) / 6;
-        int axis = (int)((patchId - 1) % 6), plane = (int)(linear >> 6);
-        int u0 = (int)(linear & 7) << 2, v0 = (int)((linear >> 3) & 7) << 2;
+        if (identity.Length != 16 || !TraceGeometryCapturePatch.TryCreate(chunk, patchId, out var patch) ||
+            !CaptureStamp(patch).Covered) return false;
         for (int v = 0; v < 4; v++)
         for (int u = 0; u < 4; u++)
         {
-            int x = (chunk.X << 5) + (axis < 2 ? plane : u0 + u);
-            int y = (chunk.Y << 5) + (axis < 2 ? v0 + v : axis < 4 ? plane : v0 + v);
-            int z = (chunk.Z << 5) + (axis < 2 ? u0 + u : axis < 4 ? v0 + v : plane);
-            if (x < bounds.Min.X || x >= bounds.Max.X || y < bounds.Min.Y || y >= bounds.Max.Y ||
-                z < bounds.Min.Z || z >= bounds.Max.Z) return false;
+            var voxelPosition = patch.Voxel(u, v);
+            int x = voxelPosition.X, y = voxelPosition.Y, z = voxelPosition.Z;
             var coordinate = new PartitionCoordinate(x >> 4, y >> 4, z >> 4);
             int slot = Slot(coordinate);
             // A dirty notification withdraws readiness but does not prove an identity change.

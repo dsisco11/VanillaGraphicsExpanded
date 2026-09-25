@@ -36,6 +36,7 @@ internal sealed partial class TraceGeometryGpuScene : ITraceGeometryBackend
         Resolution = resolution;
         int slots = resolution / 16;
         owners = new PartitionRequest[slots * slots * slots];
+        capturePublicationVersions = new long[owners.Length];
         geometryCells = new System.Collections.Immutable.ImmutableArray<uint>[owners.Length];
         Geometry = Texture3D.Create(resolution, resolution, resolution, PixelInternalFormat.R32ui, TextureFilterMode.Nearest);
         Legacy = Texture3D.Create(resolution, resolution, resolution, PixelInternalFormat.R32ui, TextureFilterMode.Nearest);
@@ -104,7 +105,11 @@ internal sealed partial class TraceGeometryGpuScene : ITraceGeometryBackend
             }
             offset += length; UploadedBytes += length;
         }
-        if (end == TraceGeometryTables.MaximumUploadBytes) TablesRevision = tables.Revision;
+        if (end == TraceGeometryTables.MaximumUploadBytes)
+        {
+            TablesRevision = tables.Revision;
+            publishedCaptureTables = tables;
+        }
     }
 
     /// <summary>Clears departed owners before publishing the new physical address envelope.</summary>
@@ -139,6 +144,7 @@ internal sealed partial class TraceGeometryGpuScene : ITraceGeometryBackend
         Readiness.UploadDataImmediate(new byte[] { 1 }, Wrap(c.X), Wrap(c.Y), Wrap(c.Z), 1, 1, 1);
         geometryCells[slot] = cell.GeometrySnapshot;
         UploadedBytes++; Revision++;
+        capturePublicationVersions[slot] = Revision;
         return true;
     }
 
@@ -172,6 +178,7 @@ internal sealed partial class TraceGeometryGpuScene : ITraceGeometryBackend
         if (invalidateHistory && owners[Slot(c)] != null) InvalidationRevision++;
         geometryCells[Slot(c)] = default;
         Readiness.UploadDataImmediate(new byte[1], Wrap(c.X), Wrap(c.Y), Wrap(c.Z), 1, 1, 1); UploadedBytes++; Revision++;
+        capturePublicationVersions[Slot(c)] = Revision;
     }
 
     /// <summary>Wraps fixed-zero publication coordinates into the physical ring.</summary>

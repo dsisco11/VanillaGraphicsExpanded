@@ -24,7 +24,8 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         Assert.False(runtime.AllRequestedCaptured());
         Assert.False(runtime.TryGetLighting(out _));
         runtime.Feedback.TryGetSelfCheckLine(out string diagnostics);
-        Assert.Matches(@"captureFail:[1-9]\d*/",diagnostics);
+        Assert.Contains("captureFail:0/0",diagnostics);
+        Assert.Matches(@"captureDeferredChecks:[1-9]\d*",diagnostics);
     }
 
     /// <summary>Unsupported neighboring geometry cannot suppress valid texels on the same fully captured page.</summary>

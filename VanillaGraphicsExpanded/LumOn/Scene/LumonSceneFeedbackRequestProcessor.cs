@@ -9,7 +9,7 @@ internal interface ILumonScenePageTableWriter
 }
 
 /// <summary>
-/// CPU-side request processing for Phase 22.6 feedback-driven residency (v1).
+/// CPU-side request processing for feedback-driven residency.
 /// Converts GPU page requests into physical page allocations and capture/relight work items, and updates the CPU mirror of the page table.
 /// </summary>
 internal sealed class LumonSceneFeedbackRequestProcessor
@@ -33,14 +33,18 @@ internal sealed class LumonSceneFeedbackRequestProcessor
     private readonly Dictionary<uint, ulong> physicalToVirtual;
     private readonly ILumonScenePageTableWriter pageTableWriter;
     private readonly LumonScenePageTableStatsTracker pageTableStats;
+    private readonly Func<LumonSceneCaptureWorkGpu, bool, bool>? captureAdmission;
 
+    #region Request processing
+    /// <summary>Connects residency ownership and an optional source-aware capture admission policy.</summary>
     public LumonSceneFeedbackRequestProcessor(
         LumonScenePhysicalFieldPool pool,
         LumonScenePageTableEntry[] pageTableMirror,
         Dictionary<ulong, uint> virtualToPhysical,
         Dictionary<uint, ulong> physicalToVirtual,
         ILumonScenePageTableWriter pageTableWriter,
-        LumonScenePageTableStatsTracker pageTableStats)
+        LumonScenePageTableStatsTracker pageTableStats,
+        Func<LumonSceneCaptureWorkGpu, bool, bool>? captureAdmission = null)
     {
         this.pool = pool ?? throw new ArgumentNullException(nameof(pool));
         this.pageTableMirror = pageTableMirror ?? throw new ArgumentNullException(nameof(pageTableMirror));
@@ -48,8 +52,10 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         this.physicalToVirtual = physicalToVirtual ?? throw new ArgumentNullException(nameof(physicalToVirtual));
         this.pageTableWriter = pageTableWriter ?? throw new ArgumentNullException(nameof(pageTableWriter));
         this.pageTableStats = pageTableStats ?? throw new ArgumentNullException(nameof(pageTableStats));
+        this.captureAdmission = captureAdmission;
     }
 
+    /// <summary>Processes requests and a finite retry sweep without collecting per-slot allocation statistics.</summary>
     public void Process(
         ReadOnlySpan<LumonScenePageRequestGpu> requests,
         int maxRequestsToProcess,
@@ -81,6 +87,7 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             skippedChunkBudgetByChunkSlot: Span<ushort>.Empty,
             allocationFailuresByChunkSlot: Span<ushort>.Empty);
 
+    /// <summary>Allocates residency independently of source availability and spends retry credit only on admitted captures.</summary>
     public void Process(
         ReadOnlySpan<LumonScenePageRequestGpu> requests,
         int maxRequestsToProcess,
@@ -216,6 +223,8 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             pageTableStats.ApplyEntryChange(chunkSlot, in oldEntry, in entry);
             pageTableWriter.WriteMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, entry.Packed);
 
+            var captureItem = new LumonSceneCaptureWorkGpu(physicalPageId, chunkSlot, patchId, (uint)vpage);
+            if (captureAdmission != null && !captureAdmission(captureItem, false)) continue;
             if (captureCount < captureWorkOut.Length)
             {
                 captureWorkOut[captureCount++] = new LumonSceneCaptureWorkGpu(physicalPageId, chunkSlot: chunkSlot, patchId: patchId, virtualPageIndex: (uint)vpage);
@@ -233,7 +242,8 @@ internal sealed class LumonSceneFeedbackRequestProcessor
         // Dirty-driven recapture: re-capture some resident pages each frame until drained.
         if (!recaptureVirtualPageKeys.IsEmpty)
         {
-            for (int i = 0; i < maxRecapture && recaptureCursor < recaptureVirtualPageKeys.Length; i++, recaptureCursor++)
+            // Deferred sources do not consume GPU page credit. The finite input sweep bounds CPU inspection.
+            for (; recaptureSucceeded < maxRecapture && recaptureCursor < recaptureVirtualPageKeys.Length; recaptureCursor++)
             {
                 recaptureAttempted++;
                 ulong key = recaptureVirtualPageKeys[recaptureCursor];
@@ -261,6 +271,10 @@ internal sealed class LumonSceneFeedbackRequestProcessor
                 {
                     continue;
                 }
+
+                var captureItem = new LumonSceneCaptureWorkGpu(physicalPageId, chunkSlot, (uint)vpage, (uint)vpage);
+                // Eligibility is checked before withdrawing valid lighting or changing capture flags.
+                if (captureAdmission != null && !captureAdmission(captureItem, true)) continue;
 
                 var flags = LumonScenePageTableEntryPacking.UnpackFlags(existingEntry);
                 flags |= LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.NeedsRelight;
@@ -297,6 +311,9 @@ internal sealed class LumonSceneFeedbackRequestProcessor
             RecaptureSucceeded: recaptureSucceeded);
     }
 
+    #endregion
+
+    #region Allocation and counters
     private static void IncrementClamped(Span<ushort> counts, int index)
     {
         if ((uint)index >= (uint)counts.Length)
@@ -383,4 +400,5 @@ internal sealed class LumonSceneFeedbackRequestProcessor
 
         return false;
     }
+    #endregion
 }

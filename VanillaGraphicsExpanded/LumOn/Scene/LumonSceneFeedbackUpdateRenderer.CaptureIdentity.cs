@@ -74,7 +74,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
             pageTableMirror[index] = updated;
             pageTableStats.ApplyEntryChange(slot, in old, in updated);
             UploadPageTableEntryMip0((int)slot, virtualPage, updated.Packed);
-            captureRetries.Add(identity.Key);
+            QueueCaptureRetry(pair.Key, identity.Key);
         }
     }
     #endregion

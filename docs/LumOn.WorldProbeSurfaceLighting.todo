@@ -363,12 +363,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - All 92 focused regression tests passed, zero skips; normal production build/deployment passed
       with zero warnings/errors. Receipt: artifacts/TestResults/surface-work-diagnostics-regression.trx.
       Measurement receipt: artifacts/TestResults/surface-work-diagnostics-measurement.trx.
-  ☐ Make capture admission and retries aware of geometry coverage and publication.
+  ☑ Make capture admission and retries aware of geometry coverage and publication.
     - Defer unavailable source patches until their relevant coverage/publication changes rather
       than repeatedly spending the eight-page recapture budget on impossible work.
     - Prioritize nearby visible demand while preserving bounded fairness and eventual recovery for
       other eligible pages. Handle movement, streaming, edits and slot reuse without lost wakeups.
       Do not publish incomplete captures or erase valid lighting merely because coverage is absent.
+    - Implemented source-publication eligibility caching and identity-bound finite retry sweeps;
+      deferred sources consume no GPU capture credit. Details: docs/LumOn.SurfaceCache.CaptureAdmission.md.
+    - Subagent-run focused tests: 29 passed; broader task regression: 121 passed, zero skips;
+      production build/deployment: zero warnings/errors. Two existing ring-retention test cases failed
+      and were excluded from that passing selection; the linked report preserves evidence and the
+      unresolved fixture/validation gap. User-run gameplay acceptance remains a later task.
   ☐ Expand useful GPU geometry coverage with bounded storage and upload work.
     - Size coverage for the intended Surface Cache tracing region; reconcile the current 128-block
       coverage with roughly 480-block active capture demand in the recorded configuration.

@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 using System.Buffers;
+using System.Linq;
 using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
@@ -548,9 +549,12 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
         if (captureCount > 0)
         {
-            DispatchVoxelCapture(captureCount);
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
-            FinalizeCaptureFlagsFromGpuQueue(captureCount);
+            if (DispatchVoxelCapture(captureCount))
+            {
+                GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+                FinalizeCaptureFlagsFromGpuQueue(captureCount);
+            }
+            else captureRetryVersion++;
         }
 
         // Phase 9.1: update region scheduler from latest slot assignments + page-table mirror.
@@ -820,9 +824,12 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             virtualToPhysical,
             physicalToVirtual,
             new RendererPageTableWriter(this),
-            pageTableStats);
+            pageTableStats,
+            TryAdmitCapture);
 
         ResetRecaptureList();
+
+        ClearCaptureAdmission();
 
         // Best-effort clear GPU page table to zeros.
         nearGpu.PageTable.EnsureCreated();
@@ -1315,6 +1322,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
     private int ProcessRequestsCpu(int maxRequestsToProcess, int maxNewAllocations)
     {
+        lastCaptureCount = lastRelightCount = 0;
         EnsureRecaptureListIfRequested();
 
         uint requestCount;
@@ -1737,6 +1745,16 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 skippedChunkBudgetByChunkSlot: slotStarvedChunkBudget,
                 allocationFailuresByChunkSlot: slotAllocFailures);
 
+            // The existing compactor reports unmapped visible demand only. Retain that recent signal
+            // after allocation, without adding another feedback pass or claiming resident visibility.
+            foreach (ulong key in visibleCapturePages.Keys.ToArray())
+                if (!virtualToPhysical.ContainsKey(key)) visibleCapturePages.Remove(key);
+            for (int i = 0; i < toProcess; i++)
+            {
+                ulong key = LumonSceneVirtualPageKeyUtil.Pack(scratch[i].ChunkSlot, scratch[i].VirtualPageIndex);
+                if (virtualToPhysical.ContainsKey(key)) visibleCapturePages[key] = lastNearPriorityContext.NowTick;
+            }
+
             // Phase 9.1: cooldown/backoff based on allocation failures and budget starvation.
             if (hasLastNearContexts && slotOwners.Length > 0)
             {
@@ -1757,6 +1775,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 recaptureVirtualPageKeys = null;
                 recaptureCount = 0;
                 recaptureCursor = 0;
+                captureSweepIdentities.Clear();
             }
 
             // v1: CPU-produced work overwrites the queues each frame.
@@ -1862,26 +1881,15 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             return;
         }
 
-        ResetRecaptureList();
-
-        int count = virtualToPhysical.Count;
-        if (count <= 0)
-        {
-            return;
-        }
-
-        ulong[] pages = ArrayPool<ulong>.Shared.Rent(count);
-        int i = 0;
-
-        // Phase 9.1: route recapture through active cells only.
-        // This avoids spending recapture budget on Loaded-but-not-Active slots.
+        // Coalesce explicit demand without restarting an in-progress finite sweep.
+        // Only active cells receive new forced demand; already deferred resident tickets retain ownership.
         bool canFilter = hasLastNearContexts && slotOwners.Length > 0;
 
         foreach (ulong key in virtualToPhysical.Keys)
         {
             if (!canFilter)
             {
-                pages[i++] = key;
+                QueueCaptureRetry(virtualToPhysical[key], key);
                 continue;
             }
 
@@ -1898,19 +1906,11 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             if (nearRegionScheduler.TryGetCell(cellKey, out LumonSceneRegionCell cell)
                 && cell.DesiredState == WorldCellDesiredState.Active)
             {
-                pages[i++] = key;
+                QueueCaptureRetry(virtualToPhysical[key], key);
             }
         }
 
-        if (i <= 0)
-        {
-            ArrayPool<ulong>.Shared.Return(pages, clearArray: false);
-            return;
-        }
-
-        recaptureVirtualPageKeys = pages;
-        recaptureCount = i;
-        recaptureCursor = 0;
+        ResumeCaptureRetries();
     }
 
     private void ResetRecaptureList()
@@ -1923,29 +1923,31 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         recaptureVirtualPageKeys = null;
         recaptureCount = 0;
         recaptureCursor = 0;
+        captureSweepIdentities.Clear();
     }
 
-    private void DispatchVoxelCapture(int captureCount)
+    /// <summary>Submits capture only with all resources present; unsubmitted queue items cannot establish capture validity.</summary>
+    private bool DispatchVoxelCapture(int captureCount)
     {
         if (captureCount <= 0)
         {
-            return;
+            return false;
         }
 
         if (!EnsureCaptureVoxelShader())
         {
-            return;
+            return false;
         }
 
         var atlases = physicalPools.Near.GpuResources;
         if (atlases is null)
         {
-            return;
+            return false;
         }
 
         if (slotInfoBuffer is null)
         {
-            return;
+            return false;
         }
 
         int tileSize = physicalPools.Near.Plan.TileSizeTexels;
@@ -1989,6 +1991,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             | MemoryBarrierFlags.ShaderStorageBarrierBit
             | MemoryBarrierFlags.BufferUpdateBarrierBit
             | MemoryBarrierFlags.TextureFetchBarrierBit);
+        return true;
     }
 
     /// <summary>Publishes successful captures and retains unresolved pages for bounded later retries.</summary>
@@ -2011,6 +2014,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             if (!mapped.IsMapped)
             {
                 diagnosticCaptureReadFailures++;
+                captureRetryVersion++;
                 return;
             }
 
@@ -2026,7 +2030,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 if (shaderFailed || identityFailed)
                 {
                     diagnosticCaptureFailures++;
-                    captureRetries.Add(LumonSceneVirtualPageKeyUtil.Pack(items[i].ChunkSlot, items[i].VirtualPageIndex & 0x7fffffffu));
+                    captureAdmission.Reject(items[i].PhysicalPageId);
                     continue;
                 }
                 uint chunkSlot = items[i].ChunkSlot;
@@ -2057,6 +2061,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 pageTableStats.ApplyEntryChange(chunkSlot, in entry, in updated);
                 UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, updated.Packed);
                 diagnosticCaptureQueue.Complete(items[i].PhysicalPageId, Environment.TickCount64);
+                if (captureRetries.Remove(LumonSceneVirtualPageKeyUtil.Pack(chunkSlot, (uint)vpage))) captureRetryVersion++;
             }
         }
         finally
@@ -2137,7 +2142,8 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             $"wRem:{lastWorldBlockOffsetRem.X:0.##},{lastWorldBlockOffsetRem.Y:0.##},{lastWorldBlockOffsetRem.Z:0.##} " +
             $"res:{residentPages}/{cap} ready:{ready} nc:{needsCap} nr:{needsRel} capQ:{lastCaptureCount} relQ:{lastRelightCount} " +
             $"rc:{lastProcessStats.RecaptureSucceeded}/{lastProcessStats.RecaptureAttempted} " +
-            $"captureFail:{diagnosticCaptureFailures}/{diagnosticCaptureAttempts} captureReadFail:{diagnosticCaptureReadFailures}";
+            $"captureFail:{diagnosticCaptureFailures}/{diagnosticCaptureAttempts} captureReadFail:{diagnosticCaptureReadFailures} " +
+            $"capturePending:{captureRetries.Count} captureEligibilityChecks:{captureAdmission.Checks} captureDeferredChecks:{captureAdmission.Deferred}";
 
         return true;
     }

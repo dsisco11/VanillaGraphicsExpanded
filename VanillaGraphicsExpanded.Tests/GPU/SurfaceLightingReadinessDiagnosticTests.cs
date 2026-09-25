@@ -50,9 +50,9 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
         Assert.False(runtime.TryGetLighting(out _));
     }
 
-    /// <summary>An out-of-domain source increments capture failures and recovers when the camera brings it into coverage.</summary>
+    /// <summary>An out-of-domain source defers GPU capture and recovers when the camera brings it into coverage.</summary>
     [Fact]
-    public void CaptureOutsideCoverage_ReportsFailureThenPublishesAfterRecovery()
+    public void CaptureOutsideCoverage_DefersWithoutGpuAttemptsThenPublishesAfterRecovery()
     {
         EnsureContextValid();
         using var runtime = new SurfaceCacheRuntimeFixture(feedbackPlaneX: 24);
@@ -63,8 +63,8 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
         Assert.Contains("seedFail:0/0", blocked);
         runtime.Feedback.TryGetSelfCheckLine(out string capture);
         var failed = ReadCounter(capture, "captureFail");
-        Assert.True(failed.Failures > 0, capture);
-        Assert.True(failed.Attempts >= failed.Failures, capture);
+        Assert.Equal(0, failed.Failures);
+        Assert.Equal(0, failed.Attempts);
         Assert.Contains("captureReadFail:0", capture);
         Assert.False(runtime.TryGetLighting(out _));
 
@@ -76,7 +76,8 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
         Assert.Equal(0, seed.Failures);
         Assert.True(seed.Attempts > 0, ready);
         runtime.Feedback.TryGetSelfCheckLine(out string recoveredCapture);
-        Assert.True(ReadCounter(recoveredCapture, "captureFail").Failures >= failed.Failures);
+        Assert.Equal(0,ReadCounter(recoveredCapture,"captureFail").Failures);
+        Assert.True(ReadCounter(recoveredCapture,"captureFail").Attempts>0);
     }
 
     /// <summary>A captured source inside coverage reports seed failures when its exterior light-query cell lies outside.</summary>

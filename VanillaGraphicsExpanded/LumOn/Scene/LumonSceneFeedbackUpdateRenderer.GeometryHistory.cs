@@ -1,5 +1,3 @@
-using System.Buffers;
-using System.Collections.Generic;
 using System.Threading;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
@@ -8,7 +6,6 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed partial class LumonSceneFeedbackUpdateRenderer
 {
     private LumonSceneIrradianceHistory? irradianceHistory;
-    private readonly HashSet<ulong> captureRetries = new();
 
     /// <summary>Identifies the current capture and lighting history for partial relight schedules.</summary>
     internal long GeometryHistoryRevision { get; private set; }
@@ -28,6 +25,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
             return true;
         }
         captureIdentities.Clear(); unavailableCaptures.Clear(); checkedGeometryRevision = -1;
+        ClearCaptureAdmission();
         // Only incompatible scene/material identities or replacement atlas storage require a full recapture.
         foreach (var pair in virtualToPhysical)
         {
@@ -47,32 +45,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
         return true;
     }
 
-    /// <summary>Resumes failed captures after the current bounded sweep, without restarting or starving later pages.</summary>
-    private void ResumeCaptureRetries()
-    {
-        if (recaptureVirtualPageKeys != null || captureRetries.Count == 0) return;
-        recaptureVirtualPageKeys = ArrayPool<ulong>.Shared.Rent(captureRetries.Count);
-        recaptureCount = 0;
-        foreach (ulong key in captureRetries)
-        {
-            // Residency may have changed while this retry waited. Only current unresolved pages need work.
-            if (!virtualToPhysical.ContainsKey(key)) continue;
-            uint slot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key);
-            int page = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
-            int index = checked((int)slot * VirtualPagesPerChunk + page);
-            var flags = LumonScenePageTableEntryPacking.UnpackFlags(pageTableMirror[index]);
-            if ((flags & LumonScenePageTableEntryPacking.Flags.NeedsCapture) != 0)
-                recaptureVirtualPageKeys[recaptureCount++] = key;
-        }
-        captureRetries.Clear();
-        recaptureCursor = 0;
-        if (recaptureCount == 0) ResetRecaptureList();
-    }
-
     /// <summary>Releases invalidation resources and forgets the prior world generation.</summary>
     private void ReleaseGeometryHistory()
     {
-        captureRetries.Clear();
+        ClearCaptureAdmission();
         irradianceHistory?.Dispose(); irradianceHistory = null;
         captureIdentities.Clear(); unavailableCaptures.Clear(); checkedGeometryRevision = -1;
     }

@@ -8,6 +8,7 @@ internal sealed class RuntimeTraceGeometrySource : ITraceGeometrySource
 {
     private readonly Func<int, int, int, TraceGeometryVoxel> sample;
     private int version;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<ChunkKey,int> chunkVersions=new();
     public TraceGeometrySourceCache Cache { get; }
     public bool Disposed { get; private set; }
     /// <summary>Counts controlled whole-chunk snapshots requested by production scheduling.</summary>
@@ -18,7 +19,7 @@ internal sealed class RuntimeTraceGeometrySource : ITraceGeometrySource
     public RuntimeTraceGeometrySource(Func<int, int, int, TraceGeometryVoxel> sample, Func<bool>? available = null, Func<ChunkKey,bool>? loaded = null)
     {
         this.sample = sample;
-        Cache = new(Capture, _ => version, key => (available?.Invoke() ?? true) && (loaded?.Invoke(key) ?? true));
+        Cache = new(Capture, key => version+(chunkVersions.TryGetValue(key,out int local)?local:0), key => (available?.Invoke() ?? true) && (loaded?.Invoke(key) ?? true));
     }
 
     /// <summary>Copies whole chunks using the same cell ordering as the game source adapter.</summary>
@@ -36,6 +37,8 @@ internal sealed class RuntimeTraceGeometrySource : ITraceGeometrySource
     public void Prepare(TraceGeometryCoverage coverage) { }
     /// <summary>Advances source identity when the engine reports an edit.</summary>
     public void MarkDirty(ChunkKey key) => version++;
+    /// <summary>Versions only one source chunk so tests can isolate unrelated publication from global fixture edits.</summary>
+    public void MarkChunkDirty(ChunkKey key) => chunkVersions.AddOrUpdate(key,1,(_,old)=>old+1);
     /// <summary>Releases cached chunks on production renderer teardown.</summary>
     public void Dispose() { Disposed = true; Cache.Dispose(); }
     #endregion

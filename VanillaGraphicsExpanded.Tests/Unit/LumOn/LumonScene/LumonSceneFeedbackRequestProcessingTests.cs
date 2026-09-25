@@ -14,12 +14,36 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         LumonScenePageTableEntry[] pageTable,
         Dictionary<ulong, uint> virtualToPhysical,
         Dictionary<uint, ulong> physicalToVirtual,
-        ILumonScenePageTableWriter writer)
+        ILumonScenePageTableWriter writer,
+        Func<LumonSceneCaptureWorkGpu,bool,bool>? admission = null)
     {
         var stats = new LumonScenePageTableStatsTracker();
         int slots = Math.Max(1, pageTable.Length / LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
         stats.Reset(slots);
-        return new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writer, stats);
+        return new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writer, stats, admission);
+    }
+
+    /// <summary>Deferred retries preserve displayed state and do not consume the eight eligible-page credits behind them.</summary>
+    [Fact]
+    public void DeferredRetryPrefixPreservesFlagsAndDoesNotConsumeEligibleBudget()
+    {
+        using var pool=CreateNearPool(capacityNotClamped:true);
+        var table=new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical=new Dictionary<ulong,uint>();var physicalToVirtual=new Dictionary<uint,ulong>();
+        var writes=new RecordingPageTableWriter();bool deny=false;
+        var processor=CreateProcessor(pool,table,virtualToPhysical,physicalToVirtual,writes,
+            (item,retry)=>!deny||!retry||item.VirtualPageIndex>=5);
+        var requests=Enumerable.Range(1,12).Select(i=>new LumonScenePageRequestGpu(0,(uint)i,0,(uint)i)).ToArray();
+        var capture=new LumonSceneCaptureWorkGpu[16];var relight=new LumonSceneRelightWorkGpu[16];int cursor=0;
+        processor.Process(requests,16,16,0,ReadOnlySpan<ulong>.Empty,ref cursor,0,capture,relight,out _,out _,out _);
+        for(int i=1;i<=12;i++)table[i]=LumonScenePageTableEntryPacking.Pack(virtualToPhysical[LumonSceneVirtualPageKeyUtil.Pack(0,(uint)i)],LumonScenePageTableEntryPacking.Flags.Resident);
+        uint[] before=table.Take(5).Select(entry=>entry.Packed).ToArray();deny=true;writes.Writes.Clear();
+        var keys=Enumerable.Range(1,12).Select(i=>LumonSceneVirtualPageKeyUtil.Pack(0,(uint)i)).ToArray();
+        processor.Process(ReadOnlySpan<LumonScenePageRequestGpu>.Empty,0,0,0,keys,ref cursor,8,capture,relight,out int count,out _,out _);
+        Assert.Equal(12,cursor);Assert.Equal(8,count);
+        Assert.Equal(Enumerable.Range(5,8).Select(i=>(uint)i),capture.Take(count).Select(item=>item.VirtualPageIndex));
+        Assert.Equal(before,table.Take(5).Select(entry=>entry.Packed));
+        Assert.DoesNotContain(writes.Writes,write=>write.VirtualPageIndex<5);
     }
 
     [Fact]
@@ -543,8 +567,8 @@ public sealed class LumonSceneFeedbackRequestProcessingTests
         var pool = new LumonScenePhysicalFieldPool(LumonSceneField.Near);
 
         // capacityNotClamped=true yields a capacity >= 15 pages (nearRadiusChunks=1, tileSize=16 => huge tilesPerAtlas).
-        // capacityNotClamped=false yields a tiny capacity (tileSize=2048 => 2x2 tiles => 4 pages) forcing saturation.
-        int texelsPerVoxelFaceEdge = capacityNotClamped ? 4 : 512;
+        // capacityNotClamped=false yields a tiny capacity (tileSize=512 => 2x2 tiles => 4 pages) forcing saturation.
+        int texelsPerVoxelFaceEdge = capacityNotClamped ? 4 : 128;
         LumonScenePhysicalPoolPlan plan = LumonScenePhysicalPoolPlanner.CreateNearPlan(
             nearTexelsPerVoxelFaceEdge: texelsPerVoxelFaceEdge,
             nearRadiusXZChunks: 1,
