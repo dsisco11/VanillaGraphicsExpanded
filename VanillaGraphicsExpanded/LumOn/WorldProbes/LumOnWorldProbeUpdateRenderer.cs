@@ -35,7 +35,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 	private LumOnWorldProbeScheduler? scheduler;
 	private Action<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>? schedulerAnchorShiftHandler;
 
-	private LumOnWorldProbeTraceService? traceService;
+	private LumOnWorldProbeTraceRouter? traceService;
 	private BlockAccessorWorldProbeTraceScene? traceScene;
 	private IBlockAccessor? traceBlockAccessor;
 
@@ -101,6 +101,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 
 		EnsureScheduler(resources);
         PrepareSurfaceLighting(resources);
+		PrepareTraceRouting();
 		if (scheduler is null)
 		{
 			return;
@@ -173,14 +174,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
             }
 		}
 
-		// Hit radiance is resolved from the Surface Cache; workers need only collision geometry.
-		traceScene ??= new BlockAccessorWorldProbeTraceScene(worldAccessor, sampleVanillaLighting: false);
-        // A retired worker must never claim work on a replacement scheduler.
-        var traceScheduler = scheduler;
-		traceService ??= new LumOnWorldProbeTraceService(
-			traceScene,
-			maxQueuedWorkItems: 2048,
-			tryClaim: (req, frame) => traceScheduler.TryClaim(req, frame));
+		EnsureTraceRouting(worldAccessor);
 
 		System.Collections.Generic.List<LumOnWorldProbeUpdateRequest> requests;
 		using (Profiler.BeginScope("LumOn.WorldProbe.Schedule.BuildList", "LumOn"))
@@ -267,7 +261,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer : IRenderer, IDispos
 					DirectionPISExploreCount: cfg.DirectionPISExploreCount,
 					DirectionPISWeightEpsilon: cfg.DirectionPISWeightEpsilon,
 					NearbySolidHitDistance: spacing * 0.5d, DeferSurfaceLighting: true, SurfaceRevision: surfaceRevision);
-				if (!traceService.TryEnqueue(item))
+				if (!traceService!.TryEnqueue(item))
 				{
 					scheduler.Unqueue(req);
 				}

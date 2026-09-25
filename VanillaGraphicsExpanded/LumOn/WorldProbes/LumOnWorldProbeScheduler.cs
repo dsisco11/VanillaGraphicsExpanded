@@ -311,6 +311,15 @@ internal sealed class LumOnWorldProbeScheduler
         return list;
     }
 
+    /// <summary>Revokes outstanding backend admissions while retaining published history and valid idle probes.</summary>
+    public void RetireOutstanding(int frameIndex)
+    {
+        for (int level = 0; level < levels.Length; level++)
+        {
+            lock (levelLocks[level]) levels[level].RetireOutstanding(frameIndex);
+        }
+    }
+
     /// <summary>Rejects delayed lighting results after dirtying, disabling or reusing their storage slot.</summary>
     public bool IsCurrent(in LumOnWorldProbeUpdateRequest request)
     {
@@ -815,6 +824,17 @@ internal sealed class LumOnWorldProbeScheduler
                     ImportanceFlags: importanceFlags[c.StorageLinearIndex], Ticket: tickets[c.StorageLinearIndex] = ++nextTicket));
 
                 taken++;
+            }
+        }
+
+        /// <summary>Returns pending admissions to scheduling and revokes their tickets atomically under the level lock.</summary>
+        public void RetireOutstanding(int frameIndex)
+        {
+            for (int index = 0; index < probesPerLevel; index++)
+            {
+                if (lifecycle[index] is not (LumOnWorldProbeLifecycleState.Queued or LumOnWorldProbeLifecycleState.InFlight)) continue;
+                Complete(index, frameIndex, false, 0);
+                tickets[index] = ++nextTicket;
             }
         }
 

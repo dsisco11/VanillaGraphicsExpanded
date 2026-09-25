@@ -260,11 +260,16 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
   Optional GPU tracing for L0 world probes:
   Scope: reuse existing uploaded local geometry; do not upload distant terrain for this backend.
   L1 and higher remain on the existing CPU tracer. Implement separately from Surface Cache refresh.
-  ☐ Add an enabled-by-default GPU world-probe tracing feature flag and level-based backend routing.
+  ✔ Add an enabled-by-default GPU world-probe tracing feature flag and level-based backend routing.
     - Flag off: retain CPU tracing for every level. Flag on: route L0 to a separate GPU backend,
       leaving L1+ on the CPU. Share scheduling, admission tickets, direction selection and budgets.
     - Retire outstanding backend work safely on flag changes, world leave and resource replacement;
       prevent duplicate publication or stranded in-flight requests.
+    - Implemented WorldProbeClipmap.EnableGpuTracing and separate L0 backend admission. Until the
+      next compute task, that backend forwards unchanged work to the shared bounded CPU queue.
+      Flag changes revoke pending tickets/queries without clearing displayed history. All 43
+      focused tests passed; production build/deployment passed with zero warnings/errors.
+      Routing, lifetime boundaries and evidence: docs/LumOn.WorldProbeGpuRouting.md.
   ☐ Implement bounded L0 compute tracing against the existing GPU geometry and Surface Cache.
     - Reuse GPU voxel traversal and surface-lighting lookup with integer world origins and local
       fractions. Preserve ray outcomes, directional distance encoding, confidence, short-range

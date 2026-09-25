@@ -370,6 +370,13 @@ public class VgeConfig
     public sealed class WorldProbeClipmapConfig
     {
         /// <summary>
+        /// Routes L0 through the GPU backend; higher levels retain CPU tracing.
+        /// The backend currently uses CPU compatibility tracing until compute support is implemented.
+        /// </summary>
+        [JsonProperty]
+        public bool EnableGpuTracing { get; set; } = true;
+
+        /// <summary>
         /// World units between probes at L0.
         /// </summary>
         [JsonProperty]

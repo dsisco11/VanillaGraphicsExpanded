@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
-internal sealed class LumOnWorldProbeTraceService : IDisposable
+internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
 {
     private readonly Channel<LumOnWorldProbeTraceWorkItem> work;
 
