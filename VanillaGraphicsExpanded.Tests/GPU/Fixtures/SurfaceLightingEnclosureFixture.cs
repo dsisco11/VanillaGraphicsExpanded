@@ -23,6 +23,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private readonly Texture3D[] outgoing;
     private readonly LumonSceneCaptureWorkGpu[] captureItems;
     private readonly LumonSceneRelightWorkGpu[] lightingItems;
+    private float[]? incidentPixels;
     private int generation;
     public long DependencyRevision { get; set; }
     public bool DividedRoom { get; }
@@ -137,6 +138,30 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
 
     /// <summary>Runs one previous-generation bounce and publishes its complete numerical results.</summary>
     public void Bounce() { Run(1); Publish(); }
+
+    /// <summary>Refreshes direct sources without resetting captured identity or indirect history.</summary>
+    public void RefreshDirect() { Run(4); Publish(); }
+
+    /// <summary>Sets a selected estimator history while preserving the production capture and trace inputs.</summary>
+    public void SetIndirect(float value, float weight, int page = 0, int linear = 27)
+    {
+        int local=(int)lightingItems[page].PhysicalPageId-1;
+        int x=((local%TilesPerAxis)<<3)+linear%Edge, y=((local/TilesPerAxis)<<3)+linear/Edge;
+        indirect.UploadDataImmediate(new[]{value,value,value,weight},x,y,0,1,1,1);
+    }
+
+    /// <summary>Supplies a uniform previous-generation radiance boundary to isolate temporal response from feedback.</summary>
+    public void SetIncidentRadiance(float value)
+    {
+        // Upload requires exact array length, so reuse one fixture-owned array across samples.
+        var pixels=incidentPixels ??= new float[(AtlasEdge*AtlasEdge)<<2];
+        for(int index=0;index<pixels.Length;index+=4)
+        {
+            pixels[index]=pixels[index+1]=pixels[index+2]=value;
+            pixels[index+3]=1;
+        }
+        outgoing[generation%2].UploadDataImmediate(pixels,0,0,0,AtlasEdge,AtlasEdge,1);
+    }
 
     /// <summary>Dispatches all captured pages without injecting any downstream light values.</summary>
     private void Run(uint operation)

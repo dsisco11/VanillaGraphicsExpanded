@@ -13,6 +13,8 @@ layout(binding=7) uniform usampler2D surfaces;
 layout(binding=0, rgba16f) uniform image2DArray indirectIrradiance;
 layout(binding=1, rgba16f) uniform image2DArray directIrradiance;
 layout(binding=2, rgba16f) writeonly uniform image2DArray nextOutgoing;
+/** Bounds the effective history so old lighting cannot suppress successful refresh samples indefinitely. */
+const float SURFACE_LIGHTING_MAX_HISTORY_WEIGHT = 8.0;
 /** Rejects invalid inputs before conversion to bounded half-float storage. */
 bool finiteLight(vec3 value) { return !any(isnan(value)) && !any(isinf(value)); }
 /** Maps an axial normal into the engine face order. */
@@ -130,9 +132,14 @@ void main()
         { atomicOr(work[wi].w,0x80000000u); return; }
         sum += radiance * 3.14159265359;
     }
+    vec3 estimate = sum / float(rays);
+    // A failed/nonfinite batch must not age history or replace valid lighting with an artificial zero.
+    if (!finiteLight(estimate)) { atomicOr(work[wi].w, 0x80000000u); return; }
     vec4 previous = imageLoad(indirectIrradiance,address);
     if (!finiteLight(previous.rgb) || isnan(previous.a) || isinf(previous.a)) previous = vec4(0);
-    float weight = min(max(0.0,previous.a)+1.0,1024.0);
-    imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,sum/float(rays),1.0/weight),vec3(0),vec3(65504)),weight));
+    // Start with a running mean, then retain a bounded effective history. This also migrates
+    // older high-weight texels lazily on their next resolved sample without clearing displayed RGB.
+    float weight = min(max(0.0,previous.a)+1.0,SURFACE_LIGHTING_MAX_HISTORY_WEIGHT);
+    imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,estimate,1.0/weight),vec3(0),vec3(65504)),weight));
     atomicOr(work[wi].w, 0x40000000u);
 }

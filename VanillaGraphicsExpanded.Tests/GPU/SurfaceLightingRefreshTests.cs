@@ -14,7 +14,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     public void RemoteResidentContinuesIndirectRefreshAfterAnotherChunkChanges()
     {
         EnsureContextValid();
-        var spatial=new SpatialLightingScene();
+        var spatial=new SpatialLightingScene { Reflectance=.25f };
         using var runtime=new SurfaceCacheRuntimeFixture(spatial:spatial);
         runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
@@ -22,15 +22,17 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
         Assert.True(runtime.Feedback.TryGetNearChunkSlotAndGeneration(new(-1,1,0),out uint remoteSlot,out _));
         uint[] remote=mapping.Where(pair=>LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(pair.Value)==remoteSlot).Select(pair=>pair.Key).ToArray();
         Assert.NotEmpty(remote);
-        runtime.RunUntil(()=>remote.Any(page=>IndirectWeight(runtime,page)>1),maximumFrames:160);
-        uint page=remote.OrderByDescending(id=>IndirectWeight(runtime,id)).First();
-        float before=IndirectWeight(runtime,page);
+        runtime.RunUntil(()=>remote.Any(page=>IndirectWeight(runtime,page)>=8),maximumFrames:256);
+        for(int frame=0;frame<160;frame++) runtime.Frame();
+        uint page=remote.OrderByDescending(id=>IndirectBrightness(runtime,id)).First();
+        float before=IndirectBrightness(runtime,page);
+        Assert.True(before>.1f);
         long capture=runtime.Feedback.GetCaptureRevision(page);
         Assert.True(runtime.TryGetLighting(out var original));
         runtime.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with {LegacyLight=0} : voxel;
         var edited=VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(0,1,0);
         foreach(var source in runtime.Sources.Where(source=>!source.Disposed)) source.MarkDirty(edited);
-        runtime.RunUntil(()=>IndirectWeight(runtime,page)>before,maximumFrames:160);
+        runtime.RunUntil(()=>IndirectBrightness(runtime,page)<before*.9f,maximumFrames:256);
         Assert.Equal(capture,runtime.Feedback.GetCaptureRevision(page));
         Assert.True(runtime.TryGetLighting(out var current));
         Assert.Equal(original.DependencyRevision,current.DependencyRevision);
@@ -153,6 +155,16 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     #endregion
 
     #region Observations
+    /// <summary>Observes indirect energy independently of capped effective temporal weight.</summary>
+    private static float IndirectBrightness(SurfaceCacheRuntimeFixture runtime,uint page)
+    {
+        if(!runtime.TryGetLighting(out var current)) return 0;
+        using var indirect=SurfaceLightingPageReadback.Read(current.IndirectIrradiance,current,page);
+        float sum=0;
+        for(int index=0;index<indirect.Length;index+=4) sum+=indirect.Span[index];
+        return sum/(indirect.Length>>2);
+    }
+
     /// <summary>Observes completed indirect samples on the selected physical page.</summary>
     private static float IndirectWeight(SurfaceCacheRuntimeFixture runtime,uint page)
     {

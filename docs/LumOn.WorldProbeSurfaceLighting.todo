@@ -167,7 +167,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       artifacts/TestResults/surface-identity-capture-revision.trx.
       Normal mod build/deployment passed with zero warnings/errors; receipt:
       artifacts/surface-identity-deploy.log.
-    - Direct-light freshness scheduling and temporal adaptation remain the following tasks;
+    - Direct-light freshness scheduling and temporal adaptation are tracked in the following tasks;
       retained old lighting is not a claim of updated-light convergence. In-game validation remains open.
   ✔ Replace global erase/recapture with bounded refresh scheduling for direct and indirect lighting.
     - Revisit already seeded pages for direct-light changes; keep successful partial work and fair
@@ -191,13 +191,30 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       artifacts/TestResults/surface-refresh-final.trx.
       Normal deployment passed with zero warnings/errors; 66 shader programs / 246 stage variants.
       Build receipt: artifacts/surface-refresh-deploy.log.
-    - The following temporal task still owns responsive indirect adaptation; the current capped
-      running mean remains unchanged. These tests establish refresh work and direct replacement,
+    - The following temporal task owns responsive indirect adaptation; the scheduling change left the
+      running mean unchanged. These tests establish refresh work and direct replacement,
       not prompt indirect convergence or in-game acceptance.
-  ☐ Make temporal accumulation responsive to changed lighting without clearing displayed results.
+  ✔ Make temporal accumulation responsive to changed lighting without clearing displayed results.
     - Define bounded history weighting/replacement for refreshes, preserving old valid values on
       unresolved attempts. Missing geometry, coverage exits and exhausted budgets remain unresolved.
       Do not publish uninitialized texels, false sky, or artificial black as successful refreshes.
+    - Implemented an eight-completed-batch effective history cap: running mean during warm-up,
+      then 1/8 replacement per successful sample. Higher existing weights migrate on the next
+      completed finite sample without clearing RGB or changing publication identity. Fixed-input
+      old-value contribution falls below 5% within 24 successful updates before storage rounding.
+    - Unresolved attempts retain both RGB and weight. Nonfinite completed estimates are rejected
+      before mutation. Proven sky and valid black remain resolved under the existing source policy.
+      This is not a frame-time or multi-bounce convergence bound; no budget or storage was added.
+    - Validation: 53 focused tests passed, including five new production-shader numerical cases
+      for high-weight light-on/off response, warm-up/stability, failed-attempt retention, valid black,
+      and real source removal without resetting indirect history. The remote-chunk regression now
+      checks reduced indirect irradiance after a neighboring light edit rather than unbounded weight
+      growth. Existing producer, environment, refresh, identity, partial publication, probe-ticket,
+      capture-identity and scheduling coverage passed. Independent numerical/lifetime review found
+      no blocker; receipt: artifacts/TestResults/surface-temporal-final.trx.
+    - Normal production deployment passed with zero warnings/errors; receipt:
+      artifacts/surface-temporal-deploy.log. Test compilation retained five pre-existing analyzer
+      warnings in unrelated test files. In-game noise/response acceptance remains open.
   ☐ Validate refresh behavior through subagent-run focused tests and a separate implementation review.
     - Cover unchanged dirty notifications, local surface edits, light on/off, indirect changes outside
       the edited chunk, missing inputs/recovery, repeated dirtying, page reuse and resource recreation.
