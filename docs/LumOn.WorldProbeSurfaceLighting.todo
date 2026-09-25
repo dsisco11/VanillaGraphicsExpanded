@@ -143,6 +143,38 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Receipts: artifacts/TestResults/surface-partial-page-final.trx and
       artifacts/TestResults/surface-partial-page-current.trx; prior baseline:
       artifacts/surface-sky-baseline-receipts/baseline.trx. Live validation remains below.
+  Surface Cache refresh without global erasure:
+  Evidence: docs/LumOn.SurfaceCache.ResetDiagnostics.md records the stationary dirty-chunk reset.
+  ☐ Separate valid-but-stale lighting from invalid surface identity; update the lighting contract.
+    - Preserve published lighting and unchanged captures after ordinary chunk/light notifications.
+      Determine affected capture identities from relevant geometry/material changes; a dirty
+      notification alone is not proof that every surface in the chunk changed.
+    - Reject removed/replaced surfaces, reassigned pages, and delayed results with obsolete identities.
+      Keep explicit initialization for new storage and hard invalidation for incompatible resources.
+  ☐ Replace global erase/recapture with bounded refresh scheduling for direct and indirect lighting.
+    - Revisit already seeded pages for direct-light changes; keep successful partial work and fair
+      retries. Geometry changes may affect lighting beyond the edited chunk: ensure all resident
+      candidates receive eventual refresh without requiring a global clear or precise ray dependencies.
+    - Continue serving the previous valid outgoing generation until replacement texels are ready;
+      reconcile world-probe dependency tickets so stale work cannot republish an invalid surface.
+  ☐ Make temporal accumulation responsive to changed lighting without clearing displayed results.
+    - Define bounded history weighting/replacement for refreshes, preserving old valid values on
+      unresolved attempts. Missing geometry, coverage exits and exhausted budgets remain unresolved.
+      Do not publish uninitialized texels, false sky, or artificial black as successful refreshes.
+  ☐ Validate refresh behavior through subagent-run focused tests and a separate implementation review.
+    - Cover unchanged dirty notifications, local surface edits, light on/off, indirect changes outside
+      the edited chunk, missing inputs/recovery, repeated dirtying, page reuse and resource recreation.
+      Verify both continued availability and convergence to the new result within bounded work;
+      retained old lighting alone is not success. Preserve existing capture and publication guards.
+  ☐ Verify stationary in-game progress and local edits without whole-cache black/yellow restarts.
+    - Investigate the separate unresolved-work backlog: the observed run retained 145 uncaptured
+      pages out of 216 and rejected most indirect updates even before the resets. Track this
+      separately; preserving history does not establish capture completion or trace convergence.
+  ☐ Remove temporary reset event aggregation and verbose correlated logs after preserving evidence.
+    - They are diagnostic only and may be removed before implementation; retain existing readiness
+      counters/self-checks and genuine failure warnings. Update the diagnostic note when removed.
+
+  Remaining overall validation:
   ☐ Validate through subagent-run focused tests: missing cache, unavailable geometry, distance limits,
     sky openings, mixed ready/unready hits, movement, streaming, edits, and resource recreation.
   ☐ Verify in-game: first cache publication, continuing probe traces/updates, sealed-room darkness,
