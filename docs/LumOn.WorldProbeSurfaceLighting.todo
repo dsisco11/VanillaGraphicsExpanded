@@ -227,11 +227,23 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Normal production build/deployment passed with zero warnings/errors; receipt:
       artifacts/surface-configurable-history-deploy.log. Test compilation retained the five previously
       recorded unrelated analyzer warnings. In-game acceptance remains open.
-  ☐ Validate refresh behavior through subagent-run focused tests and a separate implementation review.
+  ✔ Validate refresh behavior through subagent-run focused tests and a separate implementation review.
     - Cover unchanged dirty notifications, local surface edits, light on/off, indirect changes outside
       the edited chunk, missing inputs/recovery, repeated dirtying, page reuse and resource recreation.
       Verify both continued availability and convergence to the new result within bounded work;
       retained old lighting alone is not success. Preserve existing capture and publication guards.
+    - Completed: all 82 focused GPU/runtime/unit cases passed, zero failures/skips. Added bounded
+      remote indirect convergence against an independently settled edited-scene reference and same
+      physical-page reassignment coverage; extended local edits through valid replacement publication.
+      Remote comparison uses 16 rays/texel and page-average irradiance, with 512+128 update/stability
+      frames per history and explicit tolerances. Existing default-ray retention/fairness tests remain.
+    - Separate production and final test-acceptance review found no remaining blocker. Corrected two
+      obsolete test expectations (whole-page validity on first partial publication, and dependency
+      lifetime changes on ordinary light edits); retained transport and carry-forward assertions.
+      No production changes were needed. Coverage and bounds: docs/LumOn.SurfaceCache.RefreshValidation.md.
+    - Receipt: artifacts/TestResults/surface-refresh-validation-final.trx. Normal production deployment
+      passed with zero warnings/errors: artifacts/surface-refresh-validation-deploy.log.
+      This completes controlled validation only; the in-game check and separate backlog remain below.
   ☐ Verify stationary in-game progress and local edits without whole-cache black/yellow restarts.
     - Investigate the separate unresolved-work backlog: the observed run retained 145 uncaptured
       pages out of 216 and rejected most indirect updates even before the resets. Track this

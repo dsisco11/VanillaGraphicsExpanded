@@ -46,6 +46,8 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public System.Func<int,int,int,TraceGeometryVoxel,TraceGeometryVoxel>? TransformVoxel { get; set; }
     /// <summary>Moves the non-spatial fixture camera without changing its authored geometry or feedback pages.</summary>
     public double CameraX { get; set; }
+    /// <summary>Selects the chunk whose authored patch identities are submitted by the non-spatial fixture.</summary>
+    public VanillaGraphicsExpanded.Numerics.VectorInt3 FeedbackChunk { get; set; } = new(0,1,0);
     /// <summary>Limits authored visible pages so tests can introduce residency gradually without changing geometry.</summary>
     public int VisibleFeedbackPages { get; set; } = int.MaxValue;
     public uint MaterialId { get; private set; }
@@ -108,7 +110,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         pages = [];
         var reverse = mapping.ToDictionary(pair => pair.Value, pair => pair.Key);
         var requests = spatial?.Feedback() ?? feedbackPatches.Select(patch =>
-            (Chunk: new VanillaGraphicsExpanded.Numerics.VectorInt3(0, 1, 0), Patch: patch)).ToArray();
+            (Chunk: FeedbackChunk, Patch: patch)).ToArray();
         foreach (var request in requests)
         {
             if (!Feedback.TryGetNearChunkSlotAndGeneration(request.Chunk, out uint slot, out _)) return false;
@@ -222,7 +224,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
             }
             Terrain.UploadFeedback(Buffers,pixels);
         }
-        else if (Feedback.TryGetNearChunkSlotAndGeneration(new(0, 1, 0), out uint slot, out ushort generation))
+        else if (Feedback.TryGetNearChunkSlotAndGeneration(FeedbackChunk, out uint slot, out ushort generation))
         {
             int visiblePages = Math.Clamp(VisibleFeedbackPages, 1, feedbackPatches.Length);
             uint[] pixels = Enumerable.Range(0, 4).SelectMany(index => new uint[] { slot, feedbackPatches[(Frames*4+index)%visiblePages], 0, generation }).ToArray();

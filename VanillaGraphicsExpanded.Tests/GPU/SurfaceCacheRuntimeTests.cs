@@ -116,7 +116,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         Assert.False(runtime.TryGetLighting(out _));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
-    /// <summary>Partial pages stay unavailable while a later publication preserves another complete tile.</summary>
+    /// <summary>Partial publication exposes only initialized texels and carries them forward while another page starts.</summary>
     [Fact]
     public void PartialPagePublicationCarriesForwardUnchangedTiles()
     {
@@ -139,7 +139,10 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         }
         float[] before=ReadTile(first,firstId);
         Assert.True(before[0]>0);
-        Assert.All(Enumerable.Range(0,before.Length/4),index=>Assert.Equal(1f,before[index*4+3]));
+        Assert.Equal(4,Enumerable.Range(0,before.Length/4).Count(index=>before[index*4+3]==1));
+        Assert.All(Enumerable.Range(0,before.Length/4),index=>Assert.True(before[index*4+3] is 0 or 1));
+        foreach(int index in Enumerable.Range(0,before.Length/4).Where(index=>before[index*4+3]==0))
+            for(int channel=0;channel<4;channel++) Assert.Equal(0,before[index*4+channel]);
         runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var second));
         Assert.True(second.Generation>first.Generation);

@@ -82,12 +82,14 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         Assert.True(runtime.TryGetLighting(out var original));
         AssertEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,original,traced)),true,"runtime world atlas");
         runtime.ChangeBlockLight(0);runtime.Frame();
-        runtime.RunUntil(()=>runtime.TryGetLighting(out var current) && current.DependencyRevision!=original.DependencyRevision);
+        runtime.RunUntil(()=>DirectLightEquals(runtime,0));
         Assert.True(runtime.TryGetLighting(out var dark));
+        Assert.Equal(original.DependencyRevision,dark.DependencyRevision);
         AssertEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,dark,traced)),false,"runtime light removal");
         runtime.ChangeBlockLight(32);runtime.Frame();
-        runtime.RunUntil(()=>runtime.TryGetLighting(out var current) && current.DependencyRevision!=dark.DependencyRevision);
+        runtime.RunUntil(()=>DirectLightEquals(runtime,32));
         Assert.True(runtime.TryGetLighting(out var restored));
+        Assert.Equal(original.DependencyRevision,restored.DependencyRevision);
         AssertEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,restored,traced)),true,"runtime light restoration");
         runtime.RequestAtlasRecreation();runtime.Frame();
         runtime.RunUntil(()=>runtime.TryGetLighting(out var current) && !ReferenceEquals(current.OutgoingRadiance,restored.OutgoingRadiance));
@@ -100,6 +102,16 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
     #endregion
 
     #region Worker and transport
+    /// <summary>Waits for actual refreshed direct values rather than an identity revision that light changes must preserve.</summary>
+    private static bool DirectLightEquals(SurfaceCacheRuntimeFixture runtime,float expected)
+    {
+        if(!runtime.TryGetLighting(out var snapshot) || !runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _)) return false;
+        using var pixels=SurfaceLightingPageReadback.Read(snapshot.DirectIrradiance,snapshot,pages.Single().Key);
+        for(int index=0;index<pixels.Length;index+=4)
+            if(pixels.Span[index+3]!=1 || Math.Abs(pixels.Span[index]-expected)>.01f) return false;
+        return true;
+    }
+
     /// <summary>Runs the real CPU integrator with controlled collision data and deferred lighting enabled.</summary>
     private static LumOnWorldProbeTraceResult TraceWorker(ControlledVoxelWorld world,int count,int frame,VanillaGraphicsExpanded.Numerics.Vector3d position)
     {

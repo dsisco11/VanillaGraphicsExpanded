@@ -96,9 +96,19 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         using var observed6=SurfaceLightingPageReadback.Read(after.OutgoingRadiance,after,pages[1].Key);
         Assert.True(untouched.Span.SequenceEqual(observed6.Span));
         Assert.Equal(captures+1,CaptureAttempts(runtime));
-        using var readiness=after.Readiness.MapRange<uint>(0,checked((int)pages.Max(pair=>pair.Key)+1),OpenTK.Graphics.OpenGL.MapBufferAccessMask.MapReadBit);
-        Assert.Equal(0u,readiness.Span[(int)pages[0].Key]);
-        Assert.Equal(1u,readiness.Span[(int)pages[1].Key]);
+        using(var readiness=after.Readiness.MapRange<uint>(0,checked((int)pages.Max(pair=>pair.Key)+1),OpenTK.Graphics.OpenGL.MapBufferAccessMask.MapReadBit))
+        {
+            Assert.Equal(0u,readiness.Span[(int)pages[0].Key]);
+            Assert.Equal(1u,readiness.Span[(int)pages[1].Key]);
+        }
+        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=1;
+        runtime.RunUntil(runtime.AllRequestedLightingReady,maximumFrames:64);
+        Assert.True(runtime.TryGetLighting(out var recovered));
+        using var removed=SurfaceLightingPageReadback.Read(recovered.OutgoingRadiance,recovered,pages[0].Key);
+        for(int index=0;index<removed.Length;index++) Assert.Equal((index&3)==3?1:0,removed.Span[index]);
+        using var retained=SurfaceLightingPageReadback.Read(recovered.DirectIrradiance,recovered,pages[1].Key);
+        for(int index=0;index<retained.Length;index+=4) Assert.Equal(32,retained.Span[index]);
+        Assert.Equal(captures+1,CaptureAttempts(runtime));
     }
     #endregion
 
