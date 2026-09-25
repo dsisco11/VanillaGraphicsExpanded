@@ -36,6 +36,22 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable
 
     private readonly GpuComputePipeline pipeline;
     private readonly Geometry.TraceGeometryComputeBindings sharedGeometry = new();
+    public SurfaceWorkDiagnostics Diagnostics { get; } = new();
+
+    #region Measured dispatch
+    /// <summary>Dispatches capture with bounded asynchronous outcome and timing measurement.</summary>
+    public void Dispatch(int groupsX, int groupsY, int pages)
+    {
+        bool measured = Diagnostics.Begin(SurfaceWorkStage.Capture, pages);
+        try
+        {
+            UboPacking.WriteUVec4(paramsBytes, 16, measured ? 1u : 0u, 0, 0, 0);
+            ApplyParamsUbo();
+            GL.DispatchCompute(groupsX, groupsY, pages);
+        }
+        finally { Diagnostics.End(); }
+    }
+    #endregion
 
     /// <summary>Binds the shared geometry and independent logical domains.</summary>
     public void BindSharedGeometry(Geometry.TraceGeometryGpuScene? scene) => sharedGeometry.Bind(scene);
@@ -151,6 +167,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable
     {
         try
         {
+            Diagnostics.Dispose();
             sharedGeometry.Dispose();
             paramsUbo?.Dispose();
             paramsUbo = null;

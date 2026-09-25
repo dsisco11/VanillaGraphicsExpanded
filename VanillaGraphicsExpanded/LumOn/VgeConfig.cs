@@ -865,6 +865,10 @@ public class VgeConfig
             [JsonProperty]
             public int RelightMaxPagesPerFrame { get; set; } = 4;
 
+            /// <summary>Collects bounded asynchronous Surface Cache outcome counters and GPU timestamps.</summary>
+            [JsonProperty]
+            public bool SurfaceWorkDiagnosticsEnabled { get; set; } = true;
+
             /// <summary>
             /// Number of texels to relight per page per frame.
             /// 0 disables relight; values &gt;= tileTexelCount relight all texels every frame.

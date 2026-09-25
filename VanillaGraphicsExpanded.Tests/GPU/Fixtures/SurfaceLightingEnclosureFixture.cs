@@ -39,6 +39,8 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public bool EmissionPolicy { get; set; }
     /// <summary>Controls real producer ray count for deterministic complete-page environment fixtures.</summary>
     public uint RaysPerTexel { get; set; } = 4;
+    /// <summary>Exposes the production asynchronous stage diagnostics for controlled dispatch tests.</summary>
+    public SurfaceWorkDiagnostics Diagnostics => producer.Diagnostics;
     /// <summary>Controls the producer history cap without changing source or surface identity.</summary>
     public int MaxFramesAccumulated { get; set; } = 4;
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
@@ -90,8 +92,9 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     }
 
     /// <summary>Recaptures the authored faces after geometry changes, retaining the physical atlas allocation.</summary>
-    public void Capture()
+    public SurfaceWorkMeasurement Capture(bool diagnostics=false, bool expectComplete=true)
     {
+        SurfaceWorkMeasurement measurement=default;
         work.UploadSubData<LumonSceneCaptureWorkGpu>(captureItems,0,captureItems.Length*16);
         Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api,out var captureShader,out string log),log);
         using (captureShader)
@@ -101,11 +104,18 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
             captureShader.BindPatchMetaSsbo(metadata); captureShader.BindChunkSlotInfoSsbo(slots);
             captureShader.BindDepthAtlasImage(depth); captureShader.BindMaterialAtlasImage(captured);
             captureShader.SetAtlasLayout(Edge,TilesPerAxis,TilesPerAxis*TilesPerAxis,0);
-            GL.DispatchCompute(1,1,captureItems.Length);
+            captureShader.Diagnostics.Enabled=diagnostics;
+            captureShader.Dispatch(1,1,captureItems.Length);
             GL.MemoryBarrier(MemoryBarrierFlags.AllBarrierBits);
+            if(diagnostics)
+            {
+                GpuTestFence.WaitForGpuOrSkip("Capture diagnostics");captureShader.Diagnostics.Poll();
+                measurement=captureShader.Diagnostics.Snapshot(SurfaceWorkStage.Capture);
+            }
         }
         using (var result=work.MapRange<LumonSceneCaptureWorkGpu>(0,captureItems.Length,MapBufferAccessMask.MapReadBit))
-        { Assert.True(result.IsMapped); foreach (var item in result.Span) Assert.Equal(0u,item.VirtualPageIndex & 0x80000000u); }
+        { Assert.True(result.IsMapped); foreach (var item in result.Span) Assert.Equal(expectComplete?0u:0x80000000u,item.VirtualPageIndex & 0x80000000u); }
+        return measurement;
     }
 
     /// <summary>Defines a solid boundary with explicit effective light values in all adjacent cells.</summary>
@@ -129,6 +139,36 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     #endregion
 
     #region Lighting execution and readback
+    /// <summary>Copies only initialized measured pages after timed work, excluding unallocated atlas storage.</summary>
+    public float[] ReadDiagnosticPixels(SurfaceWorkStage stage)
+    {
+        var source=stage==SurfaceWorkStage.Capture?captured:stage==SurfaceWorkStage.Direct?direct:indirect;
+        using var data=source.ReadPixelsRegion(0,0,Edge<<2,Edge,0);
+        return data.Span.ToArray();
+    }
+
+    /// <summary>Runs four capture pages with a caller-owned warmed shader and no fixture readback.</summary>
+    public void DispatchDiagnosticCapture(LumonSceneCaptureVoxelComputeShader shader)
+    {
+        work.UploadSubData<LumonSceneCaptureWorkGpu>(captureItems.AsSpan(0,4),0,64);
+        using var program=shader.UseScope();
+        shader.BindSharedGeometry(Geometry.Scene);shader.BindCaptureWorkSsbo(work);
+        shader.BindPatchMetaSsbo(metadata);shader.BindChunkSlotInfoSsbo(slots);
+        shader.BindDepthAtlasImage(depth);shader.BindMaterialAtlasImage(captured);
+        shader.SetAtlasLayout(Edge,TilesPerAxis,TilesPerAxis*TilesPerAxis,0);
+        shader.Dispatch(1,1,4);
+        GL.MemoryBarrier(MemoryBarrierFlags.AllBarrierBits);
+    }
+
+    /// <summary>Dispatches a bounded prefix without readback or publication so timing excludes fixture synchronization.</summary>
+    public void DispatchDiagnosticWork(uint operation, int pageCount=4, uint texels=64, uint rays=1, uint steps=64, uint frame=1)
+    {
+        int count=Math.Min(pageCount,lightingItems.Length);
+        work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems.AsSpan(0,count),0,count<<4);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,count,operation,texels,rays,steps,frame,
+            EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
+    }
+
     /// <summary>Seeds direct and emitted lighting, resetting dependent indirect history.</summary>
     public void Seed()
     {

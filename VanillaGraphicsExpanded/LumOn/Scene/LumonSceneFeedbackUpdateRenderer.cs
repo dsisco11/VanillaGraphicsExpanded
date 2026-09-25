@@ -447,6 +447,8 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             return;
         }
 
+        using var renderTiming = diagnosticCaptureRender.Measure();
+        captureVoxelShader?.Diagnostics.Poll();
         if (!gBufferManager.EnsureBuffers(capi.Render.FrameWidth, capi.Render.FrameHeight))
         {
             return;
@@ -569,6 +571,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
     private void OnLeaveWorld()
     {
+        ResetCaptureMeasurements();
         diagnosticCaptureAttempts = diagnosticCaptureFailures = diagnosticCaptureReadFailures = 0;
         ReleaseGeometryHistory();
         if (chunkResidency is not null)
@@ -1758,6 +1761,13 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
             // v1: CPU-produced work overwrites the queues each frame.
             nearGpu.CaptureWork.ResetAndUpload(captureScratch.AsSpan(0, captureCount));
+            for (int i = 0; i < captureCount; i++)
+            {
+                var item = captureScratch[i];
+                diagnosticCaptureQueue.Observe(item.PhysicalPageId,
+                    LumonSceneVirtualPageKeyUtil.Pack(item.ChunkSlot, item.VirtualPageIndex),
+                    slotGenerations[item.ChunkSlot], Environment.TickCount64);
+            }
             nearGpu.RelightWork.ResetAndUpload(relightScratch.AsSpan(0, relightCount));
 
             // Stash vpages captured in the SSBO for later flag finalization this frame.
@@ -1964,7 +1974,8 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
-            GL.DispatchCompute(gx, gy, captureCount);
+            captureVoxelShader.Diagnostics.Enabled = config.LumOn.LumonScene.SurfaceWorkDiagnosticsEnabled;
+            captureVoxelShader.Dispatch(gx, gy, captureCount);
         }
 
         // Capture writes:
@@ -1993,7 +2004,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         diagnosticCaptureAttempts += captureCount;
         try
         {
+            long mapStart = System.Diagnostics.Stopwatch.GetTimestamp();
             using var mapped = nearGpu.CaptureWork.Items.MapRange<LumonSceneCaptureWorkGpu>(0, captureCount, MapBufferAccessMask.MapReadBit);
+            diagnosticCaptureMapMilliseconds += System.Diagnostics.Stopwatch.GetElapsedTime(mapStart).TotalMilliseconds;
+            diagnosticCaptureMapCalls++;
             if (!mapped.IsMapped)
             {
                 diagnosticCaptureReadFailures++;
@@ -2006,7 +2020,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             for (int i = 0; i < captureCount; i++)
             {
                 // The shader marks unavailable material/geometry with the high bit; retry the page.
-                if ((items[i].VirtualPageIndex & 0x80000000u) != 0 || !RecordCaptureIdentity(items[i], captureScene))
+                bool shaderFailed = (items[i].VirtualPageIndex & 0x80000000u) != 0;
+                bool identityFailed = !shaderFailed && !RecordCaptureIdentity(items[i], captureScene);
+                if (identityFailed) diagnosticCaptureIdentityFailures++;
+                if (shaderFailed || identityFailed)
                 {
                     diagnosticCaptureFailures++;
                     captureRetries.Add(LumonSceneVirtualPageKeyUtil.Pack(items[i].ChunkSlot, items[i].VirtualPageIndex & 0x7fffffffu));
@@ -2039,6 +2056,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 pageTableMirror[idx] = updated;
                 pageTableStats.ApplyEntryChange(chunkSlot, in entry, in updated);
                 UploadPageTableEntryMip0(chunkSlot: (int)chunkSlot, virtualPageIndex: vpage, updated.Packed);
+                diagnosticCaptureQueue.Complete(items[i].PhysicalPageId, Environment.TickCount64);
             }
         }
         finally

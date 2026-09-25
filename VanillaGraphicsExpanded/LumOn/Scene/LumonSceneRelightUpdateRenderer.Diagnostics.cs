@@ -10,6 +10,11 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private long diagnosticRefreshAttempts, diagnosticRefreshFailures;
     private long diagnosticCombineFailures, diagnosticReadbackFailures, diagnosticResets;
     private long nextDiagnosticLog;
+    private readonly SurfaceCpuTiming diagnosticRenderTiming = new();
+    private readonly SurfacePageProgress diagnosticSeedQueue = new();
+    private readonly SurfacePageProgress diagnosticIndirectQueue = new();
+    private readonly double[] diagnosticMapMilliseconds = new double[4];
+    private readonly long[] diagnosticMapCalls = new long[4];
 
     #region Readiness diagnostics
     /// <summary>Formats lifetime counters separately from the current producer state.</summary>
@@ -28,6 +33,18 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         // Include capture progress so an empty relight queue can be distinguished from failed lighting.
         feedback.TryGetSelfCheckLine(out string capture);
         capi.Logger.Notification("[VGE] Surface cache readiness: {0} {1}", ReadinessDiagnosticLine(), capture);
+        feedback.ReportCaptureMeasurements();
+        capi.Logger.Notification("[VGE] Surface cache work: {0}",
+            SurfaceWorkDiagnosticText.FormatQueue("indirectProgressEligible", diagnosticIndirectQueue, now));
+        capi.Logger.Notification("[VGE] Surface cache work: relightRenderWallMs:{0:0.###} frames:{1} {2} " +
+            "mapSeedMs:{3:0.###}/{4} mapIndirectMs:{5:0.###}/{6} mapDirectMs:{7:0.###}/{8} mapCombineMs:{9:0.###}/{10}",
+            diagnosticRenderTiming.Milliseconds, diagnosticRenderTiming.Count,
+            SurfaceWorkDiagnosticText.FormatQueue("seedEligible", diagnosticSeedQueue, now),
+            diagnosticMapMilliseconds[0], diagnosticMapCalls[0], diagnosticMapMilliseconds[1], diagnosticMapCalls[1],
+            diagnosticMapMilliseconds[2], diagnosticMapCalls[2], diagnosticMapMilliseconds[3], diagnosticMapCalls[3]);
+        if (dispatch != null)
+            for (var kind = SurfaceWorkStage.Seed; kind < SurfaceWorkStage.Count; kind++)
+                capi.Logger.Notification("[VGE] Surface cache work: {0}", SurfaceWorkDiagnosticText.Format(kind, dispatch.Diagnostics.Snapshot(kind)));
     }
 
     /// <summary>Starts a fresh diagnostic lifetime when the world is left.</summary>
@@ -37,6 +54,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         diagnosticSeedAttempts = diagnosticSeedFailures = diagnosticIndirectAttempts = diagnosticIndirectFailures = 0;
         diagnosticRefreshAttempts = diagnosticRefreshFailures = 0;
         diagnosticCombineFailures = diagnosticReadbackFailures = diagnosticResets = nextDiagnosticLog = 0;
+        diagnosticRenderTiming.Clear(); diagnosticSeedQueue.Clear(); diagnosticIndirectQueue.Clear();
+        Array.Clear(diagnosticMapMilliseconds); Array.Clear(diagnosticMapCalls);
     }
     #endregion
 }

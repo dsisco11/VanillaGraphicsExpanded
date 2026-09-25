@@ -81,6 +81,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Done || !config.LumOn.Enabled || !config.LumOn.LumonScene.Enabled) return;
+        using var renderTiming = diagnosticRenderTiming.Measure();
+        dispatch?.Diagnostics.Poll();
         lastWorkCount = 0;
         if (!feedback.TryGetNearDispatchState(out var pool, out var gpu, out var mapping, out var mirror))
         { published = false; ReportReadiness("feedback-unavailable"); return; }
@@ -101,6 +103,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             settingsHash != hash;
         if (changed)
         {
+            diagnosticSeedQueue.Clear();
+            diagnosticIndirectQueue.Clear();
             diagnosticResets++;
             dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
             published = false; seeded.Clear(); initialized.Clear(); publishedPages.Clear(); refreshSchedule.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); lastCandidate = 0;
@@ -115,6 +119,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         SynchronizePages(mapping, mirror, selectCandidates: true);
         if (candidates.Length == 0) { ReportReadiness(mapping.Count == 0 ? "no-resident-pages" : "awaiting-capture"); return; }
         dispatch ??= new SurfaceLightingDispatch(capi);
+        dispatch.Diagnostics.Enabled = cfg.SurfaceWorkDiagnosticsEnabled;
         snapshot = new(resources.PublishedOutgoing, resources.DirectAtlas, resources.IrradianceAtlas,
             gpu.PageTable.PageTableMip0, resources.MaterialAtlas, gpu.PatchMetadata.Ssbo, slots, readyBuffer,
             LumonSceneChunkSlotUniformState.OriginMinChunk, LumonSceneChunkSlotUniformState.Dims,
@@ -162,7 +167,10 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, operation,
                 (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated);
             // One completion read per operation, rather than a GPU synchronization for every page.
+            long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
             using var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit);
+            diagnosticMapMilliseconds[pass] += System.Diagnostics.Stopwatch.GetElapsedTime(readStart).TotalMilliseconds;
+            diagnosticMapCalls[pass]++;
             for (int i = 0; i < work.Length; i++)
             {
                 bool success = result.IsMapped && (result.Span[i].VirtualPageIndex & 0x80000000u) == 0;
@@ -172,8 +180,14 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 else { diagnosticRefreshAttempts++; if (!success) diagnosticRefreshFailures++; }
                 // A successful texel is useful even when another texel in this batch remains unresolved.
                 bool progress = result.IsMapped && (result.Span[i].VirtualPageIndex & 0x40000000u) != 0;
+                if (operation == 1 && progress)
+                    diagnosticIndirectQueue.Complete(work[i].PhysicalPageId, Environment.TickCount64);
                 bool seedComplete = operation == 0 && batches.Complete(identities[work[i].PhysicalPageId], batchCount, success);
-                if (seedComplete) seeded.Add(work[i].PhysicalPageId);
+                if (seedComplete)
+                {
+                    seeded.Add(work[i].PhysicalPageId);
+                    diagnosticSeedQueue.Complete(work[i].PhysicalPageId, Environment.TickCount64);
+                }
                 if (progress || seedComplete) publishable.Add(work[i]);
             }
             lastWorkCount += work.Length;
@@ -187,8 +201,11 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 (uint)(tile*tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated);
             // Keep the submitted list unchanged while its span is borrowed for completion handling.
             committedWork.Clear();
+            long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
             using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit))
             {
+                diagnosticMapMilliseconds[3] += System.Diagnostics.Stopwatch.GetElapsedTime(readStart).TotalMilliseconds;
+                diagnosticMapCalls[3]++;
                 for (int i = 0; i < work.Length; i++)
                 {
                     if (result.IsMapped && (result.Span[i].VirtualPageIndex & 0x40000000u) != 0)

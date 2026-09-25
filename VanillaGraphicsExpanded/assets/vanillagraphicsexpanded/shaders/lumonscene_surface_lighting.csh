@@ -4,6 +4,8 @@
 @import "./includes/lumon_trace_scene_trace.glsl"
 @import "./includes/lumonscene_material_packing.glsl"
 @import "./includes/lumon_surface_lighting.glsl"
+#define SURFACE_DIAGNOSTICS_ENABLED (lighting.policy.w != 0u)
+@import "./includes/surface_work_diagnostics.glsl"
 layout(local_size_x=8, local_size_y=8, local_size_z=1) in;
 layout(std430, binding=0) buffer SurfaceWork { uvec4 work[]; };
 layout(binding=3) uniform sampler2D lightColors;
@@ -28,12 +30,14 @@ void main()
     uint linear = xy.y * edge + xy.x;
     uint batchCount = (edge * edge + max(1u, lighting.sampling.x) - 1u) / max(1u, lighting.sampling.x);
     if ((operation < 2u || operation == 4u) && linear % batchCount != item.z % batchCount) return;
+    surfaceCount(SD_TEXELS);
     ivec3 address = surfaceAddress(id, ivec2(xy));
     if (operation == 3u)
     {
         imageStore(directIrradiance, address, vec4(0));
         imageStore(indirectIrradiance, address, vec4(0));
         imageStore(nextOutgoing, address, vec4(0));
+        surfaceCount(SD_COMPLETED);
         return;
     }
     SurfacePatch meta = patches[id];
@@ -56,23 +60,26 @@ void main()
         if ((direct.a != 1.0 && direct.a != 2.0) || !finiteLight(direct.rgb) || !finiteLight(indirect.rgb) ||
             isnan(indirect.a) || isinf(indirect.a) || (!zeroSurface && !finiteLight(emission)))
         {
+            surfaceCount((direct.a != 1.0 && direct.a != 2.0) ? SD_UNSEEDED : SD_NONFINITE);
             imageStore(nextOutgoing, address, vec4(0));
             return;
         }
         vec3 outgoing = zeroSurface ? vec3(0) : (direct.rgb + indirect.rgb) * albedo / 3.14159265359 + emission;
-        if (!finiteLight(outgoing)) { imageStore(nextOutgoing, address, vec4(0)); return; }
+        if (!finiteLight(outgoing)) { surfaceCount(SD_NONFINITE); imageStore(nextOutgoing, address, vec4(0)); return; }
         imageStore(nextOutgoing, address, vec4(clamp(outgoing, vec3(0), vec3(65504)), 1));
+        surfaceCount(SD_COMPLETED);
         atomicOr(work[wi].w, 0x40000000u);
         return;
     }
     vec4 directState = imageLoad(directIrradiance, address);
-    if (operation == 0u && (directState.a == 1.0 || directState.a == 2.0)) return;
+    if (operation == 0u && (directState.a == 1.0 || directState.a == 2.0)) { surfaceCount(SD_UNCHANGED); return; }
     if (operation == 1u && directState.a != 1.0 && directState.a != 2.0)
-    { atomicOr(work[wi].w, 0x80000000u); return; }
+    { surfaceCount(SD_UNSEEDED); atomicOr(work[wi].w, 0x80000000u); return; }
     // A captured empty source is initialized zero, not an uncaptured or unknown texel.
     // It needs no exterior light query. Unsupported and unpublished captures remain gated on the CPU.
     if (surfaceId == 0u || (operation == 1u && directState.a == 2.0))
     {
+        surfaceCount(surfaceId == 0u ? SD_EMPTY : SD_HIDDEN); surfaceCount(SD_COMPLETED);
         if (operation == 0u || operation == 4u) imageStore(directIrradiance, address, vec4(0,0,0,1));
         imageStore(indirectIrradiance, address, vec4(0,0,0,operation == 1u ? 1 : 0));
         atomicOr(work[wi].w, 0x40000000u);
@@ -81,11 +88,13 @@ void main()
     vec3 origin = position + n * 0.01;
     ivec3 cell = anchor + ivec3(floor(origin));
     uint outsideGeometry;
-    if (lumonTraceSceneReadGeometry(cell, TRACE_SCENE_SURFACE, outsideGeometry) != TRACE_SCENE_READY)
-    { atomicOr(work[wi].w, 0x80000000u); return; }
+    int originStatus = lumonTraceSceneReadGeometry(cell, TRACE_SCENE_SURFACE, outsideGeometry);
+    if (originStatus != TRACE_SCENE_READY)
+    { surfaceOriginFailure(originStatus); atomicOr(work[wi].w, 0x80000000u); return; }
     // Preserve hidden-face identity in direct alpha so combining cannot add their material emission.
     if ((outsideGeometry & 3u) == 2u)
     {
+        surfaceCount(SD_HIDDEN); surfaceCount(SD_COMPLETED);
         if (operation == 0u || operation == 4u) imageStore(directIrradiance, address, vec4(0,0,0,2));
         imageStore(indirectIrradiance, address, vec4(0,0,0,operation == 1u ? 1 : 0));
         atomicOr(work[wi].w, 0x40000000u);
@@ -95,15 +104,16 @@ void main()
     {
         uint geometry;
         if (lumonTraceSceneReadGeometry(cell, TRACE_SCENE_SURFACE, geometry) != TRACE_SCENE_READY || !finiteLight(emission))
-        { atomicOr(work[wi].w, 0x80000000u); return; }
+        { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
         uint light = texelFetch(traceSceneLegacy, lumonNearFieldWrap(cell, nearFieldOriginResolution.w), 0).r;
         float block = lighting.policy.x == 0u ? texelFetch(blockLevels, ivec2(int(min(light & 63u, 32u)),0),0).r : 0.0;
         float sun = texelFetch(sunLevels, ivec2(int(min((light >> 6u) & 63u,32u)),0),0).r;
         vec3 direct = 32.0 * (block * texelFetch(lightColors, ivec2(int((light >> 12u) & 63u),0),0).rgb + vec3(sun));
-        if (!finiteLight(direct)) { atomicOr(work[wi].w, 0x80000000u); return; }
+        if (!finiteLight(direct)) { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
         imageStore(directIrradiance, address, vec4(clamp(direct, vec3(0), vec3(65504)),1));
         // Refresh replaces only resolved direct light; retained indirect history adapts separately.
         if (operation == 0u) imageStore(indirectIrradiance, address, vec4(0));
+        surfaceCount(SD_COMPLETED);
         atomicOr(work[wi].w, 0x40000000u);
         return;
     }
@@ -113,6 +123,7 @@ void main()
     uint rays = max(1u,lighting.sampling.y);
     for (uint r=0u; r<rays; r++)
     {
+        surfaceCount(SD_RAYS);
         uint seed = Squirrel3HashU(id,linear,lighting.sampling.w);
         float u = clamp(Squirrel3HashF(seed,r,0u),0.000001,0.999999);
         float phi = 6.28318530718 * Squirrel3HashF(seed,r,1u);
@@ -122,17 +133,26 @@ void main()
         // The vanilla sunlight seed already supplies effective direct sky/sun irradiance.
         // A proven sky ray completes this indirect sample with zero additional energy;
         // it still counts in the full ray denominator and the completed-batch weight.
-        if (hit.outcome == LUMON_NEAR_FIELD_SKY) continue;
+        if (hit.outcome == LUMON_NEAR_FIELD_SKY) { surfaceCount(SD_SKY); continue; }
         vec3 radiance; uint hitSurface;
-        if (hit.outcome != LUMON_NEAR_FIELD_HIT ||
-            !lumonTraceSceneReadSurface(hit.cell,faceOf(hit.normal),hitSurface) ||
-            !sampleSurfaceLighting(hit.cell,hit.normal,hit.fraction,hitSurface,radiance))
-        { atomicOr(work[wi].w,0x80000000u); return; }
+        if (hit.outcome != LUMON_NEAR_FIELD_HIT)
+        {
+            surfaceCount(hit.outcome == LUMON_NEAR_FIELD_BUDGET ? SD_BUDGET :
+                hit.outcome == LUMON_NEAR_FIELD_CLEAR ? SD_DISTANCE :
+                hit.reason == TRACE_SCENE_OUTSIDE ? SD_OUTSIDE :
+                hit.reason == TRACE_SCENE_UNSUPPORTED ? SD_UNSUPPORTED : SD_UNPUBLISHED);
+            atomicOr(work[wi].w,0x80000000u); return;
+        }
+        surfaceCount(SD_HIT);
+        if (!lumonTraceSceneReadSurface(hit.cell,faceOf(hit.normal),hitSurface))
+        { surfaceCount(SD_HIT_MATERIAL); atomicOr(work[wi].w,0x80000000u); return; }
+        if (!sampleSurfaceLighting(hit.cell,hit.normal,hit.fraction,hitSurface,radiance))
+        { surfaceCount(SD_HIT_LIGHTING); atomicOr(work[wi].w,0x80000000u); return; }
         sum += radiance * 3.14159265359;
     }
     vec3 estimate = sum / float(rays);
     // A failed/nonfinite batch must not age history or replace valid lighting with an artificial zero.
-    if (!finiteLight(estimate)) { atomicOr(work[wi].w, 0x80000000u); return; }
+    if (!finiteLight(estimate)) { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
     vec4 previous = imageLoad(indirectIrradiance,address);
     if (!finiteLight(previous.rgb) || isnan(previous.a) || isinf(previous.a)) previous = vec4(0);
     // Match UE radiosity: blend using the previous count, then cap the stored next count.
@@ -141,5 +161,6 @@ void main()
     float weight = min(previousWeight+1.0,float(max(1u,lighting.policy.z)));
     float alpha = 1.0/(1.0+previousWeight);
     imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,estimate,alpha),vec3(0),vec3(65504)),weight));
+    surfaceCount(SD_COMPLETED);
     atomicOr(work[wi].w, 0x40000000u);
 }

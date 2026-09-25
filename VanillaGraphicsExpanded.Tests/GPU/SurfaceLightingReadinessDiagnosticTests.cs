@@ -15,6 +15,26 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     #endregion
 
     #region Publication states
+    /// <summary>Instrumentation toggles retain published page readiness and dependency identity while normal refresh continues.</summary>
+    [Fact]
+    public void RuntimeDiagnosticTogglePreservesPublishedLighting()
+    {
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture();
+        runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
+        Assert.True(runtime.TryGetLighting(out var before));
+        foreach(bool enabled in new[]{false,true,false,true})
+        {
+            runtime.Config.LumOn.LumonScene.SurfaceWorkDiagnosticsEnabled=enabled;
+            for(int frame=0;frame<3;frame++)
+            {
+                runtime.Frame();Assert.True(runtime.TryGetLighting(out var after));
+                Assert.Equal(before.DependencyRevision,after.DependencyRevision);
+                Assert.True(runtime.AllRequestedLightingReady());
+            }
+        }
+        runtime.LeaveWorld();Assert.False(runtime.TryGetLighting(out _));
+    }
+
     /// <summary>A disabled relight budget is distinguished from failed capture or shader work.</summary>
     [Fact]
     public void ZeroBudget_ReportsNoSeedAttempts()
@@ -59,16 +79,18 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
         Assert.True(ReadCounter(recoveredCapture, "captureFail").Failures >= failed.Failures);
     }
 
-    /// <summary>A captured page outside the current seed domain reports lighting failures separately from capture failures.</summary>
+    /// <summary>A captured source inside coverage reports seed failures when its exterior light-query cell lies outside.</summary>
     [Fact]
     public void SeedOutsideCoverage_ReportsFailedSeedAttempts()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture();
+        using var runtime = new SurfaceCacheRuntimeFixture(feedbackPlaneX:31);
+        runtime.CameraX = 24;
         runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 0;
         runtime.PrimeGeometry();
         runtime.RunUntil(runtime.AllRequestedCaptured);
-        runtime.CameraX = 24;
+        // Keep the captured source x31 in [0,32), while its +X light-query cell x32 is outside.
+        runtime.CameraX = 16;
         runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 4;
         for (int frame = 0; frame < 8; frame++) runtime.Frame();
         ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string line);

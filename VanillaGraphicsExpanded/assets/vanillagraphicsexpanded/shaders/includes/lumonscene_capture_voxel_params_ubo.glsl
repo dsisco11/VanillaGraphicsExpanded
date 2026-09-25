@@ -12,7 +12,7 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnSceneCaptureVox
     // tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels
     uvec4 atlasLayout;
 
-    // Reserved to preserve the existing parameter-buffer layout.
+    // First X lane enables bounded dispatch diagnostics; remaining lanes preserve the existing layout.
     ivec4 reservedGeometry[3];
 } vgeCaptureVoxelParams;
 

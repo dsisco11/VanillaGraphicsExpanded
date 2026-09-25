@@ -27,6 +27,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             readiness[pair.Key] = 0;
             readyBuffer!.UploadSubData<uint>(readiness.AsSpan((int)pair.Key, 1), checked((int)((long)pair.Key << 2)), 4);
             identities.Remove(pair.Key);
+            diagnosticSeedQueue.Remove(pair.Key);
+            diagnosticIndirectQueue.Remove(pair.Key);
             pageGenerations.Remove(pair.Key);
             pageCaptureRevisions.Remove(pair.Key);
         }
@@ -46,6 +48,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             {
                 // Recapture replaces this page's inputs; no other page loses its completed sweep.
                 batches.Remove(pair.Value);
+                diagnosticSeedQueue.Remove(pair.Key);
+                diagnosticIndirectQueue.Remove(pair.Key);
                 seeded.Remove(pair.Key); initialized.Remove(pair.Key); refreshSchedule.Remove(pair.Key);
                 if (publishedPages.Remove(pair.Key))
                 {
@@ -64,6 +68,10 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
                 readyBuffer!.UploadSubData<uint>(readiness.AsSpan((int)pair.Key, 1), checked((int)((long)pair.Key << 2)), 4);
             }
             if (!available) continue;
+            if (selectCandidates && !seeded.Contains(pair.Key))
+                diagnosticSeedQueue.Observe(pair.Key, pair.Value, generations[(int)slot], Environment.TickCount64);
+            if (selectCandidates && publishedPages.Contains(pair.Key))
+                diagnosticIndirectQueue.Observe(pair.Key, pair.Value, generations[(int)slot], Environment.TickCount64);
             eligible?.Add(pair.Key);
         }
         // Uncaptured pages must not consume the small GPU relight budget.

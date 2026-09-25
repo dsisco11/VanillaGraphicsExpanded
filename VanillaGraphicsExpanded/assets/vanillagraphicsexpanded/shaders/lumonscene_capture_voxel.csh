@@ -58,6 +58,8 @@ layout(std430, binding = 2) readonly buffer VgeChunkSlotInfo
 #define vge_borderTexels   (vgeCaptureVoxelParams.atlasLayout.w)
 
 @import "./includes/lumon_trace_scene.glsl"
+#define SURFACE_DIAGNOSTICS_ENABLED (vgeCaptureVoxelParams.reservedGeometry[0].x != 0)
+@import "./includes/surface_work_diagnostics.glsl"
 @import "./includes/lumonscene_material_packing.glsl"
 
 vec3 NormalFromPatchId(uint patchId)
@@ -186,6 +188,7 @@ void main()
     {
         return;
     }
+    surfaceCount(SD_TEXELS);
 
     uint pageIndex = physicalPageId - 1u;
     uint atlasIndex = pageIndex / vge_tilesPerAtlas;
@@ -251,12 +254,26 @@ void main()
 
         uint surfaceId;
         if (lumonTraceSceneReadSurface(sampleCell, VgeLumonSceneAxisIdToBlockFaceIndex(axisId), surfaceId))
+        {
             outMat = VgeLumonScenePackMaterialAtlas(patchNormalWS, surfaceId);
+            surfaceCount(SD_COMPLETED);
+            if (surfaceId == 0u) surfaceCount(SD_EMPTY);
+        }
         else
+        {
+            // Classify only the failed capture; unsupported shapes can still have valid materials.
+            if (SURFACE_DIAGNOSTICS_ENABLED)
+            {
+                uint geometry;
+                int status = lumonTraceSceneReadGeometry(sampleCell, TRACE_SCENE_SURFACE, geometry);
+                surfaceCount(status == TRACE_SCENE_OUTSIDE ? SD_CAPTURE_OUTSIDE :
+                    status == TRACE_SCENE_UNPUBLISHED ? SD_CAPTURE_UNPUBLISHED : SD_CAPTURE_MATERIAL);
+            }
             atomicOr(vge_captureWork[workIndex].w, 0x80000000u);
+        }
     }
 
-    else atomicOr(vge_captureWork[workIndex].w, 0x80000000u);
+    else { surfaceCount(SD_CAPTURE_OUTSIDE); atomicOr(vge_captureWork[workIndex].w, 0x80000000u); }
     imageStore(vge_materialAtlas, texel, outMat);
 
     // Write patch metadata once per work item (avoid per-texel SSBO traffic).

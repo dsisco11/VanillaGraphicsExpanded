@@ -340,7 +340,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
   Surface Cache tracing throughput:
   Scope: improve the Surface Cache producer independently of the completed L0 world-probe backend.
   Preserve valid displayed lighting, surface identity guards and partial progress throughout.
-  ☐ Measure Surface Cache completion reasons and establish a matched baseline.
+  ✔ Measure Surface Cache completion reasons and establish a matched baseline.
     - Add bounded aggregate counters for capture coverage/publication/material failures and indirect
       coverage exits, unavailable/unsupported geometry, traversal exhaustion and unready cache hits.
       Separate per-ray/texel outcomes from incomplete-page counts and report successful progress.
@@ -351,6 +351,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       These earlier gameplay counters do not identify individual failure reasons or current rates.
       All 20 focused diagnostic tests passed; receipt:
       artifacts/TestResults/surface-cache-slow-tracing-diagnostic.trx.
+    - Implemented per-stage texel/ray outcome counters, useful progress, pending-page age and
+      observed completion latency, GPU timestamp intervals, callback wall time and existing map
+      costs. Eight-slot asynchronous collectors skip instrumentation under pressure, never work.
+      SurfaceWorkDiagnosticsEnabled toggles GPU instrumentation without resetting lighting.
+    - Matched controlled baseline passed 72 off/on ABBA legs across capture, direct and indirect,
+      resolved and outside-coverage workloads, with identical initialized output texels. Counts,
+      hardware, instrumentation overhead and interpretation limits:
+      docs/LumOn.SurfaceCache.TracingBaseline.md. Current gameplay reason frequencies still require
+      a user-run log; the historical log cannot supply the new per-reason counters.
+    - All 92 focused regression tests passed, zero skips; normal production build/deployment passed
+      with zero warnings/errors. Receipt: artifacts/TestResults/surface-work-diagnostics-regression.trx.
+      Measurement receipt: artifacts/TestResults/surface-work-diagnostics-measurement.trx.
   ☐ Make capture admission and retries aware of geometry coverage and publication.
     - Defer unavailable source patches until their relevant coverage/publication changes rather
       than repeatedly spending the eight-page recapture budget on impossible work.
