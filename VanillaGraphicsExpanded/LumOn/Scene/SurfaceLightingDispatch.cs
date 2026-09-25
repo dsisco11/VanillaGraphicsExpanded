@@ -38,7 +38,8 @@ internal sealed class SurfaceLightingDispatch : IDisposable
         UboPacking.WriteIVec4(bytes, 32, input.Origin.X, input.Origin.Y, input.Origin.Z, 0);
         UboPacking.WriteIVec4(bytes, 48, input.Dimensions.X, input.Dimensions.Y, input.Dimensions.Z, 0);
         UboPacking.WriteIVec4(bytes, 64, input.Ring.X, input.Ring.Y, input.Ring.Z, 0);
-        UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, 0, 0, 0);
+        // Use geometry's authoritative boundary, never the moving local coverage height.
+        UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, (uint)Math.Max(0, scene.Coverage?.WorldHeight ?? 0), 0, 0);
         using var program = pipeline.UseScope();
         parameters.UploadOrResize(bytes, growExponentially: false);
         parameters.BindBase(GpuBindingRegistry.Ubo.Lights);

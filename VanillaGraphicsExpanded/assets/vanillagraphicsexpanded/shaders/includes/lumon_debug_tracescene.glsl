@@ -75,7 +75,7 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
     if (leave <= enter) return traceSceneStatusColor(TRACE_SCENE_OUTSIDE);
     vec3 start = clamp(local + direction * (enter + 0.0001), vec3(0.0), extent - vec3(0.0001));
     LumonTraceSceneHit hit = lumonTraceScene(traceSurfaceMin.xyz + ivec3(floor(start)), fract(start), direction,
-        max(leave - enter - 0.0002, 0.000001), 512, TRACE_SCENE_SURFACE);
+        max(leave - enter - 0.0002, 0.000001), 512, TRACE_SCENE_SURFACE, 0);
     if (hit.outcome == LUMON_NEAR_FIELD_HIT) return vec4(vec3(1.0 / (1.0 + (enter + hit.distance) * 0.05)), 1.0);
     if (hit.outcome == LUMON_NEAR_FIELD_CLEAR) return vec4(0.0, 0.0, 0.0, 1.0);
     if (hit.outcome == LUMON_NEAR_FIELD_BUDGET) return vec4(1.0, 1.0, 0.0, 1.0);

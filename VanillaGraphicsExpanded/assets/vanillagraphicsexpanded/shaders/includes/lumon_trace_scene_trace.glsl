@@ -7,6 +7,7 @@ const int LUMON_NEAR_FIELD_HIT = 1;
 // distant-light result; neither CLEAR, BUDGET nor UNAVAILABLE establishes sky visibility.
 const int LUMON_NEAR_FIELD_CLEAR = 2;
 const int LUMON_NEAR_FIELD_BUDGET = 3;
+const int LUMON_NEAR_FIELD_SKY = 4;
 
 /** Local ray result; geometry hits remain hits even when their lighting is unavailable. */
 struct LumonTraceSceneHit
@@ -20,8 +21,8 @@ struct LumonTraceSceneHit
     uint material;
 };
 
-/** Traverses integer world cells while retaining small fractional arithmetic for large-world precision. */
-LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 direction, float maxDistance, int maxSteps, int domain)
+/** Traverses integer cells; a positive worldHeight optionally enables proven upper-boundary sky completion. */
+LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 direction, float maxDistance, int maxSteps, int domain, int worldHeight)
 {
     LumonTraceSceneHit result;
     result.outcome = LUMON_NEAR_FIELD_UNAVAILABLE;
@@ -33,6 +34,12 @@ LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 directio
     result.material = 0u;
     if (maxDistance <= 0.0 || dot(direction, direction) < 1e-12) return result;
     vec3 dir = normalize(direction);
+    bool hasSkyBoundary = worldHeight > 0 && startCell.y >= 0 && dir.y > 0.0;
+    if (hasSkyBoundary && startCell.y >= worldHeight)
+    {
+        result.outcome = LUMON_NEAR_FIELD_SKY;
+        return result;
+    }
     ivec3 stepCell = ivec3(sign(dir));
     vec3 delta = vec3(1e30);
     vec3 next = vec3(1e30);
@@ -82,6 +89,14 @@ LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 directio
                 next[axis] += delta[axis];
                 break;
             }
+        }
+        // Check the integer boundary after the last verified air cell, before any next
+        // geometry read (even on the final budgeted step). A float distance-to-plane
+        // comparison can round differently from DDA and sample geometry above the world.
+        if (hasSkyBoundary && result.cell.y >= worldHeight)
+        {
+            result.outcome = LUMON_NEAR_FIELD_SKY;
+            return result;
         }
     }
     result.outcome = LUMON_NEAR_FIELD_BUDGET;

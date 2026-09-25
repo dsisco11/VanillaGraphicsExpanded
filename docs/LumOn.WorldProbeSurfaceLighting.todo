@@ -75,8 +75,22 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       enclosed publication fixtures now have sufficient trace reach instead of relying on false sky.
       Restoring distance-limit-as-sky caused five expected failures, including GPU false lighting.
       In-game visual confirmation remains under the live-validation task below.
-  ☐ Add Surface Cache indirect sky/distant-light completion using those outcomes. Reconcile it with
+  ✔ Add Surface Cache indirect sky/distant-light completion using those outcomes. Reconcile it with
     the existing vanilla sunlight seed to avoid double-counting; retain retries for missing data.
+    - Loaded upward rays complete at the authoritative integer world-top boundary, before reading
+      geometry above it. Local coverage exits, unsupported/missing data and budget exhaustion retry.
+    - Existing effective sunlight supplies direct sky/sun energy. Proven sky contributes zero
+      additional indirect energy but counts in the full ray denominator and completed-batch weight.
+      Surface hits still read previous outgoing radiance; world height is fixed for the loaded world.
+    - The supported distant endpoint is the proven environment; no independent distant-surface
+      provider or additional geometry coverage is introduced. Out-of-coverage rays remain unresolved.
+    - Fresh shader build passed. All 12 environment tests passed after removing runtime world-height
+      mutation assumptions; the 19 near-field/debug checks passed in the preceding verification.
+      GPU evidence covers 256 texels across four complete sky-facing pages, a 128-ray mixed batch,
+      both source policies, grazing coverage exits, unavailable inputs and preserved history.
+      The preceding broader run passed 217 tests and failed 12; all 12 reproduced on isolated pristine HEAD,
+      with one timing-sensitive doorway failure reproduced on its first isolated repeat.
+      In-game visual confirmation remains under the live-validation task below.
   ☐ Preserve valid world-probe directional samples while retrying unresolved cache hits, with bounded
     work, per-direction validity, and generation-safe history so missing samples cannot publish light.
   ☐ Fix the confirmed initial-readiness blocker and prevent whole-page retry starvation, preserving

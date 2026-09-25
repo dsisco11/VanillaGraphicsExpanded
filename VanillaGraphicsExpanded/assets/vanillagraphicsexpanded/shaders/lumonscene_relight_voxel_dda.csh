@@ -261,7 +261,7 @@ void main()
         vec3 localDir = CosineSampleHemisphere(u);
         vec3 dir = normalize(t * localDir.x + b * localDir.y + normalWS * localDir.z);
 
-        LumonTraceSceneHit hit = lumonTraceScene(originCell, originFraction, dir, 1e20, int(vge_maxDdaSteps), TRACE_SCENE_SURFACE);
+        LumonTraceSceneHit hit = lumonTraceScene(originCell, originFraction, dir, 1e20, int(vge_maxDdaSteps), TRACE_SCENE_SURFACE, 0);
         if (hit.outcome == LUMON_NEAR_FIELD_HIT)
         {
             vec3 radiance;

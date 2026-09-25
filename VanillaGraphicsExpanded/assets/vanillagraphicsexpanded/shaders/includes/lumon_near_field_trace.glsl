@@ -5,6 +5,6 @@
 /** Applies the near-field consumer's domain and step budget to shared traversal. */
 LumonNearFieldHit lumonTraceNearField(ivec3 startCell, vec3 fraction, vec3 direction, float maxDistance)
 {
-    return lumonTraceScene(startCell, fraction, direction, maxDistance, nearFieldBudget.x, TRACE_SCENE_NEAR);
+    return lumonTraceScene(startCell, fraction, direction, maxDistance, nearFieldBudget.x, TRACE_SCENE_NEAR, 0);
 }
 #endif

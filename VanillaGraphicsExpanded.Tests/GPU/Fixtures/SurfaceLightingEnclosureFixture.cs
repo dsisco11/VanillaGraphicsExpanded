@@ -9,7 +9,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Reusable closed voxel enclosure with real captured pages and two outgoing lighting generations.</summary>
+/// <summary>Reusable voxel enclosure or open floor with real captured pages and two outgoing lighting generations.</summary>
 internal sealed class SurfaceLightingEnclosureFixture : IDisposable
 {
     private const int Edge = 8, AtlasEdge = 64, TilesPerAxis = 8;
@@ -29,25 +29,28 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public bool DoorOpen { get; set; } = true;
     private readonly uint materialId;
     private readonly int offsetX, firstChunk, chunkCount;
+    private readonly bool skyFloor;
     public SharedTraceGeometryFixture Geometry { get; }
     public int BlockId => material.Cube.Id;
     public int BlockLight { get; set; }
     public int SunLight { get; set; }
     public int? ExteriorBlockLight { get; set; }
     public bool EmissionPolicy { get; set; }
+    /// <summary>Controls real producer ray count for deterministic complete-page environment fixtures.</summary>
+    public uint RaysPerTexel { get; set; } = 4;
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
         metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation, DependencyRevision);
 
     #region Setup
-    /// <summary>Captures every inward facing patch of an eight-voxel enclosure.</summary>
-    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0, bool dividedRoom = false)
+    /// <summary>Captures the authored enclosure faces or an open floor within configurable authoritative geometry coverage.</summary>
+    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0, bool dividedRoom = false, bool skyFloor = false, int worldHeight = 256, int surfaceResolution = 32)
     {
-        DividedRoom=dividedRoom;
+        DividedRoom=dividedRoom; this.skyFloor=skyFloor;
         offsetX=xOffset; firstChunk=xOffset>>5; chunkCount=((xOffset+7)>>5)-firstChunk+1;
         BlockLight = blockLight;
         material.SetReadiness(true,true,new System.Numerics.Vector3(reflectance), emission / 32f);
         var materials = new TraceGeometryMaterials(); materialId = materials.Resolve(material.Cube);
-        Geometry = new(TraceGeometryCoverage.Plan(new(4+offsetX,36,4),true,32,256),materials,Sample);
+        Geometry = new(TraceGeometryCoverage.Plan(new(4+offsetX,36,4),true,surfaceResolution,worldHeight),materials,Sample);
         Geometry.Publish();
         depth=textures.Depth; captured=textures.Material; direct=textures.Direct; indirect=textures.Indirect; outgoing=textures.Outgoing;
         pageStorage = new(LumonSceneField.Near,chunkCount);
@@ -55,7 +58,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         pages = pageStorage.PageTableMip0;
         var entries = new uint[128*128*chunkCount]; var capture = new List<LumonSceneCaptureWorkGpu>();
         var seen=new HashSet<(uint Slot,uint Patch)>();
-        foreach (var face in Enumerable.Range(0,6).Select(axis => (Axis:(uint)axis, Plane:axis%2==0?0:7))
+        foreach (var face in (skyFloor ? new[] { 2 } : Enumerable.Range(0,6)).Select(axis => (Axis:(uint)axis, Plane:axis%2==0?0:7))
             .Concat(dividedRoom ? new[]{(Axis:4u,Plane:5),(Axis:5u,Plane:5)} : []))
         for (int v=0; v<8; v++)
         for (int u=0; u<8; u++)
@@ -105,7 +108,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Defines a solid boundary with explicit effective light values in all adjacent cells.</summary>
     internal TraceGeometryVoxel Sample(int x,int y,int z)
     {
-        bool wall=x<=offsetX || x>=offsetX+7 || y<=32 || y>=39 || z<=0 || z>=7;
+        bool wall=skyFloor ? y<=32 : x<=offsetX || x>=offsetX+7 || y<=32 || y>=39 || z<=0 || z>=7;
         if (DividedRoom && z==5 && (!DoorOpen || x<offsetX+2 || x>offsetX+5 || y<34 || y>37)) wall=true;
         bool exterior=x<offsetX || x>offsetX+7 || y<32 || y>39 || z<0 || z>7;
         int light=DividedRoom ? (z>=6 ? 32 : 0) : exterior ? ExteriorBlockLight ?? BlockLight : BlockLight;
@@ -138,7 +141,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private void Run(uint operation)
     {
         work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems,0,lightingItems.Length*16);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,operation,64,4,256,(uint)generation,EmissionPolicy);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,operation,64,RaysPerTexel,256,(uint)generation,EmissionPolicy);
         using var result = work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,MapBufferAccessMask.MapReadBit);
         Assert.True(result.IsMapped);
         foreach (var item in result.Span) Assert.Equal(0u,item.VirtualPageIndex & 0x80000000u);
@@ -192,13 +195,30 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         return result.Span.ToArray().All(item => (item.VirtualPageIndex & 0x80000000u)==0);
     }
 
-    /// <summary>Reads a central texel of the first +X patch, avoiding non-surface corners of the voxel enclosure.</summary>
-    public float[] Read(GpuTexture texture)
+    /// <summary>Runs one selected texel through the real producer, then combines its result for numerical observation.</summary>
+    public bool BounceSample(int page = 0, int linear = 27, uint rays = 4, uint steps = 256, uint frame = 1)
+    {
+        var item=lightingItems[page];
+        var selected=new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,(uint)linear,item.VirtualPageIndex);
+        work.UploadSubData<LumonSceneRelightWorkGpu>(new[]{selected},0,16);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy);
+        bool complete;
+        using(var result=work.MapRange<LumonSceneRelightWorkGpu>(0,1,MapBufferAccessMask.MapReadBit))
+        { Assert.True(result.IsMapped); complete=(result.Span[0].VirtualPageIndex & 0x80000000u)==0; }
+        // This controlled estimator test combines immediately; production page scheduling is exercised separately.
+        if(complete) Publish();
+        return complete;
+    }
+
+    /// <summary>Reads a selected physical page texel, defaulting to the first patch interior.</summary>
+    public float[] Read(GpuTexture texture, int page = 0, int linear = 27)
     {
         var pixels=new float[AtlasEdge*AtlasEdge*4];
         using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,texture.TextureId);
         GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,pixels);
-        return pixels.AsSpan((3*AtlasEdge+3)*4,4).ToArray();
+        int local=(int)lightingItems[page].PhysicalPageId-1;
+        int x=((local%TilesPerAxis)<<3)+linear%Edge, y=((local/TilesPerAxis)<<3)+linear/Edge;
+        return pixels.AsSpan(((y<<6)+x)<<2,4).ToArray();
     }
 
     /// <summary>Releases fixture resources in producer-before-input order.</summary>
