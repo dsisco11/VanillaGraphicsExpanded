@@ -356,7 +356,7 @@ public sealed class WorldProbeTraceIntegratorTests
         public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = default;
-            return WorldProbeTraceOutcome.Miss;
+            return WorldProbeTraceOutcome.Sky;
         }
     }
 
@@ -408,7 +408,7 @@ public sealed class WorldProbeTraceIntegratorTests
             if (dirWorld.Y >= -0.999f)
             {
                 hit = default;
-                return WorldProbeTraceOutcome.Miss;
+                return WorldProbeTraceOutcome.Sky;
             }
 
             hit = new LumOnWorldProbeTraceHit(
@@ -431,7 +431,7 @@ public sealed class WorldProbeTraceIntegratorTests
         {
             TraceCount++;
             hit = default;
-            return WorldProbeTraceOutcome.Miss;
+            return WorldProbeTraceOutcome.Sky;
         }
     }
 
@@ -442,7 +442,7 @@ public sealed class WorldProbeTraceIntegratorTests
             if (dirWorld.X > 0f)
             {
                 hit = default;
-                return WorldProbeTraceOutcome.Miss;
+                return WorldProbeTraceOutcome.Sky;
             }
 
             hit = new LumOnWorldProbeTraceHit(
@@ -479,7 +479,7 @@ public sealed class WorldProbeTraceIntegratorTests
             if (!originWorld.Equals(primaryOrigin))
             {
                 hit = default;
-                return WorldProbeTraceOutcome.Miss;
+                return WorldProbeTraceOutcome.Sky;
             }
 
             hit = new LumOnWorldProbeTraceHit(
@@ -520,13 +520,13 @@ public sealed class WorldProbeTraceIntegratorTests
 
             if (maxDistance <= 0)
             {
-                return WorldProbeTraceOutcome.Miss;
+                return WorldProbeTraceOutcome.Invalid;
             }
 
             float lenSq = dirWorld.LengthSquared();
             if (lenSq < 1e-18f || float.IsNaN(lenSq) || float.IsInfinity(lenSq))
             {
-                return WorldProbeTraceOutcome.Miss;
+                return WorldProbeTraceOutcome.Invalid;
             }
 
             Vector3 dir = Vector3.Normalize(dirWorld);
@@ -581,7 +581,7 @@ public sealed class WorldProbeTraceIntegratorTests
 
             if (double.IsInfinity(bestT))
             {
-                return WorldProbeTraceOutcome.Miss;
+                return WorldProbeTraceOutcome.Sky;
             }
 
             hit = new LumOnWorldProbeTraceHit(

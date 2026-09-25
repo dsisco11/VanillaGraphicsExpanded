@@ -23,7 +23,8 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
         // the sample point ends up below the floor where skylight is 0 and the sky SH DC term collapses.
         var blockAccessor = FunctionalBlockAccessorProxy.Create(
             getBlock: p => p.Y == 0 ? TestBlocks.SolidFull : TestBlocks.Air,
-            getLight: p => p.Y >= 1 ? new Vec4f(0, 0, 0, 1) : new Vec4f(0, 0, 0, 0));
+            getLight: p => p.Y >= 1 ? new Vec4f(0, 0, 0, 1) : new Vec4f(0, 0, 0, 0),
+            mapSizeY: 2);
 
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
         var integrator = new LumOnWorldProbeTraceIntegrator();
@@ -60,7 +61,7 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
     }
 
     [Fact]
-    public void TraceProbe_VoxelWall_SamplesSkylightFromOutsideFace_AndProducesHemisphereSkyVisibilitySamples()
+    public void TraceProbe_VoxelWall_SamplesOutsideFaceButDoesNotPublishUnprovenSky()
     {
         // World: infinite solid wall plane at x=0.
         // Light: skylight exists only on the +X side of the wall (x>=1).
@@ -69,6 +70,8 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
             getLight: p => p.X >= 1 ? new Vec4f(0, 0, 0, 1) : new Vec4f(0, 0, 0, 0));
 
         var scene = new BlockAccessorWorldProbeTraceScene(blockAccessor);
+        Assert.Equal(WorldProbeTraceOutcome.Hit, scene.Trace(new(1.5, .5, .5), -System.Numerics.Vector3.UnitX, 8, CancellationToken.None, out var hit));
+        Assert.Equal(1f, hit.SampleLightRgbS.W);
         var integrator = new LumOnWorldProbeTraceIntegrator();
 
         var item = CreateWorkItem(
@@ -78,23 +81,10 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
-        // Sky visibility from the probe center: wall occludes the -X hemisphere.
-        Assert.Equal(0.5f, res.ShortRangeAoConfidence, 2);
-        Assert.True(res.AtlasSamples.Length > 0);
-
-        int missCount = 0;
-        for (int i = 0; i < res.AtlasSamples.Length; i++)
-        {
-            if (res.AtlasSamples[i].AlphaEncodedDistSigned < 0f)
-            {
-                missCount++;
-                Assert.True(res.AtlasSamples[i].RadianceRgb.Length() < 1e-6f);
-            }
-        }
-
-        float missFrac = (float)missCount / res.AtlasSamples.Length;
-        Assert.InRange(missFrac, 0.45f, 0.55f);
-        Assert.InRange(res.SkyIntensity, 0.99f, 1.0f);
+        // An infinite clear half-space with unknown vertical bounds proves no sky visibility.
+        Assert.False(res.Success);
+        Assert.Equal(WorldProbeTraceFailureReason.DistanceLimit, res.FailureReason);
+        Assert.Empty(res.AtlasSamples);
     }
 
     private static LumOnWorldProbeTraceWorkItem CreateWorkItem(int frameIndex, Vector3d probePosWorld, double maxTraceDistanceWorld)
@@ -123,15 +113,17 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
     {
         private System.Func<(int X, int Y, int Z), Block>? getBlock;
         private System.Func<(int X, int Y, int Z), Vec4f>? getLight;
+        private int mapSizeY;
 
         public static IBlockAccessor Create(
             System.Func<(int X, int Y, int Z), Block> getBlock,
-            System.Func<(int X, int Y, int Z), Vec4f> getLight)
+            System.Func<(int X, int Y, int Z), Vec4f> getLight, int mapSizeY = 0)
         {
             object proxy = Create<IBlockAccessor, FunctionalBlockAccessorProxy>();
             var typed = (FunctionalBlockAccessorProxy)proxy;
             typed.getBlock = getBlock;
             typed.getLight = getLight;
+            typed.mapSizeY = mapSizeY;
             return (IBlockAccessor)proxy;
         }
 
@@ -156,6 +148,7 @@ public sealed class WorldProbeTraceEndToEndVoxelArrangementTests
             }
 
             string name = targetMethod.Name;
+            if (name == "get_" + nameof(IBlockAccessor.MapSizeY)) return mapSizeY;
             if (name == nameof(IBlockAccessor.GetChunkAtBlockPos))
             {
                 // Always treat chunks as loaded for these unit tests.

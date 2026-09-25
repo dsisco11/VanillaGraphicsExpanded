@@ -77,7 +77,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
 
         var outcome = scene.Trace(new Vector3d(.5, .5, .5), Vector3.UnitX, 10, CancellationToken.None, out var hit);
 
-        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
+        Assert.Equal(WorldProbeTraceOutcome.Unavailable, outcome);
         Assert.Equal(default, hit);
         Assert.Equal(0, cfg.LightReads);
     }
@@ -194,7 +194,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
-        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
+        Assert.Equal(WorldProbeTraceOutcome.Unavailable, outcome);
         Assert.Equal(default, traceHit);
     }
 
@@ -213,7 +213,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
-        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
+        Assert.Equal(WorldProbeTraceOutcome.Unavailable, outcome);
         Assert.Equal(default, traceHit);
     }
 
@@ -263,7 +263,7 @@ public sealed class BlockAccessorWorldProbeTraceSceneTests
         bool hit = outcome == WorldProbeTraceOutcome.Hit;
 
         Assert.False(hit);
-        Assert.Equal(WorldProbeTraceOutcome.Aborted, outcome);
+        Assert.Equal(WorldProbeTraceOutcome.Unavailable, outcome);
         Assert.Equal(default, traceHit);
     }
 

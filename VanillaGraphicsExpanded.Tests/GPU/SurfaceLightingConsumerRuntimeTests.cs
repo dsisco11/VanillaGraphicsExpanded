@@ -13,6 +13,26 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public SurfaceLightingConsumerRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Runtime transport
+    /// <summary>Unresolved finite ray segments cannot publish sky or lighting even when the cache itself is ready.</summary>
+    [Fact]
+    public void InsufficientTraceRange_DoesNotPublishFalseSky()
+    {
+        EnsureContextValid();
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, shortProbeRange: true);
+        bool ready = false;
+        for (int frame = 0; frame < 96; frame++)
+        {
+            runtime.Frame();
+            ready |= runtime.Cache.TryGetLighting(out _);
+            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()), 0, .0001f);
+            Assert.All(runtime.WorldPixels(), value => Assert.Equal(0, value));
+            Assert.Equal(0, runtime.WorldConfidence);
+            Thread.Yield();
+        }
+        Assert.True(ready);
+        Assert.True(runtime.World.WorkerReads > 0);
+    }
+
     /// <summary>The registered renderer publishes cached radiance without requesting vanilla hit lighting.</summary>
     [Fact]
     public void WorldProbePublication_DoesNotReadVanillaHitLighting()
@@ -95,7 +115,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         {
             runtime.Cache.ChangeBlockLight(light);
             runtime.Frame();
-            runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]>=.25f &&
+            runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.WorldConfidence>=.25f &&
                 (light!=0 ? SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f : SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())<=.0001f) &&
                 (light!=0 ? SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f : SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())<=.0001f));
         }
@@ -136,13 +156,13 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         runtime.Frame();
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
-        Assert.Equal(0,runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]);
+        Assert.Equal(0,runtime.WorldConfidence);
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1575;
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
             Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
-            Assert.Equal(0,runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]);
+            Assert.Equal(0,runtime.WorldConfidence);
         }
         Assert.False(runtime.HasPendingSurfaceLightingQueries);
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1576;
@@ -161,7 +181,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         runtime.Cache.ChangeBlockLight(0); runtime.Frame();
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out var after)&&after.DependencyRevision!=before.DependencyRevision
-            && runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]>=.25f);
+            && runtime.WorldConfidence>=.25f);
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
@@ -184,7 +204,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
         runtime.World.ReleaseWorker();
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out var after)&&after.DependencyRevision!=before.DependencyRevision
-            && runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels()[0]>=.25f);
+            && runtime.WorldConfidence>=.25f);
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();

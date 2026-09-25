@@ -12,6 +12,7 @@ internal sealed class ControlledVoxelWorld
     private readonly Block air = new() { BlockId = 0 };
 
     public Vector4 DefaultLight { get; set; }
+    public int MapSizeY { get; set; }
     public System.Func<(int X, int Y, int Z), bool> IsLoaded { get; set; } = _ => true;
     public List<(int X, int Y, int Z)> LightQueries { get; } = new();
 

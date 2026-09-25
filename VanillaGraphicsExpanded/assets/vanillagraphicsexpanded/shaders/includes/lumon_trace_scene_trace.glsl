@@ -3,6 +3,8 @@
 @import "./lumon_trace_scene.glsl"
 const int LUMON_NEAR_FIELD_UNAVAILABLE = 0;
 const int LUMON_NEAR_FIELD_HIT = 1;
+// CLEAR proves only the requested finite segment. A consumer needs an independent
+// distant-light result; neither CLEAR, BUDGET nor UNAVAILABLE establishes sky visibility.
 const int LUMON_NEAR_FIELD_CLEAR = 2;
 const int LUMON_NEAR_FIELD_BUDGET = 3;
 

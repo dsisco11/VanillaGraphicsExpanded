@@ -25,6 +25,8 @@ internal class ControlledBlockAccessor : DispatchProxy
     protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
     {
         if (targetMethod is null || args is null) throw new InvalidOperationException("Missing accessor call.");
+        // Synthetic rooms may span negative Y; unknown vertical bounds never certify sky.
+        if (targetMethod.Name == "get_" + nameof(IBlockAccessor.MapSizeY)) return world.MapSizeY;
         var position = ReadPosition(args);
         return targetMethod.Name switch
         {

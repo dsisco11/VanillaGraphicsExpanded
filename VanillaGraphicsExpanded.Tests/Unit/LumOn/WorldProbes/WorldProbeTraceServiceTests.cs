@@ -50,7 +50,7 @@ public sealed class WorldProbeTraceServiceTests
         public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
         {
             hit = default;
-            return WorldProbeTraceOutcome.Miss;
+            return WorldProbeTraceOutcome.Sky;
         }
     }
 }

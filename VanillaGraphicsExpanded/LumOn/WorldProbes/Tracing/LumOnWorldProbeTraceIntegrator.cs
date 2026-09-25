@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
+/// <summary>Builds directional lighting batches only from resolved surface or sky rays.</summary>
 internal sealed class LumOnWorldProbeTraceIntegrator
 {
     // Simple bounce model (Phase 18): treat skylight as an incident diffuse source and emit a Lambertian
@@ -38,6 +39,8 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         -Vector3.UnitZ
     ];
 
+    #region Public API
+    /// <summary>Integrates resolved directions; incomplete primary traversal rejects the batch for retry.</summary>
     public LumOnWorldProbeTraceResult TraceProbe(IWorldProbeTraceScene scene, in LumOnWorldProbeTraceWorkItem item, CancellationToken cancellationToken)
     {
         if (scene is null) throw new ArgumentNullException(nameof(scene));
@@ -100,9 +103,11 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                 scene,
                 item,
                 cancellationToken);
-            if (nearbyOutcome == WorldProbeTraceOutcome.Aborted)
+            // This query only asks about nearby occupancy: reaching its distance limit
+            // answers that question, but never supplies sky lighting to the atlas.
+            if (nearbyOutcome is not (WorldProbeTraceOutcome.Hit or WorldProbeTraceOutcome.Sky or WorldProbeTraceOutcome.DistanceLimit))
             {
-                return CreateAbortedResult(item);
+                return CreateUnresolvedResult(item, nearbyOutcome);
             }
 
             if (nearbyOutcome == WorldProbeTraceOutcome.Hit)
@@ -111,7 +116,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             }
         }
 
-        float missAlpha = -(float)Math.Log(item.MaxTraceDistanceWorld + 1.0);
+        float skyAlpha = -(float)Math.Log(item.MaxTraceDistanceWorld + 1.0);
 
         int usedSamples = 0;
 
@@ -127,9 +132,11 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             Vector3 dir = directions[texelIndex];
 
             var outcome = scene.Trace(item.ProbePosWorld, dir, item.MaxTraceDistanceWorld, cancellationToken, out var hitInfo);
-            if (outcome == WorldProbeTraceOutcome.Aborted)
+            if (outcome is not (WorldProbeTraceOutcome.Hit or WorldProbeTraceOutcome.Sky))
             {
-                return CreateAbortedResult(item);
+                // There is no independent distant-light provider for world probes yet.
+                // Preserve published history and retry instead of converting an incomplete ray to sky.
+                return CreateUnresolvedResult(item, outcome);
             }
 
             bool hit = outcome == WorldProbeTraceOutcome.Hit;
@@ -165,9 +172,9 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             }
             else
             {
-                // Miss semantics: sky color is uniform-driven in shader; store sky visibility via signed alpha.
+                // Only established sky visibility may carry negative atlas alpha.
                 radianceRgb = Vector3.Zero;
-                alphaSigned = missAlpha;
+                alphaSigned = skyAlpha;
             }
 
             samples[usedSamples++] = new LumOnWorldProbeAtlasSample(
@@ -247,6 +254,10 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             ImportanceFlags: importanceFlags, SurfaceRevision: item.SurfaceRevision);
     }
 
+    #endregion
+
+    #region Geometry completion
+    /// <summary>Checks one nearby cardinal segment for scheduling importance, without evaluating distant lighting.</summary>
     private static WorldProbeTraceOutcome TraceNearbyCardinalSolid(
         IWorldProbeTraceScene scene,
         in LumOnWorldProbeTraceWorkItem item,
@@ -267,19 +278,29 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             out _);
     }
 
-    private static LumOnWorldProbeTraceResult CreateAbortedResult(in LumOnWorldProbeTraceWorkItem item) => new(
+    /// <summary>Retains the reason and admission revision for an incomplete batch without publishing samples.</summary>
+    private static LumOnWorldProbeTraceResult CreateUnresolvedResult(in LumOnWorldProbeTraceWorkItem item, WorldProbeTraceOutcome outcome) => new(
         FrameIndex: item.FrameIndex,
         Request: item.Request,
         Success: false,
-        FailureReason: WorldProbeTraceFailureReason.Aborted,
+        FailureReason: outcome switch
+        {
+            WorldProbeTraceOutcome.Unavailable => WorldProbeTraceFailureReason.Aborted,
+            WorldProbeTraceOutcome.DistanceLimit => WorldProbeTraceFailureReason.DistanceLimit,
+            WorldProbeTraceOutcome.BudgetExhausted => WorldProbeTraceFailureReason.BudgetExhausted,
+            _ => WorldProbeTraceFailureReason.Invalid,
+        },
         AtlasSamples: Array.Empty<LumOnWorldProbeAtlasSample>(),
         SkyIntensity: 0f,
         ShortRangeAoDirWorld: Vector3.UnitY,
         ShortRangeAoConfidence: 0f,
         Confidence: 0f,
         MeanLogHitDistance: 0f,
-        ImportanceFlags: LumOnWorldProbeImportanceFlags.None);
+        ImportanceFlags: LumOnWorldProbeImportanceFlags.None, SurfaceRevision: item.SurfaceRevision);
+    #endregion
 
+    #region Legacy lighting
+    /// <summary>Evaluates the compatibility light estimate for consumers without deferred surface lighting.</summary>
     private static Vector3 EvaluateHitRadiance(
         IWorldProbeTraceScene scene,
         Vector3d probePosWorld,
@@ -328,6 +349,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         return blockLight + skyBounce;
     }
 
+    /// <summary>Estimates legacy sky bounce only from directions with established environment visibility.</summary>
     private static float EstimateSkyBounceFactor(
         IWorldProbeTraceScene scene,
         Vector3d probePosWorld,
@@ -377,9 +399,9 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                 continue;
             }
 
-            // Secondary trace: treat a miss as "sky-visible" and any hit/abort as occluded.
+            // Incomplete secondary rays provide no evidence of sky visibility.
             var outcome = scene.Trace(originWorld, dir, maxDist, cancellationToken, out _);
-            if (outcome == WorldProbeTraceOutcome.Miss)
+            if (outcome == WorldProbeTraceOutcome.Sky)
             {
                 accum += cos;
             }
@@ -389,6 +411,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         return Math.Clamp(factor, 0f, 1f);
     }
 
+    /// <summary>Constructs deterministic directions over the upper hemisphere.</summary>
     private static Vector3[] BuildSkyBounceSampleDirections()
     {
         var dirs = new Vector3[SkyBounceSampleCount];
@@ -414,6 +437,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         return dirs;
     }
 
+    /// <summary>Normalizes the legacy hemisphere samples for an upward-facing surface.</summary>
     private static float ComputeSkyBounceNormalizationDenom()
     {
         // Normalization target: cosine-weighted integral of the sky hemisphere for an upward-facing surface,
@@ -426,13 +450,16 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         return sum;
     }
 
+    /// <summary>Reads the bounded vanilla sunlight multiplier for the legacy path.</summary>
     private static float EvaluateSkyLightIntensity(in LumOnWorldProbeTraceHit hit)
     {
         return Math.Clamp(hit.SampleLightRgbS.W, 0f, 1f);
     }
 
-    // Sky radiance is uniform-driven in the shader; misses store zero radiance and signed-alpha sky visibility.
+    #endregion
 
+    #region Confidence
+    /// <summary>Estimates batch confidence from the distribution of resolved hits and sky directions.</summary>
     private static float ComputeUnifiedConfidence(float aoConfidence, int hitCount, int sampleCount)
     {
         // For Phase 18.6, treat confidence as a warm-up + stability proxy.
@@ -444,4 +471,5 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         // Bias toward being conservative early.
         return Math.Clamp(0.25f + 0.75f * Math.Min(aoConfidence, stable), 0f, 1f);
     }
+    #endregion
 }

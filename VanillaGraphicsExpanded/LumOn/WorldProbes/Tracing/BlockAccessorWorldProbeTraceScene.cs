@@ -14,32 +14,40 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
 {
     private readonly IBlockAccessor blockAccessor;
     private readonly bool sampleVanillaLighting;
+    private readonly int maxTraversalSteps;
 
     private const double DirEpsilon = 1e-12;
     private const double PointInsideEpsilon = 1e-12;
 
     #region Public API
-    /// <summary>Creates a trace scene; cached-lighting consumers disable vanilla light sampling.</summary>
-    public BlockAccessorWorldProbeTraceScene(IBlockAccessor blockAccessor, bool sampleVanillaLighting = true)
+    /// <summary>Creates a bounded trace scene; cached-lighting consumers disable vanilla light sampling.</summary>
+    /// <param name="blockAccessor">Geometry source and authoritative world height; nonpositive height establishes no sky boundary.</param>
+    /// <param name="sampleVanillaLighting">Whether hits require vanilla lighting from the exterior cell.</param>
+    /// <param name="maxTraversalSteps">Maximum visited cells per ray, including the initial cell.</param>
+    public BlockAccessorWorldProbeTraceScene(IBlockAccessor blockAccessor, bool sampleVanillaLighting = true, int maxTraversalSteps = 512)
     {
         this.blockAccessor = blockAccessor ?? throw new ArgumentNullException(nameof(blockAccessor));
         this.sampleVanillaLighting = sampleVanillaLighting;
+        if (maxTraversalSteps < 0) throw new ArgumentOutOfRangeException(nameof(maxTraversalSteps));
+        this.maxTraversalSteps = maxTraversalSteps;
     }
 
     /// <summary>Returns geometry hits independently of neighboring light data when sampling is disabled.</summary>
     public WorldProbeTraceOutcome Trace(Vector3d originWorld, Vector3 dirWorld, double maxDistance, CancellationToken cancellationToken, out LumOnWorldProbeTraceHit hit)
     {
-        if (maxDistance <= 0)
+        if (!double.IsFinite(maxDistance) || maxDistance <= 0 ||
+            !double.IsFinite(originWorld.X) || !double.IsFinite(originWorld.Y) || !double.IsFinite(originWorld.Z) ||
+            !float.IsFinite(dirWorld.X) || !float.IsFinite(dirWorld.Y) || !float.IsFinite(dirWorld.Z))
         {
             hit = default;
-            return WorldProbeTraceOutcome.Miss;
+            return WorldProbeTraceOutcome.Invalid;
         }
 
         Vector3d dir = Vector3d.Normalize(Vector3d.FromVector3(dirWorld));
         if (dir.LengthSquared() < 1e-18)
         {
             hit = default;
-            return WorldProbeTraceOutcome.Miss;
+            return WorldProbeTraceOutcome.Invalid;
         }
 
         // Amanatides & Woo voxel traversal through 1x1x1 blocks.
@@ -65,7 +73,13 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         var step01 = new Vector3d(step.X > 0 ? 1d : 0d, step.Y > 0 ? 1d : 0d, step.Z > 0 ? 1d : 0d);
         Vector3d nextBoundary = voxel + step01;
 
-        Vector3d tMax = (nextBoundary - originWorld) / dir;
+        // Both signs of zero mean no crossing on that axis. Division by negative zero
+        // would otherwise select a negative-infinite boundary and corrupt the outcome.
+        Vector3d toBoundary = nextBoundary - originWorld;
+        Vector3d tMax = new(
+            dx == 0 ? double.PositiveInfinity : toBoundary.X / dx,
+            dy == 0 ? double.PositiveInfinity : toBoundary.Y / dy,
+            dz == 0 ? double.PositiveInfinity : toBoundary.Z / dz);
         Vector3d tDelta = Vector3d.Abs(Vector3d.One / dir);
 
         // Track which face we entered the current voxel through. For the first voxel,
@@ -77,10 +91,31 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         // World-probe tracing operates in the primary world dimension.
         var pos = new BlockPos(0);
         var samplePos = new BlockPos(0);
+        int worldHeight = blockAccessor.MapSizeY;
+        int traversedCells = 0;
 
         while (t <= maxDistance)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            // A loaded clear ray that exits the world's upper geometry boundary establishes
+            // sky visibility. Streaming boundaries and finite trace limits establish no such fact.
+            if (worldHeight > 0 && y >= worldHeight && dy > 0)
+            {
+                hit = default;
+                return WorldProbeTraceOutcome.Sky;
+            }
+            if (worldHeight > 0 && (y < 0 || y >= worldHeight))
+            {
+                hit = default;
+                return WorldProbeTraceOutcome.Unavailable;
+            }
+            if (traversedCells >= maxTraversalSteps)
+            {
+                hit = default;
+                return WorldProbeTraceOutcome.BudgetExhausted;
+            }
+            traversedCells++;
 
             pos.Set(x, y, z);
 
@@ -91,8 +126,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                 if (blockAccessor.GetChunkAtBlockPos(pos) == null)
                 {
                     hit = default;
-                    // Option A (2.2): treat missing world data as aborted so it never turns into "open sky".
-                    return WorldProbeTraceOutcome.Aborted;
+                    return WorldProbeTraceOutcome.Unavailable;
                 }
 
                 Block b = blockAccessor.GetMostSolidBlock(pos);
@@ -124,7 +158,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                                 {
                                     // Missing light data cannot become a valid dark legacy sample.
                                     hit = default;
-                                    return WorldProbeTraceOutcome.Aborted;
+                                    return WorldProbeTraceOutcome.Unavailable;
                                 }
 
                                 // Vec4f: XYZ = block light rgb, W = sun light brightness.
@@ -151,7 +185,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
                 // The lock-free accessor can surface placeholder chunk data (e.g., NoChunkData) that throws for certain queries.
                 // Don't substitute sky/horizon lighting for missing world data: abort this probe trace so it can be retried later.
                 hit = default;
-                return WorldProbeTraceOutcome.Aborted;
+                return WorldProbeTraceOutcome.Unavailable;
             }
 
             // Advance to next voxel boundary.
@@ -180,7 +214,7 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         }
 
         hit = default;
-        return WorldProbeTraceOutcome.Miss;
+        return WorldProbeTraceOutcome.DistanceLimit;
     }
 
     #endregion

@@ -60,8 +60,21 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - All 55 focused tests passed, including actual GPU runtime publication with zero vanilla reads.
       Restoring the old dependency failed five regression cases, including 336 runtime light reads.
       In-game visual confirmation remains under the live-validation task below.
-  ☐ Separate surface hits, established sky visibility, distance/budget exhaustion, and unavailable
+  ✔ Separate surface hits, established sky visibility, distance/budget exhaustion, and unavailable
     geometry. Define distant-light completion explicitly; do not turn incomplete traces into sky.
+    - CPU outcomes now distinguish hit, sky, distance limit, traversal budget, unavailable data,
+      and invalid input. Sky requires a clear route to the known upper world boundary; rays visit
+      at most 512 cells. Signed-zero axis directions cannot select invalid DDA boundaries.
+    - Incomplete primary rays retain their failure reason and retry without publishing samples.
+      No independent distant-light provider exists yet; finite clear segments are not sky.
+      Nearby occupancy accepts finite clearance; legacy secondary rays require established sky.
+      Existing GPU CLEAR/BUDGET/unavailable semantics are preserved and documented.
+    - Fresh build: all 133 focused CPU/GPU tests passed, none skipped. Coverage includes true sky
+      exits, blocked/unloaded routes, finite and step limits, invalid rays, retry/publication and
+      signed-zero directions. Short-range runtime traces publish neither radiance nor sky alpha;
+      enclosed publication fixtures now have sufficient trace reach instead of relying on false sky.
+      Restoring distance-limit-as-sky caused five expected failures, including GPU false lighting.
+      In-game visual confirmation remains under the live-validation task below.
   ☐ Add Surface Cache indirect sky/distant-light completion using those outcomes. Reconcile it with
     the existing vanilla sunlight seed to avoid double-counting; retain retries for missing data.
   ☐ Preserve valid world-probe directional samples while retrying unresolved cache hits, with bounded
