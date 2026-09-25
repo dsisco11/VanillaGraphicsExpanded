@@ -16,12 +16,15 @@
                 "program": "${env:VINTAGE_STORY}/Vintagestory"
             },
             "preLaunchTask": "build",
+            "env": {
+                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+            },
             "args": [
                 // "--playStyle" , "preset-surviveandbuild",
                 // "--openWorld" , "modding test world",
                 "--tracelog",
                 "--dataPath",
-                "${env:VGE_DATA_PATH}",
+                "${config:vanillaGraphicsExpanded.dataPath}",
                 "--addModPath",
                 "${workspaceFolder}/VanillaGraphicsExpanded/bin/Debug/Mods",
                 "--addOrigin",
@@ -37,13 +40,16 @@
             "program": "${config:vanillaGraphicsExpanded.renderdocPath}/renderdoccmd.exe",
             "preLaunchTask": "build + tail (RenderDoc)",
             "postDebugTask": "stop + scan: VintageStory client-debug.log",
+            "env": {
+                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+            },
             "args": [
                 "capture",
                 "--wait-for-exit",
                 "${env:VINTAGE_STORY}/Vintagestory.exe",
                 "--tracelog",
                 "--dataPath",
-                "${env:VGE_DATA_PATH}",
+                "${config:vanillaGraphicsExpanded.dataPath}",
                 "--addModPath",
                 "${workspaceFolder}/VanillaGraphicsExpanded/bin/Debug/Mods",
                 "--addOrigin",
@@ -66,10 +72,13 @@
                 "program": "${env:VINTAGE_STORY}/VintagestoryServer"
             },
             "preLaunchTask": "build",
+            "env": {
+                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+            },
             "args": [
                 "--tracelog",
                 "--dataPath",
-                "${env:VGE_DATA_PATH}",
+                "${config:vanillaGraphicsExpanded.dataPath}",
                 "--addModPath",
                 "${workspaceFolder}/VanillaGraphicsExpanded/bin/Debug/Mods",
                  "--addOrigin",
