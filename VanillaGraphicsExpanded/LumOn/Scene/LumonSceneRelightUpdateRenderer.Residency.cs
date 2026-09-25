@@ -23,7 +23,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
                 pageCaptureRevisions[pair.Key] == feedback.GetCaptureRevision(pair.Key)) continue;
             batches.Remove(pair.Value);
             seeded.Remove(pair.Key); initialized.Remove(pair.Key); publishedPages.Remove(pair.Key);
-            traceBuckets.Remove(pair.Key); retrySeedNext.Remove(pair.Key);
+            refreshSchedule.Remove(pair.Key);
             readiness[pair.Key] = 0;
             readyBuffer!.UploadSubData<uint>(readiness.AsSpan((int)pair.Key, 1), checked((int)((long)pair.Key << 2)), 4);
             identities.Remove(pair.Key);
@@ -46,7 +46,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             {
                 // Recapture replaces this page's inputs; no other page loses its completed sweep.
                 batches.Remove(pair.Value);
-                seeded.Remove(pair.Key); initialized.Remove(pair.Key); traceBuckets.Remove(pair.Key); retrySeedNext.Remove(pair.Key);
+                seeded.Remove(pair.Key); initialized.Remove(pair.Key); refreshSchedule.Remove(pair.Key);
                 if (publishedPages.Remove(pair.Key))
                 {
                     readiness[pair.Key] = 0;
@@ -71,7 +71,6 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         {
             eligible.Sort();
             candidates = eligible.ToArray();
-            cursor = candidates.Length == 0 ? 0 : cursor % candidates.Length;
         }
         published = publishedPages.Count != 0;
     }

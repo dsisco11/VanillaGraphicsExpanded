@@ -7,6 +7,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
 {
     private string diagnosticState = "not-run";
     private long diagnosticSeedAttempts, diagnosticSeedFailures, diagnosticIndirectAttempts, diagnosticIndirectFailures;
+    private long diagnosticRefreshAttempts, diagnosticRefreshFailures;
     private long diagnosticCombineFailures, diagnosticReadbackFailures, diagnosticResets;
     private long nextDiagnosticLog;
 
@@ -15,7 +16,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private string ReadinessDiagnosticLine() =>
         $"LSR: {diagnosticState} pages:{lastWorkCount} ready:{publishedPages.Count} generation:{snapshot.Generation} " +
         $"seedFail:{diagnosticSeedFailures}/{diagnosticSeedAttempts} indirectFail:{diagnosticIndirectFailures}/{diagnosticIndirectAttempts} " +
-        $"combineFail:{diagnosticCombineFailures} readFail:{diagnosticReadbackFailures} resets:{diagnosticResets}";
+        $"refreshFail:{diagnosticRefreshFailures}/{diagnosticRefreshAttempts} combineFail:{diagnosticCombineFailures} readFail:{diagnosticReadbackFailures} resets:{diagnosticResets}";
 
     /// <summary>Logs bounded periodic evidence even when producer prerequisites cause early returns.</summary>
     private void ReportReadiness(string state)
@@ -34,6 +35,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     {
         diagnosticState = "not-run";
         diagnosticSeedAttempts = diagnosticSeedFailures = diagnosticIndirectAttempts = diagnosticIndirectFailures = 0;
+        diagnosticRefreshAttempts = diagnosticRefreshFailures = 0;
         diagnosticCombineFailures = diagnosticReadbackFailures = diagnosticResets = nextDiagnosticLog = 0;
     }
     #endregion

@@ -21,11 +21,12 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private readonly HashSet<uint> seeded = new();
     private readonly HashSet<uint> initialized = new();
     private readonly HashSet<uint> publishedPages = new();
-    private readonly Dictionary<uint, uint> traceBuckets = new();
-    private readonly HashSet<uint> retrySeedNext = new();
+    private readonly LumonSceneLightingRefreshSchedule refreshSchedule = new();
+
     // Render-thread staging remains private; upload APIs only borrow spans during synchronous copies.
     private readonly List<LumonSceneRelightWorkGpu> seedWork = new();
     private readonly List<LumonSceneRelightWorkGpu> traceWork = new();
+    private readonly List<LumonSceneRelightWorkGpu> refreshWork = new();
     private readonly List<LumonSceneRelightWorkGpu> resetWork = new();
     private readonly List<LumonSceneRelightWorkGpu> publishable = new();
     private readonly List<LumonSceneRelightWorkGpu> committedWork = new();
@@ -36,7 +37,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private LumonScenePhysicalAtlasGpuResources? atlas;
     private TraceGeometryGpuScene? scene;
     private long sceneRevision = -1, historyRevision = -1;
-    private int settingsHash, cursor, frame, lastWorkCount;
+    private int settingsHash, frame, lastWorkCount;
+    private uint lastCandidate;
     private SurfaceLightingSnapshot snapshot;
     private bool published;
     private static long nextDependencyRevision;
@@ -101,7 +103,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         {
             diagnosticResets++;
             dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
-            published = false; seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); cursor = 0;
+            published = false; seeded.Clear(); initialized.Clear(); publishedPages.Clear(); refreshSchedule.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); lastCandidate = 0;
             atlas = resources; scene = current; sceneRevision = current.InvalidationRevision;
             historyRevision = feedback.GeometryHistoryRevision; settingsHash = hash;
             readiness = new uint[pool.Plan.CapacityPages + 1];
@@ -124,29 +126,23 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         lastWorkCount = 0;
         seedWork.Clear();
         traceWork.Clear();
+        refreshWork.Clear();
         resetWork.Clear();
+        // Resume after the last physical identity even if eligibility briefly disappears or changes.
+        int cursor = Array.BinarySearch(candidates, lastCandidate);
+        cursor = cursor >= 0 ? cursor + 1 : ~cursor;
         for (int i = 0; i < count; i++)
         {
             uint id = candidates[cursor++ % candidates.Length]; ulong key = identities[id];
+            lastCandidate = id;
             uint slot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key), page = LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
             var flags = LumonScenePageTableEntryPacking.UnpackFlags(mirror[checked((int)slot * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + (int)page)]);
             if ((flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0) continue;
-            uint bucket;
-            bool trace = seeded.Contains(id) || (publishedPages.Contains(id) && !retrySeedNext.Contains(id));
-            if (trace)
-            {
-                if (!seeded.Contains(id)) retrySeedNext.Add(id);
-                traceBuckets.TryGetValue(id, out bucket);
-                traceBuckets[id] = (bucket + 1) % (uint)batchCount;
-            }
-            else
-            {
-                retrySeedNext.Remove(id);
-                bucket = batches.Next(key, batchCount);
-            }
+            uint operation = refreshSchedule.Select(id, seeded.Contains(id), publishedPages.Contains(id), batchCount, out uint bucket);
+            if (operation == 0) bucket = batches.Next(key, batchCount);
             var work = new LumonSceneRelightWorkGpu(id, slot, bucket, page);
             if (!initialized.Contains(id)) resetWork.Add(work);
-            (trace ? traceWork : seedWork).Add(work);
+            (operation == 0 ? seedWork : operation == 1 ? traceWork : refreshWork).Add(work);
         }
         if (resetWork.Count > 0)
         {
@@ -157,9 +153,10 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 (uint)(tile * tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission);
             foreach (var item in resetWork) initialized.Add(item.PhysicalPageId);
         }
-        for (uint operation = 0; operation < 2; operation++)
+        for (uint pass = 0; pass < 3; pass++)
         {
-            var work = CollectionsMarshal.AsSpan(operation == 0 ? seedWork : traceWork);
+            uint operation = pass == 2 ? 4u : pass;
+            var work = CollectionsMarshal.AsSpan(operation == 0 ? seedWork : operation == 1 ? traceWork : refreshWork);
             if (work.Length == 0) continue;
             gpu.RelightWork.ResetAndUpload(work);
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, operation,
@@ -171,7 +168,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 bool success = result.IsMapped && (result.Span[i].VirtualPageIndex & 0x80000000u) == 0;
                 if (!result.IsMapped) diagnosticReadbackFailures++;
                 if (operation == 0) { diagnosticSeedAttempts++; if (!success) diagnosticSeedFailures++; }
-                else { diagnosticIndirectAttempts++; if (!success) diagnosticIndirectFailures++; }
+                else if (operation == 1) { diagnosticIndirectAttempts++; if (!success) diagnosticIndirectFailures++; }
+                else { diagnosticRefreshAttempts++; if (!success) diagnosticRefreshFailures++; }
                 // A successful texel is useful even when another texel in this batch remains unresolved.
                 bool progress = result.IsMapped && (result.Span[i].VirtualPageIndex & 0x40000000u) != 0;
                 bool seedComplete = operation == 0 && batches.Complete(identities[work[i].PhysicalPageId], batchCount, success);
@@ -180,7 +178,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             }
             lastWorkCount += work.Length;
         }
-        cursor %= candidates.Length;
+
         if (publishable.Count > 0)
         {
             var work = CollectionsMarshal.AsSpan(publishable);
@@ -256,10 +254,10 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private void OnLeaveWorld()
     {
         published = false; snapshot = default; atlas = null; scene = null;
-        identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
+        identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); seeded.Clear(); initialized.Clear(); publishedPages.Clear(); refreshSchedule.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
         readyBuffer?.Dispose(); readyBuffer = null; dispatch?.Dispose(); dispatch = null;
-        seedWork.Clear(); traceWork.Clear(); resetWork.Clear(); publishable.Clear(); committedWork.Clear();
-        cursor = frame = lastWorkCount = 0; sceneRevision = historyRevision = -1;
+        seedWork.Clear(); traceWork.Clear(); refreshWork.Clear(); resetWork.Clear(); publishable.Clear(); committedWork.Clear();
+        lastCandidate = 0; frame = lastWorkCount = 0; sceneRevision = historyRevision = -1;
         ResetReadinessDiagnostics();
     }
 

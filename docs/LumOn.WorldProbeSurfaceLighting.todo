@@ -169,12 +169,31 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       artifacts/surface-identity-deploy.log.
     - Direct-light freshness scheduling and temporal adaptation remain the following tasks;
       retained old lighting is not a claim of updated-light convergence. In-game validation remains open.
-  ☐ Replace global erase/recapture with bounded refresh scheduling for direct and indirect lighting.
+  ✔ Replace global erase/recapture with bounded refresh scheduling for direct and indirect lighting.
     - Revisit already seeded pages for direct-light changes; keep successful partial work and fair
       retries. Geometry changes may affect lighting beyond the edited chunk: ensure all resident
       candidates receive eventual refresh without requiring a global clear or precise ray dependencies.
     - Continue serving the previous valid outgoing generation until replacement texels are ready;
       reconcile world-probe dependency tickets so stale work cannot republish an invalid surface.
+    - Implemented recurring direct refresh alongside indirect tracing under one shared page budget.
+      Published partial pages also retain seed-retry turns and successful initial bucket completion.
+      Independent cyclic refresh buckets and identity-based page traversal preserve fairness through
+      repeated dirty notifications and temporary eligibility loss, including resident pages outside
+      the edited chunk. Unknown inputs retain prior values; confirmed exterior occupancy is rechecked.
+    - Direct replacement preserves ordinary indirect history and the existing outgoing generation
+      commit path. Refresh does not advance dependency lifetime or retire probe tickets; current
+      geometry revision, admission ticket and cache lifetime guards still reject obsolete answers.
+    - Validation: 39 focused tests passed, including direct on/off changes with unchanged capture,
+      hidden/visible exterior transitions, unresolved refresh retention/recovery, repeated empty
+      candidate rounds under a one-page budget, remote-chunk indirect sample progress, identity,
+      partial-page publication, environment outcomes and delayed world-probe dependency rejection.
+      Separate read-only implementation review found no remaining blocker. Receipt:
+      artifacts/TestResults/surface-refresh-final.trx.
+      Normal deployment passed with zero warnings/errors; 66 shader programs / 246 stage variants.
+      Build receipt: artifacts/surface-refresh-deploy.log.
+    - The following temporal task still owns responsive indirect adaptation; the current capped
+      running mean remains unchanged. These tests establish refresh work and direct replacement,
+      not prompt indirect convergence or in-game acceptance.
   ☐ Make temporal accumulation responsive to changed lighting without clearing displayed results.
     - Define bounded history weighting/replacement for refreshes, preserving old valid values on
       unresolved attempts. Missing geometry, coverage exits and exhausted budgets remain unresolved.

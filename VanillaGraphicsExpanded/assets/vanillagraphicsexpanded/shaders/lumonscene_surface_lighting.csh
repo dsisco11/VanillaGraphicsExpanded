@@ -17,7 +17,7 @@ layout(binding=2, rgba16f) writeonly uniform image2DArray nextOutgoing;
 bool finiteLight(vec3 value) { return !any(isnan(value)) && !any(isinf(value)); }
 /** Maps an axial normal into the engine face order. */
 uint faceOf(ivec3 n) { return n.x > 0 ? 1u : n.x < 0 ? 3u : n.y > 0 ? 4u : n.y < 0 ? 5u : n.z > 0 ? 2u : 0u; }
-/** Seeds direct light, estimates a bounce, combines valid texels, or resets a newly admitted page. */
+/** Seeds or refreshes direct light, estimates a bounce, combines valid texels, or resets a new page. */
 void main()
 {
     uint wi = gl_WorkGroupID.z;
@@ -27,7 +27,7 @@ void main()
     if (any(greaterThanEqual(xy, uvec2(edge)))) return;
     uint linear = xy.y * edge + xy.x;
     uint batchCount = (edge * edge + max(1u, lighting.sampling.x) - 1u) / max(1u, lighting.sampling.x);
-    if (operation < 2u && linear % batchCount != item.z % batchCount) return;
+    if ((operation < 2u || operation == 4u) && linear % batchCount != item.z % batchCount) return;
     ivec3 address = surfaceAddress(id, ivec2(xy));
     if (operation == 3u)
     {
@@ -71,9 +71,9 @@ void main()
     { atomicOr(work[wi].w, 0x80000000u); return; }
     // A captured empty source is initialized zero, not an uncaptured or unknown texel.
     // It needs no exterior light query. Unsupported and unpublished captures remain gated on the CPU.
-    if (surfaceId == 0u || directState.a == 2.0)
+    if (surfaceId == 0u || (operation == 1u && directState.a == 2.0))
     {
-        if (operation == 0u) imageStore(directIrradiance, address, vec4(0,0,0,1));
+        if (operation == 0u || operation == 4u) imageStore(directIrradiance, address, vec4(0,0,0,1));
         imageStore(indirectIrradiance, address, vec4(0,0,0,operation == 1u ? 1 : 0));
         atomicOr(work[wi].w, 0x40000000u);
         return;
@@ -86,12 +86,12 @@ void main()
     // Preserve hidden-face identity in direct alpha so combining cannot add their material emission.
     if ((outsideGeometry & 3u) == 2u)
     {
-        if (operation == 0u) imageStore(directIrradiance, address, vec4(0,0,0,2));
+        if (operation == 0u || operation == 4u) imageStore(directIrradiance, address, vec4(0,0,0,2));
         imageStore(indirectIrradiance, address, vec4(0,0,0,operation == 1u ? 1 : 0));
         atomicOr(work[wi].w, 0x40000000u);
         return;
     }
-    if (operation == 0u)
+    if (operation == 0u || operation == 4u)
     {
         uint geometry;
         if (lumonTraceSceneReadGeometry(cell, TRACE_SCENE_SURFACE, geometry) != TRACE_SCENE_READY || !finiteLight(emission))
@@ -102,7 +102,8 @@ void main()
         vec3 direct = 32.0 * (block * texelFetch(lightColors, ivec2(int((light >> 12u) & 63u),0),0).rgb + vec3(sun));
         if (!finiteLight(direct)) { atomicOr(work[wi].w, 0x80000000u); return; }
         imageStore(directIrradiance, address, vec4(clamp(direct, vec3(0), vec3(65504)),1));
-        imageStore(indirectIrradiance, address, vec4(0));
+        // Refresh replaces only resolved direct light; retained indirect history adapts separately.
+        if (operation == 0u) imageStore(indirectIrradiance, address, vec4(0));
         atomicOr(work[wi].w, 0x40000000u);
         return;
     }
