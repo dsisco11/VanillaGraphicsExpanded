@@ -8,6 +8,18 @@ public static partial class VgeBuiltInDebugViews
 {
     #region Surface cache viewer
 
+    // Matches renderLumonSceneIrradianceDebug, including its ambiguous black output.
+    private const string SurfaceCacheIrradianceLegend =
+        "<b>Cached indirect irradiance</b><br/>"
+        + "Lighting is tonemapped for display.<br/>"
+        + "<font color=\"#cc00cc\">■</font> Magenta: visible geometry has no patch.<br/>"
+        + "<font color=\"#ff0000\">■</font> Red: page is nonresident.<br/>"
+        + "<font color=\"#ffff00\">■</font> Yellow: surface capture is pending.<br/>"
+        + "<font color=\"#3366ff\">■</font> Blue / blue tint: relighting is pending.<br/>"
+        + "<font color=\"#330033\">■</font> Dark purple: surface cache is unavailable.<br/>"
+        + "Black: zero irradiance, sky, or no allocated/usable page.<br/>"
+        + "Use Page Ready to distinguish page readiness from dark lighting.";
+
     /// <summary>Exposes cached surface lighting and its supporting residency diagnostics on visible geometry.</summary>
     private static DebugViewDefinition CreateSurfaceCacheDebugView()
         => new(

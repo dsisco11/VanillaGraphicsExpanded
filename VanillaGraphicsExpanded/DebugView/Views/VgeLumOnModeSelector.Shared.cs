@@ -146,8 +146,17 @@ public static partial class VgeBuiltInDebugViews
                         dropBounds,
                         fontSmall),
                     $"{keyPrefix}-mode");
+
+            // Compose the legend from the selected mode, including when this selector
+            // is used by a different viewer such as GBuffer.
+            if (viewState.GetSelectedModeOrDefault() == LumOnDebugMode.LumonSceneIrradiance)
+            {
+                ElementBounds legendBounds = ElementBounds.Fixed(0, rowH + 8, boundsW, rowH * 9).WithParent(bounds);
+                composer.AddRichtext(SurfaceCacheIrradianceLegend, fontSmall, legendBounds, $"{keyPrefix}-irradiance-legend");
+            }
         }
 
+        /// <summary>Changes the renderer selection and rebuilds any mode-specific information.</summary>
         private void OnModeChanged(string code, bool selected)
         {
             if (!selected)
@@ -160,6 +169,7 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
+            LumOnDebugMode previousMode = viewState.GetSelectedModeOrDefault();
             viewState.SetSelectedMode(mode);
 
             if (string.Equals(DebugViewController.Instance.ActiveExclusiveViewId, viewId, StringComparison.Ordinal))
@@ -167,6 +177,8 @@ public static partial class VgeBuiltInDebugViews
                 config.LumOn.DebugMode = mode;
                 DebugViewController.Instance.NotifyExclusiveModeChanged();
             }
+
+            if (previousMode != viewState.GetSelectedModeOrDefault()) RequestLayoutRefresh();
         }
 
         private static string GetLumOnDebugModeDisplayName(LumOnDebugMode mode) => mode switch
