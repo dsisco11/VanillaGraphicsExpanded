@@ -164,13 +164,13 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     }
 
     /// <summary>Dispatches a bounded prefix without readback or publication so timing excludes fixture synchronization.</summary>
-    public void DispatchDiagnosticWork(uint operation, int pageCount=4, uint texels=64, uint rays=1, uint steps=64, uint frame=1, GpuShaderStorageBuffer? fallbackRequests=null, uint bucket=0)
+    public void DispatchDiagnosticWork(uint operation, int pageCount=4, uint texels=64, uint rays=1, uint steps=64, uint frame=1, GpuShaderStorageBuffer? fallbackRequests=null, uint bucket=0, GpuShaderStorageBuffer? hitRetries=null, bool captureHitRetries=false)
     {
         int count=Math.Min(pageCount,lightingItems.Length);
         var selected=lightingItems.Take(count).Select(item=>new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,bucket,item.VirtualPageIndex)).ToArray();
         work.UploadSubData<LumonSceneRelightWorkGpu>(selected,0,count<<4);
         producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,count,operation,texels,rays,steps,frame,
-            EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests);
+            EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests,hitRetries:hitRetries,captureHitRetries:captureHitRetries);
     }
 
     /// <summary>Seeds direct and emitted lighting, resetting dependent indirect history.</summary>
@@ -257,6 +257,9 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Withholds every cached page, exercising unavailable hit lighting without altering geometry.</summary>
     public void WithholdPages() => readiness.UploadSubData<uint>(new uint[captureItems.Length+1],0,(captureItems.Length+1)*4);
 
+    /// <summary>Restores published page availability without tracing rays or modifying retained estimator history.</summary>
+    public void RestorePageReadiness() => readiness.UploadSubData<uint>(Enumerable.Repeat(1u,captureItems.Length+1).ToArray(),0,(captureItems.Length+1)*4);
+
     /// <summary>Runs an expected incomplete bounce without combining or publishing its partially updated scratch history.</summary>
     public bool TryIncompleteBounce()
     {
@@ -268,12 +271,12 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     }
 
     /// <summary>Runs one selected texel through the real producer, then combines its result for numerical observation.</summary>
-    public bool BounceSample(int page = 0, int linear = 27, uint rays = 4, uint steps = 256, uint frame = 1, GpuShaderStorageBuffer? fallbackRequests=null, int maxTraceDistance=512)
+    public bool BounceSample(int page = 0, int linear = 27, uint rays = 4, uint steps = 256, uint frame = 1, GpuShaderStorageBuffer? fallbackRequests=null, int maxTraceDistance=512, GpuShaderStorageBuffer? hitRetries=null, bool captureHitRetries=false)
     {
         var item=lightingItems[page];
         var selected=new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,(uint)linear,item.VirtualPageIndex);
         work.UploadSubData<LumonSceneRelightWorkGpu>(new[]{selected},0,16);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests,maxTraceDistance:maxTraceDistance);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests,maxTraceDistance:maxTraceDistance,hitRetries:hitRetries,captureHitRetries:captureHitRetries);
         bool complete;
         using(var result=work.MapRange<LumonSceneRelightWorkGpu>(0,1,MapBufferAccessMask.MapReadBit))
         { Assert.True(result.IsMapped); LastWorkFlags=result.Span[0].VirtualPageIndex; complete=(LastWorkFlags & 0x80000000u)==0; }

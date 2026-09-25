@@ -21,6 +21,7 @@ internal static partial class GpuShaderContracts
         contract.RegisterShaderStorageBlockBinding("SurfaceWork", 0);
         contract.RegisterShaderStorageBlockBinding("SurfaceFallbackRequests", 5);
         contract.RegisterShaderStorageBlockBinding("SurfaceFallbackCommits", 6);
+        contract.RegisterShaderStorageBlockBinding("SurfaceHitRetries", 7);
 
     }
     /// <summary>Declares one shared cache lookup interface for producers and geometry-hit consumers.</summary>

@@ -1,6 +1,7 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
+using VanillaGraphicsExpanded.LumOn.Scene.HitLighting;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -27,14 +28,15 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             out var created, out _, out string log, preferSpirv: true))
             throw new InvalidOperationException(log);
         pipeline = created!;
-        disabledFallback.EnsureCapacity(32, growExponentially:false);
-        disabledFallback.UploadSubData<uint>(new uint[8],0,32);
+        disabledFallback.EnsureCapacity(SurfaceHitCaptureCodec.HeaderBytes, growExponentially:false);
+        disabledFallback.UploadSubData<uint>(new uint[SurfaceHitCaptureCodec.HeaderBytes >> 2],0,SurfaceHitCaptureCodec.HeaderBytes);
     }
 
     /// <summary>Binds a coherent input snapshot and writes only the explicitly selected page batches.</summary>
     public void Run(TraceGeometryGpuScene scene, in SurfaceLightingSnapshot input, GpuTexture destination,
         GpuShaderStorageBuffer work, int count, uint operation, uint texels, uint rays, uint steps, uint frame, bool emission, int maxFramesAccumulated = 4,
-        GpuShaderStorageBuffer? fallbackRequests = null, GpuShaderStorageBuffer? fallbackCommits = null, int maxTraceDistance = 512)
+        GpuShaderStorageBuffer? fallbackRequests = null, GpuShaderStorageBuffer? fallbackCommits = null, int maxTraceDistance = 512,
+        GpuShaderStorageBuffer? hitRetries = null, bool captureHitRetries = false)
     {
         if (input.OutgoingRadiance.TextureId == destination.TextureId)
             throw new ArgumentException("Surface lighting requires distinct outgoing generations.");
@@ -46,7 +48,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             UboPacking.WriteUVec4(bytes, 0, (uint)input.TileSize, (uint)input.TilesPerAxis, (uint)input.TilesPerAtlas, operation);
             UboPacking.WriteUVec4(bytes, 16, texels, rays, steps, frame);
             UboPacking.WriteIVec4(bytes, 32, input.Origin.X, input.Origin.Y, input.Origin.Z, Math.Clamp(maxTraceDistance, 1, 512));
-            UboPacking.WriteIVec4(bytes, 48, input.Dimensions.X, input.Dimensions.Y, input.Dimensions.Z, 0);
+            UboPacking.WriteIVec4(bytes, 48, input.Dimensions.X, input.Dimensions.Y, input.Dimensions.Z, captureHitRetries ? 1 : 0);
             UboPacking.WriteIVec4(bytes, 64, input.Ring.X, input.Ring.Y, input.Ring.Z, 0);
             // Use geometry's authoritative boundary, never the moving local coverage height.
             UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, (uint)Math.Max(0, scene.Coverage?.WorldHeight ?? 0), (uint)Math.Clamp(maxFramesAccumulated, 1, 255), measured ? 1u : 0u);
@@ -57,6 +59,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             work.BindBase(0); input.Patches.BindBase(1); input.Slots.BindBase(2); input.Readiness.BindBase(3);
             (fallbackRequests ?? disabledFallback).BindBase(5);
             (fallbackCommits ?? disabledFallback).BindBase(6);
+            (hitRetries ?? disabledFallback).BindBase(7);
             input.Material.Bind(16); input.OutgoingRadiance.Bind(17);
             scene.LightColors.Bind(3); scene.BlockLevels.Bind(4); scene.SunLevels.Bind(5);
             input.PageTable.Bind(18); scene.Surfaces.Bind(7);

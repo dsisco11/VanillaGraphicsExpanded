@@ -7,7 +7,7 @@ layout(std140, binding = 16) uniform SurfaceLightingParams
     uvec4 layoutInfo; // tile edge, tiles per axis, tiles per layer, operation (0 seed, 1 trace, 2 combine, 3 reset)
     uvec4 sampling;   // batch texels, rays, steps, frame
     ivec4 slotOrigin; // xyz: chunk origin; w: producer trace distance in blocks (unused by lookup consumers)
-    ivec4 slotDimensions;
+    ivec4 slotDimensions; // xyz: slot dimensions; w: producer hit-capture enable (unused by lookup consumers)
     ivec4 slotRing;
     uvec4 policy;     // explicit material emission, authoritative world height (0 unknown), maximum accumulated history, reserved
 } lighting;

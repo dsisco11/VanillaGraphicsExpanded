@@ -24,6 +24,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             batches.Remove(pair.Value);
             seeded.Remove(pair.Key); initialized.Remove(pair.Key); publishedPages.Remove(pair.Key);
             refreshSchedule.Remove(pair.Key);
+            hitPublications.Remove(pair.Key);
             readiness[pair.Key] = 0;
             readyBuffer!.UploadSubData<uint>(readiness.AsSpan((int)pair.Key, 1), checked((int)((long)pair.Key << 2)), 4);
             identities.Remove(pair.Key);
@@ -51,6 +52,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
                 diagnosticSeedQueue.Remove(pair.Key);
                 diagnosticIndirectQueue.Remove(pair.Key);
                 seeded.Remove(pair.Key); initialized.Remove(pair.Key); refreshSchedule.Remove(pair.Key);
+                hitPublications.Remove(pair.Key);
                 if (publishedPages.Remove(pair.Key))
                 {
                     readiness[pair.Key] = 0;

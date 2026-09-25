@@ -107,6 +107,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         if (changed)
         {
             ResetFallback();
+            ResetHitRetries();
             diagnosticSeedQueue.Clear();
             diagnosticIndirectQueue.Clear();
             diagnosticResets++;
@@ -178,10 +179,14 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             if (work.Length == 0) continue;
             gpu.RelightWork.ResetAndUpload(work);
             var fallbackBuffer = operation == 1 ? BeginFallbackCapture(current,work) : null;
+            bool captureHits = false;
+            var hitBuffer = operation == 1 ? BeginHitCapture(current,work,out captureHits) : null;
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, operation,
                 (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated,
-                fallbackRequests:fallbackBuffer, maxTraceDistance:cfg.RelightMaxTraceDistance);
+                fallbackRequests:fallbackBuffer, maxTraceDistance:cfg.RelightMaxTraceDistance,
+                hitRetries:hitBuffer, captureHitRetries:captureHits);
             if (fallbackBuffer != null) fallbackQueue!.Submit();
+            if (captureHits) hitCapture!.Submit();
             // One completion read per operation, rather than a GPU synchronization for every page.
             long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
             using var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit);
@@ -246,6 +251,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             {
                 CopyOutgoingTile(resources.PublishedOutgoing, resources.PendingOutgoing, item.PhysicalPageId, pool.Plan);
                 publishedPages.Add(item.PhysicalPageId);
+                hitPublications[item.PhysicalPageId] = ++hitPublicationSerial;
                 readiness[item.PhysicalPageId] = 1;
                 readyBuffer.UploadSubData<uint>(readiness.AsSpan((int)item.PhysicalPageId, 1), checked((int)((long)item.PhysicalPageId << 2)), 4);
                 if (seeded.Contains(item.PhysicalPageId))
@@ -286,6 +292,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         var cfg = config.LumOn.LumonScene;
         line = ReadinessDiagnosticLine() + $" fallbackAdmitted:{fallbackAdmitted} fallbackCommitted:{fallbackCommitted} fallbackRejected:{fallbackRejected}" +
             $" traceDistance:{cfg.RelightMaxTraceDistance} traceSteps:{cfg.RelightMaxDdaSteps} exhaustedBuckets:{refreshSchedule.RetryCount}";
+        line += $" hitPending:{hitRetries.Count} hitRetained:{hitRetained} hitQueries:{hitQueried} hitCommitted:{hitCompleted} hitRejected:{hitRejected}";
+        line += $" hitCpuRetained:{hitCpuRetained} hitCpuCommitted:{hitCpuCompleted}";
         return config.LumOn.Enabled && config.LumOn.LumonScene.Enabled;
     }
 
@@ -293,6 +301,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private void OnLeaveWorld()
     {
         ResetFallback();
+        ResetHitRetries();
         fallbackCommitBuffer?.Dispose(); fallbackCommitBuffer = null;
         System.Threading.Interlocked.Increment(ref fallbackWorldRevision);
         published = false; snapshot = default; atlas = null; scene = null;

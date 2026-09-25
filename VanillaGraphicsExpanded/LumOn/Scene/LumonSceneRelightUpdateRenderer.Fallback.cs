@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// <summary>Routes bounded geometry-only CPU fallback back through validated cache queries and normal publication.</summary>
 internal sealed partial class LumonSceneRelightUpdateRenderer
 {
-    private SurfaceFallbackGpuQueue? fallbackQueue;
+    private GpuQueue<SurfaceFallbackRequest>? fallbackQueue;
     private SurfaceFallbackWorker? fallbackWorker;
     private SurfaceLightingQueryBatch? fallbackQueries;
     private SurfaceFallbackResult? fallbackResult;
@@ -97,11 +97,12 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private GpuShaderStorageBuffer? BeginFallbackCapture(TraceGeometryGpuScene current, ReadOnlySpan<LumonSceneRelightWorkGpu> work)
     {
         if (fallbackLifetime != null || fallbackWorker?.Busy == true) return null;
-        fallbackQueue ??= new();
+        fallbackQueue ??= new(SurfaceFallbackWorker.MaximumTexels, 16, "SurfaceLighting.FallbackRequests");
         fallbackPages = work.ToArray().Select(item => new SurfaceFallbackPage(item.PhysicalPageId,identities[item.PhysicalPageId],
             pageGenerations[item.PhysicalPageId],feedback.GetCaptureRevision(item.PhysicalPageId))).ToImmutableArray();
         fallbackLifetime = new(current,current.InvalidationRevision,dependencyRevision,Interlocked.Read(ref fallbackWorldRevision));
-        fallbackQueue.Begin(work.Length,fallbackSelection++);
+        if (work.IsEmpty) throw new InvalidOperationException("Invalid fallback capture admission.");
+        fallbackQueue.WriteHeader([0, SurfaceFallbackWorker.MaximumTexels, (uint)work.Length, fallbackSelection++]);
         return fallbackQueue.Buffer;
     }
 
@@ -116,7 +117,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             if (!FallbackCurrent(current)) { fallbackRejected++; ResetFallback(); return ImmutableArray<SurfaceFallbackCommit>.Empty; }
             if (fallbackQueue?.Pending == true)
             {
-                if (!fallbackQueue.TryRead(out var requests)) return ImmutableArray<SurfaceFallbackCommit>.Empty;
+                if (!fallbackQueue.TryRead<ImmutableArray<SurfaceFallbackRequest>>(static records => ImmutableArray.Create(records), out var requests)) return ImmutableArray<SurfaceFallbackCommit>.Empty;
                 if (requests.IsEmpty) { fallbackLifetime = null; fallbackPages = ImmutableArray<SurfaceFallbackPage>.Empty; return ImmutableArray<SurfaceFallbackCommit>.Empty; }
                 // Retain only pages that actually emitted work, avoiding unrelated delayed-page invalidations.
                 fallbackPages = fallbackPages.Where(page => requests.Any(request => request.Page == page.Page)).ToImmutableArray();
@@ -157,6 +158,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             if (!FallbackCurrent(current) || !FallbackDependenciesCurrent())
             { fallbackRejected++; ResetFallback(); return ImmutableArray<SurfaceFallbackCommit>.Empty; }
             var commits = SurfaceFallbackEstimates.Resolve(fallbackResult,answers);
+            AdmitHitRetries(fallbackResult, answers, fallbackLifetime!, fallbackPages);
             fallbackResult = null; fallbackLifetime = null; fallbackPages = ImmutableArray<SurfaceFallbackPage>.Empty;
             return commits;
         }
@@ -173,7 +175,10 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private int ApplyFallback(TraceGeometryGpuScene current, LumonScenePhysicalAtlasGpuResources resources,
         GpuShaderStorageBuffer workBuffer, int maxPages, int tile)
     {
-        var commits = PollFallback(current);
+        var fallback = PollFallback(current);
+        var retained = PollHitRetries(current);
+        // Retained hits receive first publication credit; total delayed commits keep the existing sixteen-texel ceiling.
+        var commits = retained.AddRange(fallback).Take(SurfaceFallbackWorker.MaximumTexels).ToImmutableArray();
         if (commits.IsEmpty) return 0;
         fallbackWork.Clear(); Array.Clear(fallbackCommitUpload);
         var pages = new HashSet<uint>();
@@ -197,7 +202,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         dispatch!.Run(current,snapshot,resources.PendingOutgoing,workBuffer,work.Length,5,(uint)(tile*tile),1,0,
             (uint)frame,cfg.SurfaceLightingMaterialEmission,cfg.RelightMaxFramesAccumulated,fallbackCommits:fallbackCommitBuffer);
         publishable.AddRange(fallbackWork);
-        fallbackCommitted += accepted;
+        fallbackCommitted += accepted - retained.Length;
         return pages.Count;
     }
     #endregion

@@ -16,6 +16,7 @@ layout(binding=0, rgba16f) uniform image2DArray indirectIrradiance;
 layout(binding=1, rgba16f) uniform image2DArray directIrradiance;
 layout(binding=2, rgba16f) writeonly uniform image2DArray nextOutgoing;
 @import "./includes/surface_fallback.glsl"
+@import "./includes/surface_hit_retries.glsl"
 /** Rejects invalid inputs before conversion to bounded half-float storage. */
 bool finiteLight(vec3 value) { return !any(isnan(value)) && !any(isinf(value)); }
 /** Maps an axial normal into the engine face order. */
@@ -92,6 +93,8 @@ void main()
     if (operation == 0u && (directState.a == 1.0 || directState.a == 2.0)) { surfaceCount(SD_UNCHANGED); return; }
     if (operation == 1u && directState.a != 1.0 && directState.a != 2.0)
     { surfaceCount(SD_UNSEEDED); atomicOr(work[wi].w, 0x80000000u); return; }
+    if (operation == 1u && surfaceHitPending(uvec4(id,item.y,item.w&0x1fffffffu,linear)))
+    { surfaceCount(SD_UNCHANGED); atomicOr(work[wi].w,0x80000000u); return; }
     // A captured empty source is initialized zero, not an uncaptured or unknown texel.
     // It needs no exterior light query. Unsupported and unpublished captures remain gated on the CPU.
     if (surfaceId == 0u || (operation == 1u && directState.a == 2.0))
@@ -142,6 +145,9 @@ void main()
     vec3 bitangent = cross(n,tangent);
     vec3 sum = vec3(0);
     uint rays = max(1u,lighting.sampling.y);
+    int retained = surfaceBeginHitCapture(wi,item,linear,batchCount);
+    uint retainedHits = 0u;
+    bool missingLighting = false;
     for (uint r=0u; r<rays; r++)
     {
         surfaceCount(SD_RAYS);
@@ -155,7 +161,7 @@ void main()
         // A proven sky ray completes this indirect sample with zero additional energy;
         // it still counts in the full ray denominator and the completed-batch weight.
         if (hit.outcome == LUMON_NEAR_FIELD_SKY) { surfaceCount(SD_SKY); continue; }
-        vec3 radiance; uint hitSurface;
+        vec3 radiance = vec3(0); uint hitSurface;
         if (hit.outcome != LUMON_NEAR_FIELD_HIT)
         {
             // Retain history, but defer this bucket instead of immediately repeating a limited segment.
@@ -173,9 +179,21 @@ void main()
         surfaceCount(SD_HIT);
         if (!lumonTraceSceneReadSurface(hit.cell,faceOf(hit.normal),hitSurface))
         { surfaceCount(SD_HIT_MATERIAL); atomicOr(work[wi].w,0x80000000u); return; }
-        if (!sampleSurfaceLighting(hit.cell,hit.normal,hit.fraction,hitSurface,radiance))
-        { surfaceCount(SD_HIT_LIGHTING); atomicOr(work[wi].w,0x80000000u); return; }
+        bool ready = sampleSurfaceLighting(hit.cell,hit.normal,hit.fraction,hitSurface,radiance);
+        surfaceRecordHit(retained,retainedHits++,hit,radiance,ready);
+        if (!ready)
+        {
+            surfaceCount(SD_HIT_LIGHTING); atomicOr(work[wi].w,0x80000000u);
+            // Only admitted lanes finish their original geometry batch for later cache-only queries.
+            if (retained < 0) return;
+            missingLighting = true;
+        }
         sum += radiance * 3.14159265359;
+    }
+    if (missingLighting)
+    {
+        hitCaptures[retained].state = uvec4(1,retainedHits,0,0);
+        return;
     }
     vec3 estimate = sum / float(rays);
     // A failed/nonfinite batch must not age history or replace valid lighting with an artificial zero.

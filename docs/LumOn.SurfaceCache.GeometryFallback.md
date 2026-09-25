@@ -27,8 +27,10 @@ Only these outcomes complete a ray:
 
 Missing chunks, unsupported/unpublished GPU data, finite distance limits and exhausted traversal
 limits never become sky or artificial black samples. Missing hit lighting leaves that texel unresolved.
-The new queue does not admit ordinary GPU budget exhaustion, distance limits, unpublished geometry
-or unready hit lighting; their separate checklist tasks remain open.
+The geometry fallback queue does not admit ordinary GPU budget exhaustion, distance limits,
+unpublished geometry or unready hit lighting. Limits use the separate
+[traversal retry policy](LumOn.SurfaceCache.TraversalBudget.md); complete geometry with unready hit
+lighting now uses [dependency-aware cache queries](LumOn.SurfaceCache.HitLightingRetries.md).
 
 The CPU tracer uses the producer's configurable distance (default 512 blocks) and a 1,024-visited-cell
 limit after the [traversal-budget follow-up](LumOn.SurfaceCache.TraversalBudget.md). Reaching either limit

@@ -14,10 +14,8 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     private readonly GpuComputePipeline pipeline;
     private readonly SurfaceLightingBindings lighting = new();
     private readonly TraceGeometryComputeBindings geometry = new();
-    private readonly GpuShaderStorageBuffer buffer = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
-    private IntPtr fence;
-    private int count;
-    public bool Pending => fence != IntPtr.Zero;
+    private readonly GpuQueue<SurfaceLightingQuery> queue = new(MaximumQueries, debugName: "SurfaceLighting.Queries", usage: BufferUsageHint.StreamRead);
+    public bool Pending => queue.Pending;
 
     #region Submission and completion
     /// <summary>Loads the production SPIR-V query program once per consumer lifetime.</summary>
@@ -32,31 +30,23 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     public void Submit(TraceGeometryGpuScene scene, in SurfaceLightingSnapshot snapshot, ReadOnlySpan<SurfaceLightingQuery> queries)
     {
         if (Pending || queries.Length <= 0 || queries.Length > MaximumQueries) throw new InvalidOperationException("Invalid cache query admission.");
-        count=queries.Length;
-        buffer.EnsureCapacity(count*64, growExponentially:false);
-        buffer.UploadSubData(queries,0,count*64);
+        int count=queries.Length;
+        queue.WriteRecords(queries);
         using var program=pipeline.UseScope();
-        geometry.Bind(scene); lighting.Bind(snapshot); buffer.BindBase(0);
+        geometry.Bind(scene); lighting.Bind(snapshot); queue.Buffer.BindBase(0);
         // Bind the exact active range: retained buffer capacity must not become extra queries.
-        buffer.BindRange(0,0,count*64);
+        queue.Buffer.BindRange(0,0,count << 6);
         GL.DispatchCompute((count+63)/64,1,1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
-        fence=GL.FenceSync(SyncCondition.SyncGpuCommandsComplete,WaitSyncFlags.None);
-        GL.Flush();
+        queue.Submit(count);
     }
 
     /// <summary>Polls without blocking, mapping only after the completion fence signals.</summary>
     public bool TryRead(out SurfaceLightingQuery[] queries)
     {
         queries=Array.Empty<SurfaceLightingQuery>();
-        if (!Pending) return false;
-        var status=GL.ClientWaitSync(fence,ClientWaitSyncFlags.None,0);
-        if (status==WaitSyncStatus.TimeoutExpired) return false;
-        if (status==WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Surface query fence failed.");
-        using var read=buffer.MapRange<SurfaceLightingQuery>(0,count,MapBufferAccessMask.MapReadBit);
-        if (!read.IsMapped) throw new InvalidOperationException("Surface query readback failed.");
-        queries=read.Span.ToArray();
-        GL.DeleteSync(fence); fence=IntPtr.Zero; count=0;
+        if (!queue.TryRead<SurfaceLightingQuery[]>(static records => records.ToArray(), out var completed)) return false;
+        queries=completed;
         return true;
     }
     #endregion
@@ -65,9 +55,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     /// <summary>Retires submitted work and consumer-owned objects on their render context.</summary>
     public void Dispose()
     {
-        if (Pending) GL.DeleteSync(fence);
-        fence=IntPtr.Zero;
-        buffer.Dispose(); geometry.Dispose(); lighting.Dispose(); pipeline.Dispose();
+        queue.Dispose(); geometry.Dispose(); lighting.Dispose(); pipeline.Dispose();
     }
     #endregion
 }

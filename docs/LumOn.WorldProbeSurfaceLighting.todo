@@ -417,11 +417,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Subagent validation: 85 focused cases, 115 existing regression cases and the corrected runtime
       cooldown/wake case pass; final production build has zero warnings/errors. Exact receipts,
       fixture correction, storage bounds and limitations: docs/LumOn.SurfaceCache.TraversalBudget.md.
-  ☐ Make retries of unready Surface Cache hit lighting dependency-aware.
+  ☑ Make retries of unready Surface Cache hit lighting dependency-aware.
     - Retain resolved hit information where worthwhile and retry when the required captured lighting
       progresses, with bounded storage/work and fairness. Avoid retracing unchanged known geometry.
     - Revalidate surface identity and lifetime before using delayed answers; handle dependency
       eviction, edits and recreation. Preserve direct-seed independence to avoid lighting deadlocks.
+    - Retains up to 32 complete GPU/CPU geometric samples, suppresses their ordinary retracing,
+      and wakes cache-only queries on missing hit-page progress. Full hit batches use one lighting
+      snapshot; direct seeding/refresh remain independent. Bounded capture, round-robin queries,
+      expiry and lifetime rejection preserve displayed history without monopolizing retry storage.
+    - Subagent validation: 175 distinct cases pass, including 30 new retry cases; final production
+      build has zero warnings/errors. Bounds, conservative invalidation, fixture corrections and
+      receipts: docs/LumOn.SurfaceCache.HitLightingRetries.md. Gameplay acceptance remains separate.
   ☐ Raise and separate configurable direct and indirect update budgets using measured costs.
     - Replace implicit alternating-budget throughput with explicit bounded allocations for capture
       seeding, direct refresh and indirect updates; preserve fairness and initial readiness progress.
