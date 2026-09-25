@@ -53,9 +53,11 @@ void main(void)
         return;
     }
 
-    vec3 worldPos = worldPosH.xyz / worldPosH.w;
+    vec3 renderRelativePos = worldPosH.xyz / worldPosH.w;
 
-    vec4 prevClip = prevViewProjMatrix * vec4(worldPos, 1.0);
+    // The uploaded matrix includes current-origin to previous-origin translation.
+    // The reconstructed position remains current-relative; do not apply that translation twice.
+    vec4 prevClip = prevViewProjMatrix * vec4(renderRelativePos, 1.0);
     if (prevClip.w <= 1e-8)
     {
         flags |= LUMON_VEL_FLAG_PREV_BEHIND_CAMERA;

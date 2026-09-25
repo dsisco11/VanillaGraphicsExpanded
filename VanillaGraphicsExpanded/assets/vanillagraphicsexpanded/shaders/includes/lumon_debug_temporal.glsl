@@ -8,10 +8,10 @@ vec3 reconstructHistoryNormal(vec2 historyNormal2D, vec3 currentNormal)
     return normalize(vec3(historyNormal2D, z * zSign));
 }
 
-/// Reproject world-space position to previous frame UV
-vec2 reprojectToHistory(vec3 posWS)
+/// Reproject a current render-relative position using the CPU-rebased previous matrix.
+vec2 reprojectToHistory(vec3 renderRelativePos)
 {
-    vec4 prevClip = prevViewProjMatrix * vec4(posWS, 1.0);
+    vec4 prevClip = prevViewProjMatrix * vec4(renderRelativePos, 1.0);
     vec3 prevNDC = prevClip.xyz / prevClip.w;
     return prevNDC.xy * 0.5 + 0.5;
 }

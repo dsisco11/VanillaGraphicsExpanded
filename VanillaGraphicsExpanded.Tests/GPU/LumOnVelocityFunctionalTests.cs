@@ -92,6 +92,48 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         ];
     }
 
+    #region Render origin regression
+    /// <summary>The production shader projects fixed world points through paired frame origins including rotation and view bob.</summary>
+    [Theory]
+    [InlineData(16777216.25, true)]
+    [InlineData(-16777216.25, true)]
+    [InlineData(16777216.25, false)]
+    public void Velocity_RenderOriginMovementPreservesWorldReprojection(double origin, bool historyValid)
+    {
+        EnsureShaderTestAvailable();
+        var program = CompileVelocityShader();
+        using var use = program.UseScope();
+        using var depth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f,
+            CreateUniformDepthData(ScreenWidth, ScreenHeight, .5f));
+        using var target = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f);
+        float[] previous = CreateRotationZ(.1f);
+        previous[12] = .015625f;
+        previous[13] = -.03125f;
+        float[] current = LumOnTestInputFactory.CreateIdentityMatrix();
+        var temporal = new LumOnTemporalReprojection();
+        temporal.Capture(previous, origin, 32, -origin);
+        temporal.Commit();
+        temporal.Capture(current, origin + .0625, 32.125, -origin - .03125);
+        SetupVelocityUniforms(program, current, temporal.PreviousViewProjection, historyValid ? 1 : 0);
+        program.PrimaryDepth = depth.TextureId;
+        TestFramework.RenderQuadTo(program, target);
+        var pixels = ReadPixelsFloat(target);
+        for (int y = 1; y < ScreenHeight - 1; y++)
+        for (int x = 1; x < ScreenWidth - 1; x++)
+        {
+            Vector2 uv = new((x + .5f) / ScreenWidth, (y + .5f) / ScreenHeight);
+            // Convert current-relative coordinates to the old frame before applying its raw matrix.
+            Vector4 oldRelative = new(uv.X * 2 - 1 + .0625f, uv.Y * 2 - 1 + .125f, -.03125f, 1);
+            Vector4 clip = MulMat4Vec4(previous, oldRelative);
+            Vector2 expected = historyValid ? uv - new Vector2(clip.X / clip.W, clip.Y / clip.W) * .5f - new Vector2(.5f) : Vector2.Zero;
+            int index = (y * ScreenWidth + x) * 4;
+            Assert.InRange(pixels[index], expected.X - TestEpsilon, expected.X + TestEpsilon);
+            Assert.InRange(pixels[index + 1], expected.Y - TestEpsilon, expected.Y + TestEpsilon);
+            Assert.Equal(historyValid ? 1u : 2u, BitConverter.SingleToUInt32Bits(pixels[index + 3]));
+        }
+    }
+    #endregion
+
     [Fact]
     public void Velocity_StaticCamera_IsZero()
     {

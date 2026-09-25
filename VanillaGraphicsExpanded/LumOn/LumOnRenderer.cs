@@ -65,7 +65,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invModelViewMatrix = new float[16];
-    private readonly float[] prevViewProjMatrix = new float[16];
+    private readonly LumOnTemporalReprojection temporalReprojection = new();
     private readonly float[] currentViewProjMatrix = new float[16];
     private readonly float[] invCurrentViewProjMatrix = new float[16];
 
@@ -140,12 +140,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Register renderer
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "lumon");
         // capi.Event.RegisterRenderer(this, EnumRenderStage.AfterPostProcessing, "lumon");
-
-        // Initialize previous frame matrix to identity
-        for (int i = 0; i < 16; i++)
-        {
-            prevViewProjMatrix[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-        }
 
         // Register debug hotkeys
         RegisterHotkeys();
@@ -393,7 +387,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Pass 6 (combine) is handled by PBRCompositeRenderer.
 
         // Store current view-projection matrix for next frame
-        Array.Copy(currentViewProjMatrix, prevViewProjMatrix, 16);
+        temporalReprojection.Commit();
 
         // Swap radiance buffers for temporal accumulation
         bufferManager.SwapRadianceBuffers();
@@ -453,6 +447,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         lastCameraZ = camPos.CameraZ;
     }
 
+    /// <summary>Captures the current projection and render origin for temporal reprojection.</summary>
     private void UpdateMatrices()
     {
         ReadOnlySpan<float> projection = capi.Render.CurrentProjectionMatrix;
@@ -464,6 +459,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Compute current view-projection matrix for next frame's reprojection
         MatrixHelper.Multiply(projection, view, currentViewProjMatrix);
+        var camera = readCamera();
+        temporalReprojection.Capture(currentViewProjMatrix,
+            camera?.CameraX ?? 0, camera?.CameraY ?? 0, camera?.CameraZ ?? 0);
 
         // Compute inverse current view-projection for depth-based reprojection.
         MatrixHelper.Invert(currentViewProjMatrix, invCurrentViewProjMatrix);
@@ -496,7 +494,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             projectionMatrix: capi.Render.CurrentProjectionMatrix,
             viewMatrix: capi.Render.CameraMatrixOriginf,
             invViewMatrix: invModelViewMatrix,
-            prevViewProjMatrix: prevViewProjMatrix,
+            prevViewProjMatrix: temporalReprojection.PreviousViewProjection,
             invCurrViewProjMatrix: invCurrentViewProjMatrix,
             screenWidth: capi.Render.FrameWidth,
             screenHeight: capi.Render.FrameHeight,

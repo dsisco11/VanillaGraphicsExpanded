@@ -33,6 +33,7 @@ layout(std140) uniform LumOnFrameUBO
     mat4 invViewMatrix;
 
     // Temporal / velocity
+    // Previous projection/view composed with T(currentRenderOrigin - previousRenderOrigin).
     mat4 prevViewProjMatrix;
     mat4 invCurrViewProjMatrix;
 

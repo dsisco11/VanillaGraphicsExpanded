@@ -282,7 +282,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private readonly System.Func<LumOnCameraState?> readCamera;
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invViewMatrix = new float[16];
-    private readonly float[] prevViewProjMatrix = new float[16];
+    private readonly LumOnTemporalReprojection temporalReprojection = new();
     private readonly float[] currentViewProjMatrix = new float[16];
     private readonly float[] invCurrViewProjMatrix = new float[16];
     private readonly float[] tempProjectionMatrix = new float[16];
@@ -621,7 +621,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     /// </summary>
     private void StorePrevViewProjMatrix()
     {
-        Array.Copy(currentViewProjMatrix, prevViewProjMatrix, 16);
+        temporalReprojection.Commit();
     }
 
     /// <summary>
@@ -632,6 +632,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
         Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
         MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
+        var camera = readCamera();
+        temporalReprojection.Capture(currentViewProjMatrix,
+            camera?.CameraX ?? 0, camera?.CameraY ?? 0, camera?.CameraZ ?? 0);
     }
 
     private void UpdateAndBindFrameUbo(VgeConfig.LumOnSettingsConfig lum)
@@ -672,7 +675,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             projectionMatrix: capi.Render.CurrentProjectionMatrix,
             viewMatrix: capi.Render.CameraMatrixOriginf,
             invViewMatrix: invViewMatrix,
-            prevViewProjMatrix: prevViewProjMatrix,
+            prevViewProjMatrix: temporalReprojection.PreviousViewProjection,
             invCurrViewProjMatrix: invCurrViewProjMatrix,
             screenWidth: capi.Render.FrameWidth,
             screenHeight: capi.Render.FrameHeight,

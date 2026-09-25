@@ -46,9 +46,12 @@ Temporal accumulation is critical for LumOn because:
 
 ### 2.1 Storing ViewProj Matrix
 
-Each frame, store the current view and projection matrices (using `System.Numerics.Matrix4x4`) before rendering. Compute combined `prevViewProjMatrix = view * proj` for reprojection.
-
-Provide helper functions `ToMatrix4x4(float[])` and `ToFloatArray(Matrix4x4)` to convert between VS's column-major arrays and System.Numerics format.
+`LumOnTemporalReprojection` captures the column-major `projection * view` matrix together with
+the render origin (`EntityPlayer.CameraPos`), and commits that pair after rendering. Before the
+next upload it composes the committed matrix with
+`T(currentRenderOrigin - previousRenderOrigin)`. Subtract origins in double precision before
+converting the displacement to float. Keep the committed matrix unchanged so repeated uploads
+cannot accumulate the translation. Both the normal and debug renderers use this contract.
 
 ### 2.2 First Frame Handling
 
@@ -60,18 +63,20 @@ On first frame (or after teleport), clear history buffers and skip temporal blen
 
 ### 3.1 World-Space Approach
 
-Probes store view-space positions. To reproject:
+Probe anchors store current render-relative positions reconstructed through `invViewMatrix`.
+The uploaded previous matrix already converts them into the previous render-origin space:
 
 ```
-posWS = invViewMatrix * posVS
-prevClip = prevViewProjMatrix * posWS
+posRenderRelative = invViewMatrix * posVS
+prevClip = prevViewProjMatrix * posRenderRelative
 historyUV = (prevClip.xy / prevClip.w) * 0.5 + 0.5
 ```
 
 ### 3.2 Camera Motion Handling
 
-- **Translation**: Causes parallax (depth-dependent screen motion)—handled automatically by world-space reprojection
+- **Translation**: Causes depth-dependent screen motion; the rebased previous matrix accounts for render-origin movement.
 - **Rotation**: Screen positions change but world positions don't—may cause many probes to fall outside previous frame bounds
+- **Camera bob**: Remains part of the full view matrices; do not subtract it again from render origins.
 
 ---
 
