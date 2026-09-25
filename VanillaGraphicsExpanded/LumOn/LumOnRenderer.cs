@@ -487,9 +487,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         (VectorInt3 ChunkOffset, Vector3d BlockOffsetRemainder) frameBridge = camera is null
             ? (default, default)
             : LumOnFrameWorldSpaceBridge.Compute(
-                camera.Value.PositionX,
-                camera.Value.PositionY,
-                camera.Value.PositionZ);
+                camera.Value.CameraX,
+                camera.Value.CameraY,
+                camera.Value.CameraZ);
 
         uniformBuffers.UpdateFrame(
             invProjectionMatrix: invProjectionMatrix,
@@ -1309,6 +1309,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Runtime params are published by LumOnWorldProbeUpdateRenderer (Done stage).
+        var renderCamera = readCamera();
         if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
                 out _,
                 out camPosWS,
@@ -1316,7 +1317,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 out levels,
                 out resolution,
                 out origins,
-                out rings))
+                out rings,
+                renderCamera is { } c ? new Vec3d(c.CameraX, c.CameraY, c.CameraZ) : null))
         {
             return false;
         }

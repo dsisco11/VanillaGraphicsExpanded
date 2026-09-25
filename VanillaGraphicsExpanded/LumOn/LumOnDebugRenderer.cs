@@ -654,9 +654,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         var frameBridge = camera is null
             ? (default(VectorInt3), default(Vector3d))
             : LumOnFrameWorldSpaceBridge.Compute(
-                camera.Value.PositionX,
-                camera.Value.PositionY,
-                camera.Value.PositionZ);
+                camera.Value.CameraX,
+                camera.Value.CameraY,
+                camera.Value.CameraZ);
 
         int halfW = bufferManager?.HalfResWidth ?? (capi.Render.FrameWidth / 2);
         int halfH = bufferManager?.HalfResHeight ?? (capi.Render.FrameHeight / 2);
@@ -852,6 +852,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         bool hasWorldProbeRuntimeParams = false;
         if (hasWorldProbeResources && worldProbeClipmapBufferManager is not null)
         {
+            var renderCamera = readCamera();
             hasWorldProbeRuntimeParams = worldProbeClipmapBufferManager.TryGetRuntimeParams(
                 out wpCamPosWorld,
                 out wpCamPosWS,
@@ -859,7 +860,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 out _,
                 out _,
                 out wpOrigins,
-                out wpRings);
+                out wpRings,
+                renderCamera is { } c ? new Vec3d(c.CameraX, c.CameraY, c.CameraZ) : null);
 
             // Allocation determines the shader layout even before the first runtime publication.
             wpBaseSpacing = Math.Max(1e-6f, config.WorldProbeClipmap.ClipmapBaseSpacing);

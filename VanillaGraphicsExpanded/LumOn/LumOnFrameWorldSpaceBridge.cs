@@ -3,32 +3,32 @@ using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
-/// <summary>Converts player-relative render positions to absolute world cells without camera motion.</summary>
+/// <summary>Converts engine render-relative positions to absolute world cells with a precise origin split.</summary>
 internal static class LumOnFrameWorldSpaceBridge
 {
     private const double ChunkSize = 32.0;
 
     #region World Origin
-    /// <summary>Splits the stable player origin into integer chunks and a bounded fractional block remainder.</summary>
+    /// <summary>Splits the CameraPos origin used by terrain rendering into chunks and a bounded remainder.</summary>
     public static (VectorInt3 ChunkOffset, Vector3d BlockOffsetRemainder) Compute(
-        double playerOriginX,
-        double playerOriginY,
-        double playerOriginZ)
+        double renderOriginX,
+        double renderOriginY,
+        double renderOriginZ)
     {
-        // Inverse-view reconstruction already includes camera bob and yields player-relative
-        // coordinates. Only the player origin belongs in this bridge; subtracting view
-        // translation again would move stationary geometry with the camera.
-        int chunkOffsetX = (int)Math.Floor(playerOriginX / ChunkSize);
-        int chunkOffsetY = (int)Math.Floor(playerOriginY / ChunkSize);
-        int chunkOffsetZ = (int)Math.Floor(playerOriginZ / ChunkSize);
+        // ChunkRenderer subtracts CameraPos before applying the view matrix. Inverting that
+        // matrix recovers render-relative coordinates; add CameraPos without subtracting
+        // inverse-view translation a second time. Callers must pass the same render origin.
+        int chunkOffsetX = (int)Math.Floor(renderOriginX / ChunkSize);
+        int chunkOffsetY = (int)Math.Floor(renderOriginY / ChunkSize);
+        int chunkOffsetZ = (int)Math.Floor(renderOriginZ / ChunkSize);
 
         // Subtract in double precision before the UBO converts the small remainder to float.
         return (
             new VectorInt3(chunkOffsetX, chunkOffsetY, chunkOffsetZ),
             new Vector3d(
-                playerOriginX - (chunkOffsetX * ChunkSize),
-                playerOriginY - (chunkOffsetY * ChunkSize),
-                playerOriginZ - (chunkOffsetZ * ChunkSize)));
+                renderOriginX - (chunkOffsetX * ChunkSize),
+                renderOriginY - (chunkOffsetY * ChunkSize),
+                renderOriginZ - (chunkOffsetZ * ChunkSize)));
     }
     #endregion
 }

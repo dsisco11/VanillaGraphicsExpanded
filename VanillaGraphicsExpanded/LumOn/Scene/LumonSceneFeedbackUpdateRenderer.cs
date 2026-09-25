@@ -1055,7 +1055,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
     }
 
-    /// <summary>Publishes the stable player origin shared by terrain PatchIds and cache feedback.</summary>
+    /// <summary>Publishes the terrain render origin shared by PatchIds and cache feedback.</summary>
     private void UpdateWorldCoordUniformState()
     {
         try
@@ -1065,10 +1065,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 return;
             }
 
-            // Match the terrain publisher: worldPos is player-relative, and inverse-view
-            // translation must not be subtracted again when assigning surface-cache cells.
+            // Match ChunkRenderer's CameraPos-relative vertices. Inverse-view translation
+            // is already handled by reconstruction and must not be subtracted here.
             var (chunkOffset, blockRemainder) = LumOnFrameWorldSpaceBridge.Compute(
-                camera.PositionX, camera.PositionY, camera.PositionZ);
+                camera.CameraX, camera.CameraY, camera.CameraZ);
             LumonSceneWorldCoordUniformState.Update(chunkOffset, blockRemainder);
             lastWorldChunkCoordOffset = chunkOffset;
             lastWorldBlockOffsetRem = blockRemainder;

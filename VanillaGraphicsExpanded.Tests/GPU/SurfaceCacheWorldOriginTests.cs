@@ -19,12 +19,12 @@ public sealed class SurfaceCacheWorldOriginTests : RenderTestBase
     public SurfaceCacheWorldOriginTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Origin publication
-    /// <summary>Both production publishers retain the player origin when the eye and matrix translations change.</summary>
+    /// <summary>Both production publishers use the engine terrain camera origin independently of matrix translation.</summary>
     [Theory]
     [InlineData(-32.375, -2, 31.625)]
     [InlineData(16777216.25, 524288, .25)]
     [InlineData(-16777216.25, -524289, 31.75)]
-    public void PublishersIgnoreCameraBob(double origin, int chunk, double remainder)
+    public void PublishersUseCameraOriginIndependentlyOfAnimatedMatrix(double origin, int chunk, double remainder)
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
@@ -50,10 +50,10 @@ public sealed class SurfaceCacheWorldOriginTests : RenderTestBase
             MethodInfo publishFeedback = typeof(LumonSceneFeedbackUpdateRenderer).GetMethod(
                 "UpdateWorldCoordUniformState", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-            // Deliberately decouple eye displacement from the animated matrix: neither defines the terrain origin.
+            // Keep the engine terrain origin fixed while entity position and view-matrix bob change.
             foreach (float bob in new[] { -.3f, 0f, .4f })
             {
-                camera = camera with { CameraX = origin + bob, CameraY = origin + 1.6 + bob, CameraZ = origin - bob };
+                camera = camera with { PositionX = origin + bob, PositionY = origin - 1.6 + bob, PositionZ = origin - bob };
                 matrix[12] = bob * 2;
                 matrix[13] = -1.4f + bob;
                 matrix[14] = -bob;

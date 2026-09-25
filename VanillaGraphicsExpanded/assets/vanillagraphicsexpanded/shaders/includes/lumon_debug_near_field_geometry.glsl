@@ -8,7 +8,7 @@ vec4 renderNearFieldGeometryDebug()
     int size = traceNearMax.x - traceNearMin.x;
     int cellSize = nearFieldBudget.y;
     if (size <= 0) return vec4(0.1, 0.2, 0.8, 1.0);
-    // Inverse-view translation is the camera position relative to the player origin.
+    // Inverse-view translation is the camera position relative to the terrain render origin.
     // Retain the absolute chunk component as integers; never convert the world origin to float.
     vec3 camera = (invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz + matrixSpaceWorldBlockOffsetRem;
     ivec3 cameraCell = ivec3(floor(camera)) + matrixSpaceWorldChunkCoordOffset * 32;

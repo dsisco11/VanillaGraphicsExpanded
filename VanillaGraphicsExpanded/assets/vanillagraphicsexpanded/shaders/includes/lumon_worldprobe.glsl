@@ -571,8 +571,8 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleClipmapRadiance(
 		return outS;
 	}
 
-	// Screen-probe reconstruction already yields player-origin-relative positions.
-	// Clipmap origins are published in that same stable space, excluding camera bob.
+	// Screen-probe reconstruction yields positions relative to the terrain render origin.
+	// The consumer rebases published clipmap origins into that same space.
 	vec3 worldPosRel = worldPos;
 
 	int maxLevel = max(levels - 1, 0);
@@ -656,8 +656,8 @@ LumOnWorldProbeSample lumonWorldProbeSampleClipmap(
 		return outS;
 	}
 
-	// Screen-probe reconstruction already yields player-origin-relative positions.
-	// Clipmap origins are published in that same stable space, excluding camera bob.
+	// Screen-probe reconstruction yields positions relative to the terrain render origin.
+	// The consumer rebases published clipmap origins into that same space.
 	vec3 worldPosRel = worldPos;
 
 	int maxLevel = max(levels - 1, 0);

@@ -37,7 +37,7 @@ internal sealed class LumOnTerrainBridgeUpdateRenderer : IRenderer, IDisposable
         capi.Event.LeaveWorld += OnLeaveWorld;
     }
 
-    /// <summary>Publishes the stable player origin for terrain PatchIds and chunk-slot lookup.</summary>
+    /// <summary>Publishes the engine's terrain render origin for PatchIds and chunk-slot lookup.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Opaque)
@@ -55,10 +55,10 @@ internal sealed class LumOnTerrainBridgeUpdateRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Terrain worldPos is player-relative before the view transform. Camera bob belongs
-        // only to that transform, so it must not shift voxel identities or patch UVs.
+        // ChunkRenderer passes CameraPos to MeshDataPoolManager.Render, which subtracts
+        // it from each pool origin. Add that exact origin back; Entity.Pos is different.
         var (chunkOffset, blockRemainder) = LumOnFrameWorldSpaceBridge.Compute(
-            camera.PositionX, camera.PositionY, camera.PositionZ);
+            camera.CameraX, camera.CameraY, camera.CameraZ);
         LumonSceneWorldCoordUniformState.Update(chunkOffset, blockRemainder);
         LumOnTerrainBridgeUboState.Update(chunkOffset, blockRemainder);
     }

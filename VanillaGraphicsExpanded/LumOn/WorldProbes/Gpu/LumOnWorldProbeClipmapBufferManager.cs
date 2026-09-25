@@ -85,6 +85,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     /// </summary>
     public event Action<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>? AnchorShifted;
 
+    /// <summary>Returns published clipmap state, optionally rebased to the current terrain render origin.</summary>
     public bool TryGetRuntimeParams(
         out Vec3d playerOriginWorld,
         out Vector3 playerOriginWS,
@@ -92,7 +93,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         out int levels,
         out int resolution,
         out Vector3[] origins,
-        out Vector3[] rings)
+        out Vector3[] rings,
+        Vec3d? renderOriginWorld = null)
     {
         if (!hasRuntimeParams)
         {
@@ -113,6 +115,18 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         resolution = runtimeResolution;
         origins = runtimeOrigins;
         rings = runtimeRings;
+        if (renderOriginWorld is not null)
+        {
+            // Stored origins are relative to the publisher's player position. Subtract in
+            // double precision before converting the small difference to shader coordinates.
+            var delta = new Vector3((float)(runtimePlayerOriginWorld.X - renderOriginWorld.X),
+                (float)(runtimePlayerOriginWorld.Y - renderOriginWorld.Y),
+                (float)(runtimePlayerOriginWorld.Z - renderOriginWorld.Z));
+            origins = new Vector3[runtimeOrigins.Length];
+            for (int i = 0; i < origins.Length; i++) origins[i] = runtimeOrigins[i] + delta;
+            playerOriginWorld = renderOriginWorld;
+            playerOriginWS = new Vector3((float)renderOriginWorld.X, (float)renderOriginWorld.Y, (float)renderOriginWorld.Z);
+        }
         return true;
     }
 
