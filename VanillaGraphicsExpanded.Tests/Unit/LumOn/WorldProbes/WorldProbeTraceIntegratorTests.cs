@@ -88,7 +88,7 @@ public sealed class WorldProbeTraceIntegratorTests
         float expectedMissAlpha = -(float)Math.Log(item.MaxTraceDistanceWorld + 1.0);
 
         Assert.True(res.ShortRangeAoConfidence > 0.99f);
-        Assert.NotNull(res.AtlasSamples);
+        Assert.False(res.AtlasSamples.IsDefault);
         Assert.True(res.AtlasSamples.Length > 0);
         for (int i = 0; i < res.AtlasSamples.Length; i++)
         {
@@ -125,7 +125,7 @@ public sealed class WorldProbeTraceIntegratorTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
-        Assert.NotNull(res.AtlasSamples);
+        Assert.False(res.AtlasSamples.IsDefault);
         Assert.True(res.AtlasSamples.Length > 0);
         for (int i = 0; i < res.AtlasSamples.Length; i++)
         {
@@ -161,7 +161,7 @@ public sealed class WorldProbeTraceIntegratorTests
         float expectedHitAlpha = (float)Math.Log(hitDistance + 1.0);
 
         Assert.True(res.ShortRangeAoConfidence < 0.01f);
-        Assert.NotNull(res.AtlasSamples);
+        Assert.False(res.AtlasSamples.IsDefault);
         Assert.True(res.AtlasSamples.Length > 0);
         for (int i = 0; i < res.AtlasSamples.Length; i++)
         {
@@ -279,7 +279,7 @@ public sealed class WorldProbeTraceIntegratorTests
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
         Assert.True(res.ShortRangeAoConfidence < 0.01f);
-        Assert.NotNull(res.AtlasSamples);
+        Assert.False(res.AtlasSamples.IsDefault);
         Assert.True(res.AtlasSamples.Length > 0);
         bool anyNonZero = false;
         for (int i = 0; i < res.AtlasSamples.Length; i++)
@@ -320,7 +320,7 @@ public sealed class WorldProbeTraceIntegratorTests
 
         var res = integrator.TraceProbe(scene, item, CancellationToken.None);
 
-        Assert.NotNull(res.AtlasSamples);
+        Assert.False(res.AtlasSamples.IsDefault);
         Assert.True(res.AtlasSamples.Length > 0);
         bool anyNonZero = false;
         for (int i = 0; i < res.AtlasSamples.Length; i++)

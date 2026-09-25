@@ -36,7 +36,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
         using var provider=new SelectiveSurfaceLightingProvider(runtime.Cache.LightingProvider);
         runtime.WorldRenderer.SetSurfaceLightingProvider(provider,runtime.Cache.Geometry);
-        var observed=new Dictionary<LumOnWorldProbeUpdateRequest,LumOnWorldProbeAtlasSample[]>();
+        var observed=new Dictionary<LumOnWorldProbeUpdateRequest,System.Collections.Immutable.ImmutableArray<LumOnWorldProbeAtlasSample>>();
         bool retriedSubset=false;
         runtime.RunUntil(()=>
         {

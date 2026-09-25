@@ -120,8 +120,29 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       anchor shifts, large moves, and existing cache/lifecycle/trace regressions. Shader validation
       built 65 programs across 244 combinations. Receipts: artifacts/TestResults/partial-worldprobe-final.trx
       and artifacts/TestResults/partial-worldprobe-subset-budget.trx. In-game validation remains open.
-  ☐ Fix the confirmed initial-readiness blocker and prevent whole-page retry starvation, preserving
+  ✔ Fix the confirmed initial-readiness blocker and prevent whole-page retry starvation, preserving
     valid progress without publishing uncaptured or uninitialized texels.
+    - The diagnosed initial capture blocker was repaired by the terrain slot UBO binding above;
+      all 14 terrain binding regressions pass again. No world-probe readiness or indirect-convergence
+      dependency is required for the first valid direct seed to publish.
+    - Seed buckets retain successful work and retry unresolved buckets. Partial seed pages alternate
+      seed retries with indirect updates under the same page/texel/ray limits. Successful indirect
+      texels publish even when other texels fail; failed ray batches preserve prior mean and weight.
+    - Capture must finish coherently before lighting admission. Page readiness now admits some valid
+      lighting; outgoing alpha independently rejects uninitialized texels. New identities reset direct,
+      indirect and pending output before seeding. Full-tile combination writes either valid lighting
+      or explicit unavailable zero, then bounded whole-tile carry-forward preserves both generations.
+      Hidden faces retain an explicit direct-alpha marker so combination cannot add their emission.
+      Reset, combine and copy each stay within a separate 65,536-texel ceiling; no atlas storage added.
+    - Validation: 65 of 66 distinct tests passed, none skipped. The sole SH9 numerical failure exactly
+      matches preserved pristine baseline (expected 1.2732395 +/- .08, actual 1.1865234).
+      Coverage includes densities 1/4, mixed seed and indirect results, real GPU hit queries,
+      incomplete capture, stale source history, hidden emission, scheduling, lifecycle and sky.
+      Latest shader build: 66 programs / 245 combinations. Independent review found the hidden-face
+      emission regression during development; it was corrected and covered, with no remaining gap.
+      Receipts: artifacts/TestResults/surface-partial-page-final.trx and
+      artifacts/TestResults/surface-partial-page-current.trx; prior baseline:
+      artifacts/surface-sky-baseline-receipts/baseline.trx. Live validation remains below.
   ☐ Validate through subagent-run focused tests: missing cache, unavailable geometry, distance limits,
     sky openings, mixed ready/unready hits, movement, streaming, edits, and resource recreation.
   ☐ Verify in-game: first cache publication, continuing probe traces/updates, sealed-room darkness,

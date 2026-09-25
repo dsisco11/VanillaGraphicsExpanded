@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using System.Numerics;
 
@@ -12,17 +13,17 @@ internal readonly record struct LumOnWorldProbeAtlasSample(
     Vector3 RadianceRgb,
     float AlphaEncodedDistSigned, SurfaceLightingQuery? SurfaceHit = null);
 
-/// <summary>CPU trace geometry and metadata tagged with the surface dependency used for admission.</summary>
+/// <summary>CPU trace metadata and immutable directional batches transferred from tracing workers to render-thread consumers.</summary>
 internal readonly record struct LumOnWorldProbeTraceResult(
     int FrameIndex,
     LumOnWorldProbeUpdateRequest Request,
     bool Success,
     WorldProbeTraceFailureReason FailureReason,
-    LumOnWorldProbeAtlasSample[] AtlasSamples,
+    ImmutableArray<LumOnWorldProbeAtlasSample> AtlasSamples,
     float SkyIntensity,
     Vector3 ShortRangeAoDirWorld,
     float ShortRangeAoConfidence,
     float Confidence,
     float MeanLogHitDistance,
     LumOnWorldProbeImportanceFlags ImportanceFlags, long SurfaceRevision = 0,
-    LumOnWorldProbeAtlasSample[]? RetrySamples = null, int SurfaceRetryCount = 0);
+    ImmutableArray<LumOnWorldProbeAtlasSample> RetrySamples = default, int SurfaceRetryCount = 0);

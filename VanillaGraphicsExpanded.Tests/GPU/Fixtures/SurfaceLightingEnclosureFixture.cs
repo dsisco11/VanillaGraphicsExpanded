@@ -129,6 +129,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Seeds direct and emitted lighting, resetting dependent indirect history.</summary>
     public void Seed()
     {
+        Run(3);
         Run(0);
         Publish();
         readiness.UploadSubData<uint>(Enumerable.Repeat(1u,captureItems.Length+1).ToArray(),0,(captureItems.Length+1)*4);

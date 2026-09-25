@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -16,7 +17,18 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private readonly TraceGeometryRenderer geometry;
     private readonly LumonSceneRelightBatchSchedule batches = new();
     private readonly Dictionary<uint, ulong> identities = new();
+    // Full seed completion is separate from publication of some initialized texels.
     private readonly HashSet<uint> seeded = new();
+    private readonly HashSet<uint> initialized = new();
+    private readonly HashSet<uint> publishedPages = new();
+    private readonly Dictionary<uint, uint> traceBuckets = new();
+    private readonly HashSet<uint> retrySeedNext = new();
+    // Render-thread staging remains private; upload APIs only borrow spans during synchronous copies.
+    private readonly List<LumonSceneRelightWorkGpu> seedWork = new();
+    private readonly List<LumonSceneRelightWorkGpu> traceWork = new();
+    private readonly List<LumonSceneRelightWorkGpu> resetWork = new();
+    private readonly List<LumonSceneRelightWorkGpu> publishable = new();
+    private readonly List<LumonSceneRelightWorkGpu> committedWork = new();
     private SurfaceLightingDispatch? dispatch;
     private GpuShaderStorageBuffer? readyBuffer;
     private uint[] readiness = Array.Empty<uint>();
@@ -61,7 +73,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         return true;
     }
 
-    /// <summary>Runs bounded seed or indirect batches and publishes only pages with complete successful sweeps.</summary>
+    /// <summary>Runs bounded batches and publishes initialized texels without waiting for unrelated lighting retries.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Done || !config.LumOn.Enabled || !config.LumOn.LumonScene.Enabled) return;
@@ -86,7 +98,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         {
             diagnosticResets++;
             dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
-            published = false; seeded.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); cursor = 0;
+            published = false; seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); cursor = 0;
             atlas = resources; scene = current; sceneRevision = current.InvalidationRevision;
             historyRevision = feedback.GeometryHistoryRevision; settingsHash = hash;
             readiness = new uint[pool.Plan.CapacityPages + 1];
@@ -104,24 +116,48 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             LumonSceneChunkSlotUniformState.Ring, tile, pool.Plan.TilesPerAxis, pool.Plan.TilesPerAtlas, resources.LightingGeneration, dependencyRevision);
 
         int count = Math.Min(maxPages, candidates.Length), batchCount = (tile * tile + texels - 1) / texels;
-        var complete = new List<LumonSceneRelightWorkGpu>(count);
+        publishable.Clear();
         lastWorkCount = 0;
-        var seedWork = new List<LumonSceneRelightWorkGpu>(count);
-        var traceWork = new List<LumonSceneRelightWorkGpu>(count);
+        seedWork.Clear();
+        traceWork.Clear();
+        resetWork.Clear();
         for (int i = 0; i < count; i++)
         {
             uint id = candidates[cursor++ % candidates.Length]; ulong key = identities[id];
             uint slot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key), page = LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
             var flags = LumonScenePageTableEntryPacking.UnpackFlags(mirror[checked((int)slot * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + (int)page)]);
             if ((flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0) continue;
-            var work = new LumonSceneRelightWorkGpu(id, slot, batches.Next(key, batchCount), page);
-            (seeded.Contains(id) ? traceWork : seedWork).Add(work);
+            uint bucket;
+            bool trace = seeded.Contains(id) || (publishedPages.Contains(id) && !retrySeedNext.Contains(id));
+            if (trace)
+            {
+                if (!seeded.Contains(id)) retrySeedNext.Add(id);
+                traceBuckets.TryGetValue(id, out bucket);
+                traceBuckets[id] = (bucket + 1) % (uint)batchCount;
+            }
+            else
+            {
+                retrySeedNext.Remove(id);
+                bucket = batches.Next(key, batchCount);
+            }
+            var work = new LumonSceneRelightWorkGpu(id, slot, bucket, page);
+            if (!initialized.Contains(id)) resetWork.Add(work);
+            (trace ? traceWork : seedWork).Add(work);
+        }
+        if (resetWork.Count > 0)
+        {
+            // New identities must never inherit direct validity or indirect weight from reused storage.
+            // Reset cost shares the same page admission and fixed 64K-texel ceiling as combine/copy.
+            gpu.RelightWork.ResetAndUpload(CollectionsMarshal.AsSpan(resetWork));
+            dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, resetWork.Count, 3u,
+                (uint)(tile * tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission);
+            foreach (var item in resetWork) initialized.Add(item.PhysicalPageId);
         }
         for (uint operation = 0; operation < 2; operation++)
         {
-            var work = (operation == 0 ? seedWork : traceWork).ToArray();
+            var work = CollectionsMarshal.AsSpan(operation == 0 ? seedWork : traceWork);
             if (work.Length == 0) continue;
-            gpu.RelightWork.ResetAndUpload(work.AsSpan());
+            gpu.RelightWork.ResetAndUpload(work);
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, operation,
                 (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission);
             // One completion read per operation, rather than a GPU synchronization for every page.
@@ -132,45 +168,51 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 if (!result.IsMapped) diagnosticReadbackFailures++;
                 if (operation == 0) { diagnosticSeedAttempts++; if (!success) diagnosticSeedFailures++; }
                 else { diagnosticIndirectAttempts++; if (!success) diagnosticIndirectFailures++; }
-                if (batches.Complete(identities[work[i].PhysicalPageId], batchCount, success)) complete.Add(work[i]);
+                // A successful texel is useful even when another texel in this batch remains unresolved.
+                bool progress = result.IsMapped && (result.Span[i].VirtualPageIndex & 0x40000000u) != 0;
+                bool seedComplete = operation == 0 && batches.Complete(identities[work[i].PhysicalPageId], batchCount, success);
+                if (seedComplete) seeded.Add(work[i].PhysicalPageId);
+                if (progress || seedComplete) publishable.Add(work[i]);
             }
             lastWorkCount += work.Length;
         }
         cursor %= candidates.Length;
-        if (complete.Count > 0)
+        if (publishable.Count > 0)
         {
-            var work = complete.ToArray();
-            gpu.RelightWork.ResetAndUpload(work.AsSpan());
+            var work = CollectionsMarshal.AsSpan(publishable);
+            gpu.RelightWork.ResetAndUpload(work);
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, 2u,
                 (uint)(tile*tile), 1, 0, (uint)frame, cfg.SurfaceLightingMaterialEmission);
-            complete.Clear();
+            // Keep the submitted list unchanged while its span is borrowed for completion handling.
+            committedWork.Clear();
             using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit))
             {
                 for (int i = 0; i < work.Length; i++)
                 {
-                    if (result.IsMapped && (result.Span[i].VirtualPageIndex & 0x80000000u) == 0)
-                        complete.Add(work[i]);
+                    if (result.IsMapped && (result.Span[i].VirtualPageIndex & 0x40000000u) != 0)
+                        committedWork.Add(work[i]);
                     else
                     {
                         diagnosticCombineFailures++;
                         if (!result.IsMapped) diagnosticReadbackFailures++;
-                        // A moving domain can make the final combine unavailable. Undo partial writes
+                        // Failed readback or an entirely unavailable output cannot be committed. Restore the tile
                         // so swapping another successful tile never exposes an incomplete generation.
                         CopyOutgoingTile(resources.PublishedOutgoing, resources.PendingOutgoing, work[i].PhysicalPageId, pool.Plan);
                     }
                 }
             }
-            if (complete.Count == 0) { ReportReadiness("combine-rejected"); frame++; return; }
+            if (committedWork.Count == 0) { ReportReadiness("combine-rejected"); frame++; return; }
             resources.Publish();
-            // The previous destination already mirrors unchanged tiles. Only changed complete tiles
+            // The previous destination already mirrors unchanged tiles. Only changed, fully initialized output tiles
             // need copying back after the swap; GL command ordering protects submitted readers.
-            foreach (var item in complete)
+            foreach (var item in committedWork)
             {
                 CopyOutgoingTile(resources.PublishedOutgoing, resources.PendingOutgoing, item.PhysicalPageId, pool.Plan);
-                seeded.Add(item.PhysicalPageId);
+                publishedPages.Add(item.PhysicalPageId);
                 readiness[item.PhysicalPageId] = 1;
                 readyBuffer.UploadSubData<uint>(readiness.AsSpan((int)item.PhysicalPageId, 1), checked((int)((long)item.PhysicalPageId << 2)), 4);
-                feedback.TryClearNearPageFlagsMip0(item.ChunkSlot, (int)item.VirtualPageIndex, LumonScenePageTableEntryPacking.Flags.NeedsRelight);
+                if (seeded.Contains(item.PhysicalPageId))
+                    feedback.TryClearNearPageFlagsMip0(item.ChunkSlot, (int)item.VirtualPageIndex, LumonScenePageTableEntryPacking.Flags.NeedsRelight);
             }
             GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
             snapshot = snapshot with { OutgoingRadiance = resources.PublishedOutgoing, Generation = resources.LightingGeneration };
@@ -210,8 +252,9 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private void OnLeaveWorld()
     {
         published = false; snapshot = default; atlas = null; scene = null;
-        identities.Clear(); pageGenerations.Clear(); seeded.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
+        identities.Clear(); pageGenerations.Clear(); seeded.Clear(); initialized.Clear(); publishedPages.Clear(); traceBuckets.Clear(); retrySeedNext.Clear(); batches.Clear(); readiness = Array.Empty<uint>();
         readyBuffer?.Dispose(); readyBuffer = null; dispatch?.Dispose(); dispatch = null;
+        seedWork.Clear(); traceWork.Clear(); resetWork.Clear(); publishable.Clear(); committedWork.Clear();
         cursor = frame = lastWorkCount = 0; sceneRevision = historyRevision = -1;
         ResetReadinessDiagnostics();
     }

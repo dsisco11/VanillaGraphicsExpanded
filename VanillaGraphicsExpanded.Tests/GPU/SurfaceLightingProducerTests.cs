@@ -12,6 +12,19 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public SurfaceLightingProducerTests(HeadlessGLFixture fixture):base(fixture) { }
 
     #region Lighting terms
+    /// <summary>Material emission remains suppressed on faces buried inside adjacent solid geometry.</summary>
+    [Fact]
+    public void HiddenEmissiveFacesPublishValidZero()
+    {
+        EnsureContextValid();
+        using var room=new SurfaceLightingEnclosureFixture(0,0,12);
+        room.EmissionPolicy=true;room.Seed();
+        Assert.Equal(new float[]{0,0,0,1},room.Read(room.Snapshot.OutgoingRadiance,linear:0));
+        AssertClose(12,room.Read(room.Snapshot.OutgoingRadiance,linear:27)[0]);
+        room.Bounce();
+        Assert.Equal(new float[]{0,0,0,1},room.Read(room.Snapshot.OutgoingRadiance,linear:0));
+    }
+
     /// <summary>Direct irradiance excludes receiver reflectance; outgoing radiance applies it once.</summary>
     [Theory]
     [InlineData(0f)]

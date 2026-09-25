@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Numerics;
 using VanillaGraphicsExpanded.LumOn.Scene;
 
@@ -13,9 +13,9 @@ internal static class WorldProbeSurfaceLighting
     public static LumOnWorldProbeTraceResult Resolve(in LumOnWorldProbeTraceResult source,
         ReadOnlySpan<SurfaceLightingQuery> answers, ref int index)
     {
-        var readySamples = new List<LumOnWorldProbeAtlasSample>(source.AtlasSamples.Length);
-        var retrySamples = new List<LumOnWorldProbeAtlasSample>();
-        foreach (var sample in source.AtlasSamples)
+        var readySamples = ImmutableArray.CreateBuilder<LumOnWorldProbeAtlasSample>(source.AtlasSamples.IsDefault ? 0 : source.AtlasSamples.Length);
+        var retrySamples = ImmutableArray.CreateBuilder<LumOnWorldProbeAtlasSample>();
+        foreach (var sample in source.AtlasSamples.AsSpan())
         {
             if (!sample.SurfaceHit.HasValue) { readySamples.Add(sample); continue; }
             if (index>=answers.Length) { retrySamples.Add(sample); continue; }
@@ -26,7 +26,7 @@ internal static class WorldProbeSurfaceLighting
             else retrySamples.Add(sample);
         }
         return source with { Success=source.Success && readySamples.Count>0,
-            AtlasSamples=readySamples.ToArray(), RetrySamples=retrySamples.ToArray() };
+            AtlasSamples=readySamples.ToImmutable(), RetrySamples=retrySamples.ToImmutable() };
     }
     #endregion
 }

@@ -14,6 +14,7 @@ using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
+/// <summary>Owns reusable render-thread staging buffers for immediate probe atlas uploads.</summary>
 internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 {
     private static readonly GlPipelineDesc ResolvePso = new(
@@ -31,6 +32,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
     private readonly GpuVao tileVao;
     private readonly GpuVbo tileVbo;
 
+    private readonly List<ProbeResolveVertex> probeVertices = new();
+    private readonly List<TileResolveVertex> tileVertices = new();
     private bool isDisposed;
 
     public LumOnWorldProbeClipmapGpuUploader(ICoreClientAPI capi)
@@ -92,13 +95,14 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         }
     }
 
+    /// <summary>Uploads borrowed results synchronously; neither input spans nor staging views escape this call.</summary>
     public int Upload(
         LumOnWorldProbeClipmapGpuResources resources,
-        IReadOnlyList<LumOnWorldProbeTraceResult> results,
+        ReadOnlySpan<LumOnWorldProbeTraceResult> results,
         int uploadBudgetBytesPerFrame)
     {
         if (resources is null) throw new ArgumentNullException(nameof(resources));
-        if (results is null) throw new ArgumentNullException(nameof(results));
+
 
         var probeProg = capi.Shader.GetProgramByName("lumon_worldprobe_clipmap_resolve") as LumOnWorldProbeClipmapResolveShaderProgram;
         if (probeProg is null || probeProg.LoadError || probeProg.Disposed)
@@ -113,20 +117,20 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 
         // Publish a probe's metadata only when every admitted directional sample can be uploaded.
         if (tileProg is null || tileProg.LoadError || tileProg.Disposed) return 0;
-        int maxProbes = results.Count;
+        int maxProbes = results.Length;
         int maxTileVertices = int.MaxValue;
         int remainingBytes = uploadBudgetBytesPerFrame > 0 ? uploadBudgetBytesPerFrame : int.MaxValue;
         int usedProbes = 0;
-        var probeVertices = new List<ProbeResolveVertex>(capacity: maxProbes);
-        var tileVertices = new List<TileResolveVertex>(capacity: Math.Min(4096, maxTileVertices));
+        probeVertices.Clear();
+        tileVertices.Clear();
 
-        for (int i = 0; i < results.Count && usedProbes < maxProbes; i++)
+        for (int i = 0; i < results.Length && usedProbes < maxProbes; i++)
         {
             var r = results[i];
             int level = r.Request.Level;
             if ((uint)level >= (uint)resources.Levels) continue;
 
-            int bytes = bytesPerProbeVertex + bytesPerTileVertex * (r.AtlasSamples?.Length ?? 0);
+            int bytes = bytesPerProbeVertex + bytesPerTileVertex * r.AtlasSamples.AsSpan().Length;
             if (bytes > remainingBytes) break;
             remainingBytes -= bytes;
             Vec3i storage = r.Request.StorageIndex;
@@ -148,7 +152,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 continue;
             }
 
-            if (r.AtlasSamples is null || r.AtlasSamples.Length == 0)
+            if (r.AtlasSamples.IsDefaultOrEmpty)
             {
                 continue;
             }
@@ -196,7 +200,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 rfbo.Bind();
                 GL.Viewport(0, 0, resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
 
-                TileResolveVertex[] tileData = tileVertices.ToArray();
+                ReadOnlySpan<TileResolveVertex> tileData = CollectionsMarshal.AsSpan(tileVertices);
                 tileVbo.UploadData(tileData);
 
                 GL.DrawArrays(PrimitiveType.Points, 0, tileData.Length);
@@ -217,7 +221,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
                 fbo.Bind();
                 GL.Viewport(0, 0, resources.AtlasWidth, resources.AtlasHeight);
 
-                ProbeResolveVertex[] probeData = probeVertices.ToArray();
+                ReadOnlySpan<ProbeResolveVertex> probeData = CollectionsMarshal.AsSpan(probeVertices);
                 probeVbo.UploadData(probeData);
 
                 GL.DrawArrays(PrimitiveType.Points, 0, probeData.Length);

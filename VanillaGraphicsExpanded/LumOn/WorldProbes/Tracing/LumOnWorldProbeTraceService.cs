@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System;
 using System.Threading;
 using System.Threading.Channels;
@@ -134,7 +135,7 @@ internal sealed class LumOnWorldProbeTraceService : IDisposable
                             Request: item.Request,
                             Success: false,
                             FailureReason: WorldProbeTraceFailureReason.Exception,
-                            AtlasSamples: Array.Empty<LumOnWorldProbeAtlasSample>(),
+                            AtlasSamples: ImmutableArray<LumOnWorldProbeAtlasSample>.Empty,
                             SkyIntensity: 0f,
                             ShortRangeAoDirWorld: default,
                             ShortRangeAoConfidence: 0f,

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using System;
 using System.Numerics;
@@ -50,7 +51,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         int k = Math.Clamp(item.WorldProbeAtlasTexelsPerUpdate, 1, dirCount);
 
         var directions = LumOnWorldProbeAtlasDirections.GetDirections(s);
-        var samples = new LumOnWorldProbeAtlasSample[k];
+        var samples = ImmutableArray.CreateBuilder<LumOnWorldProbeAtlasSample>(k);
 
         Span<int> texelIndicesScratch = k <= 256 ? stackalloc int[256] : new int[k];
         texelIndicesScratch = texelIndicesScratch.Slice(0, k);
@@ -178,11 +179,12 @@ internal sealed class LumOnWorldProbeTraceIntegrator
                 alphaSigned = skyAlpha;
             }
 
-            samples[usedSamples++] = new LumOnWorldProbeAtlasSample(
+            usedSamples++;
+            samples.Add(new LumOnWorldProbeAtlasSample(
                 OctX: octX,
                 OctY: octY,
                 RadianceRgb: radianceRgb,
-                AlphaEncodedDistSigned: alphaSigned, SurfaceHit: surfaceHit);
+                AlphaEncodedDistSigned: alphaSigned, SurfaceHit: surfaceHit));
 
             if (!hit)
             {
@@ -236,17 +238,14 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             meanLogDist = (float)Math.Log(mean + 1.0);
         }
 
-        if (usedSamples != samples.Length)
-        {
-            Array.Resize(ref samples, usedSamples);
-        }
+        // Freeze the private builder before the result crosses the worker boundary.
 
         return new LumOnWorldProbeTraceResult(
             FrameIndex: item.FrameIndex,
             Request: item.Request,
             Success: true,
             FailureReason: WorldProbeTraceFailureReason.None,
-            AtlasSamples: samples,
+            AtlasSamples: samples.Count == samples.Capacity ? samples.MoveToImmutable() : samples.ToImmutable(),
             SkyIntensity: skyIntensity,
             ShortRangeAoDirWorld: aoDir,
             ShortRangeAoConfidence: aoConfidence,
@@ -291,7 +290,7 @@ internal sealed class LumOnWorldProbeTraceIntegrator
             WorldProbeTraceOutcome.BudgetExhausted => WorldProbeTraceFailureReason.BudgetExhausted,
             _ => WorldProbeTraceFailureReason.Invalid,
         },
-        AtlasSamples: Array.Empty<LumOnWorldProbeAtlasSample>(),
+        AtlasSamples: ImmutableArray<LumOnWorldProbeAtlasSample>.Empty,
         SkyIntensity: 0f,
         ShortRangeAoDirWorld: Vector3.UnitY,
         ShortRangeAoConfidence: 0f,

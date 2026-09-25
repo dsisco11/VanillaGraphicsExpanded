@@ -2,37 +2,51 @@ using System.Collections.Generic;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
-/// <summary>Preserves fair texel-bucket progress while requiring a complete successful sweep before page completion.</summary>
+/// <summary>Retains completed seed buckets while fairly retrying only unresolved buckets of the same page identity.</summary>
 internal sealed class LumonSceneRelightBatchSchedule
 {
     private readonly Dictionary<ulong, State> pages = new();
-    /// <summary>Tracks the next bucket and remaining consecutive successful buckets.</summary>
-    private readonly record struct State(int Next, int Remaining);
+
+    /// <summary>Tracks initialized buckets independently so a failure cannot erase unrelated progress.</summary>
+    private sealed class State(int count)
+    {
+        public readonly bool[] Complete = new bool[count];
+        public int Next;
+        public int Selected;
+        public int Remaining = count;
+    }
 
     #region Scheduling
-    /// <summary>Advances the cursor independently of success so an unavailable bucket cannot starve later texels.</summary>
+    /// <summary>Selects the next unresolved bucket without restarting successful work after a failure.</summary>
     public uint Next(ulong page, int count)
     {
         if (count <= 1) return 0;
-        if (!pages.TryGetValue(page, out var state)) state = new(0, count);
-        pages[page] = new((state.Next + 1) % count, state.Remaining);
-        return (uint)state.Next;
+        if (!pages.TryGetValue(page, out var state) || state.Complete.Length != count)
+            pages[page] = state = new(count);
+        while (state.Complete[state.Next]) state.Next = (state.Next + 1) % count;
+        state.Selected = state.Next;
+        state.Next = (state.Next + 1) % count;
+        return (uint)state.Selected;
     }
 
-    /// <summary>Requires a fresh full sweep after failure while retaining the already-advanced round-robin cursor.</summary>
+    /// <summary>Finishes a page only after every bucket succeeds at least once within its current identity.</summary>
     public bool Complete(ulong page, int count, bool succeeded)
     {
         if (count <= 1) return succeeded;
-        if (!pages.TryGetValue(page, out var state)) state = new(0, count);
-        int remaining = succeeded ? state.Remaining - 1 : count;
-        if (remaining <= 0) { pages.Remove(page); return true; }
-        pages[page] = new(state.Next, remaining);
-        return false;
+        if (!pages.TryGetValue(page, out var state)) return false;
+        if (succeeded && !state.Complete[state.Selected])
+        {
+            state.Complete[state.Selected] = true;
+            state.Remaining--;
+        }
+        if (state.Remaining != 0) return false;
+        pages.Remove(page);
+        return true;
     }
 
     /// <summary>Discards schedules after a configuration, history or world-generation change.</summary>
     public void Clear() => pages.Clear();
-    /// <summary>Discards only the partial sweep belonging to an invalidated or reassigned page.</summary>
+    /// <summary>Discards only the initialization progress of an invalidated or reassigned page.</summary>
     public void Remove(ulong page) => pages.Remove(page);
     #endregion
 }

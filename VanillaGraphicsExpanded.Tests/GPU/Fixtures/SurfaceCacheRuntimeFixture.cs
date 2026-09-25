@@ -42,6 +42,8 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     public int BlockLight { get; private set; } = 32;
     public int BlockId => material.Cube.Id;
     public bool GeometryAvailable { get; set; } = true;
+    /// <summary>Authors localized source outcomes without bypassing production geometry capture and publication.</summary>
+    public System.Func<int,int,int,TraceGeometryVoxel,TraceGeometryVoxel>? TransformVoxel { get; set; }
     /// <summary>Moves the non-spatial fixture camera without changing its authored geometry or feedback pages.</summary>
     public double CameraX { get; set; }
     /// <summary>Limits authored visible pages so tests can introduce residency gradually without changing geometry.</summary>
@@ -62,7 +64,25 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         using var ready = snapshot.Readiness.MapRange<uint>(0, checked((int)pages.Max(page => page.Physical)+1), MapBufferAccessMask.MapReadBit);
         if (!ready.IsMapped) return false;
         foreach (var page in pages) if (ready.Span[(int)page.Physical] == 0) return false;
-        return true;
+        // Page admission now permits partial lighting; numerical fixtures wait for every outgoing texel.
+        using var framebuffer=GpuFramebuffer.CreateEmpty("Tests.SurfaceCache.InitializedTiles");
+        framebuffer.Bind();
+        try
+        {
+            var pixels=new float[(snapshot.TileSize*snapshot.TileSize)<<2];
+            foreach(var page in pages)
+            {
+                int physical=checked((int)page.Physical)-1,local=physical%snapshot.TilesPerAtlas;
+                GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,
+                    snapshot.OutgoingRadiance.TextureId,0,physical/snapshot.TilesPerAtlas);
+                GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+                GL.ReadPixels((local%snapshot.TilesPerAxis)*snapshot.TileSize,(local/snapshot.TilesPerAxis)*snapshot.TileSize,
+                    snapshot.TileSize,snapshot.TileSize,PixelFormat.Rgba,PixelType.Float,pixels);
+                for(int channel=3;channel<pixels.Length;channel+=4) if(pixels[channel]!=1) return false;
+            }
+            return true;
+        }
+        finally { GpuFramebuffer.Unbind(); }
     }
 
     /// <summary>Observes completion of all requested terrain captures without accepting allocation as successful capture.</summary>
@@ -165,9 +185,13 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
     {
         uint id = materials.Resolve(material.Cube);
         MaterialId = id;
-        var source = new RuntimeTraceGeometrySource((x, y, z) => new(
+        var source = new RuntimeTraceGeometrySource((x, y, z) =>
+        {
+            var voxel = new TraceGeometryVoxel(
             (spatial?.Solid(x,y,z) ?? (enclosure ? x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7 : !exposedWall || x<=0)) ? 2u | id << 2 : 1u,
-            LumonSceneOccupancyPacking.PackClamped(spatial?.Light(x,y,z) ?? BlockLight, 0, 0, (int)id), 0),
+            LumonSceneOccupancyPacking.PackClamped(spatial?.Light(x,y,z) ?? BlockLight, 0, 0, (int)id), 0);
+            return TransformVoxel?.Invoke(x,y,z,voxel) ?? voxel;
+        },
             () => GeometryAvailable, key => spatial?.Loaded(key) ?? true);
         Sources.Add(source);
         return source;

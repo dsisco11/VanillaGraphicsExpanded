@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,6 +17,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     private ITraceGeometrySceneProvider? geometryProvider;
     private SurfaceLightingQueryBatch? surfaceQueries;
     private readonly List<LumOnWorldProbeTraceResult> pendingSurfaceResults = new();
+    private readonly List<LumOnWorldProbeTraceResult> surfaceRetries = new();
+    private readonly List<SurfaceLightingQuery> surfaceQueryWork = new();
     private long surfaceRevision = -1;
     private LumOnWorldProbeClipmapGpuResources? lightingProbeResources;
 
@@ -41,7 +44,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     private void ReleaseSurfaceLighting()
     {
         surfaceQueries?.Dispose(); surfaceQueries=null;
-        pendingSurfaceResults.Clear(); surfaceRevision=-1; lightingProbeResources=null;
+        pendingSurfaceResults.Clear(); surfaceRetries.Clear(); surfaceQueryWork.Clear(); surfaceRevision=-1; lightingProbeResources=null;
     }
     #endregion
 
@@ -58,10 +61,11 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         if (source.SurfaceRevision != surfaceRevision || !scheduler.IsCurrent(source.Request))
         { scheduler.Complete(source.Request, frameIndex, false); return; }
         bool uploaded = false;
-        if (resolved.Success && resolved.AtlasSamples.Length > 0)
+        if (resolved.Success && !resolved.AtlasSamples.IsDefaultOrEmpty)
         {
             int bytes = 40 + 24 * resolved.AtlasSamples.Length;
-            uploaded = (!limited || bytes <= budget) && uploader.Upload(resources, new[] { resolved }, bytes) > 0;
+            var uploadResult = resolved;
+            uploaded = (!limited || bytes <= budget) && uploader.Upload(resources, MemoryMarshal.CreateReadOnlySpan(ref uploadResult, 1), bytes) > 0;
             if (!uploaded)
             {
                 // Retry the original admission through normal scheduling if its ready subset
@@ -73,15 +77,15 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
             scheduler.MergeImportanceFlags(source.Request.Level, source.Request.StorageLinearIndex, source.ImportanceFlags);
         }
         var unresolved = resolved.RetrySamples;
-        if (unresolved is { Length: > 0 } && retries != null && source.SurfaceRetryCount < MaximumSurfaceRetries)
+        if (!unresolved.IsDefaultOrEmpty && retries != null && source.SurfaceRetryCount < MaximumSurfaceRetries)
         {
             // The same ticket stays in flight, so dirtying, relocation and cache revisions
             // reject delayed answers. Already uploaded directions are never queried again here.
-            retries.Add(source with { AtlasSamples = unresolved, RetrySamples = null,
+            retries.Add(source with { AtlasSamples = unresolved, RetrySamples = default,
                 SurfaceRetryCount = source.SurfaceRetryCount + 1 });
             return;
         }
-        scheduler.Complete(source.Request, frameIndex, uploaded && (unresolved == null || unresolved.Length == 0));
+        scheduler.Complete(source.Request, frameIndex, uploaded && unresolved.IsDefaultOrEmpty);
     }
 
     /// <summary>Polls one bounded query batch and shares the existing upload budget across partial and complete results.</summary>
@@ -90,7 +94,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         if (scheduler == null || traceService == null) return;
         int budget = config.WorldProbeClipmap.UploadBudgetBytesPerFrame;
         bool limited = budget > 0;
-        var retries = new List<LumOnWorldProbeTraceResult>();
+        surfaceRetries.Clear();
+        var retries = surfaceRetries;
         if (surfaceQueries?.Pending == true)
         {
             if (!surfaceQueries.TryRead(out var completed)) return;
@@ -107,7 +112,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         bool canResolveHits = surfaceProvider != null && surfaceProvider.TryGetSurfaceLighting(out snapshot) &&
             snapshot.DependencyRevision == surfaceRevision && scene != null;
 
-        var queries = new List<SurfaceLightingQuery>();
+        surfaceQueryWork.Clear();
+        var queries = surfaceQueryWork;
         int admittedBytes = 0;
         foreach (var retry in retries)
         {
@@ -121,8 +127,8 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         int maxProbes = Math.Max(1, config.WorldProbeClipmap.TraceMaxProbesPerFrame);
         for (int i = 0; i < maxProbes && traceService.TryDequeueResult(out var result); i++)
         {
-            int needed = result.AtlasSamples.Count(sample => sample.SurfaceHit.HasValue);
-            int bytes = 40 + 24 * result.AtlasSamples.Length;
+            int needed = result.AtlasSamples.IsDefaultOrEmpty ? 0 : result.AtlasSamples.Count(sample => sample.SurfaceHit.HasValue);
+            int bytes = 40 + 24 * result.AtlasSamples.AsSpan().Length;
             if (!result.Success || result.SurfaceRevision != surfaceRevision || !scheduler.IsCurrent(result.Request) ||
                 queries.Count + needed > SurfaceLightingQueryBatch.MaximumQueries ||
                 (limited && admittedBytes + bytes > budget))
@@ -143,7 +149,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         }
         if (queries.Count == 0) return;
         surfaceQueries ??= new(capi);
-        surfaceQueries.Submit(scene!, snapshot, queries.ToArray());
+        surfaceQueries.Submit(scene!, snapshot, CollectionsMarshal.AsSpan(queries));
     }
     #endregion
 }

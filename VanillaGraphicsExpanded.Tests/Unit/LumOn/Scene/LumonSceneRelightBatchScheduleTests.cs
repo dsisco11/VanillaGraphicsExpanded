@@ -22,23 +22,25 @@ public sealed class LumonSceneRelightBatchScheduleTests
         Assert.True(schedule.Complete(2, 2, true));
     }
 
-    /// <summary>Mixed failed and valid buckets progress round-robin but never falsely finish a page.</summary>
+    /// <summary>Failed buckets retry without discarding or repeating already completed seed buckets.</summary>
     [Fact]
     public void FailedBucketDoesNotStarveValidBuckets()
     {
         var schedule = new LumonSceneRelightBatchSchedule();
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 3; i++)
         {
             uint bucket = schedule.Next(1, 3);
             Assert.Equal((uint)(i % 3), bucket);
             Assert.False(schedule.Complete(1, 3, bucket != 0));
         }
-        // Geometry becomes ready: one full successful sweep now finishes the page.
-        for (int i = 0; i < 3; i++)
+        // Only the unresolved bucket remains scheduled; its eventual success completes the page.
+        for (int i = 0; i < 7; i++)
         {
-            Assert.Equal((uint)((i + 1) % 3), schedule.Next(1, 3));
-            Assert.Equal(i == 2, schedule.Complete(1, 3, true));
+            Assert.Equal(0u,schedule.Next(1,3));
+            Assert.False(schedule.Complete(1,3,false));
         }
+        Assert.Equal(0u,schedule.Next(1,3));
+        Assert.True(schedule.Complete(1,3,true));
     }
 
     /// <summary>Geometry history invalidation requires all buckets again, independently for each page.</summary>

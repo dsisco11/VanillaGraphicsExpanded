@@ -13,7 +13,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     #region Readiness diagnostics
     /// <summary>Formats lifetime counters separately from the current producer state.</summary>
     private string ReadinessDiagnosticLine() =>
-        $"LSR: {diagnosticState} pages:{lastWorkCount} ready:{seeded.Count} generation:{snapshot.Generation} " +
+        $"LSR: {diagnosticState} pages:{lastWorkCount} ready:{publishedPages.Count} generation:{snapshot.Generation} " +
         $"seedFail:{diagnosticSeedFailures}/{diagnosticSeedAttempts} indirectFail:{diagnosticIndirectFailures}/{diagnosticIndirectAttempts} " +
         $"combineFail:{diagnosticCombineFailures} readFail:{diagnosticReadbackFailures} resets:{diagnosticResets}";
 

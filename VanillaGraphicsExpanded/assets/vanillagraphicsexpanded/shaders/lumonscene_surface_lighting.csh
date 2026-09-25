@@ -17,7 +17,7 @@ layout(binding=2, rgba16f) writeonly uniform image2DArray nextOutgoing;
 bool finiteLight(vec3 value) { return !any(isnan(value)) && !any(isinf(value)); }
 /** Maps an axial normal into the engine face order. */
 uint faceOf(ivec3 n) { return n.x > 0 ? 1u : n.x < 0 ? 3u : n.y > 0 ? 4u : n.y < 0 ? 5u : n.z > 0 ? 2u : 0u; }
-/** Seeds direct light, estimates a previous-generation bounce, or combines a complete page. */
+/** Seeds direct light, estimates a bounce, combines valid texels, or resets a newly admitted page. */
 void main()
 {
     uint wi = gl_WorkGroupID.z;
@@ -27,8 +27,15 @@ void main()
     if (any(greaterThanEqual(xy, uvec2(edge)))) return;
     uint linear = xy.y * edge + xy.x;
     uint batchCount = (edge * edge + max(1u, lighting.sampling.x) - 1u) / max(1u, lighting.sampling.x);
-    if (operation != 2u && linear % batchCount != item.z % batchCount) return;
+    if (operation < 2u && linear % batchCount != item.z % batchCount) return;
     ivec3 address = surfaceAddress(id, ivec2(xy));
+    if (operation == 3u)
+    {
+        imageStore(directIrradiance, address, vec4(0));
+        imageStore(indirectIrradiance, address, vec4(0));
+        imageStore(nextOutgoing, address, vec4(0));
+        return;
+    }
     SurfacePatch meta = patches[id];
     vec3 n = normalize(meta.normal.xyz);
     ivec3 anchor = ivec3(floatBitsToInt(meta.origin.w), floatBitsToInt(meta.axisU.w), floatBitsToInt(meta.axisV.w));
@@ -39,26 +46,49 @@ void main()
     uvec4 material = texelFetch(surfaces, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
     vec3 albedo = clamp(vec3(material.xyz) / 255.0, 0.0, 1.0);
     vec3 emission = lighting.policy.x != 0u ? vec3(unpackHalf2x16(material.w).y) : vec3(0);
-    // Hidden voxel faces have no exposed hemisphere. They are valid zero texels, not
-    // failed ray batches; otherwise corners could keep an entire physical page pending.
+    if (operation == 2u)
+    {
+        // The page was fully captured. Per-texel direct validity distinguishes seeded
+        // material from untouched storage; unresolved indirect samples retain their old mean.
+        vec4 direct = imageLoad(directIrradiance, address);
+        vec4 indirect = imageLoad(indirectIrradiance, address);
+        bool zeroSurface = surfaceId == 0u || direct.a == 2.0;
+        if ((direct.a != 1.0 && direct.a != 2.0) || !finiteLight(direct.rgb) || !finiteLight(indirect.rgb) ||
+            isnan(indirect.a) || isinf(indirect.a) || (!zeroSurface && !finiteLight(emission)))
+        {
+            imageStore(nextOutgoing, address, vec4(0));
+            return;
+        }
+        vec3 outgoing = zeroSurface ? vec3(0) : (direct.rgb + indirect.rgb) * albedo / 3.14159265359 + emission;
+        if (!finiteLight(outgoing)) { imageStore(nextOutgoing, address, vec4(0)); return; }
+        imageStore(nextOutgoing, address, vec4(clamp(outgoing, vec3(0), vec3(65504)), 1));
+        atomicOr(work[wi].w, 0x40000000u);
+        return;
+    }
+    vec4 directState = imageLoad(directIrradiance, address);
+    if (operation == 0u && (directState.a == 1.0 || directState.a == 2.0)) return;
+    if (operation == 1u && directState.a != 1.0 && directState.a != 2.0)
+    { atomicOr(work[wi].w, 0x80000000u); return; }
+    // A captured empty source is initialized zero, not an uncaptured or unknown texel.
+    // It needs no exterior light query. Unsupported and unpublished captures remain gated on the CPU.
+    if (surfaceId == 0u || directState.a == 2.0)
+    {
+        if (operation == 0u) imageStore(directIrradiance, address, vec4(0,0,0,1));
+        imageStore(indirectIrradiance, address, vec4(0,0,0,operation == 1u ? 1 : 0));
+        atomicOr(work[wi].w, 0x40000000u);
+        return;
+    }
     vec3 origin = position + n * 0.01;
     ivec3 cell = anchor + ivec3(floor(origin));
     uint outsideGeometry;
     if (lumonTraceSceneReadGeometry(cell, TRACE_SCENE_SURFACE, outsideGeometry) != TRACE_SCENE_READY)
     { atomicOr(work[wi].w, 0x80000000u); return; }
+    // Preserve hidden-face identity in direct alpha so combining cannot add their material emission.
     if ((outsideGeometry & 3u) == 2u)
     {
-        if (operation == 0u) imageStore(directIrradiance, address, vec4(0,0,0,1));
-        if (operation != 2u) imageStore(indirectIrradiance, address, vec4(0,0,0,operation == 1u ? 1 : 0));
-        else imageStore(nextOutgoing, address, vec4(0,0,0,1));
-        return;
-    }
-    if (operation == 2u)
-    {
-        vec4 direct = imageLoad(directIrradiance, address);
-        vec3 indirect = imageLoad(indirectIrradiance, address).rgb;
-        vec3 outgoing = (direct.rgb + indirect) * albedo / 3.14159265359 + emission;
-        imageStore(nextOutgoing, address, vec4(clamp(outgoing, vec3(0), vec3(65504)), direct.a));
+        if (operation == 0u) imageStore(directIrradiance, address, vec4(0,0,0,2));
+        imageStore(indirectIrradiance, address, vec4(0,0,0,operation == 1u ? 1 : 0));
+        atomicOr(work[wi].w, 0x40000000u);
         return;
     }
     if (operation == 0u)
@@ -73,6 +103,7 @@ void main()
         if (!finiteLight(direct)) { atomicOr(work[wi].w, 0x80000000u); return; }
         imageStore(directIrradiance, address, vec4(clamp(direct, vec3(0), vec3(65504)),1));
         imageStore(indirectIrradiance, address, vec4(0));
+        atomicOr(work[wi].w, 0x40000000u);
         return;
     }
     vec3 tangent = normalize(cross(abs(n.z)<0.999 ? vec3(0,0,1) : vec3(0,1,0),n));
@@ -102,4 +133,5 @@ void main()
     if (!finiteLight(previous.rgb) || isnan(previous.a) || isinf(previous.a)) previous = vec4(0);
     float weight = min(max(0.0,previous.a)+1.0,1024.0);
     imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,sum/float(rays),1.0/weight),vec3(0),vec3(65504)),weight));
+    atomicOr(work[wi].w, 0x40000000u);
 }

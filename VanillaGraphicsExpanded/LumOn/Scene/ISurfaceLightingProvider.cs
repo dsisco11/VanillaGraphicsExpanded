@@ -10,7 +10,7 @@ internal interface ISurfaceLightingProvider
     bool TryGetSurfaceLighting(out SurfaceLightingSnapshot snapshot);
 }
 
-/// <summary>Borrowed resources for immediate render-thread use. Outgoing radiance and readiness form the coherent publication; direct and indirect atlases are progressive diagnostic layers. The owner retains disposal rights.</summary>
+/// <summary>Borrowed resources for immediate render-thread use. Page readiness admits captured pages with some initialized lighting; outgoing alpha validates each texel. Together they form the coherent publication; direct and indirect atlases are progressive diagnostic layers. The owner retains disposal rights.</summary>
 internal readonly record struct SurfaceLightingSnapshot(
     Texture3D OutgoingRadiance, Texture3D DirectIrradiance, Texture3D IndirectIrradiance,
     Texture3D PageTable, Texture3D Material, GpuShaderStorageBuffer Patches,

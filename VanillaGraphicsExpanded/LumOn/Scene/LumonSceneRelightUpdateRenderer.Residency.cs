@@ -20,7 +20,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             if (mapping.TryGetValue(pair.Key, out ulong key) && key == pair.Value &&
                 slot < generations.Length && pageGenerations[pair.Key] == generations[(int)slot]) continue;
             batches.Remove(pair.Value);
-            seeded.Remove(pair.Key);
+            seeded.Remove(pair.Key); initialized.Remove(pair.Key); publishedPages.Remove(pair.Key);
+            traceBuckets.Remove(pair.Key); retrySeedNext.Remove(pair.Key);
             readiness[pair.Key] = 0;
             readyBuffer!.UploadSubData<uint>(readiness.AsSpan((int)pair.Key, 1), checked((int)((long)pair.Key << 2)), 4);
             identities.Remove(pair.Key);
@@ -41,7 +42,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             {
                 // Recapture replaces this page's inputs; no other page loses its completed sweep.
                 batches.Remove(pair.Value);
-                if (seeded.Remove(pair.Key))
+                seeded.Remove(pair.Key); initialized.Remove(pair.Key); traceBuckets.Remove(pair.Key); retrySeedNext.Remove(pair.Key);
+                if (publishedPages.Remove(pair.Key))
                 {
                     readiness[pair.Key] = 0;
                     readyBuffer!.UploadSubData<uint>(readiness.AsSpan((int)pair.Key, 1), checked((int)((long)pair.Key << 2)), 4);
@@ -57,7 +59,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             candidates = eligible.ToArray();
             cursor = candidates.Length == 0 ? 0 : cursor % candidates.Length;
         }
-        published = seeded.Count != 0;
+        published = publishedPages.Count != 0;
     }
     #endregion
 }
