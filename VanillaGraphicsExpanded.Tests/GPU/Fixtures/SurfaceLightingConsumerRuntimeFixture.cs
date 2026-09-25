@@ -67,7 +67,7 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
         var cfg=Cache.Config.LumOn;
         cfg.ProbeSpacingPx=1; cfg.ProbeAtlasTexelsPerFrame=8; cfg.RayMaxDistance=16;
         cfg.AnchorJitterEnabled=false; cfg.EnableProbePIS=false; cfg.EnableReprojectionVelocity=false;
-        cfg.Intensity=1; cfg.IndirectTint=[1,1,1]; cfg.LumonScene.RelightMaxPagesPerFrame=4;
+        cfg.Intensity=1; cfg.IndirectTint=[1,1,1]; cfg.LumonScene.RelightSeedPagesPerFrame = cfg.LumonScene.RelightDirectPagesPerFrame = cfg.LumonScene.RelightIndirectPagesPerFrame = 4;
         cfg.ProbeAtlasGather=sh9?VgeConfig.ProbeAtlasGatherMode.EvaluateProjectedSH:VgeConfig.ProbeAtlasGatherMode.IntegrateAtlas;
         var wp=Cache.Config.WorldProbeClipmap;
         // Production trace reach is spacing times resolution; 16 blocks cover every room diagonal.

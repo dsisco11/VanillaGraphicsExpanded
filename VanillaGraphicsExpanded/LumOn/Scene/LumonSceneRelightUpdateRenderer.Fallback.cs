@@ -27,6 +27,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private GpuShaderStorageBuffer? fallbackCommitBuffer;
     private readonly SurfaceFallbackCommit[] fallbackCommitUpload = new SurfaceFallbackCommit[SurfaceFallbackWorker.MaximumTexels];
     private readonly List<LumonSceneRelightWorkGpu> fallbackWork = new();
+    // At most one completed CPU batch plus one retained hit batch waits for publication credit.
+    private readonly List<(SurfaceFallbackCommit Commit, SurfaceFallbackPage Origin, SurfaceFallbackLifetime Lifetime, bool Cpu)> pendingCommits = new(32);
     private long fallbackWorldRevision;
     private int fallbackFrame;
     private uint fallbackSelection;
@@ -85,7 +87,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     /// <summary>Cancels work but retains its worker admission until terrain access acknowledges cancellation.</summary>
     private void ResetFallback()
     {
-        fallbackWorker?.Cancel();
+        fallbackWorker?.Cancel(); pendingCommits.Clear();
         fallbackQueue?.Dispose(); fallbackQueue = null;
         fallbackQueries?.Dispose(); fallbackQueries = null;
         fallbackLifetime = null; fallbackResult = null; fallbackPages = ImmutableArray<SurfaceFallbackPage>.Empty;
@@ -175,23 +177,38 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private int ApplyFallback(TraceGeometryGpuScene current, LumonScenePhysicalAtlasGpuResources resources,
         GpuShaderStorageBuffer workBuffer, int maxPages, int tile)
     {
-        var fallback = PollFallback(current);
-        var retained = PollHitRetries(current);
-        // Retained hits receive first publication credit; total delayed commits keep the existing sixteen-texel ceiling.
-        var commits = retained.AddRange(fallback).Take(SurfaceFallbackWorker.MaximumTexels).ToImmutableArray();
-        if (commits.IsEmpty) return 0;
+        if (pendingCommits.Count == 0)
+        {
+            // Stop draining completed producers while publication is backlogged; never discard excess credits.
+            var fallback = PollFallback(current);
+            var retained = PollHitRetries(current);
+            var lifetime = new SurfaceFallbackLifetime(current, current.InvalidationRevision, dependencyRevision,
+                Interlocked.Read(ref fallbackWorldRevision));
+            foreach (var commit in retained)
+                pendingCommits.Add((commit, new(commit.Page, identities[commit.Page], pageGenerations[commit.Page],
+                    feedback.GetCaptureRevision(commit.Page)), lifetime, false));
+            foreach (var commit in fallback)
+                pendingCommits.Add((commit, new(commit.Page, identities[commit.Page], pageGenerations[commit.Page],
+                    feedback.GetCaptureRevision(commit.Page)), lifetime, true));
+        }
+        if (pendingCommits.Count == 0) return 0;
         fallbackWork.Clear(); Array.Clear(fallbackCommitUpload);
         var pages = new HashSet<uint>();
-        int accepted = 0;
-        foreach (var commit in commits)
+        int accepted = 0, cpuAccepted = 0;
+        for (int i = 0; i < pendingCommits.Count;)
         {
-            if (!pages.Contains(commit.Page))
-            {
-                if (pages.Count >= maxPages) continue;
-                pages.Add(commit.Page); fallbackWork.Add(new(commit.Page,commit.Slot,0,commit.Patch));
-            }
+            var pending = pendingCommits[i];
+            var commit = pending.Commit;
+            if (!HitOriginCurrent(current, pending.Lifetime, pending.Origin))
+            { pendingCommits.RemoveAt(i); fallbackRejected++; continue; }
+            if (accepted == SurfaceFallbackWorker.MaximumTexels || (!pages.Contains(commit.Page) && pages.Count >= maxPages))
+            { i++; continue; }
+            if (pages.Add(commit.Page)) fallbackWork.Add(new(commit.Page,commit.Slot,0,commit.Patch));
             fallbackCommitUpload[accepted++] = commit;
+            if (pending.Cpu) cpuAccepted++;
+            pendingCommits.RemoveAt(i);
         }
+        if (accepted == 0) return 0;
         fallbackCommitBuffer ??= GpuShaderStorageBuffer.Create(debugName:"SurfaceLighting.FallbackCommits");
         fallbackCommitBuffer.EnsureCapacity(SurfaceFallbackWorker.MaximumTexels << 5,growExponentially:false);
         fallbackCommitBuffer.UploadSubData<SurfaceFallbackCommit>(fallbackCommitUpload,0,SurfaceFallbackWorker.MaximumTexels << 5);
@@ -202,7 +219,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         dispatch!.Run(current,snapshot,resources.PendingOutgoing,workBuffer,work.Length,5,(uint)(tile*tile),1,0,
             (uint)frame,cfg.SurfaceLightingMaterialEmission,cfg.RelightMaxFramesAccumulated,fallbackCommits:fallbackCommitBuffer);
         publishable.AddRange(fallbackWork);
-        fallbackCommitted += accepted - retained.Length;
+        fallbackCommitted += cpuAccepted;
         return pages.Count;
     }
     #endregion

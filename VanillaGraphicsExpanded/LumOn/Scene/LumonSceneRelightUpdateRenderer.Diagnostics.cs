@@ -20,6 +20,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     /// <summary>Formats lifetime counters separately from the current producer state.</summary>
     private string ReadinessDiagnosticLine() =>
         $"LSR: {diagnosticState} pages:{lastWorkCount} ready:{publishedPages.Count} generation:{snapshot.Generation} " +
+        $"budgets:{config.LumOn.LumonScene.RelightSeedPagesPerFrame}/{config.LumOn.LumonScene.RelightDirectPagesPerFrame}/{config.LumOn.LumonScene.RelightIndirectPagesPerFrame} pendingCommits:{pendingCommits.Count} " +
         $"seedFail:{diagnosticSeedFailures}/{diagnosticSeedAttempts} indirectFail:{diagnosticIndirectFailures}/{diagnosticIndirectAttempts} " +
         $"refreshFail:{diagnosticRefreshFailures}/{diagnosticRefreshAttempts} combineFail:{diagnosticCombineFailures} readFail:{diagnosticReadbackFailures} resets:{diagnosticResets}";
 

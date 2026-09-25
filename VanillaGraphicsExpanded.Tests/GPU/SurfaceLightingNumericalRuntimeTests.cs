@@ -32,13 +32,13 @@ public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
     internal static void SeedAndFreeze(SurfaceLightingConsumerRuntimeFixture runtime)
     {
         var config = runtime.Cache.Config.LumOn.LumonScene;
-        config.RelightMaxPagesPerFrame = 0;
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = 0;
         config.RelightTexelsPerPagePerFrame = 4096;
         runtime.RunUntil(runtime.Cache.AllRequestedCaptured);
-        config.RelightMaxPagesPerFrame = 256;
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = 256;
         runtime.Frame();
         Assert.True(runtime.Cache.AllRequestedLightingReady());
-        config.RelightMaxPagesPerFrame = 0;
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = 0;
     }
 
     /// <summary>Checks all channels in explicitly indexed image regions, with an absolute bound and finite-value requirement.</summary>

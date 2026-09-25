@@ -11,6 +11,33 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Runtime completion
+    /// <summary>Disabling indirect admissions retains outstanding CPU results until their budget resumes.</summary>
+    [Fact]
+    public void DisabledIndirectBudgetRetainsBlockedFallback()
+    {
+        EnsureContextValid(); using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+        var world = new ControlledVoxelWorld { MapSizeY=36, IsLoaded=_=>
+        { entered.Set(); release.Wait(TestContext.Current.CancellationToken); return true; } };
+        using var runtime = new SurfaceCacheRuntimeFixture(exposedWall:true,fallbackWorld:world);
+        runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
+        Assert.True(runtime.TryGetLighting(out var initial));
+        runtime.TransformVoxel=(x,y,z,voxel)=>x>=1?voxel with{Geometry=3u}:voxel;
+        runtime.InvalidateGeometry(); var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;
+        try
+        {
+            runtime.RunUntil(()=>entered.IsSet,256);
+            long committed=Counter(renderer,"fallbackCommitted");
+            runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=0;
+            release.Set();
+            for(int frame=0;frame<8;frame++) runtime.Frame();
+            Assert.Equal(committed,Counter(renderer,"fallbackCommitted"));
+            Assert.True(runtime.TryGetLighting(out var held)); Assert.Same(initial.DirectIrradiance,held.DirectIrradiance);
+            runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=1;
+            runtime.RunUntil(()=>Counter(renderer,"fallbackCommitted")>committed,256);
+        }
+        finally { release.Set(); }
+    }
+
     /// <summary>Unsupported GPU geometry can resolve confirmed sky through CPU collision without clearing displayed lighting.</summary>
     [Fact]
     public void UnsupportedGeometryCompletesThroughNormalPublication()
@@ -39,7 +66,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         EnsureContextValid();var world=new ControlledVoxelWorld{MapSizeY=256};
         using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
         world.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady,256);
         runtime.TransformVoxel=(x,y,z,voxel)=>(voxel.Geometry&3u)==1?voxel with{Geometry=3u}:voxel;
         runtime.InvalidateGeometry();var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;

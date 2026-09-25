@@ -95,6 +95,10 @@ commit submissions and `fallbackRejected` obsolete/failed batches. Existing indi
 count the commit dispatch separately from ray traversal; CPU rays are not included in GPU ray counts.
 No per-ray logging or synchronous waiting was added to the render-thread fallback path.
 
+Delayed completed commits now share the independent indirect allocation and retain excess results
+until publication credit is available, with lifetime revalidation; see
+[update budgets](LumOn.SurfaceCache.UpdateBudgets.md).
+
 The initial fallback implementation left coverage, traversal and lighting budgets unchanged; the
 linked traversal-budget follow-up subsequently aligned ray distance and cell limits. This is an additional
 bounded source of completed samples, not evidence of a gameplay frame-time or convergence gain.

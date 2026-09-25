@@ -164,13 +164,24 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     }
 
     /// <summary>Dispatches a bounded prefix without readback or publication so timing excludes fixture synchronization.</summary>
-    public void DispatchDiagnosticWork(uint operation, int pageCount=4, uint texels=64, uint rays=1, uint steps=64, uint frame=1, GpuShaderStorageBuffer? fallbackRequests=null, uint bucket=0, GpuShaderStorageBuffer? hitRetries=null, bool captureHitRetries=false)
+    public void DispatchDiagnosticWork(uint operation, int pageCount=4, uint texels=64, uint rays=1, uint steps=64, uint frame=1, GpuShaderStorageBuffer? fallbackRequests=null, uint bucket=0, GpuShaderStorageBuffer? hitRetries=null, bool captureHitRetries=false, int firstPage=0, GpuShaderStorageBuffer? workStorage=null)
     {
-        int count=Math.Min(pageCount,lightingItems.Length);
-        var selected=lightingItems.Take(count).Select(item=>new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,bucket,item.VirtualPageIndex)).ToArray();
-        work.UploadSubData<LumonSceneRelightWorkGpu>(selected,0,count<<4);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,count,operation,texels,rays,steps,frame,
+        int count=Math.Min(pageCount,lightingItems.Length-firstPage);
+        var selected=lightingItems.Skip(firstPage).Take(count).Select(item=>new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,bucket,item.VirtualPageIndex)).ToArray();
+        var storage=workStorage??work;
+        storage.UploadSubData<LumonSceneRelightWorkGpu>(selected,0,count<<4);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],storage,count,operation,texels,rays,steps,frame,
             EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests,hitRetries:hitRetries,captureHitRetries:captureHitRetries);
+    }
+
+    /// <summary>Reads producer status synchronously as the production scheduler currently does.</summary>
+    public int ReadDiagnosticCompletion(int count,GpuShaderStorageBuffer? workStorage=null)
+    {
+        using var result=(workStorage??work).MapRange<LumonSceneRelightWorkGpu>(0,count,MapBufferAccessMask.MapReadBit);
+        Assert.True(result.IsMapped);
+        int completed=0;
+        foreach(var item in result.Span) if((item.VirtualPageIndex&0x80000000u)==0)completed++;
+        return completed;
     }
 
     /// <summary>Seeds direct and emitted lighting, resetting dependent indirect history.</summary>

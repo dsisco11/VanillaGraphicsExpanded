@@ -25,7 +25,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         Settle(runtime, true);
         float[] reference = runtime.FinalPixels();
         long revision = runtime.Screen.HistoryRevision;
-        runtime.Cache.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 0;
+        runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         for (int i=0;i<8;i++) runtime.Frame();
         Assert.Equal(revision, runtime.Screen.HistoryRevision);
         AssertBoundaries(runtime, true);
@@ -175,22 +175,22 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     private static void SeedAndPause(SurfaceLightingConsumerRuntimeFixture runtime)
     {
         var config = runtime.Cache.Config.LumOn.LumonScene;
-        config.RelightMaxPagesPerFrame = 0;
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = 0;
         config.RelightTexelsPerPagePerFrame = 4096;
         runtime.RunUntil(runtime.Cache.AllRequestedCaptured);
-        config.RelightMaxPagesPerFrame = 256;
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = 256;
         runtime.Frame();
         Assert.True(runtime.Cache.AllRequestedLightingReady());
-        config.RelightMaxPagesPerFrame = 0;
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = 0;
     }
 
     /// <summary>Admits one complete production bounce generation through the normal registered frame, then freezes it for consumer observation.</summary>
     private static void AdvanceBounce(SurfaceLightingConsumerRuntimeFixture runtime)
     {
         Assert.True(runtime.Cache.TryGetLighting(out var before));
-        runtime.Cache.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 256;
+        runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 256;
         runtime.Frame();
-        runtime.Cache.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 0;
+        runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         Assert.True(runtime.Cache.TryGetLighting(out var after));
         Assert.Equal(before.DependencyRevision, after.DependencyRevision);
         Assert.Equal(before.Generation + 1, after.Generation);

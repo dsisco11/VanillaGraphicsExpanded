@@ -19,7 +19,7 @@ public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):Rende
         EnsureContextValid();var world=cpuFallback?new ControlledVoxelWorld{MapSizeY=256}:null;
         using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
         world?.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.VisibleFeedbackPages=1;
         // Keep the adjacent air used by direct seeding supported; only interior ray segments require CPU geometry.
         if(cpuFallback)runtime.TransformVoxel=(x,y,z,voxel)=>x>=2&&x<=5&&y>=34&&y<=37&&z>=2&&z<=5&&(voxel.Geometry&3u)==1?voxel with{Geometry=3u}:voxel;

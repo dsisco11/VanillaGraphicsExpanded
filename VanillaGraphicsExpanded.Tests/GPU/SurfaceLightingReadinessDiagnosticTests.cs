@@ -41,7 +41,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     {
         EnsureContextValid();
         using var runtime = new SurfaceCacheRuntimeFixture();
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 0;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.PrimeGeometry();
         runtime.RunUntil(runtime.AllRequestedCaptured);
         ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string line);
@@ -87,12 +87,12 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
         EnsureContextValid();
         using var runtime = new SurfaceCacheRuntimeFixture(feedbackPlaneX:31);
         runtime.CameraX = 24;
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 0;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.PrimeGeometry();
         runtime.RunUntil(runtime.AllRequestedCaptured);
         // Keep the captured source x31 in [0,32), while its +X light-query cell x32 is outside.
         runtime.CameraX = 16;
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         for (int frame = 0; frame < 8; frame++) runtime.Frame();
         ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string line);
         var seed = ReadCounter(line, "seedFail");

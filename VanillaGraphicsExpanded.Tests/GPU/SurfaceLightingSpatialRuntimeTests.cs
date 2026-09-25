@@ -50,7 +50,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0).All(c=>c>=.25f));
         // Stop further producer work through its budget, preserving a coherent published generation.
         runtime.RunUntil(runtime.Cache.AllRequestedLightingReady);
-        runtime.Cache.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=0;
+        runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.Frame(); runtime.Frame();
         // Isolate ring retention from legitimate asynchronous refreshes of surviving tiles.
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1;
@@ -172,7 +172,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         var suppressed=runtime.Screen.WorldProbeSuppressedLighting!.ReadPixels();
         Assert.True(baseline.Zip(suppressed).Where((_,i)=>i%4!=3).All(p=>Math.Abs(p.First-p.Second)<.02f),"Resolved screen hits must not receive an additional gather world term.");
         runtime.RunUntil(runtime.Cache.AllRequestedLightingReady);
-        runtime.Cache.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=0;
+        runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.Cache.Config.LumOn.ProbeSpacingPx=4;
         bool worldSelected=false, gatherSelected=false, tracedWorldSelected=false;
         var observations=new List<string>();
@@ -194,7 +194,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         Assert.True(worldSelected,string.Join(";",observations));
         Assert.True(gatherSelected,"No isolated gather replacement: "+string.Join(";",observations));
         Assert.True(tracedWorldSelected,"No directional world contribution in screen tracing: "+string.Join(";",observations));
-        runtime.Cache.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.Cache.Config.LumOn.ProbeSpacingPx=1; scene.Yaw=0;
         runtime.Cache.GeometryAvailable=false;
         for(int i=0;i<4;i++) runtime.Frame();

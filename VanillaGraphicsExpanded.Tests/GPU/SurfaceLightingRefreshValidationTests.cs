@@ -59,7 +59,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         float retained;
         using(var runtime=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f }))
         {
-            runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+            runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
             runtime.Config.LumOn.LumonScene.RelightRaysPerTexel=16;
             runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
             for(int frame=0;frame<256;frame++) runtime.Frame();
@@ -91,7 +91,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         }
         // A separately initialized cache supplies the target; it never inherits pre-edit illumination.
         using var reference=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f });
-        reference.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        reference.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = reference.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = reference.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         reference.Config.LumOn.LumonScene.RelightRaysPerTexel=16;
         reference.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with { LegacyLight=0 } : voxel;
         reference.PrimeGeometry(); reference.RunUntil(reference.AllRequestedLightingReady);

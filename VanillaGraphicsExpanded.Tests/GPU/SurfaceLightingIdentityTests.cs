@@ -25,7 +25,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         using var direct=SurfaceLightingPageReadback.Read(before.DirectIrradiance,before,page);
         using var indirect=SurfaceLightingPageReadback.Read(before.IndirectIrradiance,before,page);
         long captures=CaptureAttempts(runtime);
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=0;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         if(changeLight) runtime.ChangeBlockLight(0); else runtime.InvalidateGeometry();
         for(int frame=0;frame<16;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var after));
@@ -51,7 +51,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         uint page=Pages(runtime).Single().Key;
         using var pixels=SurfaceLightingPageReadback.Read(before.OutgoingRadiance,before,page);
         long captures=CaptureAttempts(runtime);
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=0;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.GeometryAvailable=false;runtime.InvalidateGeometry();
         for(int frame=0;frame<4;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var suspended));
@@ -88,7 +88,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         var pages=Pages(runtime).OrderBy(pair=>LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(pair.Value)).ToArray();
         using var untouched=SurfaceLightingPageReadback.Read(before.OutgoingRadiance,before,pages[1].Key);
         long captures=CaptureAttempts(runtime);
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=0;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.TransformVoxel=(x,y,z,voxel)=>x==0 && y>=32 && y<36 && z>=0 && z<4 ? voxel with { Geometry=1 } : voxel;
         runtime.InvalidateGeometry();
         for(int frame=0;frame<16;frame++) runtime.Frame();
@@ -101,7 +101,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
             Assert.Equal(0u,readiness.Span[(int)pages[0].Key]);
             Assert.Equal(1u,readiness.Span[(int)pages[1].Key]);
         }
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=1;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 1;
         runtime.RunUntil(runtime.AllRequestedLightingReady,maximumFrames:64);
         Assert.True(runtime.TryGetLighting(out var recovered));
         using var removed=SurfaceLightingPageReadback.Read(recovered.OutgoingRadiance,recovered,pages[0].Key);

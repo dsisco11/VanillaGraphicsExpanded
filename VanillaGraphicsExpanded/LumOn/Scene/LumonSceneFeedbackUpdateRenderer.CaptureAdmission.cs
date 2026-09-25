@@ -87,7 +87,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer
     }
 
     /// <summary>Prefers recently visible resident pages, then nearby source chunks, with deterministic ties.</summary>
-    private int CompareCapturePriority(ulong left, ulong right)
+    internal int CompareCapturePriority(ulong left, ulong right)
     {
         long recent = lastNearPriorityContext.NowTick - 60;
         bool leftVisible = visibleCapturePages.TryGetValue(left, out long leftTick) && leftTick >= recent;

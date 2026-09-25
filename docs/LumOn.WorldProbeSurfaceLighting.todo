@@ -429,7 +429,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Subagent validation: 175 distinct cases pass, including 30 new retry cases; final production
       build has zero warnings/errors. Bounds, conservative invalidation, fixture corrections and
       receipts: docs/LumOn.SurfaceCache.HitLightingRetries.md. Gameplay acceptance remains separate.
-  ☐ Raise and separate configurable direct and indirect update budgets using measured costs.
+  ☑ Raise and separate configurable direct and indirect update budgets using measured costs.
     - Replace implicit alternating-budget throughput with explicit bounded allocations for capture
       seeding, direct refresh and indirect updates; preserve fairness and initial readiness progress.
     - Prioritize initial completion, nearby visible pages and changed lighting without starving
@@ -437,6 +437,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Choose increased defaults from matched measurements of completion latency, GPU time and frame
       cost. Account for rays per texel, traversal work and synchronous readback costs; fix confirmed
       synchronization bottlenecks through existing GPU abstractions rather than masking them.
+    - Added independent seed/direct/indirect allocations defaulting to 8/8/4, bounded priority and
+      fair admission, independent bucket progress, and a shared full-tile publication ceiling.
+      Only the three explicit settings are supported; live budget changes retain history.
+      Stage submissions precede completion maps, duplicate publication is removed, and excess delayed
+      completions retain bounded, identity-validated ownership. Contract: docs/LumOn.SurfaceCache.UpdateBudgets.md.
+    - Corrected matched diagnostics-off/on ABBA measurements verify actual seed work and completed
+      texels; controlled scheduling latency is 18 versus 9 frames for equal work. Default-on direct
+      and indirect measured costs support the unequal allocations. Scope, costs and receipts:
+      docs/LumOn.SurfaceCache.UpdateBudgetMeasurements.md. These are not live gameplay timings.
+    - Subagent validation: 139 focused cases, corrected measurement and final five-case readiness
+      check pass. Final production build has zero warnings/errors. Broader review and user-run tuning
+      remain the following separate tasks.
   ☐ Validate Surface Cache throughput changes through subagent-run focused tests and a separate
     implementation review.
     - Track the 19 pre-existing consumer/runtime failures separately in the final task below

@@ -96,7 +96,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true);
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.Config.LumOn.LumonScene.RelightMaxDdaSteps=3;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         for(int frame=0;frame<48;frame++) runtime.Frame();

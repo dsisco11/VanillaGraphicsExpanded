@@ -681,7 +681,9 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         lastActiveWindowSize = checked((arXZ * 2 + 1) * (arY * 2 + 1) * (arXZ * 2 + 1));
         lastBudgetMaxRequests = DefaultMaxRequestsPerFrame;
         lastBudgetMaxNewAllocs = DefaultMaxNewAllocationsPerFrame;
-        lastBudgetMaxRelightPages = Math.Max(0, config.LumOn.LumonScene.RelightMaxPagesPerFrame);
+        lastBudgetMaxRelightPages = Math.Clamp(config.LumOn.LumonScene.RelightSeedPagesPerFrame, 0, 256) +
+            Math.Clamp(config.LumOn.LumonScene.RelightDirectPagesPerFrame, 0, 256) +
+            Math.Clamp(config.LumOn.LumonScene.RelightIndirectPagesPerFrame, 0, 256);
 
         VectorInt3 anchorBlock = new VectorInt3(lastAnchorChunk.X * 32, lastAnchorChunk.Y * 32, lastAnchorChunk.Z * 32);
 

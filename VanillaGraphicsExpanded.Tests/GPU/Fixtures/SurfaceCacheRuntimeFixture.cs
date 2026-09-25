@@ -142,7 +142,7 @@ internal sealed class SurfaceCacheRuntimeFixture : IDisposable
         cfg.MaxAtlasCount = 1; cfg.NearPagesPerChunkBudget = requestedPages; cfg.FarPagesPerChunkBudget = 1;
         cfg.NearTexelsPerVoxelFaceEdge = 1;
         cfg.TraceScene.ClipmapResolution = 32;
-        cfg.RelightMaxPagesPerFrame = 1; cfg.RelightTexelsPerPagePerFrame = 64; cfg.RelightRaysPerTexel = 1; cfg.RelightMaxDdaSteps = 256;
+        cfg.RelightSeedPagesPerFrame = cfg.RelightDirectPagesPerFrame = cfg.RelightIndirectPagesPerFrame = 1; cfg.RelightTexelsPerPagePerFrame = 64; cfg.RelightRaysPerTexel = 1; cfg.RelightMaxDdaSteps = 256;
         LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(CameraX, 32, 0, CameraX, 32, 0, 0);
         if(spatial!=null) { cfg.NearRadiusChunks=cfg.FarRadiusChunks=2; cfg.NearPagesPerChunkBudget=48; }
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);

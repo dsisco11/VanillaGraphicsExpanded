@@ -9,13 +9,41 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Resident refresh
+    /// <summary>Disabling indirect work leaves initial direct seeding and subsequent light refresh active.</summary>
+    [Fact]
+    public void ZeroIndirectBudgetPreservesDirectProgressAndLiveBudgetIdentity()
+    {
+        EnsureContextValid();
+        using var runtime = new SurfaceCacheRuntimeFixture(exposedWall:true);
+        var config = runtime.Config.LumOn.LumonScene;
+        config.RelightIndirectPagesPerFrame = 0;
+        runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
+        Assert.True(runtime.TryGetLighting(out var initial));
+        Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
+        uint page = mapping.Keys.Single(); long capture = runtime.Feedback.GetCaptureRevision(page);
+        Assert.True(HasDirect(runtime,page,32)); Assert.Equal(0,IndirectWeight(runtime,page));
+        foreach (int light in new[] { 0, 32 })
+        {
+            config.RelightSeedPagesPerFrame = 0;
+            config.RelightDirectPagesPerFrame = light == 0 ? 2 : 1;
+            runtime.ChangeBlockLight(light);
+            runtime.RunUntil(() => HasDirect(runtime,page,light));
+            Assert.True(runtime.TryGetLighting(out var current));
+            Assert.Same(initial.DirectIrradiance,current.DirectIrradiance);
+            Assert.True(initial.OutgoingRadiance.IsValid);
+            Assert.Equal(initial.DependencyRevision,current.DependencyRevision);
+            Assert.Equal(capture,runtime.Feedback.GetCaptureRevision(page));
+            Assert.Equal(0,IndirectWeight(runtime,page));
+        }
+    }
+
     /// <summary>Live history-limit edits reach the producer without replacing storage, captures, or published lighting.</summary>
     [Fact]
     public void HistoryLimitChangesPreservePublishedSurfaceIdentity()
     {
         EnsureContextValid();
         using var runtime=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f });
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
         uint page=mapping.Keys.First();
@@ -48,7 +76,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
         EnsureContextValid();
         var spatial=new SpatialLightingScene { Reflectance=.25f };
         using var runtime=new SurfaceCacheRuntimeFixture(spatial:spatial);
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame=4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
         Assert.True(runtime.Feedback.TryGetNearChunkSlotAndGeneration(new(-1,1,0),out uint remoteSlot,out _));
@@ -111,7 +139,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
             ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string state);
             var match=System.Text.RegularExpressions.Regex.Match(state,@"pages:(\d+)");
             Assert.True(match.Success,state);
-            Assert.InRange(int.Parse(match.Groups[1].Value),0,1);
+            Assert.InRange(int.Parse(match.Groups[1].Value),0,3);
             complete=pages.All(page=>HasDirect(runtime,page,0));
         }
         Assert.True(complete,"Repeated readiness changes starved at least one resident page.");

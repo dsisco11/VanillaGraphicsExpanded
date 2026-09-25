@@ -26,14 +26,14 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
         // Keep the authored face inside both logical domains when crossing the ring boundary.
         using var runtime = new SurfaceCacheRuntimeFixture(feedbackPlaneX: firstBlock == 15 ? 8 : 0);
         runtime.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 4;
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.CameraX = firstBlock;
         runtime.PrimeGeometry();
         if (firstBlock == 15)
         {
-            runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 0;
+            runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
             runtime.RunUntil(runtime.AllRequestedCaptured);
-            runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 4;
+            runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         }
         int movingPublications = 0;
         long firstRevision = runtime.Geometry.Resources!.InvalidationRevision;
@@ -63,7 +63,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
         using var runtime = new SurfaceCacheRuntimeFixture(requestedPages: 48);
         runtime.VisibleFeedbackPages = 1;
         runtime.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 4;
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry();
         long? dependency = null;
         int observedPublications = 0;
@@ -91,7 +91,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
         EnsureContextValid();
         using var runtime = new SurfaceCacheRuntimeFixture(requestedPages: 48);
         runtime.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = texelsPerEdge;
-        runtime.Config.LumOn.LumonScene.RelightMaxPagesPerFrame = 4;
+        runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry();
         int firstPublished = -1, mappingChanges = 0, previousCount = 0, lastMappingChange = -1;
         int tileSize = 0;

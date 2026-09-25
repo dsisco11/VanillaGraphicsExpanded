@@ -863,11 +863,17 @@ public class VgeConfig
                 }
             }
 
-            /// <summary>
-            /// Max number of surface-cache pages relit per frame (Near field only in v1).
-            /// </summary>
+            /// <summary>Maximum captured-page initialization batches per frame, independent of indirect readiness.</summary>
             [JsonProperty]
-            public int RelightMaxPagesPerFrame { get; set; } = 4;
+            public int RelightSeedPagesPerFrame { get; set; } = 8;
+
+            /// <summary>Maximum direct-light refresh batches per frame, independent of tracing.</summary>
+            [JsonProperty]
+            public int RelightDirectPagesPerFrame { get; set; } = 8;
+
+            /// <summary>Maximum indirect page batches per frame, including delayed fallback commits.</summary>
+            [JsonProperty]
+            public int RelightIndirectPagesPerFrame { get; set; } = 4;
 
             /// <summary>Collects bounded asynchronous Surface Cache outcome counters and GPU timestamps.</summary>
             [JsonProperty]
@@ -928,8 +934,9 @@ public class VgeConfig
 
                 TraceScene ??= new TraceSceneConfig();
                 TraceScene.Sanitize();
-
-                RelightMaxPagesPerFrame = Math.Clamp(RelightMaxPagesPerFrame, 0, 256);
+                RelightSeedPagesPerFrame = Math.Clamp(RelightSeedPagesPerFrame, 0, 256);
+                RelightDirectPagesPerFrame = Math.Clamp(RelightDirectPagesPerFrame, 0, 256);
+                RelightIndirectPagesPerFrame = Math.Clamp(RelightIndirectPagesPerFrame, 0, 256);
                 RelightTexelsPerPagePerFrame = Math.Clamp(RelightTexelsPerPagePerFrame, 0, 4096 * 4096);
                 RelightRaysPerTexel = Math.Clamp(RelightRaysPerTexel, 0, 64);
                 RelightMaxDdaSteps = Math.Clamp(RelightMaxDdaSteps, 0, 1024);
