@@ -196,7 +196,8 @@ flat in uint vge_faceId;
     // Keep injected code small: the mapping logic lives in an include.
     uint patchId = 0u;
     vec2 vge_patchUv = vec2(0.0);
-    VgeLumonSceneComputeVoxelPatchIdAndUv(worldPos.xyz, normal, patchId, vge_patchUv);
+    ivec3 vge_owningBlock;
+    VgeLumonSceneComputeVoxelPatchIdAndUv(worldPos.xyz, normal, patchId, vge_patchUv, vge_owningBlock);
 
     uint vge_u = uint(clamp(vge_patchUv.x, 0.0, 1.0) * 65535.0 + 0.5);
     uint vge_v = uint(clamp(vge_patchUv.y, 0.0, 1.0) * 65535.0 + 0.5);
@@ -206,7 +207,8 @@ flat in uint vge_faceId;
     // Safe fallback: if slot mapping uniforms are not configured (dims <= 0), mapping is treated as disabled
     // and chunkSlot defaults to 0.
     uint chunkSlot = 0u;
-    bool vge_slotOk = VgeLumonSceneTryMapChunkCoordToSlot(VgeLumonSceneChunkCoordFromWorldPos(worldPos.xyz), chunkSlot);
+    // Signed shift floors negative block coordinates into the same owning chunk as PatchId.
+    bool vge_slotOk = VgeLumonSceneTryMapChunkCoordToSlot(vge_owningBlock >> 5, chunkSlot);
 
     // Slot generation for stale rejection (Phase 22.X).
     uint vge_slotGeneration16 = VgeLumonSceneGetChunkSlotGeneration16(chunkSlot);

@@ -24,12 +24,6 @@
 // - `ring`: ring offsets in chunk units (used to keep slot indices stable under window movement).
 uniform usampler2D vge_lumonSceneChunkSlotGenerationTex;
 
-// Backwards-compatible name used by injected patch code.
-ivec3 VgeLumonSceneChunkCoordFromWorldPos(vec3 worldPosRelBlocks)
-{
-    return VgeMatrixSpacePosToWorldChunkCoord(worldPosRelBlocks);
-}
-
 uint VgeLumonSceneGetChunkSlotGeneration16(uint chunkSlot)
 {
     // Safe fallback: if mapping is disabled (dims <= 0), treat generation as 0 and avoid sampling.

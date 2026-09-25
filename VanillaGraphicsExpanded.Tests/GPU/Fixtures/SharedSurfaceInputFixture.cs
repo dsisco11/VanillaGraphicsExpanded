@@ -2,6 +2,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.WorldPartition;
+using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -11,8 +12,8 @@ internal sealed class SharedSurfaceInputFixture : IDisposable
     public TraceGeometryGpuScene Scene { get; }
 
     #region Controlled scene publication
-    /// <summary>Reads the fixture inputs and publishes complete cells without duplicating shader binding slots.</summary>
-    public SharedSurfaceInputFixture(Texture3D legacy, Texture2D palette)
+    /// <summary>Publishes authored cells at an optional origin aligned to 16-block cell boundaries.</summary>
+    public SharedSurfaceInputFixture(Texture3D legacy, Texture2D palette, VectorInt3 origin = default)
     {
         int size = legacy.Width, resolution = (size + 15) / 16 * 16;
         var words = new uint[size * size * size];
@@ -30,8 +31,8 @@ internal sealed class SharedSurfaceInputFixture : IDisposable
         var tables = new TraceGeometryTables(1, faces, new byte[16384 * 48], new uint[65536 * 4], new float[256]);
         // Publish whole production cells while preserving the authored logical tracing extent.
         Scene = new(resolution);
-        var window = new PartitionBounds(new(0, 0, 0), new(resolution, resolution, resolution));
-        var domain = new PartitionBounds(new(0, 0, 0), new(size, size, size));
+        var window = new PartitionBounds(new(origin.X, origin.Y, origin.Z), new(origin.X + resolution, origin.Y + resolution, origin.Z + resolution));
+        var domain = new PartitionBounds(new(origin.X, origin.Y, origin.Z), new(origin.X + size, origin.Y + size, origin.Z + size));
         Scene.SetWindow(new(domain, domain, window, resolution, int.MaxValue));
         Scene.UploadTableRange(tables, 0, (int)TraceGeometryTables.MaximumUploadBytes);
         // Native upload order is X/Y/Z; each cell keeps geometry and packed lighting coherent.
@@ -50,7 +51,7 @@ internal sealed class SharedSurfaceInputFixture : IDisposable
                 uint material = word >> 18;
                 geometry[index] = material != 0 ? 2u | material << 2 : 1u;
             }
-            var request = new PartitionRequest(1, new(1, "component", new(cx, cy, cz)), 1, 1, 1, default);
+            var request = new PartitionRequest(1, new(1, "component", new(cx + (origin.X >> 4), cy + (origin.Y >> 4), cz + (origin.Z >> 4))), 1, 1, 1, default);
             Assert.True(Scene.Publish(request, new(geometry, lighting, new byte[16384], false), tables));
         }
     }

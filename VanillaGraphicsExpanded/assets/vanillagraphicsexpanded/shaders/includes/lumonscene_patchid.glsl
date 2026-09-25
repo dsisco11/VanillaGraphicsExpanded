@@ -1,7 +1,7 @@
 #ifndef VGE_LUMONSCENE_PATCHID_GLSL
 #define VGE_LUMONSCENE_PATCHID_GLSL
 // ============================================================================
-// LumonScene PatchId encoding helpers (Phase 22)
+// LumonScene PatchId encoding helpers
 //
 // v1: Deterministic voxel-patch mapping for chunk terrain.
 // - Patch granularity: 4x4 voxels per patch.
@@ -9,19 +9,20 @@
 // - (patchId - 1) % 6 encodes face axis:
 //     0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
 //
-// NOTE: This mapping is per-chunk *local* (size=32) and does not encode chunk identity yet
-// (chunkSlot is still a v1 placeholder).
+// PatchId is chunk-local (size=32); the returned owning block selects its chunk slot.
 // ============================================================================
 
 @import "./vge_worldspace_bridge.glsl"
 
+/// Computes the local patch and UV together with the inward-biased absolute block that owns it.
 void VgeLumonSceneComputeVoxelPatchIdAndUv(
     vec3 worldPosRel,
     vec3 geometricNormal,
     out uint outPatchId,
-    out vec2 outPatchUv01)
+    out vec2 outPatchUv01,
+    out ivec3 outOwningBlock)
 {
-    // Keep constants in sync with Phase 22 defaults.
+    // Keep constants in sync with the surface-cache patch layout.
     const int VGE_LUMONSCENE_CHUNK_SIZE = 32; // must be power-of-two for bitmask modulo
     const int VGE_LUMONSCENE_PATCH_SIZE = 4;  // voxels per patch edge
     const int VGE_LUMONSCENE_PATCHES_PER_AXIS = VGE_LUMONSCENE_CHUNK_SIZE / VGE_LUMONSCENE_PATCH_SIZE; // 8
@@ -53,6 +54,7 @@ void VgeLumonSceneComputeVoxelPatchIdAndUv(
     vec3 w = worldPosRel + vge_lumonSceneWorldBlockOffsetRem;
 
     ivec3 block = VgeMatrixSpacePosToWorldCell(worldPosRel - axisN * 1e-4);
+    outOwningBlock = block;
 
     // Chunk-local cell coords [0..31] (two's-complement & is stable and fast).
     int lx = block.x & (VGE_LUMONSCENE_CHUNK_SIZE - 1);
@@ -88,11 +90,11 @@ void VgeLumonSceneComputeVoxelPatchIdAndUv(
         uFrac = fract(w.x); vFrac = fract(w.y);
     }
 
-    int patchU = clamp(uCell / VGE_LUMONSCENE_PATCH_SIZE, 0, VGE_LUMONSCENE_PATCHES_PER_AXIS - 1);
-    int patchV = clamp(vCell / VGE_LUMONSCENE_PATCH_SIZE, 0, VGE_LUMONSCENE_PATCHES_PER_AXIS - 1);
+    int patchU = clamp(uCell >> 2, 0, VGE_LUMONSCENE_PATCHES_PER_AXIS - 1);
+    int patchV = clamp(vCell >> 2, 0, VGE_LUMONSCENE_PATCHES_PER_AXIS - 1);
 
-    int inPatchU = uCell - patchU * VGE_LUMONSCENE_PATCH_SIZE;
-    int inPatchV = vCell - patchV * VGE_LUMONSCENE_PATCH_SIZE;
+    int inPatchU = uCell - (patchU << 2);
+    int inPatchV = vCell - (patchV << 2);
 
     outPatchUv01 = vec2(
         (float(inPatchU) + clamp(uFrac, 0.0, 1.0)) / float(VGE_LUMONSCENE_PATCH_SIZE),
@@ -100,8 +102,8 @@ void VgeLumonSceneComputeVoxelPatchIdAndUv(
 
     // patchId packs: axis + planeIndex + patchUV tile id.
     uint plane = uint(clamp(planeIndex, 0, VGE_LUMONSCENE_CHUNK_SIZE - 1));
-    uint tile = uint(patchV * VGE_LUMONSCENE_PATCHES_PER_AXIS + patchU); // 0..63
-    uint patchLinear = plane * 64u + tile;                                // 0..2047
+    uint tile = uint((patchV << 3) + patchU);                             // 0..63
+    uint patchLinear = (plane << 6) + tile;                              // 0..2047
     outPatchId = 1u + axisId + patchLinear * 6u;                          // 1..12288
 }
 

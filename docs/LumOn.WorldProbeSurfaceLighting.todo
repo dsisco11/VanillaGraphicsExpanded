@@ -41,10 +41,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       one existing TinyTokenizer insertion test remains explicitly skipped. Verified shared
       vertex/fragment matrix linkage, rotation/bob offsets, POM displacement and normal fading.
       Full installed terrain variants and in-game visual behavior remain live-validation work.
-  ☐ Make terrain PatchId and chunk-slot selection use the same inward-biased owning block in
+  ✔ Make terrain PatchId and chunk-slot selection use the same inward-biased owning block in
     VanillaShaderPatches.cs and lumonscene_patchid.glsl. Validate all six faces at positive and
     negative chunk boundaries, including capture and sampling of the selected surface.
-    - This remaining coordinate finding is source-backed; visible effects still need reproduction.
+    - Patch mapping now returns its inward-biased absolute owning block. Terrain slot lookup uses
+      that same block shifted by 5, preserving floor semantics at negative chunk boundaries.
+      Patch-local integer layout arithmetic uses shifts for power-of-two scaling.
+    - GPU regression executes the injected terrain mapping at all six faces on positive and negative
+      chunk boundaries, with fractional camera motion and chunk crossings. Its actual slot/patch/UV
+      feed voxel capture; sampling checks distinct materials on opposite sides of each boundary.
+    - Fresh build: all 23 focused tests passed, none skipped. Restoring the old slot calculation
+      inside the test failed all six positive-face boundary cases while eight controls passed.
+      In-game visual confirmation remains under the live-validation task below.
   ☐ Remove vanilla GetLightRGBs and neighboring-light availability dependencies from world-probe
     geometry tracing when hit lighting is deferred to the Surface Cache.
   ☐ Separate surface hits, established sky visibility, distance/budget exhaustion, and unavailable
