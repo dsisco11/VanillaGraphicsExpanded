@@ -894,10 +894,14 @@ public class VgeConfig
             public bool SurfaceLightingMaterialEmission { get; set; } = false;
 
             /// <summary>
-            /// Max voxel steps for the DDA tracer (per ray).
+            /// Maximum visited cells per indirect ray. The default covers diagonal traversal over the full trace distance.
             /// </summary>
             [JsonProperty]
-            public int RelightMaxDdaSteps { get; set; } = 64;
+            public int RelightMaxDdaSteps { get; set; } = 1024;
+
+            /// <summary>Maximum indirect trace distance in blocks, shared by GPU traversal and CPU fallback; a clear segment is not sky.</summary>
+            [JsonProperty]
+            public int RelightMaxTraceDistance { get; set; } = 512;
 
             internal void Sanitize()
             {
@@ -928,7 +932,8 @@ public class VgeConfig
                 RelightMaxPagesPerFrame = Math.Clamp(RelightMaxPagesPerFrame, 0, 256);
                 RelightTexelsPerPagePerFrame = Math.Clamp(RelightTexelsPerPagePerFrame, 0, 4096 * 4096);
                 RelightRaysPerTexel = Math.Clamp(RelightRaysPerTexel, 0, 64);
-                RelightMaxDdaSteps = Math.Clamp(RelightMaxDdaSteps, 0, 512);
+                RelightMaxDdaSteps = Math.Clamp(RelightMaxDdaSteps, 0, 1024);
+                RelightMaxTraceDistance = Math.Clamp(RelightMaxTraceDistance, 1, 512);
                 RelightMaxFramesAccumulated = Math.Clamp(RelightMaxFramesAccumulated, 1, 255);
             }
 

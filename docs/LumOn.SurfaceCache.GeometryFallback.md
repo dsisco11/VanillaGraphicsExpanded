@@ -30,7 +30,8 @@ limits never become sky or artificial black samples. Missing hit lighting leaves
 The new queue does not admit ordinary GPU budget exhaustion, distance limits, unpublished geometry
 or unready hit lighting; their separate checklist tasks remain open.
 
-The CPU tracer has a 512-block distance limit and a 512-visited-cell limit. Reaching either limit
+The CPU tracer uses the producer's configurable distance (default 512 blocks) and a 1,024-visited-cell
+limit after the [traversal-budget follow-up](LumOn.SurfaceCache.TraversalBudget.md). Reaching either limit
 remains unresolved. Hits outside published GPU geometry still cannot resolve the existing GPU cache
 query's material/identity validation; fallback can establish distant sky, but does not invent an
 uncaptured far surface or an alternate lighting source. This preserves the shared cache contract.
@@ -44,7 +45,7 @@ uncaptured far surface or an alternate lighting source. This preserves the share
 | Rays per texel | 64 |
 | Retained ray/query descriptors | 1,024 |
 | CPU ray starts | 64 per producer frame; unused credit does not accumulate |
-| CPU traversal | 512 visited cells per ray; at most 32,768 visits from a frame's starts |
+| CPU traversal | 1,024 visited cells per ray; at most 65,536 visits from a frame's starts |
 | Distinct chunk dependencies | 512 per batch |
 | GPU request storage | 16-byte header plus sixteen 64-byte records |
 | GPU commit storage | Sixteen 32-byte records |
@@ -92,7 +93,8 @@ commit submissions and `fallbackRejected` obsolete/failed batches. Existing indi
 count the commit dispatch separately from ray traversal; CPU rays are not included in GPU ray counts.
 No per-ray logging or synchronous waiting was added to the render-thread fallback path.
 
-The coverage, traversal-budget and lighting-budget settings remain unchanged. This is an additional
+The initial fallback implementation left coverage, traversal and lighting budgets unchanged; the
+linked traversal-budget follow-up subsequently aligned ray distance and cell limits. This is an additional
 bounded source of completed samples, not evidence of a gameplay frame-time or convergence gain.
 The later user-run acceptance and separate throughput review tasks remain open.
 

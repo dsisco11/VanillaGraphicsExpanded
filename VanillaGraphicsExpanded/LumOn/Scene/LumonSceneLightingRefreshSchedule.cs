@@ -7,6 +7,10 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed class LumonSceneLightingRefreshSchedule
 {
     private readonly Dictionary<uint, PageState> pages = new();
+    public const int ExhaustionRetryFrames = 32, MaximumRetryEntries = 4096;
+    private readonly Dictionary<(uint Page, uint Bucket), LinkedListNode<(uint Page, uint Bucket, uint Frame)>> retries = new();
+    private readonly LinkedList<(uint Page, uint Bucket, uint Frame)> retryOrder = new();
+    internal int RetryCount => retries.Count;
 
     /// <summary>Keeps independent bucket cursors so an unresolved bucket cannot monopolize a page.</summary>
     private sealed class PageState
@@ -18,7 +22,7 @@ internal sealed class LumonSceneLightingRefreshSchedule
 
     #region Scheduling
     /// <summary>Selects one operation per admitted page; seed bucket selection remains owned by its completion schedule.</summary>
-    public uint Select(uint page, bool seeded, bool published, int batchCount, out uint bucket)
+    public uint Select(uint page, bool seeded, bool published, int batchCount, out uint bucket, int frame = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchCount);
         if (!pages.TryGetValue(page, out var state)) pages[page] = state = new();
@@ -33,7 +37,9 @@ internal sealed class LumonSceneLightingRefreshSchedule
         {
             bucket = state.IndirectBucket;
             state.IndirectBucket = (bucket + 1) % (uint)batchCount;
-            return 1;
+            if (!RetryDelayed(page, bucket, frame)) return 1;
+            // Consume the cursor turn, not an indirect trace. Other buckets keep advancing and
+            // direct refresh uses this page admission without clearing any displayed samples.
         }
         bucket = state.DirectBucket;
         state.DirectBucket = (bucket + 1) % (uint)batchCount;
@@ -41,9 +47,52 @@ internal sealed class LumonSceneLightingRefreshSchedule
     }
 
     /// <summary>Retires cursors only when page identity changes, preserving fairness across ordinary dirty notifications.</summary>
-    public void Remove(uint page) => pages.Remove(page);
+    public void Remove(uint page)
+    {
+        pages.Remove(page);
+        for (var node = retryOrder.First; node != null;)
+        {
+            var next = node.Next;
+            if (node.Value.Page == page)
+            {
+                retries.Remove((page, node.Value.Bucket));
+                retryOrder.Remove(node);
+            }
+            node = next;
+        }
+    }
 
     /// <summary>Retires all cursors after an incompatible resource lifetime or settings change.</summary>
-    public void Clear() => pages.Clear();
+    public void Clear() { pages.Clear(); ClearRetryDelays(); }
+    #endregion
+
+    #region Exhausted traversal retries
+    /// <summary>Defers a limited bucket with fixed storage; oldest entries yield when the bounded table is full.</summary>
+    public void RecordExhaustion(uint page, uint bucket, int frame)
+    {
+        var key = (page, bucket);
+        if (retries.Remove(key, out var previous)) retryOrder.Remove(previous);
+        if (retries.Count == MaximumRetryEntries)
+        {
+            var oldest = retryOrder.First!;
+            retries.Remove((oldest.Value.Page, oldest.Value.Bucket));
+            retryOrder.RemoveFirst();
+        }
+        retries.Add(key, retryOrder.AddLast((page, bucket, unchecked((uint)frame))));
+    }
+
+    /// <summary>Wakes delayed buckets after geometry changes without altering history or fair bucket cursors.</summary>
+    public void ClearRetryDelays() { retries.Clear(); retryOrder.Clear(); }
+
+    /// <summary>Expires delays using unsigned elapsed frames, including signed frame-counter wraparound.</summary>
+    private bool RetryDelayed(uint page, uint bucket, int frame)
+    {
+        var key = (page, bucket);
+        if (!retries.TryGetValue(key, out var entry)) return false;
+        if (unchecked((uint)frame - entry.Value.Frame) < ExhaustionRetryFrames) return true;
+        retries.Remove(key);
+        retryOrder.Remove(entry);
+        return false;
+    }
     #endregion
 }

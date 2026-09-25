@@ -14,6 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Fallback;
 internal sealed class SurfaceFallbackWorker : IDisposable
 {
     public const int MaximumTexels = 16, MaximumRays = 64, RaysPerFrame = 64, MaximumDependencies = 512;
+    public const int MaximumTraversalSteps = 1024;
     private readonly Func<Action<VectorInt3, object?>, IWorldProbeTraceScene> createScene;
     private readonly object gate = new();
     private readonly SemaphoreSlim wake = new(0, 1);
@@ -43,7 +44,8 @@ internal sealed class SurfaceFallbackWorker : IDisposable
     {
         if (requests.IsDefaultOrEmpty || requests.Length > MaximumTexels) throw new ArgumentOutOfRangeException(nameof(requests));
         foreach (var request in requests)
-            if (request.Fraction.W < 1 || request.Fraction.W > MaximumRays || !float.IsFinite(request.Fraction.W))
+            if (request.Fraction.W < 1 || request.Fraction.W > MaximumRays || !float.IsFinite(request.Fraction.W) ||
+                request.Normal.W < 1 || request.Normal.W > 512 || !float.IsFinite(request.Normal.W))
                 throw new ArgumentOutOfRangeException(nameof(requests));
         if (disposed || task != null) return false;
         cancellation = new();
@@ -113,20 +115,26 @@ internal sealed class SurfaceFallbackWorker : IDisposable
             {
                 int first = queries.Count;
                 bool complete = true;
+                bool exhausted = false;
                 var origin = new Vector3d(request.X + (double)request.Fraction.X, request.Y + (double)request.Fraction.Y,
                     request.Z + (double)request.Fraction.Z);
                 for (uint ray = 0; ray < (uint)request.Fraction.W; ray++)
                 {
                     await TakeCredit(token).ConfigureAwait(false);
                     Vector3 direction = Direction(request, ray);
-                    var outcome = scene.Trace(origin, direction, 512, token, out var hit);
+                    var outcome = scene.Trace(origin, direction, request.Normal.W, token, out var hit);
                     if (outcome == WorldProbeTraceOutcome.Sky) continue;
-                    if (outcome != WorldProbeTraceOutcome.Hit) { complete = false; break; }
+                    if (outcome != WorldProbeTraceOutcome.Hit)
+                    {
+                        complete = false;
+                        exhausted = outcome is WorldProbeTraceOutcome.DistanceLimit or WorldProbeTraceOutcome.BudgetExhausted;
+                        break;
+                    }
                     var point = origin + Vector3d.Normalize(Vector3d.FromVector3(direction)) * hit.HitDistance;
                     queries.Add(new(hit.HitBlockPos, hit.HitFaceNormal,
                         new((float)(point.X-hit.HitBlockPos.X), (float)(point.Y-hit.HitBlockPos.Y), (float)(point.Z-hit.HitBlockPos.Z)), hit.HitBlockId));
                 }
-                texels.Add(new(request, first, queries.Count-first, complete));
+                texels.Add(new(request, first, queries.Count-first, complete, exhausted));
             }
             token.ThrowIfCancellationRequested();
             var observed = ImmutableArray.CreateBuilder<SurfaceFallbackDependency>(dependencies.Count);

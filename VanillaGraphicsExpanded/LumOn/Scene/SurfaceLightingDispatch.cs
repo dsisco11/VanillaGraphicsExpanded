@@ -34,7 +34,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
     /// <summary>Binds a coherent input snapshot and writes only the explicitly selected page batches.</summary>
     public void Run(TraceGeometryGpuScene scene, in SurfaceLightingSnapshot input, GpuTexture destination,
         GpuShaderStorageBuffer work, int count, uint operation, uint texels, uint rays, uint steps, uint frame, bool emission, int maxFramesAccumulated = 4,
-        GpuShaderStorageBuffer? fallbackRequests = null, GpuShaderStorageBuffer? fallbackCommits = null)
+        GpuShaderStorageBuffer? fallbackRequests = null, GpuShaderStorageBuffer? fallbackCommits = null, int maxTraceDistance = 512)
     {
         if (input.OutgoingRadiance.TextureId == destination.TextureId)
             throw new ArgumentException("Surface lighting requires distinct outgoing generations.");
@@ -45,7 +45,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
         {
             UboPacking.WriteUVec4(bytes, 0, (uint)input.TileSize, (uint)input.TilesPerAxis, (uint)input.TilesPerAtlas, operation);
             UboPacking.WriteUVec4(bytes, 16, texels, rays, steps, frame);
-            UboPacking.WriteIVec4(bytes, 32, input.Origin.X, input.Origin.Y, input.Origin.Z, 0);
+            UboPacking.WriteIVec4(bytes, 32, input.Origin.X, input.Origin.Y, input.Origin.Z, Math.Clamp(maxTraceDistance, 1, 512));
             UboPacking.WriteIVec4(bytes, 48, input.Dimensions.X, input.Dimensions.Y, input.Dimensions.Z, 0);
             UboPacking.WriteIVec4(bytes, 64, input.Ring.X, input.Ring.Y, input.Ring.Z, 0);
             // Use geometry's authoritative boundary, never the moving local coverage height.

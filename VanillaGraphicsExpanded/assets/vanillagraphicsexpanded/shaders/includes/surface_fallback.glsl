@@ -25,10 +25,10 @@ void surfaceQueueFallback(uint wi, uvec4 item, uint linear, uint batchCount, ive
     if ((linear / batchCount + offset) % size >= quota) return;
     uint index = atomicAdd(fallbackHeader.x,1u);
     if (index >= fallbackHeader.y) return;
-    fallbackRequests[index].identity = uvec4(item.x,item.y,item.w & 0x3fffffffu,linear);
+    fallbackRequests[index].identity = uvec4(item.x,item.y,item.w & 0x1fffffffu,linear);
     fallbackRequests[index].cellSeed = ivec4(cell,int(Squirrel3HashU(item.x,linear,lighting.sampling.w)));
     fallbackRequests[index].fractionRays = vec4(fraction,float(max(1u,lighting.sampling.y)));
-    fallbackRequests[index].normal = vec4(normal,0);
+    fallbackRequests[index].normal = vec4(normal,float(lighting.slotOrigin.w));
 }
 
 /** Applies the same bounded-history formula to ordinary GPU samples and validated fallback estimates. */

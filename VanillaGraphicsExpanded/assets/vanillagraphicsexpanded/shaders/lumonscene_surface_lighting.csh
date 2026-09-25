@@ -76,11 +76,11 @@ void main()
     if (operation == 5u)
     {
         // Render-thread lifetime validation precedes this dispatch; repeat GPU page/texel checks before accumulation.
-        if (directState.a != 1.0 || meta.chunkSlot != item.y || meta.patchId != (item.w & 0x3fffffffu)) return;
+        if (directState.a != 1.0 || meta.chunkSlot != item.y || meta.patchId != (item.w & 0x1fffffffu)) return;
         for (uint i=0u; i<uint(fallbackCommits.length()); i++)
         {
             SurfaceFallbackCommit commit = fallbackCommits[i];
-            if (all(equal(commit.identity,uvec4(id,item.y,item.w & 0x3fffffffu,linear))) && commit.estimate.a == 1.0)
+            if (all(equal(commit.identity,uvec4(id,item.y,item.w & 0x1fffffffu,linear))) && commit.estimate.a == 1.0)
             {
                 if (surfaceAccumulate(address,commit.estimate.rgb))
                 { surfaceCount(SD_COMPLETED); atomicOr(work[wi].w,0x40000000u); }
@@ -149,7 +149,7 @@ void main()
         float u = clamp(Squirrel3HashF(seed,r,0u),0.000001,0.999999);
         float phi = 6.28318530718 * Squirrel3HashF(seed,r,1u);
         vec3 dir = tangent*(sqrt(u)*cos(phi)) + bitangent*(sqrt(u)*sin(phi)) + n*sqrt(1.0-u);
-        LumonTraceSceneHit hit = lumonTraceScene(cell,fract(origin),dir,1e20,
+        LumonTraceSceneHit hit = lumonTraceScene(cell,fract(origin),dir,float(lighting.slotOrigin.w),
             int(lighting.sampling.z),TRACE_SCENE_SURFACE,int(lighting.policy.y));
         // The vanilla sunlight seed already supplies effective direct sky/sun irradiance.
         // A proven sky ray completes this indirect sample with zero additional energy;
@@ -158,6 +158,9 @@ void main()
         vec3 radiance; uint hitSurface;
         if (hit.outcome != LUMON_NEAR_FIELD_HIT)
         {
+            // Retain history, but defer this bucket instead of immediately repeating a limited segment.
+            if (hit.outcome == LUMON_NEAR_FIELD_BUDGET || hit.outcome == LUMON_NEAR_FIELD_CLEAR)
+                atomicOr(work[wi].w,0x20000000u);
             if (hit.outcome == LUMON_NEAR_FIELD_UNAVAILABLE &&
                 (hit.reason == TRACE_SCENE_OUTSIDE || hit.reason == TRACE_SCENE_UNSUPPORTED))
                 surfaceQueueFallback(wi,item,linear,batchCount,cell,fract(origin),n);

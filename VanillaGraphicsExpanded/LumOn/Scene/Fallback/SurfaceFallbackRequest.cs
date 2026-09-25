@@ -13,11 +13,12 @@ internal struct SurfaceFallbackRequest
     public int X, Y, Z;
     public uint Seed;
     public Vector4 Fraction;
-    public Vector4 Normal;
+    public Vector4 Normal; // xyz: surface normal; w: maximum trace distance in blocks.
 }
 
 /// <summary>One transactional texel result; unresolved rays never publish a partial ray denominator.</summary>
-internal readonly record struct SurfaceFallbackTexel(SurfaceFallbackRequest Request, int FirstQuery, int QueryCount, bool Complete);
+internal readonly record struct SurfaceFallbackTexel(SurfaceFallbackRequest Request, int FirstQuery, int QueryCount, bool Complete,
+    bool Exhausted = false);
 
 /// <summary>Retains the exact loaded chunk identity observed by the collision worker.</summary>
 internal readonly record struct SurfaceFallbackDependency(VectorInt3 Chunk, object? Identity);

@@ -405,11 +405,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Subagent-run focused validation: 86/86 pass; production build/deployment has zero warnings/errors.
       Broader consumer/runtime validation remains unresolved as recorded in the validation task below;
       no in-game convergence or performance claim.
-  ☐ Resolve traversal-budget exhaustion for the intended Surface Cache trace distance.
+  ☑ Resolve traversal-budget exhaustion for the intended Surface Cache trace distance.
     - Set suitable configurable traversal limits or implement bounded continuation, coordinated with
       expanded coverage and fallback. Raising coverage alone must not leave rays capped too early.
     - Preserve distinct distance-limit and budget-exhaustion outcomes and prevent endless immediate
       retries of unchanged exhausted work. Test long open routes and actual world-height boundaries.
+    - Added configurable 512-block default distance shared by GPU and CPU fallback, with a 1,024-cell
+      default GPU allowance and CPU ceiling sufficient for diagonal traversal. Saved explicit budgets
+      remain unchanged. Exhausted buckets defer for 32 frames in a bounded table; other buckets and
+      direct refresh continue, geometry changes wake retries, and valid history remains displayed.
+    - Subagent validation: 85 focused cases, 115 existing regression cases and the corrected runtime
+      cooldown/wake case pass; final production build has zero warnings/errors. Exact receipts,
+      fixture correction, storage bounds and limitations: docs/LumOn.SurfaceCache.TraversalBudget.md.
   ☐ Make retries of unready Surface Cache hit lighting dependency-aware.
     - Retain resolved hit information where worthwhile and retry when the required captured lighting
       progresses, with bounded storage/work and fairness. Avoid retracing unchanged known geometry.

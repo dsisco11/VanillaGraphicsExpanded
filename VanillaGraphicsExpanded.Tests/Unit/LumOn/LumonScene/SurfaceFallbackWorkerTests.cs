@@ -88,6 +88,7 @@ public sealed class SurfaceFallbackWorkerTests
         using var worker=new SurfaceFallbackWorker(_=>scene);worker.BeginFrame(0);
         var request=Request(3);Assert.True(worker.TrySubmit([request]));var result=Read(worker);Assert.NotNull(result);
         var texel=Assert.Single(result.Texels);Assert.Equal(complete,texel.Complete);Assert.Equal(request,texel.Request);
+        Assert.Equal(outcome is 3 or 4,texel.Exhausted);
         Assert.Equal(outcome==1?3:0,result.Queries.Length);Assert.Equal(complete?3:1,scene.Calls.Count);
         Assert.All(scene.Calls,call=>{Assert.Equal(new Vector3d(-16777216.25,35.5,16777216.75),call.Origin);Assert.Equal(512,call.Distance);});
     }
@@ -128,10 +129,23 @@ public sealed class SurfaceFallbackWorkerTests
     }
     #endregion
 
+    #region Configured distance
+    /// <summary>The original producer distance survives transport to the geometry-only collision tracer.</summary>
+    [Theory]
+    [InlineData(1)] [InlineData(96)] [InlineData(512)]
+    public void ConfiguredDistanceReachesCollisionTracer(int distance)
+    {
+        var scene=new Scene();using var worker=new SurfaceFallbackWorker(_=>scene);worker.BeginFrame(0);
+        var request=Request();request.Normal.W=distance;
+        Assert.True(worker.TrySubmit([request]));Assert.NotNull(Read(worker));
+        Assert.Equal(distance,Assert.Single(scene.Calls).Distance);
+    }
+    #endregion
+
     #region Fixture helpers
     /// <summary>Creates a large signed origin without losing its sub-block fraction.</summary>
     private static SurfaceFallbackRequest Request(int rays=1)=>new(){Page=1,Slot=2,Patch=3,Linear=27,
-        X=-16777217,Y=35,Z=16777216,Seed=41,Fraction=new(.75f,.5f,.75f,rays),Normal=new(0,1,0,0)};
+        X=-16777217,Y=35,Z=16777216,Seed=41,Fraction=new(.75f,.5f,.75f,rays),Normal=new(0,1,0,512)};
 
     /// <summary>Waits in the test harness for one drained immutable completion.</summary>
     private static SurfaceFallbackResult? Read(SurfaceFallbackWorker worker)

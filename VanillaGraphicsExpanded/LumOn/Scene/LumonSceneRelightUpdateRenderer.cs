@@ -38,6 +38,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private LumonScenePhysicalAtlasGpuResources? atlas;
     private TraceGeometryGpuScene? scene;
     private long sceneRevision = -1, historyRevision = -1;
+    private long retryGeometryRevision = -1, retryWorldRevision = -1;
     private int settingsHash, frame, lastWorkCount;
     private uint lastCandidate;
     private SurfaceLightingSnapshot snapshot;
@@ -120,6 +121,14 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         }
         if (readyBuffer == null) return;
         SynchronizePages(mapping, mirror, selectCandidates: true);
+        long worldRevision = System.Threading.Interlocked.Read(ref fallbackWorldRevision);
+        if (retryGeometryRevision != current.Revision || retryWorldRevision != worldRevision)
+        {
+            // New coverage, publications and edits can resolve previously limited segments.
+            refreshSchedule.ClearRetryDelays();
+            retryGeometryRevision = current.Revision;
+            retryWorldRevision = worldRevision;
+        }
         if (candidates.Length == 0) { ReportReadiness(mapping.Count == 0 ? "no-resident-pages" : "awaiting-capture"); return; }
         dispatch ??= new SurfaceLightingDispatch(capi);
         dispatch.Diagnostics.Enabled = cfg.SurfaceWorkDiagnosticsEnabled;
@@ -147,7 +156,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             uint slot = LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(key), page = LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
             var flags = LumonScenePageTableEntryPacking.UnpackFlags(mirror[checked((int)slot * LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk + (int)page)]);
             if ((flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0) continue;
-            uint operation = refreshSchedule.Select(id, seeded.Contains(id), publishedPages.Contains(id), batchCount, out uint bucket);
+            uint operation = refreshSchedule.Select(id, seeded.Contains(id), publishedPages.Contains(id), batchCount, out uint bucket, frame);
             if (operation == 0) bucket = batches.Next(key, batchCount);
             var work = new LumonSceneRelightWorkGpu(id, slot, bucket, page);
             if (!initialized.Contains(id)) resetWork.Add(work);
@@ -171,7 +180,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             var fallbackBuffer = operation == 1 ? BeginFallbackCapture(current,work) : null;
             dispatch.Run(current, snapshot, resources.PendingOutgoing, gpu.RelightWork.Items, work.Length, operation,
                 (uint)texels, (uint)Math.Max(1,cfg.RelightRaysPerTexel), (uint)cfg.RelightMaxDdaSteps, (uint)frame, cfg.SurfaceLightingMaterialEmission, cfg.RelightMaxFramesAccumulated,
-                fallbackRequests:fallbackBuffer);
+                fallbackRequests:fallbackBuffer, maxTraceDistance:cfg.RelightMaxTraceDistance);
             if (fallbackBuffer != null) fallbackQueue!.Submit();
             // One completion read per operation, rather than a GPU synchronization for every page.
             long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -187,6 +196,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 else { diagnosticRefreshAttempts++; if (!success) diagnosticRefreshFailures++; }
                 // A successful texel is useful even when another texel in this batch remains unresolved.
                 bool progress = result.IsMapped && (result.Span[i].VirtualPageIndex & 0x40000000u) != 0;
+                if (operation == 1 && result.IsMapped && (result.Span[i].VirtualPageIndex & 0x20000000u) != 0)
+                    refreshSchedule.RecordExhaustion(work[i].PhysicalPageId, work[i].PatchId, frame);
                 if (operation == 1 && progress)
                     diagnosticIndirectQueue.Complete(work[i].PhysicalPageId, Environment.TickCount64);
                 bool seedComplete = operation == 0 && batches.Complete(identities[work[i].PhysicalPageId], batchCount, success);
@@ -265,13 +276,16 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     {
         var cfg = config.LumOn.LumonScene;
         // History-limit changes alter future weighting without invalidating retained lighting or scheduling.
-        return HashCode.Combine(cfg.RelightRaysPerTexel, cfg.RelightMaxDdaSteps, cfg.RelightTexelsPerPagePerFrame, cfg.SurfaceLightingMaterialEmission);
+        return HashCode.Combine(cfg.RelightRaysPerTexel, cfg.RelightMaxDdaSteps, cfg.RelightMaxTraceDistance,
+            cfg.RelightTexelsPerPagePerFrame, cfg.SurfaceLightingMaterialEmission);
     }
 
     /// <summary>Reports bounded producer progress without reading GPU counters.</summary>
     internal bool TryGetSelfCheckLine(out string line)
     {
-        line = ReadinessDiagnosticLine() + $" fallbackAdmitted:{fallbackAdmitted} fallbackCommitted:{fallbackCommitted} fallbackRejected:{fallbackRejected}";
+        var cfg = config.LumOn.LumonScene;
+        line = ReadinessDiagnosticLine() + $" fallbackAdmitted:{fallbackAdmitted} fallbackCommitted:{fallbackCommitted} fallbackRejected:{fallbackRejected}" +
+            $" traceDistance:{cfg.RelightMaxTraceDistance} traceSteps:{cfg.RelightMaxDdaSteps} exhaustedBuckets:{refreshSchedule.RetryCount}";
         return config.LumOn.Enabled && config.LumOn.LumonScene.Enabled;
     }
 
@@ -286,6 +300,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         readyBuffer?.Dispose(); readyBuffer = null; dispatch?.Dispose(); dispatch = null;
         seedWork.Clear(); traceWork.Clear(); refreshWork.Clear(); resetWork.Clear(); publishable.Clear(); committedWork.Clear();
         lastCandidate = 0; frame = lastWorkCount = 0; sceneRevision = historyRevision = -1;
+        retryGeometryRevision = retryWorldRevision = -1;
         ResetReadinessDiagnostics();
     }
 

@@ -54,9 +54,11 @@ LumonTraceSceneHit lumonTraceSceneEndpoint(ivec3 startCell, vec3 fraction, vec3 
     // A start inside a solid is an immediate opaque hit, never an ignored first cell.
     int dominant = abs(dir.x) >= abs(dir.y) && abs(dir.x) >= abs(dir.z) ? 0 : (abs(dir.y) >= abs(dir.z) ? 1 : 2);
     result.normal[dominant] = -stepCell[dominant];
-    // Keep the caller's runtime budget in the loop condition. A constant 512-iteration
+    // Keep the caller's runtime budget in the loop condition. A constant large-iteration
     // loop can be unrolled into every visibility query and exceed driver instruction limits.
-    int stepLimit = clamp(maxSteps, 0, 512);
+    // 1024 visits cover all axis crossings of a 512-block ray, including diagonal ties.
+    // Other consumers retain their smaller caller-supplied limits.
+    int stepLimit = clamp(maxSteps, 0, 1024);
     for (int i = 0; i < stepLimit; i++)
     {
         uint geometry;

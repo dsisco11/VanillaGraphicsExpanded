@@ -125,7 +125,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
                 if (!ReferenceEquals(accessor,fallbackAccessor))
                 {
                     fallbackWorker?.Dispose(); fallbackAccessor = accessor;
-                    fallbackWorker = new(observer => new BlockAccessorWorldProbeTraceScene(accessor,false,512,observer));
+                    fallbackWorker = new(observer => new BlockAccessorWorldProbeTraceScene(accessor,false,SurfaceFallbackWorker.MaximumTraversalSteps,observer));
                 }
                 fallbackWorker!.BeginFrame(fallbackFrame);
                 if (!fallbackWorker.TrySubmit(requests)) { ResetFallback(); return ImmutableArray<SurfaceFallbackCommit>.Empty; }
@@ -136,6 +136,13 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
                 fallbackResult = result;
                 if (result == null || !FallbackCurrent(current) || !FallbackDependenciesCurrent())
                 { fallbackRejected++; ResetFallback(); return ImmutableArray<SurfaceFallbackCommit>.Empty; }
+                // CPU distance/budget failures share the GPU bucket delay; completed sibling texels still commit.
+                int tile = snapshot.TileSize;
+                int texels = Math.Min(tile * tile, config.LumOn.LumonScene.RelightTexelsPerPagePerFrame);
+                int bucketCount = (tile * tile + texels - 1) / texels;
+                foreach (var texel in result.Texels)
+                    if (texel.Exhausted)
+                        refreshSchedule.RecordExhaustion(texel.Request.Page, texel.Request.Linear % (uint)bucketCount, frame);
                 if (!result.Queries.IsEmpty)
                 {
                     CaptureFallbackHitPages(result.Queries);

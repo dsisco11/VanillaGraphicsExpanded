@@ -44,6 +44,8 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public SurfaceWorkDiagnostics Diagnostics => producer.Diagnostics;
     /// <summary>Controls the producer history cap without changing source or surface identity.</summary>
     public int MaxFramesAccumulated { get; set; } = 4;
+    /// <summary>Records completion reason flags from the last selected producer work item.</summary>
+    public uint LastWorkFlags { get; private set; }
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
         metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation, DependencyRevision);
 
@@ -266,15 +268,15 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     }
 
     /// <summary>Runs one selected texel through the real producer, then combines its result for numerical observation.</summary>
-    public bool BounceSample(int page = 0, int linear = 27, uint rays = 4, uint steps = 256, uint frame = 1, GpuShaderStorageBuffer? fallbackRequests=null)
+    public bool BounceSample(int page = 0, int linear = 27, uint rays = 4, uint steps = 256, uint frame = 1, GpuShaderStorageBuffer? fallbackRequests=null, int maxTraceDistance=512)
     {
         var item=lightingItems[page];
         var selected=new LumonSceneRelightWorkGpu(item.PhysicalPageId,item.ChunkSlot,(uint)linear,item.VirtualPageIndex);
         work.UploadSubData<LumonSceneRelightWorkGpu>(new[]{selected},0,16);
-        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests);
+        producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests,maxTraceDistance:maxTraceDistance);
         bool complete;
         using(var result=work.MapRange<LumonSceneRelightWorkGpu>(0,1,MapBufferAccessMask.MapReadBit))
-        { Assert.True(result.IsMapped); complete=(result.Span[0].VirtualPageIndex & 0x80000000u)==0; }
+        { Assert.True(result.IsMapped); LastWorkFlags=result.Span[0].VirtualPageIndex; complete=(LastWorkFlags & 0x80000000u)==0; }
         // This controlled estimator test combines immediately; production page scheduling is exercised separately.
         if(complete) Publish();
         return complete;
