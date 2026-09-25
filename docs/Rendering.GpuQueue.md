@@ -23,9 +23,10 @@ the GPU-produced record count; remaining words belong to the domain. The queue p
 complete bounded record area. The caller writes the header, dispatches its producer, then calls
 `Submit()`. Readback clamps the count to capacity, preserving the existing capture overflow policy.
 
-For CPU-authored queries, use a zero-byte header. `WriteRecords` grows storage only to the requested
-record count, retaining the previous on-demand allocation behavior. The caller binds the exact
-active range, dispatches, then calls `Submit(count)`. Readback uses that submitted count rather than
+For CPU-authored queries, use a zero-byte header. `WriteRecords` allocates lazily and doubles retained
+storage when growth is needed, capped at queue capacity (or grows directly to a larger requested batch).
+The caller binds the exact active range, dispatches, then calls `Submit(count)`.
+Readback uses that submitted count rather than
 retained buffer capacity. Both protocols require fresh prepared input for each submission.
 
 `TryRead` polls without waiting. Once signaled, it invokes a `GpuQueueReader<T, TResult>` callback
@@ -53,6 +54,13 @@ unchanged. The capture projections still return immutable arrays, and lighting q
 existing array result API. No game process is started for verification.
 
 ## Validation
+
+Bounded geometric growth, read-only hit-record iteration and removal of the redundant query buffer
+binding passed 127 focused tests, including 12 queue cases. Growth tests verify gradual batches,
+a large jump, a non-power-of-two capacity ceiling, and exact active data despite retained spare storage.
+The production build passed with zero warnings and errors. Receipts:
+`artifacts/gpu-queue-performance-focused.log`, `artifacts/TestResults/gpu-queue-performance-focused.trx`,
+and `artifacts/gpu-queue-performance-build.log`. These are correctness checks, not measured speedups.
 
 After removing the domain queue wrappers, the subagent-run queue, codec, hit-retry and fallback
 selection passed 102 tests with no failures or skips. The production build passed with zero

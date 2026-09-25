@@ -32,7 +32,7 @@ internal static class SurfaceHitCaptureCodec
     public static ImmutableArray<SurfaceFallbackResult> Decode(ReadOnlySpan<SurfaceHitCapture> records)
     {
         var captured = ImmutableArray.CreateBuilder<SurfaceFallbackResult>();
-        foreach (var record in records)
+        foreach (ref readonly var record in records)
         {
             if (record.Complete != 1 || record.QueryCount == 0 || record.QueryCount > SurfaceFallbackWorker.MaximumRays) continue;
             var queries = ImmutableArray.CreateBuilder<SurfaceLightingQuery>((int)record.QueryCount);

@@ -32,7 +32,7 @@ internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
         buffer = GpuShaderStorageBuffer.Create(usage, debugName);
         try
         {
-            // Append producers can write any bounded slot. Known-count producers allocate only their active records.
+            // Append producers can write any bounded slot. Known-count producers allocate lazily.
             if (headerBytes > 0) buffer.EnsureCapacity(maximumBytes, growExponentially: false);
         }
         catch { buffer.Dispose(); throw; }
@@ -57,7 +57,13 @@ internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
         if (!records.IsEmpty)
         {
             int bytes = checked(records.Length * recordBytes);
-            buffer.EnsureCapacity(bytes, growExponentially: false);
+            if (bytes > buffer.SizeBytes)
+            {
+                // Amortize growing batches without exceeding the queue bound or changing the active range.
+                // Widen before doubling so even a near-limit allocation cannot overflow.
+                int retainedBytes = (int)Math.Min((long)buffer.SizeBytes << 1, (long)capacity * recordBytes);
+                buffer.EnsureCapacity(Math.Max(bytes, retainedBytes), growExponentially: false);
+            }
             buffer.UploadSubData(records, 0, bytes);
         }
         writtenCount = records.Length;

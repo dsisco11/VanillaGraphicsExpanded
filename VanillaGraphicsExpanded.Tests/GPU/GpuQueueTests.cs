@@ -87,6 +87,42 @@ public sealed class GpuQueueTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Bounds
+    /// <summary>Gradual growth retains spare storage, caps at a non-power-of-two bound and never exposes spare records.</summary>
+    [Fact]
+    public void GradualGrowthRetainsBoundedStorageAndActiveData()
+    {
+        fixture.MakeCurrent();
+        using var queue = new GpuQueue<uint>(7);
+        int[] counts = [1, 2, 3, 4, 5, 6, 7, 2];
+        int[] retainedCounts = [1, 2, 4, 4, 7, 7, 7, 7];
+        for (int batch = 0; batch < counts.Length; batch++)
+        {
+            // Distinct generations reveal stale storage if readback accidentally includes retained capacity.
+            uint[] values = Enumerable.Range(0, counts[batch]).Select(index => (uint)(batch * 100 + index)).ToArray();
+            queue.WriteRecords(values);
+            Assert.Equal(retainedCounts[batch] << 2, queue.Buffer.SizeBytes);
+            queue.Submit(values.Length);
+            Assert.Equal(values, Read(queue));
+        }
+    }
+
+    /// <summary>A large jump allocates enough for the requested batch rather than limiting growth to one doubling.</summary>
+    [Fact]
+    public void DirectGrowthAccommodatesLargeBatch()
+    {
+        fixture.MakeCurrent();
+        using var queue = new GpuQueue<uint>(11);
+        queue.WriteRecords([42]);
+        Assert.Equal(sizeof(uint), queue.Buffer.SizeBytes);
+        queue.Submit(1);
+        Assert.Equal(new uint[] { 42 }, Read(queue));
+        uint[] values = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        queue.WriteRecords(values);
+        Assert.Equal(values.Length << 2, queue.Buffer.SizeBytes);
+        queue.Submit(values.Length);
+        Assert.Equal(values, Read(queue));
+    }
+
     /// <summary>Each submission consumes its prepared input, including an explicitly empty known-count batch.</summary>
     [Fact]
     public void SubmissionRequiresFreshMatchingInput()

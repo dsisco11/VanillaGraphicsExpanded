@@ -33,7 +33,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
         int count=queries.Length;
         queue.WriteRecords(queries);
         using var program=pipeline.UseScope();
-        geometry.Bind(scene); lighting.Bind(snapshot); queue.Buffer.BindBase(0);
+        geometry.Bind(scene); lighting.Bind(snapshot);
         // Bind the exact active range: retained buffer capacity must not become extra queries.
         queue.Buffer.BindRange(0,0,count << 6);
         GL.DispatchCompute((count+63)/64,1,1);
