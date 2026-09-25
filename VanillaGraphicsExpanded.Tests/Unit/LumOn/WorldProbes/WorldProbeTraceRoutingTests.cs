@@ -48,18 +48,21 @@ public sealed class WorldProbeTraceRoutingTests
         Assert.False(router.TryDequeueResult(out _));
     }
 
-    /// <summary>The compatibility adapter borrows the CPU owner and exposes each result only through that owner's queue.</summary>
+    /// <summary>The compute backend bounds queued rays and defers scheduler claims until dispatch.</summary>
     [Fact]
-    public void CompatibilityBackendBorrowsCpuQueueWithoutDoubleDrainingOrDisposal()
+    public void ComputeBackendBoundsAdmissionWithoutClaimingQueuedWork()
     {
-        var cpu=new Backend();
-        using(var router=new LumOnWorldProbeTraceRouter(true,cpu,new LumOnWorldProbeGpuTraceBackend(cpu)))
-        {
-            Assert.True(router.TryEnqueue(default)); Assert.Single(cpu.Items);
-            cpu.Results.Enqueue(default);
-            Assert.True(router.TryDequeueResult(out _)); Assert.False(router.TryDequeueResult(out _));
-        }
-        Assert.Equal(1,cpu.Disposals);
+        int claims=0;
+        using var backend=new LumOnWorldProbeGpuTraceBackend(new Moq.Mock<Vintagestory.API.Common.ICoreAPI>().Object,256,
+            ()=>null,()=>null,(_,_)=>{claims++;return true;});
+        var item=new LumOnWorldProbeTraceWorkItem(0,new(0,new(),new(),0),new(1,2,3),64,64,4096,false,.25f,-1,1e-6f);
+        Assert.Throws<ArgumentOutOfRangeException>(()=>backend.TryEnqueue(item with { ProbePosWorld=new(double.NaN,2,3) }));
+        Assert.Equal(0,claims);
+        Assert.True(backend.TryEnqueue(item));Assert.True(backend.TryEnqueue(item));
+        Assert.False(backend.TryEnqueue(item)); Assert.Equal(0,claims);
+        Assert.False(backend.TryEnqueue(item with { Request=item.Request with { Level=1 } }));
+        backend.Dispose();
+        Assert.False(backend.TryEnqueue(item));Assert.False(backend.TryDequeueResult(out _));
     }
     #endregion
 

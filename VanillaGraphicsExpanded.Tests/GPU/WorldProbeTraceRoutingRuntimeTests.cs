@@ -7,19 +7,20 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category","GPU")]
 public sealed class WorldProbeTraceRoutingRuntimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
-    /// <summary>Switching either direction retires pending queries while retaining atlas values and allowing replacement work.</summary>
+    /// <summary>Switching from CPU queries to compute retains atlas values; both routing changes allow replacement work.</summary>
     [Fact]
     public void FlagChangesRetirePendingWorkWithoutClearingDisplayedAtlas()
     {
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         var resources=runtime.WorldBuffers.Resources;
         var config=runtime.Cache.Config.WorldProbeClipmap;
         int traceBudget=config.TraceMaxProbesPerFrame,uploadBudget=config.UploadBudgetBytesPerFrame;
-        foreach(bool enabled in new[]{false,true})
+        foreach(bool enabled in new[]{true,false})
         {
-            runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
+            runtime.RunUntil(()=>config.EnableGpuTracing?runtime.HasPendingGpuTrace:runtime.HasPendingSurfaceLightingQueries);
             float[] retained=runtime.WorldPixels();
             config.TraceMaxProbesPerFrame=0;config.UploadBudgetBytesPerFrame=0;
             config.EnableGpuTracing=enabled;
@@ -28,10 +29,11 @@ public sealed class WorldProbeTraceRoutingRuntimeTests(HeadlessGLFixture fixture
                 runtime.Frame();
                 Assert.Same(resources,runtime.WorldBuffers.Resources);
                 Assert.False(runtime.HasPendingSurfaceLightingQueries);
+                Assert.False(runtime.HasPendingGpuTrace);
                 Assert.Equal(retained,runtime.WorldPixels());
             }
             config.TraceMaxProbesPerFrame=traceBudget;config.UploadBudgetBytesPerFrame=uploadBudget;
-            runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
+            runtime.RunUntil(()=>config.EnableGpuTracing?runtime.HasPendingGpuTrace:runtime.HasPendingSurfaceLightingQueries);
             Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         }
     }

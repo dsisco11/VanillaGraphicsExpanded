@@ -44,6 +44,19 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
     public bool HasPendingSurfaceLightingQueries =>
         (surfaceQueriesField.GetValue(WorldRenderer) as VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingQueryBatch)?.Pending == true;
 
+    /// <summary>Observes the actual compute fence without draining results or exposing a production diagnostic API.</summary>
+    public bool HasPendingGpuTrace
+    {
+        get
+        {
+            const System.Reflection.BindingFlags flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+            var router=typeof(LumOnWorldProbeUpdateRenderer).GetField("traceService",flags)!.GetValue(WorldRenderer);
+            if(router==null)return false;
+            var backend=router.GetType().GetField("gpu",flags)!.GetValue(router);
+            return (typeof(LumOnWorldProbeGpuTraceBackend).GetField("batch",flags)!.GetValue(backend) as WorldProbeTraceBatch)?.Pending==true;
+        }
+    }
+
     #region Composition
     /// <summary>Registers real consumers with the producer's engine events and injects real publication providers.</summary>
     public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null, bool pbrComposition = false, bool shortProbeRange = false)

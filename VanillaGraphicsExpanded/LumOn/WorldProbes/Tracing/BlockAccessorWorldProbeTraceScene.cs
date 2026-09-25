@@ -256,13 +256,14 @@ internal sealed class BlockAccessorWorldProbeTraceScene : IWorldProbeTraceScene
         {
             Cuboidf box = boxes[i];
 
-            // Convert to world-space AABB.
-            double minX = voxelX + box.MinX;
-            double minY = voxelY + box.MinY;
-            double minZ = voxelZ + box.MinZ;
-            double maxX = voxelX + box.MaxX;
-            double maxY = voxelY + box.MaxY;
-            double maxZ = voxelZ + box.MaxZ;
+            // Promote the integer anchor before addition: float arithmetic would round
+            // block boundaries at large coordinates before the result reached the double.
+            double minX = (double)voxelX + box.MinX;
+            double minY = (double)voxelY + box.MinY;
+            double minZ = (double)voxelZ + box.MinZ;
+            double maxX = (double)voxelX + box.MaxX;
+            double maxY = (double)voxelY + box.MaxY;
+            double maxZ = (double)voxelZ + box.MaxZ;
 
             // If we start inside the box for this voxel segment, treat as an immediate hit.
             if (

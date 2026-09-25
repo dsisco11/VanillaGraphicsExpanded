@@ -30,16 +30,6 @@ internal sealed class LumOnWorldProbeTraceIntegrator
 
     private static readonly Vector3[] SkyBounceSampleDirections = BuildSkyBounceSampleDirections();
     private static readonly float SkyBounceNormalizationDenom = ComputeSkyBounceNormalizationDenom();
-    private static readonly Vector3[] CardinalDirections =
-    [
-        Vector3.UnitX,
-        -Vector3.UnitX,
-        Vector3.UnitY,
-        -Vector3.UnitY,
-        Vector3.UnitZ,
-        -Vector3.UnitZ
-    ];
-
     #region Public API
     /// <summary>Integrates resolved directions; incomplete primary traversal rejects the batch for retry.</summary>
     public LumOnWorldProbeTraceResult TraceProbe(IWorldProbeTraceScene scene, in LumOnWorldProbeTraceWorkItem item, CancellationToken cancellationToken)
@@ -56,36 +46,9 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         Span<int> texelIndicesScratch = k <= 256 ? stackalloc int[256] : new int[k];
         texelIndicesScratch = texelIndicesScratch.Slice(0, k);
 
-        int probeId = item.Request.StorageLinearIndex;
         int texelCount;
         using (Profiler.BeginScope("LumOn.WorldProbe.DirectionSelect", "LumOn"))
-        {
-            if (item.EnableDirectionPIS)
-            {
-                // Basis-driven proxy: prioritize +Y hemisphere (sky) by default.
-                // This is CPU-only (no GPU readbacks) and preserves deterministic coverage via exploration.
-                texelCount = LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdateImportance(
-                    frameIndex: item.FrameIndex,
-                    probeStorageLinearIndex: probeId,
-                    octahedralSize: s,
-                    texelsPerUpdate: k,
-                    basisDir: Vector3.UnitY,
-                    exploreFraction: item.DirectionPISExploreFraction,
-                    exploreCount: item.DirectionPISExploreCount,
-                    weightEpsilon: item.DirectionPISWeightEpsilon,
-                    directions: directions,
-                    destination: texelIndicesScratch);
-            }
-            else
-            {
-                texelCount = LumOnWorldProbeAtlasDirectionSlicing.FillTexelIndicesForUpdate(
-                    frameIndex: item.FrameIndex,
-                    probeStorageLinearIndex: probeId,
-                    octahedralSize: s,
-                    texelsPerUpdate: k,
-                    destination: texelIndicesScratch);
-            }
-        }
+            texelCount = WorldProbeTraceDirectionSelection.Fill(item, texelIndicesScratch);
 
         float skyIntensitySum = 0f;
         int skyIntensityCount = 0;
@@ -263,16 +226,9 @@ internal sealed class LumOnWorldProbeTraceIntegrator
         in LumOnWorldProbeTraceWorkItem item,
         CancellationToken cancellationToken)
     {
-        long sequence = (long)item.FrameIndex + item.Request.StorageLinearIndex;
-        int directionIndex = (int)(sequence % CardinalDirections.Length);
-        if (directionIndex < 0)
-        {
-            directionIndex += CardinalDirections.Length;
-        }
-
         return scene.Trace(
             item.ProbePosWorld,
-            CardinalDirections[directionIndex],
+            WorldProbeTraceDirectionSelection.NearbyDirection(item),
             item.NearbySolidHitDistance,
             cancellationToken,
             out _);

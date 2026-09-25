@@ -19,6 +19,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, shortProbeRange: true);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         bool ready = false;
         for (int frame = 0; frame < 96; frame++)
         {
@@ -39,6 +40,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(() => SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()) > .001f);
         Assert.True(runtime.World.WorkerReads > 0);
         Assert.Equal(0, runtime.World.VanillaLightReads);
@@ -50,6 +52,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.WorldRenderer.SetSurfaceLightingProvider(null, null);
         runtime.Cache.Config.LumOn.DebugMode = VanillaGraphicsExpanded.LumOn.LumOnDebugMode.WorldProbeOrbsPoints;
         int firstReads = 0;
@@ -77,6 +80,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         EnsureContextValid();
         var scene = new SpatialLightingScene();
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.Cache.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 4;
         bool published = false;
         for (int frame = 0; frame < 160 && !published; frame++)
@@ -92,15 +96,16 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
 
     /// <summary>Registered callbacks generate anchors and propagate real produced lighting into both probe paths and full-resolution output.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void RegisteredConsumersPropagateLightingAcrossLifetime(bool sh9)
+    [InlineData(false,false)] [InlineData(true,false)] [InlineData(false,true)] [InlineData(true,true)]
+    public void RegisteredConsumersPropagateLightingAcrossLifetime(bool sh9,bool gpu)
     {
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(sh9);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=gpu;
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.IndirectFullTex!=null
             && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
             && runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
-        Assert.True(runtime.World.WorkerReads>0);
+        if(gpu)Assert.Equal(0,runtime.World.WorkerReads);else Assert.True(runtime.World.WorkerReads>0);
         Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Screen.ScreenProbeAtlasHistoryTex!.ReadPixels())>.001f);
         Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Screen.ScreenProbeAtlasFilteredTex!.ReadPixels())>.001f);
         Assert.True(runtime.DrawnPrograms.Count>0);
@@ -147,19 +152,21 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.Equal("lumon",opaque[^1]);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
-    /// <summary>A pending real GPU query cannot publish below the metadata plus one-direction upload cost.</summary>
-    [Fact]
-    public void MinimumDirectionalUploadBudgetDefersPendingQueries()
+    /// <summary>Neither trace backend publishes below the metadata plus one-direction upload cost.</summary>
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void MinimumDirectionalUploadBudgetDefersPendingQueries(bool gpu)
     {
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=gpu;
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         runtime.WorldBuffers.RequestRecreate("verify atomic upload admission with a ready cache");
         runtime.Frame();
-        runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
+        if(!gpu)runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
+        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=63;
         Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
         Assert.Equal(0,runtime.WorldConfidence);
-        runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=63;
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
@@ -177,6 +184,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.True(runtime.Cache.TryGetLighting(out var before));
@@ -198,6 +206,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(true);
+        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         runtime.World.HoldWorker();
         runtime.RunUntil(()=>runtime.World.WorkerWaiting);

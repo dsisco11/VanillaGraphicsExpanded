@@ -265,17 +265,30 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       leaving L1+ on the CPU. Share scheduling, admission tickets, direction selection and budgets.
     - Retire outstanding backend work safely on flag changes, world leave and resource replacement;
       prevent duplicate publication or stranded in-flight requests.
-    - Implemented WorldProbeClipmap.EnableGpuTracing and separate L0 backend admission. Until the
-      next compute task, that backend forwards unchanged work to the shared bounded CPU queue.
+    - Implemented WorldProbeClipmap.EnableGpuTracing and separate L0 backend admission. The initial
+      CPU compatibility adapter has now been replaced by the compute implementation below.
       Flag changes revoke pending tickets/queries without clearing displayed history. All 43
       focused tests passed; production build/deployment passed with zero warnings/errors.
       Routing, lifetime boundaries and evidence: docs/LumOn.WorldProbeGpuRouting.md.
-  ☐ Implement bounded L0 compute tracing against the existing GPU geometry and Surface Cache.
+  ✔ Implement bounded L0 compute tracing against the existing GPU geometry and Surface Cache.
     - Reuse GPU voxel traversal and surface-lighting lookup with integer world origins and local
       fractions. Preserve ray outcomes, directional distance encoding, confidence, short-range
       occlusion and importance metadata; geometry tracing must not require lighting readiness.
     - L0 placement does not guarantee full-ray coverage. Coverage exits and unsupported geometry
       require CPU fallback; missing lighting at a resolved hit remains a Surface Cache retry.
+    - Implemented asynchronous batches of at most 8,192 rays, each bounded to 512 visited cells,
+      integer origins and shared direction/metadata integration. Existing uploaded geometry is
+      traced independently of lighting; ready hits bypass redundant cache queries. Explicit
+      fallback outcomes currently preserve history/retry pending the next task's CPU fallback.
+      All 141 focused tests passed; production build/deployment passed with zero warnings/errors.
+      Evidence and intermediate readback limits: docs/LumOn.WorldProbeGpuRouting.md.
+  ✔ Use compact per-probe records, GPU-generated direction tiles and indirect trace dispatch.
+    - Replaced repeated ray inputs with one 64-byte integer-origin probe and 4-byte selected
+      texel indices. GPU setup builds 8-byte tile references and indirect arguments; 8x8 groups
+      generate octahedral/cardinal directions and write separate 80-byte answers. Existing sparse
+      direction scheduling and metadata remain shared. GPU-resident publication remains below.
+    - All 143 regression tests plus 14 rebuilt admission/backend checks passed; production
+      build/deployment passed with zero warnings/errors. See docs/LumOn.WorldProbeGpuRouting.md.
   ☐ Add bounded CPU fallback for L0 rays outside GPU coverage or unsupported by GPU geometry.
     - Retrace only fallback directions from their original probe origins using the existing CPU
       collision tracer. Merge results under the same admission identity without retracing or

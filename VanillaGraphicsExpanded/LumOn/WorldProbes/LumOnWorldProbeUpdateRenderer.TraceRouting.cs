@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes;
 internal sealed partial class LumOnWorldProbeUpdateRenderer
 {
     #region Backend lifetime
-    /// <summary>Creates level routing around one shared bounded CPU queue and one scheduler lifetime.</summary>
+    /// <summary>Creates bounded CPU and GPU backends sharing one scheduler lifetime.</summary>
     private void EnsureTraceRouting(IBlockAccessor worldAccessor)
     {
         if (traceService is not null) return;
@@ -19,7 +19,10 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         var cpu = new LumOnWorldProbeTraceService(traceScene, 2048,
             (request, frame) => owner.TryClaim(request, frame));
         traceService = new LumOnWorldProbeTraceRouter(config.WorldProbeClipmap.EnableGpuTracing,
-            cpu, new LumOnWorldProbeGpuTraceBackend(cpu));
+            cpu, new LumOnWorldProbeGpuTraceBackend(capi, worldAccessor.MapSizeY,
+                () => geometryProvider?.PrepareScene(),
+                () => surfaceProvider != null && surfaceProvider.TryGetSurfaceLighting(out var snapshot) ? snapshot : null,
+                (request, frame) => owner.TryClaim(request, frame)));
     }
 
     /// <summary>Retires queued, running and delayed lighting admissions before switching routing.</summary>

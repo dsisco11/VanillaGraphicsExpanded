@@ -22,7 +22,7 @@ struct LumonTraceSceneHit
 };
 
 /** Traverses integer cells; a positive worldHeight optionally enables proven upper-boundary sky completion. */
-LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 direction, float maxDistance, int maxSteps, int domain, int worldHeight)
+LumonTraceSceneHit lumonTraceSceneEndpoint(ivec3 startCell, vec3 fraction, vec3 direction, float maxDistance, int maxSteps, int domain, int worldHeight, bool includeEndpoint)
 {
     LumonTraceSceneHit result;
     result.outcome = LUMON_NEAR_FIELD_UNAVAILABLE;
@@ -70,7 +70,7 @@ LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 directio
             return result;
         }
         float boundary = min(next.x, min(next.y, next.z));
-        if (boundary >= maxDistance)
+        if (boundary > maxDistance || (!includeEndpoint && boundary == maxDistance))
         {
             result.outcome = LUMON_NEAR_FIELD_CLEAR;
             result.distance = maxDistance;
@@ -101,5 +101,11 @@ LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 directio
     }
     result.outcome = LUMON_NEAR_FIELD_BUDGET;
     return result;
+}
+
+/** Preserves exclusive finite-segment endpoints for existing visibility and lighting consumers. */
+LumonTraceSceneHit lumonTraceScene(ivec3 startCell, vec3 fraction, vec3 direction, float maxDistance, int maxSteps, int domain, int worldHeight)
+{
+    return lumonTraceSceneEndpoint(startCell,fraction,direction,maxDistance,maxSteps,domain,worldHeight,false);
 }
 #endif

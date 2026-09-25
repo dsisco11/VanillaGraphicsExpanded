@@ -59,6 +59,14 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
         GlStateCache.Current.BindBuffer(BufferTarget.DispatchIndirectBuffer, bufferId);
     }
 
+    /// <summary>Binds indirect arguments as shader storage so compute can generate command counts.</summary>
+    public void BindStorage(int bindingIndex)
+    {
+        if (bindingIndex < 0) throw new ArgumentOutOfRangeException(nameof(bindingIndex));
+        if (!IsValid) throw new ObjectDisposedException(nameof(GpuIndirectBuffer));
+        GlStateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId);
+    }
+
     /// <summary>
     /// Binds this buffer as the draw-indirect buffer and returns a scope that restores the previous binding.
     /// </summary>
@@ -73,7 +81,6 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     /// </summary>
     public GlStateCache.BufferScope BindDispatchScope()
     {
-        BindDispatch();
         return GlStateCache.Current.BindBufferScope(BufferTarget.DispatchIndirectBuffer, bufferId);
     }
 
