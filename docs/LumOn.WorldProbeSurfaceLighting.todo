@@ -701,20 +701,6 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       no performance improvement claimed. Evidence: the report's Contract-only SPIR-V program
       loading section, including the unexercised geometry-stage limitation.
 
-  ☐ Extend the shader compiler to emit build-matched .map files for SPIR-V diagnostics.
-    - Generate a versioned .map sidecar for each compiled stage/variant from the exact source
-      transformation used to produce its binary, preserving original file/line and include mapping.
-      Associate the map with the binary using a content hash and stage/variant identity.
-    - Include map generation in incremental-build invalidation, output packaging and stale-output
-      cleanup. Keep binding metadata in existing contracts; maps serve diagnostics only.
-    - Load maps lazily for diagnostics. Translate only locations that can be reliably correlated
-      with compiler/driver output; retain raw logs when locations are absent or unrecognizable.
-      Missing, malformed or mismatched maps must not prevent a valid binary from loading, and
-      must never trigger runtime GLSL reconstruction or misleading source attribution.
-    - Use subagents for generation and diagnostic tests covering transformed/includes source,
-      distinct variants, deterministic output, stale hashes and missing/malformed maps. Obtain a
-      separate implementation review and document the format and supported diagnostic mapping.
-
   ☐ Replace unconditional GPU integration-test sleeps with dependency-driven completion waits.
     - Introduce a test-side frame pump that checks completion after each frame, advances frames
       for temporal/budget/publication work, and waits only on the external dependency preventing
