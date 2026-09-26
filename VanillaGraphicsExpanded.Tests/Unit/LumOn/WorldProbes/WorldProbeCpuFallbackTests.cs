@@ -46,6 +46,48 @@ public sealed class WorldProbeCpuFallbackTests
     #endregion
 
     #region Bounded worker credit
+    /// <summary>Waiters wake for exhausted credit and observe completed results repeatedly without draining them.</summary>
+    [Fact]
+    public async Task ProgressWaitPreservesResultsAndWakesForFrameCredit()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var service = new WorldProbeCpuFallbackService(new Scene(), _ => true);
+        Assert.True(service.TryEnqueue(Work(257)));
+        await service.WaitForProgressAsync(timeout.Token);
+        Assert.True(service.RequiresFrameCredit);
+        service.BeginFrame(0);
+        await service.WaitForProgressAsync(timeout.Token);
+        Assert.True(service.RequiresFrameCredit);
+        Assert.False(service.TryDequeue(out _));
+        service.BeginFrame(1);
+        await service.WaitForProgressAsync(timeout.Token);
+        await service.WaitForProgressAsync(timeout.Token);
+        Assert.True(service.TryDequeue(out var result));
+        Assert.True(result.Success);
+        Assert.False(service.HasOutstandingWork);
+    }
+
+    /// <summary>Canceling an observer leaves work untouched; disposal releases an observer blocked on terrain.</summary>
+    [Fact]
+    public async Task ProgressWaitCancellationAndDisposalDoNotConsumeWork()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var service = new WorldProbeCpuFallbackService(new Scene { BeforeTrace = token => { entered.Set(); release.Wait(token); } }, _ => true);
+        service.BeginFrame(0);
+        Assert.True(service.TryEnqueue(Work(1)));
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken));
+        using var cancellation = new CancellationTokenSource();
+        var canceledWait = service.WaitForProgressAsync(cancellation.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceledWait);
+        Assert.True(service.HasOutstandingWork);
+        var disposedWait = service.WaitForProgressAsync(TestContext.Current.CancellationToken);
+        service.Dispose();
+        await disposedWait.WaitAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
+        release.Set();
+    }
+
     /// <summary>Unused credit never accumulates and repeated frame notification cannot bypass the 256-ray limit.</summary>
     [Fact]
     public void PerFrameRayStartsAreBoundedAndDoNotAccumulate()

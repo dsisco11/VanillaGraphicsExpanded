@@ -431,3 +431,44 @@ regenerated the shader catalog, and this measurement does not isolate driver/cac
 effects. Further controlled profiling remains necessary before drawing a performance conclusion.
 The inventory contains no geometry stages; optional geometry-slot construction was source-reviewed,
 not exercised by this catalog. No live-game acceptance or whole-suite result is claimed.
+
+### Dependency-driven integration-test completion
+
+`SurfaceLightingConsumerRuntimeFixture.RunUntil` no longer sleeps after every frame. It checks the
+requested condition after rendering, then observes one pending GPU fence or CPU progress event.
+GPU waits use `GpuFence.Wait` on the original context thread and never consume the owner's fence.
+CPU notifications do not dequeue results; render callbacks retain collection and publication.
+
+Both CPU services report completion, idle and shutdown. Fallback additionally wakes when ray credit
+is exhausted so the next frame can replenish it. Notifications are allocated lazily only for actual
+observers. The deliberately held worker exposes an entry milestone, raced against CPU progress so
+rejected claims cannot cause a false timeout. Held-and-entered workers return control to the test.
+
+Existing simulated-frame bounds remain, with a cumulative ten-second external-wait budget per
+RunUntil invocation and dependency-specific timeout messages. Existing readbacks, finite/nonempty
+checks and uniform-buffer synchronization remain unchanged. No per-frame full-pipeline drain was
+introduced. The GPU test source inventory contained one unconditional sleep site; it is removed.
+
+Validation and review passed: 22 focused completion cases and a 53-case regression (zero failures or
+skips), covering consumer, runtime-scenario, PBR lifetime, CPU notification, held-worker and fence
+ownership cases. Build warnings were existing analyzer warnings and unavailable NuGet vulnerability
+metadata. Separate review caught and resolved the held-worker/no-entry race; final predicate and wait
+logic passed review. Completion predicates run once per rendered frame, with an additional check only
+for the explicitly held-worker milestone; existing eager diagnostic assertions still execute.
+
+Timing is inconclusive. Two initial four-case baseline runs averaged 29.784 seconds but used earlier
+build outputs. A controlled sleep-policy comparison using current production and identical staged
+shader hashes took 31.460 / 28.532 seconds; final dependency-wait runs took 60.649 / 52.025 seconds.
+All passed identical four-case selections. This sequential comparison showed a slower candidate and
+must not be presented as a speedup; its cause is not established.
+
+A subsequent temporary instrumentation run passed the same four cases in approximately 20 seconds
+of reported test duration. It recorded 48 RunUntil calls, 318 wait-helper calls and only 6.179 ms total
+wait-helper elapsed, versus 7,583.672 ms total RunUntil elapsed. Frame counts remained 161 for each PBR
+case and 28 for each basic case (378 total), matching the historical workload. This run shows neither
+additional frames nor long completion waits, but does not explain the earlier timing variability.
+Instrumentation was removed byte-for-byte, the final fixture rebuilt, and all 348 staged SPIR-V hashes
+remained unchanged. No whole-suite performance claim is made.
+
+Evidence: `artifacts/dependency-waits-*.log/json`, corresponding TRX under `artifacts/TestResults`,
+and the temporary instrumentation receipt. Broader regression command wall time was 171.135 seconds.

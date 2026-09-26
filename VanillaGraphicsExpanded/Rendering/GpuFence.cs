@@ -56,6 +56,16 @@ internal sealed class GpuFence : GpuResource, IDisposable
         return GL.ClientWaitSync((IntPtr)handle, ClientWaitSyncFlags.None, 0);
     }
 
+    /// <summary>Waits for at most the supplied duration without consuming the fence; requires the owning context thread.</summary>
+    public WaitSyncStatus Wait(TimeSpan timeout)
+    {
+        if (timeout < TimeSpan.Zero || timeout > TimeSpan.FromSeconds(60))
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        if (handle == 0) return WaitSyncStatus.AlreadySignaled;
+        return GL.ClientWaitSync((IntPtr)handle, ClientWaitSyncFlags.SyncFlushCommandsBit,
+            checked((long)(timeout.Ticks * 100)));
+    }
+
     public bool TryConsumeIfSignaled()
     {
         WaitSyncStatus status = Poll();

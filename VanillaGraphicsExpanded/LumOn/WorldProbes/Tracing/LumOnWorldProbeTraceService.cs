@@ -8,6 +8,7 @@ using VanillaGraphicsExpanded.Profiling;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
+/// <summary>Owns bounded CPU probe admissions, asynchronous tracing and non-consuming completion observation.</summary>
 internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
 {
     private readonly Channel<LumOnWorldProbeTraceWorkItem> work;
@@ -26,6 +27,36 @@ internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
     private readonly Func<LumOnWorldProbeUpdateRequest, int, bool> tryClaim;
 
     private readonly LumOnWorldProbeTraceIntegrator integrator = new();
+    private readonly object progressGate = new();
+    private int outstanding;
+    private bool stopped;
+    private TaskCompletionSource? progress;
+
+    #region Progress observation
+    /// <summary>Includes queued and actively tracing work, excluding completions already available to the consumer.</summary>
+    internal bool HasOutstandingWork { get { lock (progressGate) return !stopped && outstanding > 0; } }
+
+    /// <summary>Observes available results or idle/shutdown without consuming a producer-owned result.</summary>
+    internal Task WaitForProgressAsync(CancellationToken cancellationToken)
+    {
+        lock (progressGate)
+            return stopped || outstanding == 0 || results.Reader.TryPeek(out _)
+                ? Task.CompletedTask : (progress ??= new(TaskCreationOptions.RunContinuationsAsynchronously)).Task.WaitAsync(cancellationToken);
+    }
+
+    /// <summary>Finishes one admission and wakes observers even when its stale claim produced no result.</summary>
+    private void CompleteAdmission()
+    {
+        lock (progressGate)
+        {
+            outstanding--;
+            var previous = progress;
+            progress = null;
+            previous?.TrySetResult();
+        }
+    }
+
+    #endregion
 
     public LumOnWorldProbeTraceService(
         IWorldProbeTraceScene scene,
@@ -52,9 +83,10 @@ internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
 
     public bool TryEnqueue(in LumOnWorldProbeTraceWorkItem item)
     {
-        if (!work.Writer.TryWrite(item))
+        lock (progressGate)
         {
-            return false;
+            if (stopped || !work.Writer.TryWrite(item)) return false;
+            outstanding++;
         }
 
         Interlocked.Increment(ref approxQueuedWorkItems);
@@ -81,10 +113,12 @@ internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
         // Backpressure/cancellation hook: cancels the worker and ends the session.
         // The caller is expected to recreate the service on large camera teleports.
         cts.Cancel();
+        lock (progressGate) { stopped = true; progress?.TrySetResult(); }
     }
 
     public void Dispose()
     {
+        lock (progressGate) { stopped = true; progress?.TrySetResult(); }
         cts.Cancel();
         work.Writer.TryComplete();
 
@@ -114,6 +148,7 @@ internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
                     // If the probe is no longer queued (e.g., disabled/invalidated/replaced), drop the work item.
                     if (!tryClaim(item.Request, item.FrameIndex))
                     {
+                        CompleteAdmission();
                         continue;
                     }
 
@@ -146,6 +181,7 @@ internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
 
                     await results.Writer.WriteAsync(res, cts.Token).ConfigureAwait(false);
                     Interlocked.Increment(ref approxQueuedResults);
+                    CompleteAdmission();
                 }
             }
         }
@@ -160,6 +196,7 @@ internal sealed class LumOnWorldProbeTraceService : IWorldProbeTraceBackend
         finally
         {
             results.Writer.TryComplete();
+            lock (progressGate) { stopped = true; progress?.TrySetResult(); }
         }
     }
 }

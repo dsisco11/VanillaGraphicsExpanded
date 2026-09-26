@@ -25,7 +25,8 @@ internal sealed class WorldProbeCpuFallbackService : IDisposable
     private readonly SemaphoreSlim creditAvailable = new(0, 1);
     private readonly Task worker;
     private int admissions, retainedRays, credit, lastFrame;
-    private bool hasFrame, disposed;
+    private bool hasFrame, disposed, waitingForCredit, workerCompleted;
+    private TaskCompletionSource? progress;
 
     #region Lifecycle and budgets
     /// <summary>Starts one collision-only worker; neither callback nor scene may access GPU resources.</summary>
@@ -42,7 +43,7 @@ internal sealed class WorldProbeCpuFallbackService : IDisposable
         lock (gate)
         {
             if (disposed || (hasFrame && frame == lastFrame)) return;
-            hasFrame = true; lastFrame = frame; credit = RaysPerFrame;
+            hasFrame = true; lastFrame = frame; credit = RaysPerFrame; waitingForCredit = false;
             if (creditAvailable.CurrentCount == 0) creditAvailable.Release();
         }
     }
@@ -50,7 +51,7 @@ internal sealed class WorldProbeCpuFallbackService : IDisposable
     /// <summary>Cancels without waiting on terrain access; synchronization resources retire after the worker exits.</summary>
     public void Dispose()
     {
-        lock (gate) { if (disposed) return; disposed = true; }
+        lock (gate) { if (disposed) return; disposed = true; SignalProgress(); }
         cancellation.Cancel(); work.Writer.TryComplete();
         _ = worker.ContinueWith(_ => { cancellation.Dispose(); creditAvailable.Dispose(); },
             CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
@@ -58,6 +59,32 @@ internal sealed class WorldProbeCpuFallbackService : IDisposable
     #endregion
 
     #region Admission and completion
+    /// <summary>Reports retained work that has not yet produced an available completion.</summary>
+    internal bool HasOutstandingWork { get { lock (gate) return !disposed && !workerCompleted && admissions > 0 && !results.Reader.TryPeek(out _); } }
+
+    /// <summary>Reports whether another frame's ray allowance is needed before the worker can continue.</summary>
+    internal bool RequiresFrameCredit { get { lock (gate) return waitingForCredit; } }
+
+    /// <summary>Observes completion, idle, exhausted frame allowance, or shutdown without consuming work.</summary>
+    internal Task WaitForProgressAsync(CancellationToken cancellationToken)
+    {
+        lock (gate)
+        {
+            // Atomic check/subscription avoids missing completion that precedes observer registration.
+            if (disposed || workerCompleted || admissions == 0 || waitingForCredit || results.Reader.TryPeek(out _))
+                return Task.CompletedTask;
+            return (progress ??= new(TaskCreationOptions.RunContinuationsAsynchronously)).Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>Wakes observers under the admission gate and prepares the next progress notification.</summary>
+    private void SignalProgress()
+    {
+        var previous = progress;
+        progress = null;
+        previous?.TrySetResult();
+    }
+
     /// <summary>Allows the single producer to avoid copying retained answers while the outstanding-work budget is full.</summary>
     public bool HasCapacity(int rayCount)
     {
@@ -96,7 +123,12 @@ internal sealed class WorldProbeCpuFallbackService : IDisposable
         while (true)
         {
             token.ThrowIfCancellationRequested();
-            lock (gate) { if (credit > 0) { credit--; return; } }
+            lock (gate)
+            {
+                if (credit > 0) { credit--; return; }
+                waitingForCredit = true;
+                SignalProgress();
+            }
             await creditAvailable.WaitAsync(token).ConfigureAwait(false);
         }
     }
@@ -129,10 +161,11 @@ internal sealed class WorldProbeCpuFallbackService : IDisposable
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                 catch { success = false; }
                 await results.Writer.WriteAsync(new(completed, success), token).ConfigureAwait(false);
+                lock (gate) SignalProgress();
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        finally { results.Writer.TryComplete(); }
+        finally { results.Writer.TryComplete(); lock (gate) { workerCompleted = true; SignalProgress(); } }
     }
 
     /// <summary>Converts a CPU collision result to the common answer format without sampling block lighting.</summary>

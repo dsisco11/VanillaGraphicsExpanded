@@ -133,11 +133,25 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
-    /// <summary>Advances a bounded number of real frames, allowing asynchronous workers CPU time between callbacks.</summary>
+    /// <summary>Advances bounded production frames and observes external completion without arbitrary scheduling delays.</summary>
     public void RunUntil(Func<bool> condition,int maximumFrames=FrameBudget)
     {
-        for(int i=0;i<maximumFrames&&!condition();i++) { Frame(); Thread.Sleep(1); }
-        Assert.True(condition(),$"Runtime failed to settle in {maximumFrames} frames; frames={Cache.Frames}, workerReads={World.WorkerReads}, final={Energy(FinalPixels())}, world={Energy(WorldPixels())}, worldConfidence={WorldConfidence}, trace={Energy(Screen.ScreenProbeAtlasHistoryTex!.ReadPixels())}, filter={Energy(Screen.ScreenProbeAtlasFilteredTex!.ReadPixels())}, gather={Energy(Screen.IndirectHalfTex!.ReadPixels())}, anchors={string.Join(",",Screen.ProbeAnchorPositionTex!.ReadPixels())}, pending={HasPendingSurfaceLightingQueries}, programs={string.Join(',',LoadedPrograms)}, logs={string.Join('|',Cache.Logs.TakeLast(8))}");
+        var remainingWait = TimeSpan.FromSeconds(10);
+        bool complete = condition();
+        for(int i=0;i<maximumFrames&&!complete;i++)
+        {
+            Frame();
+            complete = condition();
+            if (complete || i + 1 == maximumFrames) break;
+            // Bound cumulative external waiting independently of the existing simulated-frame budget.
+            if (remainingWait <= TimeSpan.Zero) throw new TimeoutException("Lighting external-wait budget exhausted.");
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
+            RuntimeLightingCompletionWait.Wait(WorldRenderer, World, remainingWait);
+            remainingWait -= elapsed.Elapsed;
+            // Only the deliberate worker milestone can satisfy these predicates outside a render frame.
+            if (World.WorkerHeld) complete = condition();
+        }
+        Assert.True(complete,$"Runtime failed to settle in {maximumFrames} frames; frames={Cache.Frames}, workerReads={World.WorkerReads}, final={Energy(FinalPixels())}, world={Energy(WorldPixels())}, worldConfidence={WorldConfidence}, trace={Energy(Screen.ScreenProbeAtlasHistoryTex!.ReadPixels())}, filter={Energy(Screen.ScreenProbeAtlasFilteredTex!.ReadPixels())}, gather={Energy(Screen.IndirectHalfTex!.ReadPixels())}, anchors={string.Join(",",Screen.ProbeAnchorPositionTex!.ReadPixels())}, pending={HasPendingSurfaceLightingQueries}, programs={string.Join(',',LoadedPrograms)}, logs={string.Join('|',Cache.Logs.TakeLast(8))}");
     }
 
     /// <summary>Reads the final full-resolution indirect output that the renderer publishes to composition.</summary>

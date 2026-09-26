@@ -701,7 +701,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       no performance improvement claimed. Evidence: the report's Contract-only SPIR-V program
       loading section, including the unexercised geometry-stage limitation.
 
-  ☐ Replace unconditional GPU integration-test sleeps with dependency-driven completion waits.
+  ☑ Replace unconditional GPU integration-test sleeps with dependency-driven completion waits.
     - Introduce a test-side frame pump that checks completion after each frame, advances frames
       for temporal/budget/publication work, and waits only on the external dependency preventing
       progress. Do not substitute arbitrary delays, busy polling or a full pipeline drain per frame.
@@ -721,6 +721,13 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       races, timeouts, cancellation, delayed overlap and unchanged freshness/numerical assertions.
       Obtain a separate implementation review and record evidence in
       docs/GPU.IntegrationTestPerformance.Analysis.md before marking complete.
+    - Implemented non-consuming CPU progress notifications, frame-credit wakeups, bounded GPU
+      fence waits and held-worker milestones; removed the sole unconditional GPU test sleep.
+      Subagent validation: 22 focused cases and 53 regression cases passed; separate review passed.
+      Matched four-case runs passed but timings varied substantially; no speedup claimed. A temporary
+      instrumented run retained 378 frames and spent only 6.179ms in 318 wait calls. Instrumentation
+      was removed and final source rebuilt. Evidence: Dependency-driven integration-test completion
+      in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
   ☐ Profile remaining setup, simulation and test-boundary costs after the first harness speedups.
     - Separate immutable asset loading, specialization/linking, allocations, input generation,
