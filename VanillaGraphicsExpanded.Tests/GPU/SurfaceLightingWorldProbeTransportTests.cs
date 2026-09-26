@@ -41,7 +41,7 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
-    /// <summary>A GPU capture rejected before geometry publication is retried without new page feedback allocation.</summary>
+    /// <summary>Unavailable source geometry defers capture until publication without requiring new feedback allocation.</summary>
     [Fact]
     public void FailedCaptureRetriesAfterGeometryBecomesAvailable()
     {
@@ -50,9 +50,16 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true){GeometryAvailable=false};
         runtime.RunUntil(()=>runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _) && mapping.Count==1);
         Assert.False(runtime.TryGetLighting(out _));
-        Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out var gpu,out _,out _));
-        using(var work=gpu.CaptureWork.Items.MapRange<LumonSceneCaptureWorkGpu>(0,1,MapBufferAccessMask.MapReadBit))
-        { Assert.True(work.IsMapped);Assert.NotEqual(0u,work.Span[0].VirtualPageIndex&0x80000000u); }
+        Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var resident,out var mirror));
+        var page=Assert.Single(resident);
+        int index=checked((int)LumonSceneVirtualPageKeyUtil.UnpackChunkSlot(page.Value)*LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk+
+            (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(page.Value));
+        var flags=LumonScenePageTableEntryPacking.UnpackFlags(mirror[index]);
+        Assert.True(flags.HasFlag(LumonScenePageTableEntryPacking.Flags.Resident));
+        Assert.True(flags.HasFlag(LumonScenePageTableEntryPacking.Flags.NeedsCapture));
+        Assert.False(flags.HasFlag(LumonScenePageTableEntryPacking.Flags.Capturing));
+        Assert.True(runtime.Feedback.TryGetSelfCheckLine(out string line));
+        Assert.Contains("captureFail:0/0",line);
         runtime.GeometryAvailable=true;
         runtime.RunUntil(()=>runtime.TryGetLighting(out _));
         Assert.True(runtime.TryGetLighting(out var ready));

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.LumOn.Scene.Fallback;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -11,6 +12,84 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Runtime completion
+    /// <summary>Completed CPU estimates retained by page credit must still reject withdrawn chunk dependencies before publication.</summary>
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    public void BackloggedCompletedFallbackRejectsWithdrawnDependencies(int invalidation)
+    {
+        EnsureContextValid();
+        var world = new ControlledVoxelWorld { MapSizeY = 256 };
+        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
+        world.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
+        runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady,256);
+        runtime.TransformVoxel=(x,y,z,voxel)=>(voxel.Geometry&3u)==1?voxel with{Geometry=3u}:voxel;
+        runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=4;
+        runtime.InvalidateGeometry();
+        var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;
+        // The GPU captures several source pages before reduced publication credit retains excess completed texels.
+        runtime.RunUntil(()=>Counter(renderer,"fallbackAdmitted")>0,256);
+        runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=1;
+        runtime.RunUntil(()=>Counter(renderer,"pendingCommits")>0,512);
+        long committed=Counter(renderer,"fallbackCommitted"), rejected=Counter(renderer,"fallbackRejected");
+        // Streaming may withdraw CPU-only geometry without changing the GPU scene revision.
+        if (invalidation == 3)
+            world.IsLoaded=_=>throw new InvalidOperationException("Terrain accessor unavailable during publication.");
+        else if (invalidation == 2)
+        {
+            // Remove a captured dependency outside the remaining source pages: origin-only checks cannot catch this.
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+            var dependencies = (SurfaceFallbackCommitDependencies)typeof(LumonSceneRelightUpdateRenderer)
+                .GetField("pendingCommitDependencies",flags)!.GetValue(renderer)!;
+            var pending = (List<(SurfaceFallbackCommit Commit, SurfaceFallbackPage Origin, SurfaceFallbackLifetime Lifetime, bool Cpu)>)
+                typeof(LumonSceneRelightUpdateRenderer).GetField("pendingCommits",flags)!.GetValue(renderer)!;
+            uint dependency = dependencies.Pages.First(page=>pending.All(item=>item.Origin.Page!=page.Page)).Page;
+            var captures = (System.Collections.IDictionary)typeof(LumonSceneFeedbackUpdateRenderer)
+                .GetField("captureIdentities",flags)!.GetValue(runtime.Feedback)!;
+            captures.Remove(dependency);
+        }
+        else if (invalidation == 1)
+        {
+            // Replace only the observed chunk object, without an edit event or GPU revision change.
+            var accessor = runtime.Api.World.BlockAccessor;
+            var field = typeof(ControlledBlockAccessor).GetField("loadedChunk",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
+            field.SetValue(accessor,System.Reflection.DispatchProxy.Create<Vintagestory.API.Common.IWorldChunk,LoadedChunkSentinel>());
+        }
+        else world.IsLoaded=_=>false;
+        runtime.Frame(); runtime.Frame();
+        Assert.Equal(committed,Counter(renderer,"fallbackCommitted"));
+        Assert.True(Counter(renderer,"fallbackRejected")>rejected);
+        Assert.True(runtime.TryGetLighting(out _));
+    }
+
+    /// <summary>Completed estimates retain their dependencies through a zero-credit pause and resume normally.</summary>
+    [Fact]
+    public void BackloggedCompletedFallbackResumesWithValidDependencies()
+    {
+        EnsureContextValid();
+        var world = new ControlledVoxelWorld { MapSizeY = 256 };
+        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
+        world.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
+        runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady,256);
+        runtime.TransformVoxel=(x,y,z,voxel)=>(voxel.Geometry&3u)==1?voxel with{Geometry=3u}:voxel;
+        runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=4;
+        runtime.InvalidateGeometry();
+        var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;
+        runtime.RunUntil(()=>Counter(renderer,"fallbackAdmitted")>0,256);
+        runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=1;
+        runtime.RunUntil(()=>Counter(renderer,"pendingCommits")>0,512);
+        long committed=Counter(renderer,"fallbackCommitted"), queued=Counter(renderer,"pendingCommits");
+        Assert.True(runtime.TryGetLighting(out var before));
+        // Zero publication credit must retain otherwise valid completed work.
+        runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=0;
+        for (int frame=0;frame<4;frame++) runtime.Frame();
+        Assert.Equal(committed,Counter(renderer,"fallbackCommitted"));
+        Assert.Equal(queued,Counter(renderer,"pendingCommits"));
+        Assert.True(runtime.TryGetLighting(out var held));
+        Assert.Same(before.DirectIrradiance,held.DirectIrradiance);
+        runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=1;
+        runtime.RunUntil(()=>Counter(renderer,"fallbackCommitted")>committed,64);
+    }
+
     /// <summary>Disabling indirect admissions retains outstanding CPU results until their budget resumes.</summary>
     [Fact]
     public void DisabledIndirectBudgetRetainsBlockedFallback()

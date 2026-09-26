@@ -1,9 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Threading;
 using VanillaGraphicsExpanded.LumOn.Scene.Fallback;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -24,11 +21,6 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private SurfaceFallbackLifetime? fallbackLifetime;
     private ImmutableArray<SurfaceFallbackPage> fallbackPages = ImmutableArray<SurfaceFallbackPage>.Empty;
     private IBlockAccessor? fallbackAccessor;
-    private GpuShaderStorageBuffer? fallbackCommitBuffer;
-    private readonly SurfaceFallbackCommit[] fallbackCommitUpload = new SurfaceFallbackCommit[SurfaceFallbackWorker.MaximumTexels];
-    private readonly List<LumonSceneRelightWorkGpu> fallbackWork = new();
-    // At most one completed CPU batch plus one retained hit batch waits for publication credit.
-    private readonly List<(SurfaceFallbackCommit Commit, SurfaceFallbackPage Origin, SurfaceFallbackLifetime Lifetime, bool Cpu)> pendingCommits = new(32);
     private long fallbackWorldRevision;
     private int fallbackFrame;
     private uint fallbackSelection;
@@ -87,7 +79,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     /// <summary>Cancels work but retains its worker admission until terrain access acknowledges cancellation.</summary>
     private void ResetFallback()
     {
-        fallbackWorker?.Cancel(); pendingCommits.Clear();
+        fallbackWorker?.Cancel(); pendingCommits.Clear(); pendingCommitDependencies = null;
         fallbackQueue?.Dispose(); fallbackQueue = null;
         fallbackQueries?.Dispose(); fallbackQueries = null;
         fallbackLifetime = null; fallbackResult = null; fallbackPages = ImmutableArray<SurfaceFallbackPage>.Empty;
@@ -109,8 +101,9 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     }
 
     /// <summary>Polls without blocking, tracing only collision data on a worker and querying lighting on the render thread.</summary>
-    private ImmutableArray<SurfaceFallbackCommit> PollFallback(TraceGeometryGpuScene current)
+    private ImmutableArray<SurfaceFallbackCommit> PollFallback(TraceGeometryGpuScene current, out SurfaceFallbackCommitDependencies? dependencies)
     {
+        dependencies = null;
         fallbackWorker?.BeginFrame(++fallbackFrame);
         try
         {
@@ -161,6 +154,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
             { fallbackRejected++; ResetFallback(); return ImmutableArray<SurfaceFallbackCommit>.Empty; }
             var commits = SurfaceFallbackEstimates.Resolve(fallbackResult,answers);
             AdmitHitRetries(fallbackResult, answers, fallbackLifetime!, fallbackPages);
+            if (!commits.IsEmpty) dependencies = new(fallbackLifetime!, fallbackPages, fallbackResult.Dependencies, fallbackAccessor!);
             fallbackResult = null; fallbackLifetime = null; fallbackPages = ImmutableArray<SurfaceFallbackPage>.Empty;
             return commits;
         }
@@ -172,55 +166,4 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     }
     #endregion
 
-    #region Validated GPU commit
-    /// <summary>Reserves normal page publication credit for completed fallback texels and uses the ordinary combine/swap path.</summary>
-    private int ApplyFallback(TraceGeometryGpuScene current, LumonScenePhysicalAtlasGpuResources resources,
-        GpuShaderStorageBuffer workBuffer, int maxPages, int tile)
-    {
-        if (pendingCommits.Count == 0)
-        {
-            // Stop draining completed producers while publication is backlogged; never discard excess credits.
-            var fallback = PollFallback(current);
-            var retained = PollHitRetries(current);
-            var lifetime = new SurfaceFallbackLifetime(current, current.InvalidationRevision, dependencyRevision,
-                Interlocked.Read(ref fallbackWorldRevision));
-            foreach (var commit in retained)
-                pendingCommits.Add((commit, new(commit.Page, identities[commit.Page], pageGenerations[commit.Page],
-                    feedback.GetCaptureRevision(commit.Page)), lifetime, false));
-            foreach (var commit in fallback)
-                pendingCommits.Add((commit, new(commit.Page, identities[commit.Page], pageGenerations[commit.Page],
-                    feedback.GetCaptureRevision(commit.Page)), lifetime, true));
-        }
-        if (pendingCommits.Count == 0) return 0;
-        fallbackWork.Clear(); Array.Clear(fallbackCommitUpload);
-        var pages = new HashSet<uint>();
-        int accepted = 0, cpuAccepted = 0;
-        for (int i = 0; i < pendingCommits.Count;)
-        {
-            var pending = pendingCommits[i];
-            var commit = pending.Commit;
-            if (!HitOriginCurrent(current, pending.Lifetime, pending.Origin))
-            { pendingCommits.RemoveAt(i); fallbackRejected++; continue; }
-            if (accepted == SurfaceFallbackWorker.MaximumTexels || (!pages.Contains(commit.Page) && pages.Count >= maxPages))
-            { i++; continue; }
-            if (pages.Add(commit.Page)) fallbackWork.Add(new(commit.Page,commit.Slot,0,commit.Patch));
-            fallbackCommitUpload[accepted++] = commit;
-            if (pending.Cpu) cpuAccepted++;
-            pendingCommits.RemoveAt(i);
-        }
-        if (accepted == 0) return 0;
-        fallbackCommitBuffer ??= GpuShaderStorageBuffer.Create(debugName:"SurfaceLighting.FallbackCommits");
-        fallbackCommitBuffer.EnsureCapacity(SurfaceFallbackWorker.MaximumTexels << 5,growExponentially:false);
-        fallbackCommitBuffer.UploadSubData<SurfaceFallbackCommit>(fallbackCommitUpload,0,SurfaceFallbackWorker.MaximumTexels << 5);
-        var work = CollectionsMarshal.AsSpan(fallbackWork);
-        workBuffer.EnsureCapacity(work.Length << 4,growExponentially:false);
-        workBuffer.UploadSubData(work,0,work.Length << 4);
-        var cfg = config.LumOn.LumonScene;
-        dispatch!.Run(current,snapshot,resources.PendingOutgoing,workBuffer,work.Length,5,(uint)(tile*tile),1,0,
-            (uint)frame,cfg.SurfaceLightingMaterialEmission,cfg.RelightMaxFramesAccumulated,fallbackCommits:fallbackCommitBuffer);
-        publishable.AddRange(fallbackWork);
-        fallbackCommitted += cpuAccepted;
-        return pages.Count;
-    }
-    #endregion
 }

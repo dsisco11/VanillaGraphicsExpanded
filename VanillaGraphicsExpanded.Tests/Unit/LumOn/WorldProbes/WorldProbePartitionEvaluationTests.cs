@@ -54,10 +54,10 @@ public sealed class WorldProbePartitionEvaluationTests
     }
     #endregion
 
-    #region Existing lifetime limitations
-    /// <summary>Records the existing teleport defect; this is a characterization, not a safety assertion.</summary>
+    #region Lifetime barriers
+    /// <summary>A completion for a retired world position cannot validate the storage slot's replacement.</summary>
     [Fact]
-    public void Teleport_LateSuccessfulCompletionCurrentlyMarksReassignedSlotValid()
+    public void Teleport_LateSuccessfulCompletionPreservesReassignedSlotDirty()
     {
         const int resolution = 8;
         const double spacing = 4;
@@ -79,7 +79,7 @@ public sealed class WorldProbePartitionEvaluationTests
 
         scheduler.Complete(request, 2, success: true);
         Assert.True(scheduler.TryCopyLifecycleStates(0, states));
-        Assert.Equal(LumOnWorldProbeLifecycleState.Valid, states[request.StorageLinearIndex]);
+        Assert.Equal(LumOnWorldProbeLifecycleState.Dirty, states[request.StorageLinearIndex]);
     }
     #endregion
 }

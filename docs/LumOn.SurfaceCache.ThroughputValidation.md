@@ -1,0 +1,162 @@
+# Surface Cache throughput validation
+
+## Verdict
+
+The delayed-publication defect is fixed; the broader validation item remains open for the separately recorded consumer and fixture failures. The pre-fix audit below preserves its original receipts.
+Across completed runs, using the latest result for repeated cases, 932 distinct cases yield **905 passed
+and 27 failed**, with zero skips. The failures are 15 of the historically tracked 19 consumer cases,
+11 fixture/coverage cases outside that list, and one new backlog regression. These are completed
+failing receipts, not a clean regression claim. The separately tracked 19 were excluded from the
+initial selection and then executed in the supplemental consumer run.
+No game process was launched; user-run convergence remains the following checklist item.
+
+## Backlog fix and focused verification
+
+Completed CPU results now retain their original lifetime, immutable source/ready-hit page dependencies,
+observed chunk identities and terrain accessor in `SurfaceFallbackCommitDependencies`. The publication
+owner checks that shared context once before each budgeted drain. Changed identities or failed terrain
+lookups reject delayed CPU results while preserving displayed lighting. Partial drains retain the context;
+empty queues and reset release it.
+
+The change allocates one context per nonempty completed CPU batch and shares existing immutable arrays.
+It adds no per-texel dependency copies or GPU reads. Chunk validation is bounded by the existing
+512-dependency cap and reuses one block-position scratch value. Actual timing of this fix is unmeasured.
+
+Subagent-run final verification passes **118/118 focused tests** and the production build has **zero
+warnings and errors**. Runtime regressions cover chunk withdrawal, chunk replacement without an edit
+event, captured-page identity loss outside the remaining queued origins, throwing terrain access, and
+valid pause/resume across zero publication credit. Independent final source review found no remaining
+confirmed blocker in this fix after the terrain exception path was made fail-closed.
+
+Receipts: `artifacts/TestResults/backlog-fix-regression.trx`, `artifacts/backlog-fix-regression.log`,
+and `artifacts/backlog-fix-build.log`. The broad consumer/fixture suite was not rerun for this fix;
+its pre-fix results below remain separate evidence. The stale alternating-budget documentation was
+also reconciled with independent allocations.
+
+## Contract and independent review
+
+The authority is the Surface Cache tracing throughput section of
+[the task list](LumOn.WorldProbeSurfaceLighting.todo), including its preservation and initial-seed
+independence constraints. The independent reviewer consulted the following current repository sources:
+
+| Requirement | Controlling document | Review result |
+| --- | --- | --- |
+| Bounded diagnostics, attempts versus useful progress, timing interpretation | [Tracing baseline](LumOn.SurfaceCache.TracingBaseline.md) | Existing counters and matched receipts distinguish completion from attempts; pending-commit accounting is examined below |
+| Coverage deferral, publication wake, finite fair retry sweeps | [Capture admission](LumOn.SurfaceCache.CaptureAdmission.md) | Identity-bound eligibility and dependency stamps inspected; unavailable sources do not spend GPU capture credit |
+| Signed coverage, streaming, bounded storage/uploads, shared consumers | [Geometry coverage](LumOn.SurfaceCache.GeometryCoverage.md), [shared geometry contract](LumOn.TraceSceneGeometryContract.md) | Current 192/256 coverage and readiness ownership supersede older consolidation limits |
+| Unsupported/outside fallback, full-batch outcomes, delayed dependency validity | [Geometry fallback](LumOn.SurfaceCache.GeometryFallback.md) | Bounded worker and pre-query checks present; completed backlog loses required dependencies |
+| Long rays, distinct sky/distance/budget outcomes, retry wake | [Traversal budget](LumOn.SurfaceCache.TraversalBudget.md) | Authoritative sky boundary, finite-segment distinction, bounded delay and independent buckets inspected |
+| Missing hit lighting, complete geometry retention, fairness | [Hit retries](LumOn.SurfaceCache.HitLightingRetries.md) | Bounded retention and dependency-aware queries present; final backlog handoff is the identified gap |
+| Independent allocations, initial readiness, history, publication ceilings | [Update budgets](LumOn.SurfaceCache.UpdateBudgets.md), [lighting contract](LumOn.SurfaceCache.LightingContract.md) | Independent cursors, shared full-tile bound and deduplicated combination inspected |
+| Matched costs and completion evidence | [Budget measurements](LumOn.SurfaceCache.UpdateBudgetMeasurements.md) | Valid controlled shader/service-model evidence; no claim of full renderer or gameplay speedup |
+| Shared world-probe lighting and lifecycle | [World-probe architecture](LumOn.WorldProbeLighting.ArchitectureAndIssues.md), lighting contract | Geometry/cache consumer guards remain; historical fixture exclusions require explicit accounting |
+
+The review ran separately from the test agent and made no implementation changes. Root inspection
+independently confirmed the deferred dependency loss and reconciled the review with the linked contracts.
+
+## Pre-fix findings
+
+| Finding | Evidence | Required action |
+| --- | --- | --- |
+| Completed CPU fallback backlog loses hit-page and chunk identity dependencies | `LumonSceneRelightUpdateRenderer.Fallback.cs`: `pendingCommits`, `PollFallback`, `ApplyFallback` | Retain immutable observed hit-page/chunk dependencies with delayed completions and revalidate at actual drain/submission |
+| Obsolete scheduling description | `LumOn.SurfaceCache.LightingContract.md:95` still describes alternating seed/indirect work; its later scheduling section and production code use independent allocations | Reconcile the obsolete sentence with independent budgets |
+
+The production defect is at the transition from a validated query result to delayed publication.
+`PollFallback` checks its observed CPU chunks and ready hit-page identities, then clears those owners.
+`ApplyFallback` stores only the estimate, source page, global lifetime and a CPU-origin flag.
+When page/texel credit defers that estimate, a later drain calls only `HitOriginCurrent`.
+
+A hit page can be evicted/reassigned without changing the surviving source page or global lighting
+dependency revision. An observed CPU chunk outside GPU coverage can be replaced without `ChunkDirty`.
+Neither case is necessarily caught by the remaining global/source checks. The geometry-fallback and
+hit-retry contracts expressly require these identities to remain valid before committing; permission
+to retain stale lighting does not permit publishing a newly completed result against changed identity.
+Tests of edits while a worker or query is pending do not cover this later backlog interval.
+
+The new production-runtime test
+`SurfaceFallbackRuntimeTests.BackloggedCompletedFallbackRejectsWithdrawnCpuChunks` reproduces the
+CPU dependency loss. It captures a multi-page fallback batch, reduces indirect publication credit,
+waits for `pendingCommits > 0`, then withdraws CPU chunks without changing GPU geometry revisions.
+The expected `fallbackCommitted` count remains 3; the actual count becomes 4. This is an accepted
+commit submission after dependency withdrawal, not merely a missing assertion inferred from source.
+The original test and failing receipt are retained as pre-fix evidence. Hit-page eviction during backlog was
+source-confirmed through the same lost-dependency handoff; the fix validation adds a retained-page capture-identity regression.
+
+The reviewer narrowed this finding after checking admission order: the one retained-hit completion
+is enqueued first and always fits positive page/texel credit in the same call. Subsequent CPU fallback
+completions are the reachable delayed backlog. The proposed `hitCommitted` overcount specifically
+from backlog deferral was therefore dismissed, not reported as another confirmed defect.
+
+## Regression evidence
+
+Initial command: `artifacts/surface-throughput-review-command.ps1`.
+Receipt: `artifacts/TestResults/surface-throughput-review-regression.trx` and
+`artifacts/surface-throughput-review-regression.log` (893 total, 886 passed, seven failed, zero skipped).
+
+| Initial failures | Count | Disposition |
+| --- | ---: | --- |
+| `WorldProbePartitionEvaluationTests.Teleport_LateSuccessfulCompletionCurrentlyMarksReassignedSlotValid` | 1 | Resolved test discrepancy: replaced obsolete defect characterization with a `Dirty` safety assertion; renamed test passes |
+| `LumOnNearFieldMaterialReadinessTests` ready-light cases | 4 | Fixtures expect direct voxel lighting without supplying the Surface Cache required by the current screen consumer; retain exact failure evidence and reconcile fixture coverage |
+| `SurfaceLightingSpatialRuntimeTests.ProbeRingPreservesOverlapWithinStableGeometryCoverage` | 2 | Remain outside the known 19; current failures occur waiting for all world-probe confidence values, before overlap assertions |
+
+| Run | Total | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: | ---: |
+| Initial focused/shared-consumer regression | 893 | 886 | 7 | 0 |
+| Supplemental shared-screen and historical consumer classes | 49 | 29 | 20 | 0 |
+| Corrected assertions and backlog reproduction | 10 | 9 | 1 | 0 |
+
+The selections overlap; do not add their totals. The 932-case latest-result union normalizes the
+renamed teleport test to the same logical case. Supplemental and targeted receipts are
+`artifacts/TestResults/surface-throughput-review-consumers.trx` and
+`artifacts/TestResults/surface-throughput-review-targeted.trx`, with corresponding logs in `artifacts`.
+
+The five historically excluded `SharedTraceSceneScreenTests.SealedRoomUsesSharedHitLighting` cases
+all fail and remain separate from both the initial seven and the 19 user-confirmed failures. Their
+fixtures omit the required Surface Cache snapshot. Four material-readiness cases have the analogous
+raw-voxel-light assumption. The two ring integration cases assume all 8-cubed probes must become
+confident despite limited requested cache pages, and also retain two-probe indexing assumptions.
+These 11 assertions were not weakened or removed; fixture reconciliation remains an evidence gap.
+
+Passing replacement/component coverage includes `ScreenProbesConsumePublishedCache` at multiple
+coverage sizes, `AnchorShiftClearsReusedSlotsAndPreservesOverlappingDirections`, shared geometry ring
+preservation and scheduler origin-shift tests. These establish useful current-contract behavior but
+do not turn the remaining failing integration fixtures into a clean suite.
+
+Of the historical 19, four now pass: `CacheReplacementInvalidatesComposedHistory(sh9:false)`,
+`RecreatedDarkCacheRejectsRetainedFinalLighting(sh9:false)`, and both variants of
+`ProgressiveBounceReachesRuntimePixels`. No root-cause fix was made for those cases here, so a current
+pass is not a claim of a verified repair. The other 15 reproduce. The original list remains preserved
+in the geometry-fallback report and the separate final TODO.
+
+The transport test `FailedCaptureRetriesAfterGeometryBecomesAvailable` previously read a capture SSBO
+before any capture dispatch. Its apparent pass/fail could depend on uninitialized contents. It now
+asserts resident pending capture, no `Capturing` flag, no submitted GPU capture failures, and successful
+publication after geometry recovers. It and the corrected teleport safety test pass in the targeted
+run. These were test-contract corrections; the subsequent production fix is recorded below.
+
+The final production build passed with zero warnings and errors:
+`artifacts/surface-throughput-review-build.log`. Test compilation retains the five existing unrelated
+analyzer warnings. The initial and supplemental command scripts are
+`artifacts/surface-throughput-review-command.ps1` and
+`artifacts/surface-throughput-review-supplemental-command.ps1`.
+The deduplicated case ledger and test-agent report are
+`artifacts/surface-throughput-review-case-results.txt` and
+`artifacts/surface-throughput-review-test-report.md`.
+
+## Measurement evidence and limits
+
+The preserved matched update-budget JSON contains separate diagnostics-off/on ABBA blocks, identical
+attempted page/texel counts, and verified completed-texel counts for instrumented legs. Resetting pages
+before each measured sweep prevents seed work from being mislabeled when it is already initialized.
+Its 18-versus-nine simulated service frames compare equal work; more work per frame increases the
+per-frame cost. GPU intervals, submission/readback wall time and explicit poll time remain separate.
+
+The baseline also records resolved and outside-coverage workloads, demonstrating that failed attempts
+can cost more while producing no useful texels. Geometry expansion records different-volume startup,
+movement and edit costs rather than claiming a speedup. Historical gameplay counters are not a matched
+post-change comparison. Scheduler sorting, complete publication, geometry upload, delayed CPU fallback
+and live-scene convergence are not established by the update-budget microbenchmark.
+
+The later user-run acceptance item is intentionally open. Conservative invalidation, count/byte rather
+than frame-time bounds, no independent distant-surface lighting provider, and more expensive larger
+coverage are documented design choices rather than additional review defects.

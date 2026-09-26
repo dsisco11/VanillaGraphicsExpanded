@@ -458,6 +458,19 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Verify no false sky, uninitialized publication, dependency deadlock or whole-cache reset;
       retain world-probe and shared geometry regression coverage. Record before/after matched
       workloads and separate useful completed work from attempts and deferred work.
+    - Pre-fix validation executed; item remains open. Completed subagent runs covered 932 distinct cases:
+      905 pass, 27 fail, zero skips. Final production build has zero warnings/errors. Results,
+      independent requirement mapping, exact commands and receipts:
+      docs/LumOn.SurfaceCache.ThroughputValidation.md.
+    - Fixed the independently reviewed CPU fallback publication backlog defect (original failing
+      counter 3 -> 4 receipt retained). Original immutable chunk and captured-page dependencies now
+      survive completion and are checked once per draining batch, without per-texel copies or GPU reads.
+      Follow-up subagent validation passes 118/118 focused tests; production build has zero warnings/errors.
+      Independent final source review found no remaining blocker in this fix. Receipts are in the report.
+    - Eleven screen/material-readiness/ring fixture failures remain outside the historical 19;
+      15 of those 19 reproduce and four currently pass without a diagnosed fix. Two obsolete test
+      assertions were corrected and pass. The obsolete alternating-schedule sentence in LightingContract.md
+      is corrected. Reconcile the remaining fixture coverage; do not treat the suite as clean.
   ☐ Verify user-run in-game Surface Cache convergence and tune the final defaults.
     - Compare stationary outdoor/interior scenes, movement and local geometry/light edits under
       recorded settings. Measure first publication, successful refresh rate, backlog age, lighting
@@ -481,6 +494,9 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       11 methods across display-boundary, numerical-runtime, PBR lifetime/composition and runtime
       scenario tests; see docs/LumOn.SurfaceCache.GeometryFallback.md and the original receipt
       artifacts/surface-fallback-regression.log.
+    - Current throughput validation reproduces 15 of the 19; four pass in this run without a
+      verified root-cause repair. Exact variants and receipts are in
+      docs/LumOn.SurfaceCache.ThroughputValidation.md. Preserve the original list for investigation.
     - Reproduce and diagnose SH9 radiance mismatches, sealed-neighbor and doorway pixel differences,
       source-change composition mismatches, progressive-bounce assertions, and failure to settle
       after lighting changes, unavailable geometry or cache recreation. Distinguish production

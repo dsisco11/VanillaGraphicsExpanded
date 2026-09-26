@@ -41,7 +41,7 @@ to half are offered to delayed work; a single credit alternates delayed and new-
 delayed credit remains available for tracing. Completed results that exceed page or sixteen-texel
 commit limits remain queued rather than being discarded. The queue drains before collecting another
 completed producer batch, so it holds at most one sixteen-texel CPU result plus one retained-hit
-texel. World, resource, geometry and source-page identities are checked again when draining.
+texel. World, resource, geometry, source and ready-hit-page capture identities, the original terrain accessor, and observed CPU chunk objects are checked again when draining. One batch context retains the existing immutable dependency arrays without copying them per texel. Dependency validation runs once per draining call, with a reused block-position scratch value and no GPU readback. A changed dependency or failed terrain lookup rejects delayed CPU work while retaining displayed lighting; draining or reset releases the context.
 
 ## Submission and measurement
 
