@@ -274,6 +274,7 @@ internal sealed partial class GlStateCache
         }
     }
 
+    /// <summary>Returns the requested binding, treating the combined query as the driver's draw-binding alias.</summary>
     public int GetCurrentFramebuffer(FramebufferTarget target)
     {
         int? cached = target switch
@@ -294,11 +295,13 @@ internal sealed partial class GlStateCache
                 _ => GL.GetInteger(GetPName.FramebufferBinding)
             };
 
-            SetFramebufferCache(target, value);
+            // GL_FRAMEBUFFER_BINDING queries the draw binding only. A query must not
+            // overwrite a distinct read binding as a combined-target bind would.
+            SetFramebufferCache(target == FramebufferTarget.Framebuffer ? FramebufferTarget.DrawFramebuffer : target, value);
         }
         catch
         {
-            SetFramebufferCache(target, 0);
+            SetFramebufferCache(target == FramebufferTarget.Framebuffer ? FramebufferTarget.DrawFramebuffer : target, 0);
         }
 
         return GetCurrentFramebuffer(target);
@@ -361,6 +364,7 @@ internal sealed partial class GlStateCache
         }
     }
 
+    /// <summary>Tracks actual binding changes while keeping the combined query synchronized with the draw target.</summary>
     private void SetFramebufferCache(FramebufferTarget target, int value)
     {
         if (target == FramebufferTarget.Framebuffer)
@@ -380,6 +384,7 @@ internal sealed partial class GlStateCache
         if (target == FramebufferTarget.DrawFramebuffer)
         {
             currentDrawFramebuffer = value;
+            currentFramebuffer = value;
         }
     }
 

@@ -30,7 +30,8 @@ internal static class SurfaceLightingRefreshSynchronization
 
     #region Consumer completion
     /// <summary>Waits for new successful full-tile world publications and a fixed point in the retained screen directional history.</summary>
-    public static void CompleteConsumers(SurfaceLightingConsumerRuntimeFixture runtime, SpatialLightingScene scene)
+    public static void CompleteConsumers(SurfaceLightingConsumerRuntimeFixture runtime, SpatialLightingScene scene,
+        int maximumFrames = SurfaceLightingConsumerRuntimeFixture.FrameBudget)
     {
         int firstFrame = runtime.Cache.Frames;
         var scheduler = Read<object>(runtime.WorldRenderer, "scheduler");
@@ -73,7 +74,7 @@ internal static class SurfaceLightingRefreshSynchronization
                 for (int i = 0; i < slots.Count; i++)
                     if (updated[slots[i]] > previous[i]) { previous[i] = updated[slots[i]]; completions[i]++; }
                 return completions.All(count => count >= 2);
-            });
+            }, maximumFrames);
         }
         finally
         {
@@ -102,7 +103,7 @@ internal static class SurfaceLightingRefreshSynchronization
             previousHistory = current;
             previousMeta = meta;
             return stable;
-        }, SurfaceLightingConsumerRuntimeFixture.FrameBudget - (runtime.Cache.Frames - firstFrame));
+        }, maximumFrames - (runtime.Cache.Frames - firstFrame));
     }
 
     /// <summary>Observes existing private lifecycle data without mutating renderer state or exposing a production test API.</summary>

@@ -14,7 +14,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>Runs production surface-cache renderers against controlled engine edges and real GPU resources.</summary>
-internal sealed class SurfaceCacheRuntimeFixture : IDisposable
+internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
 {
     private readonly BinaryShaderApiFixture assets = new();
     private readonly ScopedPbrMaterialFixture material = new();

@@ -109,6 +109,55 @@ The final source then passed **8/8 selected cases, zero failures or skips**, wit
 `artifacts/surface-freshness-bounded-final.log`. Independent final source review and root inspection
 found no remaining issue. The other failure categories and broader validation remain open.
 
+## Bounded dark-reload convergence repair
+
+Both `UnavailableGeometryDiffersFromValidDarkness` variants now establish their full-tile workload
+before bright warmup. Changing the texel batch size during reload would reset producer history,
+invalidating a retained-decay test. The fixture requires nonzero accumulated indirect lighting,
+retains the original unload darkness and zero-confidence checks, and delivers a real `NewlyLoaded`
+chunk notification on reload.
+
+Requested-page observations use the pooled tile-readback owner. After the current direct refresh
+finishes, direct lighting must be dark while indirect lighting remains positive; the indirect atlas
+and lighting dependency revision must be unchanged. Requested pages must account for all resident
+pages, and the configured allocations must fit every page in each stage within the shared publication
+ceiling. Each decay frame must complete a full indirect sweep and publish a newer generation.
+
+The sweep bound follows the fixture's diffuse reflectance and temporal history cap: with reflectance
+0.25 and history cap four, the peak-energy contraction bound is 0.85 per completed sweep, with a small
+half-float rounding allowance used only to derive the sweep count. Energy is read once per temporal
+service window and must decrease, exposing stalled history. Original darkness tolerances remain
+unchanged. Producer convergence and subsequent world/screen freshness share the original 160-frame
+reload allowance; final world radiance must be dark and resident probe confidence must recover.
+
+These observations exposed a separate framebuffer-cache defect: restoring a draw framebuffer after
+a temporary readback left the combined framebuffer cache pointing at the deleted temporary object.
+A later blit attempted to restore that stale ID. The correction keeps the combined query cache in
+sync with its draw-binding alias and prevents a combined binding query from overwriting a distinct
+read binding. Actual combined binds continue to update both bindings. This is graphics-state
+bookkeeping, with no added per-frame queries or changes to lighting algorithms.
+
+The original reload cases reproduced as **2/2 failures** in
+`artifacts/TestResults/surface-dark-reload-baseline.trx`. The three new framebuffer regressions also
+failed before the cache fix: `artifacts/TestResults/framebuffer-alias-before.trx`. They cover cached
+and uncached combined-binding queries with distinct read/draw bindings, and a real layer readback
+followed by a blit. Independent implementation review and root inspection found no remaining issue.
+
+In the corrected five-case run, both reload variants completed 72 full indirect sweeps within the
+derived 72-sweep bound and used **117 of 160 reload frames**, including consumer recovery. Retained
+indirect peaks decreased from approximately 10.52/10.56 to 0.0000849/0.0000847 in directional/SH9 modes.
+The same indirect atlas and lighting dependency revision survived; direct lighting was dark, and
+the final world-probe radiance and confidence assertions passed. Receipt:
+`artifacts/TestResults/surface-dark-reload-fixed.trx`, with the corresponding log in `artifacts`.
+
+Final subagent verification passed **30/30 tests, zero failures or skips**, in approximately 1 minute
+25 seconds of test execution. Coverage includes the two reload variants, the prior eight repaired
+source/restoration cases, the retained-indirect direct-refresh control, and framebuffer binding,
+unbinding, blend, texture readback and pixel-pack regressions. Production and test builds succeeded
+with the existing obsolete `BlockPos` constructor and five xUnit analyzer warnings. Final receipts:
+`artifacts/TestResults/surface-dark-reload-final.trx` and `artifacts/surface-dark-reload-final.log`.
+The remaining failure categories, broader completion gate and gameplay acceptance remain open.
+
 ## Backlog fix and focused verification
 
 Completed CPU results now retain their original lifetime, immutable source/ready-hit page dependencies,

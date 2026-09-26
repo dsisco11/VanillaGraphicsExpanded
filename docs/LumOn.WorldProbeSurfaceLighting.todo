@@ -566,13 +566,24 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       selected cases; zero skips. Builds succeed with existing analyzer warnings. Independent review
       and root inspection pass; receipts: docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
-  ☐ Correct bounded dark-reload convergence checks in the two unavailable-geometry cases.
+  ☑ Correct bounded dark-reload convergence checks in the two unavailable-geometry cases.
     - Update UnavailableGeometryDiffersFromValidDarkness in both gather modes to distinguish
       immediate rejection during unload from temporal convergence after dark geometry reloads.
     - Preserve zero-confidence unavailable lighting versus confident resident darkness. Observe
       direct refresh, retained indirect decay and world-probe recovery under an explicit bounded
       workload; keep the original unload checks and detect stalled progress rather than extending
       the timeout until the test happens to pass.
+    - Completed: configure the full-tile workload before warmup, prove positive retained indirect
+      history and completed direct refresh, then require published full-page sweeps and decreasing
+      energy. Both gather modes converge in 72 sweeps and recover consumers in 117/160 reload frames.
+      Preserve the indirect atlas/dependency identity, unavailable confidence and original darkness
+      assertions. Real NewlyLoaded notifications re-enable world probes after reload.
+    - Fixed the framebuffer-cache alias defect exposed by pooled tile observations; three targeted
+      regressions reproduce the old failure and verify correct read/draw binding bookkeeping.
+    - Subagent verification passes 30/30 focused cases, zero skips, including both reload variants,
+      the prior eight source/restoration cases, retained indirect history and graphics-state/readback
+      regressions. Builds succeed with existing warnings; independent review and root inspection
+      pass. Evidence and receipts: docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
   ☐ Fix SH9 confidence-weighted angular projection and the three numerical baseline failures.
     - Separate directional confidence from spherical integration area in the production projector;

@@ -130,19 +130,78 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         EnsureContextValid();
         var scene = new SpatialLightingScene { Reflectance = .25f };
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
+        var config = runtime.Cache.Config.LumOn.LumonScene;
+        int pages = scene.Feedback().Length;
+        Assert.InRange(pages, 1, 256);
+        // Establish the full-tile workload before producing history: changing the texel
+        // setting on reload would reset lighting rather than exercise retained decay.
+        config.RelightTexelsPerPagePerFrame = 4096;
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = pages;
         Settle(runtime, true);
+        var bright = runtime.Cache.ObserveRequestedLighting();
+        Assert.True(bright.Indirect > .001f && bright.IndirectWeight > 0);
+        Assert.Equal(pages, bright.Pages);
+        Assert.True(3 * pages * bright.TileSize * bright.TileSize <= 65536, "Every stage must service every resident page within the shared publication ceiling.");
+        Assert.True(runtime.Cache.TryGetLighting(out var original));
         foreach (var page in scene.Feedback())
             scene.Unloaded.TryAdd(VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(page.Chunk.X,page.Chunk.Y,page.Chunk.Z),0);
         runtime.Frame();
         runtime.RunUntil(() => IsDark(runtime.FinalPixels()) && IsDark(runtime.WorldPixels()));
         Assert.All(runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0), value=>Assert.Equal(0,value));
+        int reloadFrame = runtime.Cache.Frames;
         scene.BlockLight = 0;
         scene.Unloaded.Clear();
-        runtime.Cache.InvalidateGeometry();
+        foreach (var chunk in scene.Feedback().Select(page => page.Chunk).Distinct())
+            runtime.Cache.Events.ChunkDirty(chunk, Vintagestory.API.Common.EnumChunkDirtyReason.NewlyLoaded);
         runtime.Frame();
-        Settle(runtime, false);
+        runtime.RunUntil(runtime.Cache.RequestedDirectRefreshComplete,
+            SurfaceLightingConsumerRuntimeFixture.FrameBudget - (runtime.Cache.Frames - reloadFrame));
+        Assert.True(runtime.Cache.TryGetLighting(out var reloaded));
+        Assert.Same(original.IndirectIrradiance, reloaded.IndirectIrradiance);
+        Assert.Equal(original.DependencyRevision, reloaded.DependencyRevision);
+        var previous = runtime.Cache.ObserveRequestedLighting();
+        Assert.InRange(previous.Direct, 0, .0001f);
+        Assert.True(previous.Indirect > .0001f && previous.IndirectWeight > 0, "Reload must retain accumulated indirect light after direct lighting has refreshed.");
+
+        // Cosine-weighted sampling multiplies outgoing radiance by pi; the diffuse
+        // source multiplies irradiance by reflectance/pi. With no direct/emissive input,
+        // a complete sweep contracts peak energy by at most this temporal factor.
+        double contraction = 1 - (1 - scene.Reflectance) / (1 + config.RelightMaxFramesAccumulated);
+        contraction += 1.0 / 1024; // Conservative allowance for half-float publication rounding.
+        int maximumSweeps = (int)Math.Ceiling(Math.Log(.0001 / previous.Indirect) / Math.Log(contraction));
+        Assert.InRange(maximumSweeps, 1, SurfaceLightingConsumerRuntimeFixture.FrameBudget - (runtime.Cache.Frames - reloadFrame));
+        float windowPeak = previous.Indirect;
+        float retainedPeak = previous.Indirect;
+        int completedSweeps = 0;
+        long completions = previous.IndirectCompletions, generation = previous.Generation;
+        for (int sweep = 1; sweep <= maximumSweeps && previous.Indirect > .0001f; sweep++)
+        {
+            runtime.Frame();
+            completedSweeps = sweep;
+            long completed = runtime.Cache.CompletedIndirectPages;
+            Assert.Equal(pages, completed - completions);
+            Assert.True(runtime.Cache.TryGetLighting(out var publication));
+            Assert.True(publication.Generation > generation, "Completed indirect work must publish its results.");
+            completions = completed;
+            generation = publication.Generation;
+            // Read energy once per temporal service window; the cheap per-frame counters
+            // above establish completion without allocating a readback for every update.
+            if (sweep % (config.RelightMaxFramesAccumulated + 1) != 0 && sweep != maximumSweeps) continue;
+            var current = runtime.Cache.ObserveRequestedLighting();
+            Assert.InRange(current.Direct, 0, .0001f);
+            Assert.True(current.Indirect < windowPeak, "Retained indirect lighting stopped decaying despite a full service window.");
+            windowPeak = current.Indirect;
+            previous = current;
+        }
+        Assert.InRange(previous.Indirect, 0, .0001f);
+        Assert.InRange(previous.Outgoing, 0, .0001f);
+        config.RelightSeedPagesPerFrame = config.RelightDirectPagesPerFrame = config.RelightIndirectPagesPerFrame = 0;
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
+            SurfaceLightingConsumerRuntimeFixture.FrameBudget - (runtime.Cache.Frames - reloadFrame));
         AssertBoundaries(runtime, false);
+        Assert.True(IsDark(runtime.WorldPixels()));
         Assert.Contains(runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0),value=>value>=.25f);
+        TestContext.Current.TestOutputHelper?.WriteLine($"Dark reload: retainedIndirect={retainedPeak}, finalIndirect={previous.Indirect}, completedSweeps={completedSweeps}/{maximumSweeps}, reloadFrames={runtime.Cache.Frames - reloadFrame}/{SurfaceLightingConsumerRuntimeFixture.FrameBudget}.");
     }
     /// <summary>A dark replacement cache cannot reuse populated final lighting, and restoring its source restores the seeded image.</summary>
     [Theory]
