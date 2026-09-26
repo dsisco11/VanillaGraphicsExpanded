@@ -21,16 +21,16 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     #endregion
 
     #region Material Lifecycle
-    /// <summary>Ready registry data alone does not update previously published material tables; a new generation and recapture repair them.</summary>
+    /// <summary>Published surface readiness requires recapture to change, while missing legacy derived hit colors do not block cache lighting.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    public void CapturedBeforeMaterialReadiness_StaysUnresolvedUntilRecaptured(bool surfaceReady, bool derivedReady)
+    public void CapturedSurfaceReadinessChangesRequireRecapture(bool surfaceReady, bool derivedReady)
     {
         EnsureShaderTestAvailable();
         using var material = new ScopedPbrMaterialFixture();
-        material.SetReadiness(surfaceReady, derivedReady);
+        material.SetReadiness(surfaceReady, derivedReady, emissive: .25f / 32f);
         var world = CreateRoom(material.Cube);
         uint captured = TraceGeometryVoxel.Classify(ControlledBlockAccessor.Create(world), material.Cube,
             new BlockPos(-3, 0, -5));
@@ -41,20 +41,26 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
 
         using var fixture = new NearFieldVoxelFixture();
         fixture.PublishCaptured(world);
+        using var cache = new SurfaceLightingScreenTraceFixture(fixture.Scene.Backend, new(-3, -3, -8), new(3, 3, -2));
         AssertPublished(fixture.Scene);
         AssertLighting(Trace(fixture), lit: false, opaque: true);
+        // The cache consumes surface descriptors, not the legacy derived hit-color table.
+        Assert.Equal(surfaceReady, cache.CaptureAndSeed());
+        AssertLighting(Trace(fixture, surfaceLighting: cache.Snapshot), lit: surfaceReady, opaque: true);
         long revision = fixture.Scene.Revision;
-        material.SetReadiness(true, true);
+        material.SetReadiness(true, true, emissive: .25f / 32f);
         fixture.Pump();
         Assert.Equal(revision, fixture.Scene.Revision);
         AssertPublished(fixture.Scene);
-        AssertLighting(Trace(fixture), lit: false, opaque: true);
+        Assert.Equal(surfaceReady, cache.CaptureAndSeed());
+        AssertLighting(Trace(fixture, surfaceLighting: cache.Snapshot), lit: surfaceReady, opaque: true);
 
         // Keep geometry and chunk versions unchanged: a new material-table generation and cell capture resolve the hit-lighting data.
         fixture.PublishCaptured(world);
         Assert.True(fixture.Scene.Revision > revision);
         AssertPublished(fixture.Scene);
-        AssertLighting(Trace(fixture), lit: true, opaque: true);
+        Assert.True(cache.CaptureAndSeed());
+        AssertLighting(Trace(fixture, surfaceLighting: cache.Snapshot), lit: true, opaque: true);
     }
 
     /// <summary>A fully ready registry lights the room on its first capture; a real partial-block capture remains unsupported.</summary>
@@ -65,13 +71,15 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     {
         EnsureShaderTestAvailable();
         using var material = new ScopedPbrMaterialFixture();
-        material.SetReadiness(true, true);
+        material.SetReadiness(true, true, emissive: .25f / 32f);
         if (partial) material.Cube.CollisionBoxes = [new Cuboidf(0, 0, 0, 1, 0.5f, 1)];
         var world = CreateRoom(material.Cube);
         using var fixture = new NearFieldVoxelFixture();
         fixture.PublishCaptured(world);
+        using var cache = new SurfaceLightingScreenTraceFixture(fixture.Scene.Backend, new(-3, -3, -8), new(3, 3, -2));
         AssertPublished(fixture.Scene);
-        AssertLighting(Trace(fixture), lit: !partial, opaque: !partial);
+        Assert.Equal(!partial, cache.CaptureAndSeed());
+        AssertLighting(Trace(fixture, surfaceLighting: cache.Snapshot), lit: !partial, opaque: !partial);
     }
     #endregion
 

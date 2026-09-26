@@ -15,14 +15,16 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
     public SharedTraceSceneScreenTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Shared screen tracing
-    /// <summary>Shared geometry lights sealed interiors consistently at signed large coordinates.</summary>
+    /// <summary>Captured cache lighting resolves shared geometry hits consistently at signed large coordinates, including valid darkness.</summary>
     [Theory]
     [InlineData(0, 0f, 32)] [InlineData(-16777216, .25f, 32)] [InlineData(16777216, .25f, 32)]
     [InlineData(-16777216, .25f, 64)] [InlineData(-16777216, .25f, 128)]
     public void SealedRoomUsesSharedHitLighting(int anchor, float light, int surfaceSize)
     {
         EnsureShaderTestAvailable();
-        using var material = new ScopedPbrMaterialFixture(); material.SetReadiness(true, true);
+        using var material = new ScopedPbrMaterialFixture();
+        // Cache emission is authored independently of the obsolete voxel RGB field below.
+        material.SetReadiness(true, true, emissive: light / 32f);
         var materials = new TraceGeometryMaterials(); uint id = materials.Resolve(material.Cube);
         var plan = TraceGeometryCoverage.Plan(new(anchor, 32, -5), true, surfaceSize, 256);
         using var shared = new SharedTraceGeometryFixture(plan, materials, (x, y, z) =>
@@ -31,11 +33,27 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
             return new(wall ? 2 | id << 2 : 1, 0, TraceGeometryVoxel.PackLight(new(light, light, light, 0)));
         });
         shared.Publish();
+        using var cache = new SurfaceLightingScreenTraceFixture(shared.Scene,
+            new(anchor - 3, 29, -8), new(anchor + 3, 35, -2));
         using var compatibility = new NearFieldVoxelFixture();
-        var result = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene);
+        var unavailable = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene);
+        Assert.True(cache.CaptureAndSeed());
+        var result = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene, surfaceLighting: cache.Snapshot);
         for (int i = 0; i < result.Radiance.Length; i += 4)
         {
-            Assert.InRange(result.Radiance[i], light - .002f, light + .002f);
+            for (int channel = 0; channel < 3; channel++)
+            {
+                Assert.Equal(0f, unavailable.Radiance[i + channel]);
+                Assert.InRange(result.Radiance[i + channel], light - .002f, light + .002f);
+            }
+            uint unavailableFlags = Flags(unavailable.Meta[i / 2 + 1]);
+            uint readyFlags = Flags(result.Meta[i / 2 + 1]);
+            Assert.Equal(0f, unavailable.Meta[i / 2]);
+            Assert.Equal(1u, unavailableFlags & 1u);
+            Assert.Equal(4u, (unavailableFlags >> 16) & 7u);
+            Assert.Equal(1u, readyFlags & 1u);
+            Assert.Equal(light == 0 ? 3u : 2u, (readyFlags >> 16) & 7u);
+            Assert.Equal(unavailable.Radiance[i + 3], result.Radiance[i + 3]);
             Assert.Equal(1f, result.Meta[i / 2]);
             Assert.Equal(0u, Flags(result.Meta[i / 2 + 1]) & (1u << 5));
         }

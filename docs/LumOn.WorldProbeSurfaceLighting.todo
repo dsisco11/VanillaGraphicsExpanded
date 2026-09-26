@@ -516,13 +516,20 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     receipt links and preserve numerical, occlusion, validity and lifetime assertions. Do not hide
     failures through blanket tolerance increases, exclusions or arbitrary timeout increases.
 
-  ☐ Supply real Surface Cache lighting to the nine geometry/material screen-trace fixture cases.
+  ☑ Supply real Surface Cache lighting to the nine geometry/material screen-trace fixture cases.
     - Update SharedTraceSceneScreenTests.SealedRoomUsesSharedHitLighting (five variants) and the
       four lit-material cases in LumOnNearFieldMaterialReadinessTests to publish and bind outgoing
       cache lighting through the existing fixture abstractions.
     - Preserve signed coordinates, coverage sizes, material recapture and unsupported-geometry
       coverage. Assert resolved darkness separately from unavailable lighting; retain real-cache
       positive controls and verify both radiance and confidence/classification.
+    - Completed with a bounded borrowed-geometry fixture running real capture/reset/seed/combine.
+      Missing surface data requires recapture; missing legacy derived lookup does not gate cached
+      lighting. Failed capture/seed remains unavailable; signed coordinates and original radiance
+      bounds are preserved, with RGB, classification, confidence and hit-distance assertions.
+    - Subagent validation passes 48/48 cases, zero skipped, including all nine former failures and
+      adjacent regression coverage. Production/test builds succeed with existing warnings. Independent
+      review and root inspection pass; receipts: docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
   ☐ Repair the two probe-ring preservation tests for the actual grid and supported overlap.
     - Replace the all-512-probes-ready prerequisite with an explicitly populated, supported overlap

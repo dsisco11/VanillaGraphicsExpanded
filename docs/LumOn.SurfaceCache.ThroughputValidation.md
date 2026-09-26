@@ -10,6 +10,43 @@ failing receipts, not a clean regression claim. The separately tracked 19 were e
 initial selection and then executed in the supplemental consumer run.
 No game process was launched; user-run convergence remains the following checklist item.
 
+## Geometry and material screen-fixture repair
+
+The five `SealedRoomUsesSharedHitLighting` variants and four formerly failing material-readiness
+variants now bind real produced Surface Cache lighting. `SurfaceLightingScreenTraceFixture` borrows
+the original geometry and owns bounded cache storage; production capture, reset, seed and combine
+dispatches produce outgoing radiance. Failed capture or seeding leaves readiness zero. No final
+lighting is injected and no production rendering code changes.
+
+The original signed coordinates, coverage sizes and room shapes remain. Authored material emission
+supplies the original 0.25 radiance target independently of packed voxel lighting. Assertions compare
+all RGB channels, opaque-hit identity, unchanged hit distance, confidence and classification. Ready
+black lighting has confidence one and outcome three; unavailable lighting has confidence zero and
+outcome four. Bright resolved lighting has outcome two.
+
+The material lifecycle test is renamed `CapturedSurfaceReadinessChangesRequireRecapture`. Missing
+surface descriptors remain unavailable after a registry-only change and resolve after geometry
+material-table recapture plus cache publication. A present surface with a missing derived lookup is
+now a positive case: the cache consumer uses the surface descriptor, not the legacy derived hit-color
+table. Unsupported shapes retain their unavailable classification even when material capture succeeds.
+
+Independent source review and root inspection verified ownership, publication guards, production
+chunk-slot order and the preserved case coverage. The following focused receipt records completion;
+the other failure categories and the broader validation checklist remain separate.
+
+Subagent-run verification passed **48/48 tests, zero skipped**: all 14 cases in the two repaired
+classes (nine formerly failing plus five negative controls), and 34 adjacent producer, consumer,
+shared-surface and resource-reuse cases. Production and test projects built successfully; existing
+xUnit analyzer warnings remain, and the initial rebuild also reported the previously noted obsolete
+parameterless `BlockPos` constructor in fallback publication. No new production behavior or gameplay
+performance claim is involved.
+
+Receipts: `artifacts/TestResults/surface-screen-cache-fixtures.trx` and
+`artifacts/surface-screen-cache-fixtures.log`. Selection: `SharedTraceSceneScreenTests`,
+`LumOnNearFieldMaterialReadinessTests`, `SharedTraceSceneSurfaceTests`, `SurfaceLightingConsumerTests`,
+`SurfaceLightingProducerTests`, and `NearFieldResourceReuseTests`. Independent final review found
+no remaining implementation blocker. The historical broad-suite totals above are not a rerun result.
+
 ## Backlog fix and focused verification
 
 Completed CPU results now retain their original lifetime, immutable source/ready-hit page dependencies,
