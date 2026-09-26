@@ -47,6 +47,30 @@ Receipts: `artifacts/TestResults/surface-screen-cache-fixtures.trx` and
 `SurfaceLightingProducerTests`, and `NearFieldResourceReuseTests`. Independent final review found
 no remaining implementation blocker. The historical broad-suite totals above are not a rerun result.
 
+## Probe-ring preservation fixture repair
+
+`ProbeRingPreservesOverlapWithinStableGeometryCoverage` now selects supported overlap from the
+published origin, spacing and authored room geometry, independently of observed confidence. Both
+gather variants require all 27 room probes to populate; solid centers and neighboring rooms without
+requested cache surfaces are not readiness requirements.
+
+Atlas and metadata addressing use the actual resource resolution, tile size, widths and shift ring
+offsets. With ordinary uploads paused, every RGBA direction and both metadata components in the
+surviving populated tiles must remain unchanged. The test also retains cache dependency revision,
+resource identity, anchor alignment and final-image round-trip checks. All newly introduced edge
+slots must remain zero/unavailable. Those edge slots start outside the lit room, so companion
+prefilled-tile tests supply the separate nonvacuous proof that reuse clears old light.
+
+Independent source review and root inspection found no remaining implementation issue. This repair
+changes only test expectations and addressing, with no production rendering or runtime cost changes.
+
+Subagent verification passed **19/19 tests, zero failures or skips**: both repaired gather variants,
+both `SignedStreamingRejectsReusedUnavailableSlots` variants, all `SurfaceLightingPartialWorldProbeTests`
+and all `WorldProbePartitionEvaluationTests`. This includes prefilled-slot clearing for positive,
+negative and no-overlap shifts. Production and test builds succeeded with the existing CS0618
+`BlockPos` and xUnit analyzer warnings. Receipts: `artifacts/TestResults/probe-ring-repair.trx` and
+`artifacts/probe-ring-repair.log`. Other failure categories and broad-suite completion remain open.
+
 ## Backlog fix and focused verification
 
 Completed CPU results now retain their original lifetime, immutable source/ready-hit page dependencies,

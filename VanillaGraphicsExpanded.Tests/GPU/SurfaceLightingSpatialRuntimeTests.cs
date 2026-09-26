@@ -47,7 +47,29 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         var scene=new SpatialLightingScene();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(sh9,scene);
         Settle(runtime,true);
-        runtime.RunUntil(()=>runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0).All(c=>c>=.25f));
+        var resources=runtime.WorldBuffers.Resources!;
+        Assert.True(runtime.WorldBuffers.TryGetRuntimeParams(out var playerOrigin,out _,out float spacing,
+            out _,out int resolution,out var origins,out var rings));
+        Assert.Equal(resources.Resolution,resolution);
+        var origin=origins[0]+new Vector3((float)playerOrigin.X,(float)playerOrigin.Y,(float)playerOrigin.Z);
+        var ring=rings[0];
+        var overlap=new List<(int X,int Y,int Z)>();
+        // Only this room has requested Surface Cache lighting. Select supported centers
+        // independently of confidence so missing lighting cannot silently reduce coverage.
+        for(int y=0;y<resolution;y++) for(int z=0;z<resolution;z++) for(int x=1;x<resolution;x++)
+        {
+            var center=origin+(new Vector3(x,y,z)+new Vector3(.5f))*spacing;
+            if(center.X>=scene.RoomOrigin+1 && center.X<scene.RoomOrigin+7 &&
+                !scene.Solid((int)MathF.Floor(center.X),(int)MathF.Floor(center.Y),(int)MathF.Floor(center.Z)))
+                overlap.Add((x,y,z));
+        }
+        Assert.Equal(27,overlap.Count);
+        runtime.RunUntil(()=>
+        {
+            var meta=resources.ProbeMeta0.ReadPixels();
+            return overlap.All(p=>meta[((p.Y+(int)ring.Y)%resolution*resources.AtlasWidth+
+                (p.X+(int)ring.X)%resolution+(p.Z+(int)ring.Z)%resolution*resolution)<<1]>=.25f);
+        });
         // Stop further producer work through its budget, preserving a coherent published generation.
         runtime.RunUntil(runtime.Cache.AllRequestedLightingReady);
         runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
@@ -55,6 +77,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         // Isolate ring retention from legitimate asynchronous refreshes of surviving tiles.
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1;
         var before=runtime.WorldPixels(); var reference=runtime.FinalPixels();
+        var metaBefore=resources.ProbeMeta0.ReadPixels();
         Assert.True(runtime.Cache.TryGetLighting(out var initial));
         var shifts=new List<VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>();
         runtime.WorldBuffers.AnchorShifted+=shifts.Add;
@@ -69,19 +92,44 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         Assert.NotEqual(shift.PrevRingOffset.X,shift.NewRingOffset.X);
         AssertAnchors(runtime,scene); AssertPixels(runtime.FinalPixels(),true);
         var after=runtime.WorldPixels();
-        // The old local x=1 plane becomes local x=0; its physical tiles must survive exactly.
-        for(int y=0;y<2;y++) for(int z=0;z<2;z++)
+        Assert.Same(resources,runtime.WorldBuffers.Resources);
+        var metaAfter=resources.ProbeMeta0.ReadPixels();
+        // Every supported old coordinate becomes x-1; wrapping must retain its physical tile.
+        int tileSize=resources.WorldProbeTileSize;
+        foreach(var p in overlap)
         {
-            int sx=(1+shift.PrevRingOffset.X)%2,sy=(y+shift.PrevRingOffset.Y)%2,sz=(z+shift.PrevRingOffset.Z)%2;
-            Assert.Equal(sx,shift.NewRingOffset.X%2);
+            int sx=(p.X+shift.PrevRingOffset.X)%resolution;
+            int sy=(p.Y+shift.PrevRingOffset.Y)%resolution;
+            int sz=(p.Z+shift.PrevRingOffset.Z)%resolution;
+            Assert.Equal(sx,(p.X-shift.DeltaProbes.X+shift.NewRingOffset.X)%resolution);
+            Assert.Equal(sy,(p.Y-shift.DeltaProbes.Y+shift.NewRingOffset.Y)%resolution);
+            Assert.Equal(sz,(p.Z-shift.DeltaProbes.Z+shift.NewRingOffset.Z)%resolution);
+            int metaIndex=(sy*resources.AtlasWidth+sx+sz*resolution)<<1;
+            Assert.Equal(metaBefore[metaIndex],metaAfter[metaIndex]);
+            Assert.Equal(BitConverter.SingleToUInt32Bits(metaBefore[metaIndex+1]),
+                BitConverter.SingleToUInt32Bits(metaAfter[metaIndex+1]));
             bool populated=false;
-            for(int oy=0;oy<8;oy++) for(int ox=0;ox<8;ox++) for(int c=0;c<4;c++)
+            for(int oy=0;oy<tileSize;oy++) for(int ox=0;ox<tileSize;ox++) for(int c=0;c<4;c++)
             {
-                int index=((sy*8+oy)*32+(sx+sz*2)*8+ox)*4+c;
+                int index=(((sy*tileSize+oy)*resources.RadianceAtlasWidth+(sx+sz*resolution)*tileSize+ox)<<2)+c;
                 Assert.Equal(before[index],after[index]);
                 populated|=c!=3 && before[index]>.001f;
             }
             Assert.True(populated,"Each surviving world tile must contain actual produced lighting.");
+        }
+        // Newly assigned edge slots remain unavailable while uploads are paused. The
+        // prefilled-tile clear tests separately prove that this clear removes old light.
+        for(int y=0;y<resolution;y++) for(int z=0;z<resolution;z++)
+        {
+            int sx=(resolution-1+shift.NewRingOffset.X)%resolution;
+            int sy=(y+shift.NewRingOffset.Y)%resolution;
+            int sz=(z+shift.NewRingOffset.Z)%resolution;
+            int metaIndex=(sy*resources.AtlasWidth+sx+sz*resolution)<<1;
+            Assert.Equal(0,metaAfter[metaIndex]);
+            Assert.Equal(0u,BitConverter.SingleToUInt32Bits(metaAfter[metaIndex+1]));
+            for(int oy=0;oy<tileSize;oy++) for(int ox=0;ox<tileSize;ox++) for(int c=0;c<4;c++)
+                Assert.Equal(0,after[(((sy*tileSize+oy)*resources.RadianceAtlasWidth+
+                    (sx+sz*resolution)*tileSize+ox)<<2)+c]);
         }
         scene.Position=new(0,36,5); scene.EyeOffsetX=0;
         runtime.Frame(); runtime.Frame();

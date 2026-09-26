@@ -531,13 +531,21 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       adjacent regression coverage. Production/test builds succeed with existing warnings. Independent
       review and root inspection pass; receipts: docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
-  ☐ Repair the two probe-ring preservation tests for the actual grid and supported overlap.
+  ☑ Repair the two probe-ring preservation tests for the actual grid and supported overlap.
     - Replace the all-512-probes-ready prerequisite with an explicitly populated, supported overlap
       in SurfaceLightingSpatialRuntimeTests.ProbeRingPreservesOverlapWithinStableGeometryCoverage.
     - Derive ring addressing and atlas tile indices from the actual resolution/layout instead of
       modulo-two and width-32 constants. Keep solid centers and unrequested neighboring rooms out
       of readiness requirements without skipping validation of reused/unavailable slots.
     - Verify surviving populated directions remain unchanged across movement in both gather modes.
+    - Completed: independently select all 27 supported room probes, derive tile and metadata addresses
+      from current resources/ring offsets, and compare every surviving RGBA direction and metadata.
+      Preserve resource identity, cache revision, anchors and final-image checks; introduced edge
+      slots remain unavailable. Companion prefilled-slot tests verify removal of actual old light.
+    - Subagent validation passes 19/19, zero skips, including both repaired variants, signed streaming,
+      partial world-probe clearing/history and partition lifecycle. Builds succeed with existing
+      warnings; independent review and root inspection pass. Evidence and receipts:
+      docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
   ☐ Correct fresh-lighting and matched-workload synchronization in eight source/restoration cases.
     - Cover RetainedHistoryFollowsSourceLighting, SourceChangesReachRetainedComposition,
