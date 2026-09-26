@@ -502,3 +502,33 @@ in the linked report; this does not change production loading or establish a who
 The subsequent coverage audit superseded that broad suite with existing binding tests and focused
 production-setter packing coverage. The linked report retains historical timings and describes the
 current consolidation; the custom SPIR-V test reader is no longer needed.
+
+## Required wait observations and failure-only diagnostics
+
+The consumer wait retains unconditional nonempty/finite checks for final, world, trace, filtered and
+half-resolution gather outputs. Their five energies are retained as one boundary-local value and
+reused when a failed wait needs a message. Confidence and anchor readbacks, plus program/log
+formatting, now occur only on failure. Successful waits therefore omit two optional texture
+readbacks; per-frame final/world checks and synchronization remain unchanged.
+
+The cache wait also defers self-check strings, source summaries and history formatting until
+failure. It evaluates its predicate once initially and once after each simulated frame, retaining
+the result rather than invoking it again for the assertion. Consumer worker-held milestone checks
+and external-wait budgets are unchanged.
+
+Focused tests exercise successful and exhausted waits, complete diagnostic fields, exact predicate
+counts, and NaN injection into each intermediate consumer output despite a successful predicate.
+This change does not remove mandatory output scans, reduce their pixel domain or alter uniform-ring
+retirement.
+
+Subagent validation: 22/22 regression cases passed; final focused checks passed 2/2, including
+the one-frame predicate transition. Separate implementation review passed.
+
+A temporary four-case replacement run passed 4/4 and retained 378 frames (161/161/28/28).
+Across 48 successful wait boundaries, required output validation took 49.840ms. Temporarily
+re-enabling and separately timing optional diagnostic collection took 12.332ms, including 96
+optional GPU readbacks. Those optional calls are absent from the final success path. This is a
+small isolated measurement, not a whole-suite speedup estimate. No per-frame observations were
+removed. Instrumentation was restored byte-for-byte, followed by a passing final Debug build and
+focused run. Evidence: `artifacts/RuntimeWaitObservations-*` logs, scopes, summary, restoration
+hashes and matching TRX files.

@@ -255,11 +255,18 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Advances bounded production frames until the requested observable state is reached.</summary>
     public void RunUntil(System.Func<bool> condition, int maximumFrames = 80)
     {
-        for (int frame = 0; frame < maximumFrames && !condition(); frame++) Frame();
+        bool complete = condition();
+        for (int frame = 0; frame < maximumFrames && !complete; frame++)
+        {
+            Frame();
+            complete = condition();
+        }
+        if (complete) return;
+        // Self-check text and history enumeration serve failure diagnostics only.
         Feedback.TryGetSelfCheckLine(out string feedback);
         relight.TryGetSelfCheckLine(out string relightState);
         string sources = string.Join(",", Sources.Select(source => $"captures={source.CaptureCount},disposed={source.Disposed}"));
-        Assert.True(condition(), $"Runtime condition did not settle within {maximumFrames} frames. Feedback: {feedback}. Relight: {relightState}. Sources: {sources}. Geometry: revision={Geometry.Resources?.Revision}, invalidation={Geometry.Resources?.InvalidationRevision}. Executed: {string.Join(", ", Events.Executed.TakeLast(16))}. Logs: {string.Join(" | ", Logs)}");
+        Assert.Fail($"Runtime condition did not settle within {maximumFrames} frames. Feedback: {feedback}. Relight: {relightState}. Sources: {sources}. Geometry: revision={Geometry.Resources?.Revision}, invalidation={Geometry.Resources?.InvalidationRevision}. Executed: {string.Join(", ", Events.Executed.TakeLast(16))}. Logs: {string.Join(" | ", Logs)}");
     }
 
     /// <summary>Returns whether registered capture and relight callbacks produced a sampleable resident page.</summary>

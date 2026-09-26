@@ -776,13 +776,21 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Consolidation: Debug 81/81 and Release 26/26 passed. Final Debug restoration/revalidation
       and review confirmation remain pending after the delegated agents hit the account usage limit.
 
-  ☐ Separate required GPU observations from optional failure diagnostics in shared wait helpers.
+  ☑ Separate required GPU observations from optional failure diagnostics in shared wait helpers.
     - Preserve nonempty/finite checks currently hidden in Energy calls inside diagnostic messages,
       including intermediate trace, filtered and gather outputs at successful wait completion.
     - Make only optional diagnostic reads and formatting failure-only; reuse equivalent same-frame
       observations and avoid redundant predicate calls without changing predicate semantics.
     - Validate successful and failing waits, complete failure messages and unchanged assertions;
       measure benefits independently of per-frame readback removal.
+    - Retained five mandatory nonempty/finite output checks; made confidence/anchor readbacks and
+      failure formatting lazy, with energies reused at the same boundary. Cache predicates now
+      evaluate once per boundary. Per-frame checks and synchronization are unchanged.
+    - Subagent regression 22/22, final focused 2/2 and isolated measurement 4/4 passed; separate
+      review passed. Optional diagnostics cost 12.332ms across 48 boundaries (96 readbacks),
+      measured separately from 49.840ms of retained validation. No whole-suite speedup claimed.
+      Instrumentation restored byte-exact and final build passed. Evidence: Required wait
+      observations and failure-only diagnostics in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
   ☐ Establish explicit test uniform-buffer retirement before reducing synchronous observations.
     - Cover every TestUniformRing.BeginFrame path, including runtime frames, geometry initialization

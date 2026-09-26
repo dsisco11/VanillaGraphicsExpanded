@@ -11,7 +11,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>Composes registered cache, screen-probe and worker-driven world-probe consumers against controlled engine inputs.</summary>
-internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
+internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposable
 {
     private static readonly System.Reflection.FieldInfo surfaceQueriesField =
         typeof(LumOnWorldProbeUpdateRenderer).GetField("surfaceQueries",
@@ -151,7 +151,8 @@ internal sealed class SurfaceLightingConsumerRuntimeFixture : IDisposable
             // Only the deliberate worker milestone can satisfy these predicates outside a render frame.
             if (World.WorkerHeld) complete = condition();
         }
-        Assert.True(complete,$"Runtime failed to settle in {maximumFrames} frames; frames={Cache.Frames}, workerReads={World.WorkerReads}, final={Energy(FinalPixels())}, world={Energy(WorldPixels())}, worldConfidence={WorldConfidence}, trace={Energy(Screen.ScreenProbeAtlasHistoryTex!.ReadPixels())}, filter={Energy(Screen.ScreenProbeAtlasFilteredTex!.ReadPixels())}, gather={Energy(Screen.IndirectHalfTex!.ReadPixels())}, anchors={string.Join(",",Screen.ProbeAnchorPositionTex!.ReadPixels())}, pending={HasPendingSurfaceLightingQueries}, programs={string.Join(',',LoadedPrograms)}, logs={string.Join('|',Cache.Logs.TakeLast(8))}");
+        var observations = ObserveRequiredWaitOutputs();
+        if (!complete) Assert.Fail(DescribeWaitFailure(maximumFrames, observations));
     }
 
     /// <summary>Reads the final full-resolution indirect output that the renderer publishes to composition.</summary>
