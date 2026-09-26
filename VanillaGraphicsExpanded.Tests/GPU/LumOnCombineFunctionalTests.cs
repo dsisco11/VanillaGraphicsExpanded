@@ -954,6 +954,9 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
 
+        // All three material inputs use the same specialization; rebind inputs for each draw.
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
         var direct = (r: 0.2f, g: 0.2f, b: 0.2f);
         var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
         var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
@@ -979,8 +982,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
-
-            var programId = CompileCombineShader(enablePbrComposite: 0);
 
             using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
@@ -1015,8 +1016,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileCombineShader(enablePbrComposite: 0);
-
             using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
@@ -1049,8 +1048,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
-
-            var programId = CompileCombineShader(enablePbrComposite: 0);
 
             using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);

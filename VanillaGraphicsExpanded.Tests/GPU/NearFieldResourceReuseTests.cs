@@ -12,6 +12,39 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
     public NearFieldResourceReuseTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Trace ownership
+    /// <summary>Switching branches, shader variants and suppression cannot contaminate a reused bright trace program.</summary>
+    [Fact]
+    public void TraceRebindsInputsAfterBranchAndVariantChanges()
+    {
+        EnsureShaderTestAvailable();
+        using var geometry = new NearFieldVoxelFixture();
+        geometry.Publish(new VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.ControlledVoxelWorld());
+        using var first = new ShaderLightingResources(Programs.Api);
+        using var second = new ShaderLightingResources(Programs.Api);
+        var bright = Trace(geometry, resources: first);
+        var suppressed = Trace(geometry, resources: second, suppress: true);
+        // Interleave a different compiled selection, then return to the original program and branch.
+        var disabled = Trace(geometry, resources: second, worldCache: false);
+        var restored = Trace(geometry, resources: first);
+        Assert.NotSame(first.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex,
+            second.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex);
+        Assert.Equal(bright.Radiance, restored.Radiance);
+        Assert.Equal(bright.Meta, restored.Meta);
+        Assert.Equal(bright.Meta, suppressed.Meta);
+        for (int index = 0; index < bright.Radiance.Length; index += 4)
+        {
+            for (int channel = 0; channel < 3; channel++)
+            {
+                Assert.InRange(restored.Radiance[index + channel], 9.9f, 10.1f);
+                Assert.Equal(0f, suppressed.Radiance[index + channel]);
+            }
+            Assert.Equal(1f, restored.Meta[index >> 1]);
+            Assert.NotEqual(0u, Flags(restored.Meta[(index >> 1) + 1]) & (1u << 5));
+            Assert.Equal(0u, Flags(disabled.Meta[(index >> 1) + 1]) & (1u << 5));
+        }
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Repeated real draws retain buffers and do not overwrite a simultaneous branch or retire external world resources.</summary>
     [Fact]
     public void TraceReusesSuppliedBranchWithoutTakingOwnershipOfExternalInputs()

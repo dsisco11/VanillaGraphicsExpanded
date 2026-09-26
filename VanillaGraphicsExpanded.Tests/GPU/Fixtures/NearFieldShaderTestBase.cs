@@ -12,6 +12,15 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Production shader bindings shared by the near-field scenarios.</summary>
 public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
 {
+    #region Scenario programs
+    /// <summary>Identifies every variable shader selection authored by this harness; per-draw inputs remain uncached.</summary>
+    private readonly record struct TraceProgramKey(bool NearField, float EmissiveBoost, int TexelsPerFrame,
+        bool WorldProbes, int WorldResolution, float WorldSpacing, int WorldTileSize, float RayMaxDistance);
+
+    // Match the direct-visibility harness: reuse only within this test, with disposal owned by Programs.
+    private readonly Dictionary<TraceProgramKey, LumOnScreenProbeAtlasTraceShaderProgram> tracePrograms = new();
+    #endregion
+
     /// <summary>Uses the shared headless GPU context.</summary>
     protected NearFieldShaderTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -20,14 +29,20 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
     private protected (float[] Radiance, float[] Meta) Trace(NearFieldVoxelFixture? fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
         bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default, Action<GpuFramebuffer>? consume = null, VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources? worldResources = null, GpuTexture? history = null, GpuTexture? historyMeta = null, int texelsPerFrame = 64, int frameIndex = 0, float rayMaxDistance = 4, ShaderLightingResources? resources = null)
     {
-        var program = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(shader =>
+        var key = new TraceProgramKey(nearFieldTracing, emissionBoost, texelsPerFrame, worldCache,
+            cacheResolution, cacheSpacing, worldResources?.WorldProbeTileSize ?? 16, rayMaxDistance);
+        if (!tracePrograms.TryGetValue(key, out var program))
         {
-            shader.NearField = nearFieldTracing; shader.EmissiveBoost = emissionBoost;
-            shader.TexelsPerFrame = texelsPerFrame; shader.WorldProbes = worldCache;
-            shader.WorldProbeLevels = 1; shader.WorldProbeResolution = cacheResolution;
-            shader.WorldProbeBaseSpacing = cacheSpacing; shader.WorldProbeOctahedralSize = worldResources?.WorldProbeTileSize ?? 16;
-            shader.HzbCoarseMip = 0; shader.RayMaxDistance = rayMaxDistance;
-        });
+            program = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(shader =>
+            {
+                shader.NearField = key.NearField; shader.EmissiveBoost = key.EmissiveBoost;
+                shader.TexelsPerFrame = key.TexelsPerFrame; shader.WorldProbes = key.WorldProbes;
+                shader.WorldProbeLevels = 1; shader.WorldProbeResolution = key.WorldResolution;
+                shader.WorldProbeBaseSpacing = key.WorldSpacing; shader.WorldProbeOctahedralSize = key.WorldTileSize;
+                shader.HzbCoarseMip = 0; shader.RayMaxDistance = key.RayMaxDistance;
+            });
+            tracePrograms.Add(key, program);
+        }
         using var use = program.UseScope();
         using var cacheBinding=new VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingBindings();
         cacheBinding.Bind(surfaceLighting);

@@ -18,6 +18,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
+    #region Scenario resources
+    // The base fixture owns disposal; each test keeps its own variants and cleared output target.
+    private readonly Dictionary<bool, LumOnDebugShaderProgram> geometryPrograms = new();
+    private GpuFramebuffer? geometryOutput;
+    #endregion
+
     #region Construction
     /// <summary>Uses the shared mandatory OpenGL context.</summary>
     public LumOnNearFieldGeometryDebugFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
@@ -156,10 +162,14 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
     /// <summary>Renders only production geometry/readiness inputs with a narrow camera frustum and precise world origin.</summary>
     private float[] RenderGeometry(ControlledTraceGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, bool monolithic = false)
     {
-        var program = Programs.Create<LumOnDebugShaderProgram>(shader =>
+        if (!geometryPrograms.TryGetValue(monolithic, out var program))
         {
-            shader.DirectVisibility = true; shader.WorldProbeEnabled = false;
-        }, identity: monolithic ? LumOnDebugShaderProgram.DispatcherContract.Identity : LumOnDebugShaderProgram.WorldprobeContract.Identity);
+            program = Programs.Create<LumOnDebugShaderProgram>(shader =>
+            {
+                shader.DirectVisibility = true; shader.WorldProbeEnabled = false;
+            }, identity: monolithic ? LumOnDebugShaderProgram.DispatcherContract.Identity : LumOnDebugShaderProgram.WorldprobeContract.Identity);
+            geometryPrograms.Add(monolithic, program);
+        }
         using var use = program.UseScope();
         {
             // Perspective rays face -Z; a narrow frustum isolates the chosen voxel column.
@@ -173,7 +183,8 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
             program.DebugMode = 70;
             program.NearFieldVisibility.Bind(program, scene?.Backend);
-            using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+            var output = geometryOutput ??= TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+            // RenderQuadTo clears every attachment before drawing, so reuse cannot retain old pixels.
             TestFramework.RenderQuadTo(program, output);
             return output[0].ReadPixels();
         }

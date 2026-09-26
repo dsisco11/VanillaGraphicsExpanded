@@ -1014,6 +1014,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
 
+        // Comparisons change runtime inputs only; the program is owned by this test's Programs.
+        var programId = CompileGatherShader();
+
         const float pixelDepth = 0.5f;
 
         CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
@@ -1040,8 +1043,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
                 PixelInternalFormat.Rgba16f);
-
-            var programId = CompileGatherShader();
 
             using var programUse = programId.UseScope();
             SetupGatherUniforms(programId, invProjection, viewMatrix);
@@ -1071,8 +1072,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
                 PixelInternalFormat.Rgba16f);
-
-            var programId = CompileGatherShader();
 
             using var programUse = programId.UseScope();
             SetupGatherUniforms(programId, invProjection, viewMatrix);
@@ -1113,6 +1112,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
 
+        // Comparisons change runtime inputs only; the program is owned by this test's Programs.
+        var programId = CompileGatherShader();
+
         const float pixelDepth = 0.5f;
 
         CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
@@ -1138,8 +1140,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
                 PixelInternalFormat.Rgba16f);
-
-            var programId = CompileGatherShader();
 
             using var programUse = programId.UseScope();
             SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
@@ -1167,8 +1167,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
                 PixelInternalFormat.Rgba16f);
-
-            var programId = CompileGatherShader();
 
             using var programUse = programId.UseScope();
             SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
@@ -1325,6 +1323,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
 
+        // Comparisons change runtime inputs only; the program is owned by this test's Programs.
+        var programId = CompileGatherShader();
+
         const float pixelDepth = 0.5f;
 
         CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix,
@@ -1352,8 +1353,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 HalfResWidth, HalfResHeight,
                 PixelInternalFormat.Rgba16f);
 
-            var programId = CompileGatherShader();
-
             using var programUse = programId.UseScope();
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.1f);
 
@@ -1380,8 +1379,6 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
                 PixelInternalFormat.Rgba16f);
-
-            var programId = CompileGatherShader();
 
             using var programUse = programId.UseScope();
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.9f);

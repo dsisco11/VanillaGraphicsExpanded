@@ -4,10 +4,10 @@ Date: 2026-09-25. Scope: the GPU integration suite and its shared test patterns,
 shader contracts, GPU resource lifetimes, Surface Cache producers, and complete lighting transport.
 The source/restoration regression is a representative workload, not the scope boundary.
 
-This is an investigation, not an optimization implementation. No production rendering behavior,
-test assertions, tolerances, or completion requirements are changed. Temporary measurement edits
-must be removed before this investigation is finalized. Build/test measurements are delegated to
-a subagent; a separate reviewer checks the safety of the recommendations. No game is launched.
+The initial investigation below preserved production rendering behavior, test assertions, tolerances
+and completion requirements, and removed its temporary instrumentation. Subsequent implementation
+of within-test resource reuse is recorded at the end of this report. Build/test measurements are
+delegated to a subagent, with a separate implementation reviewer. No game is launched.
 
 ## Measured baseline
 
@@ -98,11 +98,12 @@ Raw evidence: `artifacts/gpu-suite-profile-scopes.jsonl`, the instrumented TRX,
 were instrumented; there are no exclusive GPU timestamps, allocation-only timings or whole-suite
 readback counters. Program registration and frame scopes still contain multiple costs. Separate
 these further when implementing the follow-up tasks instead of extrapolating four cases to the
-whole suite. No optimized candidate was run, so **no speedup has been demonstrated yet**.
+whole suite. No optimized candidate was run during that initial investigation, so its attribution
+measurements alone demonstrate no speedup; see the subsequent matched implementation runs below.
 
 All four instrumented source files were restored byte-for-byte and the temporary helper removed.
 The restored source rebuilt successfully in **6.376 seconds**, with current shader assets. The
-retained changes from this investigation are documentation and follow-up tasks only.
+retained changes from that initial investigation were documentation and follow-up tasks only.
 
 ### Failures and skips observed during measurement
 
@@ -324,3 +325,79 @@ constraints. The reviewer also confirmed that within-test reuse is appropriate t
 the 65-position camera sweep, provided every draw updates its inputs and overwrites or explicitly
 clears the reused output. This is a source review of proposed changes, not validation of an
 implemented optimization.
+
+## Within-test program and target reuse implementation
+
+The geometry-debug harness now retains one program per dedicated/monolithic identity and one
+framework-owned render target per test. The three camera sweeps still execute all 195 draws and
+readbacks; they create three programs/targets rather than 195. `RenderQuadTo` still clears the
+target before each draw, and camera, world-origin and geometry bindings are updated every time.
+
+`NearFieldShaderTestBase` retains programs by all eight variable shader selections authored by the
+harness. Fixed world levels and HZB selection remain unchanged. Geometry, Surface Cache, histories,
+terrain inputs, uniforms and suppression are rebound on every invocation. Its scene-owned targets
+already supported reuse; no shared history or process-wide program cache was introduced.
+
+`SurfaceLightingTemporalTestBase` retains its invariant temporal program. Each history branch still
+owns separate ping-pong targets and binds its own textures and frame parameters on every step.
+The existing `ComponentShaderPrograms` and `ShaderTestFramework` owners dispose the retained objects.
+`ComponentShaderPrograms.Create` itself remains unchanged, including fresh creation for lifetime tests.
+
+Existing scenarios, loops, readbacks, numerical bounds, per-frame finite checks and sleep policy
+are unchanged. A separate regression, `TraceRebindsInputsAfterBranchAndVariantChanges`, interleaves
+branches, suppression and a world-cache specialization change before restoring the original bright
+draw. It checks exact restored outputs, source flags, separate targets and clean GL state. This new
+case is excluded from the matched timing filter and included in affected regression validation.
+
+The independent reviewer found no missing shader selections, stale bindings, ownership changes or
+removed assertions, and reviewed the new regression's nonzero lighting and specialization checks.
+
+### Matched timing results
+
+The subagent ran the same 77 cases twice on the original binary, then twice on the candidate,
+using `--no-build --no-restore` in fresh test processes with one GPU process at a time. All four
+runs passed 77/77 with identical test-name/outcome sets and no skips. This is sequential AABB
+measurement, not randomized or ABBA sampling; driver caches were not cleared.
+
+| Command wall time | Run 1 | Run 2 | Mean |
+| --- | ---: | ---: | ---: |
+| Original | 112.050 s | 108.558 s | 110.304 s |
+| Reuse | 38.236 s | 38.169 s | 38.202 s |
+
+The selected workload's mean wall time fell **65.4%**. This is a measured improvement for these
+77 cases, not an extrapolated whole-suite speedup. The candidate build took approximately 60
+seconds, including shader catalog compilation, and is excluded from the test timing comparison.
+
+| Family | Cases | Original mean summed case time | Reuse mean summed case time |
+| --- | ---: | ---: | ---: |
+| Geometry debug | 15 | 34.755 s | 3.749 s |
+| Temporal components | 5 | 42.228 s | 6.849 s |
+| Near-field functional | 57 | 28.864 s | 24.197 s |
+
+Evidence: `artifacts/invariant-reuse.filter`, `invariant-reuse-comparison.csv`,
+`invariant-reuse-summary.json`, and baseline/candidate `invariant-reuse-*-1/2.trx` receipts under
+`artifacts/TestResults`. The original 20.12-minute suite baseline and its unresolved failures remain
+historical evidence; this implementation does not close the separate broad correctness gate.
+
+The separate affected regression passed **117/117, zero skips**, in 75.404 seconds of command wall
+time. It covers the affected near-field, shared-scene, material-readiness, Surface Cache hit/transport,
+temporal and geometry-debug families, including the new branch/variant round trip and existing
+borrowed-resource ownership test. See `artifacts/invariant-reuse-regression.filter` and
+`artifacts/TestResults/invariant-reuse-regression.trx`. No production rendering or global shader
+factory changes were made, and the sleep-policy task remains separate.
+
+### Additional within-test shader reuse
+
+The shadow receiver comparisons now retain one direct-lighting program per test. The partial-metallic
+combine case creates one program for its three material inputs. The gather partial-validity,
+sample-stride, and leak-threshold comparisons each create one program for both draws. All dynamic
+bindings, readbacks, and assertions remain in place, with program disposal still owned by the existing
+per-test `ComponentShaderPrograms`. No cross-test sharing was introduced.
+
+This removes eleven redundant program creations across the ten directly affected cases. Validation
+covers all three containing test classes; these additional changes have no matched timing baseline.
+
+Validation passed: **35/35 cases, zero failures or skips** (11 combine, 18 gather, 6 direct-shadow).
+The subagent-run build completed with zero errors and five existing analyzer warnings; the focused
+test command took 12.262 seconds. Receipt: `artifacts/TestResults/additional-shader-reuse.trx`.
+This duration is a validation receipt, not a measured speedup.

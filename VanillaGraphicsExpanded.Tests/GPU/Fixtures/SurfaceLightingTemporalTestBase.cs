@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Isolates temporal shader retention with fixed anchors; full runtime coverage uses mod-owned callbacks.</summary>
 public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBase
 {
+    // Programs owns disposal; histories retain separate textures and all bindings are refreshed per draw.
+    private LumOnScreenProbeAtlasTemporalShaderProgram? temporalProgram;
+
     /// <summary>Uses the shared material-isolated graphics context.</summary>
     protected SurfaceLightingTemporalTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -39,7 +42,7 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     /// <summary>Runs production temporal blending against the previous ping-pong generation without CPU radiance injection.</summary>
     private void Accumulate(GpuFramebuffer traced, SurfaceLightingHistoryFixture history)
     {
-        var program = Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = SurfaceLightingHistoryFixture.DirectionsPerFrame);
+        var program = temporalProgram ??= Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = SurfaceLightingHistoryFixture.DirectionsPerFrame);
         using var use = program.UseScope();
         var anchor = history.Buffers.ProbeAnchorPositionTex!;
         var mask = history.Buffers.ProbeTraceMaskTex!;

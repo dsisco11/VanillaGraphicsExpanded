@@ -12,6 +12,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 {
+    #region Scenario resources
+
+    // Each test owns one specialization through Programs; receiver inputs are rebound for every draw.
+    private PBRDirectLightingShaderProgram? receiverProgram;
+
+    #endregion
+
     /// <summary>Uses the shared headless graphics context.</summary>
     public PbrDirectLightingShadowTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -89,7 +96,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
     private float[] RenderReceiver(float shadowDepth, float nearRange, float farRange,
         float sunlight = 1f, bool pointLight = false, float emission = 0f, float intensity = 1f)
     {
-        var program = Programs.Create<PBRDirectLightingShaderProgram>();
+        var program = receiverProgram ??= Programs.Create<PBRDirectLightingShaderProgram>();
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 3);
         using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.6f, .6f, .6f, 1f]);
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);

@@ -664,7 +664,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       in the three camera sweeps. Runtime setup and actual sleep duration outweigh observation
       costs in the four profiled replacement cases. Broad failures remain documented and open.
 
-  ☐ Reuse invariant shader programs and render targets within GPU test scenarios.
+  ☑ Reuse invariant shader programs and render targets within GPU test scenarios.
     - Follow the existing per-test variant ownership in DirectWorldProbeVisibilityTestBase;
       do not introduce a process-wide live-program cache.
     - Start with the 65-position geometry camera sweeps; audit temporal/trace helper loops next.
@@ -674,6 +674,14 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       construction, recreation or disposal is the behavior under test.
     - Measure identical baseline/candidate workloads through subagents and obtain a separate review.
       Use docs/GPU.IntegrationTestPerformance.Analysis.md for the baseline and acceptance contract.
+    - Implemented per-test geometry variants/cleared target, trace variants keyed by all authored
+      selections, and an invariant temporal program with per-history bindings. Added a branch,
+      suppression and specialization round-trip regression; existing draws/assertions remain intact.
+    - Subagent measurements: two original and two candidate runs passed the identical 77 cases;
+      mean command wall time fell from 110.304 to 38.202 seconds (65.4%) in sequential AABB runs.
+      Affected regression passed 117/117 with no skips. Separate implementation review passed.
+      Evidence: docs/GPU.IntegrationTestPerformance.Analysis.md (Within-test program and target
+      reuse implementation). No whole-suite speedup or broad correctness-gate completion claimed.
 
   ☐ Replace unconditional GPU integration-test sleeps with dependency-driven completion waits.
     - Introduce a test-side frame pump that checks completion after each frame, advances frames
