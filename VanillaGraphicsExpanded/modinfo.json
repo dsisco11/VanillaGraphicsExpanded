@@ -6,9 +6,9 @@
     "authors": [
         "Sisco++"
     ],
-    "description": "To be added",
-    "version": "0.0.1",
+    "description": "Realtime global illumination and Physically-Based-Rendering for VintageStory.",
+    "version": "999.99.9",
     "dependencies": {
-        "game": "1.21.0"
+        "game": "1.22.7"
     }
 }
