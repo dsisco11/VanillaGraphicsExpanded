@@ -63,7 +63,7 @@ public abstract partial class GpuProgram
     [Obsolete("Use SetDefines with null values to restore defaults in one batch.")]
     public bool RemoveDefine(string name) => SetDefines(new Dictionary<string, string?> { [name] = null });
 
-    /// <summary>Collects edits under the settings lock and schedules only after the complete batch is published.</summary>
+    /// <summary>Collects edits under the settings lock and notifies the owner after the complete batch is published.</summary>
     private bool UpdateSettings(Action<ShaderSettingsEditor> update)
     {
         ArgumentNullException.ThrowIfNull(update);

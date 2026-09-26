@@ -93,8 +93,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = capi.Shader.GetProgramByName("pbr_composite") as PBRCompositeShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi, "pbr_composite");
+        if (shader is null)
         {
             return;
         }
@@ -133,20 +133,6 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             compositeFbo.Resize(screenW, screenH);
         }
 
-        // Matrices for optional PBR composite mode
-        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
-        Array.Copy(capi.Render.CameraMatrixOriginf, viewMatrix, 16);
-
-        // Render into a scratch buffer to avoid sampling from the same texture we're writing to
-        // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
-        compositeFbo!.Bind();
-        GL.Viewport(0, 0, screenW, screenH);
-
-        // Single target output.
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-
-        capi.Render.GlToggleBlend(false);
-
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         int lumOnEnabled = 0;
         DynamicTexture2D? indirectTex = null;
@@ -163,7 +149,23 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             shader.EnableShortRangeAo = lumOnConfig?.LumOn.EnableShortRangeAo ?? true;
         });
 
-        shader.Use();
+        if (!shader.EnsureReady()) return;
+
+        // Matrices for optional PBR composite mode
+        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
+        Array.Copy(capi.Render.CameraMatrixOriginf, viewMatrix, 16);
+
+        // Render into a scratch buffer to avoid sampling from the same texture we're writing to
+        // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
+        compositeFbo!.Bind();
+        GL.Viewport(0, 0, screenW, screenH);
+
+        // Single target output.
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+
+        capi.Render.GlToggleBlend(false);
+
+        if (!shader.TryUse()) return;
 
         // Direct lighting radiance buffers (linear, fog-free)
         shader.DirectDiffuse = directLightingBuffers.DirectDiffuseTex;

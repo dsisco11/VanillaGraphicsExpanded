@@ -1,5 +1,10 @@
 # Production parallel shader linking
 
+The default loading policy has since been generalized: registration declares programs, while owning
+systems explicitly preload required selections or prepare them on first use. See
+[Shader declaration and preparation](GPU.ShaderDemandLoading.md). Measurements below describe the
+earlier eager-production and debug-only demand-loading implementations.
+
 Production graphics registration, grouped configuration recompiles,
 world-probe compute setup, and the feedback mark/compact pair now submit independent programs
 through a render-thread `ShaderLinkBatch`. The default window is eight candidates. The public
@@ -39,8 +44,8 @@ no longer contribute unfinished driver work. Cancellation applies equally to fal
 - `VgeShaderPrograms` batches the ordinary graphics owners and publishes successful programs.
 - `LumOnDebugShaderProgramFamily` retains settings declarations for all family variants. Selection
   prepares only the requested executable, using the existing loader and executable cache.
-- `ShaderRecompileQueue` coalesces changed owners by API and asset domain, captures their final
-  settings on the render thread, and leaves changes raised during publication for another callback.
+- Configuration edits now remain pending until preparation. The earlier `ShaderRecompileQueue`
+  was replaced by explicit subset preloads and consumer readiness checks.
 - `WorldProbeTraceBatch` groups the three compute programs required by its constructor.
 - Feedback mark/compact creation is grouped only when both programs are missing, adding no batch
   work to the usual frame path.

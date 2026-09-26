@@ -137,6 +137,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
+        PreloadInvariantPrograms();
+
         // Register renderer
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "lumon");
         // capi.Event.RegisterRenderer(this, EnumRenderStage.AfterPostProcessing, "lumon");
@@ -556,8 +558,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = capi.Shader.GetProgramByName("lumon_velocity") as LumOnVelocityShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnVelocityShaderProgram>(capi, "lumon_velocity");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -600,8 +602,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAnchorPass(FrameBufferRef primaryFb)
     {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_anchor") as LumOnProbeAnchorShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnProbeAnchorShaderProgram>(capi, "lumon_probe_anchor");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -658,8 +660,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_pis_mask") as LumOnProbeAtlasPisMaskShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnProbeAtlasPisMaskShaderProgram>(capi, "lumon_probe_atlas_pis_mask");
+        if (shader is null)
             return;
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
@@ -674,7 +676,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        if (shader.ConfigureOptions(() =>
+        shader.ConfigureOptions(() =>
         {
             shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
             shader.EnsureProbePisDefines(
@@ -685,13 +687,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 weightEpsilon: config.LumOn.ProbePISWeightEpsilon,
                 forceUniformMask: config.LumOn.ForceUniformMask,
                 forceBatchSlicing: config.LumOn.ForceBatchSlicing);
-        }))
-        {
-            // Defines changed (recompile queued). Leave the mask cleared so downstream passes fall back safely.
-            return;
-        }
+        });
 
-        shader.Use();
+        if (!shader.TryUse()) { lightingPassesComplete = false; return; }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
 
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
@@ -710,8 +708,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasTracePass(FrameBufferRef primaryFb)
     {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_trace") as LumOnScreenProbeAtlasTraceShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasTraceShaderProgram>(capi, "lumon_probe_atlas_trace");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -735,7 +733,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         // Publish trace settings together so reloads cannot install an intermediate combination.
-        bool traceOptionsChanged = shader.ConfigureOptions(() =>
+        shader.ConfigureOptions(() =>
         {
             shader.EmissiveBoost = Math.Max(0.0f, config.LumOn.EmissiveGiBoost);
             shader.NearField = true;
@@ -749,14 +747,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             if (primaryBuffers.HzbDepthTex != null)
                 shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, primaryBuffers.HzbDepthTex.MipLevels - 1));
         });
-        if (traceOptionsChanged)
-        {
-            lightingPassesComplete = false;
-            return;
-        }
 
         // World-probe clipmap uses compile-time defines. They must be configured before Use().
-        // If defines change, VGE will queue a recompile; skip this pass (do not clear) to avoid black flicker.
+        // Preparation occurs after the complete resource-dependent settings have been collected.
         bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
             out var wpResources,
             out _,
@@ -771,33 +764,25 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             int wpTileSize = config.WorldProbeClipmap.OctahedralTileSize;
             int wpAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
             const int worldProbeDiffuseStride = 2;
-            if (!shader.EnsureWorldProbeClipmapDefines(
+            shader.EnsureWorldProbeClipmapDefines(
                 enabled: true,
                 wpBaseSpacing,
                 wpLevels,
                 wpResolution,
                 wpTileSize,
                 wpAtlasTexelsPerUpdate,
-                worldProbeDiffuseStride))
-            {
-                lightingPassesComplete = false;
-                return;
-            }
+                worldProbeDiffuseStride);
         }
         else
         {
-            if (!shader.EnsureWorldProbeClipmapDefines(
+            shader.EnsureWorldProbeClipmapDefines(
                 enabled: false,
                 baseSpacing: 0,
                 levels: 0,
                 resolution: 0,
                 worldProbeOctahedralTileSize: 0,
                 worldProbeAtlasTexelsPerUpdate: 0,
-                worldProbeDiffuseStride: 0))
-            {
-                lightingPassesComplete = false;
-                return;
-            }
+                worldProbeDiffuseStride: 0);
         }
 
         if (!shader.TryUse())
@@ -868,9 +853,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        var copy = capi.Shader.GetProgramByName("lumon_hzb_copy") as LumOnHzbCopyShaderProgram;
-        var down = capi.Shader.GetProgramByName("lumon_hzb_downsample") as LumOnHzbDownsampleShaderProgram;
-        if (copy is null || down is null || copy.LoadError || down.LoadError)
+        var copy = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnHzbCopyShaderProgram>(capi, "lumon_hzb_copy");
+        var down = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnHzbDownsampleShaderProgram>(capi, "lumon_hzb_downsample");
+        if (copy is null || down is null)
         {
             lightingPassesComplete = false;
             return;
@@ -890,7 +875,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using (GlGpuProfiler.Instance.Scope(copy.PassName))
         {
-            copy.Use();
+            if (!copy.TryUse()) { lightingPassesComplete = false; return; }
             copy.PrimaryDepth = primaryFb.DepthTextureId;
             capi.Render.RenderMesh(quadMeshRef);
             copy.Stop();
@@ -899,7 +884,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Downsample the mip chain using MIN depth.
         using (GlGpuProfiler.Instance.Scope(down.PassName))
         {
-            down.Use();
+            if (!down.TryUse()) { lightingPassesComplete = false; return; }
             down.HzbDepth = hzb;
 
             for (int dstMip = 1; dstMip < hzb.MipLevels; dstMip++)
@@ -930,8 +915,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasTemporalPass()
     {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_temporal") as LumOnScreenProbeAtlasTemporalShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasTemporalShaderProgram>(capi, "lumon_probe_atlas_temporal");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -952,17 +937,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
-        if (shader.ConfigureOptions(() =>
+        shader.ConfigureOptions(() =>
         {
             shader.TexelsPerFrame = config.LumOn.ProbeAtlasTexelsPerFrame;
             shader.EnsureProbePisDefines(
                 enabled: config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask,
                 forceBatchSlicing: config.LumOn.ForceBatchSlicing);
-        }))
-        {
-            lightingPassesComplete = false;
-            return;
-        }
+        });
 
         if (!shader.TryUse())
         {
@@ -1034,8 +1015,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasProjectSh9Pass()
     {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_project_sh9") as LumOnScreenProbeAtlasProjectSh9ShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasProjectSh9ShaderProgram>(capi, "lumon_probe_atlas_project_sh9");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -1088,8 +1069,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeSh9GatherPass(FrameBufferRef primaryFb)
     {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_sh9_gather") as LumOnProbeSh9GatherShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnProbeSh9GatherShaderProgram>(capi, "lumon_probe_sh9_gather");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -1110,11 +1091,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true)))
-        {
-            lightingPassesComplete = false;
-            return;
-        }
+        shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true));
 
         bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
             out var worldProbeResources,
@@ -1127,18 +1104,14 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         int worldProbeTileSize = config.WorldProbeClipmap.OctahedralTileSize;
         int worldProbeAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
-        if (!shader.EnsureWorldProbeClipmapDefines(
+        shader.EnsureWorldProbeClipmapDefines(
                 enabled: hasWorldProbe,
                 baseSpacing: worldProbeBaseSpacing,
                 levels: worldProbeLevels,
                 resolution: worldProbeResolution,
                 worldProbeOctahedralTileSize: hasWorldProbe ? worldProbeTileSize : 0,
                 worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
-                worldProbeDiffuseStride: hasWorldProbe ? 2 : 0))
-        {
-            lightingPassesComplete = false;
-            return;
-        }
+                worldProbeDiffuseStride: hasWorldProbe ? 2 : 0);
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -1187,8 +1160,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasGatherPass(FrameBufferRef primaryFb)
     {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_gather") as LumOnScreenProbeAtlasGatherShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasGatherShaderProgram>(capi, "lumon_probe_atlas_gather");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -1213,11 +1186,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true)))
-        {
-            lightingPassesComplete = false;
-            return;
-        }
+        shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true));
 
         bool hasWorldProbe = TryBindWorldProbeClipmapCommon(
             out var worldProbeResources,
@@ -1230,18 +1199,14 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         int worldProbeTileSize = config.WorldProbeClipmap.OctahedralTileSize;
         int worldProbeAtlasTexelsPerUpdate = config.WorldProbeClipmap.AtlasTexelsPerUpdate;
-        if (!shader.EnsureWorldProbeClipmapDefines(
+        shader.EnsureWorldProbeClipmapDefines(
                 enabled: hasWorldProbe,
                 baseSpacing: worldProbeBaseSpacing,
                 levels: worldProbeLevels,
                 resolution: worldProbeResolution,
                 worldProbeOctahedralTileSize: hasWorldProbe ? worldProbeTileSize : 0,
                 worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
-                worldProbeDiffuseStride: hasWorldProbe ? 2 : 0))
-        {
-            lightingPassesComplete = false;
-            return;
-        }
+                worldProbeDiffuseStride: hasWorldProbe ? 2 : 0);
 
         fbo.BindWithViewport();
         fbo.Clear();
@@ -1332,8 +1297,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasFilterPass()
     {
-        var shader = capi.Shader.GetProgramByName("lumon_probe_atlas_filter") as LumOnScreenProbeAtlasFilterShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasFilterShaderProgram>(capi, "lumon_probe_atlas_filter");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;
@@ -1387,8 +1352,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)
     {
-        var shader = capi.Shader.GetProgramByName("lumon_upsample") as LumOnUpsampleShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnUpsampleShaderProgram>(capi, "lumon_upsample");
+        if (shader is null)
         {
             lightingPassesComplete = false;
             return;

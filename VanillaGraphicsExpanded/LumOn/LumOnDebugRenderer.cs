@@ -1287,8 +1287,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
         }
 
-        var shader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+        if (shader is null || !shader.EnsureReady())
         {
             return;
         }
@@ -1399,8 +1399,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+        if (shader is null || !shader.EnsureReady())
         {
             RateLimitedClipmapDebugLog("World-probe bounds: shader missing/load error");
             return;
@@ -1498,8 +1498,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+        if (shader is null || !shader.EnsureReady())
         {
             return;
         }
@@ -1967,8 +1967,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = capi.Shader.GetProgramByName("vge_worldprobe_orbs_points") as VanillaGraphicsExpanded.Rendering.Shaders.VgeWorldProbeOrbsPointsShaderProgram;
-        if (shader is null || shader.LoadError)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VanillaGraphicsExpanded.Rendering.Shaders.VgeWorldProbeOrbsPointsShaderProgram>(capi, "vge_worldprobe_orbs_points");
+        if (shader is null || !shader.EnsureReady())
         {
             RateLimitedClipmapDebugLog("World-probe orbs: shader missing/load error");
             return;
@@ -2067,8 +2067,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     shader.Stop();
                     shaderUsed = false;
 
-                    var markerShader = capi.Shader.GetProgramByName("vge_debug_lines") as VgeDebugLinesShaderProgram;
-                    if (markerShader is not null && !markerShader.LoadError)
+                    var markerShader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+                    if (markerShader is not null && markerShader.EnsureReady())
                     {
                         GlStateCache.Current.Apply(ClosestProbeMarkerPso);
 

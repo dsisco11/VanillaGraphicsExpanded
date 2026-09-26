@@ -41,9 +41,7 @@ public sealed partial class LumOnWorldProbeClipmapResolveShaderProgram : GpuProg
             AssetDomain = "vanillagraphicsexpanded"
         };
 
-        instance.Initialize(api);
-        instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram(instance.PassName, instance);
+        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     #endregion

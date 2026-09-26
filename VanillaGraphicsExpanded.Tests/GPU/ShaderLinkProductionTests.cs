@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
@@ -40,6 +41,11 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             });
             long started = Stopwatch.GetTimestamp();
             Assert.True(VgeShaderPrograms.RegisterAll(assets.Api), string.Join('\n', assets.Logs));
+            Assert.Empty(assets.Reads);
+            Assert.Empty(assets.RegisteredPrograms);
+            var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray();
+            Assert.Equal(19, selected.Length);
+            Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
             double startup = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double startupUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Startup driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
@@ -48,17 +54,17 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.Equal(LumOnDebugShaderProgram.Contracts.Count(), LumOnDebugShaderProgramFamily.GetAll().Count());
             foreach (var program in assets.RegisteredPrograms.Values) Assert.True(GL.IsProgram(program.ProgramId));
 
-            // A shared option edit should schedule one callback for all accepting owners.
+            // Shared edits remain pending until the caller explicitly preloads its required selection.
             var changed = assets.RegisteredPrograms.Values.OfType<GpuProgram>()
                 .Where(program => program.ProgramContract.Options.Any(option => option.Name == "VGE_LUMON_DIRECT_LOCAL_VISIBILITY")).ToArray();
             Assert.True(changed.Length > 1);
             int[] previous = changed.Select(program => program.ProgramId).ToArray();
             foreach (var program in changed)
                 Assert.True(program.SetDefines(new Dictionary<string, string?> { ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "true" }));
-            var update = Assert.Single(assets.ScheduledTasks);
+            Assert.Empty(assets.ScheduledTasks);
             assets.ScheduledTasks.Clear();
             started = Stopwatch.GetTimestamp();
-            update();
+            Assert.True(GpuShaderPrograms.Preload(assets.Api, changed.ToImmutableArray()));
             double configuration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double configurationUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Configuration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
@@ -73,6 +79,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
 
             started = Stopwatch.GetTimestamp();
             Assert.True(VgeShaderPrograms.RegisterAll(assets.Api), string.Join('\n', assets.Logs));
+            Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
             double reload = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double reloadUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Re-registration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");

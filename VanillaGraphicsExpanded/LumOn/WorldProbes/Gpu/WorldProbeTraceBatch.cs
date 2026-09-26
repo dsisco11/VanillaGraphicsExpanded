@@ -41,14 +41,13 @@ internal sealed class WorldProbeTraceBatch : IDisposable
             using var links = new ShaderLinkBatch(api.Assets, PBR.ShaderImportsSystem.DefaultDomain,
                 [new ShaderSettings(WorldProbeTraceTilesShader.Contract), new ShaderSettings(WorldProbeTraceShader.Contract),
                  new ShaderSettings(WorldProbeCompletionShader.Contract)]);
-            if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeTraceTilesShader.Contract.Identity,
-                out var setupProgram, out _, out string setupLog, preferSpirv: true)) throw new InvalidOperationException(setupLog);
-            setup = setupProgram!;
-            if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeTraceShader.Contract.Identity,
-                out var created, out _, out string log, preferSpirv: true)) throw new InvalidOperationException(log);
-            pipeline = created!;
-            if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeCompletionShader.Contract.Identity,
-                out completion, out _, out string completionLog, preferSpirv: true)) throw new InvalidOperationException(completionLog);
+            setup = GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceTilesShader.Contract));
+            pipeline = GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceShader.Contract));
+            completion = GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeCompletionShader.Contract));
+            // This tracing owner requires all three programs; explicitly preload them through the active batch.
+            if (!setup.EnsureReady()) throw new InvalidOperationException(setup.PreparationLog);
+            if (!pipeline.EnsureReady()) throw new InvalidOperationException(pipeline.PreparationLog);
+            if (!completion.EnsureReady()) throw new InvalidOperationException(completion.PreparationLog);
         }
         catch
         {

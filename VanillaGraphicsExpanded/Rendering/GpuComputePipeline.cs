@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuComputePipeline : GpuResource, IDisposable
+internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
 {
     private int programId;
     private GpuProgramLayout programLayout = GpuProgramLayout.Empty;
@@ -338,10 +338,9 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public void Use()
     {
-        if (!IsValid)
+        if (!EnsureReady())
         {
-            Debug.WriteLine("[GpuComputePipeline] Attempted to use disposed or invalid program");
-            return;
+            throw new InvalidOperationException("Compute preparation failed: " + preparationLog);
         }
 
         GlStateCache.Current.UseProgram(programId);
@@ -352,7 +351,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public bool TryUse()
     {
-        if (!IsValid)
+        if (!EnsureReady())
         {
             return false;
         }
@@ -366,6 +365,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public ProgramScope UseScope()
     {
+        if (!EnsureReady()) throw new InvalidOperationException(preparationLog);
         var scope = GlStateCache.Current.UseProgramScope(programId);
         return new ProgramScope(scope);
     }
@@ -375,7 +375,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public void Dispatch(int numGroupsX, int numGroupsY = 1, int numGroupsZ = 1)
     {
-        if (!IsValid)
+        if (!EnsureReady())
         {
             return;
         }
@@ -404,7 +404,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     {
         ArgumentNullException.ThrowIfNull(indirectBuffer);
 
-        if (!IsValid || !indirectBuffer.IsValid)
+        if (!EnsureReady() || !indirectBuffer.IsValid)
         {
             return;
         }

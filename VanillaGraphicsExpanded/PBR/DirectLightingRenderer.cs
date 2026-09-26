@@ -52,6 +52,9 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         this.gBufferManager = gBufferManager;
         this.bufferManager = bufferManager;
 
+        var shader = Rendering.Shaders.GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        if (shader != null) Rendering.Shaders.GpuShaderPrograms.Preload(capi, [shader]);
+
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
@@ -120,8 +123,8 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
 
         // Shader program
-        var shader = capi.Shader.GetProgramByName("pbr_direct_lighting") as PBRDirectLightingShaderProgram;
-        if (shader is null)
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        if (shader is null || !shader.EnsureReady())
         {
             return;
         }

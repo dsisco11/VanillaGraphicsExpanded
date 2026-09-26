@@ -884,6 +884,18 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       plus the expanded Release startup/selection measurement 1/1. Cold/warm timings and first-draw
       limitations are recorded in docs/GPU.ParallelShaderCompilation.md.
 
+  ☑ Generalize on-demand shader ownership and explicit feature preloading.
+    - Separate graphics declarations from engine executable registration and default all owners to
+      deferred preparation; replace the debug-only lifecycle with shared ownership.
+    - Let rendering systems explicitly batch known required shaders after configuring their inputs.
+      Preserve on-demand compute declaration plus explicit eager creation for required feature work.
+    - Cover activation, settings, cache and batch paths, failed retries, engine reload and terminal
+      disposal through subagent-run tests and a separate review. Keep real renderer assertions.
+    - Design and validation evidence: docs/GPU.ShaderDemandLoading.md.
+    - Complete: shared declaration/preparation lifecycle, feature-owned preloads and compute demand
+      activation. Final Release 53/53 passed; earlier Debug integration 15/15 passed. Independent
+      review passed. No new startup speedup or in-game acceptance is claimed.
+
   ☐ Apply intended runtime shader settings before the initial link.
     - Audit startup and recreation paths for default generations immediately replaced by configuration
       or renderer requirements. Start with DirectVisibility=false being changed to true by gather

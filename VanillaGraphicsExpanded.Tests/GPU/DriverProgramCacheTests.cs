@@ -48,7 +48,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
                 if (generation == 1)
                 {
                     GL.UseProgram(0);
-                    program.Dispose();
+                    ((Vintagestory.Client.NoObf.ShaderProgramBase)program).Dispose();
                     Assert.False(GL.IsProgram(previous));
                     previous = 0;
                 }

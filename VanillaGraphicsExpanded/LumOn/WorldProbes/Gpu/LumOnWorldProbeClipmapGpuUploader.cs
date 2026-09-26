@@ -148,19 +148,19 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         if (resources is null) throw new ArgumentNullException(nameof(resources));
 
 
-        var probeProg = capi.Shader.GetProgramByName("lumon_worldprobe_clipmap_resolve") as LumOnWorldProbeClipmapResolveShaderProgram;
-        if (probeProg is null || probeProg.LoadError || probeProg.Disposed)
+        var probeProg = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnWorldProbeClipmapResolveShaderProgram>(capi, "lumon_worldprobe_clipmap_resolve");
+        if (probeProg is null || !probeProg.EnsureReady())
         {
             return 0;
         }
 
-        var tileProg = capi.Shader.GetProgramByName("lumon_worldprobe_radiance_tile_resolve") as LumOnWorldProbeRadianceTileResolveShaderProgram;
+        var tileProg = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnWorldProbeRadianceTileResolveShaderProgram>(capi, "lumon_worldprobe_radiance_tile_resolve");
 
         int bytesPerProbeVertex = Marshal.SizeOf<ProbeResolveVertex>();
         int bytesPerTileVertex = Marshal.SizeOf<TileResolveVertex>();
 
         // Publish a probe's metadata only when every admitted directional sample can be uploaded.
-        if (tileProg is null || tileProg.LoadError || tileProg.Disposed) return 0;
+        if (tileProg is null || !tileProg.EnsureReady()) return 0;
         int maxProbes = results.Length;
         int maxTileVertices = int.MaxValue;
         int remainingBytes = uploadBudgetBytesPerFrame > 0 ? uploadBudgetBytesPerFrame : int.MaxValue;
@@ -191,7 +191,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
             probeVertices.Add(ProbeResolveVertex.From(r, u, v, flags));
             usedProbes++;
 
-            if (tileProg is null || tileProg.LoadError || tileProg.Disposed)
+            if (tileProg is null || !tileProg.EnsureReady())
             {
                 continue;
             }

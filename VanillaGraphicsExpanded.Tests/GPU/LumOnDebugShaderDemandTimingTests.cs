@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
@@ -36,7 +37,9 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
                 output.WriteLine($"Generation={generation}, declaration={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, reads={assets.Reads.Count}.");
                 started = Stopwatch.GetTimestamp();
                 Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-                output.WriteLine($"Generation={generation}, productionstartup={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, registered={assets.RegisteredPrograms.Count}.");
+                Assert.Empty(assets.RegisteredPrograms);
+                Assert.True(GpuShaderPrograms.Preload(assets.Api, GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray()));
+                output.WriteLine($"Generation={generation}, explicitproductionpreload={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, registered={assets.RegisteredPrograms.Count}.");
                 Assert.Equal(19, assets.RegisteredPrograms.Count);
                 foreach (string name in new[] { "lumon_debug_direct", "lumon_debug", "lumon_debug_direct" })
                 {

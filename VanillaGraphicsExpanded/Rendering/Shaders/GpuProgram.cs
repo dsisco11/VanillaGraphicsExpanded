@@ -25,7 +25,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// - Apply a GL debug label to the linked program
 ///
 /// </summary>
-public abstract partial class GpuProgram : ShaderProgram
+public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDisposable
 {
     #region Fields
 
@@ -244,7 +244,7 @@ public abstract partial class GpuProgram : ShaderProgram
     #region Initialization and Defines
 
     /// <summary>
-    /// Call from the program's Register method to enable define-triggered recompiles.
+    /// Associates a declaration with its application without reading binaries or creating an executable.
     /// </summary>
     public void Initialize(ICoreClientAPI api, ILogger? logger = null)
     {
@@ -345,6 +345,7 @@ public abstract partial class GpuProgram : ShaderProgram
     /// </summary>
     public ProgramUseScope UseScope()
     {
+        if (!EnsureReady()) throw new InvalidOperationException("Shader preparation failed.");
         var previous = ShaderProgramBase.CurrentShaderProgram;
         int previousId = previous?.ProgramId ?? 0;
         if (previous is null)
@@ -375,7 +376,7 @@ public abstract partial class GpuProgram : ShaderProgram
     /// </summary>
     public bool TryUse()
     {
-        if (ProgramId == 0)
+        if (!EnsureReady())
         {
             return false;
         }
@@ -473,6 +474,7 @@ public abstract partial class GpuProgram : ShaderProgram
     /// </summary>
     public bool CompileAndLink()
     {
+        if (retired) return false;
         if (capi is null)
         {
             throw new InvalidOperationException("GpuProgram was not initialized. Call Initialize(api) first.");
@@ -486,9 +488,11 @@ public abstract partial class GpuProgram : ShaderProgram
                 throw new InvalidOperationException("A graphics program cannot load a compute contract.");
 
             // The captured plan supplies binary selection and bindings without reconstructing GLSL.
+            if (Disposed) registeredWithEngine = false;
             bool ok = CompileSpirv(plan);
             if (ok)
             {
+                CompletePreparation();
                 GlDebug.TryLabel(ObjectLabelIdentifier.Program, ProgramId, ShaderName);
                 // Owner notifications run after installation and cannot turn a committed link into a failed candidate.
                 try { OnAfterCompile(); }
@@ -508,10 +512,10 @@ public abstract partial class GpuProgram : ShaderProgram
 
     #region Recompile Scheduling
 
-    /// <summary>Coalesces changed programs into a shared render-thread submission window.</summary>
+    /// <summary>Notifies derived owners that settings changed; the default leaves preparation to the consumer.</summary>
     protected virtual void RequestRecompile()
     {
-        if (capi != null) ShaderCompilation.ShaderRecompileQueue.Enqueue(capi, this);
+        // Settings stay pending until explicit preparation or activation.
     }
 
     /// <summary>Checks whether a live owner still needs its latest effective settings installed.</summary>

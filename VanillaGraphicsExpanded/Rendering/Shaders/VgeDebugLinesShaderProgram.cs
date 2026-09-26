@@ -34,9 +34,7 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram
             AssetDomain = "vanillagraphicsexpanded"
         };
 
-        instance.Initialize(api);
-        instance.CompileAndLink();
-        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
+        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     public float[] ModelViewProjectionMatrix

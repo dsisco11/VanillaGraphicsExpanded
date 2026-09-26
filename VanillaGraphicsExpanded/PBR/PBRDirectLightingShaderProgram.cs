@@ -44,10 +44,7 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
         };
-        instance.Initialize(api);
-        instance.CompileAndLink();
-
-        api.Shader.RegisterMemoryShaderProgram(Contract.Identity, instance);
+        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     #endregion

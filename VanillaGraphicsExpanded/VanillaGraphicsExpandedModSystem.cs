@@ -82,7 +82,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // Create G-buffer manager (Harmony hooks will call into this)
         gBufferManager = new GBufferManager(api);
 
-        // Register required rendering programs; debug views resolve their deferred declarations through the family.
+        // Declare shader owners; rendering systems explicitly preload or prepare their required selections.
         // ShaderRegistry.getProgramByName() may attempt to create/load programs on demand if missing,
         // which can lead to engine-side NREs when stage instances are null.
         VgeShaderPrograms.RegisterAll(api);
@@ -228,7 +228,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             }
 
             VgeDebugViewerManager.Dispose();
-            if (capi != null) LumOnDebugShaderProgramFamily.Dispose(capi);
+            if (capi != null)
+            {
+                LumOnDebugShaderProgramFamily.Dispose(capi);
+                GpuShaderPrograms.Dispose(capi);
+            }
 
             // Unregister GPU debug label renderers
             if (capi != null)

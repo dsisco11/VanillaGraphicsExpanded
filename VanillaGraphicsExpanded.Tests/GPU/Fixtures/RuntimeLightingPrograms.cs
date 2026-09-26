@@ -4,11 +4,12 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Models the engine registry while production startup creates and registers every shader.</summary>
+/// <summary>Records executable registration after production consumers select declared shaders.</summary>
 internal sealed class RuntimeLightingPrograms : IDisposable
 {
     private readonly Dictionary<string, GpuProgram> programs = new();
     private readonly HashSet<string> requested = new();
+    private ICoreClientAPI? owner;
     public IReadOnlyCollection<string> Loaded => requested;
     public IShaderAPI Api { get; }
 
@@ -26,9 +27,10 @@ internal sealed class RuntimeLightingPrograms : IDisposable
     /// <summary>Invokes the production registration entry without running unrelated mod UI or Harmony startup.</summary>
     public void Initialize(ICoreClientAPI api)
     {
+        owner = api;
         Assert.True(VgeShaderPrograms.RegisterAll(api));
-        Assert.NotEmpty(programs);
-        Assert.All(programs.Values, program => Assert.True(program.ProgramId != 0, $"Shader registration failed: {program.PassName}"));
+        Assert.NotEmpty(GpuShaderPrograms.GetAll(api));
+        Assert.Empty(programs);
     }
 
     /// <summary>Records actual consumer lookups separately from startup registration.</summary>
@@ -41,7 +43,8 @@ internal sealed class RuntimeLightingPrograms : IDisposable
     /// <summary>Retains the production-created program under its registered engine name.</summary>
     private int Register(string name, GpuProgram program)
     {
-        programs.Add(name, program);
+        requested.Add(name);
+        programs[name] = program;
         return program.ProgramId;
     }
     #endregion
@@ -50,6 +53,7 @@ internal sealed class RuntimeLightingPrograms : IDisposable
     /// <summary>Releases engine-owned programs after production consumers have stopped.</summary>
     public void Dispose()
     {
+        if (owner is not null) GpuShaderPrograms.Dispose(owner);
         foreach (var program in programs.Values) program.Dispose();
         programs.Clear();
     }

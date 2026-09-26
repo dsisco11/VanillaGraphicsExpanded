@@ -84,6 +84,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     public void Dispose()
     {
         VanillaGraphicsExpanded.LumOn.LumOnDebugShaderProgramFamily.Dispose(Api);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Dispose(Api);
         foreach (var program in RegisteredPrograms.Values) program.Dispose();
         RegisteredPrograms.Clear();
         VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Clear();

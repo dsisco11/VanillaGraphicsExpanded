@@ -39,7 +39,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             GL.UseProgram(0);
             int previous = program.ProgramId;
             int vertex = program.VertexShader.ShaderId, fragment = program.FragmentShader.ShaderId;
-            program.Dispose();
+            ((Vintagestory.Client.NoObf.ShaderProgramBase)program).Dispose();
             Assert.False(GL.IsProgram(previous));
             Assert.False(GL.IsShader(vertex));
             Assert.False(GL.IsShader(fragment));
@@ -54,7 +54,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             GL.UseProgram(0);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             int reloaded = program.ProgramId;
-            program.Dispose();
+            ((Vintagestory.Client.NoObf.ShaderProgramBase)program).Dispose();
             Assert.False(GL.IsProgram(reloaded));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             // A second cycle verifies that resetting the engine's disposed flag restores future disposal too.

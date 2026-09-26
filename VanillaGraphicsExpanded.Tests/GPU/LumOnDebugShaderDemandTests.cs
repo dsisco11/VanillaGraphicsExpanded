@@ -93,7 +93,7 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         Assert.True(LumOnDebugShaderProgramFamily.TryGet("lumon_debug", out var unused));
         unused.SetDefines(new Dictionary<string, string?> { ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "true" });
         Assert.True(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected));
-        selected.Dispose();
+        ((Vintagestory.Client.NoObf.ShaderProgramBase)selected).Dispose();
         assets.RegisteredPrograms.Clear();
         int reads = assets.Reads.Count;
         Assert.Equal(reads, assets.Reads.Count);

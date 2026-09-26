@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 internal static class LumOnDebugShaderProgramFamily
 {
     private static readonly object Sync = new();
-    private static readonly Dictionary<string, LumOnDebugShaderEntry> Entries = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, LumOnDebugShaderProgram> Entries = new(StringComparer.Ordinal);
     private static ICoreClientAPI? ownerApi;
 
     #region Declaration and selection
@@ -26,14 +26,14 @@ internal static class LumOnDebugShaderProgramFamily
         {
             if (!ReferenceEquals(ownerApi, api))
             {
-                foreach (var entry in Entries.Values) entry.Dispose();
+                foreach (var entry in Entries.Values) if (ownerApi != null) GpuShaderPrograms.Remove(ownerApi, entry.PassName);
                 Entries.Clear();
                 ownerApi = api;
             }
             foreach (var contract in LumOnDebugShaderProgram.Contracts)
             {
-                if (Entries.TryGetValue(contract.Identity, out var entry)) entry.Invalidate();
-                else Entries.Add(contract.Identity, new LumOnDebugShaderEntry(api, contract.Identity));
+                if (Entries.TryGetValue(contract.Identity, out var entry) && !entry.IsRetired) entry.InvalidateAssets();
+                else Entries[contract.Identity] = GpuShaderPrograms.Declare(api, new LumOnDebugShaderProgram { PassName = contract.Identity });
             }
             return true;
         }
@@ -46,7 +46,7 @@ internal static class LumOnDebugShaderProgramFamily
         {
             if (Entries.TryGetValue(programName, out var entry))
             {
-                program = entry.Program;
+                program = entry;
                 return true;
             }
             program = null!;
@@ -59,13 +59,13 @@ internal static class LumOnDebugShaderProgramFamily
     {
         lock (Sync)
             return ReferenceEquals(ownerApi, api) && Entries.TryGetValue(program.PassName, out var entry) &&
-                ReferenceEquals(entry.Program, program) && entry.EnsureReady(api);
+                ReferenceEquals(entry, program) && program.EnsureReady();
     }
 
     /// <summary>Returns an immutable declaration snapshot for settings updates, including never-selected members.</summary>
     public static System.Collections.Immutable.ImmutableArray<LumOnDebugShaderProgram> GetAll()
     {
-        lock (Sync) return Entries.Values.Select(entry => entry.Program).ToImmutableArray();
+        lock (Sync) return Entries.Values.ToImmutableArray();
     }
     #endregion
 
@@ -76,7 +76,7 @@ internal static class LumOnDebugShaderProgramFamily
         lock (Sync)
         {
             if (!ReferenceEquals(ownerApi, api)) return;
-            foreach (var entry in Entries.Values) entry.Dispose();
+            foreach (var entry in Entries.Values) if (ownerApi != null) GpuShaderPrograms.Remove(ownerApi, entry.PassName);
             Entries.Clear();
             ownerApi = null;
         }
