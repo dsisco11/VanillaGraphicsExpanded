@@ -547,7 +547,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       warnings; independent review and root inspection pass. Evidence and receipts:
       docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
-  ☐ Correct fresh-lighting and matched-workload synchronization in eight source/restoration cases.
+  ☑ Correct fresh-lighting and matched-workload synchronization in eight source/restoration cases.
     - Cover RetainedHistoryFollowsSourceLighting, SourceChangesReachRetainedComposition,
       DoorwayClosureAndReopeningReachRuntimePixels and SealedNeighborRejectsLocalizedLeakage,
       each in both gather modes.
@@ -557,6 +557,14 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Synchronize relevant cache, directional history and composed-output boundaries. Preserve
       source-off darkness, closure/neighbor occlusion, retained resources and restoration checks;
       investigate the later assertions exposed by the diagnostic direct-only intervention.
+    - Completed: observe current direct refresh completion, then two successful full-tile updates
+      per supported world probe and stable screen radiance/metadata within the shared 160-frame
+      consumer limit. Keep indirect bounce work separate and preserve the original assertions.
+    - Supply missing doorway reveal cache pages and deliver actual edit-time chunk notifications
+      to re-enable probes after reopening. Source-only edits retain their directional history.
+    - Subagent regression passes 19/19, with the final shared-limit source rerun passing all eight
+      selected cases; zero skips. Builds succeed with existing analyzer warnings. Independent review
+      and root inspection pass; receipts: docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
   ☐ Correct bounded dark-reload convergence checks in the two unavailable-geometry cases.
     - Update UnavailableGeometryDiffersFromValidDarkness in both gather modes to distinguish

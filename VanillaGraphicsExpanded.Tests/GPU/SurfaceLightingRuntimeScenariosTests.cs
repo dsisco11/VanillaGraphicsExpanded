@@ -21,8 +21,9 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
-        SeedAndPause(runtime);
-        Settle(runtime, true);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
+        Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
         float[] reference = runtime.FinalPixels();
         long revision = runtime.Screen.HistoryRevision;
         runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
@@ -34,8 +35,8 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             revision = runtime.Screen.HistoryRevision;
             runtime.Cache.ChangeBlockLight(light);
             runtime.Frame();
-            SeedAndPause(runtime);
-            Settle(runtime, light != 0);
+            SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+            SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
             Assert.True(runtime.Screen.HistoryRevision > revision);
             AssertBoundaries(runtime, light != 0);
             if (light != 0) Assert.Equal(reference, runtime.FinalPixels());
@@ -98,8 +99,9 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
-        SeedAndPause(runtime);
-        Settle(runtime, true);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
+        Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
         float[] reference = runtime.FinalPixels();
         foreach (bool open in new[] { false, true })
         {
@@ -107,10 +109,13 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             scene.DoorOpen = open;
             Assert.Equal(32, scene.Light(0,36,6));
             Assert.Equal(0, scene.Light(0,36,4));
-            runtime.Cache.InvalidateGeometry();
+            // An engine geometry edit also re-enables world probes whose centers were
+            // inside the previously closed door; source versioning alone cannot do that.
+            foreach (var chunk in scene.Feedback().Select(page => page.Chunk).Distinct())
+                runtime.Cache.Events.ChunkDirty(chunk);
             runtime.Frame();
-            SeedAndPause(runtime);
-            Settle(runtime, open);
+            SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+            SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
             Assert.True(runtime.Screen.HistoryRevision > revision);
             AssertBoundaries(runtime, open);
             if (open) AssertClose(reference, runtime.FinalPixels(), .01f);

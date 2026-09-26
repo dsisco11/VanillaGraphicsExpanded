@@ -71,6 +71,44 @@ negative and no-overlap shifts. Production and test builds succeeded with the ex
 `BlockPos` and xUnit analyzer warnings. Receipts: `artifacts/TestResults/probe-ring-repair.trx` and
 `artifacts/probe-ring-repair.log`. Other failure categories and broad-suite completion remain open.
 
+## Source and restoration synchronization repair
+
+The eight variants of `RetainedHistoryFollowsSourceLighting`,
+`SourceChangesReachRetainedComposition`, `DoorwayClosureAndReopeningReachRuntimePixels` and
+`SealedNeighborRejectsLocalizedLeakage` now compare completed direct-only lighting workloads.
+Their synchronization helper disables indirect bounce work, waits for requested captures and
+initialized lighting, and observes completion of the direct refresh sweep for the current geometry
+revision before freezing the producer. Existing progressive-bounce helpers remain separate.
+
+Consumer synchronization requires two successful full-tile updates for each supported room probe
+after the producer freezes. The first can retire an older in-flight request; the second proves a
+new admission against the frozen lighting. A temporary budget covers the finite fixture grid so
+unresolved neighboring probes cannot starve these refreshes; the original budgets are restored.
+Screen radiance and metadata must then remain unchanged across a complete directional sweep.
+Both consumer waits share the existing 160-frame limit. Neither positive final pixels nor expected
+darkness serves as the readiness predicate.
+
+The doorway fixture also requests the actual side, floor and ceiling faces inside its opening.
+Previously omitted faces left real ray hits waiting for unrequested cache lighting. Door edits now
+dispatch the engine chunk-change event through registered subscribers, including re-enabling probes
+disabled while their centers were inside the closed door. Source-only changes continue to exercise
+retained directional history without this geometry-edit notification.
+
+The original numerical tolerances, source-off darkness, immediate neighbor rejection, resource
+identity, history revision and restoration assertions remain. The changes are confined to tests
+and fixtures; they do not alter production rendering or establish gameplay performance.
+
+Subagent-run regression passed **19/19 tests, zero failures or skips**: the eight repaired cases,
+five `SurfaceLightingTemporalComponentTests`, two `SurfaceCacheDynamicLightingTests`, both probe-ring
+preservation variants and both progressive-bounce variants. Production and test compilation succeeded
+with the five existing xUnit analyzer warnings. Receipts:
+`artifacts/TestResults/surface-freshness-final.trx` and `artifacts/surface-freshness-final.log`.
+This run preceded the final tightening that shares the consumer frame allowance between both waits.
+The final source then passed **8/8 selected cases, zero failures or skips**, within that shared limit:
+`artifacts/TestResults/surface-freshness-bounded-final.trx` and
+`artifacts/surface-freshness-bounded-final.log`. Independent final source review and root inspection
+found no remaining issue. The other failure categories and broader validation remain open.
+
 ## Backlog fix and focused verification
 
 Completed CPU results now retain their original lifetime, immutable source/ready-hit page dependencies,

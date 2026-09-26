@@ -25,8 +25,9 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         runtime.EngineUniforms.SunPosition3D = new(0, 0, 1);
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
-        SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
-        Settle(runtime, true);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
+        Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
         var reference = runtime.ComposedPixels();
         var screen = runtime.Screen.IndirectFullTex;
         var direct = runtime.Direct.DirectDiffuseTex;
@@ -40,8 +41,8 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
             long revision = runtime.Screen.HistoryRevision;
             runtime.Cache.ChangeBlockLight(light);
             runtime.Frame();
-            SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
-            Settle(runtime, light != 0);
+            SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+            SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
             Assert.True(runtime.Screen.HistoryRevision > revision);
             Assert.Same(screen, runtime.Screen.IndirectFullTex);
             Assert.Same(direct, runtime.Direct.DirectDiffuseTex);
@@ -101,16 +102,18 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         EnsureContextValid();
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f), AlternateDarkRooms = true };
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
-        SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
-        Settle(runtime, true);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
+        Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
         var reference = runtime.ComposedPixels();
         foreach (float x in new[] { 8f, 40f, -24f, 0f })
         {
             scene.Position = new(x, 36, 5);
             runtime.Frame();
             if (x != 0) SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.ComposedPixels(), (_, _) => Vector3.Zero, .0001f, "dark room after move");
-            SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
-            Settle(runtime, x == 0);
+            SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+            SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
+            if (x == 0) Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
             for (int frame = 0; frame < 8; frame++)
             {
                 runtime.Frame();

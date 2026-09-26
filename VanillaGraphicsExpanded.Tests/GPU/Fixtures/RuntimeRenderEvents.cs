@@ -61,6 +61,12 @@ internal sealed class RuntimeRenderEvents
     /// <summary>Delivers world teardown to all actual event subscribers.</summary>
     public void LeaveWorld() => subscriptions.GetValueOrDefault("LeaveWorld")?.DynamicInvoke();
 
+    /// <summary>Delivers a real edited-chunk notification to geometry, lighting and probe lifecycle subscribers.</summary>
+    public void ChunkDirty(VanillaGraphicsExpanded.Numerics.VectorInt3 chunk) =>
+        subscriptions.GetValueOrDefault("ChunkDirty")?.DynamicInvoke(
+            new Vintagestory.API.MathTools.Vec3i(chunk.X, chunk.Y, chunk.Z), null,
+            Vintagestory.API.Common.EnumChunkDirtyReason.MarkedDirty);
+
     /// <summary>Creates a strict reusable interface edge for engine services.</summary>
     public static T Adapt<T>(Func<MethodInfo, object?[]?, object?> invoke) where T : class
     {

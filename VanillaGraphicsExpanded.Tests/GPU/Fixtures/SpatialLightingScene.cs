@@ -50,7 +50,31 @@ internal sealed class SpatialLightingScene
             int p=axis<2?px:axis<4?py:pz, uc=axis<2?pz:px,vc=axis<2?py:axis<4?pz:py;
             result.Add((new(x>>5,y>>5,z>>5),1u+6u*(uint)(p*64+(vc/4)*8+uc/4)+(uint)axis));
         }
+        if (DividedRoom)
+        {
+            // Rays starting inside the opening see these perpendicular faces. The broad
+            // front/back door patches do not provide their independently addressed lighting.
+            for (int y = 34; y <= 37; y++)
+            {
+                AddReveal(RoomOrigin + 1, y, 5, 0);
+                AddReveal(RoomOrigin + 6, y, 5, 1);
+            }
+            for (int x = RoomOrigin + 2; x <= RoomOrigin + 5; x++)
+            {
+                AddReveal(x, 33, 5, 2);
+                AddReveal(x, 38, 5, 3);
+            }
+        }
         return result.ToArray();
+
+        /// <summary>Adds the independently addressed cache patch for one physical doorway reveal face.</summary>
+        void AddReveal(int x, int y, int z, int axis)
+        {
+            int px = x & 31, py = y & 31, pz = z & 31;
+            int plane = axis < 2 ? px : py, u = axis < 2 ? pz : px, v = axis < 2 ? py : pz;
+            result.Add((new(x >> 5, y >> 5, z >> 5),
+                1u + 6u * (uint)((plane << 6) + ((v >> 2) << 3) + (u >> 2)) + (uint)axis));
+        }
     }
     #endregion
 
