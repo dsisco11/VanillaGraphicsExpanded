@@ -683,6 +683,33 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Evidence: docs/GPU.IntegrationTestPerformance.Analysis.md (Within-test program and target
       reuse implementation). No whole-suite speedup or broad correctness-gate completion claimed.
 
+  ☐ Remove runtime GLSL processing and uniform-name scanning from SPIR-V loading.
+    - Remove eager stage LoadAndApply/source reconstruction and the regex uniform-name scan from
+      binary program loading. Audit source/engine Code consumers before removing their inputs.
+    - Use the existing compiled binding contracts and active numeric interface as the authority
+      for uniforms, samplers, images and buffer bindings, including inactive uniform locations.
+      Fix missing contract declarations instead of retaining source-discovered placeholder names.
+    - Preserve specialization/link status checks, driver logs, interface validation, transactional
+      reload behavior and engine compatibility. Diagnostic source mapping belongs to the separate
+      build-generated .map task below, not a runtime GLSL fallback.
+    - Use subagents for focused binding, inactive-uniform, specialization and reload tests; obtain
+      a separate implementation review. Measure matched loading workloads and record evidence in
+      docs/GPU.IntegrationTestPerformance.Analysis.md without attributing all setup time to GLSL.
+
+  ☐ Extend the shader compiler to emit build-matched .map files for SPIR-V diagnostics.
+    - Generate a versioned .map sidecar for each compiled stage/variant from the exact source
+      transformation used to produce its binary, preserving original file/line and include mapping.
+      Associate the map with the binary using a content hash and stage/variant identity.
+    - Include map generation in incremental-build invalidation, output packaging and stale-output
+      cleanup. Keep binding metadata in existing contracts; maps serve diagnostics only.
+    - Load maps lazily for diagnostics. Translate only locations that can be reliably correlated
+      with compiler/driver output; retain raw logs when locations are absent or unrecognizable.
+      Missing, malformed or mismatched maps must not prevent a valid binary from loading, and
+      must never trigger runtime GLSL reconstruction or misleading source attribution.
+    - Use subagents for generation and diagnostic tests covering transformed/includes source,
+      distinct variants, deterministic output, stale hashes and missing/malformed maps. Obtain a
+      separate implementation review and document the format and supported diagnostic mapping.
+
   ☐ Replace unconditional GPU integration-test sleeps with dependency-driven completion waits.
     - Introduce a test-side frame pump that checks completion after each frame, advances frames
       for temporal/budget/publication work, and waits only on the external dependency preventing
