@@ -626,18 +626,31 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     regression through subagents; obtain a separate final review and reconcile the linked reports
     before closing the parent validation tasks. Keep user-run visual acceptance separate.
 
-  ☐ Investigate GPU lighting test runtime and identify safe test-harness speedups.
-    - Establish repeatable timings for the eight source/restoration cases and the 19-case focused
-      regression, separating build time, fixture/shader setup, simulated rendering, GPU readbacks,
-      worker waits and teardown. Record frame counts and completed work alongside elapsed time;
-      distinguish first-run costs from warmed runs and avoid summing overlapping CPU/GPU intervals.
-    - Investigate eager failure-message readbacks on successful assertions, per-frame atlas scans,
-      repeated readiness reads and resource/shader setup. Evaluate reuse or parallel execution only
-      where graphics-context ownership, material isolation and resource-lifetime coverage permit it.
-    - Profile before ranking changes; propose concrete optimizations with measured costs, expected
-      benefit and coverage risks. Preserve numerical bounds, freshness/completion gates, directional
-      coverage, finite-value checks, failure diagnostics and bounded waits; do not skip cases or
-      reduce required lighting work merely to improve timings.
+  ☐ Analyze GPU integration-test patterns and identify suite-wide performance improvements.
+    - Inventory the shared harnesses and test families across the GPU integration suite, including
+      shader-level, resource-lifecycle and full lighting-transport tests. Map setup, execution,
+      observation, synchronization and teardown patterns; identify repeated costs and where tests
+      use a broader integration boundary than their assertions require. The eight source/restoration
+      cases and 19-case regression are representative workloads, not the scope of this investigation.
+    - Establish repeatable suite and representative-family timings, separating build time, context
+      and fixture creation, shader compilation, resource allocation, simulated rendering, GPU
+      readbacks, worker waits and teardown. Record frame counts, readback counts/bytes and completed
+      work alongside elapsed time; distinguish first-run costs from warmed runs and avoid summing
+      overlapping CPU/GPU intervals. Attribute costs to shared patterns as well as individual tests.
+    - Investigate eager failure-message readbacks on successful assertions, full-atlas observation,
+      repeated readiness reads, fixed settling loops, polling/sleeps, allocations and repeated
+      resource/shader setup. Evaluate completion-driven observation, narrower readbacks, immutable
+      setup reuse and fixture lifetimes. Assess collection scheduling or parallel execution only
+      where graphics-context ownership, GL state, material isolation and resource lifetimes permit it.
+    - Review the balance of focused GPU contracts and end-to-end scenarios, identifying redundant
+      pipeline work while retaining explicit integration coverage. Any proposed boundary change
+      must map existing assertions and failure modes to retained coverage; fewer simulated frames
+      or a faster but less representative fixture is not sufficient evidence of improvement.
+    - Profile before ranking changes; propose concrete shared-harness or test-pattern improvements
+      with measured costs, expected suite-wide benefit, implementation effort and coverage risks.
+      Preserve numerical bounds, freshness/completion gates, directional coverage, finite-value
+      checks, failure diagnostics and bounded waits; do not skip cases or reduce required lighting
+      work merely to improve timings.
     - Use subagents for builds and test measurements. Validate any experimental changes against
       matched workloads and unchanged assertions with repeated baseline/candidate runs and a
       separate implementation review. Record findings and follow-up implementation tasks in docs;
