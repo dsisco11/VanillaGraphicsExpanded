@@ -24,8 +24,9 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
-        Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
+        // Validate the exact snapshot retained as the comparison baseline.
         float[] reference = runtime.FinalPixels();
+        Assert.All(reference.Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
         long revision = runtime.Screen.HistoryRevision;
         runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         for (int i=0;i<8;i++) runtime.Frame();
@@ -102,8 +103,9 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
-        Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
+        // Validate the exact snapshot retained as the comparison baseline.
         float[] reference = runtime.FinalPixels();
+        Assert.All(reference.Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
         foreach (bool open in new[] { false, true })
         {
             long revision = runtime.Screen.HistoryRevision;

@@ -25,8 +25,10 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         {
             runtime.Frame();
             ready |= runtime.Cache.TryGetLighting(out _);
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()), 0, .0001f);
-            Assert.All(runtime.WorldPixels(), value => Assert.Equal(0, value));
+            // Reuse only across these adjacent assertions; the next frame reads fresh pixels.
+            var worldPixels = runtime.WorldPixels();
+            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(worldPixels), 0, .0001f);
+            Assert.All(worldPixels, value => Assert.Equal(0, value));
             Assert.Equal(0, runtime.WorldConfidence);
             Thread.Yield();
         }

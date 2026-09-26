@@ -804,13 +804,19 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       renderer), with no skips. Separate review passed. Per-frame observations remain unchanged.
       Evidence: Explicit test uniform-buffer retirement in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
-  ☐ Reduce duplicate GPU observations while preserving the complete assertion domain.
+  ☑ Reduce duplicate GPU observations while preserving the complete assertion domain.
     - Depends on explicit uniform-buffer retirement above. Measure same-frame observation reuse,
       batched requested-page readiness reads and owning pooled/reusable readback resources.
     - Key retained observations by frame and resource identity/generation; invalidate after writes.
       Preserve initialized-texel, directional, nonempty, finite and transient-darkness checks.
     - Use existing GPU abstractions and matched-workload measurements; do not replace complete
       observations with a sample or readiness flags that cannot establish the asserted property.
+    - Completed: adjacent assertions reuse local snapshots; exact requested tile runs share readback
+      work. No cross-call observation cache is retained, so frame/resource invalidation is unnecessary.
+      All initialized-texel and full-domain assertions remain. Final build, 11 focused checks,
+      24 targeted regressions and separate review passed; earlier affected regression run passed 43.
+      Matched eight-observation sample: 192 reads / 3.141ms to 48 reads / 0.889ms, including planning.
+      Evidence: Duplicate GPU observations in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
   ☐ Cache driver-linked program binaries to reduce production shader startup and reload costs.
     - Integrate through the production GPU program owners for graphics and compute; target startup,

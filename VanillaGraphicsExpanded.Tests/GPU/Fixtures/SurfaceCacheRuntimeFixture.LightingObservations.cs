@@ -34,19 +34,23 @@ internal sealed partial class SurfaceCacheRuntimeFixture
         // whole-room service assertion from overlooking additional resident candidates.
         Assert.Equal(pages.Count, mapping.Count);
         float direct = 0, indirect = 0, outgoing = 0, weight = 0;
-        foreach (var page in pages)
+        // A local region plan is shared across the three textures from this one publication.
+        // Nothing is retained across callbacks, frames, writes or resource replacement.
+        var regions = SurfaceCacheReadinessReadback.Plan(pages.Select(page => page.Physical),
+            snapshot.TileSize, snapshot.TilesPerAxis, snapshot.TilesPerAtlas);
+        foreach (var region in regions)
         {
-            direct = Math.Max(direct, Peak(snapshot.DirectIrradiance, page.Physical, out _));
-            indirect = Math.Max(indirect, Peak(snapshot.IndirectIrradiance, page.Physical, out float samples));
-            outgoing = Math.Max(outgoing, Peak(snapshot.OutgoingRadiance, page.Physical, out _));
+            direct = Math.Max(direct, Peak(snapshot.DirectIrradiance, region, out _));
+            indirect = Math.Max(indirect, Peak(snapshot.IndirectIrradiance, region, out float samples));
+            outgoing = Math.Max(outgoing, Peak(snapshot.OutgoingRadiance, region, out _));
             weight = Math.Max(weight, samples);
         }
         return new(pages.Count, snapshot.TileSize, direct, indirect, outgoing, weight, snapshot.Generation, CompletedIndirectPages);
 
         /// <summary>Checks every finite RGB value and retains the largest history weight separately from energy.</summary>
-        float Peak(Texture3D texture, uint page, out float maximumWeight)
+        float Peak(Texture3D texture, SurfaceCacheReadinessReadback.Region region, out float maximumWeight)
         {
-            using var pixels = SurfaceLightingPageReadback.Read(texture, snapshot, page);
+            using var pixels = texture.ReadPixelsRegion(region.X, region.Y, region.Width, region.Height, region.Layer);
             float peak = 0;
             maximumWeight = 0;
             for (int index = 0; index < pixels.Length; index++)

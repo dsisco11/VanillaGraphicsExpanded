@@ -556,3 +556,40 @@ affected runtime/helper regressions and six debug-renderer cases, with no skips 
 The Debug build and independent implementation review passed. Evidence: `artifacts/TestUniformRetirement-*`
 build/test logs, filter and matching TRX files. This establishes a synchronization prerequisite;
 no test-runtime speedup is claimed.
+
+## Duplicate GPU observations
+
+Readiness now plans exact contiguous requested tile runs within each atlas row and layer.
+It retains the requested-page readiness flags and checks initialized alpha for every requested
+outgoing texel. All runs share one framebuffer and pixel-pack buffer; one owning mapped range
+checks the batch without a managed array copy. State scopes and existing GPU abstractions own
+binding restoration and disposal. Gaps and unused atlas storage remain outside the assertion domain.
+
+Requested-lighting energy observations share the same local region plan across direct, indirect
+and outgoing textures, using pooled region readbacks. Every finite-value and maximum-energy/history
+weight check remains. Adjacent assertions reuse an already-read world/final pixel array where no
+write intervenes. This removes 96 duplicate world reads in the insufficient-range case and four
+final reads across the affected source/door theory cases.
+
+No observation cache survives a method call: frame changes, same-frame writes, callbacks and
+resource replacement always cause fresh reads. Consequently there is no retained cache requiring
+frame/resource keys or invalidation. Per-frame directional, nonempty, finite and transient-darkness
+assertions remain unchanged, as does explicit uniform-buffer retirement.
+
+Focused coverage exercises exact region coverage, gaps, rows, layers, partial rows, last-texel
+alpha failures, poisoned unused texels, same-frame writes and texture replacement. The initial
+per-region framebuffer/PBO implementation passed 54 distinct checks but measured slower despite
+fewer readbacks (3.076ms baseline versus 4.469ms candidate for eight observations). It was replaced
+by shared batch staging; final validation and matched measurement are recorded below.
+
+Final shared-staging measurement includes planning on every candidate call: eight observations
+of 24 requested pages, 96 texels each, used 192 baseline per-page reads versus 48 batched reads.
+Readback plus planning elapsed totals were 3.1408ms baseline and 0.8887ms candidate, alternating
+execution order. This small synthetic sample demonstrates reduced observation overhead, not a
+whole-suite timing claim. The independent final implementation review found no blockers.
+
+Final Debug build, 11/11 focused tests and 24/24 targeted regressions passed, including framebuffer
+binding restoration. The earlier 43/43 affected regression run also passed before staging was
+consolidated. Receipts: `artifacts/GpuObservationReuse-BatchBuild.log`,
+`artifacts/GpuObservationReuse-BatchFocused.log`, `artifacts/GpuObservationReuse-BatchRegression.log`
+and matching TRX files. The task is complete; no assertion domain or per-frame cadence was reduced.
