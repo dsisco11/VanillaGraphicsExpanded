@@ -4,7 +4,7 @@ LumOn Surface Cache performance and geometry support
 Scope
   Restore useful Surface Cache convergence and investigate the reported ~8 FPS regression;
   correct tracing of grass, doors and other affected shapes.
-  Per-axis-face overrides within PBR material definitions are owned by docs/PBR.BaselineShading.todo.
+  Baseline PBR material improvements are owned by docs/PBR.BaselineShading.todo.
   Keep displayed valid lighting while refreshing. Unknown geometry is not air or established sky.
   GPU timing, CPU submission/waits, overall frame time and useful lighting progress are separate metrics.
 

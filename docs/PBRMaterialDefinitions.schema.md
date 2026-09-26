@@ -1,6 +1,6 @@
 # PBR Material Definitions Schema (VGE)
 
-This document describes the expected structure of `assets/<modid>/materials/pbr_material_definitions.json`.
+This document describes the schema for `assets/<modid>/config/vge/material_definitions.json`.
 
 The registry loads all mods that provide this file, merges materials deterministically, and builds:
 
@@ -112,6 +112,20 @@ All numeric values are floats in `[0, 1]` unless otherwise stated.
 - `emissive` (optional): float
 - `priority` (optional): integer, higher wins when merging
 - `noise` (optional): per-channel delta ranges
+- `scale` (optional): existing channel multipliers
+
+### Shared BRDFProperties
+
+The schema defines `$defs/BRDFProperties` once for `roughness`, `metallic`, `emissive`, `noise`,
+and `scale`. File defaults and material-wide values reference this same definition. Properties
+retain their existing flat JSON layout; `BRDFProperties` is not a new JSON nesting key.
+Material metadata (`notes`, `priority`) remains outside it. The C# authoring models likewise
+share `BRDFPropertiesJson`, and resolved values are exposed as `BRDFProperties`.
+
+Materials are selected by texture mappings. Different textures used by block faces may map to
+different materials; there are no axis-face overrides or block-rotation properties. Existing
+property types and ranges remain unchanged. Representative color is still texture-derived;
+no authored `albedo` or `specular` property is introduced.
 
 `reflectivity` is NOT stored here for GPU transport; it is computed in the patched base-game shader before writing `gMaterial`.
 

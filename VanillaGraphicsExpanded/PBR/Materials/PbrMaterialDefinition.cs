@@ -14,4 +14,9 @@ internal readonly record struct PbrMaterialDefinition(
     PbrMaterialNoise Noise,
     PbrOverrideScale Scale,
     int Priority,
-    string? Notes);
+    string? Notes)
+{
+    /// <summary>Resolved root values, retaining the existing material constructor and atlas contract.</summary>
+    public BRDFProperties Properties => new(Roughness, Metallic, Emissive, Noise, Scale);
+
+}

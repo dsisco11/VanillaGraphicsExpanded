@@ -33,9 +33,9 @@
     }
   },
   "$defs": {
-    "defaults": {
+    "BRDFProperties": {
       "type": "object",
-      "additionalProperties": false,
+      "description": "Shared BRDF properties for defaults and material-wide values.",
       "properties": {
         "roughness": { "$ref": "#/$defs/unitFloat" },
         "metallic": { "$ref": "#/$defs/unitFloat" },
@@ -44,15 +44,15 @@
         "scale": { "$ref": "#/$defs/scale" }
       }
     },
+    "defaults": {
+      "$ref": "#/$defs/BRDFProperties",
+      "unevaluatedProperties": false
+    },
     "material": {
       "type": "object",
-      "additionalProperties": false,
+      "allOf": [{ "$ref": "#/$defs/BRDFProperties" }],
+      "unevaluatedProperties": false,
       "properties": {
-        "roughness": { "$ref": "#/$defs/unitFloat" },
-        "metallic": { "$ref": "#/$defs/unitFloat" },
-        "emissive": { "$ref": "#/$defs/emissiveFloat" },
-        "noise": { "$ref": "#/$defs/noise" },
-        "scale": { "$ref": "#/$defs/scale" },
         "notes": { "type": "string" },
         "priority": { "$ref": "#/$defs/priority" }
       }

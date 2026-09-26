@@ -11,24 +11,26 @@ Scope and shared contracts
   These are implementation tasks; algorithm choices and performance targets require investigation.
   Reuse existing shader/resource owners, compiled SPIR-V contracts, demand loading and settings.
   Keep optional features bounded, configurable and independently disableable.
-  This list owns per-axis-face overrides within PBR material definitions. Surface Cache performance
+  This list owns baseline PBR material improvements. Surface Cache performance
   and geometry work remain in docs/LumOn.SurfaceCache.PerformanceAndMaterials.todo.
 
 Tasks
 
-  ☐ Support per-axis-face PBR property overrides within a material definition.
-    - Extend pbr_material_definitions.json so one material definition can specify different property
-      values for +X, -X, +Y, -Y, +Z and -Z faces, including albedo, specular and other PBR properties.
-      Define the JSON face names and coordinate/orientation semantics explicitly before implementation.
-    - Retain material-wide defaults; omitted faces and omitted properties inherit those defaults.
-      Preserve existing definitions and mapping behavior. This is a material-definition feature,
-      independent of Surface Cache, and must work with LumOn disabled.
-    - Resolve overrides through the existing material registry and rendering data path. Ensure two
-      faces sharing a texture can still use different values; define selection for rotated geometry.
-      Include resolved overrides in relevant cache identity and hot-reload invalidation.
-    - Document albedo and specular semantics, supported values, inheritance and authoring examples.
-      Test all six axis faces, partial overrides, shared textures, rotations and legacy definitions;
-      validate visible PBR output in standalone and LumOn-enabled modes.
+  Material-definition decision
+    Retain shared BRDFProperties schema and C# models for existing material-wide properties.
+    Per-axis-face overrides were withdrawn: texture-to-material mappings already let different
+    block-face textures use different properties and naturally follow block rotation.
+
+  ☐ Upgrade material-face baseColor derivation from a simple texture average to a robust statistic.
+    - Compare median and trimmed-mean estimators to reduce outliers from small bright features in
+      albedo textures. Define linear-color processing, alpha weighting and trimming/channel rules;
+      check that meaningful color variation is retained and document the bias versus an area average.
+    - Reuse the existing texture-derived color path for face lighting materials and Surface Cache.
+      Compute once per relevant texture, reuse across faces, and invalidate cached colors when the
+      estimator changes. Do not introduce authored albedo values or alter visible texture sampling.
+    - Use subagent-run focused tests for uniform colors, sparse bright outliers, multicolor textures,
+      transparent pixels and shared face textures. Compare representative assets and processing cost;
+      obtain a separate review and keep user-run in-game lighting acceptance distinct from tests.
 
   ☐ Establish baseline PBR ownership, lighting contracts and comparison scenes.
     - Audit terrain, entities, transparent surfaces, liquids, sky, fog, shadows and final composition

@@ -787,41 +787,19 @@ internal sealed class PbrMaterialRegistry
                 ? s
                 : DefaultScale;
 
-            float roughness = Math.Clamp(material.Roughness * scale.Roughness, 0f, 1f);
-            float metallic = Math.Clamp(material.Metallic * scale.Metallic, 0f, 1f);
-            float emissive = Math.Clamp(material.Emissive * scale.Emissive, 0f, 1f);
-
+            // Decode once per texture and derive its representative lighting surface.
             if (!TryComputeAverageAlbedoLinear(capi, texture, out Vector3 baseColorLinear, out _))
             {
                 failed++;
-                Vector3 fallbackBaseColor = PbrMaterialSurface.Default.DiffuseAlbedo;
-                fallbackBaseColor = Clamp01(fallbackBaseColor);
-                surfaceByTexture[texture] = new PbrMaterialSurface(
-                    Roughness: roughness,
-                    Metallic: metallic,
-                    Emissive: emissive,
-                    DiffuseAlbedo: Clamp01(fallbackBaseColor * (1f - metallic)),
-                    SpecularF0: Clamp01(Vector3.Lerp(new Vector3(0.04f), fallbackBaseColor, metallic)));
-                continue;
+                baseColorLinear = PbrMaterialSurface.Default.DiffuseAlbedo;
+            }
+            else
+            {
+                ok++;
             }
 
-            baseColorLinear = Clamp01(baseColorLinear);
-
-            Vector3 diffuseAlbedo = Clamp01(baseColorLinear * (1f - metallic));
-            Vector3 specularF0 = Clamp01(Vector3.Lerp(new Vector3(0.04f), baseColorLinear, metallic));
-
-            // TODO(PBR): Upgrade from simple average to a more robust statistic (median/trimmed mean)
-            // to reduce outliers from small bright features in albedo textures.
-            // TODO(PBR): If/when a dielectric specular/IOR parameter is added, incorporate it into F0
-            // for non-metals instead of the fixed 0.04 constant.
-
-            surfaceByTexture[texture] = new PbrMaterialSurface(
-                Roughness: roughness,
-                Metallic: metallic,
-                Emissive: emissive,
-                DiffuseAlbedo: diffuseAlbedo,
-                SpecularF0: specularF0);
-            ok++;
+            surfaceByTexture[texture] = PbrMaterialSurfaceBuilder.Build(
+                material.Properties with { Scale = scale }, baseColorLinear);
         }
 
         capi.Logger.Debug(
@@ -1384,7 +1362,7 @@ internal sealed class PbrMaterialRegistry
 
         PbrOverrideScale scale = BuildMaterialScale(logger, source, materialId, defaults.Scale, json.Scale);
 
-        return new PbrMaterialDefinition(
+        var definition = new PbrMaterialDefinition(
             Roughness: roughness,
             Metallic: metallic,
             Emissive: emissive,
@@ -1392,6 +1370,7 @@ internal sealed class PbrMaterialRegistry
             Scale: scale,
             Priority: json.Priority ?? 0,
             Notes: json.Notes);
+        return definition;
     }
 
     private static PbrOverrideScale BuildMaterialScale(

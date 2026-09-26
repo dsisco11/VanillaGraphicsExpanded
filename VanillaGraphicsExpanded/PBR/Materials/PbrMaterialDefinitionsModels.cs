@@ -25,41 +25,12 @@ internal sealed class PbrMaterialDefinitionsJsonFile
     public List<PbrMaterialMappingRuleJson>? Mapping { get; set; }
 }
 
-internal sealed class PbrMaterialDefaultsJson
+/// <summary>File-wide defaults using the shared BRDF authoring contract.</summary>
+internal sealed class PbrMaterialDefaultsJson : BRDFPropertiesJson { }
+
+/// <summary>A material-wide BRDF and its metadata.</summary>
+internal sealed class PbrMaterialDefinitionJson : BRDFPropertiesJson
 {
-    [JsonProperty("roughness")]
-    public float? Roughness { get; set; }
-
-    [JsonProperty("metallic")]
-    public float? Metallic { get; set; }
-
-    [JsonProperty("emissive")]
-    public float? Emissive { get; set; }
-
-    [JsonProperty("noise")]
-    public PbrMaterialNoiseJson? Noise { get; set; }
-
-    [JsonProperty("scale")]
-    public PbrOverrideScaleJson? Scale { get; set; }
-}
-
-internal sealed class PbrMaterialDefinitionJson
-{
-    [JsonProperty("roughness")]
-    public float? Roughness { get; set; }
-
-    [JsonProperty("metallic")]
-    public float? Metallic { get; set; }
-
-    [JsonProperty("emissive")]
-    public float? Emissive { get; set; }
-
-    [JsonProperty("noise")]
-    public PbrMaterialNoiseJson? Noise { get; set; }
-
-    [JsonProperty("scale")]
-    public PbrOverrideScaleJson? Scale { get; set; }
-
     [JsonProperty("notes")]
     public string? Notes { get; set; }
 
