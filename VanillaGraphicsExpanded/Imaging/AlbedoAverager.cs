@@ -4,7 +4,7 @@ using System.Numerics;
 namespace VanillaGraphicsExpanded.Imaging;
 
 /// <summary>Estimates representative texture color using a bounded luminance-trimmed linear RGB mean.</summary>
-internal static class AlbedoAverager
+internal static partial class AlbedoAverager
 {
     private const int MaxSamplesDefault = 4096;
     private const int BinCount = 256;
@@ -51,29 +51,9 @@ internal static class AlbedoAverager
         Span<Vector3> sums = stackalloc Vector3[BinCount];
         counts.Clear();
         sums.Clear();
-        int accepted = 0;
-        for (int i = 0; i < samples; i++)
-        {
-            // Jitter within equal-area strata so periodic texture columns do not alias a fixed stride.
-            // Full scans use contiguous indices; reduced scans remain deterministic and strictly bounded.
-            int index = i;
-            if (samples != pixelCount)
-            {
-                // Keep strata continuous until the final conversion: rounding their boundaries first
-                // would overweight smaller strata for non-divisible texture dimensions.
-                double offset = MixSampleIndex((uint)i) / 4294967296.0;
-                index = (int)((i + offset) * pixelCount / samples);
-            }
-            int pixel = pixels[index];
-            if ((byte)((uint)pixel >> 24) < threshold) continue;
-            var rgb = new Vector3(SrgbToLinearLut[(pixel >> 16) & 255],
-                SrgbToLinearLut[(pixel >> 8) & 255], SrgbToLinearLut[pixel & 255]);
-            float luminance = Vector3.Dot(rgb, new Vector3(0.2126f, 0.7152f, 0.0722f));
-            int bin = Math.Min((int)(luminance * BinCount), BinCount - 1);
-            counts[bin]++;
-            sums[bin] += rgb;
-            accepted++;
-        }
+        // SIMD kernels are available, but measured gains depend on alpha coverage and sampling.
+        // Keep the scalar kernel as the default until a consistently faster dispatch policy is established.
+        int accepted = AccumulateScalar(pixels, pixelCount, samples, threshold, counts, sums);
         result = default;
         if (accepted == 0) return false;
 
