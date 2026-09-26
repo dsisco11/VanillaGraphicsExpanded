@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.Collections.Immutable;
 using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Contracts;
-using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+
 
 using Vintagestory.API.Client;
 
@@ -11,78 +11,84 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.LumOn;
 
-/// <summary>
-/// Registers and manages the LumOn debug shader program family (one program per debug program kind).
-///
-/// Responsibility:
-/// - Register all debug programs as memory shader programs
-/// - Provide helper APIs to apply shared define state across the family
-/// </summary>
+/// <summary>Declares debug settings eagerly and prepares executables only when a view selects them.</summary>
 internal static class LumOnDebugShaderProgramFamily
 {
     private static readonly object Sync = new();
+    private static readonly Dictionary<string, LumOnDebugShaderEntry> Entries = new(StringComparer.Ordinal);
+    private static ICoreClientAPI? ownerApi;
 
-    private static readonly Dictionary<string, LumOnDebugShaderProgram> ProgramsByName = new(StringComparer.Ordinal);
-
-    private static readonly string[] ProgramNames = LumOnDebugShaderProgram.Contracts.Select(contract => contract.Identity).ToArray();
-
-    /// <summary>Submits the complete debug family before registering successfully linked members.</summary>
+    #region Declaration and selection
+    /// <summary>Refreshes declarations after asset reload without linking unused debug programs.</summary>
     public static bool Register(ICoreClientAPI api)
     {
         lock (Sync)
         {
-            bool success = true;
-            // Keep a working member visible if its replacement fails; full engine reload already disposed old members.
-            foreach (var name in ProgramsByName.Where(pair => pair.Value.Disposed).Select(pair => pair.Key).ToArray())
-                ProgramsByName.Remove(name);
-            using var batch = new ShaderLinkBatch(api.Assets, PBR.ShaderImportsSystem.DefaultDomain,
-                LumOnDebugShaderProgram.Contracts.Select(contract => new ShaderSettings(contract)));
-
-            foreach (var passName in ProgramNames)
+            if (!ReferenceEquals(ownerApi, api))
             {
-                var instance = new LumOnDebugShaderProgram
-                {
-                    PassName = passName,
-                    AssetDomain = "vanillagraphicsexpanded"
-                };
-
-                instance.Initialize(api);
-                if (!instance.CompileAndLink())
-                {
-                    instance.VertexShader = null; instance.FragmentShader = null; instance.GeometryShader = null;
-                    instance.Dispose();
-                    success = false;
-                    continue;
-                }
-
-                api.Shader.RegisterMemoryShaderProgram(passName, instance);
-                ProgramsByName[passName] = instance;
+                foreach (var entry in Entries.Values) entry.Dispose();
+                Entries.Clear();
+                ownerApi = api;
             }
-            return success;
+            foreach (var contract in LumOnDebugShaderProgram.Contracts)
+            {
+                if (Entries.TryGetValue(contract.Identity, out var entry)) entry.Invalidate();
+                else Entries.Add(contract.Identity, new LumOnDebugShaderEntry(api, contract.Identity));
+            }
+            return true;
         }
     }
 
+    /// <summary>Finds a settings declaration without triggering engine asset lookup or executable creation.</summary>
     public static bool TryGet(string programName, out LumOnDebugShaderProgram program)
     {
         lock (Sync)
         {
-            return ProgramsByName.TryGetValue(programName, out program!);
+            if (Entries.TryGetValue(programName, out var entry))
+            {
+                program = entry.Program;
+                return true;
+            }
+            program = null!;
+            return false;
         }
     }
 
-    public static IEnumerable<LumOnDebugShaderProgram> GetAll()
+    /// <summary>Prepares a selected declaration only after its current view settings have been applied.</summary>
+    internal static bool EnsureReady(ICoreClientAPI api, LumOnDebugShaderProgram program)
+    {
+        lock (Sync)
+            return ReferenceEquals(ownerApi, api) && Entries.TryGetValue(program.PassName, out var entry) &&
+                ReferenceEquals(entry.Program, program) && entry.EnsureReady(api);
+    }
+
+    /// <summary>Returns an immutable declaration snapshot for settings updates, including never-selected members.</summary>
+    public static System.Collections.Immutable.ImmutableArray<LumOnDebugShaderProgram> GetAll()
+    {
+        lock (Sync) return Entries.Values.Select(entry => entry.Program).ToImmutableArray();
+    }
+    #endregion
+
+    #region Lifetime
+    /// <summary>Releases the current application's family without affecting a newer API owner.</summary>
+    internal static void Dispose(ICoreClientAPI api)
     {
         lock (Sync)
         {
-            // Snapshot so callers can iterate without holding the lock.
-            return new List<LumOnDebugShaderProgram>(ProgramsByName.Values);
+            if (!ReferenceEquals(ownerApi, api)) return;
+            foreach (var entry in Entries.Values) entry.Dispose();
+            Entries.Clear();
+            ownerApi = null;
         }
     }
+    #endregion
 
+    #region Shared settings
+    /// <summary>Updates declared composite settings without linking inactive debug views.</summary>
     public static void ApplyCompositeDefines(bool enablePbrComposite, bool enableAo, bool enableShortRangeAo)
     {
         // Apply only to programs explicitly accepting the composite settings group.
-        // We intentionally do not gate rendering if this triggers recompiles; these toggles are rare.
+        // Owners retain pending selections; only EnsureReady for the selected view may create GPU work.
         foreach (var program in GetAll().Where(p => p.ProgramContract.Groups.Contains(LumOnShaderGroups.Composite)))
         {
             program.SetShaderOptions(options =>
@@ -96,7 +102,7 @@ internal static class LumOnDebugShaderProgramFamily
 
     /// <summary>
     /// Applies world-probe topology defines across all programs.
-    /// Returns <c>true</c> if the active program did not change defines (i.e. no recompile queued).
+    /// Returns <c>true</c> if the active declaration kept the same effective settings.
     /// </summary>
     public static bool ApplyWorldProbeClipmapDefines(
         bool enabled,
@@ -121,7 +127,7 @@ internal static class LumOnDebugShaderProgramFamily
             bool stable = true;
 
             // Apply the topology settings to their declared consumers.
-            // For the currently used program we additionally return whether this queued a recompile.
+            // Report whether the selected declaration needs a new generation on its next EnsureReady.
             bool changed = program.SetShaderOptions(options =>
             {
                 options.Set(LumOnShaderOptions.WorldProbes, enabled);
@@ -139,4 +145,5 @@ internal static class LumOnDebugShaderProgramFamily
 
         return activeStable;
     }
+    #endregion
 }

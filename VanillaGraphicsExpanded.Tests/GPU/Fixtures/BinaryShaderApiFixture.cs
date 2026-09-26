@@ -83,6 +83,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     /// <summary>Releases the fixture-owned import resolver so later tests do not retain its assets.</summary>
     public void Dispose()
     {
+        VanillaGraphicsExpanded.LumOn.LumOnDebugShaderProgramFamily.Dispose(Api);
         foreach (var program in RegisteredPrograms.Values) program.Dispose();
         RegisteredPrograms.Clear();
         VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Clear();

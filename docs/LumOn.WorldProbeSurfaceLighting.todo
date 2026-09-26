@@ -863,7 +863,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Matched production timings and first-use limits: docs/GPU.ParallelShaderCompilation.md.
       Results are mixed; no reliable speedup or steady-state FPS improvement is claimed.
 
-  ☐ Load debug shader programs on demand instead of eagerly linking the entire family.
+  ☑ Load debug shader programs on demand instead of eagerly linking the entire family.
     - Prioritize the legacy lumon_debug dispatcher: profiling measured 1064 ms for that fallback
       alone and 1412 ms for all 11 debug programs. Evidence: docs/GPU.ParallelShaderCompilation.md.
     - Separate declaration/lookup availability from executable creation through the existing owners.
@@ -877,6 +877,12 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       distinguish eliminated work from work deferred until opening a debug view.
     - Use subagents for focused selection, fallback, configuration, reload and ownership tests;
       obtain a separate implementation review and record evidence before marking complete.
+
+    - Complete: all 11 family declarations defer linking until selection; startup registers 19
+      programs instead of 30. Current settings, legacy fallback, reload, failed replacements and
+      disposal are covered. Separate review passed; focused Release 28/28 and Debug 27/27 passed,
+      plus the expanded Release startup/selection measurement 1/1. Cold/warm timings and first-draw
+      limitations are recorded in docs/GPU.ParallelShaderCompilation.md.
 
   ☐ Apply intended runtime shader settings before the initial link.
     - Audit startup and recreation paths for default generations immediately replaced by configuration

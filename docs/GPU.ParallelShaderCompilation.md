@@ -1,9 +1,10 @@
 # Production parallel shader linking
 
-Production graphics registration, the LumOn debug family, grouped configuration recompiles,
+Production graphics registration, grouped configuration recompiles,
 world-probe compute setup, and the feedback mark/compact pair now submit independent programs
 through a render-thread `ShaderLinkBatch`. The default window is eight candidates. The public
 loading APIs remain synchronous: callers receive only completed, contract-validated programs.
+The LumOn debug family declares its members at startup and links each only when selected.
 
 ## Submission and publication
 
@@ -36,7 +37,8 @@ no longer contribute unfinished driver work. Cancellation applies equally to fal
 ## Production boundaries
 
 - `VgeShaderPrograms` batches the ordinary graphics owners and publishes successful programs.
-- `LumOnDebugShaderProgramFamily` retains all family variants and its lookup map in its own batch.
+- `LumOnDebugShaderProgramFamily` retains settings declarations for all family variants. Selection
+  prepares only the requested executable, using the existing loader and executable cache.
 - `ShaderRecompileQueue` coalesces changed owners by API and asset domain, captures their final
   settings on the render thread, and leaves changes raised during publication for another callback.
 - `WorldProbeTraceBatch` groups the three compute programs required by its constructor.
@@ -49,9 +51,61 @@ invokes the mod callback. The existing queued mod registration is therefore the 
 Preserving an old executable applies to mod-owned replacements and configuration updates; the
 engine's full reload already destroys the old generation. No extra engine reflection hook is added.
 
+## Debug programs loaded on demand
+
+Startup now declares all 11 debug-family members without reading their SPIR-V assets, linking
+executables or registering them with the engine. Ordinary production registration prepares 19
+programs instead of 30. Family lookup returns a settings owner; the renderer applies current
+composite, visibility and world-probe settings before requesting a completed executable.
+
+The renderer selects its category program first. If preparation fails, it prepares the legacy
+dispatcher through the same family, with the same current settings. Neither lookup asks the engine
+to load a missing name as GLSL. Repeated selections reuse the installed executable. Configuration
+changes update declarations, including previously selected inactive programs, without linking them.
+
+Failed replacements preserve the installed owner but do not draw it with incompatible settings.
+The same failed inputs are suppressed on later frames; changed effective inputs or asset reload
+allow another attempt. Reload retains pending settings and defers recreation until selection.
+Selection after engine teardown also restores engine registration, even before the queued family
+reload callback. Application disposal releases both linked members and never-used declarations.
+
+Existing executable caching remains in use. Cold linking work for a debug program moves to its
+first selection; it is avoided entirely only if that program is never requested. This change does
+not claim faster individual links or increased steady-state FPS. Preparing initial settings for
+non-debug rendering remains a separate task.
+
+Focused Release validation passed 28/28 checks, including actual renderer fallback draws,
+pending/inactive settings, reload, engine teardown before queued registration, failed replacement
+retention, disposal, production registration and existing batching behavior. Evidence:
+`artifacts/LazyDebug/lazy-debug-release-complete.trx`. A separate implementation review passed
+after correcting registration restoration when selection follows engine teardown.
+Debug validation passed 27/27 focused checks using isolated `bin/LazyDebug` output;
+evidence: `artifacts/LazyDebug/lazy-debug-debug.trx`. The final expanded Release startup
+measurement separately passed 1/1. No game process was launched or stopped.
+
+An opt-in Release measurement used one empty private executable cache followed by one warm-cache
+generation. Both direct and legacy programs rendered radiance 1 as RGB 0.5; switching back required
+zero asset reads. Evidence: `artifacts/LazyDebug/lazy-debug-startup-profile.trx`.
+
+| Operation | Empty executable cache, ms | Warm executable cache, ms |
+| --- | ---: | ---: |
+| Production startup, 19 programs | 991.375 | 23.400 |
+| First direct-program selection | 14.716 | 0.973 |
+| Direct draw and readback | 16.420 | 5.023 |
+| First legacy-dispatcher selection | 917.630 | 6.852 |
+| Legacy draw and readback | 1.258 | 311.406 |
+| Switch back to direct | 0.006 | 0.005 |
+| Repeated direct draw and readback | 0.302 | 0.169 |
+
+The warm legacy draw demonstrates that executable loading can defer substantial driver work until
+first use. These are single-process observations, not a matched before/after speedup estimate;
+driver-internal caches were not cleared. The earlier 30-program figures below are historical.
+Other debug modes and in-game stalls remain unmeasured. Run the opt-in measurement with
+`VGE_DEBUG_DEMAND_PROFILE=1`; ordinary correctness runs do not repeat this workload.
+
 ## Validation and measurement
 
-Final Release validation passed 28/28 focused checks. Coverage includes graphics draws and compute
+Before demand loading, final Release validation passed 28/28 focused checks. Coverage includes graphics draws and compute
 dispatch/readback, bounded refill, unexpected and nested dependencies, supported and forced
 synchronous loading, cancellation, cache hits/rejected entries, superseded settings, 30-program
 registration, 15-owner configuration coalescing, and failed debug-family replacement retention.
@@ -122,7 +176,7 @@ The 11 LumOn debug programs consumed 1411.750 ms, approximately 74% of all link 
 `lumon_debug` dispatcher alone took 1064.334 ms (56%). Other large links were
 `lumon_probe_atlas_gather` (110.728 ms), `lumon_debug_worldprobe` (105.612 ms),
 `lumon_upsample` (89.436 ms), and `lumon_debug_gbuffer` (87.728 ms).
-`LumOnDebugShaderProgramFamily.Register` links every member eagerly. The renderer normally selects
+At the time of this profile, `LumOnDebugShaderProgramFamily.Register` linked every member eagerly. The renderer normally selects
 a category-specific program and uses the legacy dispatcher as a fallback. Its cold linking cost
 is therefore paid even when debug rendering is disabled or the dispatcher is never selected.
 

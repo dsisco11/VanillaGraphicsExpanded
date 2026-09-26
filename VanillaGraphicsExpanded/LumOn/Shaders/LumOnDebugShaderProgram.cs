@@ -128,11 +128,21 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram
 
     private LumOnDebugParamsUbo Params => Layout.Params;
 
+    #region Deferred family compilation
+    /// <summary>Lets the family retain configuration without queuing unused executable generations.</summary>
+    internal bool DeferCompilationUntilSelected { get; init; }
+
+    /// <summary>Leaves family settings pending until selection; independently owned fixtures retain ordinary scheduling.</summary>
+    protected override void RequestRecompile()
+    {
+        if (!DeferCompilationUntilSelected) base.RequestRecompile();
+    }
+    #endregion
     #region Static
 
     public static void Register(ICoreClientAPI api)
     {
-        // Register all per-program-kind entrypoints (plus the legacy dispatcher).
+        // Declare all category entrypoints and the legacy fallback without linking unused views.
         LumOnDebugShaderProgramFamily.Register(api);
     }
 

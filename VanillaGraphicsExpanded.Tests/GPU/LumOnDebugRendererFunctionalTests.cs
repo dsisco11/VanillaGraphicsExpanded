@@ -41,12 +41,21 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
     public void WorldProbeView_DrawsAndSwitchesFromGeometry(bool runtimeParameters)
         => RenderViews(true, false, runtimeParameters);
 
+    /// <summary>A failed category shader loads the legacy fallback once and continues drawing subsequent frames.</summary>
+    [Fact]
+    public void GeometryView_UsesLazyFallbackAfterSelectedShaderFailure()
+        => RenderViews(true, false, selectedFailure: true);
+
     /// <summary>Runs actual callback frames against controlled GPU resources and optional world-probe placement.</summary>
-    private void RenderViews(bool lightingResources, bool publishedGeometry, bool? worldProbeRuntime = null)
+    private void RenderViews(bool lightingResources, bool publishedGeometry, bool? worldProbeRuntime = null, bool selectedFailure = false)
     {
         EnsureShaderTestAvailable();
         using var engine = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        if (selectedFailure) assets.BeforeRead = path =>
+        {
+            if (path.Contains("lumon_debug_worldprobe", StringComparison.Ordinal)) assets.Overrides[path] = new byte[20];
+        };
         using var terrain = new EngineTerrainBuffers(2, 2);
         using var drawing = new ShaderTestFramework();
         var events = new RuntimeRenderEvents();
@@ -73,7 +82,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         var render = RuntimeEngineServices.Render(2, framebuffers, () => view, () => projection, () =>
         {
             draws++;
-            drawing.RenderQuad(programs["lumon_debug_worldprobe"].ProgramId);
+            drawing.RenderQuad(programs[selectedFailure ? "lumon_debug" : "lumon_debug_worldprobe"].ProgramId);
         });
         var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, shaderApi.Object);
         using var buffers = new LumOnBufferManager(api, config);
@@ -115,6 +124,12 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
                 events.Render(EnumRenderStage.AfterBlit);
             }
             Assert.True(draws > 0, string.Join("\n", assets.Logs));
+            if (selectedFailure)
+            {
+                Assert.Single(programs);
+                Assert.True(programs.ContainsKey("lumon_debug"));
+                Assert.Equal(2, assets.Reads.Count(path => path.Contains("lumon_debug_worldprobe", StringComparison.Ordinal)));
+            }
             float[] pixel = new float[4];
             GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.Float, pixel);
             if (publishedGeometry)
@@ -159,6 +174,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         finally
         {
             probeView.SetImportanceSurfaceHeatmapEnabled(previousHeatmap);
+            LumOnDebugShaderProgramFamily.Dispose(api);
             foreach (var program in programs.Values) program.Dispose();
         }
     }

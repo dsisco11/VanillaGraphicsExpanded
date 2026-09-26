@@ -776,14 +776,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         var programKind = GetCategoryForDebugMode(mode);
-        var shader = GetProgramForCategory(capi, programKind)
-            ?? capi.Shader.GetProgramByName("lumon_debug") as LumOnDebugShaderProgram;
-        if (shader is null || shader.LoadError)
-            return;
-
+        // Resolve declarations through our family; engine lookup of an unused name would try loading GLSL.
+        if (!LumOnDebugShaderProgramFamily.TryGet(GetShaderProgramName(programKind), out var shader) &&
+            !LumOnDebugShaderProgramFamily.TryGet("lumon_debug", out shader)) return;
         bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe ||
             mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview or LumOnDebugMode.TraceSceneDdaDistanceL0;
-        if (usesNearFieldVisibility && shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true))) return;
         var nearFieldVisibilityScene = usesNearFieldVisibility
             ? nearFieldProvider?.PrepareScene() : null;
 
@@ -874,21 +871,29 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Select the complete variant before binding it. Runtime data supplies coordinates,
         // not a second layout that can repeatedly invalidate the selected variant.
-        bool topologyStable = LumOnDebugShaderProgramFamily.ApplyWorldProbeClipmapDefines(
+        LumOnDebugShaderProgramFamily.ApplyWorldProbeClipmapDefines(
             enabled: hasWorldProbeResources,
             baseSpacing: wpBaseSpacing,
             levels: wpLevels,
             resolution: wpResolution,
             activeProgram: shader);
-        bool layoutStable = shader.EnsureWorldProbeClipmapDefines(
-            enabled: hasWorldProbeResources,
-            baseSpacing: wpBaseSpacing,
-            levels: wpLevels,
-            resolution: wpResolution,
-            worldProbeOctahedralTileSize: hasWorldProbeResources ? config.WorldProbeClipmap.OctahedralTileSize : 0,
-            worldProbeAtlasTexelsPerUpdate: hasWorldProbeResources ? config.WorldProbeClipmap.AtlasTexelsPerUpdate : 0,
-            worldProbeDiffuseStride: hasWorldProbeResources ? 2 : 0);
-        if (!topologyStable || !layoutStable) return;
+        // Prepare the selected member with complete settings. The legacy dispatcher is a demand-loaded
+        // fallback only when that member cannot produce a usable generation.
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            if (usesNearFieldVisibility) shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true));
+            shader.EnsureWorldProbeClipmapDefines(
+                enabled: hasWorldProbeResources,
+                baseSpacing: wpBaseSpacing,
+                levels: wpLevels,
+                resolution: wpResolution,
+                worldProbeOctahedralTileSize: hasWorldProbeResources ? config.WorldProbeClipmap.OctahedralTileSize : 0,
+                worldProbeAtlasTexelsPerUpdate: hasWorldProbeResources ? config.WorldProbeClipmap.AtlasTexelsPerUpdate : 0,
+                worldProbeDiffuseStride: hasWorldProbeResources ? 2 : 0);
+            if (LumOnDebugShaderProgramFamily.EnsureReady(capi, shader)) break;
+            if (attempt != 0 || shader.PassName == "lumon_debug" ||
+                !LumOnDebugShaderProgramFamily.TryGet("lumon_debug", out shader)) return;
+        }
 
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
         using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
@@ -2724,17 +2729,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     // Naming (todo): keep these as thin wrappers around the existing helpers.
     private static LumOnDebugShaderProgramKind GetCategoryForDebugMode(LumOnDebugMode mode) => GetShaderProgramKind(mode);
-
-    private static LumOnDebugShaderProgram? GetProgramForCategory(ICoreClientAPI capi, LumOnDebugShaderProgramKind category)
-    {
-        if (category == LumOnDebugShaderProgramKind.None)
-        {
-            return null;
-        }
-
-        string programName = GetShaderProgramName(category);
-        return capi.Shader.GetProgramByName(programName) as LumOnDebugShaderProgram;
-    }
 
     /// <summary>Reports whether a view needs initialized LumOn screen-space targets.</summary>
     private static bool RequiresLumOnBuffers(LumOnDebugMode mode)

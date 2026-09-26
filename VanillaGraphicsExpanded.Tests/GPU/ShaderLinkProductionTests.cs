@@ -44,7 +44,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             double startupUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Startup driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
             submitted = completed = 0; consumed = peak = 0;
-            Assert.Equal(19 + LumOnDebugShaderProgram.Contracts.Count(), assets.RegisteredPrograms.Count);
+            Assert.Equal(19, assets.RegisteredPrograms.Count);
             Assert.Equal(LumOnDebugShaderProgram.Contracts.Count(), LumOnDebugShaderProgramFamily.GetAll().Count());
             foreach (var program in assets.RegisteredPrograms.Values) Assert.True(GL.IsProgram(program.ProgramId));
 
@@ -76,33 +76,10 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             double reload = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double reloadUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Re-registration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
-            Assert.Equal(19 + LumOnDebugShaderProgram.Contracts.Count(), assets.RegisteredPrograms.Count);
+            Assert.Equal(19, assets.RegisteredPrograms.Count);
             output.WriteLine($"Production mode={(disable ? "sync" : "batch")}, registered={assets.RegisteredPrograms.Count}, changed={changed.Length}, startup={startup:F3} ms, configuration={configuration:F3} ms, re-registration={reload:F3} ms; HZB use+readback startup={startupUse:F3}/configuration={configurationUse:F3}/re-registration={reloadUse:F3} ms.");
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-    }
-    /// <summary>A failed debug member retains its previous usable owner while independent members reload.</summary>
-    [Fact]
-    public void DebugFamilyRetainsFailedReplacement()
-    {
-        EnsureContextValid();
-        using var cache = DriverProgramCache.UseStoreForTesting(null);
-        using var assets = new BinaryShaderApiFixture();
-        Assert.True(LumOnDebugShaderProgramFamily.Register(assets.Api));
-        Assert.True(LumOnDebugShaderProgramFamily.TryGet("lumon_debug_direct", out var previous));
-        int installed = previous.ProgramId;
-        assets.Overrides["shaders/lumon_debug_direct.fsh.spv"] = new byte[20];
-        Assert.False(LumOnDebugShaderProgramFamily.Register(assets.Api));
-        Assert.True(LumOnDebugShaderProgramFamily.TryGet("lumon_debug_direct", out var retained));
-        Assert.Same(previous, retained);
-        Assert.Equal(installed, retained.ProgramId);
-        Assert.True(GL.IsProgram(installed));
-        Assert.Same(retained, assets.RegisteredPrograms["lumon_debug_direct"]);
-        assets.Overrides.Clear();
-        Assert.True(LumOnDebugShaderProgramFamily.Register(assets.Api));
-        Assert.True(LumOnDebugShaderProgramFamily.TryGet("lumon_debug_direct", out var repaired));
-        Assert.NotSame(previous, repaired);
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Measures one production shader's first draw and required GPU readback after registration.</summary>
     private double ObserveHzb(BinaryShaderApiFixture assets, DynamicTexture2D depth, GpuFramebuffer target)
