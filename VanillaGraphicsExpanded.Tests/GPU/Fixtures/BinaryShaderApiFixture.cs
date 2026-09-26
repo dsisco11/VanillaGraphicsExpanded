@@ -52,9 +52,12 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             ScheduledTasks.Add((Action)args![0]!);
             return null;
         });
+        var shaders = Proxy<IShaderAPI>((method, _) => method.Name == "NewShader"
+            ? new Vintagestory.Client.NoObf.Shader() : throw new NotSupportedException(method.Name));
         Api = Proxy<ICoreClientAPI>((method, _) => method.Name switch
         {
             "get_Assets" => assets,
+            "get_Shader" => shaders,
             "get_Event" => events,
             "get_Logger" => logger,
             "get_Side" => EnumAppSide.Client,

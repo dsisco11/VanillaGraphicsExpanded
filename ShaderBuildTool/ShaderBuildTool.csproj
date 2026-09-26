@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <Compile Include="..\VanillaGraphicsExpanded\Rendering\Contracts\*.cs;..\VanillaGraphicsExpanded\Rendering\GpuBindingRegistry.cs" Link="Contracts\%(Filename)%(Extension)" />
+    <Compile Include="..\VanillaGraphicsExpanded\Rendering\Spirv\ShaderBinaryDigest.cs" Link="Spirv\ShaderBinaryDigest.cs" />
     <!-- Reuse VGE's existing preprocessor helpers (they are engine-agnostic). -->
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\GlslSchema.cs" Link="SourceCodeMutator\GlslSchema.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\GlInterface*.cs;..\VanillaGraphicsExpanded\SourceCodeMutator\GlStageIoNode.cs;..\VanillaGraphicsExpanded\SourceCodeMutator\GlLayoutNode.cs" Link="SourceCodeMutator\%(Filename)%(Extension)" />

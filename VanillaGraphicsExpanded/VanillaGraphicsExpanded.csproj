@@ -108,12 +108,16 @@
 
   <Target Name="CopySpirvArtifactsToOutputAssets" Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'" AfterTargets="Build">
     <ItemGroup>
-      <_SpirvFiles Include="$(SpirvArtifactsDir)\**\*.spv" />
+      <_SpirvFiles Include="$(SpirvArtifactsDir)\**\*.spv;$(SpirvArtifactsDir)\**\spirv-digests.json" />
       <_SpirvOutDirs Include="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)')" />
     </ItemGroup>
 
     <MakeDir Directories="@(_SpirvOutDirs)" />
 
+    <ItemGroup>
+      <_LegacyShaderDigests Include="$(TargetDir)assets\**\*.spv.sha256" />
+    </ItemGroup>
+    <Delete Files="@(_LegacyShaderDigests)" />
     <Copy SourceFiles="@(_SpirvFiles)" DestinationFiles="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 

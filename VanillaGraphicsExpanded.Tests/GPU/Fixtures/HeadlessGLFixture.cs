@@ -67,6 +67,8 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     /// </summary>
     public void EnsureContextValid()
     {
+        // Lifecycle tests must exercise specialization and linking unless a cache test opts in explicitly.
+        VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.Bypass = true;
         Assert.SkipWhen(!_contextValid, $"OpenGL context not available: {_initializationError ?? "Unknown error"}");
 
         unsafe

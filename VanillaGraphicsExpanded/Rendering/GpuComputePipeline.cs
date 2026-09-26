@@ -7,6 +7,7 @@ using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 
 using Vintagestory.API.Common;
 
@@ -78,6 +79,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     /// <param name="infoLog">Program link info log from the driver (may be empty).</param>
     /// <param name="debugName">Optional KHR_debug label (debug builds only).</param>
     /// <param name="disposeShaderAfterLink">If true, disposes <paramref name="computeShader"/> after linking.</param>
+    /// <param name="retrievableBinary">Requests an executable that can be saved after linking.</param>
     /// <returns>True if linking succeeded.</returns>
     public static bool TryCreate(
         GpuShaderModule computeShader,
@@ -86,7 +88,8 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         string? debugName = null,
         bool disposeShaderAfterLink = true,
         GpuProgramLayout? layout = null,
-        Action<string>? warn = null)
+        Action<string>? warn = null,
+        bool retrievableBinary = false)
     {
         ArgumentNullException.ThrowIfNull(computeShader);
 
@@ -116,6 +119,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             GlDebug.TryLabel(ObjectLabelIdentifier.Program, programId, debugName);
 #endif
 
+            DriverProgramCache.RequestRetrievable(programId, retrievableBinary);
             GL.AttachShader(programId, computeShader.ShaderId);
             GL.LinkProgram(programId);
 #if DEBUG
@@ -138,16 +142,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
                 return false;
             }
 
-            var layoutToUse = layout?.CreateCandidate() ?? new GpuProgramLayout();
-            if (computeShader.BindingContract != null)
-                layoutToUse.BinaryInterface = new Spirv.GpuProgramInterface(programId, [computeShader.BindingContract]);
-            layoutToUse.ApplyContract(programId, warn);
-#if DEBUG
-            layoutToUse.ValidateContract(programId, warn);
-#endif
-
-            pipeline = new GpuComputePipeline(programId, layoutToUse, warn);
-            pipeline.SetDebugName(debugName);
+            pipeline = PrepareLinkedPipeline(programId, computeShader.BindingContract, layout, warn, debugName);
             return true;
         }
         catch (Exception ex)
@@ -175,6 +170,24 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         }
     }
 
+    #region Linked interface preparation
+    /// <summary>Prepares bindings for both normal links and cached executables before ownership transfer.</summary>
+    private static GpuComputePipeline PrepareLinkedPipeline(int program, GpuBindingContract? contract,
+        GpuProgramLayout? layout, Action<string>? warn, string? debugName)
+    {
+        // Prepare a separate layout so failure cannot mutate the caller's installed interface.
+        var prepared = layout?.CreateCandidate() ?? new GpuProgramLayout();
+        if (contract != null) prepared.BinaryInterface = new Spirv.GpuProgramInterface(program, [contract]);
+        prepared.ApplyContract(program, warn);
+#if DEBUG
+        prepared.ValidateContract(program, warn);
+#endif
+        var pipeline = new GpuComputePipeline(program, prepared, warn);
+        pipeline.SetDebugName(debugName);
+        return pipeline;
+    }
+    #endregion
+
     private static int spirvUsedCount;
 
     /// <summary>Loads an explicitly identified compute selection from a caller-owned binary path.</summary>
@@ -187,32 +200,71 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
         GpuProgramLayout? layout = null,
         Action<string>? warn = null)
     {
-        ReadOnlySpan<byte> Read(string _) => File.ReadAllBytes(spirvBinaryPath);
-        return TryCreateFromBinaryContract(settings, Read, out pipeline, out infoLog, debugName, layout, warn);
+        pipeline = null;
+        try
+        {
+            // Reject unavailable or empty file inputs before optional cache capability queries touch GL.
+            byte[] binary = File.ReadAllBytes(spirvBinaryPath);
+            if (binary.Length == 0)
+                throw new InvalidOperationException($"Empty SPIR-V binary for '{new ShaderLoadPlan(settings).Stages[0].Stage.Identity}'.");
+            // Variant paths are relative to the shader root; relocated standalone binaries use a sibling manifest.
+            string selectedPath = new ShaderLoadPlan(settings).Stages[0].BinaryPath.Replace('/', Path.DirectorySeparatorChar);
+            string fullPath = Path.GetFullPath(spirvBinaryPath);
+            string manifestRoot = fullPath.EndsWith(selectedPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                ? fullPath[..^selectedPath.Length] : Path.GetDirectoryName(fullPath)!;
+            ReadOnlySpan<byte> Read(string _) => binary;
+            return TryCreateFromBinaryContract(settings, Read, out pipeline, out infoLog, debugName, layout, warn,
+                () => ShaderDigestIndexCache.ForFile(Path.Combine(manifestRoot, Spirv.ShaderBinaryDigest.FileName)));
+        }
+        catch (Exception ex) { infoLog = ex.Message; return false; }
     }
 
     /// <summary>Resolves and validates all compute settings before reading a borrowed binary or allocating GL objects.</summary>
     private static bool TryCreateFromBinaryContract(ShaderSettings settings,
         Spirv.ShaderAssetReader read, out GpuComputePipeline? pipeline, out string infoLog,
-        string? debugName, GpuProgramLayout? layout, Action<string>? warn)
+        string? debugName, GpuProgramLayout? layout, Action<string>? warn,
+        Func<Spirv.ShaderBinaryDigest.Manifest?> digestIndex)
     {
         pipeline = null;
+        infoLog = string.Empty;
         try
         {
             var plan = new ShaderLoadPlan(settings);
             if (plan.Stages.Count != 1 || plan.Stages[0].Stage.Kind != ShaderStageKind.Compute)
                 throw new ArgumentException($"Program '{settings.Contract.Identity}' is not a compute program.");
-            var loaded = Spirv.SpirvStageLoader.Load(plan.Stages[0], read);
-            using var module = new GpuShaderModule(loaded.Shader, ShaderType.ComputeShader) { BindingContract = loaded.Contract };
-            bool success = TryCreate(module, out pipeline, out infoLog, debugName, layout: layout, warn: warn);
-            if (success)
+            var inputs = DriverProgramCache.Prepare(plan, read, digestIndex);
+            int candidate = GL.CreateProgram();
+            try
             {
+                if (DriverProgramCache.TryLoad(candidate, inputs))
+                {
+                    pipeline = PrepareLinkedPipeline(candidate, plan.Stages[0].Stage.Bindings, layout, warn, debugName);
+                    candidate = 0;
+                }
+                else
+                {
+                    // Discard a rejected executable before returning to the established linking owner.
+                    GL.DeleteProgram(candidate);
+                    candidate = 0;
+                    var loaded = Spirv.SpirvStageLoader.Load(plan.Stages[0], inputs.Read);
+                    using var module = new GpuShaderModule(loaded.Shader, ShaderType.ComputeShader) { BindingContract = loaded.Contract };
+                    if (!TryCreate(module, out pipeline, out infoLog, debugName, layout: layout, warn: warn,
+                        retrievableBinary: inputs.Key != null)) return false;
+                    DriverProgramCache.Save(pipeline!.ProgramId, inputs);
+                }
                 pipeline!.InstalledSettings = settings;
                 Interlocked.Increment(ref spirvUsedCount);
+                return true;
             }
-            return success;
+            finally { if (candidate != 0) GL.DeleteProgram(candidate); }
         }
-        catch (Exception ex) { infoLog = ex.Message; return false; }
+        catch (Exception ex)
+        {
+            pipeline?.Dispose();
+            pipeline = null;
+            infoLog = ex.Message;
+            return false;
+        }
     }
 
     /// <summary>Loads a typed, explicitly declared compute program from packaged assets.</summary>
@@ -225,7 +277,8 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             PBR.ShaderImportsSystem.DefaultDomain), loadAsset: true)?.Data
             ?? throw new InvalidOperationException("Missing built compute shader asset: " + path);
         return TryCreateFromBinaryContract(settings, Read, out pipeline, out infoLog,
-            debugName, layout, message => (log ?? api.Logger)?.Warning(message));
+            debugName, layout, message => (log ?? api.Logger)?.Warning(message),
+            () => ShaderDigestIndexCache.ForAssets(api.Assets, PBR.ShaderImportsSystem.DefaultDomain));
     }
     /// <summary>
     /// Creates a compute pipeline from a required packaged SPIR-V binary. The legacy preference parameter is ignored; GLSL fallback is never used.

@@ -78,11 +78,15 @@
   <!-- Enumerate after project references build, so a clean build includes newly generated binaries. -->
   <Target Name="CopyTestSpirvAssets" AfterTargets="Build">
     <ItemGroup>
-      <_TestSpirvFiles Include="$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\**\*.spv" />
+      <_TestSpirvFiles Include="$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\**\*.spv;$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\**\spirv-digests.json" />
       <_RequiredTestSpirv Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaders\*.csh" />
     </ItemGroup>
     <Error Condition="!Exists('$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\%(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv')"
            Text="Missing compiled test shader: %(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv" />
+    <ItemGroup>
+      <_LegacyShaderDigests Include="$(TargetDir)assets\**\*.spv.sha256" />
+    </ItemGroup>
+    <Delete Files="@(_LegacyShaderDigests)" />
     <Copy SourceFiles="@(_TestSpirvFiles)" DestinationFiles="@(_TestSpirvFiles->'$(TargetDir)assets\shaders\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 

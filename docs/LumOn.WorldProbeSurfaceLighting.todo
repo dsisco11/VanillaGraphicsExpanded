@@ -818,7 +818,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Matched eight-observation sample: 192 reads / 3.141ms to 48 reads / 0.889ms, including planning.
       Evidence: Duplicate GPU observations in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
-  ☐ Cache driver-linked program binaries to reduce production shader startup and reload costs.
+  ☑ Cache driver-linked program binaries to reduce production shader startup and reload costs.
     - Integrate through the production GPU program owners for graphics and compute; target startup,
       configuration changes and runtime shader recreation, rather than test-suite duration.
     - Detect program-binary support and save successful linked executables. Key entries by exact
@@ -833,6 +833,13 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Leave deliberate compile/link lifecycle tests able to bypass the cache.
     - Use subagents for focused hit/miss, invalidation, corruption, unsupported-driver and lifecycle
       tests; obtain a separate implementation review and record evidence before marking complete.
+    - Implementation and evidence: docs/GPU.ProgramBinaryCache.md. Versioned JSON index with
+      bounded binary payloads; graphics and compute share optional cache policy and keep current
+      contract initialization. Lifecycle fixtures bypass caching unless explicitly exercising it.
+    - Complete: 260 distinct checks passed across the Debug regression and focused runs; 11 Release
+      focused checks and final Debug restoration passed. Separate implementation review passed.
+      Release cold/warm/reload/first-use timings are recorded, with variable results and no universal
+      speedup claim. Zero-format hardware is source-reviewed; unavailable formats and bypass tested.
 
   ☐ Batch production shader linking using supported parallel shader compilation.
     - Detect the available parallel-compilation extension and retain the existing loading path when

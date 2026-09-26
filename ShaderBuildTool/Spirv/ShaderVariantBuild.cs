@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 using System.Text;
 using System.Diagnostics;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -14,6 +15,10 @@ internal static class ShaderVariantBuild
         string target, bool warningsAsErrors, ShaderVariantResolver registry, int concurrency, CancellationToken cancellationToken)
     {
         var elapsed = Stopwatch.StartNew();
+        string manifestPath = Path.Combine(outputRoot, domain, "shaders", ShaderBinaryDigest.FileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
+        File.Delete(manifestPath);
+        var digests = new System.Collections.Concurrent.ConcurrentDictionary<string, ShaderBinaryDigest.Entry>(StringComparer.Ordinal);
         ValidateSources(Path.Combine(assetsRoot, domain, "shaders"), registry);
         var sources = new ShaderVariantSource(assetsRoot, domain);
         var expanded = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -45,6 +50,7 @@ internal static class ShaderVariantBuild
                 string pending = input + ".spv";
                 Directory.CreateDirectory(Path.GetDirectoryName(input)!);
                 Directory.CreateDirectory(Path.GetDirectoryName(binary)!);
+                File.Delete(binary + ".sha256"); // Remove legacy per-variant metadata during migration.
                 File.Delete(binary);
                 File.Delete(pending);
                 try
@@ -60,13 +66,21 @@ internal static class ShaderVariantBuild
                     Interlocked.Add(ref compilerTicks, timer.ElapsedTicks);
                     token.ThrowIfCancellationRequested();
                     // Compiler failure can leave a partial file; publish only a successful invocation's output.
-                    if (result.ExitCode == 0) File.Move(pending, binary, overwrite: true);
+                    if (result.ExitCode == 0)
+                    {
+                        byte[] bytes = File.ReadAllBytes(pending);
+                        var digest = new ShaderBinaryDigest.Entry(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
+                        File.Move(pending, binary, overwrite: true);
+                        digests[selection.BinaryPath] = digest;
+                    }
                     return result;
                 }
                 finally { File.Delete(pending); }
             }
         }
         await ShaderCompilationBatch.RunAsync(jobs, concurrency, Console.Out, Console.Error, cancellationToken);
+        // Publish only after every variant succeeds; the build receipt subsequently covers this manifest too.
+        File.WriteAllBytes(manifestPath, ShaderBinaryDigest.Encode(digests.ToDictionary(pair => pair.Key, pair => pair.Value)));
         foreach (var stage in registry.Binaries.GroupBy(s => s.Stage.Identity))
             Console.WriteLine($"[SPIR-V] {stage.Key}: {stage.Count()} structural variants");
         Console.WriteLine($"[SPIR-V] Stages: {registry.Stages.Count} stages, {registry.Binaries.Count} variants");

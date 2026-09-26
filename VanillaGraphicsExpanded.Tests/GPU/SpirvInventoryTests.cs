@@ -21,6 +21,23 @@ public sealed class SpirvInventoryTests : IDisposable
     public SpirvInventoryTests(HeadlessGLFixture fixture, ITestOutputHelper output) { this.fixture = fixture; this.output = output; }
 
     #region Registry coverage
+    /// <summary>Every packaged variant carries the digest of its exact published binary bytes.</summary>
+    [Fact]
+    public void PackagedBuildDigestsMatchEveryCompiledVariant()
+    {
+        var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(Root, ShaderBinaryDigest.FileName)));
+        Assert.NotNull(manifest);
+        Assert.Equal(Registry.Binaries.Count, manifest.Binaries.Count);
+        Assert.Empty(Directory.EnumerateFiles(Root, "*.sha256", SearchOption.AllDirectories));
+        foreach (var selection in Registry.Binaries)
+        {
+            string path = Path.Combine(Root, selection.BinaryPath);
+            byte[] binary = File.ReadAllBytes(path);
+            Assert.True(ShaderBinaryDigest.TryRead(manifest, selection.BinaryPath, binary.Length, out byte[] digest), path);
+            Assert.Equal(System.Security.Cryptography.SHA256.HashData(binary), digest);
+        }
+    }
+
     /// <summary>Loads an explicit compute selection from a borrowed slice without modifying backing storage.</summary>
     [Fact]
     public void SlicedAssetsSpecializeAndLinkWithoutMutation()
