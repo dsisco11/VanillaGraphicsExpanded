@@ -7,7 +7,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
-/// Functional tests for Phase 12 Option B (SH9): probe-atlas → SH9 projection.
+/// Functional tests for probe-atlas to SH9 projection and gathering.
 ///
 /// Verifies that:
 /// - constant atlas projects to DC-only SH9 (directional terms ~ 0)
@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunctionalTestBase
+public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunctionalTestBase
 {
     private const float SH9_C0 = 0.282095f;
     private const float Pi = 3.141592654f;

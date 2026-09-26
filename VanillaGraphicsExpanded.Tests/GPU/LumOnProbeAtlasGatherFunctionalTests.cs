@@ -273,6 +273,8 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 3.5449077f, 3.5449077f, 3.5449077f, 0));
         using var shZero = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 0));
+        using var shCoverage = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 1));
         LumOnProbeSh9GatherShaderProgram? sh = null;
         LumOnScreenProbeAtlasGatherShaderProgram? atlas = null;
         if (sh9)
@@ -298,7 +300,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         {
             sh.Intensity = 1; sh.IndirectTint = [1,1,1];
             sh.ProbeSh0 = shDc; sh.ProbeSh1 = shZero; sh.ProbeSh2 = shZero; sh.ProbeSh3 = shZero;
-            sh.ProbeSh4 = shZero; sh.ProbeSh5 = shZero; sh.ProbeSh6 = shZero;
+            sh.ProbeSh4 = shZero; sh.ProbeSh5 = shZero; sh.ProbeSh6 = shCoverage;
             sh.ProbeAnchorPosition = anchorPos; sh.ProbeAnchorNormal = anchorNormal;
             sh.PrimaryDepth = depth.TextureId; sh.GBufferNormal = normal.TextureId;
             sh.WorldProbeRadianceAtlas = worldProbeRadiance; sh.WorldProbeVis0 = worldProbeVis; sh.WorldProbeMeta0 = worldProbeMeta;

@@ -585,7 +585,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       regressions. Builds succeed with existing warnings; independent review and root inspection
       pass. Evidence and receipts: docs/LumOn.SurfaceCache.ThroughputValidation.md.
 
-  ☐ Fix SH9 confidence-weighted angular projection and the three numerical baseline failures.
+  ☑ Fix SH9 confidence-weighted angular projection and the three numerical baseline failures.
     - Separate directional confidence from spherical integration area in the production projector;
       establish consistent octahedral angular quadrature/reconstruction and missing-sample behavior.
     - Require constant-radiance preservation under nonuniform positive confidence, multiple normals
@@ -594,6 +594,17 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Validate ConstantRadianceMatchesBothGatherConventions, RegisteredCompositionRespectsReceiverRegions
       and DisplayGradingDoesNotEnterSceneLinearLighting in SH9, plus directional controls and focused
       projector tests. Preserve existing analytic bounds rather than compensating with a global scale.
+    - Completed: integrate each octahedral cell using offline-generated spherical SH moments.
+      Confidence no longer changes angular energy; missing cells are not expanded to fill the
+      sphere. Carry angularly averaged confidence in the existing packed output and consume it
+      separately in gather. Fixed 64-cell work adds no per-frame CPU allocations or GPU resources.
+    - Independent dense quadrature, sparse/fold cells, partial/missing support, valid darkness and
+      seven GPU gather normals across three LDR/HDR scales preserve the original analytic bounds.
+      The generated table is reproducible; independent mathematical/source review and root inspection pass.
+    - Subagent regression passes 61/61, including all three baseline methods in both gather modes
+      and the ten prior source/reload cases. Exact-final-source projector rerun passes 17/17; zero
+      skips. Builds succeed with existing analyzer warnings. Receipts and approximation limits:
+      docs/LumOn.SurfaceCache.ThroughputValidation.md. GPU timing remains unmeasured.
 
   ☐ Synchronize world-direction freshness in the two SH9 cache-replacement restoration cases.
     - After the SH9 projection repair, update CacheReplacementInvalidatesComposedHistory and

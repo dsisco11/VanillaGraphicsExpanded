@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 
 using ShaderBuildTool.Spirv;
+using ShaderBuildTool.Generation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 using VanillaGraphicsExpanded;
@@ -51,6 +52,7 @@ internal static class Program
                 _ => throw new OptionsException("Unknown registry scope: " + options.RegistryScope)
             };
             using var outputLease = ShaderOutputLease.Acquire(outputRoot);
+            LumonOctahedralShWeights.Generate(domainShadersRoot);
             string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain,
                 options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors) + "|" + options.RegistryScope;
             if (options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))

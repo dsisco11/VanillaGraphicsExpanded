@@ -3,11 +3,12 @@
 ## Verdict
 
 The delayed-publication defect is fixed; the broader validation item remains open for the separately recorded consumer and fixture failures. The pre-fix audit below preserves its original receipts.
-Across completed runs, using the latest result for repeated cases, 932 distinct cases yield **905 passed
-and 27 failed**, with zero skips. The failures are 15 of the historically tracked 19 consumer cases,
+The historical pre-fix audit combined 932 distinct cases, using the latest result for repeated cases:
+**905 passed and 27 failed**, with zero skips. Those failures were 15 of the historically tracked 19 consumer cases,
 11 fixture/coverage cases outside that list, and one new backlog regression. These are completed
 failing receipts, not a clean regression claim. The separately tracked 19 were excluded from the
 initial selection and then executed in the supplemental consumer run.
+These historical totals do not incorporate the focused repairs below and are not a current broad-suite rerun.
 No game process was launched; user-run convergence remains the following checklist item.
 
 ## Geometry and material screen-fixture repair
@@ -157,6 +158,60 @@ unbinding, blend, texture readback and pixel-pack regressions. Production and te
 with the existing obsolete `BlockPos` constructor and five xUnit analyzer warnings. Final receipts:
 `artifacts/TestResults/surface-dark-reload-final.trx` and `artifacts/surface-dark-reload-final.log`.
 The remaining failure categories, broader completion gate and gameplay acceptance remain open.
+
+## SH9 angular projection repair
+
+The screen-probe SH9 projector previously multiplied each directional sample by its confidence,
+then normalized the accumulated weight to the whole sphere. This made confidence variations change
+the angular lighting distribution, including introducing nonconstant coefficients from constant
+radiance. Equal weights at octahedral texel centers also failed to account for unequal spherical
+cell areas. Gather used anchor validity alone, making an empty projection look like valid darkness.
+
+Projection now integrates each atlas texel as a constant-radiance spherical cell. A fixed 64-by-nine
+table contains the integrals of the SH basis over those cells, including octahedral folds. The
+build-time generator `ShaderBuildTool/Generation/LumonOctahedralShWeights.cs` derives the weights
+from spherical triangle area and first/second boundary moments and verifies that the cells partition
+the sphere. ShaderBuildTool regenerates the include before fingerprinting on every build invocation,
+including incremental runs. Identical generated content preserves incremental compilation hits.
+This preserves the constant mode without an empirical brightness correction. As before, SH9 is a
+band-limited approximation; directional input is interpreted as constant within each atlas cell.
+
+Positive confidence admits a sample without scaling its radiance contribution. Missing cells
+contribute no radiance and are not renormalized to cover the sphere. The spare alpha channel in the
+last packed SH texture carries the angularly averaged confidence. Gather uses it for probe weights
+and output confidence, including its existing low-weight world-fallback policy. Valid darkness
+therefore retains confidence while wholly missing data does not. The existing 0.001 screen-weight
+threshold remains; this change does not promise acceptance of arbitrarily tiny confidence values.
+
+The table is approximately 2.3 KiB of shader constants. Projection retains its bounded 64-cell loop,
+replacing runtime direction/basis calculation with fixed weight lookups; gather reuses its existing
+last-coefficient texture fetch. No per-frame CPU allocation, new render target or sampler is added.
+GPU performance is not measured by the correctness tests.
+
+The targeted subagent run passed **23/23 cases, zero failures or skips**, including all three
+previously failing numerical methods in both gather modes, the existing SH9 projection/gather tests,
+and 15 new quadrature/confidence cases. The new reference integrates the UV-to-sphere Jacobian with
+dense midpoint samples, independently of the generator's spherical boundary formulas. It checks
+anisotropic first/second-band fields, individual corner/fold/pole cells, a missing hemisphere,
+valid darkness, missing support and the low-confidence gather policy. Constant inputs span three
+channel scales from LDR to representable HDR and seven axis/oblique normals. Existing runtime
+analytic tolerances were not changed. Receipt:
+`artifacts/TestResults/surface-sh9-projection-targeted.trx` and
+`artifacts/surface-sh9-projection-targeted.log`. The final regression additionally exercises those
+constant inputs through the real GPU gather at every tested normal.
+
+The expanded subagent regression passed **61/61 cases, zero failures or skips**, in approximately
+2 minutes 44 seconds. It includes projection, atlas/SH9 gather and world fallback, upsampling,
+all three numerical baseline methods in both modes, and the ten repaired source/restoration and
+dark-reload cases. Receipt: `artifacts/TestResults/surface-sh9-projection-final.trx` and
+`artifacts/surface-sh9-projection-final.log`. Independent source, mathematical and implementation
+review found no remaining issue; regenerating the weight table produced identical bytes.
+After mechanical integer allocation-size cleanup, the exact final source passed **17/17 projector
+cases, zero failures or skips**, in 8.5 seconds. Receipts:
+`artifacts/TestResults/surface-sh9-projection-final-source.trx` and
+`artifacts/surface-sh9-projection-final-source.log`. Production/shader and test builds succeeded;
+existing xUnit analyzer warnings remain. Cache-replacement freshness, the broader completion gate
+and user-run gameplay acceptance remain separate open items.
 
 ## Backlog fix and focused verification
 
