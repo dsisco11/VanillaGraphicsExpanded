@@ -131,7 +131,8 @@
             }
         },
         {
-            "label": "Package (dotnet)",
+            "label": "Package",
+            "detail": "Packs the compiled mod into a zip archive.",
             "group": "build",
             "command": "dotnet",
             "type": "process",
