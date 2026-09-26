@@ -752,7 +752,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Independent evidence/boundary review passed. All 13 source files restored byte-exact,
       two profiler helpers removed, final build passed and 348 staged binary hashes unchanged.
 
-  ☐ Refactor uniform tests to validate compiled SPIR-V interfaces against shader contracts.
+  ☑ Refactor uniform tests to validate compiled SPIR-V interfaces against shader contracts.
     - Remove GLSL loading, preprocessing, syntax parsing and macro/define-name alternatives from
       LumOnUniformTests. Map existing assertions to their intended compiled-interface guarantees.
     - Compare actual SPIR-V declarations and linked active resources with authoritative contracts
@@ -766,6 +766,15 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       obtain a separate implementation review before marking complete.
     - Context: docs/GPU.IntegrationTestPerformance.RemainingCosts.md. This replaces its original
       parsed-source reuse proposal; GLSL parsing should be removed rather than cached.
+    - Implemented numeric binary reflection and once-per-program linked-interface snapshots;
+      preserved all 124 critical-value labels in nine grouped cases, reducing 142 links to nine.
+      Release 16/16 passed without source/debug names; final Debug regression 73/73 passed.
+      Separate implementation review passed. Evidence: docs/GPU.UniformContractValidation.md.
+    - Superseded by the approved coverage audit: consolidate binding checks into existing tests,
+      retain focused production-setter packing checks and remove the broad suite and custom reader.
+      The linked report distinguishes historical refactor receipts from consolidation validation.
+      Consolidation: Debug 81/81 and Release 26/26 passed. Final Debug restoration/revalidation
+      and review confirmation remain pending after the delegated agents hit the account usage limit.
 
   ☐ Separate required GPU observations from optional failure diagnostics in shared wait helpers.
     - Preserve nonempty/finite checks currently hidden in Energy calls inside diagnostic messages,

@@ -493,3 +493,12 @@ Subagent-run scoped selections passed 141/141 and 9/9. Independent review verifi
 receipts, nested accounting and assertion-boundary constraints. All temporary instrumentation was
 removed, 13 source files restored byte-for-byte, 348 staged SPIR-V hashes verified unchanged, and
 the final uninstrumented build passed. Remaining correctness failures retain their separate backlog.
+
+The subsequent [compiled uniform validation refactor](GPU.UniformContractValidation.md) removes
+GLSL processing from `LumOnUniformTests`, preserves its 124 critical-value labels, and reduces
+that selection from 142 links to nine. Debug/Release validation and timing limits are recorded
+in the linked report; this does not change production loading or establish a whole-suite speedup.
+
+The subsequent coverage audit superseded that broad suite with existing binding tests and focused
+production-setter packing coverage. The linked report retains historical timings and describes the
+current consolidation; the custom SPIR-V test reader is no longer needed.

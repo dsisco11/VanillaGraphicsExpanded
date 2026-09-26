@@ -115,10 +115,7 @@ public sealed class LumOnUboBindingTests : IDisposable
         int blockIndex = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformBlockIndex(programId, blockName);
         Assert.True(blockIndex >= 0, $"Program {programId} did not expose uniform block '{blockName}'.");
 
-        // GLSL 330 can't fix bindings in-source; production code assigns them via glUniformBlockBinding.
-        // Mirror that here so we can validate the contract binding indices (12/13).
-        GL.UniformBlockBinding(programId, blockIndex, expectedBinding);
-
+        // Inspect the binary's original binding before any runtime assignment can hide a mismatch.
         GL.GetActiveUniformBlock(programId, blockIndex, ActiveUniformBlockParameter.UniformBlockBinding, out int binding);
         Assert.Equal(expectedBinding, binding);
 

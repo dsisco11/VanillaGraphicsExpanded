@@ -20,14 +20,22 @@ public sealed class ShaderContractBindingTests : RenderTestBase
     [InlineData("lumon_combine")]
     [InlineData("lumon_probe_atlas_trace")]
     [InlineData("lumon_debug_worldprobe")]
+    [InlineData("lumon_probe_anchor")]
+    [InlineData("lumon_probe_atlas_temporal")]
+    [InlineData("lumon_probe_atlas_filter")]
+    [InlineData("lumon_probe_atlas_gather")]
+    [InlineData("lumon_probe_sh9_gather")]
+    [InlineData("lumon_upsample")]
+    [InlineData("lumon_debug")]
     public void GraphicsBindingsAreCompiledFromSharedContract(string name)
     {
         EnsureContextValid();
-        int vertex = BuiltShaderFixture.Load(name + ".vsh", ShaderType.VertexShader);
-        int fragment = BuiltShaderFixture.Load(name + ".fsh", ShaderType.FragmentShader);
-        int program = GL.CreateProgram();
+        int vertex = 0, fragment = 0, program = 0;
         try
         {
+            vertex = BuiltShaderFixture.Load(name + ".vsh", ShaderType.VertexShader);
+            fragment = BuiltShaderFixture.Load(name + ".fsh", ShaderType.FragmentShader);
+            program = GL.CreateProgram();
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment);
             TestShaderInterfaces.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
@@ -45,12 +53,22 @@ public sealed class ShaderContractBindingTests : RenderTestBase
                 samplerCount++;
             }
             Assert.True(samplerCount >= 2);
-            foreach (var (block, expected) in contract.UniformBlocks)
+            GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int uniformCount);
+            int[] locationValue = new int[1];
+            for (int index = 0; index < uniformCount; index++)
             {
-                int index = TestShaderInterfaces.GetUniformBlockIndex(program, block);
-                if (index < 0) continue;
+                GL.GetProgramResource(program, ProgramInterface.Uniform, index, 1,
+                    [ProgramProperty.Location], 1, out _, locationValue);
+                if (locationValue[0] >= 0)
+                    Assert.Contains(locationValue[0], contract.UniformLocations.Values);
+            }
+            // Enumerate the actual driver resources as well: iterating only resolved contract
+            // names could silently skip a block whose binary binding moved to an undeclared slot.
+            GL.GetProgram(program, GetProgramParameterName.ActiveUniformBlocks, out int blockCount);
+            for (int index = 0; index < blockCount; index++)
+            {
                 GL.GetActiveUniformBlock(program, index, ActiveUniformBlockParameter.UniformBlockBinding, out int actual);
-                Assert.Equal(expected.Slot, actual);
+                Assert.Contains(contract.UniformBlocks.Values, expected => expected.Slot == actual);
             }
             layout.ApplyContract(program);
             // Applying a compiled contract must not change existing resource slots.
@@ -64,9 +82,9 @@ public sealed class ShaderContractBindingTests : RenderTestBase
         finally
         {
             GL.UseProgram(0);
-            TestShaderInterfaces.DeleteProgram(program);
-            TestShaderInterfaces.DeleteShader(vertex);
-            TestShaderInterfaces.DeleteShader(fragment);
+            if (program != 0) TestShaderInterfaces.DeleteProgram(program);
+            if (vertex != 0) TestShaderInterfaces.DeleteShader(vertex);
+            if (fragment != 0) TestShaderInterfaces.DeleteShader(fragment);
         }
     }
     #endregion

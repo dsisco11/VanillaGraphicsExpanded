@@ -158,6 +158,8 @@ instrumented JSON/log/TRX results.
    interfaces and linked active resources against authoritative contracts, including Release
    binaries without debug names. Preserve functional member-read coverage. The dedicated task in
    `LumOn.WorldProbeSurfaceLighting.todo` supersedes the original parsed-source reuse proposal.
+   The later approved audit consolidated coverage into existing binding and focused packing tests;
+   see [Uniform test consolidation](GPU.UniformContractValidation.md). The broad suite was removed.
 4. **Investigate later-frame shader lifetime/reconfiguration.** Twenty graphics and 56 compute links
    occur after the first frame in the four runtime scenarios. Trace owners before deciding whether
    immutable programs can survive resource replacement. This may require production lifetime work,
@@ -219,8 +221,8 @@ Source anchors:
 
 Any immutable binary-byte cache must retain per-fixture `Overrides`, missing/corrupt-asset scenarios,
 `BeforeRead` notifications and read accounting. It must invalidate when asset contents change;
-path-only process-wide caching could hide reload regressions. Parsed source snapshots need keys
-covering source/include content and shader options, and mutable AST objects cannot be shared freely.
+path-only process-wide caching could hide reload regressions. Uniform validation should consume
+compiled interfaces directly; the earlier proposal to cache parsed GLSL declarations is superseded.
 
 Grouping uniform checks changes xUnit case granularity. A follow-up must either preserve individual
 rows against an immutable linked-interface snapshot or evaluate all rows and aggregate named failures;
