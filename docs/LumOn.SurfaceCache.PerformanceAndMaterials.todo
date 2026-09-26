@@ -1,0 +1,102 @@
+LumOn Surface Cache performance, geometry support and per-face materials
+=====================================================================
+
+Scope
+  Restore useful Surface Cache convergence and investigate the reported ~8 FPS regression;
+  support per-face PBR properties and correct tracing of grass, doors and other affected shapes.
+  Keep displayed valid lighting while refreshing. Unknown geometry is not air or established sky.
+  GPU timing, CPU submission/waits, overall frame time and useful lighting progress are separate metrics.
+
+Starting evidence and uncertainties
+  - The previously inspected gameplay log recorded 381 of 495 resident pages awaiting capture,
+    roughly 74% of indirect rays leaving GPU coverage, and ten incompletely seeded pages repeatedly
+    encountering unsupported origins. These are historical observations to reproduce, not a new baseline.
+  - Configured Surface geometry coverage was a 192-block cube, near page demand extended eight
+    chunks horizontally, and trace distance was 512 blocks. CPU fallback admitted at most sixteen
+    texels per batch with one batch outstanding through collection, tracing and lighting lookup.
+  - The sampled indirect compute work did not explain the overall ~8 FPS. The user's reported onset
+    after screen probes began using Surface Cache lighting is a regression lead, not proven causality.
+  - Pink geometry may indicate a recognized but unsupported shape, unavailable geometry or missing
+    material data. Confirm the exact selected view's legend and producing status before changing it.
+  - References: docs/LumOn.TraceSceneGeometryContract.md, docs/LumOn.WorldProbeGpuRouting.md,
+    docs/LumOn.WorldProbeLighting.ReproductionTests.md, docs/PBRMaterialDefinitions.schema.md,
+    docs/PBRMaterialRegistry.ModderGuide.md and docs/GPU.IntegrationTestPerformance.Analysis.md.
+
+Tasks
+
+  ☐ Profile the reported 8 FPS regression across screen tracing and Surface Cache production.
+    - Identify the exact active debug view and production passes. Separate screen-probe trace/hit
+      lighting, Surface Cache capture/seed/indirect/combine, debug rendering and GPU readback costs.
+    - Record CPU and GPU timings, frame rate, probe/ray counts, resolution, settings, shader variants,
+      coverage and useful completed texels. Keep diagnostic instrumentation bounded and optional.
+    - Compare matched workloads with the Surface Cache screen-hit path enabled and disabled using
+      a controlled diagnostic comparison; inspect history around its introduction where available.
+      Account for first-use linking and debug overlays separately from steady-state rendering.
+    - Trace any nested lighting/visibility queries, repeated lookups or synchronization implicated
+      by measurements. Record an attributable bottleneck before selecting the optimization.
+
+  ☐ Fix the measured screen-trace/Surface Cache frame-time regression.
+    - Implement the correction identified above through existing shader and resource owners.
+      Preserve hit lighting, visibility, unsupported outcomes and coordinate-space contracts.
+    - Avoid hiding the regression by reducing quality, probe coverage or assertion domains.
+    - Compare matched before/after frame and pass timings, plus useful completion counts; verify
+      final outputs and relevant numerical tests. Remove temporary comparison switches afterward.
+
+  ☐ Diagnose stalled capture admission and align requested pages with useful geometry coverage.
+    - Distinguish outside-coverage, unpublished cells, unavailable face materials and stale eligibility
+      tokens for pending pages. Record reason counts and oldest ages without per-frame log spam.
+    - Reconcile capture demand, trace coverage, publication budgets and intended viewing distance.
+      Choose a bounded coverage/demand strategy rather than blindly enlarging a dense 3D texture.
+    - Implement the selected strategy with bounded storage/uploads and fair useful-page admission.
+      Deferred pages must wake on the relevant dependency changes; no permanent false-ready state.
+    - Validate stationary progress, movement, local edits, boundary pages and material publication.
+
+  ☐ Support initialization of captured surfaces with unsupported traversal origins.
+    - Reconcile material capture accepting published unsupported shapes with seed/direct lighting
+      rejecting their origin. Separate material/lighting availability from ray-intersection support.
+    - Initialize only texels whose required inputs are valid; do not promote unsupported shapes to
+      full cubes or fabricate lighting. Retain completed texels and avoid repeatedly spending all
+      seed work on unchanged unresolved inputs; resume when their actual dependencies change.
+    - Cover mixed valid/unsupported texels, independent sibling progress, later readiness and edits.
+
+  ☐ Identify and implement missing trace geometry support for grass and doors.
+    - Follow actual block/shape data through classification, GPU publication, intersection and debug
+      coloring. Distinguish missing recognition from deliberately unsupported geometry/materials.
+    - Define appropriate geometry for vegetation and open/closed/oriented doors, including thin or
+      cutout surfaces where required. Collision boxes alone may not match visible occlusion.
+    - Add bounded representation/intersection support through the shared geometry owners, preserving
+      material identity and coherent edit/state invalidation across all tracing consumers.
+    - Validate hits, misses, visibility and material selection for representative variants; update the
+      color key to describe actual status. Do not fix this by recoloring unsupported geometry blue.
+
+  ☐ Improve bounded CPU fallback throughput and completion scheduling.
+    - Measure admission loss, queue age, worker time, GPU collection/lookup latency, commit rate and
+      rejection reasons. Determine how much outside/unsupported traffic improved geometry eliminates.
+    - Replace unnecessarily serialized ownership with bounded pipelining/batching where measurements
+      justify it; tune capacities and budgets explicitly rather than creating unbounded workers.
+    - Preserve generation/dependency validation, cancellation, fair retry service and valid displayed
+      lighting. Avoid repeated full traces when a retained hit only awaits Surface Cache lighting.
+    - Verify saturation, cancellation, stale completions and draining; measure useful commits/second.
+
+  ☐ Add per-face PBR material properties from definitions through rendering and tracing.
+    - Extend the definition/schema contract for face overrides, including albedo and specular values
+      and other supported PBR properties. Define orientation semantics, inheritance and precedence;
+      retain existing definitions and texture mappings without changing their meaning.
+    - Decide explicit shader semantics for properties not currently represented, including whether
+      albedo overrides or multiplies the texture. Document units/ranges and specular interpretation.
+    - Carry resolved face properties through registry identity, atlas/table generation, cache keys,
+      hot reload, terrain shading and Surface Cache material capture. Face selection must survive
+      rotations and shared textures; avoid collapsing distinct faces to one texture-only entry.
+    - Validate defaults, partial overrides, mapping precedence, rotated blocks, cache invalidation
+      and agreement between visible PBR shading and captured material values. Add author examples.
+
+  ☐ Validate combined performance and correctness with focused tests and independent review.
+    - Use subagents to run focused tests for affected paths and a separate implementation review.
+      Preserve complete assertion coverage and production behavior; do not launch the game.
+    - Record matched timing/progress evidence, settings and hardware, including remaining limits.
+      Choose final budgets using useful work and frame-time costs rather than dispatch counts alone.
+    - Have the user verify stationary convergence, nearby edits, grass, door state changes and per-face
+      appearance in game, without whole-cache black/yellow restarts. Keep this acceptance explicit.
+    - Remove temporary verbose instrumentation after retaining evidence; keep inexpensive diagnostics
+      needed to distinguish unavailable inputs from slow tracing. Mark tasks complete only against
+      their recorded implementation and validation, or explicit user acceptance.

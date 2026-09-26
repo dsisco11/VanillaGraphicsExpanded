@@ -1,0 +1,106 @@
+Baseline PBR shading, atmosphere and surface detail
+==================================================
+
+Scope and shared contracts
+  Improve baseline physically based rendering with and without LumOn. Provide a physically based
+  sky, optional height/depth-map tessellation and relief mapping, PBR liquids, an investigation of
+  approximate underwater caustics, and volumetric clouds.
+  Keep standalone PBR usable without LumOn resources or indirect-lighting production. Standalone
+  environmental lighting should keep outdoor shadows readable without injecting sunlight through
+  occluders or applying an indiscriminate brightness floor to enclosed spaces.
+  These are implementation tasks; algorithm choices and performance targets require investigation.
+  Reuse existing shader/resource owners, compiled SPIR-V contracts, demand loading and settings.
+  Keep optional features bounded, configurable and independently disableable.
+  Coordinate per-face material properties with docs/LumOn.SurfaceCache.PerformanceAndMaterials.todo;
+  that list owns their schema/registry implementation, rather than duplicating it here.
+
+Tasks
+
+  ☐ Establish baseline PBR ownership, lighting contracts and comparison scenes.
+    - Audit terrain, entities, transparent surfaces, liquids, sky, fog, shadows and final composition
+      through actual engine call sites. Identify remaining vanilla shading and hidden LumOn coupling.
+    - Define shared linear-color, exposure, material, direct-light, environmental-light and shadow
+      conventions. Preserve existing held-light/world-coordinate corrections and energy accounting.
+    - Record representative outdoor sun/shade, enclosed interiors, emissive/held lights, water and
+      night scenes with LumOn on/off. Measure steady-state pass costs separately from shader startup.
+    - Record ownership and dependency boundaries in a linked design document; keep render composition
+      thin and place atmosphere, liquids and surface-detail policy in their respective owners.
+
+  ☐ Separate LumOn-compatible and standalone PBR pipelines with automatic mode selection.
+    - Select the intended pipeline from LumOn.Enabled before initial shader preparation. Share common
+      PBR code while giving each path explicit variants/contracts and resource dependencies.
+    - LumOn mode consumes its indirect illumination exactly once. Standalone mode uses an explicit
+      ambient/environment approximation, with suitable diffuse and specular responses and occlusion,
+      so disabling LumOn does not leave outdoor shadows pitch black.
+    - Keep direct-sun shadow visibility intact; do not solve ambient lighting by weakening shadows.
+      Bound environment leakage into enclosed spaces and document approximation limits.
+    - Implement coherent enable/disable, reload and failure behavior without stale LumOn textures,
+      unnecessary GI allocations or unintended intermediate shader generations.
+    - Test both pipelines, live switching, startup with LumOn disabled, interior/exterior behavior,
+      material response and absence of double-counted ambient/GI. Preserve standalone point lights.
+
+  ☐ Implement a physically based sky and shared atmospheric lighting inputs.
+    - Evaluate an atmospheric scattering approach with explicit Rayleigh/Mie scattering, absorption,
+      sun transmittance and bounded integration or lookup tables. Define scale and parameter units.
+    - Integrate engine time, sun direction, weather and altitude; define moon/night/stars behavior.
+      Maintain consistent exposure, horizon transitions and fog/aerial-perspective composition.
+    - Supply consistent sky/environment and solar inputs to standalone PBR and LumOn consumers;
+      avoid rendering a new sky while retaining incompatible illumination from the old model.
+    - Bound lookup generation/update work and invalidate on actual atmospheric changes. Validate
+      daylight, sunrise/sunset, night, weather transitions and below/above-horizon cases.
+
+  ☐ Add optional depth-map tessellation and relief mapping through the production shader pipeline.
+    - Audit source mesh topology, atlas depth convention, material scale and graphics capabilities.
+      Define signed displacement amplitude and zero level, plus which materials/surfaces opt in.
+    - Extend build-time compilation, contracts, specialization, linking/cache identity and lifecycle
+      support for tessellation control/evaluation stages where absent. Preserve the ordinary path.
+    - Implement adaptive, bounded tessellation with consistent shared-edge factors, distance/screen
+      error limits and stable transitions. Handle atlas seams, chunk boundaries and displaced normals.
+    - Implement configurable relief mapping and its relationship to existing parallax mapping;
+      distinguish shading-depth approximation from silhouette-changing geometry displacement.
+    - Keep depth, shadows, G-buffer data and motion/reprojection coherent. Explicitly document how
+      displaced surfaces are represented or approximated in LumOn capture and trace geometry.
+    - Validate flat maps, missing maps, extreme heights, grazing angles, seams, movement and reload.
+      Measure geometry amplification and pixel cost; retain a capability-safe disabled fallback.
+
+  ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
+    - Trace vanilla liquid entrypoints and transparency/OIT contracts before replacing their shading;
+      preserve engine flow, animation, texture selection, face visibility and rendering order.
+    - Define water's Fresnel reflection/transmission, roughness, normals, depth-dependent absorption
+      and scattering, with bounded refraction/reflection sampling and explicit unavailable-data fallback.
+    - Handle other liquid types deliberately, including emissive liquids; do not apply water optics
+      indiscriminately. Coordinate liquid parameters with the material-definition contract.
+    - Integrate both PBR lighting modes, shadows, sky, fog and underwater camera transitions. Specify
+      depth/normal outputs and avoid screen-buffer feedback, transparency sorting and shoreline artifacts.
+    - Validate shallow/deep water, flowing liquids, submerged views, intersections, day/night and
+      LumOn switching; measure pass and bandwidth costs separately from optional caustics.
+
+  ☐ Explore approximate underwater caustics and decide whether to adopt them.
+    - Compare bounded procedural/projected approaches against desired appearance and GPU cost.
+      Use water motion, light direction, receiver depth and surface orientation where appropriate.
+    - Restrict contributions to submerged receiving surfaces under relevant water and illumination;
+      avoid effects above water, through opaque occluders or where the sun is fully shadowed.
+    - Evaluate both lighting pipelines, underwater transitions, temporal stability and double-counting
+      with existing lighting. Clearly label the effect as an approximation, not traced light transport.
+    - Record prototype results and an adoption decision before production implementation. If adopted,
+      provide an independent toggle, strength/quality bounds and targeted visual/performance checks.
+
+  ☐ Implement physically motivated volumetric clouds integrated with the sky.
+    - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
+      ray marching, light transmittance and a controlled multiple-scattering approximation.
+    - Integrate cloud/atmosphere ordering, sun occlusion and cloud shadows/environment lighting in
+      both PBR modes. Support ground, inside-cloud and above-cloud views without depth-order errors.
+    - Add quality-scaled resolution/steps, empty-space skipping and temporal reconstruction where
+      useful; invalidate history correctly on movement, weather changes and lighting transitions.
+    - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
+      clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
+
+  ☐ Validate combined shading, configuration and performance before completion.
+    - Use subagents for focused build/shader/GPU tests and a separate implementation review. Cover
+      supported variants, lifecycle/resource ownership and failure/unsupported-capability paths.
+    - Compare matched scenes and quality settings with LumOn on/off and each optional feature toggled.
+      Record pass costs, frame time, memory and shader first-use separately; set budgets from evidence.
+    - Obtain user-run in-game acceptance for shadow readability, sky, liquids, surface relief and
+      clouds, including their interactions. Do not launch the game or treat tests as visual acceptance.
+    - Document settings, capability requirements, approximation limits and authoring examples. Link
+      evidence to completed tasks and remove temporary profiling/comparison code after preserving it.
