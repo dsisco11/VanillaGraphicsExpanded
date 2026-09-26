@@ -471,6 +471,10 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       15 of those 19 reproduce and four currently pass without a diagnosed fix. Two obsolete test
       assertions were corrected and pass. The obsolete alternating-schedule sentence in LightingContract.md
       is corrected. Reconcile the remaining fixture coverage; do not treat the suite as clean.
+    - Remaining failure causes and controlled interventions:
+      docs/LumOn.SurfaceCache.RemainingFailureCauses.md. Includes missing-cache fixtures, invalid
+      ring readiness/layout assumptions, premature refresh/convergence assertions, and a confirmed
+      SH9 confidence-weighted angular projection defect. Investigation does not close validation.
   ☐ Verify user-run in-game Surface Cache convergence and tune the final defaults.
     - Compare stationary outdoor/interior scenes, movement and local geometry/light edits under
       recorded settings. Measure first publication, successful refresh rate, backlog age, lighting
@@ -503,3 +507,70 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       defects from stale fixture assumptions; preserve the intended lighting contracts.
     - Fix the confirmed causes without weakening assertions to conceal incorrect behavior. Use
       subagents to rerun all 19 cases and relevant regression tests, and record results and causes.
+
+  Remaining lighting-consumer failure repairs:
+    Evidence and category mapping: docs/LumOn.SurfaceCache.RemainingFailureCauses.md.
+    These six tasks cover the 26 remaining failures: 15 historical cases plus 11 fixture cases.
+    Keep the original 19-case inventory above, including its four currently passing cases.
+    For each repair, use subagent-run focused tests and a separate implementation review; retain
+    receipt links and preserve numerical, occlusion, validity and lifetime assertions. Do not hide
+    failures through blanket tolerance increases, exclusions or arbitrary timeout increases.
+
+  ☐ Supply real Surface Cache lighting to the nine geometry/material screen-trace fixture cases.
+    - Update SharedTraceSceneScreenTests.SealedRoomUsesSharedHitLighting (five variants) and the
+      four lit-material cases in LumOnNearFieldMaterialReadinessTests to publish and bind outgoing
+      cache lighting through the existing fixture abstractions.
+    - Preserve signed coordinates, coverage sizes, material recapture and unsupported-geometry
+      coverage. Assert resolved darkness separately from unavailable lighting; retain real-cache
+      positive controls and verify both radiance and confidence/classification.
+
+  ☐ Repair the two probe-ring preservation tests for the actual grid and supported overlap.
+    - Replace the all-512-probes-ready prerequisite with an explicitly populated, supported overlap
+      in SurfaceLightingSpatialRuntimeTests.ProbeRingPreservesOverlapWithinStableGeometryCoverage.
+    - Derive ring addressing and atlas tile indices from the actual resolution/layout instead of
+      modulo-two and width-32 constants. Keep solid centers and unrequested neighboring rooms out
+      of readiness requirements without skipping validation of reused/unavailable slots.
+    - Verify surviving populated directions remain unchanged across movement in both gather modes.
+
+  ☐ Correct fresh-lighting and matched-workload synchronization in eight source/restoration cases.
+    - Cover RetainedHistoryFollowsSourceLighting, SourceChangesReachRetainedComposition,
+      DoorwayClosureAndReopeningReachRuntimePixels and SealedNeighborRejectsLocalizedLeakage,
+      each in both gather modes.
+    - Separate direct-only reference comparisons from progressive-bounce/convergence scenarios.
+      Replace one-frame SeedAndPause/SeedAndFreeze assumptions with bounded observation of the
+      intended completed refresh work; usable or captured pages alone do not prove fresh lighting.
+    - Synchronize relevant cache, directional history and composed-output boundaries. Preserve
+      source-off darkness, closure/neighbor occlusion, retained resources and restoration checks;
+      investigate the later assertions exposed by the diagnostic direct-only intervention.
+
+  ☐ Correct bounded dark-reload convergence checks in the two unavailable-geometry cases.
+    - Update UnavailableGeometryDiffersFromValidDarkness in both gather modes to distinguish
+      immediate rejection during unload from temporal convergence after dark geometry reloads.
+    - Preserve zero-confidence unavailable lighting versus confident resident darkness. Observe
+      direct refresh, retained indirect decay and world-probe recovery under an explicit bounded
+      workload; keep the original unload checks and detect stalled progress rather than extending
+      the timeout until the test happens to pass.
+
+  ☐ Fix SH9 confidence-weighted angular projection and the three numerical baseline failures.
+    - Separate directional confidence from spherical integration area in the production projector;
+      establish consistent octahedral angular quadrature/reconstruction and missing-sample behavior.
+    - Require constant-radiance preservation under nonuniform positive confidence, multiple normals
+      and HDR/channel scales. Test unavailable directions separately so missing data cannot become
+      falsely resolved lighting. Keep projection/gather work bounded and avoid per-frame allocations.
+    - Validate ConstantRadianceMatchesBothGatherConventions, RegisteredCompositionRespectsReceiverRegions
+      and DisplayGradingDoesNotEnterSceneLinearLighting in SH9, plus directional controls and focused
+      projector tests. Preserve existing analytic bounds rather than compensating with a global scale.
+
+  ☐ Synchronize world-direction freshness in the two SH9 cache-replacement restoration cases.
+    - After the SH9 projection repair, update CacheReplacementInvalidatesComposedHistory and
+      RecreatedDarkCacheRejectsRetainedFinalLighting (SH9) to establish freshness of contributing
+      world-probe fallback directions before comparing restored images.
+    - Positive final pixels do not prove all directions have refreshed: the diagnostic retained
+      three valid dark fallback directions after the cache became bright. Exercise that transition
+      explicitly and retain dark-replacement rejection, resource lifetime and restoration bounds.
+    - Verify directional controls and investigate any remaining mismatch after producer and consumer
+      freshness is established; do not force world-probe completion by injecting final lighting.
+
+    Completion gate: rerun all six categories, all original 19 cases and the broader throughput
+    regression through subagents; obtain a separate final review and reconcile the linked reports
+    before closing the parent validation tasks. Keep user-run visual acceptance separate.
