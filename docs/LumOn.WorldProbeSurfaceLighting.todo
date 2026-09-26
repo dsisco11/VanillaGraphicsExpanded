@@ -675,13 +675,35 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Measure identical baseline/candidate workloads through subagents and obtain a separate review.
       Use docs/GPU.IntegrationTestPerformance.Analysis.md for the baseline and acceptance contract.
 
+  ☐ Replace unconditional GPU integration-test sleeps with dependency-driven completion waits.
+    - Introduce a test-side frame pump that checks completion after each frame, advances frames
+      for temporal/budget/publication work, and waits only on the external dependency preventing
+      progress. Do not substitute arbitrary delays, busy polling or a full pipeline drain per frame.
+    - Observe CPU result availability through non-consuming, race-safe completion notifications;
+      preserve production ownership of dequeue, collection and publication. Pending flags alone
+      are insufficient. Handle completion before wait registration, cancellation and teardown.
+    - Use bounded GPU fence waits through existing GPU abstractions when GPU completion blocks
+      progress. Keep all GL operations on the context-owning thread, including after CPU waits.
+    - Preserve intentional overlap in delayed-worker, pending-result and stale-publication tests;
+      expose explicit milestones rather than waiting for every outstanding operation to finish.
+    - Retain existing frame limits and add a wall-clock deadline for external waits, with failure
+      diagnostics identifying outstanding dependencies. Never block on work requiring callbacks
+      that the waiting frame pump itself must execute.
+    - Start with the measured cache-replacement cases, then migrate other applicable wait helpers.
+      Keep current readbacks and uniform-buffer synchronization unchanged during this work.
+    - Use subagents for focused tests and repeated matched-workload timings; verify completion
+      races, timeouts, cancellation, delayed overlap and unchanged freshness/numerical assertions.
+      Obtain a separate implementation review and record evidence in
+      docs/GPU.IntegrationTestPerformance.Analysis.md before marking complete.
+
   ☐ Profile remaining setup, simulation and test-boundary costs after the first harness speedups.
     - Separate immutable asset loading, specialization/linking, allocations, input generation,
       callback dispatch and worker waits before choosing further caching or scheduling changes.
       Distinguish first-frame/lazy compute setup from steady rendering inside Cache.Frame.
       Measure waits by pending-work reason: Sleep(1) averaged 10.10 ms in the sampled GPU paths;
       zero counted world-block worker reads does not establish that all asynchronous work is absent.
-    - Evaluate completion-driven settling while preserving required temporal sweeps, freshness,
+    - Coordinate wait-policy changes with the dedicated sleep-replacement task above.
+      Evaluate completion-driven settling while preserving required temporal sweeps, freshness,
       bounded budgets and delayed-worker overlap. Keep explicit end-to-end wiring/lifetime tests.
     - Map every assertion/failure mode before narrowing a test boundary or grouping shader-binding
       cases. Do not enable collection parallelism without isolated GL and engine-global ownership.
