@@ -190,7 +190,7 @@ internal sealed class BaseColorArtifactGenerator
                     return false;
                 }
 
-                return AlbedoAverager.TryComputeAverageLinearRgb(
+                return AlbedoAverager.TryComputeRepresentativeLinearRgb(
                     argbPixels: pixels,
                     width: width,
                     height: height,

@@ -127,6 +127,13 @@ different materials; there are no axis-face overrides or block-rotation properti
 property types and ranges remain unchanged. Representative color is still texture-derived;
 no authored `albedo` or `specular` property is introduced.
 
+Lighting baseColor is estimated in linear RGB using a luminance-trimmed mean: the darkest and
+brightest 5% of accepted samples are removed. Trimming weights whole RGB samples together,
+rather than independently selecting channel medians. Alpha values below 64 are rejected; accepted
+pixels have equal weight. If none pass, the existing fallback uses all sampled pixels. This is a
+representative material color, not an energy-preserving 1x1 mip average. Visible albedo textures
+are unchanged. Cached estimates use a new algorithm version so prior averages are recomputed.
+
 `reflectivity` is NOT stored here for GPU transport; it is computed in the patched base-game shader before writing `gMaterial`.
 
 ### noise

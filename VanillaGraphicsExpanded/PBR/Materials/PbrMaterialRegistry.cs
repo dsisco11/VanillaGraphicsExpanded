@@ -663,7 +663,7 @@ internal sealed class PbrMaterialRegistry
                 return false;
             }
 
-            return AlbedoAverager.TryComputeAverageLinearRgb(
+            return AlbedoAverager.TryComputeRepresentativeLinearRgb(
                 argbPixels: pixels,
                 width: width,
                 height: height,
@@ -857,7 +857,7 @@ internal sealed class PbrMaterialRegistry
                 return false;
             }
 
-            bool ok = AlbedoAverager.TryComputeAverageLinearRgb(
+            bool ok = AlbedoAverager.TryComputeRepresentativeLinearRgb(
                 argbPixels: pixels,
                 width: width,
                 height: height,

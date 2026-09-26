@@ -59,7 +59,7 @@ public sealed class BaseColorCacheKeyAndCodecTests
         // AvgAlgo is part of StablePrefix, so changing it must change the key.
         var inputs2 = new BaseColorCacheKeyInputs(
             SchemaVersion: inputs.SchemaVersion,
-            StablePrefix: inputs.StablePrefix.Replace("avgAlgo=1", "avgAlgo=2", StringComparison.Ordinal));
+            StablePrefix: inputs.StablePrefix.Replace("avgAlgo=2", "avgAlgo=1", StringComparison.Ordinal));
 
         AtlasCacheKey kD = builder.BuildKey(inputs2, texture, originPath: "a", assetBytes: 10);
         Assert.NotEqual(kA, kD);

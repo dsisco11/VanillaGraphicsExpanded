@@ -13,8 +13,8 @@ internal readonly record struct BaseColorCacheKeyInputs(int SchemaVersion, strin
         // Bump whenever the stable prefix contract changes.
         const int SchemaVersion = 1;
 
-        // Bump only when we intentionally change the averaging behavior.
-        const int AvgAlgoVersion = 1;
+        // Version 2: 5% symmetric luminance trimming, exact sRGB LUT, bounded stratified sampling.
+        const int AvgAlgoVersion = 2;
 
         string prefix = string.Format(
             CultureInfo.InvariantCulture,
