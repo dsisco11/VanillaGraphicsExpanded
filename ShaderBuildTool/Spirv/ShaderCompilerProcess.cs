@@ -12,15 +12,23 @@ internal static class ShaderCompilerProcess
     internal const string OptimizationArgument = "-O";
 #endif
 
+    /// <summary>Emits source-level debug information only in Debug builds.</summary>
+#if DEBUG
+    internal static bool GenerateDebugInfo => true;
+#else
+    internal static bool GenerateDebugInfo => false;
+#endif
+
     #region Process execution
-    /// <summary>Runs the pinned shader compiler, preserving names and the existing command-line contract.</summary>
+    /// <summary>Runs the pinned shader compiler with configuration-specific optimization and debug information.</summary>
     public static Task<ShaderCompilerResult> CompileAsync(string workingDirectory, string input, string output,
         string stage, string target, bool warningsAsErrors, string entryPoint, CancellationToken cancellationToken)
     {
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = workingDirectory };
         string[] arguments = ["tool", "run", "dotnet-shaderc", "--", "--shader-stage=" + stage,
-            "--entry-point=" + entryPoint, "--target-env=" + target, OptimizationArgument, "-g", "-x=glsl"];
+            "--entry-point=" + entryPoint, "--target-env=" + target, OptimizationArgument, "-x=glsl"];
         foreach (string argument in arguments) start.ArgumentList.Add(argument);
+        if (GenerateDebugInfo) start.ArgumentList.Add("-g");
         if (warningsAsErrors) start.ArgumentList.Add("-Werror");
         start.ArgumentList.Add("-o");
         start.ArgumentList.Add(output);

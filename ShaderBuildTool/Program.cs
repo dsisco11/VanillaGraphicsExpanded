@@ -216,6 +216,7 @@ internal static class Program
             Console.WriteLine("ShaderBuildTool (VGE)\n");
             Console.WriteLine("Preprocesses VGE GLSL (@import) and compiles all owned shader stages and variants to SPIR-V using dotnet-shaderc (shaderc).\n");
             Console.WriteLine($"Shader optimization: {ShaderCompilerProcess.OptimizationArgument} (Debug: -O0; Release: -O performance).\n");
+            Console.WriteLine($"Shader debug information: {ShaderCompilerProcess.GenerateDebugInfo} (Debug only).\n");
             Console.WriteLine("Required:");
             Console.WriteLine("  --assetsRoot <path>   Path to the mod's assets directory (contains <domain>/shaders/...) ");
             Console.WriteLine("  --outputRoot <path>   Output root for artifacts (e.g. <project>/artifacts/spirv)");

@@ -28,7 +28,8 @@ internal static class ShaderBuildReceipt
             .Concat(Directory.EnumerateFiles(compilerRoot, "*", SearchOption.AllDirectories))
             .Append(toolManifest).Select(Path.GetFullPath).Order(StringComparer.Ordinal);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        hash.AppendData(Encoding.UTF8.GetBytes(target + "|" + warnings + "|" + ShaderCompilerProcess.OptimizationArgument));
+        hash.AppendData(Encoding.UTF8.GetBytes(target + "|" + warnings + "|" + ShaderCompilerProcess.OptimizationArgument
+            + "|debug=" + ShaderCompilerProcess.GenerateDebugInfo));
         foreach (string path in inputs)
         {
             hash.AppendData(Encoding.UTF8.GetBytes(Path.GetFullPath(path)));
