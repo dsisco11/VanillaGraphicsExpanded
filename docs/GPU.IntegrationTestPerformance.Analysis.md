@@ -532,3 +532,27 @@ small isolated measurement, not a whole-suite speedup estimate. No per-frame obs
 removed. Instrumentation was restored byte-for-byte, followed by a passing final Debug build and
 focused run. Evidence: `artifacts/RuntimeWaitObservations-*` logs, scopes, summary, restoration
 hashes and matching TRX files.
+
+## Explicit test uniform-buffer retirement
+
+`TestUniformRing.BeginFrame` now retires previously submitted consumers before resetting its single
+persistently mapped page. It inserts an owning-context `GpuFence`, flushes and waits for completion
+with a ten-second bound, and leaves the page untouched and the current allocator cleared if the
+wait fails. Teardown uses the same retirement boundary before disposing mapped storage. No extra
+pages or readback-based synchronization assumptions were introduced.
+
+Nested setup helpers must not reset the ring: a draw may already have allocated uniforms but not
+yet submitted them, so a fence alone cannot protect it. The seven render-target/texture helpers in
+`RenderTestBase` now ensure an allocator exists while preserving its allocations. Explicit test,
+runtime-frame, geometry-initialization and debug-render boundaries still begin new intervals.
+Production allocator policy, per-frame observations and uniform-buffer capacity are unchanged.
+
+Focused tests submit sixteen distinct compute outputs across explicit frame reset, setup re-entry
+and disposal/reinitialization boundaries without intermediate readbacks. The setup case also writes
+a distinct second allocation after creating a render target, before submitting the first allocation,
+to expose accidental overwrite of pending draw data. Output checks occur after all submissions.
+Subagent validation passed 83 distinct cases: seven focused retirement/ring/fence checks, 70
+affected runtime/helper regressions and six debug-renderer cases, with no skips or failures.
+The Debug build and independent implementation review passed. Evidence: `artifacts/TestUniformRetirement-*`
+build/test logs, filter and matching TRX files. This establishes a synchronization prerequisite;
+no test-runtime speedup is claimed.

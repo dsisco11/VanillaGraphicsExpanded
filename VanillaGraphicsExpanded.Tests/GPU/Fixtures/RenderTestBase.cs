@@ -53,13 +53,15 @@ public abstract class RenderTestBase : IDisposable
     /// Ensures the GL context is valid; throws skip exception if not.
     /// Also drains any leftover GL errors from previous operations.
     /// </summary>
-    protected void EnsureContextValid()
+    /// <param name="beginUniformFrame">False for nested helpers that must preserve pending draw allocations.</param>
+    protected void EnsureContextValid(bool beginUniformFrame = true)
     {
         _fixture.EnsureContextValid();
 
         // Option B: UBO binding uses the per-thread ring allocator.
         // In production this is installed by a renderer; in tests we activate it manually.
-        TestUniformRing.BeginFrame();
+        if (beginUniformFrame) TestUniformRing.BeginFrame();
+        else TestUniformRing.EnsureFrame();
         
         // Drain any leftover GL errors so each test starts clean
         while (GL.GetError() != ErrorCode.NoError) { }
@@ -80,7 +82,7 @@ public abstract class RenderTestBase : IDisposable
     /// <returns>A disposable GBuffer instance that owns its texture.</returns>
     protected GpuFramebuffer CreateRenderTarget(int width, int height, PixelInternalFormat format)
     {
-        EnsureContextValid();
+        EnsureContextValid(beginUniformFrame: false);
         var texture = DynamicTexture2D.Create(width, height, format);
         var gBuffer = GpuFramebuffer.CreateSingle(texture, ownsTextures: true);
         return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
@@ -95,7 +97,7 @@ public abstract class RenderTestBase : IDisposable
     /// <returns>A disposable GBuffer instance that owns its textures.</returns>
     protected GpuFramebuffer CreateMRTRenderTarget(int width, int height, params PixelInternalFormat[] formats)
     {
-        EnsureContextValid();
+        EnsureContextValid(beginUniformFrame: false);
         var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
@@ -159,7 +161,7 @@ public abstract class RenderTestBase : IDisposable
     /// <param name="programId">The shader program to use.</param>
     protected void RenderFullscreenQuad(int programId)
     {
-        EnsureContextValid();
+        EnsureContextValid(beginUniformFrame: false);
         EnsureQuadInitialized();
 
         GL.UseProgram(programId);
@@ -175,7 +177,7 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     protected void RenderFullscreenQuad()
     {
-        EnsureContextValid();
+        EnsureContextValid(beginUniformFrame: false);
         EnsureQuadInitialized();
 
         GL.BindVertexArray(_quadVao);
@@ -194,7 +196,7 @@ public abstract class RenderTestBase : IDisposable
     /// <returns>Array of RGBA float values (4 floats per pixel).</returns>
     protected float[] ReadPixelsFloat(GpuFramebuffer gBuffer)
     {
-        EnsureContextValid();
+        EnsureContextValid(beginUniformFrame: false);
 
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gBuffer.FboId);
         
@@ -213,7 +215,7 @@ public abstract class RenderTestBase : IDisposable
     /// <returns>Array of RGBA byte values (4 bytes per pixel).</returns>
     protected byte[] ReadPixelsByte(GpuFramebuffer gBuffer)
     {
-        EnsureContextValid();
+        EnsureContextValid(beginUniformFrame: false);
 
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gBuffer.FboId);
         
@@ -234,7 +236,7 @@ public abstract class RenderTestBase : IDisposable
     /// <returns>RGBA float values for the pixel.</returns>
     protected (float R, float G, float B, float A) ReadPixel(GpuFramebuffer gBuffer, int x, int y)
     {
-        EnsureContextValid();
+        EnsureContextValid(beginUniformFrame: false);
 
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gBuffer.FboId);
         

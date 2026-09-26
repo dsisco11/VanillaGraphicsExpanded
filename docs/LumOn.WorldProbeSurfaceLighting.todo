@@ -792,11 +792,17 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Instrumentation restored byte-exact and final build passed. Evidence: Required wait
       observations and failure-only diagnostics in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
-  ☐ Establish explicit test uniform-buffer retirement before reducing synchronous observations.
+  ☑ Establish explicit test uniform-buffer retirement before reducing synchronous observations.
     - Cover every TestUniformRing.BeginFrame path, including runtime frames, geometry initialization
       and render-target helper re-entry. Fence submitted work before reusing mapped storage.
     - Preserve context ownership, teardown and bounded completion behavior. More ring pages alone
       do not establish safe retirement; validate multiple submitted frames and repeated reuse.
+    - Added bounded, flushing fence retirement before single-page reset and disposal. Setup helpers
+      preserve prepared allocations rather than starting another interval before draw submission.
+      Runtime, geometry initialization and debug frame boundaries use the common retirement path.
+    - Subagent build and 83 distinct cases passed (7 focused, 70 affected regressions, 6 debug
+      renderer), with no skips. Separate review passed. Per-frame observations remain unchanged.
+      Evidence: Explicit test uniform-buffer retirement in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
   ☐ Reduce duplicate GPU observations while preserving the complete assertion domain.
     - Depends on explicit uniform-buffer retirement above. Measure same-frame observation reuse,
