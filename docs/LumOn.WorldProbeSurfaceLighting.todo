@@ -597,3 +597,20 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     Completion gate: rerun all six categories, all original 19 cases and the broader throughput
     regression through subagents; obtain a separate final review and reconcile the linked reports
     before closing the parent validation tasks. Keep user-run visual acceptance separate.
+
+  ☐ Investigate GPU lighting test runtime and identify safe test-harness speedups.
+    - Establish repeatable timings for the eight source/restoration cases and the 19-case focused
+      regression, separating build time, fixture/shader setup, simulated rendering, GPU readbacks,
+      worker waits and teardown. Record frame counts and completed work alongside elapsed time;
+      distinguish first-run costs from warmed runs and avoid summing overlapping CPU/GPU intervals.
+    - Investigate eager failure-message readbacks on successful assertions, per-frame atlas scans,
+      repeated readiness reads and resource/shader setup. Evaluate reuse or parallel execution only
+      where graphics-context ownership, material isolation and resource-lifetime coverage permit it.
+    - Profile before ranking changes; propose concrete optimizations with measured costs, expected
+      benefit and coverage risks. Preserve numerical bounds, freshness/completion gates, directional
+      coverage, finite-value checks, failure diagnostics and bounded waits; do not skip cases or
+      reduce required lighting work merely to improve timings.
+    - Use subagents for builds and test measurements. Validate any experimental changes against
+      matched workloads and unchanged assertions with repeated baseline/candidate runs and a
+      separate implementation review. Record findings and follow-up implementation tasks in docs;
+      keep this investigation separate from the six failure-repair completion categories above.
