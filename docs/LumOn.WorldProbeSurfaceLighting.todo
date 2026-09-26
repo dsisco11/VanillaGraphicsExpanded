@@ -683,7 +683,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Evidence: docs/GPU.IntegrationTestPerformance.Analysis.md (Within-test program and target
       reuse implementation). No whole-suite speedup or broad correctness-gate completion claimed.
 
-  ☐ Remove runtime GLSL processing and uniform-name scanning from SPIR-V loading.
+  ☑ Remove runtime GLSL processing and uniform-name scanning from SPIR-V loading.
     - Remove eager stage LoadAndApply/source reconstruction and the regex uniform-name scan from
       binary program loading. Audit source/engine Code consumers before removing their inputs.
     - Use the existing compiled binding contracts and active numeric interface as the authority
@@ -695,6 +695,11 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     - Use subagents for focused binding, inactive-uniform, specialization and reload tests; obtain
       a separate implementation review. Measure matched loading workloads and record evidence in
       docs/GPU.IntegrationTestPerformance.Analysis.md without attributing all setup time to GLSL.
+    - Removed the source-stage wrapper and scan; engine uniform entries now use compiled contracts.
+      Independent review passed; subagent build and 378 matched GPU cases plus one new binary-only
+      regression passed. Single-run timing was slower (224.521s to 414.730s), cause unassigned;
+      no performance improvement claimed. Evidence: the report's Contract-only SPIR-V program
+      loading section, including the unexercised geometry-stage limitation.
 
   ☐ Extend the shader compiler to emit build-matched .map files for SPIR-V diagnostics.
     - Generate a versioned .map sidecar for each compiled stage/variant from the exact source

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -71,20 +70,8 @@ public abstract partial class GpuProgram
             layout.ValidateContract(program, LayoutWarn);
             GlDebug.ThrowIfErrors($"{ShaderName}: program {program} active interface and bindings");
 #endif
-            var locations = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (var stage in stages)
-            {
-                string? source = stage.Kind switch
-                {
-                    ShaderStageKind.Vertex => vertexStage.EmittedSource,
-                    ShaderStageKind.Fragment => fragmentStage.EmittedSource,
-                    ShaderStageKind.Geometry => geometryStage.EmittedSource,
-                    _ => null
-                };
-                if (source != null)
-                    foreach (Match match in Regex.Matches(source, @"\buniform\s+\w+\s+(\w+)")) locations[match.Groups[1].Value] = -1;
-            }
-            foreach (var pair in layout.BinaryInterface.Uniforms) locations[pair.Key] = pair.Value;
+            // Contracts include inactive uniforms; source-derived placeholder names are unnecessary.
+            var locations = layout.BinaryInterface.Uniforms;
 
             // Stages unsupported by the engine's slots can be deleted after linking; the executable retains them.
             foreach (var stage in stages.Where(s => s.Kind is ShaderStageKind.TessellationControl or ShaderStageKind.TessellationEvaluation))
@@ -93,15 +80,18 @@ public abstract partial class GpuProgram
                 GL.DeleteShader(stage.Shader);
             }
             stages.RemoveAll(s => s.Kind is ShaderStageKind.TessellationControl or ShaderStageKind.TessellationEvaluation);
+            // Prepare the optional engine slot before committing the candidate generation.
+            var geometry = stages.FirstOrDefault(s => s.Kind == ShaderStageKind.Geometry);
+            var geometrySlot = geometry.Shader == 0 ? null : GeometryShader ??
+                (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(Vintagestory.API.Client.EnumShaderType.GeometryShader);
             int oldProgram = ProgramId;
             int[] oldStages = [VertexShader?.ShaderId ?? 0, FragmentShader?.ShaderId ?? 0, GeometryShader?.ShaderId ?? 0];
             ProgramId = program; program = 0;
             ProgramLayout.InstallCandidate(layout);
             VertexShader!.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Vertex).Shader;
             FragmentShader!.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Fragment).Shader;
-            var geometry = stages.FirstOrDefault(s => s.Kind == ShaderStageKind.Geometry);
-            if (geometry.Shader != 0) GeometryShader!.ShaderId = geometry.Shader;
-            else GeometryShader = null;
+            GeometryShader = geometrySlot;
+            if (geometrySlot != null) geometrySlot.ShaderId = geometry.Shader;
             stages.Clear();
             uniformLocations.Clear();
             foreach (var pair in locations) uniformLocations[pair.Key] = pair.Value;

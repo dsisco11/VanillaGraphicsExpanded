@@ -27,6 +27,8 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
+        // A deployed binary needs no GLSL assets, including during engine-driven reloads.
+        assets.BeforeRead = path => Assert.EndsWith(".spv", path);
         var program = new FixtureProgram(shaderName);
         program.SetDefines(variant.Split(';', StringSplitOptions.RemoveEmptyEntries)
             .Select(setting => setting.Split('=', 2)).ToDictionary(pair => pair[0], pair => (string?)pair[1]));
@@ -61,6 +63,29 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { program.Dispose(); }
+    }
+
+    /// <summary>Populates the engine lookup from the compiled contract, including optimized-out uniforms, without reading source.</summary>
+    [Fact]
+    public void BinaryOnlyReloadPreservesContractUniformDictionary()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        assets.BeforeRead = path => Assert.EndsWith(".spv", path);
+        using var program = new FixtureProgram("lumon_debug");
+        program.Initialize(assets.Api);
+        for (int generation = 0; generation < 2; generation++)
+        {
+            Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+            var expected = program.ResourceBindings.BinaryInterface!.Uniforms;
+            Assert.NotEmpty(expected);
+            Assert.Contains(expected, pair => pair.Value == -1);
+            Assert.Contains(expected, pair => pair.Value >= 0);
+            Assert.Equal(expected.OrderBy(pair => pair.Key), program.EngineUniformLocations.OrderBy(pair => pair.Key));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        Assert.NotEmpty(assets.Reads);
+        Assert.All(assets.Reads, path => Assert.EndsWith(".spv", path));
     }
 
     /// <summary>Uses the actual runtime program path to replace binaries and preserve a working generation on binary load failure.</summary>
@@ -127,6 +152,9 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     /// <summary>Installs engine stage objects while retaining production binary loading and reload behavior.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
+        /// <summary>Exposes the engine lookup to verify inactive contract entries as well as live locations.</summary>
+        public IReadOnlyDictionary<string, int> EngineUniformLocations => uniformLocations;
+
         /// <summary>Selects the reusable fullscreen fixture without requiring the game's shader factory.</summary>
         public FixtureProgram(string name = "tests/render_infrastructure")
         {

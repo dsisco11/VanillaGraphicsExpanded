@@ -6,8 +6,6 @@ using System.Linq;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
-using StageShader = VanillaGraphicsExpanded.Rendering.Shaders.Stages.Shader;
-using VanillaGraphicsExpanded.Rendering.Shaders.Stages;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -23,19 +21,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 ///
 /// Responsibilities:
 /// - Own typed requested/installed settings; <see cref="SetDefine"/> adapts declared names and aliases
-/// - Load built SPIR-V variants; retain source processing for diagnostics
+/// - Load built SPIR-V variants using compiled binding contracts
 /// - Apply a GL debug label to the linked program
 ///
-/// NOTE: When VGE shader programs inline imports themselves, the Harmony import hook should
-/// skip these programs to avoid double-processing (deferred decision).
 /// </summary>
 public abstract partial class GpuProgram : ShaderProgram
 {
     #region Fields
-
-    private readonly StageShader vertexStage;
-    private readonly StageShader fragmentStage;
-    private readonly StageShader geometryStage;
 
     private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
     private int uniformLocationCacheProgramId;
@@ -258,10 +250,6 @@ public abstract partial class GpuProgram : ShaderProgram
     {
         capi = api ?? throw new ArgumentNullException(nameof(api));
         log = logger ?? api.Logger;
-
-        // Stage ownership is kept here, but stage behavior is fully encapsulated.
-        // These delegates are safe because they are only invoked after Initialize() (when capi is set).
-        // Vertex/Fragment/Geometry slots are provided by the engine ShaderProgram base.
 
         // Keep AssetDomain aligned with the import system default unless a derived program explicitly overrides it.
         if (string.IsNullOrWhiteSpace(AssetDomain))
@@ -497,20 +485,7 @@ public abstract partial class GpuProgram : ShaderProgram
             if (plan.Stages.Any(s => s.Stage.Kind == Contracts.ShaderStageKind.Compute))
                 throw new InvalidOperationException("A graphics program cannot load a compute contract.");
 
-            // Diagnostics consume the same captured settings. Binary selection never rereads mutable state.
-            var diagnostics = plan.Settings.Values.ToDictionary(p => p.Key, p => (string?)p.Value.Canonical);
-            foreach (var selection in plan.Stages)
-            {
-                var stage = selection.Stage;
-                StageShader? source = stage.Kind switch
-                {
-                    Contracts.ShaderStageKind.Vertex => vertexStage,
-                    Contracts.ShaderStageKind.Fragment => fragmentStage,
-                    Contracts.ShaderStageKind.Geometry => geometryStage,
-                    _ => null
-                };
-                source?.LoadAndApply(capi, System.IO.Path.ChangeExtension(stage.Source, null), diagnostics, log);
-            }
+            // The captured plan supplies binary selection and bindings without reconstructing GLSL.
             bool ok = CompileSpirv(plan);
             if (ok)
             {
@@ -570,28 +545,4 @@ public abstract partial class GpuProgram : ShaderProgram
 
     #endregion
 
-    #region Construction
-
-    protected GpuProgram()
-    {
-        vertexStage = new StageShader(
-            stageExtension: "vsh",
-            engineShaderType: EnumShaderType.VertexShader,
-            getSlot: () => VertexShader,
-            setSlot: s => VertexShader = (global::Vintagestory.Client.NoObf.Shader)s);
-
-        fragmentStage = new StageShader(
-            stageExtension: "fsh",
-            engineShaderType: EnumShaderType.FragmentShader,
-            getSlot: () => FragmentShader,
-            setSlot: s => FragmentShader = (global::Vintagestory.Client.NoObf.Shader)s);
-
-        geometryStage = new StageShader(
-            stageExtension: "gsh",
-            engineShaderType: EnumShaderType.GeometryShader,
-            getSlot: () => GeometryShader,
-            setSlot: s => GeometryShader = (global::Vintagestory.Client.NoObf.Shader)s);
-    }
-
-    #endregion
 }

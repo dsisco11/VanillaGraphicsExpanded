@@ -401,3 +401,33 @@ Validation passed: **35/35 cases, zero failures or skips** (11 combine, 18 gathe
 The subagent-run build completed with zero errors and five existing analyzer warnings; the focused
 test command took 12.262 seconds. Receipt: `artifacts/TestResults/additional-shader-reuse.trx`.
 This duration is a validation receipt, not a measured speedup.
+
+### Contract-only SPIR-V program loading
+
+Removed eager `StageShader.LoadAndApply` from `GpuProgram.CompileAndLink` and deleted the unused
+stage-source wrapper. The binary loader now installs its engine uniform dictionary directly from
+`GpuProgramInterface.Uniforms`, whose compiled contracts include active numeric locations and
+inactive `-1` entries. No GLSL regex scan or reconstructed source is needed for these bindings.
+
+The consumer audit found no other production readers of the removed wrapper's source/AST fields.
+Vertex and fragment engine slots remain initialized by `Initialize`; optional geometry slots are
+prepared before committing a linked candidate. Specialization/link status checks, raw driver logs,
+interface checks and failed-reload preservation remain intact. Build-generated source maps are a
+separate pending task; runtime binary loading does not reconstruct GLSL for diagnostics.
+
+Independent source review passed. Regression coverage rejects non-SPIR-V asset reads during the
+catalog reload inventory and compares the engine dictionary against active/inactive contract entries
+across reload.
+
+Subagent validation passed: matched baseline and candidate each **378/378, zero skips**, with identical
+test-name/outcome sets; the additional binary-only contract-dictionary regression passed **1/1**.
+The build passed with zero errors and six existing warnings (87.23 seconds). Receipts are
+`artifacts/TestResults/glsl-removal-{baseline,candidate,binary-only}.trx` and corresponding logs.
+
+The single sequential baseline/candidate comparison took **224.521 seconds versus 414.730 seconds**
+(TRX run elapsed, build excluded). This is a materially slower observed candidate run, not evidence
+of a speedup or an isolated cost of GLSL processing. Its cause is unassigned; the candidate build
+regenerated the shader catalog, and this measurement does not isolate driver/cache or environment
+effects. Further controlled profiling remains necessary before drawing a performance conclusion.
+The inventory contains no geometry stages; optional geometry-slot construction was source-reviewed,
+not exercised by this catalog. No live-game acceptance or whole-suite result is claimed.
