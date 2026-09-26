@@ -20,87 +20,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn debug visualization overlay.
 /// Renders probe grid, depth, normals, and other debug views.
 /// </summary>
-[ShaderProgram("CompositeContract", "lumon_debug_composite", 16)]
-[ShaderStage("CompositeContract", ShaderStageKind.Vertex, "lumon_debug_composite.vsh")]
-[ShaderStage("CompositeContract", ShaderStageKind.Fragment, "lumon_debug_composite.fsh")]
-[ShaderAcceptGroup("CompositeContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderAcceptGroup("CompositeContract", typeof(LumOnShaderGroups), "Composite")]
-[ShaderAcceptGroup("CompositeContract", typeof(LumOnShaderGroups), "Ao")]
-[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(EnableAO))]
-[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
-[ShaderUse("CompositeContract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
-[ShaderProgram("DirectContract", "lumon_debug_direct", 2)]
-[ShaderStage("DirectContract", ShaderStageKind.Vertex, "lumon_debug_direct.vsh")]
-[ShaderStage("DirectContract", ShaderStageKind.Fragment, "lumon_debug_direct.fsh")]
-[ShaderAcceptGroup("DirectContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("DirectContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("GbufferContract", "lumon_debug_gbuffer", 2)]
-[ShaderStage("GbufferContract", ShaderStageKind.Vertex, "lumon_debug_gbuffer.vsh")]
-[ShaderStage("GbufferContract", ShaderStageKind.Fragment, "lumon_debug_gbuffer.fsh")]
-[ShaderAcceptGroup("GbufferContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("GbufferContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("IndirectContract", "lumon_debug_indirect", 2)]
-[ShaderStage("IndirectContract", ShaderStageKind.Vertex, "lumon_debug_indirect.vsh")]
-[ShaderStage("IndirectContract", ShaderStageKind.Fragment, "lumon_debug_indirect.fsh")]
-[ShaderAcceptGroup("IndirectContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("IndirectContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("ProbeAnchorsContract", "lumon_debug_probe_anchors", 2)]
-[ShaderStage("ProbeAnchorsContract", ShaderStageKind.Vertex, "lumon_debug_probe_anchors.vsh")]
-[ShaderStage("ProbeAnchorsContract", ShaderStageKind.Fragment, "lumon_debug_probe_anchors.fsh")]
-[ShaderAcceptGroup("ProbeAnchorsContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("ProbeAnchorsContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("ProbeAtlasContract", "lumon_debug_probe_atlas", 2)]
-[ShaderStage("ProbeAtlasContract", ShaderStageKind.Vertex, "lumon_debug_probe_atlas.vsh")]
-[ShaderStage("ProbeAtlasContract", ShaderStageKind.Fragment, "lumon_debug_probe_atlas.fsh")]
-[ShaderAcceptGroup("ProbeAtlasContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("ProbeAtlasContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("ShContract", "lumon_debug_sh", 2)]
-[ShaderStage("ShContract", ShaderStageKind.Vertex, "lumon_debug_sh.vsh")]
-[ShaderStage("ShContract", ShaderStageKind.Fragment, "lumon_debug_sh.fsh")]
-[ShaderAcceptGroup("ShContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("ShContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("TemporalContract", "lumon_debug_temporal", 2)]
-[ShaderStage("TemporalContract", ShaderStageKind.Vertex, "lumon_debug_temporal.vsh")]
-[ShaderStage("TemporalContract", ShaderStageKind.Fragment, "lumon_debug_temporal.fsh")]
-[ShaderAcceptGroup("TemporalContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("TemporalContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("VelocityContract", "lumon_debug_velocity", 2)]
-[ShaderStage("VelocityContract", ShaderStageKind.Vertex, "lumon_debug_velocity.vsh")]
-[ShaderStage("VelocityContract", ShaderStageKind.Fragment, "lumon_debug_velocity.fsh")]
-[ShaderAcceptGroup("VelocityContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderUse("VelocityContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderProgram("WorldprobeContract", "lumon_debug_worldprobe", 4)]
-[ShaderStage("WorldprobeContract", ShaderStageKind.Vertex, "lumon_debug_worldprobe.vsh")]
-[ShaderStage("WorldprobeContract", ShaderStageKind.Fragment, "lumon_debug_worldprobe.fsh")]
-[ShaderAcceptGroup("WorldprobeContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderAcceptGroup("WorldprobeContract", typeof(LumOnShaderGroups), "World")]
-[ShaderAcceptGroup("WorldprobeContract", typeof(LumOnShaderGroups), "WorldGather")]
-[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbeEnabled")]
-[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeDiffuseStride), SpecializationId = 15, When = "WorldProbeEnabled")]
-[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbeEnabled")]
-[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbeEnabled")]
-[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbeEnabled")]
-[ShaderUse("WorldprobeContract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
-[ShaderProgram("DispatcherContract", "lumon_debug", 32)]
-[ShaderStage("DispatcherContract", ShaderStageKind.Vertex, "lumon_debug.vsh")]
-[ShaderStage("DispatcherContract", ShaderStageKind.Fragment, "lumon_debug.fsh")]
-[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "Visibility")]
-[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "Composite")]
-[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "Ao")]
-[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "World")]
-[ShaderAcceptGroup("DispatcherContract", typeof(LumOnShaderGroups), "WorldGather")]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(EnableAO))]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbeEnabled")]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeDiffuseStride), SpecializationId = 15, When = "WorldProbeEnabled")]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbeEnabled")]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbeEnabled")]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbeEnabled")]
-[ShaderUse("DispatcherContract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
 public partial class LumOnDebugShaderProgram : LumOnShaderProgram
 {
     #region Shader options
@@ -118,7 +37,14 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram
     #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => System.Linq.Enumerable.Single(Contracts, contract => contract.Identity == PassName);
+    internal override GpuShaderContract ProgramContract => ContractLookup.Value[PassName];
+
+    /// <summary>Builds the immutable identity index after generated contract initialization completes.</summary>
+    private static class ContractLookup
+    {
+        internal static readonly System.Collections.Immutable.ImmutableDictionary<string, GpuShaderContract> Value =
+            System.Collections.Immutable.ImmutableDictionary.ToImmutableDictionary(Contracts, contract => contract.Identity);
+    }
 
     internal LumOnNearFieldVisibilityBindings NearFieldVisibility => ((LumOnDebugProgramLayout)ProgramLayout).NearFieldVisibility;
 
@@ -132,7 +58,7 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram
 
     public static void Register(ICoreClientAPI api)
     {
-        // Declare all category entrypoints and the legacy fallback without linking unused views.
+        // Declare each fullscreen view independently without linking unused views.
         LumOnDebugShaderProgramFamily.Register(api);
     }
 

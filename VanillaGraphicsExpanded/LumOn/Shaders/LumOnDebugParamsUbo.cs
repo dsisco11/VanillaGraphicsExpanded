@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 
 /// <summary>
 /// CPU-side wrapper for VgeLumOnDebugParamsUBO (binding 14, 128 bytes std140).
-/// Used by lumon_debug.fsh for debug visualization parameters.
+/// Shared visualization parameters for independently compiled debug views.
 /// </summary>
 public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
 {

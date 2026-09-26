@@ -72,7 +72,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
         assets.BeforeRead = path => Assert.EndsWith(".spv", path);
-        using var program = new FixtureProgram("lumon_debug");
+        using var program = new FixtureProgram("lumon_debug_view_direct_total");
         program.Initialize(assets.Api);
         for (int generation = 0; generation < 2; generation++)
         {

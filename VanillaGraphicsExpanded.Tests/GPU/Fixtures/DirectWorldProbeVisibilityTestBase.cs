@@ -34,7 +34,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
     {
         bool debug = consumer >= 0;
         bool sh9 = consumer == -2;
-        string shader = debug ? "lumon_debug_worldprobe" : sh9 ? "lumon_probe_sh9_gather" : "lumon_probe_atlas_gather";
+        string shader = debug ? LumOnDebugShaderProgramFamily.GetProgramName((LumOnDebugMode)consumer) : sh9 ? "lumon_probe_sh9_gather" : "lumon_probe_atlas_gather";
         var defines = new Dictionary<string, string?>
         {
             ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "1",
@@ -49,7 +49,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         if (!visibilityPrograms.TryGetValue(key, out var program))
         {
             program = debug
-                ? Programs.Create<LumOnDebugShaderProgram>(settings: defines, identity: LumOnDebugShaderProgram.WorldprobeContract.Identity)
+                ? Programs.Create<LumOnDebugShaderProgram>(settings: defines, identity: shader)
                 : sh9 ? Programs.Create<LumOnProbeSh9GatherShaderProgram>(settings: defines)
                 : Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>(settings: defines);
             visibilityPrograms.Add(key, program);

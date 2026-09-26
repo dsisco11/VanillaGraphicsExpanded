@@ -896,6 +896,17 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       activation. Final Release 53/53 passed; earlier Debug integration 15/15 passed. Independent
       review passed. No new startup speedup or in-game acceptance is claimed.
 
+  ☑ Split fullscreen debug programs into independently compiled per-view shaders.
+    - Give every fullscreen mode its own contract and fragment entrypoint, retain shared helper
+      code, and remove universal/category runtime dispatch and universal fallback loading.
+    - Preserve binding layouts, required settings and special non-fullscreen renderer paths.
+    - Compile the inventory and run focused GPU tests for outputs, independent selection/reuse,
+      failed selection and exhaustive mode mapping. Evidence: docs/GPU.DebugViewShaders.md.
+    - Complete: 68 independent fullscreen entrypoints, 14 shared helpers and no universal fallback.
+      All 386 compiled variants, 68 default links and 11 world-enabled views validated. Broad run
+      621/623; both migrated fixture failures corrected and covered by the final 144/144 consumer run.
+      No outstanding selected-test failures; in-game visual acceptance remains unmeasured.
+
   ☐ Apply intended runtime shader settings before the initial link.
     - Audit startup and recreation paths for default generations immediately replaced by configuration
       or renderer requirements. Start with DirectVisibility=false being changed to true by gather

@@ -12,7 +12,7 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>Declares debug settings eagerly and prepares executables only when a view selects them.</summary>
-internal static class LumOnDebugShaderProgramFamily
+internal static partial class LumOnDebugShaderProgramFamily
 {
     private static readonly object Sync = new();
     private static readonly Dictionary<string, LumOnDebugShaderProgram> Entries = new(StringComparer.Ordinal);

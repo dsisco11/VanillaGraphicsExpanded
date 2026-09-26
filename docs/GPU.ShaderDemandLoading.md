@@ -1,5 +1,9 @@
 # Shader declaration and preparation
 
+Fullscreen debug programs are now independently compiled per view; see
+[Per-view debug shaders](GPU.DebugViewShaders.md). Earlier debug-category and legacy-fallback
+validation below records the preceding implementation.
+
 All production graphics registration now declares owners without loading shader binaries or linking
 executables. `GpuShaderPrograms` owns declarations independently of the engine's registry. Consumers
 look up declarations there, so a missing shader never triggers the engine's GLSL loading path.

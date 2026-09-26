@@ -1,5 +1,5 @@
 // Shared uniforms/samplers for LumOn debug shaders.
-// Imported by the monolithic lumon_debug and by per-program-kind entrypoints.
+// Shared binding schema for independently compiled per-view entrypoints.
 
 #ifndef LUMON_DEBUG_UNIFORMS_GLSL
 #define LUMON_DEBUG_UNIFORMS_GLSL
@@ -67,7 +67,7 @@ uniform usampler2D vge_lumonSceneSurfaceLut;           // RGBA32UI (rgb albedo 0
 // Matrices for reprojection
 // (invViewMatrix and prevViewProjMatrix are provided via LumOnFrameUBO)
 
-// Debug mode (still used to select a view inside a program-kind entrypoint)
+// View identity is selected by the host; no runtime mode dispatcher is compiled.
 
 // Gather atlas selection: 0=trace, 1=current, 2=filtered
 

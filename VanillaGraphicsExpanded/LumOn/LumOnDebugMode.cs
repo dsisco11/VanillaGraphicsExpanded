@@ -3,7 +3,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Debug visualization modes for the LumOn debug overlay.
 /// 
-/// Most values map directly to the shader's <c>debugMode</c> switch in <c>lumon_debug.fsh</c>.
+/// Fullscreen values map to independently compiled per-view shader entrypoints.
 /// Some modes are VGE-only and are special-cased by the C# debug renderer.
 /// </summary>
 public enum LumOnDebugMode
@@ -57,7 +57,7 @@ public enum LumOnDebugMode
     // Pseudo material-id visualization (hash of gBufferMaterial)
     MaterialBands = 29,
 
-    // VGE-only debug views (special-cased by C# debug renderer; not driven by lumon_debug.fsh)
+    // VGE-only debug views (special-cased by C# debug renderer; not fullscreen shader views)
     VgeNormalDepthAtlas = 30,
 
     // World-probe clipmap debug views.

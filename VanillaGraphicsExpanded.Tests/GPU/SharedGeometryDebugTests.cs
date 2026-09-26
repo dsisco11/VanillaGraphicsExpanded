@@ -82,8 +82,7 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
         var program = Programs.Create<LumOnDebugShaderProgram>(shader =>
         {
             shader.DirectVisibility = true;
-            shader.WorldProbeEnabled = false;
-        }, identity: LumOnDebugShaderProgram.DispatcherContract.Identity);
+        }, identity: LumOnDebugShaderProgramFamily.GetProgramName((LumOnDebugMode)mode));
         using var use = program.UseScope();
         {
             // Surface queries land at y=32.5 after the frame bridge; rays face -Z from that same camera.

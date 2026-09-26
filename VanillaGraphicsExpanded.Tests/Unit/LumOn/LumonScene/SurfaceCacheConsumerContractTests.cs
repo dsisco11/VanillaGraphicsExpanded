@@ -13,7 +13,7 @@ public sealed class SurfaceCacheConsumerContractTests
     [Fact]
     public void DebugShaderDeclaresSurfaceCacheInputs()
     {
-        GpuBindingContract debug = GpuShaderContracts.Create("lumon_debug");
+        GpuBindingContract debug = GpuShaderContracts.Create("lumon_debug_view_lumon_scene_irradiance");
 
         Assert.Contains(PageTable, debug.Samplers.Keys);
         Assert.Contains(IrradianceAtlas, debug.Samplers.Keys);

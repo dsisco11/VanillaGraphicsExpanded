@@ -17,8 +17,8 @@ public sealed class ShaderContractOwnershipTests
     {
         var trace = new LumOnScreenProbeAtlasTraceShaderProgram();
         Assert.Same(LumOnScreenProbeAtlasTraceShaderProgram.Contract, trace.ProgramContract);
-        var debug = new LumOnDebugShaderProgram { PassName = LumOnDebugShaderProgram.WorldprobeContract.Identity };
-        Assert.Same(LumOnDebugShaderProgram.WorldprobeContract, debug.ProgramContract);
+        var debug = new LumOnDebugShaderProgram { PassName = LumOnDebugShaderProgram.WorldProbeIrradianceCombinedContract.Identity };
+        Assert.Same(LumOnDebugShaderProgram.WorldProbeIrradianceCombinedContract, debug.ProgramContract);
         var bake = new PbrHeightBakeShaderProgram(PbrHeightBakeShaderProgram.CopyContract.Identity, "vanillagraphicsexpanded");
         Assert.Same(PbrHeightBakeShaderProgram.CopyContract, bake.ProgramContract);
     }
@@ -49,7 +49,7 @@ public sealed class ShaderContractOwnershipTests
     {
         Assert.Same(LumOnScreenProbeAtlasTraceShaderProgram.Contract.Stages[1], TraceProbeAnchorShaderProgram.Contract.Stages[1]);
         Assert.Same(PBRDirectLightingShaderProgram.Contract.Stages[1], PbrDirectFullscreenShaderProgram.Contract.Stages[1]);
-        Assert.Same(LumOnDebugShaderProgram.WorldprobeContract.Stages[1], WorldProbeDebugShaderProgram.Contract.Stages[1]);
+        Assert.Same(LumOnDebugShaderProgram.WorldProbeIrradianceCombinedContract.Stages[1], WorldProbeDebugShaderProgram.Contract.Stages[1]);
         Assert.Equal("lumon_probe_anchor.vsh", TraceProbeAnchorShaderProgram.Contract.Stages[0].Source);
     }
 

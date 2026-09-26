@@ -124,7 +124,7 @@ public class ShaderDefineInjectionTests
             ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = enabledValue == "1" ? "4.0" : "0.0",
         };
 
-        var result = helper.CompileAndLink("lumon_debug_worldprobe.vsh", "lumon_debug_worldprobe.fsh", defines);
+        var result = helper.CompileProgram("lumon_debug_view_world_probe_irradiance_combined", defines);
         Assert.True(result.IsSuccess, result.ErrorMessage);
     }
 
@@ -138,26 +138,26 @@ public class ShaderDefineInjectionTests
         Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
         Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
 
-        string filename = "lumon_debug_worldprobe.fsh";
+        string filename = "lumon_debug_view_world_probe_irradiance_combined.fsh";
         string filePath = Path.Combine(shaderPath, filename);
         Assert.SkipWhen(!File.Exists(filePath), $"Shader file not found: {filePath}");
 
         string rawSource = File.ReadAllText(filePath);
 
         var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.glsl", SearchOption.TopDirectoryOnly))
+        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.glsl", SearchOption.AllDirectories))
         {
-            string fileName = Path.GetFileName(includeFilePath);
+            string fileName = Path.GetRelativePath(includePath, includeFilePath).Replace('\\', '/');
             sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
         }
-        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.fsh", SearchOption.TopDirectoryOnly))
+        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.fsh", SearchOption.AllDirectories))
         {
-            string fileName = Path.GetFileName(includeFilePath);
+            string fileName = Path.GetRelativePath(includePath, includeFilePath).Replace('\\', '/');
             sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
         }
-        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.vsh", SearchOption.TopDirectoryOnly))
+        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.vsh", SearchOption.AllDirectories))
         {
-            string fileName = Path.GetFileName(includeFilePath);
+            string fileName = Path.GetRelativePath(includePath, includeFilePath).Replace('\\', '/');
             sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
         }
 
@@ -204,7 +204,7 @@ public class ShaderDefineInjectionTests
         }
 
         var code = ShaderSourceCode.FromSource(
-            shaderName: "lumon_debug_worldprobe",
+            shaderName: "lumon_debug_view_world_probe_irradiance_combined",
             stageExtension: "fsh",
             rawSource: rawSource,
             sourceName: filename,

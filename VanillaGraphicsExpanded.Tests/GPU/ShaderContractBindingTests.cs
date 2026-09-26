@@ -19,22 +19,27 @@ public sealed class ShaderContractBindingTests : RenderTestBase
     [Theory]
     [InlineData("lumon_combine")]
     [InlineData("lumon_probe_atlas_trace")]
-    [InlineData("lumon_debug_worldprobe")]
+    [InlineData("lumon_debug_view_world_probe_irradiance_combined")]
     [InlineData("lumon_probe_anchor")]
     [InlineData("lumon_probe_atlas_temporal")]
     [InlineData("lumon_probe_atlas_filter")]
     [InlineData("lumon_probe_atlas_gather")]
     [InlineData("lumon_probe_sh9_gather")]
     [InlineData("lumon_upsample")]
-    [InlineData("lumon_debug")]
+    [InlineData("lumon_debug_view_direct_total")]
     public void GraphicsBindingsAreCompiledFromSharedContract(string name)
     {
         EnsureContextValid();
         int vertex = 0, fragment = 0, program = 0;
         try
         {
-            vertex = BuiltShaderFixture.Load(name + ".vsh", ShaderType.VertexShader);
-            fragment = BuiltShaderFixture.Load(name + ".fsh", ShaderType.FragmentShader);
+            vertex = BuiltShaderFixture.Load(name.StartsWith("lumon_debug_view_", StringComparison.Ordinal) ? "lumon_debug.vsh" : name + ".vsh", ShaderType.VertexShader);
+            // World-disabled views intentionally omit the world samplers. Exercise their enabled interface.
+            Dictionary<string, string?>? defines = name == "lumon_debug_view_world_probe_irradiance_combined"
+                ? new() { ["VGE_LUMON_WORLDPROBE_ENABLED"] = "1", ["VGE_LUMON_WORLDPROBE_LEVELS"] = "1",
+                    ["VGE_LUMON_WORLDPROBE_RESOLUTION"] = "8", ["VGE_LUMON_WORLDPROBE_BASE_SPACING"] = "16" }
+                : null;
+            fragment = BuiltShaderFixture.Load(name + ".fsh", ShaderType.FragmentShader, defines);
             program = GL.CreateProgram();
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment);
             TestShaderInterfaces.LinkProgram(program);

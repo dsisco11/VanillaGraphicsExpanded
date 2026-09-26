@@ -33,7 +33,7 @@ public sealed class LumOnTemporalDebugShaderTests : RenderTestBase
             mat4 getViewMatrix() { return mat4(1); }
             """;
         string source = declarations + "\n" + File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
-            "assets", "shaders", "includes", "lumon_debug_temporal.glsl")) +
+            "assets", "shaders", "includes", "debug", "reproject_to_history.glsl")) +
             "\nvoid main(){result=reprojectToHistory(vec3(.25,-.125,-2));}";
         int shader = GL.CreateShader(ShaderType.ComputeShader), program = GL.CreateProgram(), output = GL.GenBuffer();
         try

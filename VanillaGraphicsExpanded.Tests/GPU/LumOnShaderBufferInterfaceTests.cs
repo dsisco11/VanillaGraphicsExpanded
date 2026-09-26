@@ -132,7 +132,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         1 => programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>(shader => { shader.WorldProbeEnabled = true; shader.DirectVisibility = true; }),
         2 => programs.Create<LumOnProbeSh9GatherShaderProgram>(shader => { shader.WorldProbeEnabled = true; shader.DirectVisibility = true; }),
         3 => programs.Create<LumOnDebugShaderProgram>(shader => { shader.WorldProbeEnabled = true; shader.DirectVisibility = true; },
-            identity: LumOnDebugShaderProgram.WorldprobeContract.Identity),
+            identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.WorldProbeIrradianceCombined)),
         _ => throw new ArgumentOutOfRangeException(nameof(consumer))
     };
 

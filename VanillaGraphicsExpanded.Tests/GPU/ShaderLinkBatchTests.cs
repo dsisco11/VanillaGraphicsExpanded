@@ -156,7 +156,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         EnsureContextValid();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
-        using var program = new FixtureProgram("lumon_debug_direct");
+        using var program = new FixtureProgram("lumon_debug_view_direct_diffuse");
         program.Initialize(assets.Api);
         Assert.True(program.CompileAndLink());
         int installed = program.ProgramId;

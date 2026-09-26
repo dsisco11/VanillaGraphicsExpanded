@@ -8,13 +8,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 internal static class BuiltShaderFixture
 {
     #region Loading
-    /// <summary>Loads a declared stage's default selection and retains its numeric interface.</summary>
-    public static int Load(string identity, ShaderType type)
+    /// <summary>Loads a declared stage's requested selection and retains its numeric interface.</summary>
+    public static int Load(string identity, ShaderType type, IReadOnlyDictionary<string, string?>? defines = null)
     {
         var stage = GpuShaderContracts.Registry.FindStage(identity);
         if (SpirvStageLoader.ToShaderType(stage.Kind) != type) throw new ArgumentException("Stage kind mismatch: " + identity);
         var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
-        var selected = new ShaderLoadPlan(new ShaderSettings(owner)).Stages.Single(s => s.Stage.Identity == identity);
+        var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
         var loaded = SpirvStageLoader.Load(selected,
             path => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path)));
         TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);

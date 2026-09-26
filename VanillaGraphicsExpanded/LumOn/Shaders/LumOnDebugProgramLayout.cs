@@ -16,7 +16,7 @@ internal sealed class LumOnDebugProgramLayout : GpuProgramLayout
 
     public LumOnDebugProgramLayout()
     {
-        RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_debug"));
+        RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.DeclareBindings("lumon_debug"));
         NearFieldVisibility = new LumOnNearFieldVisibilityBindings(this);
 
     }

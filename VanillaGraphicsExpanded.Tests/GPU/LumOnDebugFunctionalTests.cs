@@ -56,7 +56,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Compiles and links the debug visualization shader.
     /// </summary>
-    private LumOnDebugShaderProgram CompileDebugShader() => Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.DispatcherContract.Identity);
+    private LumOnDebugShaderProgram CompileDebugShader(LumOnDebugMode mode) => Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(mode));
 
     /// <summary>
     /// Sets up common uniforms for the debug shader.
@@ -245,87 +245,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
     #endregion
 
-    #region Test: UnknownMode_RendersMagenta
-
-    /// <summary>
-    /// Tests that unknown debug modes render magenta (error color).
-    ///
-    /// DESIRED BEHAVIOR:
-    /// - Invalid debugMode values should output magenta (1,0,1)
-    /// - This helps identify misconfiguration
-    ///
-    /// Setup:
-    /// - debugMode = 99 (invalid)
-    ///
-    /// Expected:
-    /// - All pixels = magenta (1, 0, 1)
-    /// </summary>
-    [Fact]
-    public void UnknownMode_RendersMagenta()
-    {
-        EnsureShaderTestAvailable();
-
-        const float probeWorldZ = -5f;
-
-        // Create minimal input textures
-        var depthData = CreateDepthBuffer(0.5f);
-        var normalData = CreateNormalBuffer(0f, 0f, -1f);
-        var anchorPosData = CreateProbeAnchors(probeWorldZ);
-        var anchorNormalData = CreateProbeNormals(0f, 0f, -1f);
-        var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
-        var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
-
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
-
-        using var outputGBuffer = TestFramework.CreateTestGBuffer(
-            ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
-
-        var programId = CompileDebugShader();
-
-        using var programUse = programId.UseScope();
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-        SetupDebugUniforms(programId, debugMode: 99, identity, identity, identity);
-
-        programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
-        programId.RadianceTexture0 = radiance0Tex;
-        programId.RadianceTexture1 = radiance1Tex;
-        programId.IndirectHalf = indirectHalfTex;
-        programId.HistoryMeta = historyMetaTex;
-
-        TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // All pixels should be magenta
-        int magentaCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (ColorApprox((r, g, b), 1f, 0f, 1f))
-                {
-                    magentaCount++;
-                }
-            }
-        }
-
-        Assert.True(magentaCount == ScreenWidth * ScreenHeight,
-            $"Expected all {ScreenWidth * ScreenHeight} pixels to be magenta, got {magentaCount}");
-    }
-
-    #endregion
-
     #region Test: Mode1_ProbeGrid_ShowsValidityColors
 
     /// <summary>
@@ -369,7 +288,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_PROBE_GRID);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -457,7 +376,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_SCENE_DEPTH);
 
         using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
@@ -550,7 +469,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_RADIANCE_OVERLAY);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -620,7 +539,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_SCENE_DEPTH);
 
         using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
@@ -701,7 +620,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_SCENE_NORMAL);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -770,7 +689,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_SH_COEFFICIENTS);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -846,7 +765,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_PROBE_DEPTH);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -926,7 +845,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_PROBE_NORMAL);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -1000,7 +919,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_TEMPORAL_WEIGHT);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -1074,7 +993,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_TEMPORAL_REJECTION);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -1148,7 +1067,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             ScreenWidth, ScreenHeight,
             PixelInternalFormat.Rgba16f);
 
-        var programId = CompileDebugShader();
+        var programId = CompileDebugShader(MODE_INTERPOLATION_WEIGHTS);
 
         using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();

@@ -30,7 +30,7 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
     public void TraceOutcomeDebug_MapsRecordedOutcome(uint outcome, float red, float green, float blue)
     {
         EnsureShaderTestAvailable();
-        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.ProbeAtlasContract.Identity);
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.ProbeAtlasTraceOutcome));
         using var use = program.UseScope();
         {
             uint flags = (outcome << 16) | (1u << 8) | (1u << 14) | 3u;

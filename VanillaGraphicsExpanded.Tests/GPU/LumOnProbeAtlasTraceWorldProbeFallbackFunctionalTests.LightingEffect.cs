@@ -15,7 +15,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
     private void AssertGatherLightingEffect(GpuTexture normalTexture, GpuTexture suppressedTexture, GpuFramebuffer output,
         float[] normal, float[] suppressed, bool expectLighting)
     {
-        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.WorldprobeContract.Identity);
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.WorldProbeLightingEffect));
         using var use = program.UseScope();
         {
             // Borrow simultaneous gather outputs directly; no upload copies or duplicate lighting managers.

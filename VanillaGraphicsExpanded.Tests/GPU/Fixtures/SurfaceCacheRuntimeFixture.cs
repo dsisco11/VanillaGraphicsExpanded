@@ -20,7 +20,6 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     private readonly ScopedPbrMaterialFixture material = new();
     private readonly ShaderTestFramework drawing = new();
     private readonly WorldPartitionModSystem partitions = new();
-    private readonly LumOnDebugShaderProgram? shader;
     private readonly LumOnDebugRenderer? debug;
     private LumonSceneRelightUpdateRenderer relight = null!;
     private readonly DebugViewController? controller;
@@ -142,19 +141,16 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
         framebuffers[(int)EnumFrameBuffer.Primary] = Terrain.Primary;
         var render = RuntimeEngineServices.Render(edge,framebuffers,() => spatial?.View() ?? identity,() => identity,() => Draw());
-        LumOnDebugShaderProgram? selected = null;
         var shaders = new Mock<IShaderAPI>(MockBehavior.Strict);
-        shaders.Setup(service => service.GetProgramByName(It.IsAny<string>())).Returns(() => selected!);
+        shaders.Setup(service => service.NewShader(It.IsAny<EnumShaderType>())).Returns(() => new Vintagestory.Client.NoObf.Shader());
+        shaders.Setup(service => service.RegisterMemoryShaderProgram(It.IsAny<string>(), It.IsAny<IShaderProgram>())).Returns(1);
         var api = RuntimeEngineServices.Client(assets.Api,Events.Api,world.Object,render,shaders.Object);
         Api = api;
         partitions.StartClientSide(api);
         Buffers = new(api);
         Assert.True(Buffers.EnsureBuffers(edge, edge));
         if (productionOwned) return;
-        shader = new() { PassName = "lumon_debug_gbuffer", VertexShader = new Vintagestory.Client.NoObf.Shader(), FragmentShader = new Vintagestory.Client.NoObf.Shader() };
-        shader.Initialize(api);
-        Assert.True(shader.CompileAndLink(), string.Join('\n', Logs));
-        selected = shader;
+        LumOnDebugShaderProgramFamily.Register(api);
         Geometry = new(api, Config, partitions, CreateSource, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
         Feedback.SetTraceGeometryRenderer(Geometry);
@@ -328,7 +324,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     }
 
     /// <summary>Implements the engine mesh draw using a real fullscreen GPU triangle.</summary>
-    private void Draw() { Draws++; drawing.RenderQuad(shader!.ProgramId); }
+    private void Draw() { Draws++; drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); }
     #endregion
 
     #region Teardown
@@ -338,7 +334,12 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         controller?.Dispose(); debug?.Dispose();
         if (!productionOwned) { relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); }
         partitions.Dispose();
-        shader?.Dispose(); Buffers.Dispose(); Terrain.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
+        if (!productionOwned)
+        {
+            LumOnDebugShaderProgramFamily.Dispose(Api);
+            VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Dispose(Api);
+        }
+        Buffers.Dispose(); Terrain.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
     }
 
     #endregion

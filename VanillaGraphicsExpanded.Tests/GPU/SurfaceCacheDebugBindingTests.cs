@@ -23,7 +23,7 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     public void SurfaceCacheSettersBindArrayTextures(int resource, int unit, PixelInternalFormat format)
     {
         EnsureContextValid();
-        var program = Programs.Create<LumOnDebugShaderProgram>(identity: "lumon_debug_gbuffer");
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(resource == 2 ? LumOnDebugMode.LumonSceneMaterial : LumOnDebugMode.LumonSceneIrradiance));
         using var active = program.UseScope();
         using var texture = Texture3D.Create(2, 2, 2, format, textureTarget: TextureTarget.Texture2DArray);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -56,7 +56,7 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     public void IrradianceViewDrawsKnownArrayLighting()
     {
         EnsureShaderTestAvailable();
-        var program = Programs.Create<LumOnDebugShaderProgram>(identity: "lumon_debug_gbuffer");
+        var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.LumonSceneIrradiance));
         using var active = program.UseScope();
 
         {

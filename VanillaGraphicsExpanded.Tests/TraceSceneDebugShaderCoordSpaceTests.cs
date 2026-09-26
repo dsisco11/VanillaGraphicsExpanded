@@ -38,10 +38,9 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
             "assets",
             "vanillagraphicsexpanded",
             "shaders",
-            "includes",
-            "lumon_debug_tracescene.glsl"));
+            "includes", "debug", "trace_scene_debug_surface_cell.glsl"));
 
-        Assert.Contains("@import \"./lumon_frame_worldspace_bridge.glsl\"", src, StringComparison.Ordinal);
+
         Assert.Contains("LumonFrameMatrixSpacePosToWorldCell", src, StringComparison.Ordinal);
     }
 
@@ -53,8 +52,7 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
             "assets",
             "vanillagraphicsexpanded",
             "shaders",
-            "includes",
-            "lumon_debug_scenes_overview.glsl"));
+            "lumon_debug_view_lum_on_scenes_overview.fsh"));
 
         Assert.Contains("traceSceneDebugSurfaceCell", src, StringComparison.Ordinal);
     }

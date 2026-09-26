@@ -59,11 +59,11 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     /// Compiles and links the LumOn debug shader.
     /// Used for Phase 15 composite debug views (moved out of lumon_combine).
     /// </summary>
-    private LumOnDebugShaderProgram CompileDebugShader(
+    private LumOnDebugShaderProgram CompileDebugShader(LumOnDebugMode mode = LumOnDebugMode.CompositeIndirectDiffuse,
         int enablePbrComposite = 1,
         int enableAO = 0,
         int enableShortRangeAo = 0) =>
-        Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgram.DispatcherContract.Identity, settings: new Dictionary<string, string?>
+        Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(mode), settings: new Dictionary<string, string?>
             {
                 ["VGE_LUMON_PBR_COMPOSITE"] = enablePbrComposite.ToString(),
                 ["VGE_LUMON_ENABLE_AO"] = enableAO.ToString(),
@@ -207,7 +207,9 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var diffuseOut = outputGBuffer[0].ReadPixels();
 
-        // Specular debug view
+        // Specular debug view uses a separate executable with the same explicit texture bindings.
+        programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
+        using var specularUse = programId.UseScope();
         SetupDebugCompositeUniforms(programId,
             debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
             indirectIntensity: 1.0f,
@@ -298,6 +300,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var diffuseOut = outputGBuffer[0].ReadPixels();
 
+        programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
+        using var specularUse = programId.UseScope();
         SetupDebugCompositeUniforms(programId,
             debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
             indirectIntensity: 1.0f,

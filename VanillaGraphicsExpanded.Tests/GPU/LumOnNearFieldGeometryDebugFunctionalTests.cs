@@ -20,7 +20,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
 {
     #region Scenario resources
     // The base fixture owns disposal; each test keeps its own variants and cleared output target.
-    private readonly Dictionary<bool, LumOnDebugShaderProgram> geometryPrograms = new();
+    private LumOnDebugShaderProgram? geometryProgram;
     private GpuFramebuffer? geometryOutput;
     #endregion
 
@@ -137,14 +137,14 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         Assert.True(sawPublicationBoundary, "The viewer did not expose the 16-block publication grid.");
     }
 
-    /// <summary>The monolithic debug shader dispatches mode seventy identically to the dedicated family shader.</summary>
+    /// <summary>The fixed geometry executable ignores the retired runtime mode selector.</summary>
     [Fact]
-    public void GeometryView_MonolithicEntrypointMatchesDedicatedShader()
+    public void GeometryView_IgnoresLegacyRuntimeSelector()
     {
         EnsureShaderTestAvailable();
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(Plane(0));
-        Assert.Equal(RenderGeometry(fixture.Scene), RenderGeometry(fixture.Scene, monolithic: true));
+        Assert.Equal(RenderGeometry(fixture.Scene), RenderGeometry(fixture.Scene, legacySelector: 22));
     }
     #endregion
 
@@ -160,15 +160,16 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
     }
 
     /// <summary>Renders only production geometry/readiness inputs with a narrow camera frustum and precise world origin.</summary>
-    private float[] RenderGeometry(ControlledTraceGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, bool monolithic = false)
+    private float[] RenderGeometry(ControlledTraceGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, int legacySelector = 70)
     {
-        if (!geometryPrograms.TryGetValue(monolithic, out var program))
+        var program = geometryProgram;
+        if (program is null)
         {
             program = Programs.Create<LumOnDebugShaderProgram>(shader =>
             {
-                shader.DirectVisibility = true; shader.WorldProbeEnabled = false;
-            }, identity: monolithic ? LumOnDebugShaderProgram.DispatcherContract.Identity : LumOnDebugShaderProgram.WorldprobeContract.Identity);
-            geometryPrograms.Add(monolithic, program);
+                shader.DirectVisibility = true;
+            }, identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.NearFieldGeometry));
+            geometryProgram = program;
         }
         using var use = program.UseScope();
         {
@@ -181,7 +182,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             var bridge = LumOnFrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverseProjection, invViewMatrix: inverseView,
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
-            program.DebugMode = 70;
+            program.DebugMode = legacySelector;
             program.NearFieldVisibility.Bind(program, scene?.Backend);
             var output = geometryOutput ??= TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
             // RenderQuadTo clears every attachment before drawing, so reuse cannot retain old pixels.

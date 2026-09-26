@@ -749,7 +749,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             lastMode = mode;
         }
 
-        // VGE-only debug views that do not rely on lumon_debug.fsh.
+        // VGE-only debug views with dedicated non-fullscreen render paths.
         if (mode == LumOnDebugMode.VgeNormalDepthAtlas)
         {
             RenderVgeNormalDepthAtlas();
@@ -777,8 +777,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         var programKind = GetCategoryForDebugMode(mode);
         // Resolve declarations through our family; engine lookup of an unused name would try loading GLSL.
-        if (!LumOnDebugShaderProgramFamily.TryGet(GetShaderProgramName(programKind), out var shader) &&
-            !LumOnDebugShaderProgramFamily.TryGet("lumon_debug", out shader)) return;
+        if (!LumOnDebugShaderProgramFamily.TryGet(mode, out var shader)) return;
         bool usesNearFieldVisibility = programKind == LumOnDebugShaderProgramKind.WorldProbe ||
             mode is >= LumOnDebugMode.TraceSceneBoundsL0 and <= LumOnDebugMode.LumOnScenesOverview or LumOnDebugMode.TraceSceneDdaDistanceL0;
         var nearFieldVisibilityScene = usesNearFieldVisibility
@@ -877,24 +876,16 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             levels: wpLevels,
             resolution: wpResolution,
             activeProgram: shader);
-        // Prepare the selected member with complete settings. The legacy dispatcher is a demand-loaded
-        // fallback only when that member cannot produce a usable generation.
-        for (int attempt = 0; attempt < 2; attempt++)
-        {
-            if (usesNearFieldVisibility) shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true));
-            shader.EnsureWorldProbeClipmapDefines(
-                enabled: hasWorldProbeResources,
-                baseSpacing: wpBaseSpacing,
-                levels: wpLevels,
-                resolution: wpResolution,
-                worldProbeOctahedralTileSize: hasWorldProbeResources ? config.WorldProbeClipmap.OctahedralTileSize : 0,
-                worldProbeAtlasTexelsPerUpdate: hasWorldProbeResources ? config.WorldProbeClipmap.AtlasTexelsPerUpdate : 0,
-                worldProbeDiffuseStride: hasWorldProbeResources ? 2 : 0);
-            if (LumOnDebugShaderProgramFamily.EnsureReady(capi, shader)) break;
-            if (attempt != 0 || shader.PassName == "lumon_debug" ||
-                !LumOnDebugShaderProgramFamily.TryGet("lumon_debug", out shader)) return;
-        }
-
+        // Prepare only this view; failure must not load an unrelated fallback shader.
+        if (usesNearFieldVisibility)
+            shader.SetShaderOptions(options => options.Set(LumOnShaderOptions.DirectVisibility, true));
+        shader.EnsureWorldProbeClipmapDefines(
+            enabled: hasWorldProbeResources,
+            baseSpacing: wpBaseSpacing, levels: wpLevels, resolution: wpResolution,
+            worldProbeOctahedralTileSize: hasWorldProbeResources ? config.WorldProbeClipmap.OctahedralTileSize : 0,
+            worldProbeAtlasTexelsPerUpdate: hasWorldProbeResources ? config.WorldProbeClipmap.AtlasTexelsPerUpdate : 0,
+            worldProbeDiffuseStride: hasWorldProbeResources ? 2 : 0);
+        if (!LumOnDebugShaderProgramFamily.EnsureReady(capi, shader)) return;
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
         using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
 
@@ -2710,21 +2701,6 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             => LumOnDebugShaderProgramKind.None,
 
         _ => LumOnDebugShaderProgramKind.None,
-    };
-
-    private static string GetShaderProgramName(LumOnDebugShaderProgramKind programKind) => programKind switch
-    {
-        LumOnDebugShaderProgramKind.ProbeAnchors => "lumon_debug_probe_anchors",
-        LumOnDebugShaderProgramKind.SceneGBuffer => "lumon_debug_gbuffer",
-        LumOnDebugShaderProgramKind.Temporal => "lumon_debug_temporal",
-        LumOnDebugShaderProgramKind.ShInterpolation => "lumon_debug_sh",
-        LumOnDebugShaderProgramKind.Indirect => "lumon_debug_indirect",
-        LumOnDebugShaderProgramKind.ProbeAtlas => "lumon_debug_probe_atlas",
-        LumOnDebugShaderProgramKind.Composite => "lumon_debug_composite",
-        LumOnDebugShaderProgramKind.Direct => "lumon_debug_direct",
-        LumOnDebugShaderProgramKind.Velocity => "lumon_debug_velocity",
-        LumOnDebugShaderProgramKind.WorldProbe => "lumon_debug_worldprobe",
-        _ => "lumon_debug",
     };
 
     // Naming (todo): keep these as thin wrappers around the existing helpers.

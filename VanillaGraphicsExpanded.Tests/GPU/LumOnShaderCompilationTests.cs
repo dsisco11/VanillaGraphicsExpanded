@@ -40,8 +40,12 @@ public class LumOnShaderCompilationTests : IDisposable
     /// <summary>
     /// Provides test data for all LumOn shader pairs.
     /// </summary>
-    public static TheoryData<string, string> LumOnShaderPairs => new()
+    public static TheoryData<string, string> LumOnShaderPairs
     {
+        get
+        {
+            var pairs = new TheoryData<string, string>
+            {
         { "lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh" },
         { "lumon_hzb_downsample.vsh", "lumon_hzb_downsample.fsh" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh" },
@@ -55,22 +59,14 @@ public class LumOnShaderCompilationTests : IDisposable
         { "lumon_upsample.vsh", "lumon_upsample.fsh" },
         { "lumon_velocity.vsh", "lumon_velocity.fsh" },
         { "lumon_combine.vsh", "lumon_combine.fsh" },
-        { "lumon_debug.vsh", "lumon_debug.fsh" },
         { "lumon_worldprobe_clipmap_resolve.vsh", "lumon_worldprobe_clipmap_resolve.fsh" },
-
-        // LumOn debug multi-entrypoint split: one program per debug category.
-        { "lumon_debug_probe_anchors.vsh", "lumon_debug_probe_anchors.fsh" },
-        { "lumon_debug_gbuffer.vsh", "lumon_debug_gbuffer.fsh" },
-        { "lumon_debug_temporal.vsh", "lumon_debug_temporal.fsh" },
-        { "lumon_debug_sh.vsh", "lumon_debug_sh.fsh" },
-        { "lumon_debug_indirect.vsh", "lumon_debug_indirect.fsh" },
-        { "lumon_debug_probe_atlas.vsh", "lumon_debug_probe_atlas.fsh" },
-        { "lumon_debug_composite.vsh", "lumon_debug_composite.fsh" },
-        { "lumon_debug_direct.vsh", "lumon_debug_direct.fsh" },
-        { "lumon_debug_velocity.vsh", "lumon_debug_velocity.fsh" },
-        { "lumon_debug_worldprobe.vsh", "lumon_debug_worldprobe.fsh" },
         { "vge_worldprobe_orbs_points.vsh", "vge_worldprobe_orbs_points.fsh" },
-    };
+            };
+            foreach (var contract in VanillaGraphicsExpanded.LumOn.LumOnDebugShaderProgram.Contracts)
+                pairs.Add(contract.Stages[0].Source, contract.Stages[1].Source);
+            return pairs;
+        }
+    }
 
     [Theory]
     [MemberData(nameof(LumOnShaderPairs))]
@@ -79,7 +75,9 @@ public class LumOnShaderCompilationTests : IDisposable
         _fixture.EnsureContextValid();
         Assert.SkipWhen(_helper == null, "ShaderTestHelper not available - assets may be missing");
 
-        var result = _helper!.CompileAndLink(vertexShader, fragmentShader);
+        var result = fragmentShader.StartsWith("lumon_debug_view_", StringComparison.Ordinal)
+            ? _helper!.CompileProgram(Path.GetFileNameWithoutExtension(fragmentShader))
+            : _helper!.CompileAndLink(vertexShader, fragmentShader);
 
         Assert.True(result.IsSuccess, 
             $"Shader compilation/link failed for {vertexShader} + {fragmentShader}:\n{result.ErrorMessage}");

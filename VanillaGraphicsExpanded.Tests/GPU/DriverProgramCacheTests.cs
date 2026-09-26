@@ -170,9 +170,9 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         {
             using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
             using var assets = new BinaryShaderApiFixture();
-            using var program = new FixtureProgram("lumon_debug");
+            using var program = new FixtureProgram("lumon_debug_view_direct_total");
             program.Initialize(assets.Api);
-            var contract = GpuShaderContracts.Create("lumon_debug");
+            var contract = GpuShaderContracts.Create("lumon_debug_view_direct_total");
             for (int generation = 0; generation < 2; generation++)
             {
                 Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));

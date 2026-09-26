@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 /// <summary>Owns shader declarations for this packaged source or fixture.</summary>
 [ShaderProgram("Contract", "tests/worldprobe_debug", 4)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_debug.vsh")]
-[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_debug_worldprobe.fsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_debug_view_world_probe_irradiance_combined.fsh")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "World")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "WorldGather")]

@@ -61,8 +61,8 @@ public sealed class LumOnUboBindingTests : IDisposable
         { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh" },
         { "lumon_upsample.vsh", "lumon_upsample.fsh" },
         { "lumon_combine.vsh", "lumon_combine.fsh" },
-        { "lumon_debug.vsh", "lumon_debug.fsh" },
-        { "lumon_debug_worldprobe.vsh", "lumon_debug_worldprobe.fsh" },
+        { "lumon_debug.vsh", "lumon_debug_view_scene_depth.fsh" },
+        { "lumon_debug.vsh", "lumon_debug_view_world_probe_irradiance_combined.fsh" },
     };
 
     [Theory]
@@ -72,7 +72,9 @@ public sealed class LumOnUboBindingTests : IDisposable
         fixture.EnsureContextValid();
         Assert.SkipWhen(helper == null, "ShaderTestHelper not available - assets may be missing");
 
-        var linkResult = helper!.CompileAndLink(vertexShader, fragmentShader);
+        var linkResult = fragmentShader.StartsWith("lumon_debug_view_", StringComparison.Ordinal)
+            ? helper!.CompileProgram(Path.GetFileNameWithoutExtension(fragmentShader))
+            : helper!.CompileAndLink(vertexShader, fragmentShader);
         Assert.True(linkResult.IsSuccess, linkResult.ErrorMessage);
 
         AssertUniformBlockPresent(linkResult.ProgramId, "LumOnFrameUBO");
