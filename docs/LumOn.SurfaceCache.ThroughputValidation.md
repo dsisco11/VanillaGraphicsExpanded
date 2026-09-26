@@ -375,6 +375,15 @@ The deduplicated case ledger and test-agent report are
 
 ## Measurement evidence and limits
 
+The later suite-wide harness investigation is recorded in
+[GPU.IntegrationTestPerformance.Analysis.md](GPU.IntegrationTestPerformance.Analysis.md).
+Its unchanged-source GPU baseline took 20.12 minutes: 1,956 passed, three failed and three skipped
+out of 1,962 cases. Two GL-entry failures passed in isolation; the SH9 mixed-consumer expected-lit
+failure repeated. These timing results do not close the broader correctness completion gate.
+Two representative 33-case repeats and seven temporarily instrumented cases passed; all temporary
+source changes were removed. The analysis ranks harness follow-ups without claiming an implemented
+speedup or changing production lighting budgets.
+
 The preserved matched update-budget JSON contains separate diagnostics-off/on ABBA blocks, identical
 attempted page/texel counts, and verified completed-texel counts for instrumented legs. Resetting pages
 before each measured sweep prevents seed work from being mislabeled when it is already initialized.

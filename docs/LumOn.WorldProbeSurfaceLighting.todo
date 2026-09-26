@@ -626,7 +626,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
     regression through subagents; obtain a separate final review and reconcile the linked reports
     before closing the parent validation tasks. Keep user-run visual acceptance separate.
 
-  ☐ Analyze GPU integration-test patterns and identify suite-wide performance improvements.
+  ☑ Analyze GPU integration-test patterns and identify suite-wide performance improvements.
     - Inventory the shared harnesses and test families across the GPU integration suite, including
       shader-level, resource-lifecycle and full lighting-transport tests. Map setup, execution,
       observation, synchronization and teardown patterns; identify repeated costs and where tests
@@ -655,3 +655,57 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       matched workloads and unchanged assertions with repeated baseline/candidate runs and a
       separate implementation review. Record findings and follow-up implementation tasks in docs;
       keep this investigation separate from the six failure-repair completion categories above.
+    - Analysis and safety review: docs/GPU.IntegrationTestPerformance.Analysis.md.
+      Measured 1,962 GPU cases in 20.12 minutes (1,956 passed, three failed, three skipped);
+      repeated a 33-case representative selection twice (all passed) and profiled seven cases
+      without changing their behavior (all passed). Separate source review completed; temporary
+      instrumentation was removed and original source rebuilt. No optimization speedup claimed.
+      First priority is within-test program reuse: 195 creations consumed 33.16 of 33.90 seconds
+      in the three camera sweeps. Runtime setup and actual sleep duration outweigh observation
+      costs in the four profiled replacement cases. Broad failures remain documented and open.
+
+  ☐ Reuse invariant shader programs and render targets within GPU test scenarios.
+    - Follow the existing per-test variant ownership in DirectWorldProbeVisibilityTestBase;
+      do not introduce a process-wide live-program cache.
+    - Start with the 65-position geometry camera sweeps; audit temporal/trace helper loops next.
+      Preserve every draw, camera/origin variant, history transition and numerical assertion.
+    - Keep resources per test, update all per-draw inputs and overwrite or clear reused targets.
+      Retain separate variants and independent history branches; do not reuse resources whose
+      construction, recreation or disposal is the behavior under test.
+    - Measure identical baseline/candidate workloads through subagents and obtain a separate review.
+      Use docs/GPU.IntegrationTestPerformance.Analysis.md for the baseline and acceptance contract.
+
+  ☐ Profile remaining setup, simulation and test-boundary costs after the first harness speedups.
+    - Separate immutable asset loading, specialization/linking, allocations, input generation,
+      callback dispatch and worker waits before choosing further caching or scheduling changes.
+      Distinguish first-frame/lazy compute setup from steady rendering inside Cache.Frame.
+      Measure waits by pending-work reason: Sleep(1) averaged 10.10 ms in the sampled GPU paths;
+      zero counted world-block worker reads does not establish that all asynchronous work is absent.
+    - Evaluate completion-driven settling while preserving required temporal sweeps, freshness,
+      bounded budgets and delayed-worker overlap. Keep explicit end-to-end wiring/lifetime tests.
+    - Map every assertion/failure mode before narrowing a test boundary or grouping shader-binding
+      cases. Do not enable collection parallelism without isolated GL and engine-global ownership.
+    - Repeat representative and broad suite timings, report failures/skips and completed work, and
+      obtain a separate review before claiming an overall suite improvement.
+
+  ☐ Separate required GPU observations from optional failure diagnostics in shared wait helpers.
+    - Preserve nonempty/finite checks currently hidden in Energy calls inside diagnostic messages,
+      including intermediate trace, filtered and gather outputs at successful wait completion.
+    - Make only optional diagnostic reads and formatting failure-only; reuse equivalent same-frame
+      observations and avoid redundant predicate calls without changing predicate semantics.
+    - Validate successful and failing waits, complete failure messages and unchanged assertions;
+      measure benefits independently of per-frame readback removal.
+
+  ☐ Establish explicit test uniform-buffer retirement before reducing synchronous observations.
+    - Cover every TestUniformRing.BeginFrame path, including runtime frames, geometry initialization
+      and render-target helper re-entry. Fence submitted work before reusing mapped storage.
+    - Preserve context ownership, teardown and bounded completion behavior. More ring pages alone
+      do not establish safe retirement; validate multiple submitted frames and repeated reuse.
+
+  ☐ Reduce duplicate GPU observations while preserving the complete assertion domain.
+    - Depends on explicit uniform-buffer retirement above. Measure same-frame observation reuse,
+      batched requested-page readiness reads and owning pooled/reusable readback resources.
+    - Key retained observations by frame and resource identity/generation; invalidate after writes.
+      Preserve initialized-texel, directional, nonempty, finite and transient-darkness checks.
+    - Use existing GPU abstractions and matched-workload measurements; do not replace complete
+      observations with a sample or readiness flags that cannot establish the asserted property.
