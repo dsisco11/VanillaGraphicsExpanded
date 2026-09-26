@@ -729,7 +729,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       was removed and final source rebuilt. Evidence: Dependency-driven integration-test completion
       in docs/GPU.IntegrationTestPerformance.Analysis.md.
 
-  ☐ Profile remaining setup, simulation and test-boundary costs after the first harness speedups.
+  ☑ Profile remaining setup, simulation and test-boundary costs after the first harness speedups.
     - Separate immutable asset loading, specialization/linking, allocations, input generation,
       callback dispatch and worker waits before choosing further caching or scheduling changes.
       Distinguish first-frame/lazy compute setup from steady rendering inside Cache.Frame.
@@ -742,6 +742,30 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       cases. Do not enable collection parallelism without isolated GL and engine-global ownership.
     - Repeat representative and broad suite timings, report failures/skips and completed work, and
       obtain a separate review before claiming an overall suite improvement.
+    - Evidence and assertion-boundary mapping: docs/GPU.IntegrationTestPerformance.RemainingCosts.md.
+      Subagent runs: 33/33 representative cases twice (38.009/35.088s); full GPU suite 1,966 cases
+      in 1,265.019s (1,961 passed, two recurring failure signatures, three skips). No overall speedup
+      or broad correctness completion claimed. Scoped 141/141 and direct-visibility 9/9 passed.
+    - Prioritize variant-grouped checks/draws, required-family startup registration and immutable
+      compiled-interface uniform validation; investigate later-frame shader lifetimes before changing them.
+      Driver linking dominates measured setup; waits and input preparation are minor sampled costs.
+      Independent evidence/boundary review passed. All 13 source files restored byte-exact,
+      two profiler helpers removed, final build passed and 348 staged binary hashes unchanged.
+
+  ☐ Refactor uniform tests to validate compiled SPIR-V interfaces against shader contracts.
+    - Remove GLSL loading, preprocessing, syntax parsing and macro/define-name alternatives from
+      LumOnUniformTests. Map existing assertions to their intended compiled-interface guarantees.
+    - Compare actual SPIR-V declarations and linked active resources with authoritative contracts
+      for explicit locations, bindings and block member layouts; do not compare contracts only
+      against themselves. Support Release binaries without debug names or source metadata.
+    - Preserve functional GPU coverage of actual uniform/block-member reads; distinguish declared
+      interface requirements from resources legitimately optimized out of a linked variant.
+    - Group checks for each identical shader pair/variant under one owned linked program while
+      preserving every applicable assertion and clearly named failure diagnostics.
+    - Use subagents for focused Debug/Release validation and compare matched workload timings;
+      obtain a separate implementation review before marking complete.
+    - Context: docs/GPU.IntegrationTestPerformance.RemainingCosts.md. This replaces its original
+      parsed-source reuse proposal; GLSL parsing should be removed rather than cached.
 
   ☐ Separate required GPU observations from optional failure diagnostics in shared wait helpers.
     - Preserve nonempty/finite checks currently hidden in Energy calls inside diagnostic messages,

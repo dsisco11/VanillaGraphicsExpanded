@@ -472,3 +472,24 @@ remained unchanged. No whole-suite performance claim is made.
 
 Evidence: `artifacts/dependency-waits-*.log/json`, corresponding TRX under `artifacts/TestResults`,
 and the temporary instrumentation receipt. Broader regression command wall time was 171.135 seconds.
+
+## Remaining-cost profiling after harness changes
+
+The completed follow-up investigation is recorded in
+[Remaining GPU integration-test costs](GPU.IntegrationTestPerformance.RemainingCosts.md), including
+source-boundary mappings, current full-suite results, scoped attribution and ranked follow-up work.
+
+The current 33-case selection passed twice in 38.009/35.088 seconds. The full 1,966-case GPU run took
+1,265.019 seconds: 1,961 passed, two recurring failure signatures and three skips. No overall-suite
+speedup or clean correctness gate is claimed. The prior isolated four-case candidate rerun also
+passed in 25.951 seconds, so the earlier 52–61 second result was not consistently reproduced.
+
+Measured priorities are repeated variant linking (uniform checks and selected direct-visibility
+scenarios), broad runtime shader registration, and repeated source parsing in test-side validation.
+Later frames still link shaders, so subsequent-frame scopes are not pure steady-state rendering.
+Input generation/upload and completion waits are small measured costs in the selected scenarios.
+
+Subagent-run scoped selections passed 141/141 and 9/9. Independent review verified the numeric
+receipts, nested accounting and assertion-boundary constraints. All temporary instrumentation was
+removed, 13 source files restored byte-for-byte, 348 staged SPIR-V hashes verified unchanged, and
+the final uninstrumented build passed. Remaining correctness failures retain their separate backlog.
