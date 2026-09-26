@@ -788,3 +788,36 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Preserve initialized-texel, directional, nonempty, finite and transient-darkness checks.
     - Use existing GPU abstractions and matched-workload measurements; do not replace complete
       observations with a sample or readiness flags that cannot establish the asserted property.
+
+  ☐ Cache driver-linked program binaries to reduce production shader startup and reload costs.
+    - Integrate through the production GPU program owners for graphics and compute; target startup,
+      configuration changes and runtime shader recreation, rather than test-suite duration.
+    - Detect program-binary support and save successful linked executables. Key entries by exact
+      SPIR-V content, entry points, specialization values, link settings, cache schema and GPU/driver
+      identity. Bound cache storage and publish cache files atomically.
+    - Check binary-load link status; reject stale, corrupt or incompatible entries and fall back to
+      normal SPIR-V specialization/linking. Cache failures must not prevent normal shader loading.
+    - Rebuild contract/interface state and required program state after loading; preserve ownership,
+      successful-replacement publication and the previous valid program when replacement fails.
+    - Measure production-path Release cold misses, warm hits, reloads and first use, including cache
+      I/O and extraction costs; distinguish startup savings from deferred work and frame-time gains.
+      Leave deliberate compile/link lifecycle tests able to bypass the cache.
+    - Use subagents for focused hit/miss, invalidation, corruption, unsupported-driver and lifecycle
+      tests; obtain a separate implementation review and record evidence before marking complete.
+
+  ☐ Batch production shader linking using supported parallel shader compilation.
+    - Detect the available parallel-compilation extension and retain the existing loading path when
+      unsupported. Submit independent specialization/link work before waiting for individual results.
+      Keep GL operations on the owning context; do not introduce arbitrary worker-thread GL calls.
+    - Separate submission, completion observation and publication in the production loading owners.
+      Avoid premature status, log or interface queries that force completion; inspect final status
+      and build contract/interface state only after completion is established.
+    - Bound outstanding work and preserve startup dependencies, reload cancellation, disposal and
+      previous valid programs until replacements are ready. Never expose an incomplete program.
+    - Coordinate with program-binary caching above: batch cache misses and rejected cache entries
+      without requiring caching to be enabled. Preserve diagnostics and synchronous fallback.
+    - Measure production-path Release startup, configuration changes and reload stalls with matched
+      shader workloads; separate submission time, completion time and first-use work. Do not infer
+      lower individual link cost or higher steady-state FPS from reduced total startup time.
+    - Use subagents for focused completion, failure, cancellation, ownership and fallback tests;
+      obtain a separate implementation review and record evidence before marking complete.
