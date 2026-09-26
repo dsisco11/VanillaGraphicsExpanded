@@ -210,8 +210,35 @@ After mechanical integer allocation-size cleanup, the exact final source passed 
 cases, zero failures or skips**, in 8.5 seconds. Receipts:
 `artifacts/TestResults/surface-sh9-projection-final-source.trx` and
 `artifacts/surface-sh9-projection-final-source.log`. Production/shader and test builds succeeded;
-existing xUnit analyzer warnings remain. Cache-replacement freshness, the broader completion gate
-and user-run gameplay acceptance remain separate open items.
+existing xUnit analyzer warnings remain. Cache-replacement freshness was subsequently repaired below;
+the broader completion gate and user-run gameplay acceptance remain separate open items.
+
+## Cache-replacement directional freshness
+
+`CacheReplacementInvalidatesComposedHistory` and
+`RecreatedDarkCacheRejectsRetainedFinalLighting` now use the existing matched direct-refresh and
+consumer-completion fixture for both gather modes. Previously, positive final pixels plus a fixed
+extra frame count could accept retained valid dark world directions after source restoration.
+
+Each bright, dark-replacement and restored observation now follows completed direct refresh with
+indirect updates frozen, two successful full-tile publications for every supported interior world
+probe, and stable screen directional history over complete sweeps. The second publication excludes
+a result admitted before the producer refresh. No desired image value controls completion and no
+final lighting is injected. Every selected world direction must have positive confidence and match
+the authored outgoing radiance within 0.01, including valid darkness and its subsequent replacement.
+The analytical reference includes the production material atlas's RGBA8 albedo quantization.
+The existing 160-frame consumer bound, atlas disposal, history revision, retained composition
+resource, dark-image rejection and 0.01 final-image restoration checks remain in place.
+
+Subagent validation passed **4/4 targeted cases** in 36.4 seconds and **59/59 related regression
+cases** in 2.98 minutes, with no failures or skips. The latter includes both full runtime-scenario
+and PBR-lifetime classes, SH9 projection/gather directional controls and the three numerical
+baseline pairs. Receipts are `artifacts/TestResults/replacement-freshness.trx` and
+`artifacts/TestResults/replacement-freshness-regression.trx`, with corresponding logs in `artifacts`.
+The selections overlap and their totals must not be added. Build/test compilation succeeded with
+existing unrelated warnings. Source inspection confirmed that synchronization uses successful
+production publications, preserves budgets and assertions, and changes no production rendering code.
+This focused result does not close the separate broad throughput regression and final-review gate.
 
 ## Backlog fix and focused verification
 

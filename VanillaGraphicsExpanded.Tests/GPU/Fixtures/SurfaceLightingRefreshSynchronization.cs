@@ -31,7 +31,7 @@ internal static class SurfaceLightingRefreshSynchronization
     #region Consumer completion
     /// <summary>Waits for new successful full-tile world publications and a fixed point in the retained screen directional history.</summary>
     public static void CompleteConsumers(SurfaceLightingConsumerRuntimeFixture runtime, SpatialLightingScene scene,
-        int maximumFrames = SurfaceLightingConsumerRuntimeFixture.FrameBudget)
+        int maximumFrames = SurfaceLightingConsumerRuntimeFixture.FrameBudget, Vector3? expectedWorldRadiance = null)
     {
         int firstFrame = runtime.Cache.Frames;
         var scheduler = Read<object>(runtime.WorldRenderer, "scheduler");
@@ -81,6 +81,26 @@ internal static class SurfaceLightingRefreshSynchronization
             config.TraceMaxProbesPerFrame = oldTrace;
             config.PerLevelProbeUpdateBudget = oldLevels;
             config.UploadBudgetBytesPerFrame = oldUpload;
+        }
+        // Check every supported direction after lifecycle completion, never as a readiness
+        // predicate. In particular, valid dark samples must be replaced after source restoration.
+        if (expectedWorldRadiance is { } expected)
+        {
+            var resources = runtime.WorldBuffers.Resources!;
+            var radiance = runtime.WorldPixels();
+            int worldTile = resources.WorldProbeTileSize;
+            foreach (int slot in slots)
+            {
+                int sx = slot % resolution, sy = slot / resolution % resolution, sz = slot / (resolution * resolution);
+                for (int y = 0; y < worldTile; y++) for (int x = 0; x < worldTile; x++)
+                {
+                    int index = (((sy * worldTile + y) * resources.RadianceAtlasWidth +
+                        (sx + sz * resolution) * worldTile + x) << 2);
+                    Assert.True(radiance[index + 3] > 0, $"Missing world direction: slot={slot}, texel=({x},{y}).");
+                    for (int channel = 0; channel < 3; channel++)
+                        Assert.InRange(Math.Abs(radiance[index + channel] - expected[channel]), 0, .01f);
+                }
+            }
         }
         int tile = VanillaGraphicsExpanded.Rendering.DynamicTexture3D.OctahedralSize;
         int sweep = (tile * tile + runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame - 1) /

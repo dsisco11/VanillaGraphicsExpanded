@@ -69,8 +69,12 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
-        SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
-        Settle(runtime, true);
+        // The production material atlas stores albedo in RGBA8 UNORM before lighting.
+        var albedo = scene.SourceAlbedo ?? new Vector3(scene.Reflectance);
+        var capturedAlbedo = new Vector3(MathF.Round(albedo.X * 255), MathF.Round(albedo.Y * 255), MathF.Round(albedo.Z * 255)) / 255;
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
+        Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(float.IsFinite(value) && value > .001f));
         var reference = runtime.ComposedPixels();
         var oldAtlas = runtime.Cache.IrradianceAtlas();
         var screen = runtime.Screen.IndirectFullTex;
@@ -78,8 +82,8 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         runtime.Cache.ChangeBlockLight(0);
         runtime.Cache.RequestAtlasRecreation();
         runtime.Frame();
-        SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
-        Settle(runtime, false);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
         Assert.NotSame(oldAtlas, runtime.Cache.IrradianceAtlas());
         Assert.False(oldAtlas!.IsValid);
         Assert.Same(screen, runtime.Screen.IndirectFullTex);
@@ -87,8 +91,8 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.ComposedPixels(), (_, _) => Vector3.Zero, .0001f, "dark replacement composition");
         runtime.Cache.ChangeBlockLight(32);
         runtime.Frame();
-        SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
-        Settle(runtime, true);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
         AssertClose(reference, runtime.ComposedPixels(), .01f);
     }
     #endregion
@@ -125,15 +129,6 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     #endregion
 
     #region Observations
-    /// <summary>Waits for complete ready lighting and every output channel, then observes an entire directional sweep.</summary>
-    private static void Settle(SurfaceLightingConsumerRuntimeFixture runtime, bool lit)
-    {
-        runtime.RunUntil(() => runtime.Cache.AllRequestedLightingReady() && runtime.Screen.IndirectFullTex != null
-            && runtime.FinalPixels().Where((_, i) => i % 4 != 3).All(value => lit ? value > .001f : Math.Abs(value) <= .0001f),
-            SurfaceLightingConsumerRuntimeFixture.FrameBudget - 16);
-        for (int frame = 0; frame < 16; frame++) runtime.Frame();
-    }
-
     /// <summary>Observes the independently rendered primary lighting terms for a matched source-disabled baseline.</summary>
     private static float[] PrimaryLighting(SurfaceLightingConsumerRuntimeFixture runtime)
     {

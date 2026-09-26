@@ -1,3 +1,4 @@
+using System.Numerics;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -211,24 +212,28 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         EnsureContextValid();
         var scene = new SpatialLightingScene { Reflectance = .25f };
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
-        SeedAndPause(runtime);
-        Settle(runtime, true);
+        // The production material atlas stores albedo in RGBA8 UNORM before lighting.
+        var albedo = scene.SourceAlbedo ?? new Vector3(scene.Reflectance);
+        var capturedAlbedo = new Vector3(MathF.Round(albedo.X * 255), MathF.Round(albedo.Y * 255), MathF.Round(albedo.Z * 255)) / 255;
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
+        AssertBoundaries(runtime, true);
         float[] reference = runtime.FinalPixels();
         var oldAtlas = runtime.Cache.IrradianceAtlas();
         long revision = runtime.Screen.HistoryRevision;
         runtime.Cache.ChangeBlockLight(0);
         runtime.Cache.RequestAtlasRecreation();
         runtime.Frame();
-        SeedAndPause(runtime);
-        Settle(runtime, false);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
         Assert.NotSame(oldAtlas, runtime.Cache.IrradianceAtlas());
         Assert.False(oldAtlas!.IsValid);
         Assert.True(runtime.Screen.HistoryRevision > revision);
         AssertBoundaries(runtime, false);
         runtime.Cache.ChangeBlockLight(32);
         runtime.Frame();
-        SeedAndPause(runtime);
-        Settle(runtime, true);
+        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
         AssertClose(reference, runtime.FinalPixels(), .01f);
     }
 

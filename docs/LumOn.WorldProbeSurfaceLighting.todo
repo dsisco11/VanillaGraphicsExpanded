@@ -606,7 +606,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       skips. Builds succeed with existing analyzer warnings. Receipts and approximation limits:
       docs/LumOn.SurfaceCache.ThroughputValidation.md. GPU timing remains unmeasured.
 
-  ☐ Synchronize world-direction freshness in the two SH9 cache-replacement restoration cases.
+  ☑ Synchronize world-direction freshness in the two SH9 cache-replacement restoration cases.
     - After the SH9 projection repair, update CacheReplacementInvalidatesComposedHistory and
       RecreatedDarkCacheRejectsRetainedFinalLighting (SH9) to establish freshness of contributing
       world-probe fallback directions before comparing restored images.
@@ -615,6 +615,12 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       explicitly and retain dark-replacement rejection, resource lifetime and restoration bounds.
     - Verify directional controls and investigate any remaining mismatch after producer and consumer
       freshness is established; do not force world-probe completion by injecting final lighting.
+    - Implemented matched direct refresh, two fresh full-tile world publications and stable screen
+      history before comparison in both gather modes. Per-direction confidence/radiance assertions
+      cover bright, valid dark and restored lighting, accounting for RGBA8 material quantization.
+      Subagent validation passes 4/4 focused cases and 59/59 related regression cases, including
+      directional controls and both gather modes. The broader completion gate below remains open. Evidence:
+      docs/LumOn.SurfaceCache.ThroughputValidation.md (Cache-replacement directional freshness).
 
     Completion gate: rerun all six categories, all original 19 cases and the broader throughput
     regression through subagents; obtain a separate final review and reconcile the linked reports
