@@ -5,6 +5,13 @@ namespace ShaderBuildTool.Spirv;
 /// <summary>Owns one compiler process tree and captures both diagnostic streams without pipe deadlocks.</summary>
 internal static class ShaderCompilerProcess
 {
+    /// <summary>Matches shader optimization to the build tool configuration used by the owning MSBuild project.</summary>
+#if DEBUG
+    internal const string OptimizationArgument = "-O0";
+#else
+    internal const string OptimizationArgument = "-O";
+#endif
+
     #region Process execution
     /// <summary>Runs the pinned shader compiler, preserving names and the existing command-line contract.</summary>
     public static Task<ShaderCompilerResult> CompileAsync(string workingDirectory, string input, string output,
@@ -12,7 +19,7 @@ internal static class ShaderCompilerProcess
     {
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = workingDirectory };
         string[] arguments = ["tool", "run", "dotnet-shaderc", "--", "--shader-stage=" + stage,
-            "--entry-point=" + entryPoint, "--target-env=" + target, "-g", "-x=glsl"];
+            "--entry-point=" + entryPoint, "--target-env=" + target, OptimizationArgument, "-g", "-x=glsl"];
         foreach (string argument in arguments) start.ArgumentList.Add(argument);
         if (warningsAsErrors) start.ArgumentList.Add("-Werror");
         start.ArgumentList.Add("-o");
