@@ -248,6 +248,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     /// </summary>
     /// <remarks>
     /// Requires <c>GL_ARB_gl_spirv</c> (or GL 4.6 core). Use <see cref="SupportsSpirv"/> to preflight.
+    /// With deferred completion, the returned handle is submitted but not yet validated; its owner must wait and check status.
     /// </remarks>
     public static unsafe bool TryLoadSpirv(
         ShaderType shaderType,
@@ -256,7 +257,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
         ReadOnlySpan<SpirvSpecializationConstant> specializationConstants,
         out GpuShaderModule? module,
         out string infoLog,
-        string? debugName = null)
+        string? debugName = null, bool deferCompletion = false)
     {
         module = null;
         infoLog = string.Empty;
@@ -325,15 +326,16 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
 #endif
             LastSpecializeMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
 
-            GL.GetShader(id, ShaderParameter.CompileStatus, out int status);
-            infoLog = GL.GetShaderInfoLog(id) ?? string.Empty;
-
-            if (status == 0)
+            if (!deferCompletion)
             {
-                try { GL.DeleteShader(id); } catch { }
-                return false;
+                GL.GetShader(id, ShaderParameter.CompileStatus, out int status);
+                infoLog = GL.GetShaderInfoLog(id) ?? string.Empty;
+                if (status == 0)
+                {
+                    try { GL.DeleteShader(id); } catch { }
+                    return false;
+                }
             }
-
             var created = new GpuShaderModule(id, shaderType);
             created.SetDebugName(debugName);
             module = created;

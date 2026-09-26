@@ -5,6 +5,8 @@ using VanillaGraphicsExpanded.Collections;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
@@ -36,6 +38,9 @@ internal sealed class WorldProbeTraceBatch : IDisposable
     {
         try
         {
+            using var links = new ShaderLinkBatch(api.Assets, PBR.ShaderImportsSystem.DefaultDomain,
+                [new ShaderSettings(WorldProbeTraceTilesShader.Contract), new ShaderSettings(WorldProbeTraceShader.Contract),
+                 new ShaderSettings(WorldProbeCompletionShader.Contract)]);
             if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeTraceTilesShader.Contract.Identity,
                 out var setupProgram, out _, out string setupLog, preferSpirv: true)) throw new InvalidOperationException(setupLog);
             setup = setupProgram!;

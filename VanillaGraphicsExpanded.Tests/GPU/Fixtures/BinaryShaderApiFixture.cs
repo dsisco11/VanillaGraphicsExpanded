@@ -14,6 +14,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     public Action<string>? BeforeRead { get; set; }
     public List<Action> ScheduledTasks { get; } = [];
     public ICoreClientAPI Api { get; }
+    public Dictionary<string, IShaderProgram> RegisteredPrograms { get; } = new(StringComparer.Ordinal);
 
     #region API construction
     /// <summary>Routes asset reads to the test output and allows isolated in-memory edits for reload scenarios.</summary>
@@ -52,8 +53,21 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             ScheduledTasks.Add((Action)args![0]!);
             return null;
         });
-        var shaders = Proxy<IShaderAPI>((method, _) => method.Name == "NewShader"
-            ? new Vintagestory.Client.NoObf.Shader() : throw new NotSupportedException(method.Name));
+        var shaders = Proxy<IShaderAPI>((method, args) =>
+        {
+            if (method.Name == "NewShader") return new Vintagestory.Client.NoObf.Shader();
+            if (method.Name == "RegisterMemoryShaderProgram")
+            {
+                string name = (string)args![0]!;
+                var program = (IShaderProgram)args[1]!;
+                if (RegisteredPrograms.TryGetValue(name, out var previous)) previous.Dispose();
+                RegisteredPrograms[name] = program;
+                return method.ReturnType == typeof(bool) ? true : method.ReturnType == typeof(int) ? RegisteredPrograms.Count : null;
+            }
+            if (method.Name == "GetProgramByName")
+                return RegisteredPrograms.GetValueOrDefault((string)args![0]!);
+            throw new NotSupportedException(method.Name);
+        });
         Api = Proxy<ICoreClientAPI>((method, _) => method.Name switch
         {
             "get_Assets" => assets,
@@ -67,7 +81,12 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     }
 
     /// <summary>Releases the fixture-owned import resolver so later tests do not retain its assets.</summary>
-    public void Dispose() => VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Clear();
+    public void Dispose()
+    {
+        foreach (var program in RegisteredPrograms.Values) program.Dispose();
+        RegisteredPrograms.Clear();
+        VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Clear();
+    }
 
     /// <summary>Builds an interface adapter with explicit behavior for each supported operation.</summary>
     private static T Proxy<T>(System.Func<MethodInfo, object?[]?, object?> invoke) where T : class

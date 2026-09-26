@@ -469,7 +469,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
         EnsurePageUsageStampCreated();
 
-        if (!EnsureFeedbackMarkShader() || !EnsureFeedbackCompactShader())
+        if (!EnsureFeedbackShaders())
         {
             return;
         }
@@ -1247,6 +1247,19 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         _ = pageUsageStamp.TryClearToZero();
     }
 
+    /// <summary>Batches the independent feedback programs only when both need creation.</summary>
+    private bool EnsureFeedbackShaders()
+    {
+        if ((feedbackMarkShader == null || !feedbackMarkShader.IsValid) &&
+            (feedbackCompactShader == null || !feedbackCompactShader.IsValid))
+        {
+            using var batch = new Rendering.ShaderCompilation.ShaderLinkBatch(capi.Assets, PBR.ShaderImportsSystem.DefaultDomain,
+                [new Rendering.Contracts.ShaderSettings(LumonSceneFeedbackMarkPagesComputeShader.Contract),
+                 new Rendering.Contracts.ShaderSettings(LumonSceneFeedbackCompactPagesComputeShader.Contract)]);
+            return EnsureFeedbackMarkShader() && EnsureFeedbackCompactShader();
+        }
+        return EnsureFeedbackMarkShader() && EnsureFeedbackCompactShader();
+    }
     private bool EnsureFeedbackMarkShader()
     {
         if (feedbackMarkShader is not null && feedbackMarkShader.IsValid)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 
 using Vintagestory.API.Client;
 
@@ -25,11 +26,17 @@ internal static class LumOnDebugShaderProgramFamily
 
     private static readonly string[] ProgramNames = LumOnDebugShaderProgram.Contracts.Select(contract => contract.Identity).ToArray();
 
-    public static void Register(ICoreClientAPI api)
+    /// <summary>Submits the complete debug family before registering successfully linked members.</summary>
+    public static bool Register(ICoreClientAPI api)
     {
         lock (Sync)
         {
-            ProgramsByName.Clear();
+            bool success = true;
+            // Keep a working member visible if its replacement fails; full engine reload already disposed old members.
+            foreach (var name in ProgramsByName.Where(pair => pair.Value.Disposed).Select(pair => pair.Key).ToArray())
+                ProgramsByName.Remove(name);
+            using var batch = new ShaderLinkBatch(api.Assets, PBR.ShaderImportsSystem.DefaultDomain,
+                LumOnDebugShaderProgram.Contracts.Select(contract => new ShaderSettings(contract)));
 
             foreach (var passName in ProgramNames)
             {
@@ -40,11 +47,18 @@ internal static class LumOnDebugShaderProgramFamily
                 };
 
                 instance.Initialize(api);
-                instance.CompileAndLink();
+                if (!instance.CompileAndLink())
+                {
+                    instance.VertexShader = null; instance.FragmentShader = null; instance.GeometryShader = null;
+                    instance.Dispose();
+                    success = false;
+                    continue;
+                }
 
                 api.Shader.RegisterMemoryShaderProgram(passName, instance);
                 ProgramsByName[passName] = instance;
             }
+            return success;
         }
     }
 

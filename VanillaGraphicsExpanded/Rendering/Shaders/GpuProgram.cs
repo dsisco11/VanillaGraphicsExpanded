@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
+
 using System.Linq;
 
 using VanillaGraphicsExpanded.Numerics;
@@ -43,7 +43,7 @@ public abstract partial class GpuProgram : ShaderProgram
     private ICoreClientAPI? capi;
     private ILogger? log;
 
-    private int recompileQueued;
+
 
     #endregion
 
@@ -508,41 +508,21 @@ public abstract partial class GpuProgram : ShaderProgram
 
     #region Recompile Scheduling
 
-    /// <summary>Coalesces requests on the render thread and skips unchanged or disposed generations.</summary>
+    /// <summary>Coalesces changed programs into a shared render-thread submission window.</summary>
     protected virtual void RequestRecompile()
     {
-        var api = capi;
-        if (api is null)
-        {
-            return;
-        }
-
-        // Collapse setting writes into one callback; compare the final effective plan before preparing GPU objects.
-        if (Interlocked.Exchange(ref recompileQueued, 1) != 0)
-        {
-            return;
-        }
-
-        api.Event.EnqueueMainThreadTask(
-            () =>
-            {
-                Interlocked.Exchange(ref recompileQueued, 0);
-
-                try
-                {
-                    if (Disposed) return;
-                    bool unchanged;
-                    lock (settingsLock) unchanged = !Disposed && ProgramId != 0 && installedPlan != null && RequestedPlan.SameInputs(installedPlan);
-                    if (!unchanged) CompileAndLink();
-                }
-                catch (Exception ex)
-                {
-                    log?.Error($"[VGE] Shader recompile failed for '{ShaderName}': {ex}");
-                }
-            },
-            $"vge:recompile:{ShaderName}");
+        if (capi != null) ShaderCompilation.ShaderRecompileQueue.Enqueue(capi, this);
     }
 
+    /// <summary>Checks whether a live owner still needs its latest effective settings installed.</summary>
+    internal bool NeedsRecompile
+    {
+        get
+        {
+            lock (settingsLock)
+                return !Disposed && (ProgramId == 0 || installedPlan == null || !RequestedPlan.SameInputs(installedPlan));
+        }
+    }
     #endregion
 
 }

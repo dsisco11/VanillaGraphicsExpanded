@@ -7,6 +7,7 @@ using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
@@ -49,11 +50,13 @@ public abstract partial class GpuProgram
         int program = 0;
         try
         {
-            var inputs = DriverProgramCache.Prepare(plan, Read, () => ShaderDigestIndexCache.ForAssets(capi.Assets, domain));
-            program = GL.CreateProgram();
-            bool cached = DriverProgramCache.TryLoad(program, inputs);
-            LastSpirvLinkMilliseconds = 0;
-            if (!cached)
+            using var pending = ShaderLinkBatch.Take(capi.Assets, domain, plan);
+            var inputs = pending?.Inputs ?? DriverProgramCache.Prepare(plan, Read, () => ShaderDigestIndexCache.ForAssets(capi.Assets, domain));
+            program = pending?.DetachProgram() ?? GL.CreateProgram();
+            bool cached = pending?.Cached ?? DriverProgramCache.TryLoad(program, inputs);
+            if (pending != null) { stages.AddRange(pending.Stages); pending.Stages.Clear(); }
+            LastSpirvLinkMilliseconds = pending?.LinkSubmissionMilliseconds ?? 0;
+            if (!cached && pending == null)
             {
                 // A rejected binary candidate is never reused for normal linking.
                 GL.DeleteProgram(program);
@@ -96,27 +99,32 @@ public abstract partial class GpuProgram
                 (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(Vintagestory.API.Client.EnumShaderType.VertexShader);
             var fragmentSlot = cached ? null : FragmentShader ??
                 (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(Vintagestory.API.Client.EnumShaderType.FragmentShader);
-            int oldProgram = ProgramId;
-            int[] oldStages = [VertexShader?.ShaderId ?? 0, FragmentShader?.ShaderId ?? 0, GeometryShader?.ShaderId ?? 0];
-            ProgramId = program; program = 0;
-            ProgramLayout.InstallCandidate(layout);
-            // Engine disposal detaches every non-null stage. Cached executables have no attached stages.
-            VertexShader = vertexSlot;
-            FragmentShader = fragmentSlot;
-            if (vertexSlot != null) vertexSlot.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Vertex).Shader;
-            if (fragmentSlot != null) fragmentSlot.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Fragment).Shader;
-            GeometryShader = geometrySlot;
-            if (geometrySlot != null) geometrySlot.ShaderId = geometry.Shader;
-            stages.Clear();
-            uniformLocations.Clear();
-            foreach (var pair in locations) uniformLocations[pair.Key] = pair.Value;
-            uniformLocationCache.Clear();
-            uniformLocationCacheProgramId = 0;
-            EngineDisposed(this) = false;
-            lock (settingsLock) installedPlan = plan;
-            if (oldProgram != 0) GL.DeleteProgram(oldProgram);
-            foreach (int shader in oldStages) if (shader != 0) GL.DeleteShader(shader);
-            return true;
+            // A configuration edit can arrive while the driver works. Never publish superseded inputs.
+            lock (settingsLock)
+            {
+                if (!RequestedPlan.SameInputs(plan)) return false;
+                int oldProgram = ProgramId;
+                int[] oldStages = [VertexShader?.ShaderId ?? 0, FragmentShader?.ShaderId ?? 0, GeometryShader?.ShaderId ?? 0];
+                ProgramId = program; program = 0;
+                ProgramLayout.InstallCandidate(layout);
+                // Engine disposal detaches every non-null stage. Cached executables have no attached stages.
+                VertexShader = vertexSlot;
+                FragmentShader = fragmentSlot;
+                if (vertexSlot != null) vertexSlot.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Vertex).Shader;
+                if (fragmentSlot != null) fragmentSlot.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Fragment).Shader;
+                GeometryShader = geometrySlot;
+                if (geometrySlot != null) geometrySlot.ShaderId = geometry.Shader;
+                stages.Clear();
+                uniformLocations.Clear();
+                foreach (var pair in locations) uniformLocations[pair.Key] = pair.Value;
+                uniformLocationCache.Clear();
+                uniformLocationCacheProgramId = 0;
+                EngineDisposed(this) = false;
+                installedPlan = plan;
+                if (oldProgram != 0) GL.DeleteProgram(oldProgram);
+                foreach (int shader in oldStages) if (shader != 0) GL.DeleteShader(shader);
+                return true;
+            }
         }
         finally
         {
@@ -135,19 +143,8 @@ public abstract partial class GpuProgram
         int candidate = 0;
         try
         {
-            candidate = GL.CreateProgram();
-            if (candidate == 0) throw new InvalidOperationException("glCreateProgram returned 0.");
-            DriverProgramCache.RequestRetrievable(candidate, retrievableBinary);
-            foreach (var stage in stages) GL.AttachShader(candidate, stage.Shader);
-            long started = Stopwatch.GetTimestamp();
-            GL.LinkProgram(candidate);
-            linkMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-            GL.GetProgram(candidate, GetProgramParameterName.LinkStatus, out int linked);
-            if (linked == 0)
-            {
-                infoLog = GL.GetProgramInfoLog(candidate) ?? string.Empty;
-                return false;
-            }
+            candidate = ShaderProgramLink.Submit(stages.Select(stage => stage.Shader).ToArray(), retrievableBinary, out linkMilliseconds);
+            if (!ShaderProgramLink.Validate(candidate, out infoLog)) return false;
             // The caller retains stages for engine disposal and owns the successfully linked candidate.
             program = candidate;
             candidate = 0;

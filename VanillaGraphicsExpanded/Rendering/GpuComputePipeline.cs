@@ -8,6 +8,7 @@ using System.Threading;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 
 using Vintagestory.API.Common;
 
@@ -108,27 +109,12 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
 #endif
         try
         {
-            programId = GL.CreateProgram();
-            if (programId == 0)
-            {
-                infoLog = "glCreateProgram returned 0.";
-                return false;
-            }
-
+            programId = ShaderProgramLink.Submit([computeShader.ShaderId], retrievableBinary, out _);
 #if DEBUG
             GlDebug.TryLabel(ObjectLabelIdentifier.Program, programId, debugName);
-#endif
-
-            DriverProgramCache.RequestRetrievable(programId, retrievableBinary);
-            GL.AttachShader(programId, computeShader.ShaderId);
-            GL.LinkProgram(programId);
-#if DEBUG
             GlDebug.ThrowIfErrors($"{debugName}: compute create/attach/link program={programId}");
 #endif
-
-            GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int linkStatus);
-            infoLog = GL.GetProgramInfoLog(programId) ?? string.Empty;
-
+            bool linked = ShaderProgramLink.Validate(programId, out infoLog);
             GL.DetachShader(programId, computeShader.ShaderId);
 
             if (disposeShaderAfterLink)
@@ -136,7 +122,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
                 computeShader.Dispose();
             }
 
-            if (linkStatus == 0)
+            if (!linked)
             {
                 try { GL.DeleteProgram(programId); } catch { }
                 return false;
@@ -223,7 +209,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
     private static bool TryCreateFromBinaryContract(ShaderSettings settings,
         Spirv.ShaderAssetReader read, out GpuComputePipeline? pipeline, out string infoLog,
         string? debugName, GpuProgramLayout? layout, Action<string>? warn,
-        Func<Spirv.ShaderBinaryDigest.Manifest?> digestIndex)
+        Func<Spirv.ShaderBinaryDigest.Manifest?> digestIndex, IAssetManager? assets = null)
     {
         pipeline = null;
         infoLog = string.Empty;
@@ -232,14 +218,20 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             var plan = new ShaderLoadPlan(settings);
             if (plan.Stages.Count != 1 || plan.Stages[0].Stage.Kind != ShaderStageKind.Compute)
                 throw new ArgumentException($"Program '{settings.Contract.Identity}' is not a compute program.");
-            var inputs = DriverProgramCache.Prepare(plan, read, digestIndex);
-            int candidate = GL.CreateProgram();
+            using var pending = assets == null ? null : ShaderLinkBatch.Take(assets, PBR.ShaderImportsSystem.DefaultDomain, plan);
+            var inputs = pending?.Inputs ?? DriverProgramCache.Prepare(plan, read, digestIndex);
+            int candidate = pending?.DetachProgram() ?? GL.CreateProgram();
             try
             {
-                if (DriverProgramCache.TryLoad(candidate, inputs))
+                if (pending != null || DriverProgramCache.TryLoad(candidate, inputs))
                 {
                     pipeline = PrepareLinkedPipeline(candidate, plan.Stages[0].Stage.Bindings, layout, warn, debugName);
                     candidate = 0;
+                    if (pending != null)
+                    {
+                        foreach (var stage in pending.Stages) GL.DetachShader(pipeline.ProgramId, stage.Shader);
+                        if (!pending.Cached) DriverProgramCache.Save(pipeline.ProgramId, inputs);
+                    }
                 }
                 else
                 {
@@ -278,7 +270,7 @@ internal sealed class GpuComputePipeline : GpuResource, IDisposable
             ?? throw new InvalidOperationException("Missing built compute shader asset: " + path);
         return TryCreateFromBinaryContract(settings, Read, out pipeline, out infoLog,
             debugName, layout, message => (log ?? api.Logger)?.Warning(message),
-            () => ShaderDigestIndexCache.ForAssets(api.Assets, PBR.ShaderImportsSystem.DefaultDomain));
+            () => ShaderDigestIndexCache.ForAssets(api.Assets, PBR.ShaderImportsSystem.DefaultDomain), api.Assets);
     }
     /// <summary>
     /// Creates a compute pipeline from a required packaged SPIR-V binary. The legacy preference parameter is ignored; GLSL fallback is never used.

@@ -10,8 +10,8 @@ namespace VanillaGraphicsExpanded.Rendering.Spirv;
 internal static class SpirvStageLoader
 {
     #region Loading
-    /// <summary>Consumes a borrowed binary synchronously with exact typed specialization argument bits.</summary>
-    public static (int Shader, GpuBindingContract Contract) Load(ShaderStageSelection selection, ShaderAssetReader read)
+    /// <summary>Uploads borrowed binary data with exact specialization bits; deferred callers own completion validation.</summary>
+    public static (int Shader, GpuBindingContract Contract) Load(ShaderStageSelection selection, ShaderAssetReader read, bool deferCompletion = false)
     {
         long started = Stopwatch.GetTimestamp();
         var stage = selection.Stage;
@@ -20,7 +20,7 @@ internal static class SpirvStageLoader
         ReadOnlySpan<byte> binary = read(selection.BinaryPath);
         double readMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (!GpuShaderModule.TryLoadSpirv(ToShaderType(stage.Kind), binary, stage.EntryPoint, constants,
-            out var module, out string error, stage.Identity) || module == null)
+            out var module, out string error, stage.Identity, deferCompletion) || module == null)
             throw new InvalidOperationException($"SPIR-V load/specialization failed for stage '{stage.Identity}', binary '{selection.BinaryPath}': {error}");
         using (module)
         {

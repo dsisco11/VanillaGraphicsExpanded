@@ -841,7 +841,7 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       Release cold/warm/reload/first-use timings are recorded, with variable results and no universal
       speedup claim. Zero-format hardware is source-reviewed; unavailable formats and bypass tested.
 
-  ☐ Batch production shader linking using supported parallel shader compilation.
+  ☑ Batch production shader linking using supported parallel shader compilation.
     - Detect the available parallel-compilation extension and retain the existing loading path when
       unsupported. Submit independent specialization/link work before waiting for individual results.
       Keep GL operations on the owning context; do not introduce arbitrary worker-thread GL calls.
@@ -857,3 +857,39 @@ LumOn - World-Probe Tracing and Surface Cache Lighting:
       lower individual link cost or higher steady-state FPS from reduced total startup time.
     - Use subagents for focused completion, failure, cancellation, ownership and fallback tests;
       obtain a separate implementation review and record evidence before marking complete.
+    - Complete: bounded graphics/compute submission, shared linking operations, configuration
+      coalescing, synchronous fallback and failed-replacement retention. Separate review passed;
+      28/28 focused checks passed in Release and Debug (isolated Debug output due to a locked DLL).
+      Matched production timings and first-use limits: docs/GPU.ParallelShaderCompilation.md.
+      Results are mixed; no reliable speedup or steady-state FPS improvement is claimed.
+
+  ☐ Load debug shader programs on demand instead of eagerly linking the entire family.
+    - Prioritize the legacy lumon_debug dispatcher: profiling measured 1064 ms for that fallback
+      alone and 1412 ms for all 11 debug programs. Evidence: docs/GPU.ParallelShaderCompilation.md.
+    - Separate declaration/lookup availability from executable creation through the existing owners.
+      Create only the selected debug program when required; do not expose unfinished handles or let
+      a missing registry entry trigger the engine's GLSL loading path.
+    - Audit fallback callers before deferring or removing the legacy dispatcher. Preserve category
+      selection, family lookup, current configuration, reload/disposal and failed-replacement behavior.
+      Configuration changes must update pending settings without compiling unused family members.
+    - Retain executable caching and supported batching for genuinely required programs. Measure
+      Release startup and first selection/switching separately with cold and warm executable caches;
+      distinguish eliminated work from work deferred until opening a debug view.
+    - Use subagents for focused selection, fallback, configuration, reload and ownership tests;
+      obtain a separate implementation review and record evidence before marking complete.
+
+  ☐ Apply intended runtime shader settings before the initial link.
+    - Audit startup and recreation paths for default generations immediately replaced by configuration
+      or renderer requirements. Start with DirectVisibility=false being changed to true by gather
+      passes; evidence: docs/GPU.ParallelShaderCompilation.md.
+    - Capture the required settings before submission and cache-key construction through existing
+      shader owners. Coordinate with on-demand debug creation so a newly requested program uses
+      current settings immediately, without globally changing defaults for unrelated consumers.
+    - Resolve dependencies on world topology and resource availability explicitly; defer creation
+      where appropriate and retain necessary later recompiles when effective inputs actually change.
+      Preserve coherent publication and the previous valid program on replacement failure.
+    - Verify installed settings and link counts across startup, first render, reload and configuration
+      changes. Measure matched Release startup plus first-use costs with cache misses and warm hits;
+      prove removal of intermediate generations without weakening rendering assertions.
+    - Use subagents for focused lifecycle/settings tests; obtain a separate implementation review
+      and record evidence before marking complete.
