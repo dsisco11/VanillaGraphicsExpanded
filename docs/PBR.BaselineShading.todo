@@ -11,10 +11,24 @@ Scope and shared contracts
   These are implementation tasks; algorithm choices and performance targets require investigation.
   Reuse existing shader/resource owners, compiled SPIR-V contracts, demand loading and settings.
   Keep optional features bounded, configurable and independently disableable.
-  Coordinate per-face material properties with docs/LumOn.SurfaceCache.PerformanceAndMaterials.todo;
-  that list owns their schema/registry implementation, rather than duplicating it here.
+  This list owns per-axis-face overrides within PBR material definitions. Surface Cache performance
+  and geometry work remain in docs/LumOn.SurfaceCache.PerformanceAndMaterials.todo.
 
 Tasks
+
+  ☐ Support per-axis-face PBR property overrides within a material definition.
+    - Extend pbr_material_definitions.json so one material definition can specify different property
+      values for +X, -X, +Y, -Y, +Z and -Z faces, including albedo, specular and other PBR properties.
+      Define the JSON face names and coordinate/orientation semantics explicitly before implementation.
+    - Retain material-wide defaults; omitted faces and omitted properties inherit those defaults.
+      Preserve existing definitions and mapping behavior. This is a material-definition feature,
+      independent of Surface Cache, and must work with LumOn disabled.
+    - Resolve overrides through the existing material registry and rendering data path. Ensure two
+      faces sharing a texture can still use different values; define selection for rotated geometry.
+      Include resolved overrides in relevant cache identity and hot-reload invalidation.
+    - Document albedo and specular semantics, supported values, inheritance and authoring examples.
+      Test all six axis faces, partial overrides, shared textures, rotations and legacy definitions;
+      validate visible PBR output in standalone and LumOn-enabled modes.
 
   ☐ Establish baseline PBR ownership, lighting contracts and comparison scenes.
     - Audit terrain, entities, transparent surfaces, liquids, sky, fog, shadows and final composition

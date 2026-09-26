@@ -1,9 +1,10 @@
-LumOn Surface Cache performance, geometry support and per-face materials
+LumOn Surface Cache performance and geometry support
 =====================================================================
 
 Scope
   Restore useful Surface Cache convergence and investigate the reported ~8 FPS regression;
-  support per-face PBR properties and correct tracing of grass, doors and other affected shapes.
+  correct tracing of grass, doors and other affected shapes.
+  Per-axis-face overrides within PBR material definitions are owned by docs/PBR.BaselineShading.todo.
   Keep displayed valid lighting while refreshing. Unknown geometry is not air or established sky.
   GPU timing, CPU submission/waits, overall frame time and useful lighting progress are separate metrics.
 
@@ -78,25 +79,13 @@ Tasks
       lighting. Avoid repeated full traces when a retained hit only awaits Surface Cache lighting.
     - Verify saturation, cancellation, stale completions and draining; measure useful commits/second.
 
-  ☐ Add per-face PBR material properties from definitions through rendering and tracing.
-    - Extend the definition/schema contract for face overrides, including albedo and specular values
-      and other supported PBR properties. Define orientation semantics, inheritance and precedence;
-      retain existing definitions and texture mappings without changing their meaning.
-    - Decide explicit shader semantics for properties not currently represented, including whether
-      albedo overrides or multiplies the texture. Document units/ranges and specular interpretation.
-    - Carry resolved face properties through registry identity, atlas/table generation, cache keys,
-      hot reload, terrain shading and Surface Cache material capture. Face selection must survive
-      rotations and shared textures; avoid collapsing distinct faces to one texture-only entry.
-    - Validate defaults, partial overrides, mapping precedence, rotated blocks, cache invalidation
-      and agreement between visible PBR shading and captured material values. Add author examples.
-
   ☐ Validate combined performance and correctness with focused tests and independent review.
     - Use subagents to run focused tests for affected paths and a separate implementation review.
       Preserve complete assertion coverage and production behavior; do not launch the game.
     - Record matched timing/progress evidence, settings and hardware, including remaining limits.
       Choose final budgets using useful work and frame-time costs rather than dispatch counts alone.
-    - Have the user verify stationary convergence, nearby edits, grass, door state changes and per-face
-      appearance in game, without whole-cache black/yellow restarts. Keep this acceptance explicit.
+    - Have the user verify stationary convergence, nearby edits, grass and door state changes
+      in game, without whole-cache black/yellow restarts. Keep this acceptance explicit.
     - Remove temporary verbose instrumentation after retaining evidence; keep inexpensive diagnostics
       needed to distinguish unavailable inputs from slow tracing. Mark tasks complete only against
       their recorded implementation and validation, or explicit user acceptance.
