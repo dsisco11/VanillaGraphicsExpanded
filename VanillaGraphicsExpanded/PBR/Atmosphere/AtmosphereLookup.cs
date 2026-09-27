@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Numerics;
+using System.Threading;
 
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
@@ -11,7 +12,7 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal int Height { get; init; } = AtmosphereLookup.DefaultHeight;
 }
 
-/// <summary>Builds resolution changes immediately and refreshes atmospheric inputs incrementally, publishing complete snapshots.</summary>
+/// <summary>Integrates complete atmospheric snapshots, with optional bounded stepping for callers that need it.</summary>
 internal sealed class AtmosphereLookup
 {
     internal const int DefaultWidth = 32;
@@ -27,9 +28,9 @@ internal sealed class AtmosphereLookup
     internal int Revision { get; private set; }
 
     #region Bounded refresh
-    /// <summary>Refreshes weather incrementally; initialization and resolution changes complete synchronously.</summary>
-    internal bool Update(Vector3 solarDirection, float altitudeKm, float cloudCover, bool complete = false,
-        int width = DefaultWidth, int height = DefaultHeight)
+    /// <summary>Builds a complete snapshot by default; explicit incremental callers can bound weather refresh work.</summary>
+    internal bool Update(Vector3 solarDirection, float altitudeKm, float cloudCover, bool complete = true,
+        int width = DefaultWidth, int height = DefaultHeight, CancellationToken cancellationToken = default)
     {
         if (!float.IsFinite(solarDirection.LengthSquared()) || solarDirection.LengthSquared() < .0001f
             || !float.IsFinite(altitudeKm) || !float.IsFinite(cloudCover)) return false;
@@ -65,6 +66,7 @@ internal sealed class AtmosphereLookup
         Span<Vector3> radiances = stackalloc Vector3[SamplesPerUpdate];
         while (next < end)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int count = Math.Min(SamplesPerUpdate, end - next);
             for (int lane = 0; lane < count; lane++)
             {

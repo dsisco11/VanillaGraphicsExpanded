@@ -38,8 +38,8 @@ applying their linear RGB extinction coefficients once per ray. Occluded sunligh
 from the compacted sample arrays.
 
 Scratch arrays are rented from `ArrayPool<float>` and returned in `finally`; stack scratch is bounded
-by the batch capacity. Startup and quality changes process multiple batches synchronously; normal
-refresh still evaluates at most 128 directions per update. The 24 view samples and 12 sunlight samples
+by the batch capacity. Every production rebuild computes the entire LUT in one background task;
+128 is the SIMD batch capacity, not a per-frame limit. The 24 view samples and 12 sunlight samples
 are unchanged. The original scalar `Radiance` remains a numerical reference, while the lookup uses
 the batch path. SIMD exponentials can round differently, so comparison tests use a small numerical
 tolerance rather than requiring bit-identical scalar output.
@@ -68,19 +68,25 @@ These measurements cover the CPU integration kernel, not full LUT publication or
 
 ## Publication and rendering
 
-`AtmosphereLookup` builds a configurable lat-long radiance table (default 32 x 24). Initialization and
-resolution changes complete synchronously before drawing. Weather and solar refreshes evaluate at most
-128 directions per update, taking `ceil(width * height / 128)` updates (6 at the default).
+`AtmosphereLookup` builds a configurable lat-long radiance table (default 32 x 24).
+`AtmosphereComputation` admits one `Task.Run` build at a time. Each task owns its lookup and computes
+the entire table, including its shared lighting integrals, without yielding work across render frames.
+The render callback captures value inputs and polls completion without waiting. Only that callback
+uploads textures and publishes lighting; background code never accesses engine or GPU objects.
+Until the first result arrives, consumers receive a valid 1x1 black sky with zero lighting and extinction.
+Subsequent builds retain the previous complete LUT. Initialization can therefore briefly show a dark
+sky rather than blocking the first scene frame.
 Sun direction is quantized to 1/256 component increments,
 altitude to 25 metres, and cloud coverage to 0.05. Stationary unchanged inputs do no integration.
 
 `Atmosphere.SkyLutQuality` is persisted in VGE config and exposed through ConfigLib as one quality
 selector. Levels 0–3 map to 32x24 (default), 64x48, 128x96 and 256x192. Both dimensions are derived
 with bit shifts; each increase quadruples the sample count. Separate width/height settings are removed
-without migration. Larger tables increase startup
-integration time and total weather-refresh latency. A resolution change discards any pending build
-and computes the entire new table immediately using the latest atmospheric inputs. The render service
-publishes it in the same frame that observes the new settings. Completed snapshots carry their own dimensions;
+without migration. Larger tables increase background integration time. Changes during a build are
+coalesced into the latest inputs captured after it finishes. Admitted work finishes and is published
+before another build starts, preventing continuously changing weather from starving publication.
+Quality changes follow the same asynchronous policy; they no longer require an immediate render-thread rebuild.
+Completed snapshots carry their own dimensions;
 the GPU owner uploads a replacement texture before publishing its ID and matching lighting, then
 disposes the old texture. Same-size refreshes reuse the existing allocation. No shader reload is needed.
 
@@ -90,15 +96,17 @@ config defaults/null restoration, clamping and quality-only serialization, immed
 incremental weather refresh and partial final batches, immutable previous snapshots, and GPU
 allocation/content/reuse/retirement through the production owner.
 This is headless validation, not live appearance acceptance.
-An admitted weather rebuild finishes even if atmospheric inputs change, preventing update starvation. It then admits
-the newest input state. Camera rotation/bobbing do not affect lookup direction; altitude changes
+World teardown cancels work between SIMD batches and discards its owner without waiting; an old-world
+task cannot publish into a new world. Task failures are observed even when their owner is discarded.
+Camera rotation/bobbing do not affect lookup direction; altitude changes
 below the key threshold do not invalidate it.
 
 Publication contains one immutable sky table, direct solar irradiance, upward Lambertian sky
 response (hemisphere irradiance divided by pi), horizon-average radiance, and local extinction.
 The render service uploads the table before publishing its lighting snapshot. All consumers keep
 the previous complete snapshot while a refresh is in progress. Shaders always receive valid atmospheric
-inputs and have no atmosphere-readiness branches. At 60 FPS, a default-resolution rebuild spans about 0.1 seconds. This is a
+inputs and have no atmosphere-readiness branches. Rebuild latency now depends on worker scheduling
+and computation rather than a fixed number of render frames. This is a
 bounded CPU approach with low-resolution interpolation, not a full-resolution fragment ray march.
 
 The installed sky shader samples this table and uses the existing unit-exposure Reinhard/sRGB
@@ -110,6 +118,12 @@ ambient floor is added. Celestial texture photometry and adaptive night exposure
 by this model.
 
 ## Shared lighting contract
+
+Asynchronous rebuild validation: `artifacts/AtmosphereAsync/atmosphere-async.trx` passed 59 focused
+Release tests, with one opt-in benchmark skipped and no failures. Tests cover full builds by default,
+completion-only publication, stable-input reuse, latest-input/resolution admission, cancellation,
+disposal and the GPU transition from a 1x1 placeholder to a computed LUT. The production shader
+catalog rebuilt successfully. No live game verification was performed.
 
 - Deferred direct lighting receives attenuated solar RGB; existing shadow visibility and point lights
   remain unchanged. Physical sunlight uses normalized Lambert diffuse (`1/pi`) in both forward and
@@ -152,9 +166,8 @@ The original 32-sample-budget measurement on this machine recorded five warmed f
 21.446–24.665 ms (median 22.902 ms), approximately
 0.954 ms per bounded 32-direction update. Two full refreshes preceded measurement as warmups.
 These are CPU harness observations, not GPU timings or a guarantee of in-game frame cost. Work is
-now spread across 6 render updates at the default resolution after initialization and stops when the quantized input key is unchanged.
-The first scene frame pays one complete lookup (approximately 23 ms in this earlier measurement)
-before uploading and exposing the atmospheric resources.
+now performed in full background builds and stops when the quantized input key is unchanged.
+These historical synchronous timings do not describe the current render-thread cost.
 
 Review corrected boundary-layer undersampling, GLSL declaration order and macro expansion, the
 sky's alpha preservation, exact-zenith azimuth handling, and the physical/legacy solar-unit boundary.

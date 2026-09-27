@@ -203,9 +203,9 @@ Tasks
 
   ☑ Add configurable resolution for atmospheric LUT.
     - Atmosphere.SkyLutQuality and ConfigLib selector retain the 32x24 default; each level doubles
-      both dimensions using shifts. Weather refreshes process up to 128 samples per frame, with
-      immediate full resolution rebuilds and coherent texture/lighting replacement. All 47 focused
-      tests pass. Validation
+      both dimensions using shifts. Full LUT rebuilds now run asynchronously, retaining the previous
+      displayed LUT until coherent texture/lighting replacement on the render thread. SIMD batches
+      remain bounded to 128 directions. The original quality validation passed 47 focused tests. Validation
       evidence and configuration details: PBR.Atmosphere.md.
   ☐ Make atmospheric shader look better and more physically accurate.
   ☐ Try and make tessellation do square subdivision by subdividing faces as quads.

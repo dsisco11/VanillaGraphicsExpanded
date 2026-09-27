@@ -79,7 +79,7 @@ public sealed class AtmosphereResolutionTests
         var lookup = new AtmosphereLookup();
         if (hasCompletedSnapshot)
             Assert.True(lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: 32, height: 24));
-        Assert.False(lookup.Update(Vector3.UnitY, 0, .5f, width: 32, height: 24));
+        Assert.False(lookup.Update(Vector3.UnitY, 0, .5f, complete: false, width: 32, height: 24));
         Assert.True(lookup.Update(Vector3.UnitX, 1, 1, width: 17, height: 9));
         AssertSnapshot(lookup.Current!, 17, 9);
         Assert.Equal(Vector3.UnitX, lookup.Current!.Sun);
@@ -106,11 +106,11 @@ public sealed class AtmosphereResolutionTests
         int updates = (width * height + AtmosphereLookup.SamplesPerUpdate - 1) / AtmosphereLookup.SamplesPerUpdate;
         for (int update = 0; update < updates - 1; update++)
         {
-            Assert.False(lookup.Update(Vector3.UnitX, 0, 1, width: width, height: height));
+            Assert.False(lookup.Update(Vector3.UnitX, 0, 1, complete: false, width: width, height: height));
             Assert.Same(previous, lookup.Current);
             Assert.Equal(1, lookup.Revision);
         }
-        Assert.True(lookup.Update(Vector3.UnitX, 0, 1, width: width, height: height));
+        Assert.True(lookup.Update(Vector3.UnitX, 0, 1, complete: false, width: width, height: height));
         AssertSnapshot(lookup.Current!, width, height);
         Assert.Equal(Vector3.UnitX, lookup.Current!.Sun);
         Assert.Equal(previousPixels, previous.Sky.ToArray());

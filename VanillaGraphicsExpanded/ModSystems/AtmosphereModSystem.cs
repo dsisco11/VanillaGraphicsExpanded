@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -8,11 +9,11 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-/// <summary>Owns bounded atmosphere updates and atomically publishes matching sky and lighting inputs before scene rendering.</summary>
+/// <summary>Schedules background atmosphere builds and publishes matching sky and lighting inputs before scene rendering.</summary>
 public sealed class AtmosphereModSystem : ModSystem, IRenderer
 {
     private ICoreClientAPI? api;
-    private AtmosphereLookup lookup = new();
+    private AtmosphereComputation computation = new();
     private DynamicTexture2D? sky;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
@@ -23,7 +24,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>Atmospheric rendering is a client-only service independent of LumOn.</summary>
     public override bool ShouldLoad(EnumAppSide side) => side == EnumAppSide.Client;
 
-    /// <summary>Registers synchronous initialization and bounded refresh before any sky or lighting consumer runs.</summary>
+    /// <summary>Registers background completion publication before sky and lighting consumers run.</summary>
     public override void StartClientSide(ICoreClientAPI api)
     {
         this.api = api;
@@ -35,7 +36,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     private void Reset()
     {
         Lighting = null; SkyTextureId = 0;
-        sky?.Dispose(); sky = null; lookup = new();
+        computation.Dispose(); computation = new();
+        sky?.Dispose(); sky = null;
     }
 
     /// <summary>Unregisters callbacks and releases atmosphere resources.</summary>
@@ -46,7 +48,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
             api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
             api.Event.LeaveWorld -= Reset;
         }
-        Reset(); api = null; base.Dispose();
+        Reset(); computation.Dispose(); api = null; base.Dispose();
     }
     #endregion
 
@@ -57,11 +59,14 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         if (api?.World?.Player?.Entity is not { } player || api.World.Calendar is not { } calendar) return;
         var direction = calendar.SunPositionNormalized;
         var settings = ConfigModSystem.Config.Atmosphere;
-        // The first scene frame must have a complete texture and matching lighting; later refreshes retain it.
-        lookup.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
+        // Supply valid resources without integrating on the render thread before the first result arrives.
+        if (Lighting is null)
+            Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
+                ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
+        var ready = computation.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
             (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
-            complete: lookup.Current is null, width: settings.LookupWidth, height: settings.LookupHeight);
-        if (lookup.Current is { } ready && !ReferenceEquals(Lighting, ready)) Publish(ready);
+            width: settings.LookupWidth, height: settings.LookupHeight);
+        if (ready is not null) Publish(ready);
     }
 
     /// <summary>Uploads a completed lookup before swapping dimensions and lighting visible to consumers.</summary>

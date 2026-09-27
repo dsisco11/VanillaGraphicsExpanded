@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -19,10 +20,17 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
     {
         EnsureContextValid();
         using var owner = new AtmosphereModSystem();
+        var placeholder = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero,
+            Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 };
+        owner.Publish(placeholder);
+        int initial = AtmosphereModSystem.SkyTextureId;
+        AssertTexture(placeholder);
         var lookup = new AtmosphereLookup();
         lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: 16, height: 8);
         owner.Publish(lookup.Current!);
         int first = AtmosphereModSystem.SkyTextureId;
+        Assert.NotEqual(initial, first);
+        Assert.False(GL.IsTexture(initial));
         AssertTexture(lookup.Current!);
         lookup.Update(Vector3.UnitY, 0, 1, complete: true, width: 16, height: 8);
         owner.Publish(lookup.Current!);
