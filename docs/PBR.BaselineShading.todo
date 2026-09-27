@@ -21,15 +21,35 @@ Tasks
     Per-axis-face overrides were withdrawn: texture-to-material mappings already let different
     block-face textures use different properties and naturally follow block rotation.
 
-  ☐ Establish baseline PBR ownership, lighting contracts and comparison scenes.
+  ☑ Establish baseline PBR ownership, lighting contracts and comparison cases through source analysis.
     - Audit terrain, entities, transparent surfaces, liquids, sky, fog, shadows and final composition
       through actual engine call sites. Identify remaining vanilla shading and hidden LumOn coupling.
     - Define shared linear-color, exposure, material, direct-light, environmental-light and shadow
       conventions. Preserve existing held-light/world-coordinate corrections and energy accounting.
-    - Record representative outdoor sun/shade, enclosed interiors, emissive/held lights, water and
-      night scenes with LumOn on/off. Measure steady-state pass costs separately from shader startup.
+    - Define outdoor sun/shade, enclosed interior, emissive/held-light, water and night comparison
+      cases for LumOn on/off. Identify pass-cost boundaries separately from shader startup.
+      Per user direction, this audit does not require live captures or measured timings.
     - Record ownership and dependency boundaries in a linked design document; keep render composition
       thin and place atmosphere, liquids and surface-detail policy in their respective owners.
+    - Completed source/IL evidence: docs/PBR.BaselineShading.Contracts.md. Traced checked-out API
+      and survival source, installed shaders, VintagestoryLib and VSEssentials renderer methods.
+      Confirmed Opaque-before-OIT ordering, animated-entity and held-item paths, RGBA atlas upload,
+      RGBA8 primary output, retained vertex lighting and the startup-disabled LumOn reference gap.
+
+  ☐ Correct the material color and HDR boundaries identified by the baseline audit.
+    - Separate unlit material color from vanilla vertex lighting before deferred BRDF evaluation.
+      Decode color textures consistently with representative CPU colors; keep data textures linear.
+    - Resolve RGBA16F composite to RGBA8 primary conversion deliberately, with an explicit shared
+      exposure/display boundary rather than implicit clipping before vanilla final grading.
+    - Preserve colormaps, cutouts, emission and point-light behavior; validate linear-color and
+      single-application lighting contracts through focused tests.
+
+  ☐ Establish PBR coverage for animated entities and late/transparent draw paths.
+    - Integrate entityanimated and first-person standard/entityanimated variants at their actual
+      engine stages. Do not assume standard/instanced patches cover animated entities or late items.
+    - Keep OIT reveal/accumulation output locations distinct from opaque normal/material outputs.
+      Provide lighting for OIT and AfterOIT independently of the earlier opaque deferred composite;
+      coordinate liquid-specific behavior with the PBR liquid task below.
 
   ☐ Separate LumOn-compatible and standalone PBR pipelines with automatic mode selection.
     - Select the intended pipeline from LumOn.Enabled before initial shader preparation. Share common
@@ -41,6 +61,8 @@ Tasks
       Bound environment leakage into enclosed spaces and document approximation limits.
     - Implement coherent enable/disable, reload and failure behavior without stale LumOn textures,
       unnecessary GI allocations or unintended intermediate shader generations.
+      Replace the constructor-captured nullable buffer reference so startup-off/later-enable can
+      consume the newly created LumOn manager; preserve resource ownership and disposal boundaries.
     - Test both pipelines, live switching, startup with LumOn disabled, interior/exterior behavior,
       material response and absence of double-counted ambient/GI. Preserve standalone point lights.
 
