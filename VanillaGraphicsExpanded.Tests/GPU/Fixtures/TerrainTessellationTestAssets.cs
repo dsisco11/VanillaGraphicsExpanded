@@ -9,10 +9,10 @@ internal static class TerrainTessellationTestAssets
 {
     #region Asset-backed preparation
     /// <summary>Generates stages using the same asset expansion as production.</summary>
-    internal static TerrainTessellationStages.Sources Generate(string source, bool adaptiveDisplacement = false)
+    internal static TerrainTessellationStages.Sources Generate(string source, bool adaptiveDisplacement = false, bool depthBias = false)
     {
         using var fixture = new BinaryShaderApiFixture();
-        return TerrainTessellationStages.Generate(source, TerrainTessellationAssets.Load(fixture.Api.Assets), adaptiveDisplacement);
+        return TerrainTessellationStages.Generate(source, TerrainTessellationAssets.Load(fixture.Api.Assets), adaptiveDisplacement, depthBias);
     }
 
     /// <summary>Prepares an engine program with the actual installed stage assets.</summary>

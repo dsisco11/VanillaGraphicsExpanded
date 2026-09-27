@@ -49,6 +49,9 @@ layout(location = 6) out uvec4 vge_outPatchId;  // (chunkSlot, patchId, packedPa
 
     private const string ChunkMaterialParamsSamplerDeclaration = @"
 in vec4 vge_environment;
+in vec4 vge_surfaceBasePosition;
+in vec3 vge_surfaceBaseNormal;
+in float vge_surfaceDisplaced;
 // VGE: Per-texel material params for block atlas (RGB16F: roughness, metallic, emissive)
 uniform sampler2D vge_materialParamsTex;
 // VGE: Per-texel normal+depth for block atlas (RGBA16F: normalXYZ_packed01, depth01)
@@ -164,7 +167,7 @@ flat in uint vge_faceId;
     uint patchId = 0u;
     vec2 vge_patchUv = vec2(0.0);
     ivec3 vge_owningBlock;
-    VgeLumonSceneComputeVoxelPatchIdAndUv(worldPos.xyz, normal, patchId, vge_patchUv, vge_owningBlock);
+    VgeLumonSceneComputeVoxelPatchIdAndUv(vge_surfaceBasePosition.xyz, vge_surfaceBaseNormal, patchId, vge_patchUv, vge_owningBlock);
 
     uint vge_u = uint(clamp(vge_patchUv.x, 0.0, 1.0) * 65535.0 + 0.5);
     uint vge_v = uint(clamp(vge_patchUv.y, 0.0, 1.0) * 65535.0 + 0.5);
@@ -190,6 +193,8 @@ flat in uint vge_faceId;
     {
         vge_outPatchId = uvec4(chunkSlot, patchId, vge_packedUv, vge_slotGeneration16);
     }
+    // Low 16 bits retain slot generation; bit 16 marks geometry without previous-height history.
+    if (vge_surfaceDisplaced > 0.0) vge_outPatchId.w |= 1u << 16;
 ";
 
     #endregion
@@ -206,6 +211,8 @@ flat in uint vge_faceId;
     {
         try
         {
+            bool displacementInterface = Tessellation.TerrainDisplacementPatches.Apply(tree, sourceName);
+            if (sourceName == "chunkshadowmap.vsh") return displacementInterface;
             if (sourceName == "sky.fsh")
             {
                 Atmosphere.AtmosphereSkyPatches.Preprocess(tree);

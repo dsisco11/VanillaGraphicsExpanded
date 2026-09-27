@@ -927,8 +927,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     /// This prevents ghosting/smearing during camera motion when the velocity buffer cannot provide
     /// a stable reprojection.
     /// </summary>
-    [Fact]
-    public void VelocityInvalid_RejectsHistory()
+    [Theory]
+    [InlineData(1,0u,64)]
+    [InlineData(0,64u,64)]
+    [InlineData(0,64u,1)]
+    [InlineData(1,64u,64)]
+    public void VelocityInvalid_RejectsHistory(int enableVelocity,uint flags,int budget)
     {
         EnsureShaderTestAvailable();
 
@@ -939,6 +943,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // Velocity texture: all zeros => flags=0 (invalid), velUv=(0,0)
         var velocityData = new float[ScreenWidth * ScreenHeight * 4];
+        for(int i=3;i<velocityData.Length;i+=4)velocityData[i]=BitConverter.UInt32BitsToSingle(flags);
 
         using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
         using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
@@ -956,13 +961,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rg32f);
 
-        var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
+        var programId = CompileOctahedralTemporalShader(texelsPerFrame: budget);
 
         using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
-            texelsPerFrame: 64,
+            texelsPerFrame: budget,
             temporalAlpha: 0.9f);
 
         // Enable velocity reprojection via the frame UBO so the shader tries to use the velocity buffer.
@@ -970,7 +975,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId,
             frameIndex: 0,
             historyValid: 1,
-            enableVelocityReprojection: 1,
+            enableVelocityReprojection: enableVelocity,
             velocityRejectThreshold: 0.01f,
             anchorJitterEnabled: 0,
             pmjCycleLength: 1,
@@ -986,6 +991,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
 
+        if(budget==1)
+        {
+            float[] metadata=outputAtlas[1].ReadPixels();
+            Assert.Contains(Enumerable.Range(0,metadata.Length/2),index=>metadata[index*2]==0f && outputData[index*4+2]>.1f);
+            return;
+        }
         // Sample a clamp-friendly texel (4,4). If history were blended, blue would be > 0.
         var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
         Assert.True(b < 0.1f, $"Expected history to be rejected with invalid velocity (blue~0), got blue={b:F3}");

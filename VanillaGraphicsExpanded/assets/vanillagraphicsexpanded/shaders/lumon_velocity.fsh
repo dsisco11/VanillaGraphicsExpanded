@@ -20,6 +20,7 @@ layout(location = 0) out vec4 outVelocity;
 // ============================================================================
 
 uniform sampler2D primaryDepth;
+uniform usampler2D gBufferPatchId;
 
 void main(void)
 {
@@ -28,6 +29,11 @@ void main(void)
     uint flags = 0u;
     vec2 velocityUv = vec2(0.0);
 
+    if ((texture(gBufferPatchId, currUv).w & (1u << 16)) != 0u)
+    {
+        outVelocity = vec4(0.0, 0.0, 0.0, uintBitsToFloat(LUMON_VEL_FLAG_DISPLACED_SURFACE));
+        return;
+    }
     if (historyValid == 0)
     {
         flags |= LUMON_VEL_FLAG_HISTORY_INVALID;

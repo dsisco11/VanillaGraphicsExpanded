@@ -37,6 +37,9 @@ void main() {
             && vge_tessellationDistance.y > vge_tessellationDistance.x && vge_tessellationPixels.z > 0.0
             && VgeRectValid(lo, size)
             && renderFlags[0] == renderFlags[1] && renderFlags[0] == renderFlags[2];
+#if VGE_PRODUCTION_DISPLACEMENT
+        eligible = eligible && vge_displacementEnabled != 0;
+#endif
         eligible = eligible && VgeFinite(normal[0]) && dot(normal[0], normal[0]) > 0.00000001
             && all(equal(normal[0], normal[1])) && all(equal(normal[0], normal[2]));
         vec2 band = 1.0 / vec2(textureSize(vge_normalDepthTex, 0));

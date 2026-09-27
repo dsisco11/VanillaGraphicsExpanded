@@ -20,7 +20,7 @@ internal static class TerrainReliefBindings
     internal static void Register(ShaderProgram program)
     {
         programs.Remove(program);
-        if (program.AssetDomain == Constants.ModId || program.PassName is not ("chunkopaque" or "chunktopsoil")) return;
+        if (program.AssetDomain == Constants.ModId || program.PassName is not ("chunkopaque" or "chunktopsoil" or "chunkshadowmap")) return;
         if (program.HasUniform("vge_displacementTex") && program.HasUniform("vge_displacementRecords")
             && program.HasUniform("vge_normalDepthTex")) programs.Add(program, new(program.ProgramId));
     }

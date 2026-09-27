@@ -22,6 +22,7 @@ internal static class TerrainTessellationDrawHook
     {
         __state = null;
         if (!TerrainTessellationPrograms.Active) return;
+        TerrainDisplacementRuntime.Bind();
         var cache = GlStateCache.Current;
         __state = cache.PatchVertices;
         cache.SetPatchVertices(3);

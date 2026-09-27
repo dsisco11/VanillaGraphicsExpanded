@@ -126,8 +126,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         var surfaceDetail = TerrainReliefConfiguration.Capture(ConfigModSystem.Config.MaterialAtlas);
         bool shaderReloadNeeded = lastSurfaceDetail.HasValue && lastSurfaceDetail.Value != surfaceDetail;
-        if (lastSurfaceDetail?.Mode != surfaceDetail.Mode && surfaceDetail.Mode == TerrainSurfaceDetailMode.Tessellation)
-            capi.Logger.Notification("[VGE] Tessellation was requested but displaced rendering integration is not available yet; relief remains disabled.");
         shaderReloadNeeded |= lastLumOnEnabled.HasValue && lastLumOnEnabled.Value != lumOnEnabled;
         shaderReloadNeeded |= lastEnableNormalMaps.HasValue && lastEnableNormalMaps.Value != enableNormalMaps;
         shaderReloadNeeded |= lastNormalMapScale.HasValue && Math.Abs(lastNormalMapScale.Value - normalMapScale) > 0.0001f;

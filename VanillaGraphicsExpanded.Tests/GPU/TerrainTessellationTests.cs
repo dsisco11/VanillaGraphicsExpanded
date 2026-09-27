@@ -16,6 +16,63 @@ public sealed class TerrainTessellationTests : RenderTestBase
     /// <summary>Uses the shared headless context.</summary>
     public TerrainTessellationTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Coherent production publication
+    /// <summary>All terrain consumers must publish matching adaptive executables before displacement enables.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AdaptiveFamilyPublishesTogetherAndReloadInvalidates(bool lumon)
+    {
+        EnsureContextValid();
+        var config=ConfigModSystem.Config.MaterialAtlas;
+        bool previousLumon=ConfigModSystem.Config.LumOn.Enabled;
+        ConfigModSystem.Config.LumOn.Enabled=lumon;
+        var previousMode=config.TerrainSurfaceDetailMode;bool previousHook=TerrainTessellationPrograms.DrawHookAvailable;
+        var owners=new List<ShaderProgram>();
+        using var shaders=new TerrainShaderTestFixture();
+        try
+        {
+            config.TerrainSurfaceDetailMode=VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Tessellation;
+            TerrainTessellationPrograms.DrawHookAvailable=true;TerrainTessellationPrograms.BeginReload();
+            foreach(string family in new[]{"chunkopaque","chunktopsoil","chunkshadowmap"})
+            {
+                Assert.False(TerrainTessellationPrograms.Complete);
+                string source=PbrSurfaceInstalledShaderTests.Build(family+".vsh",2,0,1,0,0);
+                int vs=shaders.Compile(ShaderType.VertexShader,source);
+                int fs=shaders.Compile(ShaderType.FragmentShader,PbrSurfaceInstalledShaderTests.Build(family+".fsh",2,0,1,0,0));
+                var owner=new ShaderProgram{PassName=family,AssetDomain="game",ProgramId=TerrainShaderTestFixture.Link(vs,fs),VertexShader=new Shader{ShaderId=vs,Code=source},FragmentShader=new Shader{ShaderId=fs}};
+                owners.Add(owner);TerrainTessellationTestAssets.Prepare(owner);TerrainTessellationPatches.Configure(owner);TerrainTessellationPrograms.Prepare(owner);
+                Assert.True(TerrainTessellationPrograms.Adaptive(owner));
+            }
+            Assert.True(TerrainTessellationPrograms.Complete);
+            int actual=owners[0].ProgramId;owners[0].ProgramId=0;Assert.False(TerrainTessellationPrograms.Complete);owners[0].ProgramId=actual;
+            Assert.True(TerrainTessellationPrograms.Complete);TerrainTessellationPrograms.BeginReload();Assert.False(TerrainTessellationPrograms.Complete);
+        }
+        finally
+        {
+            foreach(var owner in owners){TerrainTessellationPrograms.Forget(owner);GpuProgramObject.Adopt(owner.ProgramId).Dispose();}
+            TerrainTessellationPrograms.BeginReload();ConfigModSystem.Config.LumOn.Enabled=previousLumon;config.TerrainSurfaceDetailMode=previousMode;TerrainTessellationPrograms.DrawHookAvailable=previousHook;
+        }
+    }
+    #endregion
+
+    #region Installed shadow interface
+    /// <summary>Compiles installed alpha-tested terrain shadow stages with both terrain mesh layouts.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void InstalledShadowInterfaceLinksAdaptive(int ssbo)
+    {
+        EnsureContextValid();
+        using var shaders=new TerrainShaderTestFixture();
+        int vertex=shaders.Compile(ShaderType.VertexShader,PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.vsh",2,0,0,ssbo,0));
+        int fragment=shaders.Compile(ShaderType.FragmentShader,PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.fsh",2,0,0,ssbo,0));
+        var sources=TerrainTessellationTestAssets.Generate(shaders.Source(vertex),adaptiveDisplacement:true);
+        Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,sources,TerrainTessellationPatches.EnabledDefine,4,out int program,out string error),error);
+        GpuProgramObject.Adopt(program).Dispose();
+    }
+    #endregion
+
     #region Installed interfaces
     /// <summary>Exercises both terrain families, SSBO layouts, SSAO outputs and both shadow cascades.</summary>
     [Theory]

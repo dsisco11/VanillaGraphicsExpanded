@@ -1,7 +1,15 @@
 uniform sampler2D vge_displacementTex;
 uniform sampler2D vge_normalDepthTex;
+#if VGE_TESS_SHADOW
+uniform mat4 mvpMatrix;
+#else
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
+#endif
+uniform float vge_tessellationFocalPixels;
+#if VGE_PRODUCTION_DISPLACEMENT
+uniform int vge_displacementEnabled;
+#endif
 // xy = viewport pixels, z = target pixels per segment, w = maximum subdivision.
 uniform vec4 vge_tessellationPixels;
 // x/y = displacement fade start/end in metres; zero/invalid values disable displacement.
@@ -44,8 +52,21 @@ float VgeEdgeLevel(vec3 a, vec3 b) {
     if (!VgeFinite(a) || !VgeFinite(b) || !(vge_tessellationPixels.z > 0.0)
         || !VgeFinite2(vge_tessellationPixels.xy)) return 1.0;
     if (max(length(a), length(b)) >= vge_tessellationDistance.y) return 1.0;
+    // Production uses one camera-derived angular metric for visible and shadow passes.
+    // It depends only on shared endpoints, so light projection cannot change subdivision.
+    if (vge_tessellationFocalPixels > 0.0) {
+        float distance = max(0.05, min(length(a), length(b)));
+        float pixels = length(b - a) * vge_tessellationFocalPixels / distance;
+        float level = clamp(pixels / vge_tessellationPixels.z, 1.0, limit);
+        return mix(1.0, level, min(VgeDistanceFade(a), VgeDistanceFade(b)));
+    }
+#if VGE_TESS_SHADOW
+    vec4 ca = mvpMatrix * vec4(a, 1);
+    vec4 cb = mvpMatrix * vec4(b, 1);
+#else
     vec4 ca = projectionMatrix * modelViewMatrix * vec4(a, 1);
     vec4 cb = projectionMatrix * modelViewMatrix * vec4(b, 1);
+#endif
     // Never divide by a near-plane crossing; bound it conservatively instead.
     if (min(ca.w, cb.w) <= 0.0001) return limit;
     float pixels = length((ca.xy / ca.w - cb.xy / cb.w) * vge_tessellationPixels.xy * 0.5);

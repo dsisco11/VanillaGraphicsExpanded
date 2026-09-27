@@ -9,6 +9,7 @@ internal static partial class GpuShaderContracts
     {
         contract.RegisterUniformBlockBinding("LumOnFrameUBO", GpuBindingRegistry.Ubo.Frame, required: true);
         contract.RegisterSamplerUnit("primaryDepth", 0, required: true);
+        contract.RegisterSamplerUnit("gBufferPatchId", 1, required: true);
     }
     #endregion
 }

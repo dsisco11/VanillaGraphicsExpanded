@@ -101,23 +101,31 @@ void computeHistoryAtlasCoord(
     out ivec2 historyAtlasCoord,
     out bool usedVelocityReprojection,
     out bool rejectHistoryFromVelocity,
+    out bool rejectGeometryHistory,
     out uint temporalRejectBits)
 {
     historyAtlasCoord = atlasCoord;
     usedVelocityReprojection = false;
     rejectHistoryFromVelocity = false;
+    rejectGeometryHistory = false;
     temporalRejectBits = 0u;
-
-    if (enableVelocityReprojection == 0)
-    {
-        return;
-    }
 
     // Sample velocity at the probe's screen-space anchor point.
     vec2 currUv = computeProbeScreenUv(probeCoord, probeGridSizeI);
     vec4 velSample = texture(velocityTex, currUv);
     uint velFlags = lumonVelocityDecodeFlags(velSample);
     vec2 velUv = lumonVelocityDecodeUv(velSample);
+
+    // Camera-only reprojection cannot reconstruct the prior displaced height. Reject locally
+    // even when the optional velocity-based coordinate remapping is disabled.
+    if ((velFlags & LUMON_VEL_FLAG_DISPLACED_SURFACE) != 0u)
+    {
+        rejectGeometryHistory = true;
+        temporalRejectBits |= LUMON_META_TEMPREJ_VELOCITY_INVALID;
+        rejectHistoryFromVelocity = true;
+        return;
+    }
+    if (enableVelocityReprojection == 0) return;
 
     if (!lumonVelocityIsValid(velFlags) || lumonIsNanVec2(velUv))
     {
@@ -261,6 +269,7 @@ void main(void)
     ivec2 historyAtlasCoord;
     bool usedVelocityReprojection;
     bool rejectHistoryFromVelocity;
+    bool rejectGeometryHistory;
     uint temporalRejectBits;
     computeHistoryAtlasCoord(
         atlasCoord,
@@ -270,6 +279,7 @@ void main(void)
         historyAtlasCoord,
         usedVelocityReprojection,
         rejectHistoryFromVelocity,
+        rejectGeometryHistory,
         temporalRejectBits);
 
     // Load history data (optionally reprojected)
@@ -297,6 +307,13 @@ void main(void)
 #endif
 
     if (!wasTraced) {
+        if (rejectGeometryHistory) {
+            // Untraced directions also contain prior geometry's samples. Retain their value
+            // for diagnostics, but give them no confidence until this surface is traced.
+            outRadiance = current;
+            outMeta = lumonEncodeMeta(0.0, temporalRejectBits);
+            return;
+        }
         // Not traced this frame:
         // - If velocity reprojection is enabled and usable, shift history into this probe cell.
         // - Otherwise, preserve the trace output unchanged (trace shader already copied history).

@@ -10,6 +10,50 @@ namespace VanillaGraphicsExpanded.Tests;
 [Collection("GPU")]
 public sealed class TerrainTessellationPolicyTests
 {
+    #region Displacement boundaries
+    /// <summary>Admission expands a copied engine volume by the maximum displacement on every axis.</summary>
+    [Fact]
+    public void AdmissionBoundsReserveMaximumDisplacement()
+    {
+        var original=new Vintagestory.API.MathTools.Sphere { radius=1,radiusY=2,radiusZ=3 };
+        var expanded=original;
+        TerrainDisplacementBoundsHook.Prefix(ref expanded);
+        Assert.Equal(1,original.radius);Assert.Equal(2,original.radiusY);Assert.Equal(3,original.radiusZ);
+        Assert.InRange(expanded.radius,1.04999,1.05001);Assert.InRange(expanded.radiusY,2.04999,2.05001);Assert.InRange(expanded.radiusZ,3.04999,3.05001);
+    }
+
+    /// <summary>The shared shadow shader accepts only opaque and topsoil pool identities.</summary>
+    [Fact]
+    public void ShadowPoolProvenanceExcludesOtherTerrainPasses()
+    {
+        var previous=TerrainDisplacementRuntime.TerrainPools;
+        var opaque=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
+        var soil=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
+        var liquid=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
+        GC.SuppressFinalize(opaque);GC.SuppressFinalize(soil);GC.SuppressFinalize(liquid);
+        try
+        {
+            TerrainDisplacementRuntime.TerrainPools=null;Assert.False(TerrainDisplacementRuntime.IsEligiblePool(opaque));
+            TerrainDisplacementRuntime.TerrainPools=[[opaque],[liquid],[],[],[],[soil]];
+            Assert.True(TerrainDisplacementRuntime.IsEligiblePool(opaque));Assert.True(TerrainDisplacementRuntime.IsEligiblePool(soil));
+            Assert.False(TerrainDisplacementRuntime.IsEligiblePool(liquid));
+        }
+        finally { TerrainDisplacementRuntime.TerrainPools=previous; }
+    }
+    #endregion
+
+    #region Installed engine hook contract
+    /// <summary>Harmony field injection matches the installed pool ownership and dimension fields.</summary>
+    [Fact]
+    public void PoolHookFieldsMatchInstalledEngine()
+    {
+        Assert.Equal(typeof(int),AccessTools.Field(typeof(Vintagestory.API.Client.MeshDataPool),"dimensionId").FieldType);
+        var targets=TerrainDisplacementRenderScope.TargetMethods().ToArray();
+        Assert.Equal(new[]{AccessTools.Method(typeof(ChunkRenderer),nameof(ChunkRenderer.RenderOpaque)),AccessTools.Method(typeof(ChunkRenderer),nameof(ChunkRenderer.RenderShadow))},targets.OrderBy(method=>method.Name).ToArray());
+        Assert.Equal(typeof(Vintagestory.API.Client.MeshDataPoolManager[][]),AccessTools.Field(typeof(ChunkRenderer),"poolsByRenderPass").FieldType);
+    }
+    #endregion
+
     #region Selection
     /// <summary>Only the intended opaque and topsoil terrain families are eligible.</summary>
     [Theory]

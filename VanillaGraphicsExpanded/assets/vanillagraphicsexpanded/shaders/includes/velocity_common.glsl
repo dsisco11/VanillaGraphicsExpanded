@@ -19,6 +19,7 @@ const uint LUMON_VEL_FLAG_SKY_OR_INVALID_DEPTH = 1u << 2;
 const uint LUMON_VEL_FLAG_PREV_BEHIND_CAMERA   = 1u << 3;
 const uint LUMON_VEL_FLAG_PREV_OOB             = 1u << 4;
 const uint LUMON_VEL_FLAG_NAN                  = 1u << 5;
+const uint LUMON_VEL_FLAG_DISPLACED_SURFACE    = 1u << 6;
 
 uint lumonVelocityDecodeFlags(vec4 velocitySample)
 {

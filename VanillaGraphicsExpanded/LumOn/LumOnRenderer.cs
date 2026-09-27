@@ -585,6 +585,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PatchIdentity = gBufferManager!.PatchIdTextureId;
 
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();

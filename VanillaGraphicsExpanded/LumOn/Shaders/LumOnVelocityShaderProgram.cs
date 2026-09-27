@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Shader program for LumOn velocity generation pass.
 /// Produces a per-pixel screen-space velocity (UV delta per frame) and packed reprojection flags.
 /// </summary>
-[ShaderProgram("Contract", "lumon_velocity", 1)]
+[ShaderProgram("Contract", "lumon_velocity", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_velocity.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_velocity.fsh")]
 public partial class LumOnVelocityShaderProgram : LumOnShaderProgram
@@ -47,6 +47,8 @@ public partial class LumOnVelocityShaderProgram : LumOnShaderProgram
     /// Primary depth texture (current frame).
     /// </summary>
     public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
+    /// <summary>Surface identity includes the local displacement-history rejection flag.</summary>
+    public int PatchIdentity { set => BindExternalTexture2D("gBufferPatchId", value, 1, GpuSamplers.NearestClamp); }
 
     #endregion
 

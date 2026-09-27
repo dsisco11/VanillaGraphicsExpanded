@@ -6,8 +6,13 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-public sealed class PbrModSystem : ModSystem
+public sealed class PbrModSystem : ModSystem, IRenderer
 {
+    public double RenderOrder => -.6;
+    public int RenderRange => 1;
+
+    /// <summary>Captures a common subdivision metric before shadow and main rendering.</summary>
+    public void OnRenderFrame(float deltaTime, EnumRenderStage stage) => PBR.Tessellation.TerrainDisplacementRuntime.CaptureView();
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
 
@@ -20,6 +25,8 @@ public sealed class PbrModSystem : ModSystem
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        PBR.Tessellation.TerrainDisplacementRuntime.Api = api;
+        api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_displacement_view");
         HarmonyPatches.PbrDrawRouteHook.Api = api;
         ConfigModSystem.Config.Sanitize();
 
@@ -36,6 +43,9 @@ public sealed class PbrModSystem : ModSystem
 
     public override void Dispose()
     {
+        capi?.Event.UnregisterRenderer(this, EnumRenderStage.Before);
+        PBR.Tessellation.TerrainDisplacementRuntime.Api = null;
+        PBR.Tessellation.TerrainDisplacementRuntime.ResetHistory();
         base.Dispose();
         HarmonyPatches.PbrDrawRouteHook.Api = null;
 

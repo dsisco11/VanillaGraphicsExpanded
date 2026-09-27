@@ -178,6 +178,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 prevViewProjMatrix: proj,
                 historyValid: 1);
 
+            using var patchIdentity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
+            patchIdentity.UploadDataImmediate(new uint[ScreenWidth*ScreenHeight*4]);
+            velocityProg.PatchIdentity=patchIdentity.TextureId;
             velocityProg.PrimaryDepth = primaryDepth.TextureId;
 
             AssertSampler2DBinding("Stage: Velocity", velocityProg, "primaryDepth", primaryDepth);

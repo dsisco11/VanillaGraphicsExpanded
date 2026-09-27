@@ -35,6 +35,7 @@ internal static class TerrainMaterialParamsTextureBindingHook
         ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2DLinear"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunkliquid", "TerrainTex2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunktransparent", "TerrainTex2D"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunkshadowmap", "Tex2d2D"),
     };
 
     /// <summary>

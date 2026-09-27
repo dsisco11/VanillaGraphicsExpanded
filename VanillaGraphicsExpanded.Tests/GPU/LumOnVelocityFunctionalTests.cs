@@ -46,6 +46,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             invCurrViewProjMatrix: invCurrViewProj,
             prevViewProjMatrix: prevViewProj,
             historyValid: historyValid);
+        var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
+        identity.UploadDataImmediate(new uint[ScreenWidth*ScreenHeight*4]);
+        programId.PatchIdentity=identity.TextureId;
 
     }
 
@@ -91,6 +94,28 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             0f, 0f, 0f, 1f  // col3
         ];
     }
+
+    #region Adaptive surface history
+    /// <summary>Displaced terrain rejects camera-only motion history while retaining its surface generation.</summary>
+    [Fact]
+    public void DisplacedSurfaceRejectsVelocityHistory()
+    {
+        EnsureShaderTestAvailable();
+        var program=CompileVelocityShader();using var use=program.UseScope();
+        using var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
+        var ids=new uint[ScreenWidth*ScreenHeight*4];for(int i=3;i<ids.Length;i+=4)ids[i]=(1u<<16)|27u;
+        identity.UploadDataImmediate(ids);
+        program.PatchIdentity=identity.TextureId;
+        using var depth=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.R32f,CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
+        using var target=TestFramework.CreateTestGBuffer(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32f);
+        var matrix=LumOnTestInputFactory.CreateIdentityMatrix();SetupVelocityUniforms(program,matrix,matrix,1);program.PrimaryDepth=depth.TextureId;program.PatchIdentity=identity.TextureId;
+        Assert.True(program.ProgramLayout.TryGetContractSamplerSpec("gBufferPatchId",out int contractUnit,out bool required));Assert.Equal(1,contractUnit);
+        int identityLocation=program.ProgramLayout.GetUniformLocation(program.ProgramId,"gBufferPatchId");
+        GL.GetUniform(program.ProgramId,identityLocation,out int identityUnit);Assert.Equal(1,identityUnit);
+        TestFramework.RenderQuadTo(program,target);
+        var pixels=ReadPixelsFloat(target);for(int i=3;i<pixels.Length;i+=4)Assert.Equal(1u<<6,BitConverter.SingleToUInt32Bits(pixels[i]));
+    }
+    #endregion
 
     #region Render origin regression
     /// <summary>The production shader projects fixed world points through paired frame origins including rotation and view bob.</summary>

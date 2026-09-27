@@ -87,10 +87,9 @@ alone cannot protect it. Author materials for full-tile quads; isolated triangul
 UV topology are outside this initial receiver contract. No adjacency or block-rotation inference is
 performed. The corner check is independent of triangle winding and supports rotated/mirrored UVs.
 
-Available camera-position, vertex-position and G-buffer normal varyings are updated. Shadow-coordinate
-re-evaluation, displaced shadow passes, culling expansion, previous-frame reprojection and LumOn trace
-representation remain integration work. Until those consumers and bindings are coherent, the production
-program selector continues using the identity stage pair even for authored amplitudes.
+Available camera-position, vertex-position and G-buffer normal varyings are updated. The subsequent
+[rendering-consumer integration](PBR.Tessellation.RenderingConsumers.md) supplies shadow-coordinate
+evaluation, displaced shadow passes, culling expansion, temporal policy and the coarse LumOn contract.
 
 ## Focused verification
 
@@ -135,8 +134,7 @@ edges were not protected by tile-boundary pinning. The completion run adds oppos
 different-amplitude adjacent tiles in one and separate draw submissions; both sides must actually
 displace and every framebuffer pixel must remain covered.
 
-Global mode migration and production main/shadow resource publication are separately owned by the
-relief and rendering-consumer tasks in `PBR.BaselineShading.todo`. Their earlier duplication as a
-blocker on this core task was removed; those obligations remain open, including culling, temporal
-consumers, LumOn representation, capability/coherent-generation selection and normal-maps-off mode
-support. No in-game enablement, arbitrary receiver topology, or measured production cost is claimed.
+Global mode selection and production main/shadow resource publication were separately owned by the
+relief and rendering-consumer tasks in `PBR.BaselineShading.todo`. They are now documented in
+`PBR.Relief.md` and `PBR.Tessellation.RenderingConsumers.md`; no legacy migration is performed.
+No live appearance acceptance, arbitrary receiver topology, or measured production cost is claimed.

@@ -41,9 +41,13 @@
   <Target Name="CompileSpirvShaders"
           Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
           AfterTargets="Build">
+    <!-- Resolve the executable with the same inherited output properties as its project build. -->
+    <MSBuild Projects="$(SpirvBuildToolProject)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BuiltShaderTool" />
+    </MSBuild>
     <Exec
       WorkingDirectory="$(VgeSolutionRoot)"
-      Command="dotnet run --no-build --no-restore --configuration $(Configuration) --project &quot;$(SpirvBuildToolProject)&quot; -- --clean --incremental $(SpirvConcurrencyArg) --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
+      Command="dotnet &quot;@(_BuiltShaderTool)&quot; --clean --incremental $(SpirvConcurrencyArg) --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
   </Target>
 
 </Project>

@@ -1,9 +1,10 @@
 # Terrain displacement material and mode contract
 
 Status: the material amplitude field, atlas metadata and adaptive stage core are implemented in
-[the adaptive core](PBR.Tessellation.AdaptiveDisplacement.md). [Relief and mode selection](PBR.Relief.md) are implemented. Production displacement
-publication and matching rendering consumers remain pending in
-[PBR.BaselineShading.todo](PBR.BaselineShading.todo). This contract builds on [the depth-map audit](PBR.Tessellation.DepthMapAudit.md).
+[the adaptive core](PBR.Tessellation.AdaptiveDisplacement.md). [Relief and mode selection](PBR.Relief.md)
+and [rendering-consumer integration](PBR.Tessellation.RenderingConsumers.md) are implemented.
+Production cost and live appearance validation remain in [PBR.BaselineShading.todo](PBR.BaselineShading.todo).
+This contract builds on [the depth-map audit](PBR.Tessellation.DepthMapAudit.md).
 
 ## Material selection
 

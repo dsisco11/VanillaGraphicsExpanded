@@ -4,6 +4,9 @@
 @import "./terrain_displacement.glsl"
 patch in float vge_patchAmplitude;
 patch in vec4 vge_patchRect;
+#if VGE_PRODUCTION_DISPLACEMENT && !VGE_TESS_SHADOW
+uniform int vge_displacementReactive;
+#endif
 layout(triangles, fractional_odd_spacing, ccw) in;
 #else
 layout(triangles, equal_spacing, ccw) in;
@@ -38,13 +41,32 @@ void main() {
             float dv = (VgeHeight(uv + vec2(0, delta.y), vge_uvBase, vge_uvExtent, vge_patchAmplitude, basePosition + tangentV * delta.y)
                 - VgeHeight(uv - vec2(0, delta.y), vge_uvBase, vge_uvExtent, vge_patchAmplitude, basePosition - tangentV * delta.y)) / (2.0 * delta.y);
             vec3 displacedNormal = cross(tangentU + faceNormal * du, tangentV + faceNormal * dv);
+            #if defined(VGE_TESS_HAS_vge_surfaceDisplaced)
+            // Neutral maps and fully faded geometry retain ordinary temporal behavior.
+            vge_surfaceDisplaced = (offset != 0.0 || du != 0.0 || dv != 0.0) ? 1.0 : 0.0;
+            #if VGE_PRODUCTION_DISPLACEMENT
+            vge_surfaceDisplaced *= float(vge_displacementReactive);
+            #endif
+            #endif
             if ((du != 0.0 || dv != 0.0) && VgeFinite(displacedNormal) && dot(displacedNormal, displacedNormal) > 0.00000001) {
                 normal = normalize(displacedNormal);
                 if (dot(normal, faceNormal) < 0.0) normal = -normal;
             }
             worldPos.xyz = basePosition + faceNormal * offset;
+            #if VGE_TESS_SHADOW
+            gl_Position = mvpMatrix * worldPos;
+            #else
             vec4 displacedCamera = modelViewMatrix * worldPos;
             gl_Position = projectionMatrix * displacedCamera;
+            #if defined(VGE_TESS_HAS_shadowCoordsFar) || defined(VGE_TESS_HAS_shadowCoordsNear)
+            calcShadowMapCoords(modelViewMatrix, worldPos);
+            #endif
+            #if VGE_TESS_DEPTH_BIAS
+            if (gl_Position.z > -1.0) {
+                int zOffset = (renderFlags & (7 << 8)) >> 8;
+                gl_Position.w += float(zOffset) * 0.00025 / ((gl_Position.z + 3.0) * 0.05);
+            }
+            #endif
             #if defined(VGE_TESS_HAS_camPos)
             camPos = displacedCamera;
             #endif
@@ -56,6 +78,7 @@ void main() {
             #endif
             #if defined(VGE_TESS_HAS_gnormal)
             gnormal.xyz = mat3(modelViewMatrix) * normal;
+            #endif
             #endif
         }
     }

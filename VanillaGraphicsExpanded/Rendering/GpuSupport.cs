@@ -327,6 +327,8 @@ public static class GpuSupport
     public static int MaxPatchVertices { get; private set; }
     /// <summary>Maximum tessellation subdivision level, or zero when unsupported.</summary>
     public static int MaxTessGenLevel { get; private set; }
+    public static int MaxTessControlTextureImageUnits { get; private set; }
+    public static int MaxTessEvaluationTextureImageUnits { get; private set; }
 
     public static int MaxUniformLocations { get; private set; }
 
@@ -398,6 +400,8 @@ public static class GpuSupport
         bool tessellation = IsAtLeast(ApiVersion, 4, 0) || GlExtensions.Supports("GL_ARB_tessellation_shader");
         MaxPatchVertices = tessellation ? SafeGetInt(GetPName.MaxPatchVertices) : 0;
         MaxTessGenLevel = tessellation ? SafeGetInt(GetPName.MaxTessGenLevel) : 0;
+        MaxTessControlTextureImageUnits = tessellation ? SafeGetInt(GetPName.MaxTessControlTextureImageUnits) : 0;
+        MaxTessEvaluationTextureImageUnits = tessellation ? SafeGetInt(GetPName.MaxTessEvaluationTextureImageUnits) : 0;
         MaxUniformLocations = SupportsArbExplicitUniformLocation
             ? SafeGetInt((GetPName)All.MaxUniformLocations)
             : 0;

@@ -156,7 +156,7 @@ Tasks
         differently displaced neighboring tiles and separate draw submissions with complete coverage.
       - Scope: this completes the adaptive stage/material core. Mode selection belongs to the relief
         task below; production program/resource publication belongs to rendering-consumer integration.
-        The production selector intentionally remains on the identity pair until those tasks finish.
+        The selector stayed on the identity pair at core completion; production integration is recorded below.
     ☑ Extend existing parallax occlusion mapping into the selected relief contract.
       - Wire the global mode selector without legacy migration and independent height-atlas
         availability defined in docs/PBR.Tessellation.MaterialAndModes.md.
@@ -165,7 +165,7 @@ Tasks
       - Initially keep relief and tessellation as alternatives; any combined mode must evaluate only
         residual height rather than applying the full displacement twice. Document silhouette limits.
       - Implemented and validated: docs/PBR.Relief.md; 129 distinct focused tests passed.
-    ☐ Integrate displaced geometry consistently across rendering consumers.
+    ☑ Integrate displaced geometry consistently across rendering consumers.
       - Publish the completed adaptive program and bind its matching tile-index, record and height
         textures plus sanitized subdivision/view parameters through the production terrain draw path.
         Enable only with complete main/shadow variants and coherent resources; until then retain the
@@ -177,6 +177,9 @@ Tasks
         raster tessellation does not automatically update either. Document any coarse approximation
         and resulting visibility limitations instead of claiming matching displaced trace geometry.
       - Preserve both standalone and LumOn-compatible PBR paths and safe configuration/reload changes.
+      - Completion: docs/PBR.Tessellation.RenderingConsumers.md. Build and 74 distinct focused tests
+        passed; final main/shadow pool-scope correction passed all 11 policy tests. Coarse LumOn geometry,
+        mini-dimension exclusion and local reactive-history rejection are documented explicitly.
     ☐ Validate correctness and measure production cost before default enablement.
       - Run subagent-focused tests for neutral/missing maps, extreme heights, rotated textures, grazing
         angles, incompatible materials, seams, chunk boundaries, movement, shadows and reload/fallback.

@@ -1,6 +1,6 @@
 {
   "config-terrain-surface-detail": "Terrain surface detail",
-  "config-terrain-surface-detail-tooltip": "Relief uses authored material amplitude to offset texture sampling without changing geometry. Tessellation is reserved until rendering-consumer integration is complete. Missing resources leave surfaces unchanged.",
+  "config-terrain-surface-detail-tooltip": "Relief offsets texture sampling. Tessellation displaces eligible opaque/topsoil terrain and shadows using authored material amplitude. Moving mini-dimensions remain unchanged. Missing resources leave surfaces unchanged.",
   "hello": "hello world!",
 
   "config-section-master": "Master Settings",

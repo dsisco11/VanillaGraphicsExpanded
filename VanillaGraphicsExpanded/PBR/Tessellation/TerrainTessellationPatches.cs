@@ -22,7 +22,8 @@ internal static class TerrainTessellationPatches
         try
         {
             sources.Add(program.VertexShader, TerrainTessellationStages.Generate(program.VertexShader.Code,
-                TerrainTessellationAssets.Load(assets)));
+                TerrainTessellationAssets.Load(assets), TerrainTessellationPrograms.Requested,
+                depthBias: program.PassName == "chunkopaque"));
         }
         catch (Exception ex)
         {
@@ -34,7 +35,7 @@ internal static class TerrainTessellationPatches
     internal static void Configure(IShaderProgram program)
     {
         if (!TerrainTessellationPrograms.Eligible(program.PassName) || program.AssetDomain == Constants.ModId) return;
-        bool enabled = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel > 0
+        bool enabled = (TerrainTessellationPrograms.Requested || ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel > 0)
             && TerrainTessellationPrograms.DrawHookAvailable && program.GeometryShader is null
             && sources.TryGetValue(program.VertexShader, out _);
         // Installed IShader exposes PrefixCode rather than SetDefine. The engine injects this

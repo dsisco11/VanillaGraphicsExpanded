@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 using TinyTokenizer.Ast;
 
 namespace VanillaGraphicsExpanded.PBR.Tessellation;
@@ -13,7 +14,8 @@ internal static class TerrainTessellationStages
 
     #region Interface preparation
     /// <summary>Retains source preprocessing guards and derives interpolation from declarations, without driver reflection.</summary>
-    internal static Sources Generate(string vertexSource, Sources templates, bool adaptiveDisplacement = false)
+    internal static Sources Generate(string vertexSource, Sources templates, bool adaptiveDisplacement = false,
+        bool depthBias = false)
     {
         var tree = SyntaxTree.Parse(vertexSource, GlslSchema.Instance);
         var control = new StringBuilder();
@@ -74,11 +76,46 @@ internal static class TerrainTessellationStages
         }
         if (adaptiveDisplacement)
         {
-            foreach (string required in new[] { "worldPos", "normal", "uv", "vge_uvBase", "vge_uvExtent", "renderFlags" })
+            bool shadow = outputNames.Contains("vge_shadowPosition");
+            if (shadow)
+            {
+                const string aliases = """
+                    #define VGE_TESS_SHADOW 1
+                    #define worldPos vge_shadowPosition
+                    #define tc_worldPos tc_vge_shadowPosition
+
+                    """;
+                control.Insert(0, aliases);
+                evaluation.Insert(0, aliases);
+            }
+            foreach (string required in new[] { shadow ? "vge_shadowPosition" : "worldPos", "normal", "uv", "vge_uvBase", "vge_uvExtent", "renderFlags" })
                 if (!outputNames.Contains(required)) throw new NotSupportedException($"Adaptive terrain output missing: {required}.");
         }
-        return new Sources(Assemble(templates.Control, control.ToString(), copies.ToString(), adaptiveDisplacement),
-            Assemble(templates.Evaluation, evaluation.ToString(), interpolations.ToString(), adaptiveDisplacement));
+        if (adaptiveDisplacement)
+        {
+            // Reuse the engine's actual cascade weighting, not a second approximation of it.
+            var shadowFunction = tree.Select(Query.Syntax<GlFunctionNode>().Named("calcShadowMapCoords"))
+                .OfType<GlFunctionNode>().SingleOrDefault();
+            if (shadowFunction is not null)
+            {
+                evaluation.AppendLine("""
+                    #if SHADOWQUALITY > 0
+                    uniform float shadowRangeFar;
+                    uniform mat4 toShadowMapSpaceMatrixFar;
+                    #endif
+                    #if SHADOWQUALITY > 1
+                    uniform float shadowRangeNear;
+                    uniform mat4 toShadowMapSpaceMatrixNear;
+                    #endif
+                    """);
+                evaluation.AppendLine(shadowFunction.ToText());
+            }
+            // Only opaque terrain carries the engine's authored decor depth offset.
+            evaluation.AppendLine($"#define VGE_TESS_DEPTH_BIAS {(depthBias ? 1 : 0)}");
+        }
+        string stageHeader = outputNames.Contains("vge_shadowPosition") ? "#define VGE_TESS_SHADOW 1\n" : "";
+        return new Sources(stageHeader + Assemble(templates.Control, control.ToString(), copies.ToString(), adaptiveDisplacement),
+            stageHeader + Assemble(templates.Evaluation, evaluation.ToString(), interpolations.ToString(), adaptiveDisplacement));
     }
 
     /// <summary>Inserts only the engine-dependent interface into the asset-owned stage body.</summary>

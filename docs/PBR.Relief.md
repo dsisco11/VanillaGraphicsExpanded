@@ -2,9 +2,9 @@
 
 `MaterialAtlas.TerrainSurfaceDetailMode` selects `Disabled`, `Relief`, or `Tessellation`.
 The default is Disabled. ConfigLib exposes the enum as a mapped integer; JSON also accepts enum
-names. Relief is implemented for opaque terrain and topsoil. Tessellation remains a requested mode
-whose displaced production publication belongs to the rendering-consumer integration task; it does
-not enable relief as a substitute. Existing identity-tessellation validation remains independent.
+names. Relief is implemented for opaque terrain and topsoil. Tessellation uses the
+[integrated terrain and shadow path](PBR.Tessellation.RenderingConsumers.md); it does not enable relief
+as a substitute. Existing identity-tessellation validation remains independent.
 
 ## Material and shader contract
 
@@ -66,4 +66,4 @@ Focused validation covers explicit configuration selection and serialization, fi
 scaling and mirroring, neutral/raised/missing material behavior, grazing/distance fading, camera-origin
 regressions, installed terrain variants with normal-map shading disabled, and resource fallback.
 The numerical and installed shader checks use a headless context; they are not live-game appearance
-or performance acceptance. Production displaced tessellation remains a separate integration task.
+or performance acceptance. Displaced terrain integration is documented in PBR.Tessellation.RenderingConsumers.md.
