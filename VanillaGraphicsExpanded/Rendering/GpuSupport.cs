@@ -323,6 +323,11 @@ public static class GpuSupport
 
     public static int MaxVertexAttribs { get; private set; }
 
+    /// <summary>Maximum input vertices per tessellation patch, or zero when unsupported.</summary>
+    public static int MaxPatchVertices { get; private set; }
+    /// <summary>Maximum tessellation subdivision level, or zero when unsupported.</summary>
+    public static int MaxTessGenLevel { get; private set; }
+
     public static int MaxUniformLocations { get; private set; }
 
     public static ImmutableArray<int> MaxComputeWorkGroupCount { get; private set; } = ImmutableArray<int>.Empty;
@@ -390,14 +395,17 @@ public static class GpuSupport
         MaxSamples = IsAtLeast(ApiVersion, 3, 0) ? SafeGetInt(GetPName.MaxSamples) : 0;
 
         MaxVertexAttribs = SafeGetInt(GetPName.MaxVertexAttribs);
+        bool tessellation = IsAtLeast(ApiVersion, 4, 0) || GlExtensions.Supports("GL_ARB_tessellation_shader");
+        MaxPatchVertices = tessellation ? SafeGetInt(GetPName.MaxPatchVertices) : 0;
+        MaxTessGenLevel = tessellation ? SafeGetInt(GetPName.MaxTessGenLevel) : 0;
         MaxUniformLocations = SupportsArbExplicitUniformLocation
             ? SafeGetInt((GetPName)All.MaxUniformLocations)
             : 0;
 
         if (SupportsArbComputeShader)
         {
-            MaxComputeWorkGroupCount = SafeGetInt3(GetPName.MaxComputeWorkGroupCount);
-            MaxComputeWorkGroupSize = SafeGetInt3(GetPName.MaxComputeWorkGroupSize);
+            MaxComputeWorkGroupCount = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupCount);
+            MaxComputeWorkGroupSize = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupSize);
             MaxComputeWorkGroupInvocations = SafeGetInt(GetPName.MaxComputeWorkGroupInvocations);
             // MaxComputeSharedMemorySize = SafeGetInt((GetPName)0x8262 /* GL_MAX_COMPUTE_SHARED_MEMORY_SIZE */);
         }
@@ -444,12 +452,15 @@ public static class GpuSupport
         }
     }
 
-    private static ImmutableArray<int> SafeGetInt3(GetPName pname)
+    /// <summary>Captures the three independent axes of an indexed compute limit.</summary>
+    private static ImmutableArray<int> SafeGetInt3(GetIndexedPName pname)
     {
         try
         {
             int[] values = new int[3];
-            GL.GetInteger(pname, values);
+            // Compute axis limits require indexed queries; the unindexed overload generates InvalidEnum.
+            for (int axis = 0; axis < values.Length; axis++)
+                GL.GetInteger(pname, axis, out values[axis]);
             return ImmutableArray.Create(values[0], values[1], values[2]);
         }
         catch

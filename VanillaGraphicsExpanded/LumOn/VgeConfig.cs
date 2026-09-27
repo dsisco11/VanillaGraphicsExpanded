@@ -228,6 +228,10 @@ public class VgeConfig
         [JsonProperty]
         public bool EnableNormalMaps { get; set; } = true;
 
+        /// <summary>Identity terrain tessellation for pipeline validation: zero disables; levels 1-8 add no displacement.</summary>
+        [JsonProperty]
+        public int UndisplacedTessellationLevel { get; set; } = 2;
+
         /// <summary>
         /// Strength of the baked normal-map contribution applied to terrain shading.
         /// Zero uses the geometric normal; one uses the baked normal at full strength.
@@ -350,6 +354,7 @@ public class VgeConfig
 
             NormalMapScale = Math.Clamp(NormalMapScale, 0.0f, 4.0f);
 
+            UndisplacedTessellationLevel = Math.Clamp(UndisplacedTessellationLevel, 0, 8);
             ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
             ParallaxMinSteps = Math.Clamp(ParallaxMinSteps, 1, 128);
             ParallaxMaxSteps = Math.Clamp(ParallaxMaxSteps, ParallaxMinSteps, 256);

@@ -24,6 +24,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private HarmonyLib.Harmony? harmony;
 
     private bool? lastEnablePom;
+    private int? lastUndisplacedTessellationLevel;
     private bool? lastLumOnEnabled;
     private bool? lastEnableNormalMaps;
     private float? lastNormalMapScale;
@@ -39,6 +40,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         // Apply Harmony patches as early as possible, especially before shaders are loaded.
         harmony = new HarmonyLib.Harmony(Constants.ModId);
+        PBR.Tessellation.TerrainTessellationPrograms.Log = message => api.Logger.Warning(message);
         harmony.PatchAll();
 
         // Manually apply terrain material params texture binding patches (property setters).
@@ -96,6 +98,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // Track config values that require shader recompilation when changed.
         lastLumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         lastEnablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+        lastUndisplacedTessellationLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
         lastEnableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
         lastNormalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
 
@@ -114,6 +117,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         if (capi is null) return;
 
+        int tessellationLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
         bool enablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
         bool lumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         bool enableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
@@ -124,6 +128,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         shaderReloadNeeded |= lastEnableNormalMaps.HasValue && lastEnableNormalMaps.Value != enableNormalMaps;
         shaderReloadNeeded |= lastNormalMapScale.HasValue && Math.Abs(lastNormalMapScale.Value - normalMapScale) > 0.0001f;
 
+        shaderReloadNeeded |= lastUndisplacedTessellationLevel.HasValue && lastUndisplacedTessellationLevel.Value != tessellationLevel;
+        lastUndisplacedTessellationLevel = tessellationLevel;
         lastEnablePom = enablePom;
         lastLumOnEnabled = lumOnEnabled;
         lastEnableNormalMaps = enableNormalMaps;
@@ -277,6 +283,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             // Unpatch Harmony patches
             harmony?.UnpatchAll(Constants.ModId);
             harmony = null;
+            PBR.Tessellation.TerrainTessellationPrograms.Log = null;
         }
     }
 

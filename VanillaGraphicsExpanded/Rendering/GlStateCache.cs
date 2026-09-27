@@ -59,6 +59,8 @@ internal sealed partial class GlStateCache
 
         InvalidateBindings();
         DirtyPixelPackState();
+        patchVertices = null;
+        provokingVertex = null;
     }
 
     public void DirtyIndexedBlendFunc()

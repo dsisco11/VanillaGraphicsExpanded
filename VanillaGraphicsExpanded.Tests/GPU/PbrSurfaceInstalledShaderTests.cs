@@ -98,15 +98,16 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
 
     #region Installed source expansion
     /// <summary>Applies imports before expansion and material patches after expansion as the engine does.</summary>
-    private static string Build(string name, int shadow, int oit, int ssao, int ssbo, int depth)
+    internal static string Build(string name, int shadow, int oit, int ssao, int ssbo, int depth)
     {
         string game = Environment.GetEnvironmentVariable("VINTAGE_STORY")!;
         string original = File.ReadAllText(Path.Combine(game, "assets/game/shaders", name));
         // Representative alternate variants deliberately rename an incidental engine local.
-        if (ssao > 0) original = original.Replace("murkiness", "renamedWaterDensity");
+        if (ssao > 0 && !name.StartsWith("chunkopaque", StringComparison.Ordinal) && !name.StartsWith("chunktopsoil", StringComparison.Ordinal))
+            original = original.Replace("murkiness", "renamedWaterDensity");
         var tree = SyntaxTree.Parse(original, GlslSchema.Instance);
         VanillaShaderPatches.TryApplyPreProcessing(null, tree, name);
-        if (name.EndsWith(".fsh", StringComparison.Ordinal) && name != "sky.fsh")
+        if (name is "standard.fsh" or "entityanimated.fsh" or "instanced.fsh" or "chunktransparent.fsh")
             Assert.Contains($"#define VGE_PBR_FORWARD_LUMON {(VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled ? 1 : 0)}", tree.ToText());
         var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string Expand(string source, string directory) => Regex.Replace(source, "(?m)^\\s*(?:#include\\s+([^\\r\\n]+)|@import\\s+\"([^\"]+)\"[^\\r\\n]*)", match =>

@@ -120,13 +120,25 @@ Tasks
       - Contract: docs/PBR.Tessellation.MaterialAndModes.md. Defines explicit material amplitude opt-in,
         fixed neutral height, primary-UV topsoil ownership, exclusive detail modes and safe fallback.
         Definition only; schema/runtime wiring and migration remain implementation work below.
-    ☐ Establish an undisplaced tessellated production terrain path.
+    ☑ Establish an undisplaced tessellated production terrain path.
       - Complete only missing control/evaluation-stage contract, build, specialization, link/cache
         identity and reload support. Include stage combinations in lifecycle validation.
       - Route eligible terrain draws through GL_PATCHES with the verified patch size while preserving
         buffers, indices and engine draw ownership. Manage patch state through existing GPU/state-cache
         abstractions; unrelated draws retain their original topology and programs.
       - Validate unchanged positions, UVs, material identity and coverage before adding displacement.
+      - Implemented engine-owned runtime GLSL control/evaluation stages, as explicitly selected;
+        no mixed GLSL/SPIR-V program or migration of engine terrain to VGE binary ownership.
+      - Optional MaterialAtlas.UndisplacedTessellationLevel (0 disabled, 1-8 subdivision), reload,
+        candidate fallback, grouped patch draws and cached patch-state restoration are implemented.
+      - Evidence: docs/PBR.Tessellation.UndisplacedPath.md; 17 focused tests passed in 4 seconds,
+        artifacts/PbrColor/terrain-tessellation-engine.trx. Includes actual patched engine multidraw,
+        exceptional restoration, UV/depth/flat metadata equivalence and unsupported-interface fallback.
+        Headless validation only; no live-game visual or performance claim.
+      - Follow-up: interface templates now come from the existing source patching pipeline;
+        VGE_ENABLE_TESSELLATION uses the engine PrefixCode API before compilation. Removed inspection
+        compilation/reflection and the varying-name table. Source-preparation receipt:
+        artifacts/PbrColor/terrain-tessellation-source-preparation.trx (51 passed, two existing skips).
     ☐ Implement bounded adaptive subdivision and atlas-safe displacement.
       - Implement the material/schema amplitude contract and GPU metadata transport from
         docs/PBR.Tessellation.MaterialAndModes.md, including cache identity and neutral fallback.

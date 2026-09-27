@@ -169,6 +169,7 @@ public static class ShaderIncludesHook
         {
             candidate.Shader.Code = candidate.Source;
         }
+        PBR.Tessellation.TerrainTessellationPatches.Prepare(shaderProgram);
     }
 
     /// <summary>

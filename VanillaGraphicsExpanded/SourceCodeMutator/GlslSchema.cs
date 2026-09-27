@@ -310,12 +310,13 @@ public static class GlslSchema
             .Build())
         .DefineSyntax(Syntax.Define<GlInterfaceBlockHeaderNode>("glInterfaceBlockHeader")
             .Match(
-                Query.AnyOf(Query.Keyword("uniform"), Query.Keyword("buffer")),
+                Query.AnyOf(Query.Keyword("uniform"), Query.Keyword("buffer"), Query.Keyword("in"), Query.Keyword("out")),
                 Query.AnyIdent.FollowedBy(Query.AnyOf(Query.BraceBlock, Query.AnyTaggedIdent)))
             .WithPriority(25)
             .Build())
         .DefineSyntax(Syntax.Define<GlStageIoNode>("glStageIo")
             .Match(
+                Query.AnyOf(Query.Keyword("flat"), Query.Keyword("smooth"), Query.Keyword("noperspective")).Optional(),
                 Query.AnyOf(Query.Keyword("in"), Query.Keyword("out")),
                 Query.AnyOf(Query.AnyKeyword, Query.AnyIdent),
                 Query.AnyIdent,
