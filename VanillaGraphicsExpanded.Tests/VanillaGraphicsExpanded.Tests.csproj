@@ -60,6 +60,7 @@
 
   <!-- Copy shader assets to test output directory for GPU tests -->
   <ItemGroup>
+    <Content Include="..\schemas\pbr_material_definitions.schema.json" Link="schemas\pbr_material_definitions.schema.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\config\configlib-patches.json">
       <Link>assets\config\configlib-patches.json</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

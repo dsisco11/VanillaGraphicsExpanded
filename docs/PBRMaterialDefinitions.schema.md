@@ -9,6 +9,12 @@ The registry loads all mods that provide this file, merges materials determinist
 
 ## Canonical Concepts
 
+Materials additionally accept `displacement: { "amplitudeMetres": 0.02 }`. This is a material-only
+geometry opt-in, separate from shared BRDF properties; it is not accepted in defaults or mapping
+overrides. Missing values resolve to zero. Non-finite, negative or values above 0.05 metres produce
+a diagnostic and disable that material's displacement. Production displacement activation remains
+gated on the rendering-consumer integration described in `PBR.Tessellation.AdaptiveDisplacement.md`.
+
 ### MaterialId
 
 - Canonical format: `<modid>:<name>`

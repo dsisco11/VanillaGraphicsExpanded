@@ -254,6 +254,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             PbrMaterialRegistry.Instance,
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
+        textureStore.UpdateDisplacement(materialPlan);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
         if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
@@ -693,6 +694,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             PbrMaterialRegistry.Instance,
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
+        textureStore.UpdateDisplacement(materialPlan);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
         if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
@@ -1091,6 +1093,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             PbrMaterialRegistry.Instance,
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
+        textureStore.UpdateDisplacement(plan);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
         if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)

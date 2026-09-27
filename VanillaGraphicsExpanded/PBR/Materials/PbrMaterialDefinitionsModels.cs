@@ -31,11 +31,20 @@ internal sealed class PbrMaterialDefaultsJson : BRDFPropertiesJson { }
 /// <summary>A material-wide BRDF and its metadata.</summary>
 internal sealed class PbrMaterialDefinitionJson : BRDFPropertiesJson
 {
+    [JsonProperty("displacement")]
+    public PbrMaterialDisplacementJson? Displacement { get; set; }
     [JsonProperty("notes")]
     public string? Notes { get; set; }
 
     [JsonProperty("priority")]
     public int? Priority { get; set; }
+}
+
+/// <summary>Material-only geometric displacement opt-in; excluded from BRDF defaults and mapping overrides.</summary>
+internal sealed class PbrMaterialDisplacementJson
+{
+    [JsonProperty("amplitudeMetres")]
+    public float AmplitudeMetres { get; set; }
 }
 
 internal sealed class PbrMaterialNoiseJson

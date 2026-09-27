@@ -140,6 +140,16 @@ Tasks
         compilation/reflection and the varying-name table. Source-preparation receipt:
         artifacts/PbrColor/terrain-tessellation-source-preparation.trx (51 passed, two existing skips).
     ☐ Implement bounded adaptive subdivision and atlas-safe displacement.
+      - Implemented core: material-only amplitude/schema validation, per-page R32F metadata rebuilt
+        from current plans, bounded fractional-odd edge subdivision, atlas-clamped pre-projection
+        displacement, finite-difference normals and boundary pinning. See
+        docs/PBR.Tessellation.AdaptiveDisplacement.md for resource and stage contracts.
+      - Focused validation: 54 distinct tests pass; final numerical rerun supersedes the initial
+        NaN-guard/ramp failures. Receipts and exact coverage are recorded in the linked document.
+      - Remaining before closing: production adaptive-program/resource publication is deliberately
+        gated on the matching shadow/culling/temporal consumer work below; non-SSBO face rectangles
+        currently retain the zero-displacement fallback. The existing production selector remains
+        on the identity pair, so authored amplitudes do not yet change in-game geometry.
       - Implement the material/schema amplitude contract and GPU metadata transport from
         docs/PBR.Tessellation.MaterialAndModes.md, including cache identity and neutral fallback.
       - Derive shared-edge subdivision from consistent endpoint data and projected edge size, with

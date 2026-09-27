@@ -1369,7 +1369,9 @@ internal sealed class PbrMaterialRegistry
             Noise: noise,
             Scale: scale,
             Priority: json.Priority ?? 0,
-            Notes: json.Notes);
+            Notes: json.Notes,
+            DisplacementAmplitudeMetres: MaterialDisplacement.ResolveAmplitude(json.Displacement?.AmplitudeMetres ?? 0,
+                message => logger.Warning("[VGE] Material '{0}' source={1}: {2}", materialId, source, message)));
         return definition;
     }
 

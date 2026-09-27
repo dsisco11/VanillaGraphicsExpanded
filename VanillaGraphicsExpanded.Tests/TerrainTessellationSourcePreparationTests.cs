@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Tessellation;
 using Vintagestory.Client.NoObf;
@@ -8,12 +9,50 @@ namespace VanillaGraphicsExpanded.Tests;
 [Collection("GPU")]
 public sealed class TerrainTessellationSourcePreparationTests
 {
+    #region Runtime asset reload
+    /// <summary>Reloads edited stage assets instead of retaining stale generated shader bodies.</summary>
+    [Fact]
+    public void StageAssetsAreReloadedAndSharedImportsExpanded()
+    {
+        using var fixture = new BinaryShaderApiFixture();
+        var initial = TerrainTessellationAssets.Load(fixture.Api.Assets);
+        Assert.Contains("VgeHeight", initial.Evaluation);
+        Assert.DoesNotContain("@import", initial.Evaluation);
+        const string path = "shaders/includes/tessellation/terrain.tesh";
+        string original = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", path));
+        fixture.Overrides[path] = System.Text.Encoding.UTF8.GetBytes(original + "\n// reload-marker\n");
+        var reloaded = TerrainTessellationAssets.Load(fixture.Api.Assets);
+        Assert.DoesNotContain("reload-marker", initial.Evaluation);
+        Assert.Contains("reload-marker", reloaded.Evaluation);
+    }
+    #endregion
+    #region Missing runtime assets
+    /// <summary>A missing reload asset retires previously prepared stages instead of using stale metadata.</summary>
+    [Fact]
+    public void MissingAssetRetiresPreparedStages()
+    {
+        using var fixture = new BinaryShaderApiFixture();
+        var owner = new ShaderProgram
+        {
+            PassName = "chunkopaque", AssetDomain = "game",
+            VertexShader = new Shader { Code = "out vec4 rgba; void main() { gl_Position=vec4(0); }" },
+            FragmentShader = new Shader()
+        };
+        TerrainTessellationPatches.Prepare(owner, fixture.Api.Assets);
+        Assert.True(TerrainTessellationPatches.TryGet(owner.VertexShader, out _));
+        fixture.MissingAssets.Add("shaders/includes/tessellation/terrain.tesh");
+        Assert.Throws<InvalidOperationException>(() => TerrainTessellationAssets.Load(fixture.Api.Assets));
+        TerrainTessellationPatches.Prepare(owner, fixture.Api.Assets);
+        Assert.False(TerrainTessellationPatches.TryGet(owner.VertexShader, out _));
+    }
+    #endregion
+
     #region Interface generation
     /// <summary>Third-party names use their declared interpolation rather than a name allowlist.</summary>
     [Fact]
     public void FlatAndSmoothDeclarationsDriveInterpolation()
     {
-        var stages = TerrainTessellationStages.Generate("""
+        var stages = TerrainTessellationTestAssets.Generate("""
             #version 430 core
             flat /* metadata */ out vec2 customAtlas;
             smooth out vec3 customColor;
@@ -29,7 +68,7 @@ public sealed class TerrainTessellationSourcePreparationTests
     [Fact]
     public void ConditionalOutputsRetainPresenceGuards()
     {
-        var stages = TerrainTessellationStages.Generate("""
+        var stages = TerrainTessellationTestAssets.Generate("""
             #version 430 core
             #extension GL_ARB_shader_draw_parameters : enable
             #if SSAOLEVEL > 0
@@ -57,7 +96,7 @@ public sealed class TerrainTessellationSourcePreparationTests
     [Fact]
     public void CommentsAndInputsAreIgnored()
     {
-        var stages = TerrainTessellationStages.Generate("""
+        var stages = TerrainTessellationTestAssets.Generate("""
             #version 430 core
             // flat out int fakeOutput;
             in vec4 position;
@@ -77,7 +116,7 @@ public sealed class TerrainTessellationSourcePreparationTests
     [InlineData("out Block { vec4 color; } instance;")]
     public void UnsupportedInterfacesAreRejected(string declaration)
     {
-        Assert.Throws<NotSupportedException>(() => TerrainTessellationStages.Generate(declaration + "\nvoid main() { gl_Position=vec4(0); }"));
+        Assert.Throws<NotSupportedException>(() => TerrainTessellationTestAssets.Generate(declaration + "\nvoid main() { gl_Position=vec4(0); }"));
     }
     #endregion
 
@@ -96,7 +135,7 @@ public sealed class TerrainTessellationSourcePreparationTests
         bool previousHook=TerrainTessellationPrograms.DrawHookAvailable;
         try
         {
-            TerrainTessellationPatches.Prepare(owner);
+            TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPrograms.DrawHookAvailable=true;
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel=4;
             TerrainTessellationPatches.Configure(owner);

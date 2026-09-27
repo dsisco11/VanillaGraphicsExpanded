@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using Vintagestory.Client.NoObf;
@@ -25,25 +26,27 @@ public sealed class TerrainTessellationTests : RenderTestBase
     public void InstalledTerrainInterfaceLinks(string family, int ssbo, int ssao)
     {
         EnsureContextValid();
-        int vertex = Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build(family + ".vsh", 2, 0, ssao, ssbo, 0));
-        int fragment = Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 2, 0, ssao, ssbo, 0));
-        try
-        {
-            var sources = TerrainTessellationStages.Generate(Source(vertex));
-            Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources, TerrainTessellationPatches.EnabledDefine, 4, out int program, out string error), error);
-            GL.DeleteProgram(program);
-        }
-        finally { GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build(family + ".vsh", 2, 0, ssao, ssbo, 0));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 2, 0, ssao, ssbo, 0));
+        var sources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
+        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources, TerrainTessellationPatches.EnabledDefine, 4, out int program, out string error), error);
+        GpuProgramObject.Adopt(program).Dispose();
+        var adaptiveSources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex), adaptiveDisplacement: true);
+        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, adaptiveSources, TerrainTessellationPatches.EnabledDefine, 4, out int adaptiveProgram, out string adaptiveError), adaptiveError);
+        GpuProgramObject.Adopt(adaptiveProgram).Dispose();
+
     }
     /// <summary>Installing a tessellated executable preserves engine stage objects and scopes topology to its managed owner.</summary>
     [Fact]
     public void EngineProgramInstallationPreservesStageOwnership()
     {
         EnsureContextValid();
-        int vertex = Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.vsh", 2, 0, 0, 0, 0));
-        int fragment = Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.fsh", 2, 0, 0, 0, 0));
-        int ordinary = Link(vertex, fragment);
-        var vertexObject = new Shader { ShaderId = vertex, Code = Source(vertex) };
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.vsh", 2, 0, 0, 0, 0));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.fsh", 2, 0, 0, 0, 0));
+        int ordinary = TerrainShaderTestFixture.Link(vertex, fragment);
+        var vertexObject = new Shader { ShaderId = vertex, Code = shaders.Source(vertex) };
         var fragmentObject = new Shader { ShaderId = fragment };
         var owner = new ShaderProgram { PassName = "chunkopaque", AssetDomain = "game", ProgramId = ordinary, VertexShader = vertexObject, FragmentShader = fragmentObject };
         int previousLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
@@ -56,7 +59,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             TerrainTessellationPrograms.DrawHookAvailable = true;
             string diagnostic = "";
             TerrainTessellationPrograms.Log = message => diagnostic = message;
-            TerrainTessellationPatches.Prepare(owner);
+            TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPatches.Configure(owner);
             TerrainTessellationPrograms.Prepare(owner);
             Assert.True(ordinary != owner.ProgramId, diagnostic);
@@ -88,7 +91,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = previousLevel;
             TerrainTessellationPrograms.DrawHookAvailable = previousHook;
             TerrainTessellationPrograms.Log = previousLog;
-            GL.DeleteProgram(owner.ProgramId); GL.DeleteShader(vertex); GL.DeleteShader(fragment);
+            GpuProgramObject.Adopt(owner.ProgramId).Dispose();
         }
     }
     #endregion
@@ -101,7 +104,8 @@ public sealed class TerrainTessellationTests : RenderTestBase
     public void UndisplacedRasterMatchesTriangles(int level)
     {
         EnsureContextValid();
-        int vertex = Compile(ShaderType.VertexShader, """
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, """
             #version 430 core
             out vec4 rgba;
             out vec2 uv;
@@ -115,7 +119,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
                 renderFlags = gl_VertexID + 1;
             }
             """);
-        int fragment = Compile(ShaderType.FragmentShader, """
+        int fragment = shaders.Compile(ShaderType.FragmentShader, """
             #version 430 core
             in vec4 rgba;
             in vec2 uv;
@@ -124,22 +128,23 @@ public sealed class TerrainTessellationTests : RenderTestBase
             layout(location=1) out vec4 coordinates;
             void main() { color = vec4(rgba.rgb, float(renderFlags)); coordinates = vec4(uv, gl_FragCoord.z, 1); }
             """);
-        int ordinary = 0, tessellated = 0, vao = GL.GenVertexArray();
-        GL.GetInteger(GetPName.PatchVertices, out int previousPatchVertices);
+        using var vertexArray = GpuVao.Create();
+        int ordinary = 0, tessellated = 0, vao = vertexArray.VertexArrayId;
+        int previousPatchVertices = GlStateCache.Current.PatchVertices;
         try
         {
-            ordinary = Link(vertex, fragment);
-            Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, TerrainTessellationStages.Generate(Source(vertex)), TerrainTessellationPatches.EnabledDefine, level, out tessellated, out string error), error);
+            ordinary = TerrainShaderTestFixture.Link(vertex, fragment);
+            Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, TerrainTessellationTestAssets.Generate(shaders.Source(vertex)), TerrainTessellationPatches.EnabledDefine, level, out tessellated, out string error), error);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba32f, 2);
             target.BindWithViewport();
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            GL.BindVertexArray(vao);
-            GL.UseProgram(ordinary); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            GlStateCache.Current.BindVertexArray(vao);
+            GlStateCache.Current.UseProgram(ordinary); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             var expected = target[0].ReadPixels();
             var expectedCoordinates = target[1].ReadPixels();
-            GL.PatchParameter(PatchParameterInt.PatchVertices, 3);
-            GL.UseProgram(tessellated); GL.DrawArrays(PrimitiveType.Patches, 0, 3);
+            GlStateCache.Current.SetPatchVertices( 3);
+            GlStateCache.Current.UseProgram(tessellated); GL.DrawArrays(PrimitiveType.Patches, 0, 3);
             var actual = target[0].ReadPixels();
             var actualCoordinates = target[1].ReadPixels();
             for (int i = 0; i < actualCoordinates.Length; i++) Assert.InRange(actualCoordinates[i], expectedCoordinates[i] - .0001f, expectedCoordinates[i] + .0001f);
@@ -149,42 +154,11 @@ public sealed class TerrainTessellationTests : RenderTestBase
         }
         finally
         {
-            GL.UseProgram(0); GL.BindVertexArray(0); GL.PatchParameter(PatchParameterInt.PatchVertices, previousPatchVertices);
-            GL.DeleteVertexArray(vao); if (ordinary != 0) GL.DeleteProgram(ordinary); if (tessellated != 0) GL.DeleteProgram(tessellated);
-            GL.DeleteShader(vertex); GL.DeleteShader(fragment);
+            GlStateCache.Current.UseProgram(0); GlStateCache.Current.BindVertexArray(0); GlStateCache.Current.SetPatchVertices( previousPatchVertices);
+             if (ordinary != 0) GpuProgramObject.Adopt(ordinary).Dispose(); if (tessellated != 0) GpuProgramObject.Adopt(tessellated).Dispose();
+
         }
     }
     #endregion
 
-    #region Driver setup
-    /// <summary>Returns fixture source for metadata preparation without an inspection executable.</summary>
-    internal static string Source(int shader)
-    {
-        GL.GetShader(shader, ShaderParameter.ShaderSourceLength, out int length);
-        GL.GetShaderSource(shader, length, out _, out string source);
-        return source;
-    }
-    /// <summary>Compiles a runtime GLSL stage and reports its driver diagnostics.</summary>
-    internal static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type); GL.ShaderSource(shader, source); GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int success);
-        Assert.True(success != 0, GL.GetShaderInfoLog(shader));
-        return shader;
-    }
-
-    /// <summary>Links the unchanged engine vertex/fragment pair as the ordinary rendering baseline.</summary>
-    internal static int Link(int vertex, int fragment)
-    {
-        int program = GL.CreateProgram();
-        try
-        {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment);
-            GL.LinkProgram(program); GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            return program;
-        }
-        catch { GL.DeleteProgram(program); throw; }
-    }
-    #endregion
 }

@@ -232,6 +232,10 @@ public class VgeConfig
         [JsonProperty]
         public int UndisplacedTessellationLevel { get; set; } = 2;
 
+        /// <summary>Adaptive displacement limits; publication remains gated by complete rendering-consumer integration.</summary>
+        [JsonProperty]
+        public PBR.Tessellation.TerrainSubdivisionSettings TerrainSubdivision { get; set; } = new();
+
         /// <summary>
         /// Strength of the baked normal-map contribution applied to terrain shading.
         /// Zero uses the geometric normal; one uses the baked normal at full strength.
@@ -355,6 +359,8 @@ public class VgeConfig
             NormalMapScale = Math.Clamp(NormalMapScale, 0.0f, 4.0f);
 
             UndisplacedTessellationLevel = Math.Clamp(UndisplacedTessellationLevel, 0, 8);
+            TerrainSubdivision ??= new();
+            TerrainSubdivision.Sanitize();
             ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
             ParallaxMinSteps = Math.Clamp(ParallaxMinSteps, 1, 128);
             ParallaxMaxSteps = Math.Clamp(ParallaxMaxSteps, ParallaxMinSteps, 256);

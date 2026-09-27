@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 /// Centralizes allocation, placeholder/default fills, and disposal so build/execution code can avoid managing
 /// texture lifetimes directly.
 /// </summary>
-internal sealed class MaterialAtlasTextureStore : IDisposable
+internal sealed partial class MaterialAtlasTextureStore : IDisposable
 {
     private sealed record class PageEntry(int Width, int Height, MaterialAtlasPageTextures Textures);
 
@@ -94,6 +94,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
             {
                 pagesByAtlasTexId[existingId].Textures.Dispose();
                 pagesByAtlasTexId.Remove(existingId);
+                if (displacementByAtlas.Remove(existingId, out var removedDisplacement)) removedDisplacement.Dispose();
             }
         }
 
@@ -119,6 +120,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
 
                 existing.Textures.Dispose();
                 pagesByAtlasTexId.Remove(atlasTexId);
+                if (displacementByAtlas.Remove(atlasTexId, out var resizedDisplacement)) resizedDisplacement.Dispose();
             }
 
             pagesByAtlasTexId[atlasTexId] = new PageEntry(width, height, CreatePageTextures(atlasTexId, width, height, enableNormalDepth));
@@ -223,5 +225,7 @@ internal sealed class MaterialAtlasTextureStore : IDisposable
         }
 
         pagesByAtlasTexId.Clear();
+        foreach (var texture in displacementByAtlas.Values) texture.Dispose();
+        displacementByAtlas.Clear();
     }
 }

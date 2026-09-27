@@ -54,7 +54,15 @@
       "unevaluatedProperties": false,
       "properties": {
         "notes": { "type": "string" },
+        "displacement": { "$ref": "#/$defs/displacement" },
         "priority": { "$ref": "#/$defs/priority" }
+      }
+    },
+    "displacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amplitudeMetres": { "type": "number", "minimum": 0, "maximum": 0.05, "default": 0 }
       }
     },
     "noise": {

@@ -50,6 +50,13 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
         this.debugName = debugName;
     }
 
+    /// <summary>Takes deletion ownership of a program returned by an external linker.</summary>
+    internal static GpuProgramObject Adopt(int programId)
+    {
+        if (programId <= 0) throw new ArgumentOutOfRangeException(nameof(programId));
+        return new GpuProgramObject(programId, null);
+    }
+
     /// <summary>
     /// Creates a new OpenGL program object.
     /// </summary>

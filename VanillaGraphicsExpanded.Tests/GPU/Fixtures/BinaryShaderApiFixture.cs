@@ -9,6 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class BinaryShaderApiFixture : IDisposable
 {
     public Dictionary<string, byte[]> Overrides { get; } = new(StringComparer.Ordinal);
+    public HashSet<string> MissingAssets { get; } = new(StringComparer.Ordinal);
     public List<string> Logs { get; } = [];
     public List<string> Reads { get; } = [];
     public Action<string>? BeforeRead { get; set; }
@@ -25,6 +26,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             if (method.Name != "TryGet") throw new NotSupportedException(method.Name);
             var location = (AssetLocation)args![0]!;
             Reads.Add(location.Path);
+            if (MissingAssets.Contains(location.Path)) return null;
             BeforeRead?.Invoke(location.Path);
             string path = Path.Combine(AppContext.BaseDirectory, "assets", location.Path);
             if (!Overrides.TryGetValue(location.Path, out var data))

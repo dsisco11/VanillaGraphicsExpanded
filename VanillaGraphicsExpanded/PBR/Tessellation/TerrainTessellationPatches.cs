@@ -2,6 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using VanillaGraphicsExpanded.ModSystems;
 using Vintagestory.API.Client;
+using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Tessellation;
 
@@ -14,13 +15,14 @@ internal static class TerrainTessellationPatches
 
     #region Source and compilation lifecycle
     /// <summary>Captures the final patched interface once; unsupported declarations retain ordinary rendering.</summary>
-    internal static void Prepare(IShaderProgram program)
+    internal static void Prepare(IShaderProgram program, IAssetManager assets)
     {
         if (!TerrainTessellationPrograms.Eligible(program.PassName) || program.AssetDomain == Constants.ModId) return;
         sources.Remove(program.VertexShader);
         try
         {
-            sources.Add(program.VertexShader, TerrainTessellationStages.Generate(program.VertexShader.Code));
+            sources.Add(program.VertexShader, TerrainTessellationStages.Generate(program.VertexShader.Code,
+                TerrainTessellationAssets.Load(assets)));
         }
         catch (Exception ex)
         {

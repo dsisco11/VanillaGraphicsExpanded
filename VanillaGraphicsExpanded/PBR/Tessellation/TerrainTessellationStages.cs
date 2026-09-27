@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using TinyTokenizer.Ast;
 
@@ -12,7 +13,7 @@ internal static class TerrainTessellationStages
 
     #region Interface preparation
     /// <summary>Retains source preprocessing guards and derives interpolation from declarations, without driver reflection.</summary>
-    internal static Sources Generate(string vertexSource)
+    internal static Sources Generate(string vertexSource, Sources templates, bool adaptiveDisplacement = false)
     {
         var tree = SyntaxTree.Parse(vertexSource, GlslSchema.Instance);
         var control = new StringBuilder();
@@ -20,6 +21,7 @@ internal static class TerrainTessellationStages
         var copies = new StringBuilder();
         var interpolations = new StringBuilder();
         int index = 0;
+        var outputNames = new HashSet<string>(StringComparer.Ordinal);
         // Copy directives in their original order so declarations select exactly the same engine
         // variants. Presence markers also guard the corresponding statements in each stage main.
         foreach (var node in tree.Select(Query.AnyOf(Query.Syntax<GlDirectiveNode>(),
@@ -44,6 +46,7 @@ internal static class TerrainTessellationStages
                 throw new NotSupportedException($"Integer terrain output must be flat: {output.Name}.");
             string marker = $"VGE_TESS_OUTPUT_{index++}";
             string name = output.Name;
+            outputNames.Add(name);
             string interpolation = qualifier == "" ? "" : qualifier + " ";
             control.AppendLine($$"""
                 #define {{marker}} 1
@@ -52,6 +55,7 @@ internal static class TerrainTessellationStages
                 """);
             evaluation.AppendLine($$"""
                 #define {{marker}} 1
+                #define VGE_TESS_HAS_{{name}} 1
                 {{interpolation}}in {{type}} tc_{{name}}[];
                 {{interpolation}}out {{type}} {{name}};
                 """);
@@ -68,32 +72,26 @@ internal static class TerrainTessellationStages
                 #endif
                 """);
         }
-        return new Sources($$"""
-            #if VGE_ENABLE_TESSELLATION
-            {{control}}
-            layout(vertices=3) out;
-            void main() {
-                gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
-                {{copies}}
-                if (gl_InvocationID == 0) {
-                    gl_TessLevelOuter[0] = float(VGE_TESSELLATION_LEVEL);
-                    gl_TessLevelOuter[1] = float(VGE_TESSELLATION_LEVEL);
-                    gl_TessLevelOuter[2] = float(VGE_TESSELLATION_LEVEL);
-                    gl_TessLevelInner[0] = float(VGE_TESSELLATION_LEVEL);
-                }
-            }
-            #endif
-            """, $$"""
-            #if VGE_ENABLE_TESSELLATION
-            {{evaluation}}
-            layout(triangles, equal_spacing, ccw) in;
-            void main() {
-                gl_Position = gl_in[0].gl_Position * gl_TessCoord.x
-                    + gl_in[1].gl_Position * gl_TessCoord.y + gl_in[2].gl_Position * gl_TessCoord.z;
-                {{interpolations}}
-            }
-            #endif
-            """);
+        if (adaptiveDisplacement)
+        {
+            foreach (string required in new[] { "worldPos", "normal", "uv", "vge_uvBase", "vge_uvExtent", "vge_faceId", "renderFlags" })
+                if (!outputNames.Contains(required)) throw new NotSupportedException($"Adaptive terrain output missing: {required}.");
+        }
+        return new Sources(Assemble(templates.Control, control.ToString(), copies.ToString(), adaptiveDisplacement),
+            Assemble(templates.Evaluation, evaluation.ToString(), interpolations.ToString(), adaptiveDisplacement));
+    }
+
+    /// <summary>Inserts only the engine-dependent interface into the asset-owned stage body.</summary>
+    private static string Assemble(string template, string declarations, string assignments, bool adaptive)
+    {
+        var tree = SyntaxTree.Parse(template, GlslSchema.Instance);
+        var main = Query.Syntax<GlFunctionNode>().Named("main");
+        tree.CreateEditor()
+            .InsertBefore(main, declarations)
+            .InsertAfter(main.InnerStart("body"), "\n" + assignments)
+            .Commit();
+        // The linker supplies the GLSL version and engine prefix before this local variant define.
+        return $"#define VGE_ADAPTIVE_DISPLACEMENT {(adaptive ? 1 : 0)}\n" + tree.ToText();
     }
     #endregion
 }

@@ -25,10 +25,12 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
     public void PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw()
     {
         EnsureContextValid();
-        int vertex = TerrainTessellationTests.Compile(ShaderType.VertexShader, VertexSource);
-        int fragment = TerrainTessellationTests.Compile(ShaderType.FragmentShader, FragmentSource);
-        var owner = CreateOwner(vertex, fragment);
-        int vao = GL.GenVertexArray(), indices = GL.GenBuffer();
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, VertexSource);
+        int fragment = shaders.Compile(ShaderType.FragmentShader, FragmentSource);
+        var owner = CreateOwner(shaders, vertex, fragment);
+        using var vertexArray = GpuVao.Create();
+        int vao = vertexArray.VertexArrayId, indices = GL.GenBuffer();
         var harmony = new Harmony("VGE.Tests.TerrainGroupedDraw");
         var previous = ShaderProgramBase.CurrentShaderProgram;
         int previousLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
@@ -38,22 +40,22 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         {
             harmony.CreateClassProcessor(typeof(TerrainTessellationDrawHook)).Patch();
             Assert.True(TerrainTessellationPrograms.DrawHookAvailable);
-            GL.BindVertexArray(vao); GL.BindBuffer(BufferTarget.ElementArrayBuffer, indices);
+            GlStateCache.Current.BindVertexArray(vao); GL.BindBuffer(BufferTarget.ElementArrayBuffer, indices);
             // Three skipped sentinel indices make a lost byte offset visibly wrong.
             GL.BufferData(BufferTarget.ElementArrayBuffer, 6 * sizeof(uint), new uint[] { 2, 2, 2, 0, 1, 2 }, BufferUsageHint.StaticDraw);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(8, 8, PixelInternalFormat.Rgba32f);
             target.BindWithViewport(); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            GL.UseProgram(owner.ProgramId);
+            GlStateCache.Current.UseProgram(owner.ProgramId);
             GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, 3 * sizeof(uint));
             float[] expected = target[0].ReadPixels();
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = 4;
-            TerrainTessellationPatches.Prepare(owner);
+            TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPatches.Configure(owner);
             TerrainTessellationPrograms.Prepare(owner);
             ShaderProgramBase.CurrentShaderProgram = owner;
             Assert.True(TerrainTessellationPrograms.Active);
-            GL.UseProgram(owner.ProgramId); GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
+            GlStateCache.Current.UseProgram(owner.ProgramId); GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
             GlStateCache.Current.SetPatchVertices(5);
             // Installed IL uses no instance fields: this avoids creating windows, audio or a game.
             var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
@@ -82,8 +84,8 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = previousLevel;
             TerrainTessellationPrograms.DrawHookAvailable = previousHook;
             GlStateCache.Current.SetPatchVertices(previousPatch);
-            GL.UseProgram(0); GL.BindVertexArray(0); GL.DeleteBuffer(indices); GL.DeleteVertexArray(vao);
-            GL.DeleteProgram(owner.ProgramId); GL.DeleteShader(vertex); GL.DeleteShader(fragment);
+            GlStateCache.Current.UseProgram(0); GlStateCache.Current.BindVertexArray(0); GL.DeleteBuffer(indices);
+            GpuProgramObject.Adopt(owner.ProgramId).Dispose();
         }
     }
     #endregion
@@ -94,9 +96,10 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
     public void UnsupportedInterfaceRetainsOrdinaryExecutable()
     {
         EnsureContextValid();
-        int vertex = TerrainTessellationTests.Compile(ShaderType.VertexShader, VertexSource.Replace("out vec4 rgba;", "out vec4 rgba[1];").Replace("rgba =", "rgba[0] ="));
-        int fragment = TerrainTessellationTests.Compile(ShaderType.FragmentShader, FragmentSource.Replace("in vec4 rgba;", "in vec4 rgba[1];").Replace("color=rgba;", "color=rgba[0];"));
-        var owner = CreateOwner(vertex, fragment);
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, VertexSource.Replace("out vec4 rgba;", "out vec4 rgba[1];").Replace("rgba =", "rgba[0] ="));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, FragmentSource.Replace("in vec4 rgba;", "in vec4 rgba[1];").Replace("color=rgba;", "color=rgba[0];"));
+        var owner = CreateOwner(shaders, vertex, fragment);
         int original = owner.ProgramId;
         int previousLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
         bool previousHook = TerrainTessellationPrograms.DrawHookAvailable;
@@ -106,7 +109,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = 4;
             TerrainTessellationPrograms.DrawHookAvailable = true;
             string diagnostic = ""; TerrainTessellationPrograms.Log = message => diagnostic += message;
-            TerrainTessellationPatches.Prepare(owner);
+            TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPatches.Configure(owner);
             TerrainTessellationPrograms.Prepare(owner);
             Assert.Equal(original, owner.ProgramId); Assert.True(GL.IsProgram(original));
@@ -117,17 +120,17 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         {
             TerrainTessellationPrograms.Forget(owner); ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = previousLevel;
             TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.Log = previousLog;
-            GL.DeleteProgram(owner.ProgramId); GL.DeleteShader(vertex); GL.DeleteShader(fragment);
+            GpuProgramObject.Adopt(owner.ProgramId).Dispose();
         }
     }
     #endregion
 
     #region Fixture inputs
     /// <summary>Wraps linked stages in the same engine ownership model used by terrain.</summary>
-    private static ShaderProgram CreateOwner(int vertex, int fragment) => new()
+    private static ShaderProgram CreateOwner(TerrainShaderTestFixture shaders, int vertex, int fragment) => new()
     {
-        PassName = "chunkopaque", AssetDomain = "game", ProgramId = TerrainTessellationTests.Link(vertex, fragment),
-        VertexShader = new Shader { ShaderId = vertex, Code = TerrainTessellationTests.Source(vertex) }, FragmentShader = new Shader { ShaderId = fragment }
+        PassName = "chunkopaque", AssetDomain = "game", ProgramId = TerrainShaderTestFixture.Link(vertex, fragment),
+        VertexShader = new Shader { ShaderId = vertex, Code = shaders.Source(vertex) }, FragmentShader = new Shader { ShaderId = fragment }
     };
 
     private const string VertexSource = """

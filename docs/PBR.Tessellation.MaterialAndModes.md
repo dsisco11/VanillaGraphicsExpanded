@@ -1,8 +1,9 @@
 # Terrain displacement material and mode contract
 
-Status: defined for implementation by the remaining tessellation subtasks in
-[PBR.BaselineShading.todo](PBR.BaselineShading.todo). This document does not claim the proposed fields,
-mode selection or rendering are implemented. It builds on [the depth-map audit](PBR.Tessellation.DepthMapAudit.md).
+Status: the material amplitude field, atlas metadata and adaptive stage core are implemented in
+[the adaptive core](PBR.Tessellation.AdaptiveDisplacement.md). Mode selection, production displacement
+publication and matching rendering consumers remain pending in
+[PBR.BaselineShading.todo](PBR.BaselineShading.todo). This contract builds on [the depth-map audit](PBR.Tessellation.DepthMapAudit.md).
 
 ## Material selection
 
@@ -18,7 +19,7 @@ file-wide defaults initially, so existing broad defaults cannot accidentally opt
 No new mapping-rule override or authored height-file format is required for the initial implementation.
 Use the normal/depth atlas already produced for the selected texture.
 
-Proposed authoring example (not accepted by the current schema yet):
+Accepted material authoring example (production displacement remains gated):
 
 ```json
 {
@@ -119,7 +120,7 @@ use the ordinary path until coherent resources exist; no invalid texture samplin
 ## Capabilities, publication and fallback
 
 Select modes/program generations outside draw loops. Tessellation requires supported stage execution,
-the production SPIR-V/link path, sufficient queried patch/interface/texture limits, registered patch
+the engine-owned runtime GLSL/link path, sufficient queried patch/interface/texture limits, registered patch
 state ownership, and complete main/shadow variants for eligible pools. Do not infer support solely
 from the engine's SSBO option. Relief requires the height atlas and a valid linked relief variant.
 
