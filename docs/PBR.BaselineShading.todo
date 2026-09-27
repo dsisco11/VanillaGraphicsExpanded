@@ -100,18 +100,55 @@ Tasks
       Source and implementation review completed; no game launch or live appearance claim.
 
   ☐ Add optional depth-map tessellation and relief mapping through the production shader pipeline.
-    - Audit source mesh topology, atlas depth convention, material scale and graphics capabilities.
-      Define signed displacement amplitude and zero level, plus which materials/surfaces opt in.
-    - Extend build-time compilation, contracts, specialization, linking/cache identity and lifecycle
-      support for tessellation control/evaluation stages where absent. Preserve the ordinary path.
-    - Implement adaptive, bounded tessellation with consistent shared-edge factors, distance/screen
-      error limits and stable transitions. Handle atlas seams, chunk boundaries and displaced normals.
-    - Implement configurable relief mapping and its relationship to existing parallax mapping;
-      distinguish shading-depth approximation from silhouette-changing geometry displacement.
-    - Keep depth, shadows, G-buffer data and motion/reprojection coherent. Explicitly document how
-      displaced surfaces are represented or approximated in LumOn capture and trace geometry.
-    - Validate flat maps, missing maps, extreme heights, grazing angles, seams, movement and reload.
-      Measure geometry amplification and pixel cost; retain a capability-safe disabled fallback.
+    ☐ Audit terrain topology, draw submission and the existing depth-map contract.
+      - Trace installed engine opaque/topsoil index layouts, draw calls, vertex attributes and shadow
+        variants. Verify whether existing triangles can serve as three-control-point patches without
+        rebuilding chunk meshes; identify an explicit, narrowly scoped draw interception point.
+      - Confirm atlas neutral height (currently 0.5), signed height convention, mip/filter behavior,
+        material scale and supported GPU limits. Record existing tessellation stage support in the
+        shader builder/SPIR-V loader and reuse it rather than introducing a parallel pipeline.
+    ☐ Define material selection, displacement units and optional rendering modes.
+      - Use texture-based material identity and existing UVs, including rotated textures; do not add
+        per-axis material properties or require block-rotation metadata from chunk tessellation.
+      - Specify amplitude in block/metre units, zero level, safe limits and eligible opaque/topsoil
+        surfaces. Missing maps, neutral maps and non-opted-in materials must remain undisplaced.
+      - Define disabled, relief-only and tessellation modes, capability checks and ordinary-rendering
+        fallback. Keep animated entities, liquids and transparent geometry outside the initial scope.
+    ☐ Establish an undisplaced tessellated production terrain path.
+      - Complete only missing control/evaluation-stage contract, build, specialization, link/cache
+        identity and reload support. Include stage combinations in lifecycle validation.
+      - Route eligible terrain draws through GL_PATCHES with the verified patch size while preserving
+        buffers, indices and engine draw ownership. Manage patch state through existing GPU/state-cache
+        abstractions; unrelated draws retain their original topology and programs.
+      - Validate unchanged positions, UVs, material identity and coverage before adding displacement.
+    ☐ Implement bounded adaptive subdivision and atlas-safe displacement.
+      - Derive shared-edge subdivision from consistent endpoint data and projected edge size, with
+        configurable maximum factors, distance/screen-error limits and stable transitions.
+      - Interpolate attributes and sample height before projection; preserve flat material/atlas
+        metadata, derive displaced normals and use a deliberate height sampling/LOD policy.
+      - Enforce matching displaced positions as well as matching subdivision at shared edges. Define
+        constraints at incompatible material boundaries and face corners; validate internal triangle
+        diagonals, atlas seams and chunk boundaries without cracks or cross-tile sampling.
+    ☐ Extend existing parallax occlusion mapping into the selected relief contract.
+      - Reuse bounded stepping/refinement and atlas safety. Define grazing-angle behavior, distance
+        transitions and whether relief changes depth or only shading/UVs.
+      - Initially keep relief and tessellation as alternatives; any combined mode must evaluate only
+        residual height rather than applying the full displacement twice. Document silhouette limits.
+    ☐ Integrate displaced geometry consistently across rendering consumers.
+      - Share displacement evaluation with shadow rendering and define compatible height LOD between
+        passes. Produce coherent depth, G-buffer normals/positions and previous-frame reprojection.
+      - Account for outward displacement in culling bounds and document occlusion/collision limits.
+      - Specify and validate the representation used by LumOn Surface Cache capture and trace geometry;
+        raster tessellation does not automatically update either. Document any coarse approximation
+        and resulting visibility limitations instead of claiming matching displaced trace geometry.
+      - Preserve both standalone and LumOn-compatible PBR paths and safe configuration/reload changes.
+    ☐ Validate correctness and measure production cost before default enablement.
+      - Run subagent-focused tests for neutral/missing maps, extreme heights, rotated textures, grazing
+        angles, incompatible materials, seams, chunk boundaries, movement, shadows and reload/fallback.
+      - Measure geometry amplification and GPU time separately from relief pixel cost with matched
+        workloads. Check stable transitions and bounded worst-case work; document hardware and settings.
+      - Review the implementation against the full task and record evidence. Leave live appearance
+        verification to the user; passing headless tests is not in-game visual acceptance.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
     - Trace vanilla liquid entrypoints and transparency/OIT contracts before replacing their shading;
