@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.PBR;
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
 /// applying fog once and writing scene-linear lighting for the separate display resolve.
 /// </summary>
-[ShaderProgram("Contract", "pbr_composite", 8)]
+[ShaderProgram("Contract", "pbr_composite", 9)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_composite.fsh")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Lighting")]
@@ -76,6 +76,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram
     public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
 
     public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
+
+    /// <summary>Supplies standalone environmental irradiance without any LumOn texture dependency.</summary>
+    public int GBufferEnvironment { set => Layout.BindEnvironment(ProgramId, value, LayoutWarn); }
 
     #endregion
 

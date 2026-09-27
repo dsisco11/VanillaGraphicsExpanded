@@ -101,6 +101,7 @@ internal static partial class GpuShaderContracts
         contract.UniformLocations.Add("worldProbeRadianceAtlas", 89);
         contract.UniformLocations.Add("worldProbeSuppressedLighting", 90);
         contract.UniformLocations.Add("worldProbeVis0", 91);
+        contract.UniformLocations.Add("gBufferEnvironment", 92);
 
         contract.VaryingLocations.Add("uv", 0);
         contract.VaryingLocations.Add("v_uv", 0);

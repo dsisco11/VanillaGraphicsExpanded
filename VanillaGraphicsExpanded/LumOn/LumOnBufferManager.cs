@@ -306,6 +306,9 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public DynamicTexture2D? IndirectFullTex => indirectFullTex;
 
+    /// <summary>True only after the current render callback completed all indirect-lighting passes.</summary>
+    internal bool HasPublishedIndirect { get; set; }
+
     // ═══════════════════════════════════════════════════════════════
     // Surface Capture Buffers
     // ═══════════════════════════════════════════════════════════════
@@ -406,8 +409,10 @@ public sealed class LumOnBufferManager : IDisposable
         return true;  // No change
     }
 
+    /// <summary>Invalidates published lighting and schedules resource recreation on the next ensure.</summary>
     public void RequestRecreateBuffers(string reason)
     {
+        HasPublishedIndirect = false;
         forceRecreateOnNextEnsure = true;
         capi.Logger.Debug("[LumOn] Buffer recreation requested: {0}", reason);
     }
@@ -433,6 +438,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void ClearHistory()
     {
+        HasPublishedIndirect = false;
         HistoryRevision++;
         WorldProbeSuppressedLighting = null;
         if (!isInitialized)
@@ -633,6 +639,7 @@ public sealed class LumOnBufferManager : IDisposable
         probeAnchorFbo?.Dispose();
         probeTraceMaskFbo?.Dispose();
         indirectHalfFbo?.Dispose();
+        HasPublishedIndirect = false;
         indirectFullFbo?.Dispose();
         surfaceAlbedoFbo?.Dispose();
         velocityFbo?.Dispose();

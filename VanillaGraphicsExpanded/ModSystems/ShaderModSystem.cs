@@ -16,6 +16,7 @@ public sealed class ShaderModSystem : ModSystem
     public override void AssetsLoaded(ICoreAPI api)
     {
         ShaderDigestIndexCache.Clear();
+        PbrShaderLightingMode.GenerationLumOnEnabled = null;
         // Initialize the shader includes hook with dependencies
         ShaderIncludesHook.Initialize(api.Logger, api.Assets);
 
@@ -28,6 +29,7 @@ public sealed class ShaderModSystem : ModSystem
     {
         base.Dispose();
         ShaderDigestIndexCache.Clear();
+        PbrShaderLightingMode.GenerationLumOnEnabled = null;
 
         // Clear shader imports cache
         ShaderImportsSystem.Instance.Clear();

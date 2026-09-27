@@ -354,6 +354,10 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         var prev = lastLiveConfigSnapshot.Value;
         lastLiveConfigSnapshot = current;
 
+        // A mode transition must await a fresh lighting publication before composition uses GI.
+        if (prev.LumOnEnabled != current.LumOnEnabled && lumOnBufferManager is not null)
+            lumOnBufferManager.HasPublishedIndirect = false;
+
         // LumOn enable: create missing runtime objects.
         // LumOn disable: keep objects alive (renderer remains registered) but it will early-out.
         if (current.LumOnEnabled && lumOnRenderer is null)

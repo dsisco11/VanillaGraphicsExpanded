@@ -10,5 +10,12 @@ internal static class ShaderDigestReloadHook
 {
     /// <summary>Runs before compilation; the public reload event occurs too late for registered shaders.</summary>
     [HarmonyPrefix]
-    internal static void Prefix() => ShaderDigestIndexCache.Clear();
+    internal static void Prefix()
+    {
+        if (ShaderRegistry.SupressShaderAndBufferReloads) return;
+        ShaderDigestIndexCache.Clear();
+        // The engine destroys all registered programs before compiling this generation.
+        // Composition must use the same snapshot even when an individual replacement fails.
+        PBR.PbrShaderLightingMode.GenerationLumOnEnabled = ModSystems.ConfigModSystem.Config.LumOn.Enabled;
+    }
 }

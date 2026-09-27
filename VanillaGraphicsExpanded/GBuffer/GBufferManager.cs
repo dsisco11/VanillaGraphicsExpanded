@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded;
 /// - ColorAttachment4: World-space normals (RGBA16F) - layout(location = 4)
 /// - ColorAttachment5: Material properties (RGBA16F) - layout(location = 5)
 /// - ColorAttachment6: PatchId buffer (RGBA32UI) - layout(location = 6) out uvec4
+/// - ColorAttachment7: Local environment irradiance approximation (RGBA16F)
 /// 
 /// Integrates with VS via Harmony hooks for framebuffer lifecycle management.
 /// </summary>
@@ -35,10 +36,12 @@ public sealed class GBufferManager : IDisposable
     private DynamicTexture2D? normalTex;
     private DynamicTexture2D? materialTex;
     private DynamicTexture2D? patchIdTex;
+    private DynamicTexture2D? environmentTex;
 
     private const int NormalSlotId = 4;
     private const int MaterialSlotId = 5;
     private const int PatchIdSlotId = 6;
+    private const int EnvironmentSlotId = 7;
     private readonly float[] clearColor = [0f, 0f, 0f, 0f];
     private static readonly int[] clearUInt4AsInt = [0, 0, 0, 0];
 
@@ -47,11 +50,12 @@ public sealed class GBufferManager : IDisposable
             .With(GlPipelineStateId.BlendEnableIndexed)
             .With(GlPipelineStateId.BlendFuncIndexed),
         nonDefaultMask: default,
-        blendEnableIndexedAttachments: [(byte)NormalSlotId, (byte)MaterialSlotId, (byte)PatchIdSlotId],
+        blendEnableIndexedAttachments: [(byte)NormalSlotId, (byte)MaterialSlotId, (byte)PatchIdSlotId, (byte)EnvironmentSlotId],
         blendFuncIndexed:
         [
             new GlBlendFuncIndexed((byte)NormalSlotId, GlBlendFunc.Default),
-            new GlBlendFuncIndexed((byte)MaterialSlotId, GlBlendFunc.Default)
+            new GlBlendFuncIndexed((byte)MaterialSlotId, GlBlendFunc.Default),
+            new GlBlendFuncIndexed((byte)EnvironmentSlotId, GlBlendFunc.Default)
         ]);
 
     private int lastWidth;
@@ -88,6 +92,9 @@ public sealed class GBufferManager : IDisposable
     /// Format: RGBA32UI - (chunkSlot, patchId, packedPatchUv, misc/flags).
     /// </summary>
     public int PatchIdTextureId => patchIdTex?.TextureId ?? 0;
+
+    /// <summary>Local block plus sky irradiance; independent of LumOn resources.</summary>
+    public int EnvironmentTextureId => environmentTex?.TextureId ?? 0;
 
     /// <summary>
     /// Whether the G-buffer textures have been created and are ready for attachment.
@@ -136,7 +143,11 @@ public sealed class GBufferManager : IDisposable
 
         // Inject our textures into the framebuffers array
         // Need to expand the ColorTextureIds array to hold our attachments
-        primaryFb.ColorTextureIds = [..primaryFb.ColorTextureIds, NormalTextureId, MaterialTextureId, PatchIdTextureId];
+        Array.Resize(ref primaryFb.ColorTextureIds, 8);
+        primaryFb.ColorTextureIds[NormalSlotId] = NormalTextureId;
+        primaryFb.ColorTextureIds[MaterialSlotId] = MaterialTextureId;
+        primaryFb.ColorTextureIds[PatchIdSlotId] = PatchIdTextureId;
+        primaryFb.ColorTextureIds[EnvironmentSlotId] = EnvironmentTextureId;
         isInjected = true;
 
         // Attach to the Primary framebuffer
@@ -162,7 +173,7 @@ public sealed class GBufferManager : IDisposable
             return;
 
         // Set draw buffers to include our attachments
-        // VS only sets 0-3, we need to add 4-5
+        // VS sets 0-3; VGE publishes material and environment metadata at 4-7.
         DrawBuffersEnum[] drawBuffers = [ 
             DrawBuffersEnum.ColorAttachment0,  // VS: outColor (Albedo)
             DrawBuffersEnum.ColorAttachment1,  // VS: outGlow
@@ -170,9 +181,10 @@ public sealed class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment3,  // VS: outGPosition (SSAO)
             DrawBuffersEnum.ColorAttachment4,  // VGE: Normal
             DrawBuffersEnum.ColorAttachment5,  // VGE: Material
-            DrawBuffersEnum.ColorAttachment6   // VGE: PatchId
+            DrawBuffersEnum.ColorAttachment6,
+            DrawBuffersEnum.ColorAttachment7   // VGE: Local environment
         ];
-        GL.DrawBuffers(7, drawBuffers);        
+        GL.DrawBuffers(8, drawBuffers);
         
         // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
         ApplyGBufferBlendState(forceDirty: true);
@@ -289,8 +301,9 @@ public sealed class GBufferManager : IDisposable
         bool clearedNormal = normalTex?.TryClearToZero() == true;
         bool clearedMaterial = materialTex?.TryClearToZero() == true;
         bool clearedPatchId = patchIdTex?.TryClearToZero() == true;
+        bool clearedEnvironment = environmentTex?.TryClearToZero() == true;
 
-        if (clearedNormal && clearedMaterial && clearedPatchId)
+        if (clearedNormal && clearedMaterial && clearedPatchId && clearedEnvironment)
         {
             return;
         }
@@ -314,9 +327,10 @@ public sealed class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment3,
             DrawBuffersEnum.ColorAttachment4,
             DrawBuffersEnum.ColorAttachment5,
-            DrawBuffersEnum.ColorAttachment6
+            DrawBuffersEnum.ColorAttachment6,
+            DrawBuffersEnum.ColorAttachment7
         ];
-        GL.DrawBuffers(7, drawBuffers);
+        GL.DrawBuffers(8, drawBuffers);
 
         if (!clearedNormal)
         {
@@ -327,6 +341,8 @@ public sealed class GBufferManager : IDisposable
         {
             GL.ClearBuffer(ClearBuffer.Color, MaterialSlotId, clearColor);
         }
+
+        if (!clearedEnvironment) GL.ClearBuffer(ClearBuffer.Color, EnvironmentSlotId, clearColor);
 
         if (!clearedPatchId)
         {
@@ -376,18 +392,18 @@ public sealed class GBufferManager : IDisposable
             // Re-attach to framebuffer
             AttachToFramebuffer(primaryFb.FboId);
             
-            // Update the ColorTextureIds array if not already done
-            if (!isInjected)
-            {
-                primaryFb.ColorTextureIds = [..primaryFb.ColorTextureIds, NormalTextureId, MaterialTextureId, PatchIdTextureId];
-                isInjected = true;
-            }
-
+            // Keep engine attachment bookkeeping current after every resize.
+            Array.Resize(ref primaryFb.ColorTextureIds, 8);
+            primaryFb.ColorTextureIds[NormalSlotId] = NormalTextureId;
+            primaryFb.ColorTextureIds[MaterialSlotId] = MaterialTextureId;
+            primaryFb.ColorTextureIds[PatchIdSlotId] = PatchIdTextureId;
+            primaryFb.ColorTextureIds[EnvironmentSlotId] = EnvironmentTextureId;
+            isInjected = true;
             capi.Logger.Debug($"[VGE] EnsureBuffers: Recreated G-buffer textures for {screenWidth}x{screenHeight}");
         }
 
         // Return true only if we have valid texture IDs
-        return isInitialized && NormalTextureId != 0 && MaterialTextureId != 0 && PatchIdTextureId != 0;
+        return isInitialized && NormalTextureId != 0 && MaterialTextureId != 0 && PatchIdTextureId != 0 && EnvironmentTextureId != 0;
     }
 
     #endregion
@@ -434,7 +450,7 @@ public sealed class GBufferManager : IDisposable
         DeleteTextures();
 
         textures = new(width, height);
-        normalTex = textures.Normal; materialTex = textures.Material; patchIdTex = textures.PatchId;
+        normalTex = textures.Normal; materialTex = textures.Material; patchIdTex = textures.PatchId; environmentTex = textures.Environment;
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
@@ -448,6 +464,7 @@ public sealed class GBufferManager : IDisposable
         normalTex = null;
         materialTex = null;
         patchIdTex = null;
+        environmentTex = null;
         isInitialized = false;
         isInjected = false;
     }
@@ -477,6 +494,9 @@ public sealed class GBufferManager : IDisposable
             MaterialTextureId,
             0);
 
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7,
+            TextureTarget.Texture2D, EnvironmentTextureId, 0);
+
         // Attach patch id texture as ColorAttachment6 (matches layout(location = 6))
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
@@ -495,7 +515,7 @@ public sealed class GBufferManager : IDisposable
         }
         else
         {
-            capi.Logger.Notification("[VGE] G-buffer textures attached to Primary framebuffer (Normal@4, Material@5, PatchId@6)");
+            capi.Logger.Notification("[VGE] G-buffer textures attached to Primary framebuffer (Normal@4, Material@5, PatchId@6, Environment@7)");
         }
     }
 
@@ -508,7 +528,7 @@ public sealed class GBufferManager : IDisposable
         var gl = GlStateCache.Current;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
-        // Detach our color textures (ColorAttachment4-5)
+        // Detach our color textures (ColorAttachment4-7)
         GL.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment4,
@@ -529,6 +549,9 @@ public sealed class GBufferManager : IDisposable
             TextureTarget.Texture2D,
             0,
             0);
+
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7,
+            TextureTarget.Texture2D, 0, 0);
 
         // Reset draw buffers to VS defaults (0-3)
         DrawBuffersEnum[] drawBuffers = { 

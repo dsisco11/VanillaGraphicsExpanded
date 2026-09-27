@@ -213,6 +213,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         primaryBuffers.WorldProbeSuppressedLighting = null;
+        primaryBuffers.HasPublishedIndirect = false;
+        if (!config.LumOn.Enabled) return;
         if (!WorldProbeComparisonRequested)
             ReleaseWorldProbeComparison();
         pmjJitter.EnsureCreated();
@@ -384,6 +386,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             RenderUpsamplePass(primaryFb);
         }
 
+        primaryBuffers.HasPublishedIndirect = lightingPassesComplete && primaryBuffers.IndirectFullTex?.IsValid == true;
         RenderWorldProbeComparison(primaryFb);
 
         // Pass 6 (combine) is handled by PBRCompositeRenderer.
@@ -1348,7 +1351,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// <summary>
     /// Pass 5: Bilateral upsample from half-res to full resolution.
     /// Output is written to IndirectFullFbo for consumption by the final PBR composite.
-    /// (Fallback: if IndirectFullFbo is unavailable, additively blend to Primary.)
+    /// Missing output resources leave indirect lighting unpublished for this frame.
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)
     {
@@ -1364,30 +1367,15 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Preferred path: write to full-res indirect buffer for the final composite.
         // This keeps the primary scene untouched until PBRCompositeRenderer merges everything.
         var fullResFbo = bufferManager.IndirectFullFbo;
-        if (comparisonPass && fullResFbo is null)
+        // Composition owns publication. Never add GI into the material-color target on failure.
+        if (fullResFbo?.IsValid != true)
         {
             lightingPassesComplete = false;
             return;
         }
-        if (fullResFbo is not null)
-        {
-            fullResFbo.BindWithViewport();
-            fullResFbo.Clear();
-            capi.Render.GlToggleBlend(false);
-        }
-        else
-        {
-            // Fallback: direct additive blend to screen.
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-            GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
-
-            // Restrict output to ColorAttachment0 so we don't accidentally write into GBuffer attachments.
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-
-            // Additive-style blend for indirect lighting
-            capi.Render.GlToggleBlend(true, EnumBlendMode.Glow);
-        }
-
+        fullResFbo.BindWithViewport();
+        fullResFbo.Clear();
+        capi.Render.GlToggleBlend(false);
         if (!shader.TryUse())
         {
             lightingPassesComplete = false;

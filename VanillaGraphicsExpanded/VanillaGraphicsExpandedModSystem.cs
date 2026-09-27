@@ -24,6 +24,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private HarmonyLib.Harmony? harmony;
 
     private bool? lastEnablePom;
+    private bool? lastLumOnEnabled;
     private bool? lastEnableNormalMaps;
     private float? lastNormalMapScale;
     private bool pendingShaderReload;
@@ -93,6 +94,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         ConfigModSystem.Config.Sanitize();
 
         // Track config values that require shader recompilation when changed.
+        lastLumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         lastEnablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
         lastEnableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
         lastNormalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
@@ -107,19 +109,23 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         VgeDebugViewerManager.Initialize(api);
     }
 
+    /// <summary>Queues engine recompilation only when compile-time settings change.</summary>
     public void OnConfigReloaded(ICoreAPI api)
     {
         if (capi is null) return;
 
         bool enablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+        bool lumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         bool enableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
         float normalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
 
         bool shaderReloadNeeded = lastEnablePom.HasValue && lastEnablePom.Value != enablePom;
+        shaderReloadNeeded |= lastLumOnEnabled.HasValue && lastLumOnEnabled.Value != lumOnEnabled;
         shaderReloadNeeded |= lastEnableNormalMaps.HasValue && lastEnableNormalMaps.Value != enableNormalMaps;
         shaderReloadNeeded |= lastNormalMapScale.HasValue && Math.Abs(lastNormalMapScale.Value - normalMapScale) > 0.0001f;
 
         lastEnablePom = enablePom;
+        lastLumOnEnabled = lumOnEnabled;
         lastEnableNormalMaps = enableNormalMaps;
         lastNormalMapScale = normalMapScale;
 
@@ -128,6 +134,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             // ConfigLib emits initial setting-loaded events during startup. They establish
             // the current config but must not trigger a global shader reload while the
             // engine is still constructing/loading its GUI shaders.
+            pendingShaderReload |= PbrShaderLightingMode.GenerationLumOnEnabled is bool compiledMode
+                && compiledMode != lumOnEnabled;
             return;
         }
 
@@ -139,21 +147,25 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             normalMapScale,
             shaderReloadNeeded);
 
-        if (!shaderReloadNeeded) return;
+        if (!shaderReloadNeeded && !pendingShaderReload) return;
 
         capi.Logger.Notification(
-            "[VGE] Compile-time shader settings changed (POM={0}, NormalMaps={1}, NormalMapScale={2}). Re-enter the world or restart to apply.",
+            "[VGE] Compile-time shader settings changed (POM={0}, NormalMaps={1}, NormalMapScale={2}, LumOn={3}); scheduling shader reload.",
             enablePom,
             enableNormalMaps,
-            normalMapScale);
+            normalMapScale,
+            lumOnEnabled);
 
         pendingShaderReload = true;
         TryReloadShadersInWorld();
     }
 
+    /// <summary>Applies deferred compile-time changes once world shader reload is safe.</summary>
     private void OnLevelFinalize()
     {
         liveShaderReloadReady = true;
+        pendingShaderReload |= PbrShaderLightingMode.GenerationLumOnEnabled is bool compiledMode
+            && compiledMode != ConfigModSystem.Config.LumOn.Enabled;
         TryReloadShadersInWorld();
     }
 
@@ -188,6 +200,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         return true;
     }
 
+    /// <summary>Coalesces shader changes onto the main thread without reloading during GUI initialization.</summary>
     private void TryReloadShadersInWorld()
     {
         if (!pendingShaderReload || capi?.World?.Player is null || shaderReloadQueued)
@@ -205,12 +218,22 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
                     return;
                 }
 
+                if (ShaderRegistry.SupressShaderAndBufferReloads)
+                {
+                    // Keep the request pending for the next config event or world-finalize callback.
+                    capi.Logger.Warning("[VGE] Shader reload deferred while engine reloads are suppressed.");
+                    return;
+                }
+
                 pendingShaderReload = false;
                 TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
                 TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
 
                 bool ok = capi.Shader.ReloadShaders();
-                capi.Logger.Notification("[VGE] Shaders reloaded after live compile-time config change. ok={0}", ok);
+                if (ok)
+                    capi.Logger.Notification("[VGE] Shaders reloaded after live compile-time config change.");
+                else
+                    capi.Logger.Error("[VGE] Shader reload failed. The engine discarded the previous programs; check shader errors and reload again after correcting them.");
             },
             "vge-reload-shaders-on-config-change");
     }

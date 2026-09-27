@@ -66,7 +66,7 @@ Tasks
       terrain and deferred regressions. Review findings were fixed and revalidated.
       Evidence and remaining HDR/environment boundaries: docs/PBR.EntityAndLateCoverage.md.
 
-  ☐ Separate LumOn-compatible and standalone PBR pipelines with automatic mode selection.
+  ☑ Separate LumOn-compatible and standalone PBR pipelines with automatic mode selection.
     - Select the intended pipeline from LumOn.Enabled before initial shader preparation. Share common
       PBR code while giving each path explicit variants/contracts and resource dependencies.
     - LumOn mode consumes its indirect illumination exactly once. Standalone mode uses an explicit
@@ -78,8 +78,11 @@ Tasks
       unnecessary GI allocations or unintended intermediate shader generations.
       Replace the constructor-captured nullable buffer reference so startup-off/later-enable can
       consume the newly created LumOn manager; preserve resource ownership and disposal boundaries.
-    - Test both pipelines, live switching, startup with LumOn disabled, interior/exterior behavior,
-      material response and absence of double-counted ambient/GI. Preserve standalone point lights.
+      - Test both pipelines, live switching, startup with LumOn disabled, interior/exterior behavior,
+        material response and absence of double-counted ambient/GI. Preserve standalone point lights.
+      - Implemented and source-reviewed; contracts, approximation limits and validation receipts:
+        docs/PBR.LightingModes.md. All 64 distinct focused checks passed; 153 shader stages and
+        387 variants rebuilt. No game launch or live appearance/performance claim.
 
   ☐ Implement a physically based sky and shared atmospheric lighting inputs.
     - Evaluate an atmospheric scattering approach with explicit Rayleigh/Mie scattering, absorption,

@@ -2,6 +2,10 @@
 
 ## Status and evidence boundary
 
+The mode-selection and standalone-environment implementation is described in
+[PBR.LightingModes.md](PBR.LightingModes.md), superseding the historical missing-environment and
+captured-manager findings below.
+
 Source/IL audit completed against the checked-out API/survival source and installed client assets.
 No runtime performance or appearance results are claimed. The comparison cases below are design
 constraints for the implementation.

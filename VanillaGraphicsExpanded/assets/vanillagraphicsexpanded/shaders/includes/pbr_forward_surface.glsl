@@ -1,5 +1,9 @@
 #ifndef VGE_PBR_FORWARD_SURFACE_GLSL
 #define VGE_PBR_FORWARD_SURFACE_GLSL
+@import "./pbr_environment.glsl"
+#ifndef VGE_PBR_FORWARD_LUMON
+#error Forward PBR requires an explicit lighting mode before compilation.
+#endif
 
 #if DYNLIGHTS > 0
 uniform vec3 pointLights[DYNLIGHTS];
@@ -50,7 +54,12 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
     #endif
     // Local block illumination is a bounded fallback for these receivers, not screen-space GI
     // sampled from an unrelated opaque surface behind a transparent/first-person mesh.
+    #if VGE_PBR_FORWARD_LUMON
     vec3 localDiffuse = baseColor * vge_blockIrradiance * (1.0 - metallic);
+    #else
+    vec3 localDiffuse = VgeEnvironmentResponse(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance),
+        baseColor, metallic, roughness, dot(N, V));
+    #endif
     vec3 radiance = diffuse + specular + localDiffuse + baseColor * max(material.b, 0.0);
     radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
     // Primary/OIT currently blend display-space colors. Full scene-linear blending is separately owned.

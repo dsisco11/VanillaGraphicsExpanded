@@ -31,9 +31,11 @@ internal static class PbrSurfaceShaderPatches
             terrainImports = "@import \"./includes/vge_normaldepth.glsl\"\n@import \"./includes/vge_parallax.glsl\"\n";
         }
         tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
+            $"#define VGE_PBR_FORWARD_LUMON {(PbrShaderLightingMode.LumOnEnabled ? 1 : 0)}\n" +
             "@import \"./includes/vsfunctions.glsl\"\n" +
             "@import \"./includes/pbr_color.glsl\"\n" +
             "@import \"./includes/pbr_common.glsl\"\n" +
+            "@import \"./includes/pbr_environment.glsl\"\n" +
             "@import \"./includes/pbr_direct_brdf.glsl\"\n" +
             terrainImports + "@import \"./includes/pbr_forward_surface.glsl\"\n").Commit();
         return true;
@@ -105,6 +107,7 @@ internal static class PbrSurfaceShaderPatches
             layout(location = 4) out vec4 vge_outNormal;
             layout(location = 5) out vec4 vge_outMaterial;
             layout(location = 6) out uvec4 vge_outPatchId;
+            layout(location = 7) out vec4 vge_outEnvironment;
             #endif
 
             """;
@@ -164,6 +167,7 @@ internal static class PbrSurfaceShaderPatches
                 vge_outNormal = vec4(vge_normal * 0.5 + 0.5, 1.0);
                 vge_outMaterial = vec4(vge_params, vge_params.g);
                 vge_outPatchId = uvec4(0u);
+                vge_outEnvironment = vec4(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance), 1.0);
                 if (vge_pbrRoute == 1)
                 {
                     {{output}}.rgb = vge_materialColor;

@@ -44,4 +44,8 @@ internal sealed class PbrCompositeProgramLayout : GpuProgramLayout
 
     public void BindGBufferNormal(int programId, int textureId, Action<string>? warn)
         => TryBindSamplerTextureActive(programId, "gBufferNormal", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
+
+    /// <summary>Binds the standalone light-availability attachment only when present in the selected variant.</summary>
+    public void BindEnvironment(int programId, int textureId, Action<string>? warn)
+        => TryBindSamplerTextureActive(programId, "gBufferEnvironment", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
 }

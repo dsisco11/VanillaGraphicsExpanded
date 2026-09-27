@@ -4,12 +4,13 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded;
 
-/// <summary>Owns terrain normal, material and patch-identity render targets independently of framebuffer injection.</summary>
+/// <summary>Owns terrain normal, material, patch-identity and environment render targets independently of framebuffer injection.</summary>
 internal sealed class GBufferTextures : IDisposable
 {
     public DynamicTexture2D Normal { get; }
     public DynamicTexture2D Material { get; }
     public DynamicTexture2D PatchId { get; }
+    public DynamicTexture2D Environment { get; }
 
     #region Allocation
     /// <summary>Allocates companion terrain targets with the sampling policy used by raw-ID consumers.</summary>
@@ -20,6 +21,7 @@ internal sealed class GBufferTextures : IDisposable
             Normal = Create(width, height, PixelInternalFormat.Rgba16f, "gNormal");
             Material = Create(width, height, PixelInternalFormat.Rgba16f, "gMaterial");
             PatchId = Create(width, height, PixelInternalFormat.Rgba32ui, "gPatchId");
+            Environment = Create(width, height, PixelInternalFormat.Rgba16f, "gEnvironment");
         }
         catch { Dispose(); throw; }
     }
@@ -37,6 +39,6 @@ internal sealed class GBufferTextures : IDisposable
 
     #region Lifetime
     /// <summary>Releases all attachments, including a partially allocated set.</summary>
-    public void Dispose() { Normal?.Dispose(); Material?.Dispose(); PatchId?.Dispose(); }
+    public void Dispose() { Normal?.Dispose(); Material?.Dispose(); PatchId?.Dispose(); Environment?.Dispose(); }
     #endregion
 }

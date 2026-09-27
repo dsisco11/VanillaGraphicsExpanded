@@ -13,6 +13,7 @@ out vec4 outColor;
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_pbr.glsl"
 @import "./includes/pbr_color.glsl"
+@import "./includes/pbr_environment.glsl"
 
 // Import global defines (feature toggles with defaults)
 @import "./includes/vge_global_defines.glsl"
@@ -25,7 +26,11 @@ uniform sampler2D directSpecular;
 uniform sampler2D emissive;
 
 // Optional indirect (linear, fog-free)
+#if VGE_LUMON_ENABLED
 uniform sampler2D indirectDiffuse;
+#else
+uniform sampler2D gBufferEnvironment;
+#endif
 
 // G-Buffer
 uniform sampler2D gBufferAlbedo;
@@ -56,7 +61,7 @@ void main(void)
     }
 
 #if VGE_LUMON_ENABLED
-    vec3 indirect = texture(indirectDiffuse, uv).rgb;
+    vec3 indirect = indirectIntensity > 0.0 ? texture(indirectDiffuse, uv).rgb : vec3(0.0);
 
         vec3 albedo = lumonGetAlbedo(gBufferAlbedo, uv);
         float roughness;
@@ -108,6 +113,13 @@ void main(void)
 
             finalColor = directLight + emissiveLight + indirectDiffuseContrib + indirectSpecularContrib;
 #endif // VGE_LUMON_PBR_COMPOSITE
+#else
+    vec3 albedo = texture(gBufferAlbedo, uv).rgb;
+    vec4 material = texture(gBufferMaterial, uv);
+    vec3 normalVS = normalize(mat3(viewMatrix) * lumonDecodeNormal(texture(gBufferNormal, uv).xyz));
+    vec3 toEye = normalize(-lumonReconstructViewPos(uv, depth, invProjectionMatrix));
+    finalColor += VgeEnvironmentResponse(texture(gBufferEnvironment, uv).rgb,
+        albedo, material.g, material.r, dot(normalVS, toEye));
 #endif // VGE_LUMON_ENABLED
 
     finalColor = max(finalColor, vec3(0.0));

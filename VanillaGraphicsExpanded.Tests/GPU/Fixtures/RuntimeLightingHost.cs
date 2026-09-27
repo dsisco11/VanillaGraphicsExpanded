@@ -39,7 +39,7 @@ internal sealed class RuntimeLightingHost : IDisposable
         if (pbrComposition)
         {
             directRenderer = new(api, cache.Buffers, direct);
-            compositeRenderer = new(api, cache.Buffers, direct, cache.Config, Screen);
+            compositeRenderer = new(api, cache.Buffers, direct, cache.Config, () => lighting.GetLumOnBufferManagerOrNull());
         }
         var registered = cache.Events.Registrations.Select(entry => entry.Renderer).Distinct().ToArray();
         WorldRenderer = Assert.Single(registered.OfType<LumOnWorldProbeUpdateRenderer>());

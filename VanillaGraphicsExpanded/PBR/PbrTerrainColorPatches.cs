@@ -13,9 +13,10 @@ internal static class PbrTerrainColorPatches
     internal static void ApplyVertex(SyntaxTree tree, string sourceName)
     {
         if (sourceName is not ("chunkopaque.vsh" or "chunktopsoil.vsh")) return;
-        tree.CreateEditor().InsertBefore(
+        tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), "\nout vec3 vge_environment;\n")
+            .InsertBefore(
             Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"),
-            "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n").Commit();
+            "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n    vge_environment = max(rgbaLightIn.rgb, vec3(0.0)) + max(rgbaAmbientIn, vec3(0.0)) * clamp(rgbaLightIn.a, 0.0, 1.0) * 0.35;\n").Commit();
     }
 
     /// <summary>Captures color-mapped terrain before forward effects without changing coverage or glow outputs.</summary>

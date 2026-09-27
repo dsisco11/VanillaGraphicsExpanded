@@ -45,7 +45,7 @@ color to linear. It does not clamp radiance to one or apply a display transform.
 
 `pbr_display_resolve` performs the explicit opaque display boundary:
 
-1. Fixed unit exposure, common to LumOn-enabled and direct-only composition.
+1. Fixed unit exposure, common to LumOn-enabled and standalone composition (see [PBR.LightingModes.md](PBR.LightingModes.md)).
 2. Nonnegative per-channel Reinhard mapping: `c / (1 + c)`.
 3. Exact linear-to-sRGB encoding for the ordinary RGBA8 primary attachment.
 

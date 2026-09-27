@@ -18,23 +18,30 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     /// <summary>Covers opaque, late and OIT families with cascades and first-person depth offsets.</summary>
     public static IEnumerable<object[]> Variants()
     {
-        foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
-            foreach (int shadow in new[] { 0, 1, 2 })
-                foreach (int oit in family == "chunktransparent" ? new[] { 1 } : family == "entityanimated" ? new[] { 0, 1 } : new[] { 0 })
-                    yield return [family, shadow, oit, 0, 0, 1];
-        foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
-            yield return [family, 2, family == "chunktransparent" ? 1 : 0, 1, family == "chunktransparent" ? 1 : 0, 0];
+        foreach (bool lumon in new[] { false, true })
+        {
+            foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
+                foreach (int shadow in new[] { 0, 1, 2 })
+                    foreach (int oit in family == "chunktransparent" ? new[] { 1 } : family == "entityanimated" ? new[] { 0, 1 } : new[] { 0 })
+                        yield return [family, shadow, oit, 0, 0, 1, lumon];
+            foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
+                yield return [family, 2, family == "chunktransparent" ? 1 : 0, 1, family == "chunktransparent" ? 1 : 0, 0, lumon];
+        }
     }
 
     /// <summary>Actual driver linking verifies complete declaration and vertex/fragment interface compatibility.</summary>
     [Theory]
     [MemberData(nameof(Variants))]
-    public void InstalledVariantCompilesAndLinks(string family, int shadow, int oit, int ssao, int ssbo, int depth)
+    public void InstalledVariantCompilesAndLinks(string family, int shadow, int oit, int ssao, int ssbo, int depth, bool lumon)
     {
         EnsureContextValid();
         int vertex = 0, fragment = 0, program = 0;
+        bool previousMode = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled;
+        bool? previousGeneration = PbrShaderLightingMode.GenerationLumOnEnabled;
         try
         {
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled = lumon;
+            PbrShaderLightingMode.GenerationLumOnEnabled = null;
             vertex = Compile(ShaderType.VertexShader, Build(family + ".vsh", shadow, oit, ssao, ssbo, depth));
             fragment = Compile(ShaderType.FragmentShader, Build(family + ".fsh", shadow, oit, ssao, ssbo, depth));
             program = GL.CreateProgram();
@@ -45,6 +52,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             Assert.Equal(oit > 0 ? -1 : 4, GL.GetFragDataLocation(program, "vge_outNormal"));
             Assert.Equal(oit > 0 ? -1 : 5, GL.GetFragDataLocation(program, "vge_outMaterial"));
+            Assert.Equal(oit > 0 ? -1 : 7, GL.GetFragDataLocation(program, "vge_outEnvironment"));
             if (oit > 0)
             {
                 Assert.Equal(4, GL.GetFragDataLocation(program, "OITaccumulation1"));
@@ -53,6 +61,8 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         }
         finally
         {
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled = previousMode;
+            PbrShaderLightingMode.GenerationLumOnEnabled = previousGeneration;
             if (program != 0) GL.DeleteProgram(program);
             if (fragment != 0) GL.DeleteShader(fragment);
             if (vertex != 0) GL.DeleteShader(vertex);
@@ -70,6 +80,8 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         if (ssao > 0) original = original.Replace("murkiness", "renamedWaterDensity");
         var tree = SyntaxTree.Parse(original, GlslSchema.Instance);
         VanillaShaderPatches.TryApplyPreProcessing(null, tree, name);
+        if (name.EndsWith(".fsh", StringComparison.Ordinal))
+            Assert.Contains($"#define VGE_PBR_FORWARD_LUMON {(VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled ? 1 : 0)}", tree.ToText());
         var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string Expand(string source, string directory) => Regex.Replace(source, "(?m)^\\s*(?:#include\\s+([^\\r\\n]+)|@import\\s+\"([^\"]+)\"[^\\r\\n]*)", match =>
         {

@@ -40,7 +40,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager directLightingBuffers;
     private readonly VgeConfig? lumOnConfig;
-    private readonly LumOnBufferManager? lumOnBuffers;
+    private readonly Func<LumOnBufferManager?> getLumOnBuffers;
+    private readonly Func<bool> readLightingMode;
 
     private MeshRef? quadMeshRef;
 
@@ -63,13 +64,15 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         GBufferManager gBufferManager,
         DirectLightingBufferManager directLightingBuffers,
         VgeConfig? lumOnConfig,
-        LumOnBufferManager? lumOnBuffers)
+        Func<LumOnBufferManager?> getLumOnBuffers,
+        Func<bool>? readLightingMode = null)
     {
         this.capi = capi;
         this.gBufferManager = gBufferManager;
         this.directLightingBuffers = directLightingBuffers;
         this.lumOnConfig = lumOnConfig;
-        this.lumOnBuffers = lumOnBuffers;
+        this.getLumOnBuffers = getLumOnBuffers;
+        this.readLightingMode = readLightingMode ?? (() => lumOnConfig?.LumOn.Enabled == true);
 
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
@@ -150,19 +153,16 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         }
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
-        int lumOnEnabled = 0;
-        DynamicTexture2D? indirectTex = null;
-        if (lumOnConfig?.LumOn.Enabled == true && lumOnBuffers?.IndirectFullTex is not null)
-        {
-            lumOnEnabled = 1;
-            indirectTex = lumOnBuffers.IndirectFullTex;
-        }
+        bool lumOnEnabled = readLightingMode();
+        var currentBuffers = lumOnEnabled ? getLumOnBuffers() : null;
+        var indirectTex = currentBuffers?.HasPublishedIndirect == true ? currentBuffers.IndirectFullTex : null;
+        if (indirectTex?.IsValid != true) indirectTex = null;
 
         shader.ConfigureOptions(() =>
         {
-            shader.LumOnEnabled = lumOnEnabled == 1;
-            shader.EnablePbrComposite = lumOnConfig?.LumOn.EnablePbrComposite ?? true;
-            shader.EnableShortRangeAo = lumOnConfig?.LumOn.EnableShortRangeAo ?? true;
+            shader.LumOnEnabled = lumOnEnabled;
+            shader.EnablePbrComposite = lumOnEnabled && (lumOnConfig?.LumOn.EnablePbrComposite ?? true);
+            shader.EnableShortRangeAo = lumOnEnabled && (lumOnConfig?.LumOn.EnableShortRangeAo ?? true);
         });
 
         var display = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
@@ -190,7 +190,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.DirectSpecular = directLightingBuffers.DirectSpecularTex;
         shader.Emissive = directLightingBuffers.EmissiveTex;
 
-        shader.IndirectDiffuse = indirectTex;
+        if (lumOnEnabled) shader.IndirectDiffuse = indirectTex;
+        else shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;
 
         // GBuffer inputs
         shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];
@@ -205,7 +206,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         // The published LumOn gather output already includes intensity and tint.
         // Composition applies receiver material response without scaling that signal twice.
-        shader.IndirectIntensity = 1.0f;
+        shader.IndirectIntensity = indirectTex is not null ? 1.0f : 0.0f;
         shader.IndirectTint = new Vec3f(1, 1, 1);
 
         shader.DiffuseAOStrength = Math.Clamp(lumOnConfig?.LumOn.DiffuseAOStrength ?? 1.0f, 0f, 1f);

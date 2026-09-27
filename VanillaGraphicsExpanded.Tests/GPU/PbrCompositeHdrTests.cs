@@ -29,6 +29,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var emission = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 4f, 2f, 1f, 1f });
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { .5f });
         using var unused = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .1f, .2f, .3f, 1f });
+        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
         output.BindWithViewport();
         using (program.UseScope())
@@ -37,6 +38,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             program.IndirectDiffuse = unused; program.GBufferAlbedo = unused.TextureId;
             program.GBufferMaterial = unused.TextureId; program.GBufferNormal = unused.TextureId;
             program.PrimaryDepth = depth.TextureId;
+            program.GBufferEnvironment = environment.TextureId;
+            program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+            program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             program.FogDensityIn = 0; program.FogMinIn = fog; program.RgbaFogIn = new(.5f, .25f, .125f, 1);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.FramebufferSrgb);
             TestFramework.RenderQuad(program);

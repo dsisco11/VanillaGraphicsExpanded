@@ -13,7 +13,7 @@ that target, so this check does not query GPU state.
 | Engine draw stage | Material and output contract |
 | --- | --- |
 | Opaque, non-OIT variant | Unlit linear material color plus world normal, RME and an empty Surface Cache patch ID; the existing direct/LumOn/composite passes light the receiver. |
-| OIT | Forward PBR evaluated before `OIT(...)`; engine reveal/accumulation/glow outputs and alpha weighting remain owned by `oit.fsh`. No opaque outputs are declared at locations 4–6. |
+| OIT | Forward PBR evaluated before `OIT(...)`; engine reveal/accumulation/glow outputs and alpha weighting remain owned by `oit.fsh`. No opaque outputs are declared at locations 4–7. |
 | AfterOIT | Forward PBR evaluated in the actual mesh draw, after the earlier opaque composite; defined normal/material metadata remains available for debugging. |
 | GUI, shadows and other stages | Original engine shading; the scene route is disabled. |
 
@@ -48,6 +48,9 @@ Standard's later damage multiplier is applied to the captured color once before 
 Generic/animated meshes retain the existing generic material policy: roughness 0.5, metallic from
 render flags and emission from `glowLevel`. This task does not invent per-entity texture material
 definitions or reinterpret block-atlas material textures as entity-atlas data.
+
+Automatic standalone/LumOn selection and the local environment approximation are documented in
+[PBR.LightingModes.md](PBR.LightingModes.md).
 
 The forward evaluator shares `pbr_direct_brdf.glsl` with the deferred direct-light shader. It uses
 the draw's actual view/model-view transform, not the camera's base transform, to compare point

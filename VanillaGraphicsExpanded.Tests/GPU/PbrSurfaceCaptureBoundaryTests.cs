@@ -37,6 +37,7 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
             float glowLevel = 0.0;
             float fogAmount = 0.0;
             float getMatMetallicFromRenderFlags(int flags) { return 0.0; }
+            vec3 VgeLocalEnvironment(vec3 block, vec3 sky) { return block + sky * 0.35; }
             vec3 VgeForwardSurface(vec3 color, vec3 n, vec3 p, float fog) { return color; }
             vec4 applyFogAndShadow(vec4 rgbaPixel, float fog) { return vec4(rgbaPixel.rgb * 0.5, rgbaPixel.a); }
             void main()

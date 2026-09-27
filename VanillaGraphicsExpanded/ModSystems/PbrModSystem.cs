@@ -64,14 +64,15 @@ public sealed class PbrModSystem : ModSystem
 
         var lumOnSystem = capi.ModLoader.GetModSystem<LumOnModSystem>();
         lumOnSystem.SetDependencies(capi, gBufferManager, directLightingBufferManager);
-        var lumOnBuffers = lumOnSystem.GetLumOnBufferManagerOrNull();
+
 
         pbrCompositeRenderer ??= new PBRCompositeRenderer(
             capi,
             gBufferManager,
             directLightingBufferManager,
             ConfigModSystem.Config,
-            lumOnBuffers);
+            lumOnSystem.GetLumOnBufferManagerOrNull,
+            () => PbrShaderLightingMode.LumOnEnabled);
 
         capi.Logger.Debug("[VGE] PbrModSystem ensured ({0})", reason);
     }

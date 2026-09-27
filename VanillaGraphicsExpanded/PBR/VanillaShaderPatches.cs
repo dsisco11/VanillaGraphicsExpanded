@@ -43,10 +43,12 @@ internal static class VanillaShaderPatches
 // VGE G-Buffer outputs
 layout(location = 4) out vec4 vge_outNormal;    // World-space normal (XYZ), unused (W)
 layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive, Reflectivity
+layout(location = 7) out vec4 vge_outEnvironment;
 layout(location = 6) out uvec4 vge_outPatchId;  // (chunkSlot, patchId, packedPatchUv, misc/flags)
 ";
 
     private const string ChunkMaterialParamsSamplerDeclaration = @"
+in vec3 vge_environment;
 // VGE: Per-texel material params for block atlas (RGB16F: roughness, metallic, emissive)
 uniform sampler2D vge_materialParamsTex;
 // VGE: Per-texel normal+depth for block atlas (RGBA16F: normalXYZ_packed01, depth01)
@@ -135,6 +137,7 @@ flat in uint vge_faceId;
 
     private const string GBufferOutputWrites_Chunk = @"
 
+    vge_outEnvironment = vec4(vge_environment, 1.0);
     // VGE: Write G-buffer outputs
     // Normal: world-space normal packed to [0,1] range
     // Also sample the per-texel normal+depth atlas so the sampler uniform stays live.
@@ -467,6 +470,7 @@ flat in uint vge_faceId;
         // Sky shader only needs to write default values to G-buffer outputs
         const string skyGBufferWrites = @"
     // VGE: Write default G-buffer outputs for sky
+    vge_outEnvironment = vec4(0.0);
     vge_outNormal = vec4(0.0); // Upward normal
     vge_outMaterial = vec4(0.0, 0.0, outGlow.g, 0.0); // Default material properties
 ";

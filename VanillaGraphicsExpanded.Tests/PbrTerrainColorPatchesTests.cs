@@ -48,9 +48,9 @@ public sealed class PbrTerrainColorPatchesTests
         var tree = SyntaxTree.Parse(ReadShader(name), GlslSchema.Instance);
         string before = tree.ToText();
         PbrTerrainColorPatches.ApplyVertex(tree, name);
-        string insertion = "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n";
+        string insertion = "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n    vge_environment = max(rgbaLightIn.rgb, vec3(0.0)) + max(rgbaAmbientIn, vec3(0.0)) * clamp(rgbaLightIn.a, 0.0, 1.0) * 0.35;\n";
         Assert.Contains(insertion, tree.ToText());
-        Assert.Equal(before, tree.ToText().Replace(insertion, "", StringComparison.Ordinal));
+        Assert.Equal(before, tree.ToText().Replace(insertion, "", StringComparison.Ordinal).Replace("\nout vec3 vge_environment;\n", "", StringComparison.Ordinal));
     }
 
     /// <summary>Unsupported engine layouts fail instead of capturing a silently wrong color.</summary>
