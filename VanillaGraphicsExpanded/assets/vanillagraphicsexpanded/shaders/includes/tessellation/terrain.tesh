@@ -15,6 +15,11 @@ void main() {
     gl_Position = gl_in[0].gl_Position * gl_TessCoord.x
         + gl_in[1].gl_Position * gl_TessCoord.y + gl_in[2].gl_Position * gl_TessCoord.z;
 #if VGE_ADAPTIVE_DISPLACEMENT
+    #if defined(VGE_TESS_HAS_vge_surfaceDisplaced) && VGE_PRODUCTION_DISPLACEMENT && !VGE_TESS_SHADOW
+    // Invalidate previous geometry even when the current map is missing, neutral or
+    // fully faded. Current displacement cannot describe what was visible last frame.
+    vge_surfaceDisplaced = float(vge_displacementReactive * vge_displacementEnabled);
+    #endif
     if (vge_patchAmplitude > 0.0) {
         vge_uvBase = vge_patchRect.xy;
         vge_uvExtent = vge_patchRect.zw;
@@ -41,44 +46,47 @@ void main() {
             float dv = (VgeHeight(uv + vec2(0, delta.y), vge_uvBase, vge_uvExtent, vge_patchAmplitude, basePosition + tangentV * delta.y)
                 - VgeHeight(uv - vec2(0, delta.y), vge_uvBase, vge_uvExtent, vge_patchAmplitude, basePosition - tangentV * delta.y)) / (2.0 * delta.y);
             vec3 displacedNormal = cross(tangentU + faceNormal * du, tangentV + faceNormal * dv);
-            #if defined(VGE_TESS_HAS_vge_surfaceDisplaced)
-            // Neutral maps and fully faded geometry retain ordinary temporal behavior.
+            #if defined(VGE_TESS_HAS_vge_surfaceDisplaced) && !VGE_PRODUCTION_DISPLACEMENT
             vge_surfaceDisplaced = (offset != 0.0 || du != 0.0 || dv != 0.0) ? 1.0 : 0.0;
-            #if VGE_PRODUCTION_DISPLACEMENT
-            vge_surfaceDisplaced *= float(vge_displacementReactive);
-            #endif
             #endif
             if ((du != 0.0 || dv != 0.0) && VgeFinite(displacedNormal) && dot(displacedNormal, displacedNormal) > 0.00000001) {
                 normal = normalize(displacedNormal);
                 if (dot(normal, faceNormal) < 0.0) normal = -normal;
             }
-            worldPos.xyz = basePosition + faceNormal * offset;
+            // Retain the engine's interpolated clip position, including vertex bias.
+            // Add only the displacement delta; neutral and pinned edges stay identical.
+            if (offset != 0.0) {
+                vec3 displacement = faceNormal * offset;
+                worldPos.xyz = basePosition + displacement;
             #if VGE_TESS_SHADOW
-            gl_Position = mvpMatrix * worldPos;
+                gl_Position += mvpMatrix * vec4(displacement, 0.0);
             #else
-            vec4 displacedCamera = modelViewMatrix * worldPos;
-            gl_Position = projectionMatrix * displacedCamera;
+                // Transform a direction once instead of projecting both full positions.
+                float originalDepth = gl_Position.z;
+                vec4 cameraDelta = modelViewMatrix * vec4(displacement, 0.0);
+                gl_Position += projectionMatrix * cameraDelta;
             #if defined(VGE_TESS_HAS_shadowCoordsFar) || defined(VGE_TESS_HAS_shadowCoordsNear)
-            calcShadowMapCoords(modelViewMatrix, worldPos);
+                calcShadowMapCoords(modelViewMatrix, worldPos);
             #endif
             #if VGE_TESS_DEPTH_BIAS
-            if (gl_Position.z > -1.0) {
                 int zOffset = (renderFlags & (7 << 8)) >> 8;
-                gl_Position.w += float(zOffset) * 0.00025 / ((gl_Position.z + 3.0) * 0.05);
-            }
+                float originalBias = originalDepth > -1.0 ? 1.0 / ((originalDepth + 3.0) * 0.05) : 0.0;
+                float displacedBias = gl_Position.z > -1.0 ? 1.0 / ((gl_Position.z + 3.0) * 0.05) : 0.0;
+                gl_Position.w += float(zOffset) * 0.00025 * (displacedBias - originalBias);
             #endif
             #if defined(VGE_TESS_HAS_camPos)
-            camPos = displacedCamera;
+                camPos += cameraDelta;
             #endif
             #if defined(VGE_TESS_HAS_fragPosition)
-            fragPosition = displacedCamera;
+                fragPosition += cameraDelta;
             #endif
             #if defined(VGE_TESS_HAS_vertexPosition)
-            vertexPosition += faceNormal * offset;
+                vertexPosition += displacement;
             #endif
-            #if defined(VGE_TESS_HAS_gnormal)
+            #endif
+            }
+            #if defined(VGE_TESS_HAS_gnormal) && !VGE_TESS_SHADOW
             gnormal.xyz = mat3(modelViewMatrix) * normal;
-            #endif
             #endif
         }
     }

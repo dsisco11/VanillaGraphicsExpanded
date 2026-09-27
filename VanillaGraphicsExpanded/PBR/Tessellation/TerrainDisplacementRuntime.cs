@@ -15,9 +15,9 @@ internal static class TerrainDisplacementRuntime
     internal static bool EligiblePool { get; set; }
     internal static bool MovingPool { get; set; }
     private static float focalPixels;
-    private static (double X, double Y, double Z, float Focal, int Level, float Pixels, float Start, float End)? previousGeometry;
-    private static bool previousBuildComplete;
+    private static readonly TerrainDisplacementHistory history = new();
     private static bool reactive = true;
+    private static long capturedAtlasRevision;
     private static long frameSerial;
     private static readonly ConditionalWeakTable<ShaderProgramBase, Parameters> published = new();
 
@@ -50,10 +50,9 @@ internal static class TerrainDisplacementRuntime
         var settings = ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision;
         var geometry = (position.X, position.Y, position.Z, focalPixels, settings.MaximumLevel,
             settings.TargetEdgePixels, settings.FadeStartMetres, settings.FadeEndMetres);
-        bool built = MaterialAtlasSystem.Instance.IsBuildComplete;
-        reactive = previousGeometry != geometry || !built || !previousBuildComplete;
-        previousGeometry = geometry;
-        previousBuildComplete = built;
+        var atlas = MaterialAtlasSystem.Instance;
+        capturedAtlasRevision = atlas.SurfaceDetailRevision;
+        reactive = history.Observe(geometry, capturedAtlasRevision, atlas.IsBuildComplete);
     }
 
     /// <summary>Binds parameters through the engine uniform API immediately before an adaptive grouped draw.</summary>
@@ -76,7 +75,14 @@ internal static class TerrainDisplacementRuntime
         }
         if (state.Frame == frameSerial) return;
         state.Frame = frameSerial;
-        if (program.PassName != "chunkshadowmap") program.Uniform("vge_displacementReactive", reactive ? 1 : 0);
+        if (program.PassName != "chunkshadowmap")
+        {
+            // Atlas publication can run after the view snapshot in the Before render stage.
+            // Catch that change at first use too; the next snapshot advances retained history.
+            var atlas = MaterialAtlasSystem.Instance;
+            bool changed = reactive || atlas.SurfaceDetailRevision != capturedAtlasRevision || !atlas.IsBuildComplete;
+            program.Uniform("vge_displacementReactive", changed ? 1 : 0);
+        }
         program.Uniform("vge_tessellationDistance", settings.FadeStartMetres, settings.FadeEndMetres);
         program.Uniform("vge_tessellationPixels", (float)(Api?.Render.FrameWidth ?? 1),
             (float)(Api?.Render.FrameHeight ?? 1), settings.TargetEdgePixels, (float)settings.MaximumLevel);
@@ -86,8 +92,7 @@ internal static class TerrainDisplacementRuntime
     /// <summary>Rejects the first frame after shader/world replacement without invalidating unrelated lighting.</summary>
     internal static void ResetHistory()
     {
-        previousGeometry = null;
-        previousBuildComplete = false;
+        history.Reset();
         reactive = true;
         frameSerial++;
     }

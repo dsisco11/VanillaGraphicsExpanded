@@ -196,7 +196,23 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
     public bool IsInitialized { get; private set; }
     public bool AreTexturesCreated => texturesCreated;
-    public bool IsBuildComplete { get; private set; }
+    private bool isBuildComplete;
+    private long surfaceDetailRevision;
+
+    /// <summary>Identifies changes relevant to terrain geometry even when a rebuild completes between frames.</summary>
+    internal long SurfaceDetailRevision => Interlocked.Read(ref surfaceDetailRevision);
+
+    /// <summary>Reports readiness and records its transitions without treating repeated readiness polls as changes.</summary>
+    public bool IsBuildComplete
+    {
+        get => isBuildComplete;
+        private set
+        {
+            if (isBuildComplete == value) return;
+            isBuildComplete = value;
+            Interlocked.Increment(ref surfaceDetailRevision);
+        }
+    }
 
     public void WarmupAtlasCache(ICoreClientAPI capi)
     {
@@ -255,6 +271,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
         textureStore.UpdateDisplacement(materialPlan);
+        Interlocked.Increment(ref surfaceDetailRevision);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
         if (ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas)
@@ -695,6 +712,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
         textureStore.UpdateDisplacement(materialPlan);
+        Interlocked.Increment(ref surfaceDetailRevision);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
         if (ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas)
@@ -1094,6 +1112,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
         textureStore.UpdateDisplacement(plan);
+        Interlocked.Increment(ref surfaceDetailRevision);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
         if (ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas)

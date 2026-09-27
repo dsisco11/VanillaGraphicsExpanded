@@ -2,6 +2,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Tessellation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using TinyTokenizer.Ast;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -42,22 +43,45 @@ internal sealed class TerrainDetailWorkload : IDisposable
     private readonly Action bindTarget;
     private readonly Func<float[]> readTarget;
     private readonly List<IDisposable> resources=new();
-    private readonly Action<float> bindHeight;
+    private readonly Action<string> bindHeight;
     private PrimitiveType topology;
     private readonly int oldPatch=GlStateCache.Current.PatchVertices;
 
     #region Resource ownership and draws
     /// <summary>Creates static stage variants and identical render inputs before warmup begins.</summary>
-    internal TerrainDetailWorkload(bool depthBias = false)
+    internal TerrainDetailWorkload(bool depthBias = false, bool observeClipDelta = false)
     {
         string source=depthBias ? VertexSource.Replace("vec4(p,0,1)","vec4(p,p.y*.4,1)")
             .Replace("renderFlags=0;", "renderFlags=2<<8;gl_Position.w+=2*.00025/((gl_Position.z+3)*.05);") : VertexSource;
         string fragment=depthBias ? FragmentSource.Replace("worldPos.z,vge_surfaceDisplaced","gl_FragCoord.z,vge_surfaceDisplaced") : FragmentSource;
+        if (observeClipDelta)
+        {
+            // Observe the stage result before fixed-point triangle rasterization can
+            // introduce interpolation differences between subdivision levels.
+            source = source.Replace("out vec4 worldPos;", "out vec4 worldPos; out vec4 testClipDelta;")
+                .Replace("normal=vec3", "testClipDelta=vec4(0);normal=vec3");
+            fragment = """
+                #version 430 core
+                in vec4 testClipDelta;
+                out vec4 result;
+                void main() { result = testClipDelta; }
+                """;
+        }
         int vs=shaders.Compile(ShaderType.VertexShader,source),fs=shaders.Compile(ShaderType.FragmentShader,fragment);
         programs.Add("triangles",GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vs,fs)));
         foreach(bool adaptive in new[]{false,true})
         {
-            Assert.True(TerrainTessellationLinker.TryCreate(vs,fs,TerrainTessellationTestAssets.Generate(source,adaptive,depthBias),TerrainTessellationPatches.EnabledDefine + "#define VGE_PRODUCTION_DISPLACEMENT 1\n",2,out int id,out string error),error);
+            var stages = TerrainTessellationTestAssets.Generate(source,adaptive,depthBias);
+            if (observeClipDelta)
+            {
+                var tree = SyntaxTree.Parse(stages.Evaluation, GlslSchema.Instance);
+                tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), """
+                    testClipDelta = gl_Position - (gl_in[0].gl_Position * gl_TessCoord.x
+                        + gl_in[1].gl_Position * gl_TessCoord.y + gl_in[2].gl_Position * gl_TessCoord.z);
+                    """).Commit();
+                stages = stages with { Evaluation = tree.ToText() };
+            }
+            Assert.True(TerrainTessellationLinker.TryCreate(vs,fs,stages,TerrainTessellationPatches.EnabledDefine + "#define VGE_PRODUCTION_DISPLACEMENT 1\n",2,out int id,out string error),error);
             programs.Add(adaptive?"adaptive":"identity2",GpuProgramObject.Adopt(id));
         }
         string includes=Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
@@ -75,24 +99,26 @@ internal sealed class TerrainDetailWorkload : IDisposable
         var records=framework.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);resources.Add(records);
         var raised=framework.CreateTexture(64,64,PixelInternalFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray());resources.Add(raised);
         var neutral=framework.CreateTexture(64,64,PixelInternalFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,.5f}).ToArray());resources.Add(neutral);
-        bindHeight=value=>{indices.Bind(0);records.Bind(2);if(value==.5f)neutral.Bind(1);else raised.Bind(1);};
+        var missing=framework.CreateTexture(64,64,PixelInternalFormat.R32f,new float[4096]);resources.Add(missing);
+        var zeroAmplitude=framework.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,0,0,0,0]);resources.Add(zeroAmplitude);
+        bindHeight=mode=>{if(mode=="adaptiveMissing")missing.Bind(0);else indices.Bind(0);if(mode=="adaptiveZeroAmplitude")zeroAmplitude.Bind(2);else records.Bind(2);if(mode=="adaptiveNeutral")neutral.Bind(1);else raised.Bind(1);};
         var target=framework.CreateTestGBuffer(256,256,PixelInternalFormat.Rgba32f);resources.Add(target);bindTarget=()=>target.BindWithViewport();readTarget=()=>target[0].ReadPixels();
     }
 
     /// <summary>Selects one immutable shader variant and publishes identical inputs outside timing.</summary>
-    internal void Select(string mode)
+    internal void Select(string mode, bool reactive = true, bool eligible = true)
     {
         int id=programs[mode.StartsWith("adaptive",StringComparison.Ordinal)?"adaptive":mode].ProgramId;
         topology=mode is "triangles" or "relief" or "reliefOff" ? PrimitiveType.Triangles : PrimitiveType.Patches;
         GlStateCache.Current.UseProgram(id);GlStateCache.Current.BindVertexArray(vao.VertexArrayId);GlStateCache.Current.SetPatchVertices(3);
-        bindTarget();bindHeight(mode=="adaptiveNeutral"?.5f:0f);
+        bindTarget();bindHeight(mode);
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
         var layout=GpuProgramLayout.TryBuild(id);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),1);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementEnabled"),1);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementReactive"),1);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementEnabled"),eligible?1:0);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementReactive"),reactive?1:0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),256f,256f,8f,8f);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),256f);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationDistance"),mode=="adaptiveFaded"?0f:10f,mode=="adaptiveFaded"?.1f:20f);

@@ -33,10 +33,12 @@ pixel scale captured before the passes. The estimate is conservative toward scre
 bounded by the configured maximum. The light projection cannot select a different subdivision level.
 The perspective metric may lag a projection change by one frame, but both passes use the same value.
 
-The evaluation stage recomputes raster position, camera position and available G-buffer normals.
+The evaluation stage updates raster position, camera position and available G-buffer normals.
 Main terrain uses the original engine cascade-coordinate function, including cascade weights, on
-the displaced position. Opaque terrain reapplies the engine's authored clip-w depth offset after
-projection. Shadow terrain uses its engine MVP and does not receive the main-pass decor offset.
+the displaced position. Raster position retains the engine's interpolated clip coordinates and adds
+only the projected displacement vector. Opaque terrain adds the change in its authored clip-w bias;
+neutral height and pinned edges retain the original biased coordinates. Shadow terrain uses its
+engine MVP and does not receive the main-pass decor offset. Zero displacement skips those transforms.
 
 Pool admission expands all stored culling extents by the maximum authored displacement (0.05 m),
 including models uploaded before enabling detail. This conservative allocation-time allowance avoids
@@ -48,21 +50,23 @@ change selection/collision shapes.
 
 Static displaced depth follows the existing depth-reconstruction and previous-origin reprojection
 path. Adaptive subdivision, distance fades and streamed height changes have no previous-height
-representation. When camera position, subdivision inputs, atlas completion or shader generation
-changes, actually displaced samples set bit 16 in PatchId.w. Low 16-bit slot generations are unchanged.
-Neutral and fully faded samples retain ordinary behavior.
+representation. When camera position, subdivision inputs, atlas publication/readiness or shader
+generation changes, samples in eligible adaptive terrain draws set bit 16 in PatchId.w. This includes
+neutral, fully faded and missing-material destinations: the previous frame may have been displaced.
+Low 16-bit slot generations are unchanged. Stable frames resume ordinary history reuse; ineligible
+draws and the ordinary/identity paths do not set the marker.
+
+Atlas readiness transitions and each metadata publication advance a monotonic surface-detail
+revision. The frame history compares revisions as well as readiness, so a rebuild completed between
+snapshots is still detected. First draw binding also checks for publication after the view snapshot.
 
 The velocity pass marks those pixels as unsuitable for temporal reuse. Probe temporal blending
 rejects their history even when velocity-coordinate remapping is disabled. Untraced directions retain
-their diagnostic radiance but lose confidence until retraced. Unrelated surfaces and the Surface Cache
-are not cleared. Once geometry inputs stabilize and the atlas is complete, temporal reuse resumes.
-This conservative policy can reduce temporal smoothing during movement; exact previous-height motion
-would require additional persistent geometry data.
-
-Follow-up validation found that the current marker does not cover a previously displaced surface
-returning to neutral or fully faded geometry. Atlas completion snapshots also do not identify every
-content replacement. See [validation findings](PBR.Tessellation.Validation.md); the temporal behavior
-above is incomplete for those transitions and is not approval for default enablement.
+their diagnostic radiance but lose confidence until retraced. The Surface Cache is not cleared.
+Once geometry inputs stabilize and the atlas is complete, temporal reuse resumes. This conservative
+policy also rejects history on unchanged materials within eligible terrain draws during reactive
+frames. Distinguishing them from surfaces whose metadata disappeared would require previous-material
+or previous-height history. There is no added GPU history allocation or per-texture scan.
 
 ## LumOn representation
 
@@ -89,8 +93,27 @@ Build and 74 distinct focused tests passed across `artifacts/PbrColor/terrain-di
 `terrain-displacement-final-policy.trx`. Earlier failures in intermediate receipts were superseded by
 the consumer and temporal reruns. Final main/shadow pool-scope correction passed all 11 policy tests in
 `terrain-displacement-pool-scope.trx`. These include exact installed hook targets and field types.
-The frame-to-frame reactive snapshot was reviewed in source; it has no direct mocked lifecycle test.
+The original frame-to-frame reactive snapshot was reviewed in source; subsequent history-policy
+tests cover its transitions as described below.
 
 Validation also exposed a build-tool path error: custom-output builds could launch a stale default
 ShaderBuildTool executable. SpirvBuild now resolves and runs the actual built target, and the final
 custom-output build verifies the velocity shader's new integer sampler uses its declared binding.
+
+### Correctness follow-up
+
+`artifacts/PbrColor/terrain-detail-fixes.trx` records **147 passed, zero failed, zero skipped**
+(22 seconds test duration), with a successful fresh shader build. Coverage includes neutral/faded/
+missing/zero-amplitude history transitions, stable and ineligible draw controls, complete-to-complete
+atlas revisions, incomplete-to-ready settling, movement, settings and reset. The publication call
+sites and readiness transitions were reviewed separately from the history-policy unit tests.
+
+The original raster-depth threshold was below even identity tessellation's raster rounding error
+(1.67e-6 versus a 1e-6 threshold), so that failure did not independently establish visible depth
+corruption. The replacement uses TinyAst to expose the actual TES clip-coordinate delta before
+rasterization: neutral, faded and identity cases preserve all four components exactly, while a
+non-neutral control verifies displacement and the corresponding bias change. Existing raster,
+cascade, velocity, temporal blending and PBR/LumOn integration checks also pass.
+
+No performance benchmark or game was run for these fixes. Default enablement remains unchanged;
+representative production cost and user-run appearance verification are still separate acceptance work.

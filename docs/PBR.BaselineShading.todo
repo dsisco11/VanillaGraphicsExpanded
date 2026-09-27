@@ -187,14 +187,14 @@ Tasks
         workloads. Check stable transitions and bounded worst-case work; document hardware and settings.
       - Review the implementation against the full task and record evidence. Leave live appearance
         verification to the user; passing headless tests is not in-game visual acceptance.
-      - Validation evidence: PBR.Tessellation.Validation.md. Focused checks: 108 passed, two new
-        temporal-transition and one neutral depth-bias regression failed. Matched headless measurements
-        are recorded separately from full production-frame cost; default settings remain unchanged.
-      ☐ Preserve temporal rejection when prior displacement becomes neutral, faded or unavailable;
+      - Correctness fixes and evidence: PBR.Tessellation.RenderingConsumers.md. All 147 focused tests
+        pass after temporal/publication corrections and direct TES clip-identity verification.
+        Full production-frame cost remains unmeasured; default settings remain unchanged.
+      ☑ Preserve temporal rejection when prior displacement becomes neutral, faded or unavailable;
         make the neutral/faded GPU regressions pass and cover missing-material/resource transitions.
-      ☐ Track published height/metadata revisions so a complete-to-complete atlas replacement cannot
+      ☑ Track published height/metadata revisions so a complete-to-complete atlas replacement cannot
         escape temporal invalidation between frame snapshots; add focused lifecycle coverage.
-      ☐ Preserve neutral-height depth identity under the engine's nonlinear opaque clip-w bias;
+      ☑ Preserve neutral-height depth identity under the engine's nonlinear opaque clip-w bias;
         cover varying vertex depth as well as constant-depth receivers.
       ☐ Capture representative main/shadow terrain costs before deciding default enablement;
         headless saturated-face measurements do not establish a real-world frame budget.
