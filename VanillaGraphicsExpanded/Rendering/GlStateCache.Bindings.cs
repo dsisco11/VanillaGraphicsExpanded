@@ -364,8 +364,8 @@ internal sealed partial class GlStateCache
         }
     }
 
-    /// <summary>Tracks actual binding changes while keeping the combined query synchronized with the draw target.</summary>
-    private void SetFramebufferCache(FramebufferTarget target, int value)
+    /// <summary>Records a completed VGE or engine bind without issuing GL calls; the combined query aliases the draw target.</summary>
+    internal void SetFramebufferCache(FramebufferTarget target, int value)
     {
         if (target == FramebufferTarget.Framebuffer)
         {
