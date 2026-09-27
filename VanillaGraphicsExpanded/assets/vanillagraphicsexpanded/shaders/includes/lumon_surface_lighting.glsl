@@ -10,6 +10,9 @@ layout(std140, binding = 16) uniform SurfaceLightingParams
     ivec4 slotDimensions; // xyz: slot dimensions; w: producer hit-capture enable (unused by lookup consumers)
     ivec4 slotRing;
     uvec4 policy;     // explicit material emission, authoritative world height (0 unknown), maximum accumulated history, reserved
+    vec4 atmosphereEnvironment; // Lambertian sky response; w reserved
+    vec4 atmosphereSolar; // direct solar irradiance
+    vec4 atmosphereSun; // normalized direction towards the sun
 } lighting;
 /** Captured patchIdentity identity and local basis; matches the capture producer. */
 struct SurfacePatch

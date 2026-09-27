@@ -4,6 +4,9 @@
 the existing direct sun, point-light, emission and display-resolve paths. Disabling LumOn does
 not change the sun shadow comparison or introduce a minimum direct-light visibility.
 
+The physical atmosphere implementation in [PBR.Atmosphere.md](PBR.Atmosphere.md) now supplies
+sky response and solar RGB from a complete lookup initialized before the first scene draw. The legacy approximation described below is retained only as historical context.
+
 ## Standalone environment
 
 Opaque terrain and supported entity/late shader families publish local environment irradiance
@@ -25,8 +28,8 @@ terrain targets. Existing material, normal/height and patch-identity channels re
 
 ## LumOn composition and lifecycle
 
-The LumOn variant consumes published indirect illumination once and does not sample the standalone
-environment attachment. Composition asks the owning system for its current buffer manager, so a
+The LumOn variant consumes published indirect illumination once and does not add the standalone
+environment RGB. Atmospheric aerial perspective uses its sky-visibility alpha in both modes. Composition asks the owning system for its current buffer manager, so a
 renderer created while LumOn is disabled can use a manager created after enabling it.
 
 The lighting renderer invalidates publication at the start of each frame and publishes only after

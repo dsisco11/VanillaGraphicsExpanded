@@ -132,7 +132,9 @@ void main()
         uint light = texelFetch(traceSceneLegacy, lumonNearFieldWrap(cell, nearFieldOriginResolution.w), 0).r;
         float block = lighting.policy.x == 0u ? texelFetch(blockLevels, ivec2(int(min(light & 63u, 32u)),0),0).r : 0.0;
         float sun = texelFetch(sunLevels, ivec2(int(min((light >> 6u) & 63u,32u)),0),0).r;
-        vec3 direct = 32.0 * (block * texelFetch(lightColors, ivec2(int((light >> 12u) & 63u),0),0).rgb + vec3(sun));
+        vec3 direct = 32.0 * block * texelFetch(lightColors, ivec2(int((light >> 12u) & 63u),0),0).rgb
+                + sun * (lighting.atmosphereEnvironment.rgb * 3.14159265359
+                + lighting.atmosphereSolar.rgb * max(0.0, dot(n, lighting.atmosphereSun.xyz)));
         if (!finiteLight(direct)) { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
         imageStore(directIrradiance, address, vec4(clamp(direct, vec3(0), vec3(65504)),1));
         // Refresh replaces only resolved direct light; retained indirect history adapts separately.

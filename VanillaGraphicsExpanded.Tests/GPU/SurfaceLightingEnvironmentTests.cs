@@ -13,6 +13,36 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public SurfaceLightingEnvironmentTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Environment completion
+    /// <summary>Published physical sky and solar inputs reach the real dispatch and remain gated by local sky availability.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(16)]
+    public void PublishedAtmosphereSharesEnvironmentAndSolar(int skyLevel)
+    {
+        EnsureContextValid();
+        var property = typeof(VanillaGraphicsExpanded.ModSystems.AtmosphereModSystem).GetProperty("Lighting",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        object? previous = property.GetValue(null);
+        try
+        {
+            property.SetValue(null, new VanillaGraphicsExpanded.PBR.Atmosphere.AtmosphereLighting(
+                System.Numerics.Vector3.UnitY, new(.3f,.5f,.7f), new(.2f,.4f,.6f), new(0), new(0), []));
+            using var floor = new SurfaceLightingEnclosureFixture(blockLight:0, skyFloor:true, worldHeight:34);
+            floor.SunLight = skyLevel;
+            floor.Geometry.Dirty(); floor.Geometry.Publish(); floor.Seed();
+            float[] direct = floor.Read(floor.Snapshot.DirectIrradiance);
+            for (int channel = 0; channel < 3; channel++)
+            {
+                float expected = skyLevel / 32f * ((channel + 1) * .2f * MathF.PI + .3f + channel * .2f);
+                Assert.InRange(direct[channel], expected - .002f, expected + .002f);
+            }
+            Assert.True(floor.BounceSample());
+            Assert.Equal(new float[] {0,0,0,1}, floor.Read(floor.Snapshot.IndirectIrradiance));
+            Assert.Equal(direct, floor.Read(floor.Snapshot.DirectIrradiance));
+        }
+        finally { property.SetValue(null, previous); }
+    }
+
     /// <summary>A fully published open route can exceed the default DDA budget without providing evidence of sky.</summary>
     [Fact]
     public void SixtyFourStepsCannotCompleteLongPublishedSkyRoute()

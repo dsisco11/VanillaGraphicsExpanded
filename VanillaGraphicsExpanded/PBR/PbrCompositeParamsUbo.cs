@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>
 /// CPU-side UBO for PBR composite shader parameters.
-/// Layout matches VgePbrCompositeParamsUBO in GLSL (192 bytes).
+/// Layout matches VgePbrCompositeParamsUBO in GLSL (224 bytes).
 /// </summary>
 internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 {
@@ -19,7 +19,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     private const int OffsetAOStrengths = 176;       // vec4 at 176 (diffuseAO, specularAO, 0, 0)
     // Total: 192 bytes
 
-    public PbrCompositeParamsUbo() : base(192)
+    public PbrCompositeParamsUbo() : base(224)
     {
     }
 
@@ -46,6 +46,16 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     #endregion
 
     #region Fog
+
+    /// <summary>Publishes a matching horizon source and per-metre extinction; null retains the engine-only fog path.</summary>
+    public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
+    {
+        var horizon = lighting?.Horizon ?? Vector3.Zero;
+        var extinction = lighting?.Extinction ?? Vector3.Zero;
+        UboPacking.WriteVec4(DataWritable, 192, horizon.X, horizon.Y, horizon.Z, 0f);
+        UboPacking.WriteVec4(DataWritable, 208, extinction.X, extinction.Y, extinction.Z, 0f);
+        MarkDirty(192, 32);
+    }
 
     public Vector4 RgbaFogIn
     {

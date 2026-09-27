@@ -19,7 +19,10 @@ internal static class PbrSurfaceShaderPatches
         if (name == "chunktransparent.vsh")
         {
             tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
-                "@import \"./includes/vge_uvrect.glsl\"\n").Commit();
+                """
+                @import "./includes/vge_uvrect.glsl"
+
+                """).Commit();
             return true;
         }
         if (name.EndsWith(".vsh", StringComparison.Ordinal)) return false;
@@ -28,16 +31,23 @@ internal static class PbrSurfaceShaderPatches
         {
             VanillaShaderPatches.InjectPomDefines(tree);
             VanillaShaderPatches.InjectNormalMapDefines(tree);
-            terrainImports = "@import \"./includes/vge_normaldepth.glsl\"\n@import \"./includes/vge_parallax.glsl\"\n";
+            terrainImports = """
+            @import "./includes/vge_normaldepth.glsl"
+            @import "./includes/vge_parallax.glsl"
+
+            """;
         }
         tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
-            $"#define VGE_PBR_FORWARD_LUMON {(PbrShaderLightingMode.LumOnEnabled ? 1 : 0)}\n" +
-            "@import \"./includes/vsfunctions.glsl\"\n" +
-            "@import \"./includes/pbr_color.glsl\"\n" +
-            "@import \"./includes/pbr_common.glsl\"\n" +
-            "@import \"./includes/pbr_environment.glsl\"\n" +
-            "@import \"./includes/pbr_direct_brdf.glsl\"\n" +
-            terrainImports + "@import \"./includes/pbr_forward_surface.glsl\"\n").Commit();
+            $"""
+            #define VGE_PBR_FORWARD_LUMON {(PbrShaderLightingMode.LumOnEnabled ? 1 : 0)}
+            @import "./includes/vsfunctions.glsl"
+            @import "./includes/pbr_color.glsl"
+            @import "./includes/pbr_common.glsl"
+            @import "./includes/pbr_environment.glsl"
+            @import "./includes/pbr_direct_brdf.glsl"
+            {terrainImports}@import "./includes/pbr_forward_surface.glsl"
+
+            """).Commit();
         return true;
     }
     #endregion
@@ -52,7 +62,15 @@ internal static class PbrSurfaceShaderPatches
         bool vertex = name.EndsWith(".vsh", StringComparison.Ordinal);
         string matrix = chunk || instanced ? "modelViewMatrix" : "viewMatrix";
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-        string declarations = "\nuniform int vge_pbrRoute;\n";
+        string declarations = """
+
+        uniform int vge_pbrRoute;
+        uniform vec3 vge_atmosphereEnvironment;
+        uniform vec3 vge_atmosphereSolar;
+        uniform vec3 vge_atmosphereHorizon;
+        uniform vec3 vge_atmosphereExtinction;
+
+        """;
         if (vertex)
         {
             if (chunk)
@@ -60,7 +78,13 @@ internal static class PbrSurfaceShaderPatches
                 VanillaShaderPatches.InjectUvRectVaryings_Vsh(tree);
                 VanillaShaderPatches.InjectUvRectAssign_Vsh(tree);
             }
-            declarations += "out vec3 vge_viewPosition;\nout vec3 vge_blockIrradiance;\nout vec3 vge_sunIrradiance;\n";
+            declarations += """
+            out vec3 vge_viewPosition;
+            out vec3 vge_blockIrradiance;
+            out vec3 vge_sunIrradiance;
+            out float vge_skyVisibility;
+
+            """;
             string tint = chunk || instanced ? "vec3(1.0)" : entity ? "renderColor.rgb * colorIn.rgb" : "rgbaTint.rgb * colorIn.rgb";
             string color = chunk ? "rgba" : "color";
             string lights = instanced ? "rgbaLightIn * rgbaBlockIn" : "rgbaLightIn";
@@ -71,7 +95,8 @@ internal static class PbrSurfaceShaderPatches
                     vge_viewPosition = ({matrix} * worldPos).xyz;
                     vec4 vge_localLight = {lights};
                     vge_blockIrradiance = max(vge_localLight.rgb, vec3(0.0));
-                    vge_sunIrradiance = max(rgbaAmbientIn, vec3(0.0)) * clamp(vge_localLight.a, 0.0, 1.0);
+                    vge_skyVisibility = clamp(vge_localLight.a, 0.0, 1.0);
+                    vge_sunIrradiance = (vge_atmosphereEnvironment / 0.35) * vge_skyVisibility;
                     if (vge_pbrRoute != 0) {color}.rgb = {tint};
 
                 """).Commit();
@@ -95,14 +120,22 @@ internal static class PbrSurfaceShaderPatches
 
         // OIT owns locations 0..5. Only non-OIT variants may declare opaque material attachments.
         // Transparent terrain's normal-map include already declares modelViewMatrix.
-        if (!chunk) declarations += $"\nuniform mat4 {matrix};\n";
-        declarations += $"#define VGE_SURFACE_VIEW {matrix}\n";
+        if (!chunk) declarations += $"""
+
+        uniform mat4 {matrix};
+
+        """;
+        declarations += $"""
+        #define VGE_SURFACE_VIEW {matrix}
+
+        """;
         declarations += """
 
             vec3 vge_surfaceColor = vec3(0.0);
             in vec3 vge_viewPosition;
             in vec3 vge_blockIrradiance;
             in vec3 vge_sunIrradiance;
+            in float vge_skyVisibility;
             #if USEOIT == 0
             layout(location = 4) out vec4 vge_outNormal;
             layout(location = 5) out vec4 vge_outMaterial;
@@ -111,7 +144,11 @@ internal static class PbrSurfaceShaderPatches
             #endif
 
             """;
-        if (chunk) declarations += "uniform sampler2D vge_materialParamsTex;\nuniform sampler2D vge_normalDepthTex;\n";
+        if (chunk) declarations += """
+        uniform sampler2D vge_materialParamsTex;
+        uniform sampler2D vge_normalDepthTex;
+
+        """;
         // Helpers are expanded before main, so declarations must precede the helper functions as well.
         var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("extension")).LastOrDefault()
             ?? tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
@@ -129,7 +166,11 @@ internal static class PbrSurfaceShaderPatches
             // Preserve the authored thermal/glow tint, but do not bake the no-bloom light boost into albedo.
             var bloom = children.FirstOrDefault(node => node.ToText().TrimStart().StartsWith("#if BLOOM", StringComparison.Ordinal))
                 ?? throw new InvalidOperationException($"Missing standard glow boundary in {name}.");
-            tree.CreateEditor().InsertAfter(bloom, "\nif (vge_pbrRoute == 0)\n").Commit();
+            tree.CreateEditor().InsertAfter(bloom, """
+
+            if (vge_pbrRoute == 0)
+
+            """).Commit();
         }
 
         // Capture the actual input at the lighting boundary, independent of local names or branch layout.
@@ -141,11 +182,27 @@ internal static class PbrSurfaceShaderPatches
         var editor = tree.CreateEditor();
         foreach (string function in new[] { "applyFog", "applyFogAndShadow", "applyFogAndShadowWithNormal", "applyFogAndShadowFromBrightness" })
             editor.InsertAfter(Query.Syntax<GlFunctionNode>().Named(function).InnerStart("body"),
-                "\nif (vge_pbrRoute != 0) { vge_surfaceColor = rgbaPixel.rgb; return rgbaPixel; }\n");
+                """
+
+                if (vge_pbrRoute != 0)
+                {
+                    vge_surfaceColor = rgbaPixel.rgb;
+                    return rgbaPixel;
+                }
+
+                """);
         editor.InsertAfter(Query.Syntax<GlFunctionNode>().Named("getBrightnessFromNormal").InnerStart("body"),
-            "\nif (vge_pbrRoute != 0) return 1.0;\n");
+            """
+
+            if (vge_pbrRoute != 0) return 1.0;
+
+            """);
         editor.InsertAfter(Query.Syntax<GlFunctionNode>().Named("applyReflectiveEffect").InnerStart("body"),
-            "\nif (vge_pbrRoute != 0) return texColor;\n");
+            """
+
+            if (vge_pbrRoute != 0) return texColor;
+
+            """);
         editor.Commit();
 
         string parameters = chunk ? "texture(vge_materialParamsTex, uv).rgb" : "vec3(0.5, getMatMetallicFromRenderFlags(renderFlags), glowLevel)";
@@ -167,7 +224,7 @@ internal static class PbrSurfaceShaderPatches
                 vge_outNormal = vec4(vge_normal * 0.5 + 0.5, 1.0);
                 vge_outMaterial = vec4(vge_params, vge_params.g);
                 vge_outPatchId = uvec4(0u);
-                vge_outEnvironment = vec4(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance), 1.0);
+                vge_outEnvironment = vec4(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance), vge_skyVisibility);
                 if (vge_pbrRoute == 1)
                 {
                     {{output}}.rgb = vge_materialColor;

@@ -361,7 +361,7 @@ void main(void)
 #endif
         {
             // Sky fallback - use world-space direction for consistent sky color
-            radiance = lumonGetSkyColor(rayDirWS, sunPosition, sunColor, ambientColor, VGE_LUMON_SKY_MISS_WEIGHT);
+            radiance = ambientColor * VGE_LUMON_SKY_MISS_WEIGHT;
         }
 #endif
         hitDistance = hit.hit ? hit.distance : VGE_LUMON_RAY_MAX_DISTANCE;

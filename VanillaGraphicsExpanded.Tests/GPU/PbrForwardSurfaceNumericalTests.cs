@@ -14,7 +14,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
     public PbrForwardSurfaceNumericalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Numerical ownership
-    /// <summary>Complete occlusion removes sun, emission occurs once, and rotating the view preserves point illumination.</summary>
+    /// <summary>Checks explicit solar inputs, shadow occlusion, one emission contribution, view-space points and enclosed aerial transport.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -26,6 +26,12 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    [InlineData(13)]
+    [InlineData(14)]
+    [InlineData(15)]
     public void ForwardBoundaryMatchesIndependentRadiance(int scenario)
     {
         EnsureContextValid();
@@ -45,16 +51,25 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             vec3 vge_viewPosition = vec3(0,0,-2);
             vec3 vge_blockIrradiance = vec3(0);
             vec3 vge_sunIrradiance = vec3(0.2,0.4,0.8);
+            vec3 vge_atmosphereSolar = vec3(0.2,0.4,0.8);
+            vec3 vge_atmosphereEnvironment = vec3(0);
+            vec3 vge_atmosphereHorizon = vec3(0);
+            vec3 vge_atmosphereExtinction = vec3(0);
+            float vge_skyVisibility = 1.0;
             vec4 rgbaFog = vec4(0);
             layout(location=0) out vec4 outColor;
             """;
         if (scenario == 5 || scenario >= 7) header = header.Replace("vec3(0.2,0.4,0.8)", "vec3(0.0)");
-        header += $"\n#define VGE_PBR_FORWARD_LUMON {(scenario >= 6 ? 0 : 1)}\n";
+        if (scenario >= 10) header = header.Replace("vec3 vge_atmosphereSolar = vec3(0.0)", "vec3 vge_atmosphereSolar = vec3(0.3,0.5,0.7)");
+        if (scenario is 12 or 13) header = header.Replace("vec3 vge_atmosphereHorizon = vec3(0)", "vec3 vge_atmosphereHorizon = vec3(0.2,0.3,0.4)")
+            .Replace("vec3 vge_atmosphereExtinction = vec3(0)", "vec3 vge_atmosphereExtinction = vec3(0.1,0.2,0.3)");
+        if (scenario == 13) header = header.Replace("float vge_skyVisibility = 1.0", "float vge_skyVisibility = 0.0");
+        header += $"\n#define VGE_PBR_FORWARD_LUMON {(scenario is >= 6 and <= 9 ? 0 : 1)}\n";
         string source = header + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl")) + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_environment.glsl")).Replace("@import \"./pbr_common.glsl\"", "") + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl")).Replace("@import \"./pbr_environment.glsl\"", "")
-            + $"\nvoid main() {{ outColor = vec4(VgeForwardSurface(vec3(0.2,0.4,0.6), {(scenario == 3 ? "vec3(1,0,0)" : "vec3(0,0,1)")}, vec3(0.5,0,{(scenario is 1 or 9 ? "2.0" : "0.0")}), 0.0), 0.37); }}";
+            + $"\nvoid main() {{ outColor = vec4(VgeForwardSurface(vec3(0.2,0.4,0.6), {(scenario == 3 ? "vec3(1,0,0)" : "vec3(0,0,1)")}, vec3(0.5,0,{(scenario is 1 or 9 or 15 ? "2.0" : "0.0")}), 0.0), 0.37); }}";
         int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
         int fragment = Compile(ShaderType.FragmentShader, source);
         int program = GL.CreateProgram();
@@ -66,25 +81,27 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GL.UseProgram(program);
             float[] view = scenario == 3 ? [0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1] : [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             GL.UniformMatrix4(GL.GetUniformLocation(program, "surfaceView"), 1, false, view);
-            GL.Uniform1(GL.GetUniformLocation(program, "pointLightQuantity"), scenario is 2 or 3 or 8 ? 1 : 0);
+            GL.Uniform1(GL.GetUniformLocation(program, "pointLightQuantity"), scenario is 2 or 3 or 8 or 14 ? 1 : 0);
             GL.Uniform3(GL.GetUniformLocation(program, "pointLights[0]"), 0f, 0f, 0f);
             GL.Uniform3(GL.GetUniformLocation(program, "pointLightColors[0]"), 1f, 1f, 1f);
             GL.Uniform1(GL.GetUniformLocation(program, "shadowMapFar"), 0);
             using var framework = new ShaderTestFramework();
             using var depth = Texture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
             // The generic float uploader assumes color channels; explicitly initialize the depth comparison input.
-            GL.ClearTexImage(depth.TextureId, 0, PixelFormat.DepthComponent, PixelType.Float, new[] { scenario is 4 or 5 ? 1f : 0f });
+            GL.ClearTexImage(depth.TextureId, 0, PixelFormat.DepthComponent, PixelType.Float, new[] { scenario is 4 or 5 or 10 ? 1f : 0f });
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             depth.Bind(0);
             GpuSamplers.ShadowCompareLinearClamp.Bind(0);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
-            float factor = scenario is 1 or 9 ? 2f : scenario is 2 or 3 or 8 ? 0.25f : 0f;
+            float factor = scenario is 1 or 9 or 15 ? 2f : scenario is 2 or 3 or 8 or 14 ? 0.25f : 0f;
             for (int channel = 0; channel < 3; channel++)
             {
-                float irradiance = scenario == 4 ? new[] { .2f, .4f, .8f }[channel] : factor;
+                float irradiance = scenario == 4 ? new[] { .2f, .4f, .8f }[channel] / MathF.PI : factor;
                 float linear = (channel + 1) * .2f * irradiance;
                 if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * .35f * (.96f * (channel + 1) * .2f + .02f);
+                if (scenario == 10) linear = (channel + 1) * .2f * (.3f + channel * .2f) / MathF.PI;
+                if (scenario == 12) linear = (.2f + channel * .1f) * (1 - MathF.Exp(-.2f * (channel + 1)));
                 float mapped = linear / (1f + linear);
                 float expected = mapped <= .0031308f ? 12.92f * mapped : 1.055f * MathF.Pow(mapped, 1f / 2.4f) - .055f;
                 Assert.InRange(actual[channel], expected - .0001f, expected + .0001f);

@@ -13,11 +13,13 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
     public PbrCompositeHdrTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Scene-linear composition
-    /// <summary>Radiance above one survives summation, and display-referred fog is decoded before mixing.</summary>
+    /// <summary>Radiance remains linear through composition, physical aerial transport, enclosure gating and decoded engine fog.</summary>
     [Theory]
-    [InlineData(0f)]
-    [InlineData(0.5f)]
-    public void CompositePreservesHdrAndMixesLinearFog(float fog)
+    [InlineData(0f, false, 1f)]
+    [InlineData(0.5f, false, 1f)]
+    [InlineData(0f, true, 1f)]
+    [InlineData(0f, true, 0f)]
+    public void CompositePreservesHdrAndMixesLinearFog(float fog, bool atmosphere, float skyVisibility)
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRCompositeShaderProgram>(p =>
@@ -27,9 +29,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var direct = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 2f, 1f, .5f, 1f });
         using var specular = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .25f, .125f, 1f });
         using var emission = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 4f, 2f, 1f, 1f });
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { .5f });
+        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { .75f });
         using var unused = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .1f, .2f, .3f, 1f });
-        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
+        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] {0f,0f,0f,skyVisibility});
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
         output.BindWithViewport();
         using (program.UseScope())
@@ -39,7 +41,8 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             program.GBufferMaterial = unused.TextureId; program.GBufferNormal = unused.TextureId;
             program.PrimaryDepth = depth.TextureId;
             program.GBufferEnvironment = environment.TextureId;
-            program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+            program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1];
+            program.SetAtmosphere(atmosphere ? new(System.Numerics.Vector3.UnitY, new(1), new(0), new(.2f,.3f,.4f), new(.001f,.002f,.003f), []) : null);
             program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             program.FogDensityIn = 0; program.FogMinIn = fog; program.RgbaFogIn = new(.5f, .25f, .125f, 1);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.FramebufferSrgb);
@@ -50,7 +53,8 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         float[] fogColor = [.5f, .25f, .125f];
         for (int channel = 0; channel < 3; channel++)
         {
-            float expected = light[channel] * (1 - fog) + Linear(fogColor[channel]) * fog;
+            float transmission = atmosphere ? MathF.Exp(-(channel + 1)) : 1;
+            float expected = (light[channel] * transmission + (.2f + channel * .1f) * (1 - transmission) * skyVisibility) * (1 - fog) + Linear(fogColor[channel]) * fog;
             Assert.InRange(actual[channel], expected - .004f, expected + .004f);
         }
         Assert.True(actual[0] > 1);

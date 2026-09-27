@@ -25,13 +25,13 @@ public sealed class PbrTerrainColorPatchesTests
     [InlineData("chunktopsoil.fsh", "outColor.rgb")]
     public void FragmentCapturePreservesBodyAndCapturesBeforeEffects(string name, string color)
     {
-        string source = ReadShader(name);
+        string source = ReadShader(name).ReplaceLineEndings("\n");
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
         string before = tree.ToText();
         Assert.Equal(source, before);
         PbrTerrainColorPatches.ApplyFragment(tree, name);
-        string after = tree.ToText();
-        string capture = $"vec3 vge_materialColor = VgeSrgbToLinear({color});\n    ";
+        string after = tree.ToText().ReplaceLineEndings("\n");
+        string capture = $"vec3 vge_materialColor = VgeSrgbToLinear({color});\n";
         const string restore = "\n#if NORMALVIEW == 0\n    outColor.rgb = vge_materialColor;\n#endif\n";
         Assert.Contains(capture, after);
         Assert.True(after.IndexOf(capture, StringComparison.Ordinal) < after.IndexOf("float murkiness", StringComparison.Ordinal));
@@ -48,9 +48,9 @@ public sealed class PbrTerrainColorPatchesTests
         var tree = SyntaxTree.Parse(ReadShader(name), GlslSchema.Instance);
         string before = tree.ToText();
         PbrTerrainColorPatches.ApplyVertex(tree, name);
-        string insertion = "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n    vge_environment = max(rgbaLightIn.rgb, vec3(0.0)) + max(rgbaAmbientIn, vec3(0.0)) * clamp(rgbaLightIn.a, 0.0, 1.0) * 0.35;\n";
-        Assert.Contains(insertion, tree.ToText());
-        Assert.Equal(before, tree.ToText().Replace(insertion, "", StringComparison.Ordinal).Replace("\nout vec3 vge_environment;\n", "", StringComparison.Ordinal));
+        string insertion = "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n    vge_environment = vec4(max(rgbaLightIn.rgb, vec3(0.0)) + vge_atmosphereEnvironment * clamp(rgbaLightIn.a, 0.0, 1.0), clamp(rgbaLightIn.a, 0.0, 1.0));\n";
+        Assert.Contains(insertion, tree.ToText().ReplaceLineEndings("\n"));
+        Assert.Equal(before.ReplaceLineEndings("\n"), tree.ToText().ReplaceLineEndings("\n").Replace(insertion, "", StringComparison.Ordinal).Replace("\nuniform vec3 vge_atmosphereEnvironment;\nout vec4 vge_environment;\n", "", StringComparison.Ordinal));
     }
 
     /// <summary>Unsupported engine layouts fail instead of capturing a silently wrong color.</summary>

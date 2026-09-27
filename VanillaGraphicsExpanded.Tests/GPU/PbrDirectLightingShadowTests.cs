@@ -35,7 +35,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         var lit = RenderReceiver(1f, nearRange, farRange);
         var shadowed = RenderReceiver(0f, nearRange, farRange);
 
-        Assert.True(lit[0] > .4f && lit[4] > .001f, "The control receiver must have diffuse and specular sunlight.");
+        Assert.True(lit[0] > .4f / MathF.PI && lit[4] > .001f, "The control receiver must have diffuse and specular sunlight.");
         for (int channel = 0; channel < 3; channel++)
         {
             Assert.InRange(shadowed[channel], 0f, .0001f);

@@ -214,6 +214,14 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
         }
     }
 
+    /// <summary>Supplies physical solar irradiance without changing the engine's point-light calibration.</summary>
+    internal void SetSolarIrradiance(System.Numerics.Vector3 value)
+    {
+        Params.RgbaLightIn = value;
+        UploadAndBindParamsUbo();
+    }
+
+    /// <summary>Sets physical solar irradiance using the engine vector API.</summary>
     public Vec3f RgbaLightIn
     {
         set

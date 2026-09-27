@@ -23,6 +23,8 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
 
     // diffuseAOStrength.x, specularAOStrength.y, reserved.zw
     vec4 aoStrengths;
+    vec4 atmosphereHorizon; // RGB source radiance; w reserved
+    vec4 atmosphereExtinction; // RGB inverse metres
 } vgePbrCompositeParams;
 
 // Matrices

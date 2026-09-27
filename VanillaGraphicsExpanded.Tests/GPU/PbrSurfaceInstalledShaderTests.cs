@@ -68,6 +68,32 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             if (vertex != 0) GL.DeleteShader(vertex);
         }
     }
+    /// <summary>Compiles the actual sky dome and expanded engine sky lookup with atmosphere interception.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void InstalledSkyLinks(int ssao)
+    {
+        EnsureContextValid();
+        int vertex = 0, fragment = 0, program = 0;
+        try
+        {
+            vertex = Compile(ShaderType.VertexShader, Build("sky.vsh", 1, 0, ssao, 0, 0));
+            fragment = Compile(ShaderType.FragmentShader, Build("sky.fsh", 1, 0, ssao, 0, 0));
+            program = GL.CreateProgram();
+            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereReady"));
+            Assert.True(GL.GetUniformLocation(program, "vge_atmosphereSky") >= 0);
+        }
+        finally
+        {
+            if (program != 0) GL.DeleteProgram(program);
+            if (fragment != 0) GL.DeleteShader(fragment);
+            if (vertex != 0) GL.DeleteShader(vertex);
+        }
+    }
     #endregion
 
     #region Installed source expansion
@@ -80,7 +106,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         if (ssao > 0) original = original.Replace("murkiness", "renamedWaterDensity");
         var tree = SyntaxTree.Parse(original, GlslSchema.Instance);
         VanillaShaderPatches.TryApplyPreProcessing(null, tree, name);
-        if (name.EndsWith(".fsh", StringComparison.Ordinal))
+        if (name.EndsWith(".fsh", StringComparison.Ordinal) && name != "sky.fsh")
             Assert.Contains($"#define VGE_PBR_FORWARD_LUMON {(VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled ? 1 : 0)}", tree.ToText());
         var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string Expand(string source, string directory) => Regex.Replace(source, "(?m)^\\s*(?:#include\\s+([^\\r\\n]+)|@import\\s+\"([^\"]+)\"[^\\r\\n]*)", match =>
@@ -92,7 +118,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             return included.Add(path) ? Expand(File.ReadAllText(path), Path.GetDirectoryName(path)!) : "";
         });
         tree = SyntaxTree.Parse(Expand(tree.ToText(), Path.Combine(AppContext.BaseDirectory, "assets/shaders")), GlslSchema.Instance);
-        Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name));
+        if (name != "sky.vsh") Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name));
         if (name == "standard.fsh")
         {
             string main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single().ToText();

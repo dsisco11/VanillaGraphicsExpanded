@@ -3,7 +3,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>
+    /// <summary>
 /// CPU-side UBO for PBR direct lighting shader parameters.
 /// Layout matches VgePbrDirectLightingParamsUBO in GLSL (3552 bytes).
 /// </summary>
@@ -118,6 +118,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
         }
     }
 
+    /// <summary>Sets physical solar irradiance; the padding component is always zero.</summary>
     public Vector3 RgbaLightIn
     {
         set

@@ -2,6 +2,9 @@
 
 ## Status and evidence boundary
 
+The atmospheric model and shared sky/solar input implementation are described in
+[PBR.Atmosphere.md](PBR.Atmosphere.md).
+
 The mode-selection and standalone-environment implementation is described in
 [PBR.LightingModes.md](PBR.LightingModes.md), superseding the historical missing-environment and
 captured-manager findings below.

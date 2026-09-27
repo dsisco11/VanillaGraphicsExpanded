@@ -28,9 +28,8 @@ uniform sampler2D emissive;
 // Optional indirect (linear, fog-free)
 #if VGE_LUMON_ENABLED
 uniform sampler2D indirectDiffuse;
-#else
-uniform sampler2D gBufferEnvironment;
 #endif
+uniform sampler2D gBufferEnvironment;
 
 // G-Buffer
 uniform sampler2D gBufferAlbedo;
@@ -123,6 +122,13 @@ void main(void)
 #endif // VGE_LUMON_ENABLED
 
     finalColor = max(finalColor, vec3(0.0));
+
+    // Atmospheric extinction is supplied for every scene draw.
+    {
+        float distanceMetres = length(lumonReconstructViewPos(uv, depth, invProjectionMatrix));
+        vec3 transmission = exp(-vgePbrCompositeParams.atmosphereExtinction.rgb * distanceMetres);
+        finalColor = finalColor * transmission + vgePbrCompositeParams.atmosphereHorizon.rgb * (1.0 - transmission) * clamp(texture(gBufferEnvironment, uv).a, 0.0, 1.0);
+    }
 
     float fogAmount = clamp(fogMinIn + 1.0 - 1.0 / exp(depth * fogDensityIn), 0.0, 1.0);
     finalColor = mix(finalColor, VgeSrgbToLinear(rgbaFogIn.rgb), fogAmount);

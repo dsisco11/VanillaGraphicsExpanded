@@ -95,6 +95,9 @@ void main()
         accumDiffuse,
         accumSpecular);
 
+    // Atmosphere supplies irradiance rather than the legacy pre-scaled lighting convention.
+    accumDiffuse /= 3.14159265359;
+
     // Vanilla passes camPos into applyLight: its point-light array is in view space.
     // Measure distance there, then rotate the direction into the world space of N and V.
     int count = clamp(pointLightsCount, 0, 100);

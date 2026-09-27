@@ -48,7 +48,7 @@ layout(location = 6) out uvec4 vge_outPatchId;  // (chunkSlot, patchId, packedPa
 ";
 
     private const string ChunkMaterialParamsSamplerDeclaration = @"
-in vec3 vge_environment;
+in vec4 vge_environment;
 // VGE: Per-texel material params for block atlas (RGB16F: roughness, metallic, emissive)
 uniform sampler2D vge_materialParamsTex;
 // VGE: Per-texel normal+depth for block atlas (RGBA16F: normalXYZ_packed01, depth01)
@@ -137,7 +137,7 @@ flat in uint vge_faceId;
 
     private const string GBufferOutputWrites_Chunk = @"
 
-    vge_outEnvironment = vec4(vge_environment, 1.0);
+    vge_outEnvironment = vge_environment;
     // VGE: Write G-buffer outputs
     // Normal: world-space normal packed to [0,1] range
     // Also sample the per-texel normal+depth atlas so the sampler uniform stays live.
@@ -206,6 +206,11 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (sourceName == "sky.fsh")
+            {
+                Atmosphere.AtmosphereSkyPatches.Preprocess(tree);
+                return true;
+            }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
                 return PbrSurfaceShaderPatches.Preprocess(tree, sourceName);
             // Chunk vertex shaders - inject only vertex-safe helpers
@@ -353,6 +358,7 @@ flat in uint vge_faceId;
                 //     return true;
                 case "sky.fsh":
                     {
+                        Atmosphere.AtmosphereSkyPatches.Apply(tree);
                         InjectGBufferInputs(tree);
                         InjectSkyGBufferOutputs(tree);
                         log?.Audit($"[VGE] Applied patches to shader: {sourceName}");

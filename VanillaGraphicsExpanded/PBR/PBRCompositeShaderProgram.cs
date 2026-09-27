@@ -84,6 +84,13 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram
 
     #region Fog
 
+    /// <summary>Sets the shared atmospheric aerial-perspective approximation before final display conversion.</summary>
+    internal void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
+    {
+        Params.SetAtmosphere(lighting);
+        UploadAndBindParamsUbo();
+    }
+
     public Vec4f RgbaFogIn
     {
         set

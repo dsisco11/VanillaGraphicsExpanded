@@ -183,7 +183,8 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         // Lighting
         shader.LightDirection = capi.Render.ShaderUniforms.SunPosition3D;
         shader.RgbaAmbientIn = capi.Render.AmbientColor;
-        shader.RgbaLightIn = ColorUtil.WhiteArgbVec.XYZ;
+        var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
+        shader.SetSolarIrradiance(atmosphere?.Solar ?? System.Numerics.Vector3.Zero);
 
         // Vanilla supplies view-space point lights; the shader compares them with view-space receivers.
         shader.SetPointLights(

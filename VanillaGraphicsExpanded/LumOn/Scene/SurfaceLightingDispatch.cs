@@ -16,7 +16,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
     private readonly GpuComputePipeline pipeline;
     private readonly TraceGeometryComputeBindings geometry = new();
     private readonly GpuUniformBuffer parameters = GpuUniformBuffer.Create(debugName: "SurfaceLighting.Parameters");
-    private readonly byte[] bytes = new byte[96];
+    private readonly byte[] bytes = new byte[144];
     private readonly GpuShaderStorageBuffer disabledFallback = GpuShaderStorageBuffer.Create(debugName: "SurfaceLighting.DisabledFallback");
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
 
@@ -52,6 +52,13 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             UboPacking.WriteIVec4(bytes, 64, input.Ring.X, input.Ring.Y, input.Ring.Z, 0);
             // Use geometry's authoritative boundary, never the moving local coverage height.
             UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, (uint)Math.Max(0, scene.Coverage?.WorldHeight ?? 0), (uint)Math.Clamp(maxFramesAccumulated, 1, 255), measured ? 1u : 0u);
+            var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
+            var environment = atmosphere?.Environment ?? new System.Numerics.Vector3(32f / MathF.PI);
+            var solar = atmosphere?.Solar ?? System.Numerics.Vector3.Zero;
+            var sun = atmosphere?.Sun ?? System.Numerics.Vector3.UnitY;
+            UboPacking.WriteVec4(bytes, 96, environment.X, environment.Y, environment.Z, 0f);
+            UboPacking.WriteVec4(bytes, 112, solar.X, solar.Y, solar.Z, 0f);
+            UboPacking.WriteVec4(bytes, 128, sun.X, sun.Y, sun.Z, 0f);
             using var program = pipeline.UseScope();
             parameters.UploadOrResize(bytes, growExponentially: false);
             parameters.BindBase(GpuBindingRegistry.Ubo.Lights);

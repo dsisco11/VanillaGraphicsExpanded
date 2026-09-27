@@ -30,7 +30,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
     // rgbaAmbientIn.xyz
     vec4 ambient0;
 
-    // rgbaLightIn.xyz
+    // Solar irradiance in xyz; w reserved
     vec4 light0;
 
     // pointLightsCount.x, reserved.yzw

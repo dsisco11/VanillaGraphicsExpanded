@@ -55,6 +55,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
     }
 
+    /// <summary>Converts solar irradiance to Lambertian diffuse radiance with the required inverse-pi factor.</summary>
     [Fact]
     public void DirectLighting_ProducesExpectedLambertForDielectric()
     {
@@ -93,10 +94,9 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
             // With N=V=L and dielectric metallic=0:
             // FresnelSchlick(1, F0) = F0, kD = (1-F0), diffuseBrdf = kD*baseColor.
-            // NOTE: The shader intentionally does not apply 1/PI because the engine's light inputs
-            // are not calibrated as physical radiance.
+            // Solar input is irradiance, so diffuse radiance requires the Lambertian inverse-pi factor.
             float F0 = 0.04f;
-            float kd = 1.0f - F0;
+            float kd = (1.0f - F0) / MathF.PI;
             float expectedR = kd * baseColor.r;
             float expectedG = kd * baseColor.g;
             float expectedB = kd * baseColor.b;
@@ -396,7 +396,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         programId.ZPlanesAndShadowRanges = (zNear: 0.1f, zFar: 100f, shadowRangeNear: 1f, shadowRangeFar: 1f);
         programId.ShadowZExtendNear = 1; programId.ShadowZExtendFar = 1; programId.DropShadowIntensity = 0;
         programId.LightDirection = new(lightDirection.x, lightDirection.y, lightDirection.z);
-        programId.RgbaLightIn = new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b);
+        programId.SetSolarIrradiance(new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b));
         programId.RgbaAmbientIn = new(0,0,0);
         programId.SetPointLights(pointLightCount, pointLightPositions3, pointLightColors3);
 

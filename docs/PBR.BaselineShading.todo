@@ -84,7 +84,7 @@ Tasks
         docs/PBR.LightingModes.md. All 64 distinct focused checks passed; 153 shader stages and
         387 variants rebuilt. No game launch or live appearance/performance claim.
 
-  ☐ Implement a physically based sky and shared atmospheric lighting inputs.
+  ☑ Implement a physically based sky and shared atmospheric lighting inputs.
     - Evaluate an atmospheric scattering approach with explicit Rayleigh/Mie scattering, absorption,
       sun transmittance and bounded integration or lookup tables. Define scale and parameter units.
     - Integrate engine time, sun direction, weather and altitude; define moon/night/stars behavior.
@@ -93,6 +93,11 @@ Tasks
       avoid rendering a new sky while retaining incompatible illumination from the old model.
     - Bound lookup generation/update work and invalidate on actual atmospheric changes. Validate
       daylight, sunrise/sunset, night, weather transitions and below/above-horizon cases.
+    - Implemented: docs/PBR.Atmosphere.md records the single-scattering model, shared lighting
+      contracts, bounded lookup publication, engine celestial behavior and approximation limits.
+    - Validation: 111 distinct focused tests passed; 153 shader stages / 387 variants rebuilt.
+      Warmed CPU lookup work measured approximately 0.95 ms per bounded update on this machine.
+      Source and implementation review completed; no game launch or live appearance claim.
 
   ☐ Add optional depth-map tessellation and relief mapping through the production shader pipeline.
     - Audit source mesh topology, atlas depth convention, material scale and graphics capabilities.

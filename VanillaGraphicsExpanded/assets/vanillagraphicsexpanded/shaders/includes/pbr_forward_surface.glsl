@@ -39,8 +39,10 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
     float roughness = clamp(material.r, 0.04, 1.0);
     float metallic = clamp(material.g, 0.0, 1.0);
     vec3 diffuse = vec3(0.0), specular = vec3(0.0);
-    addDirectLight(baseColor, N, V, normalize(lightPosition), vge_sunIrradiance * visibility,
+    addDirectLight(baseColor, N, V, normalize(lightPosition), (vge_atmosphereSolar * vge_skyVisibility) * visibility,
         roughness, metallic, metallic, diffuse, specular);
+    // Normalize only physical sunlight; existing engine point-light units retain their calibration.
+    diffuse /= 3.14159265359;
     #if DYNLIGHTS > 0
     for (int i = 0; i < min(pointLightQuantity, DYNLIGHTS); ++i)
     {
@@ -61,6 +63,11 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
         baseColor, metallic, roughness, dot(N, V));
     #endif
     vec3 radiance = diffuse + specular + localDiffuse + baseColor * max(material.b, 0.0);
+    // Atmospheric resources are valid before drawing.
+    {
+        vec3 transmission = exp(-vge_atmosphereExtinction * length(vge_viewPosition));
+        radiance = radiance * transmission + vge_atmosphereHorizon * (1.0 - transmission) * vge_skyVisibility;
+    }
     radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
     // Primary/OIT currently blend display-space colors. Full scene-linear blending is separately owned.
     return VgeResolveDisplay(radiance);

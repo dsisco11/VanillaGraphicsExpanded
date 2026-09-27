@@ -13,10 +13,21 @@ internal static class PbrTerrainColorPatches
     internal static void ApplyVertex(SyntaxTree tree, string sourceName)
     {
         if (sourceName is not ("chunkopaque.vsh" or "chunktopsoil.vsh")) return;
-        tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), "\nout vec3 vge_environment;\n")
+        tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), """
+
+        uniform vec3 vge_atmosphereEnvironment;
+        out vec4 vge_environment;
+
+        """)
             .InsertBefore(
             Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"),
-            "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n    vge_environment = max(rgbaLightIn.rgb, vec3(0.0)) + max(rgbaAmbientIn, vec3(0.0)) * clamp(rgbaLightIn.a, 0.0, 1.0) * 0.35;\n").Commit();
+            """
+
+                // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.
+                rgba.rgb = vec3(1.0);
+                vge_environment = vec4(max(rgbaLightIn.rgb, vec3(0.0)) + vge_atmosphereEnvironment * clamp(rgbaLightIn.a, 0.0, 1.0), clamp(rgbaLightIn.a, 0.0, 1.0));
+
+            """).Commit();
     }
 
     /// <summary>Captures color-mapped terrain before forward effects without changing coverage or glow outputs.</summary>
@@ -42,9 +53,18 @@ internal static class PbrTerrainColorPatches
         string color = sourceName == "chunkopaque.fsh" ? "texColor.rgb" : "outColor.rgb";
         // Restore after the complete body, independently of its final output statement.
         tree.CreateEditor()
-            .InsertBefore(boundary, $"vec3 vge_materialColor = VgeSrgbToLinear({color});\n    ")
+            .InsertBefore(boundary, $"""
+            vec3 vge_materialColor = VgeSrgbToLinear({color});
+
+            """)
             .InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"),
-                "\n#if NORMALVIEW == 0\n    outColor.rgb = vge_materialColor;\n#endif\n")
+                """
+
+                #if NORMALVIEW == 0
+                    outColor.rgb = vge_materialColor;
+                #endif
+
+                """)
             .Commit();
     }
 

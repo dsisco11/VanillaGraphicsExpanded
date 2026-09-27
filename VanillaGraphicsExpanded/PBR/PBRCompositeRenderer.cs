@@ -191,7 +191,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.Emissive = directLightingBuffers.EmissiveTex;
 
         if (lumOnEnabled) shader.IndirectDiffuse = indirectTex;
-        else shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;
+        shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;
 
         // GBuffer inputs
         shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];
@@ -203,6 +203,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.RgbaFogIn = capi.Render.FogColor;
         shader.FogDensityIn = capi.Render.FogDensity;
         shader.FogMinIn = capi.Render.FogMin;
+        shader.SetAtmosphere(AtmosphereModSystem.Lighting);
 
         // The published LumOn gather output already includes intensity and tint.
         // Composition applies receiver material response without scaling that signal twice.

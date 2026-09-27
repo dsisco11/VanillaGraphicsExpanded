@@ -1,0 +1,96 @@
+using System.Reflection;
+using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using Vintagestory.Client.NoObf;
+
+namespace VanillaGraphicsExpanded.Tests;
+
+/// <summary>Checks explicit atmospheric interface ownership and linked metadata discovery.</summary>
+public sealed class AtmosphereProgramBindingsTests
+{
+    #region Interface ownership
+    /// <summary>Only patched engine families declare an atmosphere interface.</summary>
+    [Theory]
+    [InlineData("sky", AtmosphereBindings.Sky)]
+    [InlineData("chunkopaque", AtmosphereBindings.Environment)]
+    [InlineData("chunktopsoil", AtmosphereBindings.Environment)]
+    [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
+    [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
+    [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
+    [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
+    public void PatchedFamiliesDeclareExpectedInputs(string family, object expected)
+    {
+        Assert.Equal((AtmosphereBindings)expected, AtmosphereProgramBindings.Expected(family));
+    }
+
+    /// <summary>Unrelated shader families never trigger interface inspection.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("gui")]
+    [InlineData("chunkliquid")]
+    [InlineData("pbr_direct_lighting")]
+    public void UnrelatedFamiliesSkipDiscovery(string? family)
+    {
+        Assert.Equal(AtmosphereBindings.None, AtmosphereProgramBindings.Resolve(family, _ => throw new InvalidOperationException("Unexpected discovery")));
+    }
+
+    /// <summary>Linker-eliminated inputs are omitted and each expected name is inspected once.</summary>
+    [Fact]
+    public void ResolveRetainsOnlyLinkedInputs()
+    {
+        var inspected = new List<string>();
+        var active = AtmosphereProgramBindings.Resolve("standard", name =>
+        {
+            inspected.Add(name);
+            return name is "vge_atmosphereSolar" or "vge_atmosphereExtinction";
+        });
+        Assert.Equal(AtmosphereBindings.Solar | AtmosphereBindings.Extinction, active);
+        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereHorizon", "vge_atmosphereExtinction" }, inspected);
+    }
+    #endregion
+
+    #region Cached lifecycle
+    /// <summary>A managed program caches its linked inputs until compilation starts, including a failed replacement.</summary>
+    [Fact]
+    public void CompilationReplacesAndInvalidatesCachedInterface()
+    {
+        var program = new FixtureProgram();
+        program.SetInputs("vge_atmosphereSolar");
+        AtmosphereShaderCompilationHook.Postfix(program, true);
+        Assert.Equal(AtmosphereBindings.Solar, AtmosphereProgramBindings.Get(program));
+        program.SetInputs("vge_atmosphereEnvironment");
+        Assert.Equal(AtmosphereBindings.Solar, AtmosphereProgramBindings.Get(program));
+        AtmosphereShaderCompilationHook.Prefix(program);
+        AtmosphereShaderCompilationHook.Postfix(program, false);
+        Assert.Equal(AtmosphereBindings.None, AtmosphereProgramBindings.Get(program));
+        AtmosphereShaderCompilationHook.Postfix(program, true);
+        Assert.Equal(AtmosphereBindings.Environment, AtmosphereProgramBindings.Get(program));
+        AtmosphereProgramBindings.Remove(program);
+        Assert.Equal(AtmosphereBindings.None, AtmosphereProgramBindings.Get(program));
+    }
+
+    /// <summary>Supplies the engine's cached linked interface without creating GPU objects.</summary>
+    private sealed class FixtureProgram : ShaderProgram
+    {
+        /// <summary>Selects a patched engine family with game-owned assets.</summary>
+        internal FixtureProgram() { PassName = "standard"; AssetDomain = "game"; }
+        /// <summary>Simulates the linked interface rebuilt by the engine compiler.</summary>
+        internal void SetInputs(params string[] names)
+        {
+            uniformLocations.Clear();
+            foreach (string name in names) uniformLocations.Add(name, 1);
+        }
+    }
+    #endregion
+    #region Engine declaration evidence
+    /// <summary>The intercepted compile target must be the concrete engine implementation with a success result.</summary>
+    [Fact]
+    public void CompileHookTargetsConcreteEngineImplementation()
+    {
+        var method = typeof(ShaderProgram).GetMethod("Compile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
+        Assert.Equal(typeof(ShaderProgram), method.DeclaringType);
+        Assert.False(method.IsAbstract);
+        Assert.Equal(typeof(bool), method.ReturnType);
+    }
+    #endregion
+}
