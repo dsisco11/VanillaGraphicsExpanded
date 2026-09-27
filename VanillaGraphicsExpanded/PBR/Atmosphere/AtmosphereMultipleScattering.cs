@@ -31,7 +31,7 @@ internal sealed class AtmosphereMultipleScattering
     internal static AtmosphereMultipleScattering Build(float aerosol, CancellationToken cancellationToken = default,
         float groundAlbedo = .1f, int sunSamples = DefaultWidth, int altitudeSamples = DefaultHeight,
         int directionSamples = DefaultDirectionSamples, int raySamples = DefaultRaySamples,
-        int lightSamples = DefaultLightSamples)
+        int lightSamples = DefaultLightSamples, bool useScalarReference = false)
     {
         if (!float.IsFinite(aerosol) || aerosol < .1f || aerosol > 8f) throw new ArgumentOutOfRangeException(nameof(aerosol));
         if (!float.IsFinite(groundAlbedo) || groundAlbedo < 0 || groundAlbedo > 1) throw new ArgumentOutOfRangeException(nameof(groundAlbedo));
@@ -41,6 +41,17 @@ internal sealed class AtmosphereMultipleScattering
         if (raySamples < 2 || raySamples > 256) throw new ArgumentOutOfRangeException(nameof(raySamples));
         if (lightSamples < 2 || lightSamples > (DefaultLightSamples << 3)) throw new ArgumentOutOfRangeException(nameof(lightSamples));
         var values = new Vector3[sunSamples * altitudeSamples];
+        // Directions are invariant across table cells. Precompute them once while retaining
+        // their original order for both transport and the final angular average.
+        Span<Vector3> directions = stackalloc Vector3[directionSamples];
+        Span<Vector3> sources = stackalloc Vector3[128], feedbacks = stackalloc Vector3[128];
+        for (int d = 0; d < directionSamples; d++)
+        {
+            float up = 1f - 2f * (d + .5f) / directionSamples;
+            float azimuth = d * 2.39996323f;
+            float horizontal = MathF.Sqrt(1f - up * up);
+            directions[d] = new(horizontal * MathF.Cos(azimuth), up, horizontal * MathF.Sin(azimuth));
+        }
         for (int y = 0; y < altitudeSamples; y++)
         {
             // Squared height resolves the dense lower atmosphere without enlarging the table.
@@ -52,15 +63,24 @@ internal sealed class AtmosphereMultipleScattering
                 float cosine = 2f * x / (sunSamples - 1) - 1f;
                 Vector3 sun = new(MathF.Sqrt(MathF.Max(0, 1f - cosine * cosine)), cosine, 0);
                 Vector3 source = Vector3.Zero, feedback = Vector3.Zero;
-                for (int d = 0; d < directionSamples; d++)
+                for (int first = 0; first < directionSamples; first += sources.Length)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    float up = 1f - 2f * (d + .5f) / directionSamples;
-                    float azimuth = d * 2.39996323f;
-                    float horizontal = MathF.Sqrt(1f - up * up);
-                    Vector3 direction = new(horizontal * MathF.Cos(azimuth), up, horizontal * MathF.Sin(azimuth));
-                    var transfer = AtmosphereModel.MultipleScatteringTransfer(direction, sun, altitude, aerosol, groundAlbedo, raySamples, lightSamples);
-                    source += transfer.Source; feedback += transfer.Feedback;
+                    int count = Math.Min(sources.Length, directionSamples - first);
+                    if (useScalarReference)
+                    {
+                        for (int d = 0; d < count; d++)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            var transfer = AtmosphereModel.MultipleScatteringTransfer(directions[first + d], sun, altitude,
+                                aerosol, groundAlbedo, raySamples, lightSamples);
+                            sources[d] = transfer.Source; feedbacks[d] = transfer.Feedback;
+                        }
+                    }
+                    else
+                        AtmosphereModel.MultipleScatteringTransferBatch(directions.Slice(first, count), sun, altitude,
+                            aerosol, groundAlbedo, raySamples, lightSamples, sources[..count], feedbacks[..count], cancellationToken);
+                    for (int d = 0; d < count; d++) { source += sources[d]; feedback += feedbacks[d]; }
                 }
                 source /= directionSamples; feedback /= directionSamples;
                 // Angular averaging already includes 1/(4pi). The source is incident radiance,

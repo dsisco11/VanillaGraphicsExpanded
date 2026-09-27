@@ -49,8 +49,8 @@ therefore improves interpolation and angular, ray and solar-transmittance integr
 These budgets compound: the nested solar-integration work bound scales as
 `(quality + 1)^5` (up to 1024 times the default at quality 3), while table storage scales as `(quality + 1)^2`.
 This is an operation-count bound, not a measured time prediction; high settings can have very long
-worker latency in the current scalar implementation. SIMD table construction is a separate planned task.
-Builds remain asynchronous, retain the previous displayed LUT and check cancellation per angular ray.
+worker latency even with SIMD acceleration. Builds remain asynchronous, retain the previous displayed
+LUT and check cancellation between batched ray steps and ground evaluations.
 These integration budgets apply to source-table construction; the sky-view single-scattering kernel
 retains its existing 24 view and 12 sunlight steps.
 
@@ -98,7 +98,7 @@ Its cache identity includes aerosol and both table dimensions; quality changes r
 matching sky is published. Aerosol uses the admitted 0.05 cloud-coverage bucket consistently for all transport, so
 sub-bucket cloud jitter during sun movement does not rebuild the medium table. Aerosol changes
 rebuild it before computing a matching sky; cancellation is checked between
-table cells and view batches. Only complete sky/lighting snapshots reach render-thread publication.
+table cells, batched ray steps and view batches. Only complete sky/lighting snapshots reach render-thread publication.
 This remains an RGB isotropic approximation with finite angular/spatial resolution, not a spectral or
 fully directional multiple-scattering solver. It does not add moonlight, clouds or terrain occlusion.
 
@@ -114,7 +114,7 @@ cover passive feedback bounds with white ground, darkness at night, ground refle
 shared sky/environment contributions and unchanged direct solar/extinction. Independent review found
 no remaining normalization or worker/publication ownership defects. User-run visual acceptance remains open.
 
-Final worker-side timings in `measurements-final.trx` on .NET 10.0.12 with tiering disabled and no CPU
+Historical scalar worker-side timings in `measurements-final.trx` on .NET 10.0.12 with tiering disabled and no CPU
 affinity restriction were: source-table build median 361.069 ms (308.668–373.677), cached-medium
 32x24 sky 1.922 ms (1.894–2.367), and cached-medium 256x192 sky 128.315 ms (125.216–131.579).
 These measurements used the default 32x16 source table, including for the larger sky workload;
@@ -125,6 +125,41 @@ harness observations, not guaranteed frame costs. No GPU pass or texture allocat
 source table; existing sky upload and sampling consume the new values. GPU cost was not measured.
 
 ## CPU integration
+
+Multiple-scattering table construction batches up to 128 angular rays through
+`AtmosphereModel.MultipleScatteringTransferBatch`. `TensorPrimitives` evaluates square roots,
+density exponentials, weighted solar-density columns and RGB segment/solar attenuation. It selects
+the supported SIMD width; no register-width-specific kernels are required. Ray geometry and
+visibility remain scalar, as does the ground boundary evaluated once per ray. The analytic segment
+integral reuses tensor attenuation and retains the scalar thin-segment limit. Direction order and
+angular reduction order are preserved, while linear extinction is applied after solar-density summation.
+
+The table builder precomputes its invariant angular directions once. Each batch rents one bounded
+scratch array and returns it in `finally`; maximum requested scratch is 62848 floats at the supported
+96-solar-step reference limit (the shared pool may round this up). Stack scratch is bounded by
+128-ray batches and the 1024-direction construction limit. The scalar transport and internal
+`useScalarReference` table option remain available for numerical validation and matched measurements;
+production table construction uses the tensor path. Neither option changes the physical model or quality budgets.
+
+Tensor validation passed 94 focused atmosphere tests (four opt-in measurements skipped), and all
+nine new parity/cancellation cases passed with `DOTNET_EnableHWIntrinsic=0`; receipts are under
+`artifacts/AtmosphereMultipleScatteringTensor`, including `portable.trx`. Comparisons cover batch tails,
+clear/hazy media, ground reflectance 0/0.1/1, twilight/night, altitude extremes and complete-table
+closure at every integration budget, with tolerance `1e-5 + 1e-4 * abs(reference)` per channel.
+Independent review found no scratch-bound, lifetime, normalization or publication defects.
+
+Matched complete-table measurements in
+`artifacts/AtmosphereMultipleScatteringTensor/measurement.json` used .NET 10.0.12, an Intel
+Family 6 Model 151 CPU, affinity mask 4, disabled tiered compilation, warmup and three ABBA blocks.
+The default 32x16 table measured scalar median 965.00 ms (925.03–1041.47) versus tensor 137.95 ms
+(124.50–156.80), about 7x faster in this run. Both allocated 6200 managed bytes for the returned
+table and owner; pooled working storage added no warmed allocations. Absolute timings differ from
+earlier sessions, so these same-run comparisons supersede cross-run speedup estimates.
+
+On bounded 2x2 tables using quality 0/1/2/3 integration counts, scalar medians were
+7.25/50.93/171.84/399.05 ms and tensor medians 1.15/6.61/20.15/44.28 ms; each path allocated
+104 bytes per returned table. These higher-quality results measure integration budgets, not full
+production-sized high-quality tables or render-frame cost. No GPU workload changed.
 
 The lookup evaluates directions in batches of at most 128 using `AtmosphereModel.RadianceBatch`.
 `TensorPrimitives.Sqrt`, `Divide`, `Clamp` and `Exp` process the altitude/density samples and RGB

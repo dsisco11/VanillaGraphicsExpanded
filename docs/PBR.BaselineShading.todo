@@ -223,7 +223,7 @@ Tasks
         the sky and shared environment/horizon lighting; direct solar irradiance remains unchanged.
         Numerical validation and independent review are recorded in PBR.Atmosphere.md.
         User-run appearance acceptance remains open; no live visual result is claimed.
-    ☐ SIMD-accelerate multiple-scattering table construction with TensorPrimitives.
+    ☑ SIMD-accelerate multiple-scattering table construction with TensorPrimitives.
       - Batch independent angular rays and their solar transmittance integration through the existing
         width-independent TensorPrimitives approach; preserve isotropic normalization, analytic segment
         integration, ground reflection and the geometric-series energy bound.
@@ -232,6 +232,11 @@ Tasks
       - Measure matched table dimensions and integration budgets, separating cold table construction
         from cached sky refresh. Cover every quality budget with bounded reference workloads and report
         accuracy, allocations and worker latency before adopting the optimized implementation.
+      - Implemented: 128-ray tensor batches with pooled scratch, compacted solar paths, invariant
+        direction reuse and scalar reference comparisons. Passed 94 focused atmosphere tests and
+        nine hardware-intrinsics-disabled cases; independent review found no defects. Matched default
+        table builds measured about 7x faster with identical returned-table allocation. Full evidence
+        and bounded higher-quality measurements: PBR.Atmosphere.md.
     ☐ Port atmospheric sky-model computation to GPU compute shaders with CPU fallback.
       - Compute the multiple-scattering source table, sky radiance LUT and matching shared lighting
         integrals on supported GPUs. Preserve the current physical model, quality budgets, weather
