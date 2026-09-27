@@ -4,7 +4,7 @@ using System.Numerics;
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
 /// <summary>Bounded RGB single scattering in a spherical atmosphere; distances are kilometres and coefficients inverse kilometres.</summary>
-internal static class AtmosphereModel
+internal static partial class AtmosphereModel
 {
     internal const float GroundRadius = 6360f;
     internal const float TopRadius = 6460f;

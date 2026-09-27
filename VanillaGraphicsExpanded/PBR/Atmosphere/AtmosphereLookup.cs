@@ -61,18 +61,31 @@ internal sealed class AtmosphereLookup
         // Resolution belongs to the admitted build, not the latest requested settings.
         width = this.width; height = this.height;
         int end = Math.Min(next + (complete ? width * height : SamplesPerUpdate), width * height);
-        for (; next < end; next++)
+        Span<Vector3> directions = stackalloc Vector3[SamplesPerUpdate];
+        Span<Vector3> radiances = stackalloc Vector3[SamplesPerUpdate];
+        while (next < end)
         {
-            int x = next % width, y = next / width;
-            float elevation = ((y + .5f) / height - .5f) * MathF.PI;
-            float azimuth = (x + .5f) / width * (2f * MathF.PI);
-            Vector3 direction = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
-            Vector3 radiance = AtmosphereModel.Radiance(direction, sun, altitude, aerosol);
-            staging[next * 4] = radiance.X; staging[next * 4 + 1] = radiance.Y;
-            staging[next * 4 + 2] = radiance.Z; staging[next * 4 + 3] = 1;
-            // Irradiance/pi is the Lambertian sky response at unit albedo, used by the shared environment model.
-            if (direction.Y > 0) environment += radiance * (direction.Y * MathF.Cos(elevation) * 2f * MathF.PI / (width * height));
-            if (y == height / 2) horizon += radiance / width;
+            int count = Math.Min(SamplesPerUpdate, end - next);
+            for (int lane = 0; lane < count; lane++)
+            {
+                int index = next + lane, x = index % width, y = index / width;
+                float elevation = ((y + .5f) / height - .5f) * MathF.PI;
+                float azimuth = (x + .5f) / width * (2f * MathF.PI);
+                directions[lane] = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
+            }
+            AtmosphereModel.RadianceBatch(directions[..count], sun, altitude, aerosol, radiances[..count]);
+            // Preserve row-major accumulation order for the shared lighting integrals.
+            for (int lane = 0; lane < count; lane++, next++)
+            {
+                int y = next / width;
+                float elevation = ((y + .5f) / height - .5f) * MathF.PI;
+                Vector3 direction = directions[lane], radiance = radiances[lane];
+                staging[next * 4] = radiance.X; staging[next * 4 + 1] = radiance.Y;
+                staging[next * 4 + 2] = radiance.Z; staging[next * 4 + 3] = 1;
+                // Irradiance/pi is the Lambertian sky response at unit albedo, used by the shared environment model.
+                if (direction.Y > 0) environment += radiance * (direction.Y * MathF.Cos(elevation) * 2f * MathF.PI / (width * height));
+                if (y == height / 2) horizon += radiance / width;
+            }
         }
         if (next != width * height) return false;
         Current = new(sun, AtmosphereModel.SolarIrradiance(sun, altitude, aerosol), environment, horizon,

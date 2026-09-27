@@ -27,6 +27,45 @@ spacing resolves the dense near-ground layer. Cloud coverage maps to aerosol mul
 this is a bounded haze proxy for weather, not cloud-volume transport or geometric cloud shadows.
 Volumetric clouds remain a separate task.
 
+## CPU integration
+
+The lookup evaluates directions in batches of at most 128 using `AtmosphereModel.RadianceBatch`.
+`TensorPrimitives.Sqrt`, `Divide`, `Clamp` and `Exp` process the altitude/density samples and RGB
+transmission spans. The library selects the available SIMD width and handles tails; there are no
+register-width-specific implementations. Position arithmetic, visibility decisions and per-ray sample
+order follow the scalar model. Sunlight integrates the three weighted medium-density columns before
+applying their linear RGB extinction coefficients once per ray. Occluded sunlight paths are excluded
+from the compacted sample arrays.
+
+Scratch arrays are rented from `ArrayPool<float>` and returned in `finally`; stack scratch is bounded
+by the batch capacity. Startup and quality changes process multiple batches synchronously; normal
+refresh still evaluates at most 128 directions per update. The 24 view samples and 12 sunlight samples
+are unchanged. The original scalar `Radiance` remains a numerical reference, while the lookup uses
+the batch path. SIMD exponentials can round differently, so comparison tests use a small numerical
+tolerance rather than requiring bit-identical scalar output.
+
+Tensor validation passed 53 atmosphere tests (the opt-in measurement test was skipped) in
+`artifacts/AtmosphereTensor/atmosphere-tensor-columns.trx`; all six batch reference cases also
+passed with hardware intrinsics disabled. Coverage includes partial batches, the 128-direction
+boundary, horizon/night conditions, altitude and aerosol extremes, and unchanged LUT publication.
+The comparison bound is `1e-5 + 1e-4 * abs(reference)` per channel.
+
+Matched Release measurements on an i9-12900K / .NET 10.0.12 x64 used one pinned logical CPU,
+disabled tiered compilation, three seconds of warmup per workload and four ABBA blocks of 40
+128-direction calls. The independent confirmation report
+`artifacts/AtmosphereTensor/measurement-columns-confirm.json` recorded these median CPU costs:
+
+| Sun | Scalar / 128 directions | Tensor / 128 directions |
+| --- | ---: | ---: |
+| Noon | 2.558 ms | 0.320 ms |
+| Horizon | 2.535 ms | 0.315 ms |
+| Night | 0.137 ms | 0.076 ms |
+
+Both paths allocated zero managed bytes after warmup. Absolute scalar timings varied substantially
+between runs despite unchanged source; these are matched observations, not a promised speedup.
+The default-tiered-JIT run also improved daylight integration but had a nighttime timing outlier.
+These measurements cover the CPU integration kernel, not full LUT publication or in-game frame time.
+
 ## Publication and rendering
 
 `AtmosphereLookup` builds a configurable lat-long radiance table (default 32 x 24). Initialization and
@@ -59,7 +98,7 @@ Publication contains one immutable sky table, direct solar irradiance, upward La
 response (hemisphere irradiance divided by pi), horizon-average radiance, and local extinction.
 The render service uploads the table before publishing its lighting snapshot. All consumers keep
 the previous complete snapshot while a refresh is in progress. Shaders always receive valid atmospheric
-inputs and have no atmosphere-readiness branches. At 60 FPS, a rebuild spans about 0.4 seconds. This is a
+inputs and have no atmosphere-readiness branches. At 60 FPS, a default-resolution rebuild spans about 0.1 seconds. This is a
 bounded CPU approach with low-resolution interpolation, not a full-resolution fragment ray march.
 
 The installed sky shader samples this table and uses the existing unit-exposure Reinhard/sRGB
