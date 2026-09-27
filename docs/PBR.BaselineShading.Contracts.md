@@ -6,6 +6,11 @@ Source/IL audit completed against the checked-out API/survival source and instal
 No runtime performance or appearance results are claimed. The comparison cases below are design
 constraints for the implementation.
 
+The tables and findings below record the pre-fix audit baseline. The subsequent opaque material
+and display-boundary implementation is described in [PBR.MaterialColorAndDisplay.md](PBR.MaterialColorAndDisplay.md).
+That document supersedes the terrain vertex-lighting, color-decode and raw HDR-blit findings;
+entity, transparency, atmosphere and mode-selection gaps remain open.
+
 ## Current ownership
 
 | Surface or operation       | Verified owner/path                                                                                                                                                                        | Boundary or gap                                                                                                                                                                                           |

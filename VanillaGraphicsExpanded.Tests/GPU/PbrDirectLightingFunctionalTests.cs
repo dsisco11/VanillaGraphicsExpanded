@@ -148,8 +148,11 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
     }
 
-    [Fact]
-    public void DirectLighting_EmissiveIsSeparateBuffer()
+    /// <summary>Emission remains scene-linear in its separate target, including values above one.</summary>
+    [Theory]
+    [InlineData(0.9f)]
+    [InlineData(8f)]
+    public void DirectLighting_EmissiveIsSeparateBuffer(float emissiveScalar)
     {
         EnsureShaderTestAvailable();
 
@@ -166,7 +169,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
             using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
 
-            float emissiveScalar = 0.9f;
             using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.0f, emissiveScalar, 1.0f });
             using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
 

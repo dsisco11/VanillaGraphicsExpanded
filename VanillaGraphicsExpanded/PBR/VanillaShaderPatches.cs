@@ -285,6 +285,7 @@ flat in uint vge_faceId;
                 tree.CreateEditor()
                     .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/pbr_color.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/lumonscene_patchid.glsl\"\n")
@@ -381,6 +382,7 @@ flat in uint vge_faceId;
             {
                 InjectUvRectVaryings_Vsh(tree);
                 InjectUvRectAssign_Vsh(tree);
+                PbrTerrainColorPatches.ApplyVertex(tree, sourceName);
 
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
@@ -409,6 +411,7 @@ flat in uint vge_faceId;
                 InjectParallaxUvMapping(tree, sourceName);
 
                 PatchFogAndLight(tree);
+                PbrTerrainColorPatches.ApplyFragment(tree, sourceName);
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
             }

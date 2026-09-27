@@ -25,6 +25,17 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private const double RenderOrderValue = 11.0;
     private const int RenderRangeValue = 1;
 
+    // Neither fullscreen draw may test or overwrite the primary terrain depth.
+    private static readonly GlPipelineDesc CompositePipeline = new(
+        defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.BlendEnable)
+            .With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable)
+            .With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask),
+        depthWriteMask: false,
+        name: "PBR.CompositeAndDisplay");
+
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager directLightingBuffers;
@@ -36,6 +47,9 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private GpuFramebuffer? compositeFbo;
     private DynamicTexture2D? compositeColorTex;
 
+    /// <summary>Pre-display lighting retained by this renderer; sky pixels retain the engine's color convention.</summary>
+    internal GpuTexture? SceneLinearColor => compositeColorTex;
+
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] viewMatrix = new float[16];
 
@@ -43,6 +57,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     public int RenderRange => RenderRangeValue;
 
+    /// <summary>Creates the fullscreen mesh and registers composition after direct and indirect lighting.</summary>
     public PBRCompositeRenderer(
         ICoreClientAPI capi,
         GBufferManager gBufferManager,
@@ -65,6 +80,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         capi.Logger.Notification("[VGE] PBRCompositeRenderer registered (Opaque @ 11.0)");
     }
 
+    /// <summary>Combines scene-linear lighting, then resolves it into the engine's display target.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Opaque || quadMeshRef is null)
@@ -149,7 +165,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             shader.EnableShortRangeAo = lumOnConfig?.LumOn.EnableShortRangeAo ?? true;
         });
 
-        if (!shader.EnsureReady()) return;
+        var display = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
+        if (!shader.EnsureReady() || display is null || !display.EnsureReady()) return;
 
         // Matrices for optional PBR composite mode
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
@@ -157,13 +174,14 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
+        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        GlStateCache.Current.InvalidateAll();
+        GlStateCache.Current.Apply(CompositePipeline);
         compositeFbo!.Bind();
         GL.Viewport(0, 0, screenW, screenH);
 
         // Single target output.
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-
-        capi.Render.GlToggleBlend(false);
 
         if (!shader.TryUse()) return;
 
@@ -204,20 +222,22 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         shader.Stop();
 
-        // Copy composite result into Primary ColorAttachment0 so base-game post-processing sees it.
-        compositeFbo.BlitToExternal(
-            primaryFb.FboId,
-            screenW,
-            screenH,
-            ClearBufferMask.ColorBufferBit,
-            BlitFramebufferFilter.Nearest);
-
-        // Leave primary bound for subsequent in-stage passes.
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+        // Resolve HDR deliberately before the RGBA8 primary and vanilla display grading.
+        // The source is our scratch texture, so this draw has no color attachment feedback.
+        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         GL.Viewport(0, 0, screenW, screenH);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        if (!display.TryUse()) return;
+        display.PrimaryScene = compositeColorTex!.TextureId;
+        display.PrimaryDepth = primaryFb.DepthTextureId;
+        using (GlGpuProfiler.Instance.Scope("PBR.DisplayResolve"))
+        {
+            capi.Render.RenderMesh(quadMeshRef);
+        }
+        display.Stop();
     }
 
+    /// <summary>Releases owned fullscreen resources and unregisters the renderer.</summary>
     public void Dispose()
     {
         if (quadMeshRef is not null)

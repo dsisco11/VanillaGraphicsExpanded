@@ -69,7 +69,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         for (int frame = 0; frame < 24; frame++) runtime.Frame();
         var incident = scene.SourceAlbedo.Value * (32 / MathF.PI);
         SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.FinalPixels(), (_, _) => incident, .08f, "incident radiance");
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.ComposedPixels(),
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.SceneLinearPixels(),
             (x, y) => DiffuseResponse(scene, x, y, Receiver(x, y), incident), .055f, "PBR material region");
         Assert.Contains("pbr_direct_lighting", runtime.LoadedPrograms);
         Assert.Contains("pbr_composite", runtime.LoadedPrograms);
@@ -78,7 +78,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         runtime.Cache.Config.LumOn.Intensity = .5f;
         for (int frame = 0; frame < 24; frame++) runtime.Frame();
         SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.FinalPixels(), (_, _) => incident * .5f, .08f, "scaled incident radiance");
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.ComposedPixels(),
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.SceneLinearPixels(),
             (x, y) => DiffuseResponse(scene, x, y, Receiver(x, y), incident * .5f), .055f, "single intensity application");
     }
 
@@ -103,7 +103,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         // A fully rough dielectric has a small but nonzero direct specular lobe.
         Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(specular) > .00001f);
         SurfaceLightingNumericalRuntimeTests.AssertPixels(emission, (_, _) => receiver.Albedo * receiver.Emission, .002f, "emission radiance");
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.ComposedPixels(), (x, y) =>
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.SceneLinearPixels(), (x, y) =>
         {
             int index = (y * 4 + x) * 4;
             var primary = new Vector3(direct[index] + specular[index] + emission[index],

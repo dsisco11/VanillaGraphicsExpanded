@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
-/// applying fog once and writing to the primary framebuffer.
+/// applying fog once and writing scene-linear lighting for the separate display resolve.
 /// </summary>
 [ShaderProgram("Contract", "pbr_composite", 8)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh")]

@@ -30,11 +30,21 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
             runtime.Receiver = (_, _) => receiver;
             SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
             for (int frame = 0; frame < 24; frame++) runtime.Frame();
-            var reference = runtime.ComposedPixels();
+            var reference = runtime.SceneLinearPixels();
             var incident = scene.SourceAlbedo.Value * (32 / MathF.PI);
             SurfaceLightingNumericalRuntimeTests.AssertPixels(reference,
                 (x, y) => SurfaceLightingPbrRuntimeTests.DiffuseResponse(scene, x, y, receiver, incident), .08f, "scene-linear HDR");
             Assert.True(reference.Where((_, i) => i % 4 != 3).Max() > 2);
+            var displayed = runtime.ComposedPixels();
+            for (int i = 0; i < reference.Length; i++)
+            {
+                if ((i & 3) == 3) continue;
+                float positive = Math.Max(0, reference[i]);
+                float mapped = positive / (1 + positive);
+                float expected = mapped <= .0031308f ? mapped * 12.92f : 1.055f * MathF.Pow(mapped, 1 / 2.4f) - .055f;
+                Assert.InRange(displayed[i], expected - .002f, expected + .002f);
+            }
+            Assert.Contains("pbr_display_resolve", runtime.LoadedPrograms);
             Assert.True(runtime.Cache.TryGetLighting(out var before));
             long history = runtime.Screen.HistoryRevision;
             foreach (var grading in new[] { (.5f, .8f, 1.2f), (2f, 1.2f, .8f) })
@@ -52,7 +62,7 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
                 Assert.Equal(before.Generation, after.Generation);
                 Assert.Same(before.OutgoingRadiance, after.OutgoingRadiance);
                 Assert.Equal(history, runtime.Screen.HistoryRevision);
-                Assert.Equal(reference, runtime.ComposedPixels());
+                Assert.Equal(reference, runtime.SceneLinearPixels());
             }
         }
         finally

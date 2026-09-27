@@ -36,13 +36,19 @@ Tasks
       Confirmed Opaque-before-OIT ordering, animated-entity and held-item paths, RGBA atlas upload,
       RGBA8 primary output, retained vertex lighting and the startup-disabled LumOn reference gap.
 
-  ☐ Correct the material color and HDR boundaries identified by the baseline audit.
+  ☑ Correct the material color and HDR boundaries identified by the baseline audit.
     - Separate unlit material color from vanilla vertex lighting before deferred BRDF evaluation.
       Decode color textures consistently with representative CPU colors; keep data textures linear.
     - Resolve RGBA16F composite to RGBA8 primary conversion deliberately, with an explicit shared
       exposure/display boundary rather than implicit clipping before vanilla final grading.
     - Preserve colormaps, cutouts, emission and point-light behavior; validate linear-color and
       single-application lighting contracts through focused tests.
+    - Implemented for opaque terrain/topsoil: unlit linear material capture, scene-linear HDR
+      composition and a separate unit-exposure Reinhard/sRGB display resolve. The legacy sky
+      bypasses the resolve; entity/OIT/late paths remain owned by the following task.
+    - Source contracts and focused subagent-run validation: docs/PBR.MaterialColorAndDisplay.md.
+      Final terrain checks passed 12/12; HDR/display, point-light and restoration checks passed.
+      No game launch or live appearance/performance verification was required or performed.
 
   ☐ Establish PBR coverage for animated entities and late/transparent draw paths.
     - Integrate entityanimated and first-person standard/entityanimated variants at their actual
@@ -131,3 +137,34 @@ Tasks
       clouds, including their interactions. Do not launch the game or treat tests as visual acceptance.
     - Document settings, capability requirements, approximation limits and authoring examples. Link
       evidence to completed tasks and remove temporary profiling/comparison code after preserving it.
+
+  ☐ Extend scene-linear HDR rendering through the complete scene and postprocessing pipeline.
+    - Audit render-target formats, copies, blending and shader outputs across opaque terrain,
+      entities, transparency/OIT, liquids, sky, clouds and late held items. Preserve HDR radiance
+      in floating-point targets through scene composition; changing primary format alone is insufficient.
+    - Coordinate with the entity/late-path, atmosphere and liquid tasks above so all contributing
+      passes use consistent linear-color and lighting units with LumOn enabled or disabled.
+    - Move exposure and the display resolve after scene lighting and transparency composition.
+      Adapt bloom, fog and grading to their intended color spaces; remove premature clamps and
+      duplicate transfer functions. Keep lighting caches independent of display exposure.
+    - Separate UI composition from scene exposure and preserve readable, stable UI brightness.
+      Retain an explicit SDR output path; internal HDR must also benefit ordinary SDR displays.
+    - Validate highlight preservation, blending, emission, exposure, UI, resize/reload and both
+      lighting modes through focused tests and user-run visual acceptance. Measure bandwidth,
+      memory and pass costs. Extend docs/PBR.MaterialColorAndDisplay.md with the final boundaries.
+
+  ☐ Investigate and implement native HDR monitor output with an SDR fallback.
+    - First trace the game's OpenGL context, window framebuffer and presentation ownership.
+      Establish whether VGE can configure HDR presentation directly or needs a platform-specific
+      bridge; document supported platforms and feasibility before committing to that architecture.
+    - Build on the scene-linear HDR pipeline above. Select an appropriate HDR presentation format
+      and output color space, such as scRGB or HDR10 where supported; an HDR intermediate alone
+      does not establish HDR display output. Preserve the existing SDR presentation path.
+    - Detect display/OS HDR availability and handle enable/disable, monitor changes, window modes,
+      resize and resource recreation without stale color-space state or unintended clipping.
+    - Define scene-to-display luminance mapping, reference white, peak-brightness calibration,
+      gamut mapping and UI brightness. Apply the output transfer exactly once and keep engine
+      grading consistent with the selected output mode.
+    - Validate capability/failure handling with focused tests, then obtain user-run acceptance on
+      supported HDR displays and SDR fallback. Record presentation/interop costs and limitations;
+      do not claim monitor-output support from floating-point framebuffer tests alone.

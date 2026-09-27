@@ -17,6 +17,8 @@ internal sealed class RuntimeLightingHost : IDisposable
     private readonly DirectLightingRenderer? directRenderer;
     private readonly PBRCompositeRenderer? compositeRenderer;
     public DirectLightingBufferManager Direct => direct;
+    /// <summary>Exposes the registered composite's pre-display lighting observation.</summary>
+    public VanillaGraphicsExpanded.Rendering.GpuTexture? SceneLinearColor => compositeRenderer?.SceneLinearColor;
     public LumOnWorldProbeUpdateRenderer WorldRenderer { get; }
     public LumOnBufferManager Screen => lighting.GetLumOnBufferManagerOrNull()!;
 

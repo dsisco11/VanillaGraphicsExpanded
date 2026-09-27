@@ -7,11 +7,12 @@ out vec4 outColor;
 //
 // Merges direct radiance buffers (diffuse/specular/emissive) with optional
 // indirect diffuse (LumOn) and applies fog once.
-// Output is written to the primary framebuffer ColorAttachment0.
+// Output remains scene-linear in RGBA16F until the separate display resolve.
 // ============================================================================
 
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_pbr.glsl"
+@import "./includes/pbr_color.glsl"
 
 // Import global defines (feature toggles with defaults)
 @import "./includes/vge_global_defines.glsl"
@@ -112,7 +113,7 @@ void main(void)
     finalColor = max(finalColor, vec3(0.0));
 
     float fogAmount = clamp(fogMinIn + 1.0 - 1.0 / exp(depth * fogDensityIn), 0.0, 1.0);
-    finalColor = mix(finalColor, rgbaFogIn.rgb, fogAmount);
+    finalColor = mix(finalColor, VgeSrgbToLinear(rgbaFogIn.rgb), fogAmount);
 
     outColor = vec4(finalColor, 1.0);
 }
