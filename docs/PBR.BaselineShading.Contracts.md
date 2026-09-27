@@ -9,7 +9,9 @@ constraints for the implementation.
 The tables and findings below record the pre-fix audit baseline. The subsequent opaque material
 and display-boundary implementation is described in [PBR.MaterialColorAndDisplay.md](PBR.MaterialColorAndDisplay.md).
 That document supersedes the terrain vertex-lighting, color-decode and raw HDR-blit findings;
-entity, transparency, atmosphere and mode-selection gaps remain open.
+Entity and late/transparent integration is tracked in
+[PBR.EntityAndLateCoverage.md](PBR.EntityAndLateCoverage.md); atmosphere, liquid optics and
+mode-selection gaps retain their separate task ownership.
 
 ## Current ownership
 

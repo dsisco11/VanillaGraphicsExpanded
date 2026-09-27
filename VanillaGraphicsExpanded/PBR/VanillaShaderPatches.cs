@@ -21,24 +21,16 @@ internal static class VanillaShaderPatches
     #region Constants
     private static readonly ImmutableArray<string> PatchedChunkShaders =
     [
-        "chunktransparent.fsh",
         "chunkopaque.fsh",
-        "chunktopsoil.fsh",
-        "chunkliquid.fsh"
+        "chunktopsoil.fsh"
     ];
 
     private static readonly ImmutableArray<string> PatchedChunkVertexShaders =
     [
-        "chunktransparent.vsh",
         "chunkopaque.vsh",
         "chunktopsoil.vsh"
     ];
 
-    private static readonly ImmutableArray<string> PatchedGenericShaders =
-    [
-        "instanced.fsh",
-        "standard.fsh"
-    ];
     #endregion
 
     #region G-Buffer Injection Code
@@ -141,34 +133,6 @@ flat in uint vge_faceId;
 #undef uv2
 ";
 
-    // chunkliquid: keep an alias for our own sampling, but do not macro-override `uv`
-    // (liquid uses `uv` and `uvBase` in special flow logic).
-    private const string ParallaxUvProlog_ChunkLiquid = @"
-
-    // VGE: Local alias for UV used by VGE sampling
-    vec2 vge_uv = uv;
-";
-
-    // Code to inject before the final closing brace of main() to write G-buffer data
-    // Uses available shader variables: normal, renderFlags, texColor/rgba
-    // Note: VS's outColor (ColorAttachment0) serves as albedo
-    private const string GBufferOutputWrites_Default = @"
-
-    // VGE: Write G-buffer outputs
-    // Normal: world-space normal packed to [0,1] range
-    vge_outNormal = vec4(normal * 0.5 + 0.5, 1.0);
-    
-    // Material: extract properties from renderFlags
-    float vge_roughness = 0.5;  // Default roughness
-    float vge_metallic = getMatMetallicFromRenderFlags(renderFlags);
-    float vge_emissive = glowLevel;
-    float vge_reflectivity = getMatMetallicFromRenderFlags(renderFlags);
-    vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
-
-    // VGE: PatchId (not available in generic shaders yet)
-    vge_outPatchId = uvec4(0u);
-";
-
     private const string GBufferOutputWrites_Chunk = @"
 
     // VGE: Write G-buffer outputs
@@ -225,29 +189,6 @@ flat in uint vge_faceId;
     }
 ";
 
-    // chunkliquid.fsh does not define `normal` or `renderFlags`.
-    // Use inputs that are actually present in that shader (fragNormal, uv), and keep the samplers live.
-    private const string GBufferOutputWrites_ChunkLiquid = @"
-
-    // VGE: Write G-buffer outputs (liquid shader variant)
-    // Normal: use the per-fragment normal provided by the liquid shader.
-    // We store encoded height01 (0..1) in the otherwise-unused W channel for optional debugging.
-    vec3 vge_liquidNormal = normalize(fragNormal);
-    vge_outNormal = VgeComputePackedWorldNormal01Height01(vge_uv, vge_liquidNormal, fWorldPos);
-
-    // Material: read per-texel params but do not require renderFlags.
-    vec3 vge_params = ReadMaterialParams(vge_uv);
-    vge_params = ApplyMaterialNoise(vge_params, vge_uv);
-    float vge_roughness = clamp(vge_params.r, 0.0, 1.0);
-    float vge_metallic  = clamp(vge_params.g, 0.0, 1.0);
-    float vge_emissive  = clamp(vge_params.b, 0.0, 1.0);
-
-    float vge_reflectivity = ComputeReflectivity(vge_roughness, vge_metallic);
-    vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
-
-    // VGE: PatchId (not available in chunkliquid path yet)
-    vge_outPatchId = uvec4(0u);
-";
     #endregion
 
     /// <summary>
@@ -262,6 +203,8 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (PbrSurfaceShaderPatches.Supports(sourceName))
+                return PbrSurfaceShaderPatches.Preprocess(tree, sourceName);
             // Chunk vertex shaders - inject only vertex-safe helpers
             if (PatchedChunkVertexShaders.Contains(sourceName))
             {
@@ -296,17 +239,6 @@ flat in uint vge_faceId;
                 return true;
             }
 
-            // Entity/item shaders - inject vsFunctions only (no per-texel material params)
-            if (PatchedGenericShaders.Contains(sourceName))
-            {
-                var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-                tree.CreateEditor()
-                    .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
-                    .Commit();
-
-                log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
-                return true;
-            }
             return false;
         }
         catch (Exception ex)
@@ -316,7 +248,8 @@ flat in uint vge_faceId;
         }
     }
 
-    private static void InjectPomDefines(SyntaxTree tree)
+    /// <summary>Publishes configured parallax options for material-aware engine shaders.</summary>
+    internal static void InjectPomDefines(SyntaxTree tree)
     {
         if (!ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping) return;
         if (!ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps) return;
@@ -350,7 +283,8 @@ flat in uint vge_faceId;
             .Commit();
     }
 
-            private static void InjectNormalMapDefines(SyntaxTree tree)
+            /// <summary>Publishes configured normal-map options for material-aware engine shaders.</summary>
+            internal static void InjectNormalMapDefines(SyntaxTree tree)
             {
             var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
             var cfg = ConfigModSystem.Config.MaterialAtlas;
@@ -378,6 +312,11 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (PbrSurfaceShaderPatches.Supports(sourceName))
+            {
+                PbrSurfaceShaderPatches.Apply(tree, sourceName);
+                return true;
+            }
             if (PatchedChunkVertexShaders.Contains(sourceName))
             {
                 InjectUvRectVaryings_Vsh(tree);
@@ -393,19 +332,8 @@ flat in uint vge_faceId;
                 InjectGBufferInputs(tree);
                 InjectChunkMaterialSampler(tree);
 
-                // Provide uv rect varyings for POM/atlas-safe UV indirection (even if currently unused).
-                // chunkliquid already has its own `uvBase`/`uvSize` plumbing.
-                if (sourceName != "chunkliquid.fsh")
-                {
-                    InjectUvRectVaryings_Fsh(tree);
-                }
-
-                string outputWrites = sourceName == "chunkliquid.fsh"
-                    ? GBufferOutputWrites_ChunkLiquid
-                    : GBufferOutputWrites_Chunk;
-
-                // Must be at the start of main() to survive early returns.
-                InjectGBufferOutputs(tree, outputWrites);
+                InjectUvRectVaryings_Fsh(tree);
+                InjectGBufferOutputs(tree, GBufferOutputWrites_Chunk);
 
                 // Inject UV/TBN helpers after output injection (still placed at start of main()).
                 InjectParallaxUvMapping(tree, sourceName);
@@ -415,15 +343,6 @@ flat in uint vge_faceId;
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
             }
-            else if (PatchedGenericShaders.Contains(sourceName))
-            {// Main shader files - inject G-buffer outputs
-                InjectGBufferInputs(tree);
-                InjectGBufferOutputs(tree, GBufferOutputWrites_Default);
-                PatchFogAndLight(tree);
-                log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
-                return true;
-            }
-
             switch (sourceName)
             {
                 // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
@@ -469,7 +388,8 @@ flat in uint vge_faceId;
             .Commit();
     }
 
-    private static void InjectUvRectVaryings_Vsh(SyntaxTree tree)
+    /// <summary>Declares the terrain vertex tile bounds used by atlas-safe parallax.</summary>
+    internal static void InjectUvRectVaryings_Vsh(SyntaxTree tree)
     {
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         tree.CreateEditor()
@@ -477,7 +397,8 @@ flat in uint vge_faceId;
             .Commit();
     }
 
-    private static void InjectUvRectVaryings_Fsh(SyntaxTree tree)
+    /// <summary>Declares matching fragment tile bounds.</summary>
+    internal static void InjectUvRectVaryings_Fsh(SyntaxTree tree)
     {
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         tree.CreateEditor()
@@ -485,7 +406,8 @@ flat in uint vge_faceId;
             .Commit();
     }
 
-    private static void InjectUvRectAssign_Vsh(SyntaxTree tree)
+    /// <summary>Reads terrain tile bounds from the engine's packed face data.</summary>
+    internal static void InjectUvRectAssign_Vsh(SyntaxTree tree)
     {
         // Insert at the start of main() body to avoid AST editor wrapping issues.
         // We re-fetch FaceData from the SSBO so this does not depend on local variable ordering.
@@ -495,7 +417,8 @@ flat in uint vge_faceId;
             .Commit();
     }
 
-    private static void InjectParallaxUvMapping(SyntaxTree tree, string sourceName)
+    /// <summary>Applies shared atlas-safe UV indirection and derivative tangent construction.</summary>
+    internal static void InjectParallaxUvMapping(SyntaxTree tree, string sourceName)
     {
         // Insert at the top of main() so subsequent vanilla code can see the uv macros.
         var mainStart = Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body");
@@ -508,11 +431,6 @@ flat in uint vge_faceId;
         {
             prolog = ParallaxUvProlog_Topsoil;
             epilog = ParallaxUvEpilog_Topsoil;
-        }
-        else if (sourceName == "chunkliquid.fsh")
-        {
-            prolog = ParallaxUvProlog_ChunkLiquid;
-            epilog = null;
         }
         else
         {

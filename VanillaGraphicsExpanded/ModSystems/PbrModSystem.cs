@@ -20,6 +20,7 @@ public sealed class PbrModSystem : ModSystem
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        HarmonyPatches.PbrDrawRouteHook.Api = api;
         ConfigModSystem.Config.Sanitize();
 
         EnsureInitializedIfReady("startup");
@@ -36,6 +37,7 @@ public sealed class PbrModSystem : ModSystem
     public override void Dispose()
     {
         base.Dispose();
+        HarmonyPatches.PbrDrawRouteHook.Api = null;
 
         directLightingRenderer?.Dispose();
         directLightingRenderer = null;

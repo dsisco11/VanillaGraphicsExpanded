@@ -4,6 +4,10 @@ Opaque terrain and topsoil now publish unlit, linear material RGB before the dir
 passes. The scene-linear composite remains RGBA16F. A separate display resolve writes the
 engine's RGBA8 primary target before OIT and final grading.
 
+Animated entities, standard/instanced meshes, transparent terrain and late held items are covered
+by the subsequent [entity and late-surface integration](PBR.EntityAndLateCoverage.md). The
+terrain-specific capture and display contracts described here continue to apply.
+
 ## Material capture
 
 `PbrTerrainColorPatches` clears only the RGB component of the vertex `rgba` lighting varying.

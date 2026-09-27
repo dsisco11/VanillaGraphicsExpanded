@@ -50,12 +50,21 @@ Tasks
       Final terrain checks passed 12/12; HDR/display, point-light and restoration checks passed.
       No game launch or live appearance/performance verification was required or performed.
 
-  ☐ Establish PBR coverage for animated entities and late/transparent draw paths.
+  ☑ Establish PBR coverage for animated entities and late/transparent draw paths.
     - Integrate entityanimated and first-person standard/entityanimated variants at their actual
       engine stages. Do not assume standard/instanced patches cover animated entities or late items.
     - Keep OIT reveal/accumulation output locations distinct from opaque normal/material outputs.
       Provide lighting for OIT and AfterOIT independently of the earlier opaque deferred composite;
       coordinate liquid-specific behavior with the PBR liquid task below.
+    - Implemented stage/target-aware material capture for animated and generic opaque meshes;
+      forward PBR for transparent terrain and late/first-person draws. OIT retains its attachment
+      layout; offscreen inventory/GUI draws retain vanilla shading. Liquids retain native lighting
+      until the dedicated liquid task; conflicting opaque G-buffer injection was removed.
+    - Shared BRDF, per-draw view-space light handling, sunlight color, shadows, emission, thermal
+      tint and transparent normal/POM behavior are covered by focused subagent-run validation.
+      47 distinct checks passed across installed shader variants, numerical lighting, routing,
+      terrain and deferred regressions. Review findings were fixed and revalidated.
+      Evidence and remaining HDR/environment boundaries: docs/PBR.EntityAndLateCoverage.md.
 
   ☐ Separate LumOn-compatible and standalone PBR pipelines with automatic mode selection.
     - Select the intended pipeline from LumOn.Enabled before initial shader preparation. Share common
