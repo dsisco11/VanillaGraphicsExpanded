@@ -1,5 +1,6 @@
 #version 430
 @import "./includes/atmosphere_transport.glsl"
+@import "./includes/atmosphere_sky_mapping.glsl"
 layout(local_size_x = 64) in;
 layout(std430, binding = 1) readonly buffer AtmosphereScattering { vec4 sources[]; };
 layout(std430, binding = 2) buffer AtmosphereOutput { vec4 outputValues[]; };
@@ -20,7 +21,7 @@ void main()
 {
     int index = int(gl_GlobalInvocationID.x), width = int(mediumSize.z), height = int(mediumSize.w);
     if (index >= width * height) return;
-    float elevation = ((float(index / width) + .5) / float(height) - .5) * atmPi;
+    float elevation = atmSkyElevation(float(index / width) / float(height - 1), work.z);
     float azimuth = (float(index % width) + .5) / float(width) * (2.0 * atmPi);
     vec3 direction = normalize(vec3(cos(elevation) * cos(azimuth), sin(elevation), cos(elevation) * sin(azimuth)));
     vec3 sun = sunAltitude.xyz, origin = vec3(0.0, atmGround + sunAltitude.w, 0.0);

@@ -29,6 +29,8 @@ internal static class AtmosphereShaderBindingHook
             __instance.Uniform("vge_atmosphereHorizon", lighting.Horizon.X, lighting.Horizon.Y, lighting.Horizon.Z);
         if ((bindings & AtmosphereBindings.Extinction) != 0)
             __instance.Uniform("vge_atmosphereExtinction", lighting.Extinction.X, lighting.Extinction.Y, lighting.Extinction.Z);
+        if ((bindings & AtmosphereBindings.SkyMapping) != 0)
+            __instance.Uniform("vge_atmosphereLutHorizon", lighting.HorizonElevation);
         if ((bindings & AtmosphereBindings.Sky) != 0)
         {
             __instance.BindTexture2D("vge_atmosphereSky", AtmosphereModSystem.SkyTextureId, SkyTextureUnit);

@@ -215,7 +215,10 @@ These measurements cover the CPU integration kernel, not full LUT publication or
 ## Publication and rendering
 
 `AtmosphereBackend` selects GPU compute when the cached capabilities and resource limits support it.
-Otherwise `AtmosphereLookup` builds the configurable lat-long radiance table (default 32 x 24):
+Otherwise `AtmosphereLookup` builds the configurable radiance table (default 32 x 24), with uniform
+azimuth and horizon-focused elevation sampling shared with GPU generation and engine lookup.
+See [PBR.Atmosphere.HorizonSampling.md](PBR.Atmosphere.HorizonSampling.md) for the altitude-aware
+mapping, pole/seam behavior and corrected illumination weights.
 `AtmosphereComputation` admits one `Task.Run` build at a time. These serial tasks reuse one worker-owned
 lookup and compute the entire table, including shared lighting integrals, without yielding across render frames.
 The render callback captures value inputs and polls completion without waiting. Only that callback

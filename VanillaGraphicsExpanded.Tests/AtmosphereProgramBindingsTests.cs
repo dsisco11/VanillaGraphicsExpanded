@@ -11,7 +11,7 @@ public sealed class AtmosphereProgramBindingsTests
     #region Interface ownership
     /// <summary>Only patched engine families declare an atmosphere interface.</summary>
     [Theory]
-    [InlineData("sky", AtmosphereBindings.Sky)]
+    [InlineData("sky", AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping)]
     [InlineData("chunkopaque", AtmosphereBindings.Environment)]
     [InlineData("chunktopsoil", AtmosphereBindings.Environment)]
     [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]

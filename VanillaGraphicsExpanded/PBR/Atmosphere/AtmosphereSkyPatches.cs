@@ -10,6 +10,7 @@ internal static class AtmosphereSkyPatches
     internal static void Preprocess(SyntaxTree tree) => tree.CreateEditor()
         .InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), """
         @import "./includes/pbr_color.glsl"
+        @import "./includes/atmosphere_sky_mapping.glsl"
 
         """).Commit();
 
@@ -20,7 +21,9 @@ internal static class AtmosphereSkyPatches
             .InsertBefore(Query.Syntax<GlFunctionNode>().Named("getSkyColorAt"),
                 """
                 uniform sampler2D vge_atmosphereSky;
+                uniform float vge_atmosphereLutHorizon;
                 vec3 VgeResolveDisplay(vec3 radiance);
+                float atmSkyCoordinate(float elevation, float horizon);
 
                 """)
             .InsertBefore(Query.Syntax<GlFunctionNode>().Named("getSkyColorAt").InnerEnd("body"), """
@@ -28,8 +31,9 @@ internal static class AtmosphereSkyPatches
                 {
                     vec3 direction = normalize(skyPosition);
                     float azimuth = dot(direction.xz, direction.xz) > 0.0000001 ? atan(direction.z, direction.x) : 0.0;
-                    vec2 lookupUv = vec2(azimuth / 6.28318530718,
-                        asin(clamp(direction.y, -1.0, 1.0)) / 3.14159265359 + 0.5);
+                    float row = atmSkyCoordinate(asin(clamp(direction.y, -1.0, 1.0)), vge_atmosphereLutHorizon);
+                    float rows = float(textureSize(vge_atmosphereSky, 0).y);
+                    vec2 lookupUv = vec2(azimuth / 6.28318530718, (row * (rows - 1.0) + 0.5) / rows);
                     vec3 radiance = texture(vge_atmosphereSky, lookupUv).rgb;
                     // Stars are rendered before the dome. Retain the engine's twilight alpha policy.
                     skyColor.rgb = VgeResolveDisplay(radiance);

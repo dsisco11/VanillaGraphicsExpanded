@@ -10,7 +10,7 @@ layout(std430, binding = 0) readonly buffer AtmosphereParameters
     vec4 sunAltitude;
     vec4 mediumSize; // aerosol, ground albedo, sky width, sky height
     vec4 scatteringSize; // source width, height, directions, view steps
-    vec4 work; // solar steps, first source cell, unused, unused
+    vec4 work; // solar steps, first source cell, geometric horizon elevation, unused
 };
 
 // Positive planet intersection; a finite clear segment is not established sky visibility.

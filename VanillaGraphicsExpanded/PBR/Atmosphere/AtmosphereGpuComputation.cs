@@ -121,7 +121,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         values[0] = new(request.Sun, Math.Clamp(request.Altitude, .001f, 99));
         values[1] = new(1f + 7f * (request.Weather / 20f), request.Albedo / 50f, request.Width, request.Height);
         values[2] = new(budget.Width, budget.Height, budget.DirectionSamples, budget.RaySamples);
-        values[3] = new(budget.LightSamples, nextCell, 0, 0);
+        values[3] = new(budget.LightSamples, nextCell, AtmosphereSkyMapping.Horizon(request.Altitude), 0);
         parameters.UploadSubData<Vector4>(values, 0, 64);
         parameters.BindBase(0); source.BindBase(1);
         try
@@ -166,7 +166,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         return new(request.Sun, new(values[0].X, values[0].Y, values[0].Z),
             new(values[1].X, values[1].Y, values[1].Z), new(values[2].X, values[2].Y, values[2].Z),
             new(values[3].X, values[3].Y, values[3].Z), ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values[4..])))
-            { Width = request.Width, Height = request.Height };
+            { Width = request.Width, Height = request.Height, HorizonElevation = AtmosphereSkyMapping.Horizon(request.Altitude) };
     }
     #endregion
 

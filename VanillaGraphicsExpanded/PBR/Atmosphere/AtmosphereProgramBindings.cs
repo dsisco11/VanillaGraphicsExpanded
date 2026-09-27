@@ -13,7 +13,8 @@ internal enum AtmosphereBindings
     Solar = 2,
     Horizon = 4,
     Extinction = 8,
-    Sky = 16
+    Sky = 16,
+    SkyMapping = 32
 }
 
 /// <summary>Stores the active atmospheric interface once per linked engine program.</summary>
@@ -28,7 +29,7 @@ internal static class AtmosphereProgramBindings
     /// <summary>Allows only shader families whose sources receive atmospheric patches.</summary>
     internal static AtmosphereBindings Expected(string? passName) => passName switch
     {
-        "sky" => AtmosphereBindings.Sky,
+        "sky" => AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping,
         "chunkopaque" or "chunktopsoil" => AtmosphereBindings.Environment,
         "standard" or "entityanimated" or "instanced" or "chunktransparent" =>
             AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction,
@@ -45,6 +46,7 @@ internal static class AtmosphereProgramBindings
         if ((expected & AtmosphereBindings.Horizon) != 0 && hasUniform("vge_atmosphereHorizon")) active |= AtmosphereBindings.Horizon;
         if ((expected & AtmosphereBindings.Extinction) != 0 && hasUniform("vge_atmosphereExtinction")) active |= AtmosphereBindings.Extinction;
         if ((expected & AtmosphereBindings.Sky) != 0 && hasUniform("vge_atmosphereSky")) active |= AtmosphereBindings.Sky;
+        if ((expected & AtmosphereBindings.SkyMapping) != 0 && hasUniform("vge_atmosphereLutHorizon")) active |= AtmosphereBindings.SkyMapping;
         return active;
     }
     #endregion

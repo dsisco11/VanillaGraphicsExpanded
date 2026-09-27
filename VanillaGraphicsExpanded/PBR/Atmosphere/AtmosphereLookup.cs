@@ -10,6 +10,7 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
 {
     internal int Width { get; init; } = AtmosphereLookup.DefaultWidth;
     internal int Height { get; init; } = AtmosphereLookup.DefaultHeight;
+    internal float HorizonElevation { get; init; }
 }
 
 /// <summary>Integrates complete atmospheric snapshots, with optional bounded stepping for callers that need it.</summary>
@@ -83,6 +84,7 @@ internal sealed class AtmosphereLookup
         }
         // Resolution belongs to the admitted build, not the latest requested settings.
         width = this.width; height = this.height;
+        float horizonElevation = AtmosphereSkyMapping.Horizon(altitude);
         int end = Math.Min(next + (complete ? width * height : SamplesPerUpdate), width * height);
         Span<Vector3> directions = stackalloc Vector3[SamplesPerUpdate];
         Span<Vector3> radiances = stackalloc Vector3[SamplesPerUpdate];
@@ -93,7 +95,7 @@ internal sealed class AtmosphereLookup
             for (int lane = 0; lane < count; lane++)
             {
                 int index = next + lane, x = index % width, y = index / width;
-                float elevation = ((y + .5f) / height - .5f) * MathF.PI;
+                float elevation = AtmosphereSkyMapping.Elevation((float)y / (height - 1), horizonElevation);
                 float azimuth = (x + .5f) / width * (2f * MathF.PI);
                 directions[lane] = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
             }
@@ -102,18 +104,28 @@ internal sealed class AtmosphereLookup
             for (int lane = 0; lane < count; lane++, next++)
             {
                 int y = next / width;
-                float elevation = ((y + .5f) / height - .5f) * MathF.PI;
-                Vector3 direction = directions[lane], radiance = radiances[lane];
+                Vector3 radiance = radiances[lane];
                 staging[next * 4] = radiance.X; staging[next * 4 + 1] = radiance.Y;
                 staging[next * 4 + 2] = radiance.Z; staging[next * 4 + 3] = 1;
                 // Irradiance/pi is the Lambertian sky response at unit albedo, used by the shared environment model.
-                if (direction.Y > 0) environment += radiance * (direction.Y * MathF.Cos(elevation) * 2f * MathF.PI / (width * height));
-                if (y == height / 2) horizon += radiance / width;
+                environment += radiance * AtmosphereSkyMapping.EnvironmentWeight(y, width, height, horizonElevation);
             }
         }
         if (next != width * height) return false;
+        // Shared horizontal lighting is evaluated at elevation zero, which differs from
+        // the depressed planetary limb at altitude. Interpolate the same LUT as rendering.
+        float horizontalRow = AtmosphereSkyMapping.Coordinate(0, horizonElevation) * (height - 1);
+        int lower = Math.Min((int)horizontalRow, height - 2);
+        horizon = Vector3.Zero;
+        for (int x = 0; x < width; x++)
+        {
+            int a = (lower * width + x) * 4, b = a + width * 4;
+            horizon += Vector3.Lerp(new(staging[a], staging[a + 1], staging[a + 2]),
+                new(staging[b], staging[b + 1], staging[b + 2]), horizontalRow - lower) / width;
+        }
         Current = new(sun, AtmosphereModel.SolarIrradiance(sun, altitude, aerosol), environment, horizon,
-            AtmosphereModel.LocalExtinction(altitude, aerosol), ImmutableArray.CreateRange(staging)) { Width = width, Height = height };
+            AtmosphereModel.LocalExtinction(altitude, aerosol), ImmutableArray.CreateRange(staging))
+            { Width = width, Height = height, HorizonElevation = horizonElevation };
         completedKey = buildingKey; buildingKey = null; Revision++;
         return true;
     }
