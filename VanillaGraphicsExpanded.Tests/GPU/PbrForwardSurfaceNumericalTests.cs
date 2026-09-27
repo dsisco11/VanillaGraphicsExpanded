@@ -1,3 +1,7 @@
+using System.Collections.Immutable;
+using System.Numerics;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -55,22 +59,23 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             vec3 vge_sunIrradiance = vec3(0.2,0.4,0.8);
             vec3 vge_atmosphereSolar = vec3(0.2,0.4,0.8);
             vec3 vge_atmosphereEnvironment = vec3(0);
-            vec3 vge_atmosphereHorizon = vec3(0);
-            vec3 vge_atmosphereExtinction = vec3(0);
+            vec3 vge_atmosphereAerialParams = vec3(.001,0,0);
+
             float vge_skyVisibility = 1.0;
             vec4 rgbaFog = vec4(0);
             layout(location=0) out vec4 outColor;
             """;
         if (scenario == 5 || scenario >= 7) header = header.Replace("vec3(0.2,0.4,0.8)", "vec3(0.0)");
         if (scenario >= 10) header = header.Replace("vec3 vge_atmosphereSolar = vec3(0.0)", "vec3 vge_atmosphereSolar = vec3(0.3,0.5,0.7)");
-        if (scenario is 12 or 13) header = header.Replace("vec3 vge_atmosphereHorizon = vec3(0)", "vec3 vge_atmosphereHorizon = vec3(0.2,0.3,0.4)")
-            .Replace("vec3 vge_atmosphereExtinction = vec3(0)", "vec3 vge_atmosphereExtinction = vec3(0.1,0.2,0.3)");
         if (scenario == 13) header = header.Replace("float vge_skyVisibility = 1.0", "float vge_skyVisibility = 0.0");
         header += $"\n#define VGE_PBR_FORWARD_LUMON {(scenario is >= 6 and <= 9 ? 0 : 1)}\n";
-        string source = header + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
+        string aerial = File.ReadAllText(Path.Combine(directory, "atmosphere_aerial.glsl"))
+            .Replace("@import \"./atmosphere_sky_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_sky_mapping.glsl")))
+            .Replace("@import \"./atmosphere_aerial_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_aerial_mapping.glsl")));
+        string source = header + "\n" + aerial + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl")) + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_environment.glsl")).Replace("@import \"./pbr_common.glsl\"", "") + "\n"
-            + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl")).Replace("@import \"./pbr_environment.glsl\"", "")
+            + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl")).Replace("@import \"./pbr_environment.glsl\"", "").Replace("@import \"./atmosphere_aerial.glsl\"", "")
             + $"\nvoid main() {{ outColor = vec4(VgeForwardSurface(vec3(0.2,0.4,0.6), {(scenario == 3 ? "vec3(1,0,0)" : "vec3(0,0,1)")}, vec3(0.5,0,{(scenario is 1 or 9 or 15 ? "2.0" : "0.0")}), 0.0), 0.37); }}";
         int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
         int fragment = Compile(ShaderType.FragmentShader, source);
@@ -87,6 +92,14 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GL.Uniform3(GL.GetUniformLocation(program, "pointLights[0]"), 0f, 0f, 0f);
             GL.Uniform3(GL.GetUniformLocation(program, "pointLightColors[0]"), 1f, 1f, 1f);
             GL.Uniform1(GL.GetUniformLocation(program, "shadowMapFar"), 0);
+            using var atmosphereOwner = new AtmosphereModSystem();
+            float[] scatter = scenario is 12 or 13 ? [.04f,.09f,.16f,1f] : [0f,0f,0f,1f];
+            atmosphereOwner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f,0f,0f,1f))
+                { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>new[]{0f,0f,0f,1f})) });
+            using var radianceBinding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
+            using var attenuationBinding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
+            GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialRadiance"),11);
+            GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialAttenuation"),12);
             using var framework = new ShaderTestFramework();
             using var depth = Texture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
             // The generic float uploader assumes color channels; explicitly initialize the depth comparison input.
@@ -103,7 +116,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
                 float linear = (channel + 1) * .2f * irradiance;
                 if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * .35f * (.96f * (channel + 1) * .2f + .02f);
                 if (scenario == 10) linear = (channel + 1) * .2f * (.3f + channel * .2f) / MathF.PI;
-                if (scenario == 12) linear = (.2f + channel * .1f) * (1 - MathF.Exp(-.2f * (channel + 1)));
+                if (scenario == 12) linear = new[]{.04f,.09f,.16f}[channel];
                 float mapped = linear / (1f + linear);
                 float expected = mapped <= .0031308f ? 12.92f * mapped : 1.055f * MathF.Pow(mapped, 1f / 2.4f) - .055f;
                 Assert.InRange(actual[channel], expected - .0001f, expected + .0001f);

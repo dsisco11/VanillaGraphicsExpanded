@@ -45,7 +45,14 @@ internal sealed class PbrCompositeProgramLayout : GpuProgramLayout
     public void BindGBufferNormal(int programId, int textureId, Action<string>? warn)
         => TryBindSamplerTextureActive(programId, "gBufferNormal", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
 
-    /// <summary>Binds the standalone light-availability attachment only when present in the selected variant.</summary>
+    /// <summary>Binds environment lighting and the sky availability required by aerial transport in both modes.</summary>
     public void BindEnvironment(int programId, int textureId, Action<string>? warn)
         => TryBindSamplerTextureActive(programId, "gBufferEnvironment", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
+
+    /// <summary>Binds the coherently published finite-path pair using each texture's angular wrap and distance clamp.</summary>
+    internal void BindAerial(int programId, int radiance, int attenuation, Action<string>? warn)
+    {
+        TryBindSamplerTextureActive(programId, "vge_atmosphereAerialRadiance", TextureTarget.Texture3D, radiance, 0, warn);
+        TryBindSamplerTextureActive(programId, "vge_atmosphereAerialAttenuation", TextureTarget.Texture3D, attenuation, 0, warn);
+    }
 }

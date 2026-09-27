@@ -17,6 +17,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     private const int OffsetFogFloats = 144;         // vec4 at 144 (fogDensity, fogMin, 0, 0)
     private const int OffsetIndirectTintIntensity = 160; // vec4 at 160 (tint.rgb, intensity)
     private const int OffsetAOStrengths = 176;       // vec4 at 176 (diffuseAO, specularAO, 0, 0)
+    private bool underwater;
     // Total: 192 bytes
 
     public PbrCompositeParamsUbo() : base(224)
@@ -47,14 +48,20 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 
     #region Fog
 
-    /// <summary>Publishes a matching horizon source and per-metre extinction; null retains the engine-only fog path.</summary>
+    /// <summary>Publishes coordinates from the same generation as the bound finite-path volumes.</summary>
     public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
-        var horizon = lighting?.Horizon ?? Vector3.Zero;
-        var extinction = lighting?.Extinction ?? Vector3.Zero;
-        UboPacking.WriteVec4(DataWritable, 192, horizon.X, horizon.Y, horizon.Z, 0f);
-        UboPacking.WriteVec4(DataWritable, 208, extinction.X, extinction.Y, extinction.Z, 0f);
+        UboPacking.WriteVec4(DataWritable, 192, lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 0);
+        UboPacking.WriteVec4(DataWritable, 208, 0, 0, 0, 0);
         MarkDirty(192, 32);
+    }
+
+    /// <summary>Restricts legacy engine fog to the underwater medium, independently of atmospheric availability.</summary>
+    internal void SetUnderwater(bool value)
+    {
+        underwater = value;
+        System.Runtime.InteropServices.MemoryMarshal.Write(DataWritable.Slice(OffsetFogFloats + 8, 4), value ? 1f : 0f);
+        MarkDirty(OffsetFogFloats + 8, 4);
     }
 
     public Vector4 RgbaFogIn
@@ -70,7 +77,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetFogFloats, value.fogDensity, value.fogMin, 0f, 0f);
+            UboPacking.WriteVec4(DataWritable, OffsetFogFloats, value.fogDensity, value.fogMin, underwater ? 1f : 0f, 0f);
             MarkDirty(OffsetFogFloats, 16);
         }
     }

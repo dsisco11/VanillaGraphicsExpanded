@@ -204,6 +204,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.FogDensityIn = capi.Render.FogDensity;
         shader.FogMinIn = capi.Render.FogMin;
         shader.SetAtmosphere(AtmosphereModSystem.Lighting);
+        shader.SetUnderwater(capi.Render.ShaderUniforms.CameraUnderwater > .7f);
 
         // The published LumOn gather output already includes intensity and tint.
         // Composition applies receiver material response without scaling that signal twice.

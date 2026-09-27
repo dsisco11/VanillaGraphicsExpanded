@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Numerics;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
-using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
@@ -15,9 +13,11 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     private ICoreClientAPI? api;
     private AtmosphereBackend? computation;
     private AtmosphereSeasonInputs seasonInputs = new();
-    private DynamicTexture2D? sky;
+    private AtmosphereTextureSet? textures, stagingTextures;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
+    internal static int AerialRadianceTextureId { get; private set; }
+    internal static int AerialAttenuationTextureId { get; private set; }
     public double RenderOrder => -.5;
     public int RenderRange => 1;
 
@@ -38,10 +38,10 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>Releases the last world's snapshot and owned GPU texture.</summary>
     private void Reset()
     {
-        Lighting = null; SkyTextureId = 0;
+        Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
         seasonInputs = new();
         computation?.Dispose(); computation = api is null ? null : new(api);
-        sky?.Dispose(); sky = null;
+        textures?.Dispose(); stagingTextures?.Dispose(); textures = null; stagingTextures = null;
     }
 
     /// <summary>Invalidates pending shader generations while keeping the last complete display snapshot.</summary>
@@ -86,27 +86,19 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>Uploads a completed lookup before swapping dimensions and lighting visible to consumers.</summary>
     internal void Publish(AtmosphereLighting ready)
     {
-        bool replace = sky is null || sky.Width != ready.Width || sky.Height != ready.Height;
-        var target = replace
-            ? DynamicTexture2D.Create(ready.Width, ready.Height, PixelInternalFormat.Rgba16f, debugName: "Atmosphere.Sky")
-            : sky!;
-        try
+        if (stagingTextures is null || !stagingTextures.Matches(ready))
         {
-            target.DisableMipmaps();
-            target.SetTexFilter(TextureMinFilter.Linear, TextureMagFilter.Linear);
-            target.SetTexWrap(TextureWrapMode.Repeat, TextureWrapMode.ClampToEdge);
-            target.UploadData(ready.Sky.AsSpan().ToArray());
+            stagingTextures?.Dispose(); stagingTextures = null;
+            stagingTextures = new(ready);
         }
-        catch
-        {
-            if (replace) target.Dispose();
-            throw;
-        }
-        var previous = sky;
-        sky = target;
-        // Publication follows the upload; consumers never see new illumination with the previous lookup.
-        SkyTextureId = sky.TextureId; Lighting = ready;
-        if (replace) previous?.Dispose();
+        stagingTextures.Upload(ready);
+        // A failed upload leaves every published texture and its lighting unchanged.
+        // Reuse two complete sets rather than allocating textures on every sun update.
+        (textures, stagingTextures) = (stagingTextures, textures);
+        SkyTextureId = textures.Sky.TextureId;
+        AerialRadianceTextureId = textures.Radiance.TextureId;
+        AerialAttenuationTextureId = textures.Attenuation.TextureId;
+        Lighting = ready;
     }
     #endregion
 }

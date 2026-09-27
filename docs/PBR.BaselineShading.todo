@@ -300,12 +300,16 @@ Tasks
       - Completed: scoped engine solar draw, finite-disk attenuation and coherent published solar
         direction across lighting consumers. 199 distinct Release tests passed; five optional
         measurements skipped. Engine audit, approximation limits and validation: PBR.Atmosphere.SolarDisk.md.
-    ☐ Replace homogeneous atmospheric haze with direction-, distance- and altitude-aware aerial perspective.
+    ☑ Replace homogeneous atmospheric haze with direction-, distance- and altitude-aware aerial perspective.
       - Build on the scattering/transmittance model to evaluate in-scattered radiance and extinction
         along the camera-to-surface segment, with explicit bounded storage and update costs.
       - Integrate deferred and forward consumers in both PBR modes; preserve interior visibility,
         avoid duplicate engine fog, and define transparent-surface treatment and resource ownership.
       - Validate terrain-to-sky continuity, elevated views, near/far receivers and lighting changes.
+      - Implementation: paired finite-path radiance/attenuation LUTs shared by CPU/GPU generation
+        and deferred/forward rendering. Contract, bounded costs and validation evidence:
+        PBR.Atmosphere.AerialPerspective.md. 218 distinct Release tests passed; four optional
+        measurements skipped. Marked complete at user direction; no live visual verification claimed.
     ☐ Unify sky, sun and terrain exposure and tone mapping.
       - Audit existing display conversions and establish one shared exposure/display contract across
         sky, celestial and surface paths; preserve bright-sky colors without independent sky-only tuning.

@@ -292,12 +292,10 @@ catalog rebuilt successfully. No live game verification was performed.
   part of the production `SurfaceLightingDispatch` path.
 
 Attachment 7 alpha now records local sky visibility. RGB retains the existing environment contract.
-Forward and deferred composition use the same local extinction and horizon source for a homogeneous
-Beer-Lambert aerial-perspective approximation based on receiver distance in metres. Sky visibility
-gates its in-scattered source so sealed interiors gain no new sky haze. Engine fog is retained as a
-separate artistic/local effect after this term; atmosphere is applied once before display conversion.
-This approximation does not integrate changing altitude along long receiver rays or trace shadowed
-participating media. It is not a volumetric fog solution.
+Forward and deferred composition now share finite camera-to-surface transport indexed by
+direction and distance, with altitude-dependent integration. See
+[aerial perspective](PBR.Atmosphere.AerialPerspective.md) for sampling, interior visibility,
+water/transparent treatment, resource ownership and approximation limits.
 
 ## Validation
 

@@ -88,6 +88,15 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram
     internal void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
         Params.SetAtmosphere(lighting);
+        Layout.BindAerial(ProgramId, ModSystems.AtmosphereModSystem.AerialRadianceTextureId,
+            ModSystems.AtmosphereModSystem.AerialAttenuationTextureId, LayoutWarn);
+        UploadAndBindParamsUbo();
+    }
+
+    /// <summary>Selects engine underwater fog without applying it again to atmospheric air.</summary>
+    internal void SetUnderwater(bool underwater)
+    {
+        Params.SetUnderwater(underwater);
         UploadAndBindParamsUbo();
     }
 

@@ -63,12 +63,12 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
         baseColor, metallic, roughness, dot(N, V));
     #endif
     vec3 radiance = diffuse + specular + localDiffuse + baseColor * max(material.b, 0.0);
-    // Atmospheric resources are valid before drawing.
-    {
-        vec3 transmission = exp(-vge_atmosphereExtinction * length(vge_viewPosition));
-        radiance = radiance * transmission + vge_atmosphereHorizon * (1.0 - transmission) * vge_skyVisibility;
-    }
-    radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
+    // Atmosphere owns air transport. Retain the engine's separate underwater medium,
+    // but do not blend its distance haze over the atmospheric result a second time.
+    if (vge_atmosphereAerialParams.z > .7)
+        radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
+    else
+        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xy);
     // Primary/OIT currently blend display-space colors. Full scene-linear blending is separately owned.
     return VgeResolveDisplay(radiance);
 }

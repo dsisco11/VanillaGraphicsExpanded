@@ -11,12 +11,11 @@ internal enum AtmosphereBindings
     None = 0,
     Environment = 1,
     Solar = 2,
-    Horizon = 4,
-    Extinction = 8,
     Sky = 16,
     SkyMapping = 32,
     SunDisk = 64,
-    SunDirection = 128
+    SunDirection = 128,
+    Aerial = 256
 }
 
 /// <summary>Stores the active atmospheric interface once per linked engine program.</summary>
@@ -33,10 +32,10 @@ internal static class AtmosphereProgramBindings
     {
         "sky" => AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping,
         "chunkopaque" or "chunktopsoil" => AtmosphereBindings.Environment,
-        "standard" => AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon
-            | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk,
+        "standard" => AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial
+            | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk,
         "entityanimated" or "instanced" or "chunktransparent" =>
-            AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection,
+            AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection,
         _ => AtmosphereBindings.None
     };
 
@@ -47,8 +46,8 @@ internal static class AtmosphereProgramBindings
         var active = AtmosphereBindings.None;
         if ((expected & AtmosphereBindings.Environment) != 0 && hasUniform("vge_atmosphereEnvironment")) active |= AtmosphereBindings.Environment;
         if ((expected & AtmosphereBindings.Solar) != 0 && hasUniform("vge_atmosphereSolar")) active |= AtmosphereBindings.Solar;
-        if ((expected & AtmosphereBindings.Horizon) != 0 && hasUniform("vge_atmosphereHorizon")) active |= AtmosphereBindings.Horizon;
-        if ((expected & AtmosphereBindings.Extinction) != 0 && hasUniform("vge_atmosphereExtinction")) active |= AtmosphereBindings.Extinction;
+        if ((expected & AtmosphereBindings.Aerial) != 0 && hasUniform("vge_atmosphereAerialParams")
+            && hasUniform("vge_atmosphereAerialRadiance") && hasUniform("vge_atmosphereAerialAttenuation")) active |= AtmosphereBindings.Aerial;
         if ((expected & AtmosphereBindings.Sky) != 0 && hasUniform("vge_atmosphereSky")) active |= AtmosphereBindings.Sky;
         if ((expected & AtmosphereBindings.SkyMapping) != 0 && hasUniform("vge_atmosphereLutHorizon")) active |= AtmosphereBindings.SkyMapping;
         if ((expected & AtmosphereBindings.SunDirection) != 0 && hasUniform("vge_atmosphereSunDirection")) active |= AtmosphereBindings.SunDirection;

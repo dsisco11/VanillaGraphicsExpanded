@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 internal sealed class AtmosphereGpuComputation : IDisposable
 {
     internal const int CellsPerDispatch = 64;
-    internal const int MaximumOutputBytes = (128 * 96 + 4) * 16;
+    internal const int MaximumOutputBytes = (128 * 96 * (1 + 2 * AtmosphereAerialPerspective.Depth) + 4) * 16;
     private readonly GpuComputePipeline scattering, sky, lighting;
     private readonly GpuShaderStorageBuffer parameters, source;
     private readonly GpuQueue<Vector4> output;
@@ -140,7 +140,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
                 return;
             }
             sourceKey = (request.Weather, request.Quality, request.Albedo);
-            int countOutput = request.Width * request.Height + 4;
+            int countOutput = request.Width * request.Height * (1 + 2 * AtmosphereAerialPerspective.Depth) + 4;
             // GpuQueue owns allocation/submission; every output record is overwritten by the two producers.
             output.PrepareGpuWrite(countOutput);
             output.Buffer.BindBase(2);
@@ -163,10 +163,14 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         foreach (var value in values)
             if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Z))
                 throw new InvalidOperationException("Atmospheric GPU transport produced nonfinite radiance.");
+        int count = request.Width * request.Height, aerialCount = count * AtmosphereAerialPerspective.Depth;
         return new(request.Sun, new(values[0].X, values[0].Y, values[0].Z),
             new(values[1].X, values[1].Y, values[1].Z), new(values[2].X, values[2].Y, values[2].Z),
-            new(values[3].X, values[3].Y, values[3].Z), ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values[4..])))
-            { Width = request.Width, Height = request.Height, HorizonElevation = AtmosphereSkyMapping.Horizon(request.Altitude) };
+            new(values[3].X, values[3].Y, values[3].Z), ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4, count))))
+            { Width = request.Width, Height = request.Height, HorizonElevation = AtmosphereSkyMapping.Horizon(request.Altitude),
+                Altitude = Math.Clamp(request.Altitude, .001f, 99f),
+                AerialRadiance = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + count, aerialCount))),
+                AerialAttenuation = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + count + aerialCount, aerialCount))) };
     }
     #endregion
 

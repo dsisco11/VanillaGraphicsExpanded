@@ -45,6 +45,7 @@ internal static class PbrSurfaceShaderPatches
             @import "./includes/pbr_common.glsl"
             @import "./includes/pbr_environment.glsl"
             @import "./includes/pbr_direct_brdf.glsl"
+            @import "./includes/atmosphere_aerial.glsl"
             {terrainImports}@import "./includes/pbr_forward_surface.glsl"
 
             """).Commit();
@@ -68,8 +69,7 @@ internal static class PbrSurfaceShaderPatches
         uniform vec3 vge_atmosphereEnvironment;
         uniform vec3 vge_atmosphereSolar;
         uniform vec3 vge_atmosphereSunDirection;
-        uniform vec3 vge_atmosphereHorizon;
-        uniform vec3 vge_atmosphereExtinction;
+        uniform vec3 vge_atmosphereAerialParams;
 
         """;
         if (vertex)

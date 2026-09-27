@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Publication lifetime
-    /// <summary>Same-size updates reuse storage; dimension changes retire it only after uploading the replacement.</summary>
+    /// <summary>Complete generations swap independent texture sets and retire incompatible spare storage.</summary>
     [Fact]
     public void CompletedDimensionsControlTextureReplacement()
     {
@@ -30,18 +30,39 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         owner.Publish(lookup.Current!);
         int first = AtmosphereModSystem.SkyTextureId;
         Assert.NotEqual(initial, first);
-        Assert.False(GL.IsTexture(initial));
+        Assert.True(GL.IsTexture(initial));
         AssertTexture(lookup.Current!);
         lookup.Update(Vector3.UnitY, 0, 1, complete: true, width: 16, height: 8);
         owner.Publish(lookup.Current!);
-        Assert.Equal(first, AtmosphereModSystem.SkyTextureId);
+        Assert.NotEqual(first, AtmosphereModSystem.SkyTextureId);
         AssertTexture(lookup.Current!);
+        int second = AtmosphereModSystem.SkyTextureId;
         lookup.Update(Vector3.UnitY, 0, 1, complete: true, width: 17, height: 9);
         owner.Publish(lookup.Current!);
-        Assert.NotEqual(first, AtmosphereModSystem.SkyTextureId);
-        Assert.False(GL.IsTexture(first));
+        Assert.NotEqual(second, AtmosphereModSystem.SkyTextureId);
         AssertTexture(lookup.Current!);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>A malformed replacement cannot publish mismatched lighting or disturb the previous GPU generation.</summary>
+    [Fact]
+    public void FailedVolumeUploadRetainsPublishedGeneration()
+    {
+        EnsureContextValid();
+        using var owner = new AtmosphereModSystem();
+        var lookup = new AtmosphereLookup();
+        lookup.Update(Vector3.UnitY, 0, 0, width: 16, height: 8);
+        var previous = lookup.Current!;
+        owner.Publish(previous);
+        int sky = AtmosphereModSystem.SkyTextureId;
+        int radiance = AtmosphereModSystem.AerialRadianceTextureId;
+        int attenuation = AtmosphereModSystem.AerialAttenuationTextureId;
+        Assert.Throws<ArgumentException>(() => owner.Publish(previous with { AerialAttenuation = ImmutableArray<float>.Empty }));
+        Assert.Same(previous, AtmosphereModSystem.Lighting);
+        Assert.Equal(sky, AtmosphereModSystem.SkyTextureId);
+        Assert.Equal(radiance, AtmosphereModSystem.AerialRadianceTextureId);
+        Assert.Equal(attenuation, AtmosphereModSystem.AerialAttenuationTextureId);
+        AssertTexture(previous);
     }
 
     /// <summary>Reads driver allocation and contents to verify upload completed before shared publication.</summary>
@@ -57,6 +78,25 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
         for (int i = 0; i < pixels.Length; i++)
             Assert.InRange(Math.Abs(pixels[i] - snapshot.Sky[i]), 0, Math.Max(.00001f, snapshot.Sky[i] * .001f));
+        AssertVolume(AtmosphereModSystem.AerialRadianceTextureId, snapshot.AerialRadiance, snapshot);
+        AssertVolume(AtmosphereModSystem.AerialAttenuationTextureId, snapshot.AerialAttenuation, snapshot);
+    }
+
+    /// <summary>Verifies both cumulative transport volumes were fully uploaded with the published angular extent.</summary>
+    private static void AssertVolume(int id, ImmutableArray<float> expected, AtmosphereLighting snapshot)
+    {
+        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, id);
+        GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureWidth, out int width);
+        GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureHeight, out int height);
+        GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureDepth, out int depth);
+        Assert.Equal(expected.IsEmpty ? 1 : snapshot.Width, width);
+        Assert.Equal(expected.IsEmpty ? 1 : snapshot.Height, height);
+        Assert.Equal(expected.IsEmpty ? 1 : AtmosphereAerialPerspective.Depth, depth);
+        float[] pixels = new float[width * height * depth * 4];
+        GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+        if (expected.IsEmpty) Assert.Equal(new[] { 0f, 0f, 0f, 1f }, pixels);
+        else for (int i = 0; i < pixels.Length; i++)
+            Assert.InRange(Math.Abs(pixels[i] - expected[i]), 0, Math.Max(.00001f, expected[i] * .001f));
     }
     #endregion
 }

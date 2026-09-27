@@ -1,3 +1,7 @@
+using System.Collections.Immutable;
+using System.Numerics;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -33,6 +37,12 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var unused = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .1f, .2f, .3f, 1f });
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] {0f,0f,0f,skyVisibility});
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var atmosphereOwner = new AtmosphereModSystem();
+        float[] scatter = atmosphere ? [.2f,.3f,.4f,1f] : [0f,0f,0f,1f];
+        float[] loss = atmosphere ? [.5f,.6f,.7f,1f] : [0f,0f,0f,1f];
+        var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.One, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f,0f,0f,1f))
+        { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>loss)) };
+        atmosphereOwner.Publish(snapshot);
         output.BindWithViewport();
         using (program.UseScope())
         {
@@ -42,7 +52,8 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             program.PrimaryDepth = depth.TextureId;
             program.GBufferEnvironment = environment.TextureId;
             program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1];
-            program.SetAtmosphere(atmosphere ? new(System.Numerics.Vector3.UnitY, new(1), new(0), new(.2f,.3f,.4f), new(.001f,.002f,.003f), []) : null);
+            program.SetAtmosphere(snapshot);
+            program.SetUnderwater(fog > 0);
             program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             program.FogDensityIn = 0; program.FogMinIn = fog; program.RgbaFogIn = new(.5f, .25f, .125f, 1);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.FramebufferSrgb);
@@ -53,8 +64,8 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         float[] fogColor = [.5f, .25f, .125f];
         for (int channel = 0; channel < 3; channel++)
         {
-            float transmission = atmosphere ? MathF.Exp(-(channel + 1)) : 1;
-            float expected = (light[channel] * transmission + (.2f + channel * .1f) * (1 - transmission) * skyVisibility) * (1 - fog) + Linear(fogColor[channel]) * fog;
+            float transmission = 1 - loss[channel] * skyVisibility;
+            float expected = (light[channel] * transmission + scatter[channel] * skyVisibility) * (1 - fog) + Linear(fogColor[channel]) * fog;
             Assert.InRange(actual[channel], expected - .004f, expected + .004f);
         }
         Assert.True(actual[0] > 1);

@@ -15,6 +15,15 @@ public sealed class AtmosphereComputationTests
         Assert.True(lookup.Update(Vector3.UnitY, 1, .2f, width: 33, height: 25));
         Assert.Equal(33 * 25 * 4, lookup.Current!.Sky.Length);
         for (int pixel = 0; pixel < 33 * 25; pixel++) Assert.Equal(1f, lookup.Current.Sky[pixel * 4 + 3]);
+        int layer = lookup.Current.Sky.Length;
+        Assert.Equal(layer * AtmosphereAerialPerspective.Depth, lookup.Current.AerialRadiance.Length);
+        for (int value = 0; value < layer; value++)
+        {
+            Assert.Equal(value % 4 == 3 ? 1f : 0f, lookup.Current.AerialRadiance[value]);
+            Assert.Equal(value % 4 == 3 ? 1f : 0f, lookup.Current.AerialAttenuation[value]);
+            float terminal = lookup.Current.AerialRadiance[(AtmosphereAerialPerspective.Depth - 1) * layer + value];
+            Assert.InRange(Math.Abs(terminal - lookup.Current.Sky[value]), 0, 1e-6f);
+        }
     }
 
     /// <summary>Admission never publishes synchronously; the completed immutable result matches a full lookup.</summary>
@@ -32,6 +41,9 @@ public sealed class AtmosphereComputationTests
         var expected = new AtmosphereLookup();
         expected.Update(Vector3.UnitY, 1, .2f, width: 33, height: 25);
         Assert.Equal(expected.Current!.Sky.ToArray(), completed.Sky.ToArray());
+        Assert.Equal(expected.Current.AerialRadiance.ToArray(), completed.AerialRadiance.ToArray());
+        Assert.Equal(expected.Current.AerialAttenuation.ToArray(), completed.AerialAttenuation.ToArray());
+        Assert.Equal(expected.Current.Altitude, completed.Altitude);
         Assert.Equal(expected.Current.Environment, completed.Environment);
         Assert.Equal(expected.Current.Horizon, completed.Horizon);
         Assert.Equal(expected.Current.Solar, completed.Solar);

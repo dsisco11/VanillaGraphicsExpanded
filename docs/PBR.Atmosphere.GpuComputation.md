@@ -2,7 +2,7 @@
 
 `AtmosphereBackend` selects compute once per world/shader generation. Admission uses `GpuSupport`:
 compute shaders, SPIR-V ingestion, shader-storage buffers, at least 64 invocations and X workgroup
-size, 192 X workgroups, three SSBO bindings, and a 196672-byte storage block. Shared scratch uses
+size, 192 X workgroups, three SSBO bindings, and a 9633856-byte storage block. Shared scratch uses
 two arrays of 64 `vec3` values, below the compute specification's minimum shared-memory allowance.
 Unsupported devices retain the asynchronous TensorPrimitives CPU implementation. Initialization or
 execution failure logs its cause once and switches that owner to CPU, retaining the previous display.
@@ -18,7 +18,8 @@ contracts, `GpuComputePipeline`, `GpuShaderStorageBuffer`, `GpuFence`, and `GpuQ
   at most 64 cells and only after the previous batch fence signals. Quality budgets and the uniform
   ground reflectance supplied by the seasonal approximation match the CPU reference.
 - `atmosphere_sky.csh`: one invocation per sky texel, using the completed table with the same squared
-  altitude interpolation, 24 view segments and 12 solar segments as CPU transport.
+  altitude interpolation, 24 sky view segments and 12 solar segments as CPU transport. It also
+  builds the paired 24-layer finite-path volumes with at most 46 additional view samples per ray.
 - `atmosphere_lighting.csh`: row-major reduction of that sky into environment and horizon illumination,
   plus direct solar irradiance and local extinction. The small reduction is serial to retain CPU ordering.
 
@@ -36,17 +37,15 @@ at 1/65536 to resolve finite-disk horizon transitions, altitude at 25 metres and
 admitted, avoiding starvation from continuously changing inputs. Completed source storage is private
 to the backend. Dimensions, sun, medium and quality cannot mix across its dependent passes.
 
-After the final fence signals, `GpuQueue` maps the bounded output containing four lighting vectors and
-the sky. The owner copies it into the existing immutable `AtmosphereLighting` snapshot. The existing
-render publication uploads its sky before exposing the matching lighting and texture ID. This retains
-CPU consumers and existing publication tests; it deliberately includes a small GPU-to-CPU readback
-and sky re-upload, rather than adding a second texture-ownership contract. Neither partial source
-tables nor incomplete output reaches the display. Until completion the prior snapshot stays active.
+After the final fence signals, `GpuQueue` maps four lighting vectors, sky radiance and paired
+finite-path radiance/attenuation volumes into one immutable snapshot. Publication uploads a spare
+sky/volume texture set before exposing all matching IDs and lighting. Failed uploads retain the
+previous complete generation. Readback and re-upload remain part of this ownership path.
 
-Maximum GPU buffer payload is 327808 bytes: 64-byte parameters, 131072-byte source table and
-196672-byte output. Driver/program storage is additional. The queue reserves output without a CPU upload; each
-completed snapshot owns one immutable CPU sky array (up to 196608 bytes). The displayed RGBA16F
-sky texture is additional. There is no persistent per-ray transfer array.
+Maximum GPU buffer payload is 9764992 bytes: 64-byte parameters, 131072-byte source table and
+9633856-byte output. Driver/program storage, immutable CPU snapshots and two RGBA16F display sets
+are additional. See [aerial perspective](PBR.Atmosphere.AerialPerspective.md) for detailed bounds.
+Historical measurements below precede finite-path volume construction and do not describe its cost.
 
 Shader reload disposes the pending backend and its programs, preserving the displayed sky and
 lighting until a new generation completes. World teardown also clears the displayed resources and

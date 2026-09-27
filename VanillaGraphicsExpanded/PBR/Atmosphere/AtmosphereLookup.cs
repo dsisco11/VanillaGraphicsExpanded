@@ -11,6 +11,9 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal int Width { get; init; } = AtmosphereLookup.DefaultWidth;
     internal int Height { get; init; } = AtmosphereLookup.DefaultHeight;
     internal float HorizonElevation { get; init; }
+    internal float Altitude { get; init; } = .001f;
+    internal ImmutableArray<float> AerialRadiance { get; init; } = ImmutableArray<float>.Empty;
+    internal ImmutableArray<float> AerialAttenuation { get; init; } = ImmutableArray<float>.Empty;
 }
 
 /// <summary>Integrates complete atmospheric snapshots, with optional bounded stepping for callers that need it.</summary>
@@ -123,9 +126,11 @@ internal sealed class AtmosphereLookup
             horizon += Vector3.Lerp(new(staging[a], staging[a + 1], staging[a + 2]),
                 new(staging[b], staging[b + 1], staging[b + 2]), horizontalRow - lower) / width;
         }
+        var aerial = AtmosphereAerialVolume.Build(sun, altitude, aerosol, width, height, staging, multipleScattering, cancellationToken);
         Current = new(sun, AtmosphereModel.SolarIrradiance(sun, altitude, aerosol), environment, horizon,
             AtmosphereModel.LocalExtinction(altitude, aerosol), ImmutableArray.CreateRange(staging))
-            { Width = width, Height = height, HorizonElevation = horizonElevation };
+            { Width = width, Height = height, HorizonElevation = horizonElevation, Altitude = altitude,
+                AerialRadiance = aerial.Radiance, AerialAttenuation = aerial.Attenuation };
         completedKey = buildingKey; buildingKey = null; Revision++;
         return true;
     }

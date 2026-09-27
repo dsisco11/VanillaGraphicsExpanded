@@ -1,6 +1,7 @@
 #version 430
 @import "./includes/atmosphere_transport.glsl"
 @import "./includes/atmosphere_sky_mapping.glsl"
+@import "./includes/atmosphere_aerial_mapping.glsl"
 layout(local_size_x = 64) in;
 layout(std430, binding = 1) readonly buffer AtmosphereScattering { vec4 sources[]; };
 layout(std430, binding = 2) buffer AtmosphereOutput { vec4 outputValues[]; };
@@ -47,4 +48,35 @@ void main()
         optical += extinction * (end - start);
     }
     outputValues[index + 4] = vec4(max(vec3(0.0), radiance * atmSolar), 1.0);
+    // Cumulative finite paths share the admitted medium/source table. Each interval
+    // integrates two locally constant samples analytically, with fixed work per ray.
+    int count = width * height, base = 4 + count, transBase = base + count * vgeAerialDepth;
+    vec3 throughput = vec3(1.0), aerial = vec3(0.0);
+    outputValues[base + index] = vec4(0.0, 0.0, 0.0, 1.0);
+    outputValues[transBase + index] = vec4(0.0, 0.0, 0.0, 1.0);
+    float previous = 0.0;
+    for (int slice = 1; slice < vgeAerialDepth; ++slice)
+    {
+        float end = vgeAerialDistance(slice, distance), step = (end - previous) * .5;
+        for (int sampleIndex = 0; sampleIndex < 2 && step > 0.0; ++sampleIndex)
+        {
+            vec3 p = origin + direction * (previous + (float(sampleIndex) + .5) * step);
+            float radius = length(p);
+            vec3 density = atmDensity(max(0.0, radius - atmGround));
+            vec3 extinction = atmExtinction(density);
+            vec3 source = atmTransmission(p, sun, 12)
+                * (atmRayleigh * (density.x * rayleighPhase) + vec3(.003996 * mediumSize.x * density.y * miePhase));
+            source += atmScattering(density) * atmSampleSource(radius - atmGround, dot(p, sun) / radius);
+            vec3 integral = vec3(atmSegment(extinction.x, step), atmSegment(extinction.y, step), atmSegment(extinction.z, step));
+            aerial += throughput * source * integral;
+            throughput *= exp(-extinction * step);
+        }
+        outputValues[base + slice * count + index] = vec4(max(vec3(0.0), aerial * atmSolar), 1.0);
+        outputValues[transBase + slice * count + index] = vec4(vec3(1.0) - throughput, 1.0);
+        previous = end;
+    }
+    // Align terminal source quadrature with the sky; extinction remains the finite-path integral.
+    vec3 scale = outputValues[index + 4].rgb / max(aerial * atmSolar, vec3(1e-20));
+    for (int slice = 1; slice < vgeAerialDepth; ++slice)
+        outputValues[base + slice * count + index].rgb *= scale;
 }

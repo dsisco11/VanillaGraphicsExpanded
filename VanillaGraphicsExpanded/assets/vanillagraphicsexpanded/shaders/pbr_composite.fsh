@@ -14,6 +14,7 @@ out vec4 outColor;
 @import "./includes/lumon_pbr.glsl"
 @import "./includes/pbr_color.glsl"
 @import "./includes/pbr_environment.glsl"
+@import "./includes/atmosphere_aerial.glsl"
 
 // Import global defines (feature toggles with defaults)
 @import "./includes/vge_global_defines.glsl"
@@ -123,15 +124,15 @@ void main(void)
 
     finalColor = max(finalColor, vec3(0.0));
 
-    // Atmospheric extinction is supplied for every scene draw.
+    vec3 receiverVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    if (vgePbrCompositeParams.fogFloats0.z > .5)
     {
-        float distanceMetres = length(lumonReconstructViewPos(uv, depth, invProjectionMatrix));
-        vec3 transmission = exp(-vgePbrCompositeParams.atmosphereExtinction.rgb * distanceMetres);
-        finalColor = finalColor * transmission + vgePbrCompositeParams.atmosphereHorizon.rgb * (1.0 - transmission) * clamp(texture(gBufferEnvironment, uv).a, 0.0, 1.0);
+        float fogAmount = clamp(fogMinIn + 1.0 - exp(-length(receiverVS) * fogDensityIn), 0.0, 1.0);
+        finalColor = mix(finalColor, VgeSrgbToLinear(rgbaFogIn.rgb), fogAmount);
     }
-
-    float fogAmount = clamp(fogMinIn + 1.0 - 1.0 / exp(depth * fogDensityIn), 0.0, 1.0);
-    finalColor = mix(finalColor, VgeSrgbToLinear(rgbaFogIn.rgb), fogAmount);
+    else
+        finalColor = VgeApplyAerial(finalColor, transpose(mat3(viewMatrix)) * receiverVS,
+            texture(gBufferEnvironment, uv).a, vgePbrCompositeParams.atmosphereAerial.xy);
 
     outColor = vec4(finalColor, 1.0);
 }
