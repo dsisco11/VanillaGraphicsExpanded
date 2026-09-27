@@ -85,7 +85,7 @@ public sealed class AtmosphereComputationTests
     public async Task DisposalPreventsFurtherAdmissionAndPublication()
     {
         var computation = new AtmosphereComputation();
-        computation.Update(Vector3.UnitY, 0, 0, 256, 192);
+        computation.Update(Vector3.UnitY, 0, 0, 128, 96);
         var task = computation.Pending!;
         computation.Dispose();
         computation.Dispose();

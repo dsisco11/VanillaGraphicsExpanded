@@ -13,7 +13,7 @@ internal static partial class AtmosphereModel
     #region Batched integration
     /// <summary>Evaluates independent sky directions with bounded scratch storage and scalar-compatible integration order.</summary>
     internal static void RadianceBatch(ReadOnlySpan<Vector3> directions, Vector3 sun, float altitudeKm,
-        float aerosol, Span<Vector3> destination)
+        float aerosol, Span<Vector3> destination, AtmosphereMultipleScattering? multipleScattering = null)
     {
         if (destination.Length < directions.Length) throw new ArgumentException("Destination is too short.", nameof(destination));
         sun = Vector3.Normalize(sun);
@@ -22,13 +22,13 @@ internal static partial class AtmosphereModel
         for (int offset = 0; offset < directions.Length; offset += BatchCapacity)
         {
             int count = Math.Min(BatchCapacity, directions.Length - offset);
-            IntegrateBatch(directions.Slice(offset, count), sun, origin, aerosol, destination.Slice(offset, count));
+            IntegrateBatch(directions.Slice(offset, count), sun, origin, aerosol, destination.Slice(offset, count), multipleScattering);
         }
     }
 
     /// <summary>Compacts visible sunlight samples, vectorizes their transcendental math, then accumulates each ray in order.</summary>
     private static void IntegrateBatch(ReadOnlySpan<Vector3> directions, Vector3 sun, Vector3 origin,
-        float aerosol, Span<Vector3> result)
+        float aerosol, Span<Vector3> result, AtmosphereMultipleScattering? multipleScattering)
     {
         int count = directions.Length, capacity = count * (LightSamples + 1);
         float[] rented = ArrayPool<float>.Shared.Rent(capacity * 5 + count * 6);
@@ -43,6 +43,7 @@ internal static partial class AtmosphereModel
             Span<Vector3> rays = stackalloc Vector3[count];
             Span<Vector3> optical = stackalloc Vector3[count];
             Span<Vector3> extinction = stackalloc Vector3[count];
+            Span<Vector3> indirect = stackalloc Vector3[count];
             Span<float> distances = stackalloc float[count];
             Span<float> steps = stackalloc float[count];
             Span<float> rayleighPhase = stackalloc float[count];
@@ -70,6 +71,11 @@ internal static partial class AtmosphereModel
                     steps[lane] = end - start;
                     Vector3 point = origin + rays[lane] * ((start + end) * .5f);
                     radii[lane] = point.LengthSquared();
+                    if (multipleScattering is not null)
+                    {
+                        float radius = MathF.Sqrt(radii[lane]);
+                        indirect[lane] = multipleScattering.Sample(radius - GroundRadius, Vector3.Dot(point, sun) / radius);
+                    }
                     lightOffsets[lane] = -1;
                     if (GroundDistance(point, sun) > 0) continue;
                     lightOffsets[lane] = samples;
@@ -133,6 +139,14 @@ internal static partial class AtmosphereModel
                     Vector3 scattering = Rayleigh * (molecular[lane] * rayleighPhase[lane])
                         + new Vector3(.003996f * aerosol * aerosols[lane] * miePhase[lane]);
                     result[lane] += transmittance * scattering * steps[lane];
+                    if (multipleScattering is not null)
+                    {
+                        // Isotropic incoming radiance already includes angular normalization.
+                        // Do not apply the direct-sun phase function or planet shadow to it again.
+                        Vector3 viewTransmission = new(transmission[index], transmission[index + 1], transmission[index + 2]);
+                        Vector3 totalScattering = Rayleigh * molecular[lane] + new Vector3(.003996f * aerosol * aerosols[lane]);
+                        result[lane] += viewTransmission * totalScattering * indirect[lane] * steps[lane];
+                    }
                     optical[lane] += extinction[lane] * steps[lane];
                 }
             }

@@ -55,15 +55,15 @@ internal static partial class AtmosphereModel
         Solar * Transmittance(new(0, GroundRadius + Math.Clamp(altitudeKm, .001f, 99f), 0), Vector3.Normalize(sun), aerosol);
 
     /// <summary>Integrates optical depth to space; a ray intercepted by the solid planet has zero transmission.</summary>
-    private static Vector3 Transmittance(Vector3 origin, Vector3 direction, float aerosol)
+    private static Vector3 Transmittance(Vector3 origin, Vector3 direction, float aerosol, int samples = LightSamples)
     {
         if (GroundDistance(origin, direction) > 0) return Vector3.Zero;
         float distance = Boundary(origin, direction, TopRadius);
         Vector3 optical = Vector3.Zero;
-        for (int i = 0; i < LightSamples; i++)
+        for (int i = 0; i < samples; i++)
         {
-            float start = distance * i * i / (LightSamples * LightSamples);
-            float end = distance * (i + 1) * (i + 1) / (LightSamples * LightSamples);
+            float start = distance * i * i / (samples * samples);
+            float end = distance * (i + 1) * (i + 1) / (samples * samples);
             optical += Extinction(Density(MathF.Max(0, (origin + direction * ((start + end) * .5f)).Length() - GroundRadius)), aerosol) * (end - start);
         }
         return ExpNegative(optical);

@@ -2,7 +2,8 @@
 
 ## Model and units
 
-`AtmosphereModel` integrates RGB single scattering in a spherical atmosphere. Geometry uses
+`AtmosphereModel` integrates RGB single scattering plus a LUT-based isotropic multiple-scattering
+approximation in a spherical atmosphere. Geometry uses
 kilometres: ground radius 6360 km, atmosphere top 6460 km; one game block is interpreted as one
 metre above the world's sea level. Underground viewpoints clamp to the ground atmosphere;
 altitudes above 99 km clamp below the atmosphere top. This is a local Earth-like model, not a
@@ -17,8 +18,8 @@ approximations, not a spectral or photometric calibration of the engine.
 
 The implementation follows the radiative-transfer decomposition described by
 [Bruneton's atmospheric scattering reference](https://ebruneton.github.io/precomputed_atmospheric_scattering/atmosphere/functions.glsl.html):
-Beer-Lambert extinction, directional scattering and planet occlusion. It implements only single
-scattering, not that reference's multiple-scattering solution. Rayleigh and aerosol scattering,
+Beer-Lambert extinction, directional scattering and planet occlusion. The multiple-scattering
+approximation below is distinct from Bruneton's higher-dimensional solution. Rayleigh and aerosol scattering,
 aerosol absorption, and ozone absorption contribute separately. The sun's direct transmission
 is zero when its ray intersects the planet; there is no below-horizon sunlight floor.
 
@@ -26,6 +27,102 @@ View integration uses 24 segments and solar optical-depth integration uses 12. Q
 spacing resolves the dense near-ground layer. Cloud coverage maps to aerosol multiplier 1–8;
 this is a bounded haze proxy for weather, not cloud-volume transport or geometric cloud shadows.
 Volumetric clouds remain a separate task.
+
+## Multiple scattering
+
+`AtmosphereMultipleScattering` builds an immutable table, initially 32 solar-cosine by 16 altitude samples, using
+128 equal-solid-angle sphere directions and 24 quadratically spaced ray segments per direction.
+Squared altitude coordinates concentrate resolution near the ground. The table stores incident
+radiance normalized by extraterrestrial solar irradiance. The shared quality level scales both
+dimensions linearly; its RGB payload ranges from 6 KiB to 96 KiB.
+
+| Quality | Sky LUT | Multiple-scattering LUT | Angular rays | Ray steps | Solar steps |
+| --- | --- | --- | ---: | ---: | ---: |
+| 0 | 32x24 | 32x16 | 128 | 24 | 12 |
+| 1 | 64x48 | 64x32 | 256 | 48 | 24 |
+| 2 | 96x72 | 96x48 | 384 | 72 | 36 |
+| 3 | 128x96 | 128x64 | 512 | 96 | 48 |
+
+`AtmosphereScatteringBudget` scales both LUT dimensions and integration counts using the base
+count multiplied by `(quality + 1)`, preserving the baseline at quality zero. Quality
+therefore improves interpolation and angular, ray and solar-transmittance integration accuracy.
+These budgets compound: the nested solar-integration work bound scales as
+`(quality + 1)^5` (up to 1024 times the default at quality 3), while table storage scales as `(quality + 1)^2`.
+This is an operation-count bound, not a measured time prediction; high settings can have very long
+worker latency in the current scalar implementation. SIMD table construction is a separate planned task.
+Builds remain asynchronous, retain the previous displayed LUT and check cancellation per angular ray.
+These integration budgets apply to source-table construction; the sky-view single-scattering kernel
+retains its existing 24 view and 12 sunlight steps.
+
+Linear-sampling validation passed all 15 focused quality tests in
+`artifacts/AtmosphereTensor/atmosphere-linear-quality.trx`, covering clamping, all four integration
+budgets on compact tables, cache replacement and asynchronous quality changes.
+
+Linear-dimension validation subsequently passed 85 focused atmosphere tests with three optional
+measurements skipped in `artifacts/AtmosphereTensor/atmosphere-linear-dimensions.trx`. Sky and
+multiple-scattering size expectations, quality clamps and maximum-dimension rejection use the new
+1x/2x/3x/4x policy; integration counts retain their linear scaling.
+
+Earlier integration-budget validation passed 85 focused Release tests, with three optional measurements skipped,
+in `artifacts/AtmosphereTensor/atmosphere-scattering-budgets-final.trx`. It checks policy/clamping,
+all quality integration budgets on compact 2x2 tables, solar-step refinement and bounds, cancellation,
+and full quality-1 cache replacement and asynchronous publication. Full quality-2/3 source-table
+construction was deliberately not run under the expanded budgets; their complete build latency is unmeasured.
+
+The earlier dimension-only shared-quality validation passed 77 focused Release atmosphere tests, with three optional measurement
+tests skipped, in `artifacts/AtmosphereTensor/atmosphere-scattering-quality.trx`. This constructs all
+four source-table sizes at normal quadrature, verifies sun-motion reuse and quality-only invalidation,
+and covers asynchronous quality admission, maximum-size cancellation and oversized-table rejection.
+
+The design follows the isotropic approximation in
+[Hillaire's atmosphere technique](https://sebh.github.io/publications/egsr2020.pdf).
+Each ray integrates two quantities: direct illumination scattered with an isotropic angular distribution,
+and the response to a unit isotropic incident field. Their sphere averages are a source S and feedback F.
+The table stores the geometric-series closure S/(1-F), separately for each color channel. Analytic
+constant-medium segment integration keeps scattering feedback bounded by extinction rather than
+using an unbounded source-times-distance estimate. A 1e-5 denominator floor guards roundoff.
+
+The planet boundary is a uniform Lambertian ground with albedo 0.1. Direct solar ground reflection
+contributes to S and reflection of isotropic illumination contributes to F. This is a global atmospheric
+boundary assumption, not a sample of game terrain or Surface Cache lighting. The visible sky integration
+does not separately draw that ground reflection, and direct solar irradiance remains unchanged.
+
+At each view sample the batch integrator looks up the source using local altitude and the sun's cosine
+relative to the local planetary normal. It multiplies by the local scattering coefficient and view
+transmittance, then adds it to the original directional single-scattering contribution. It does not apply
+the direct-sun angular distribution or planet-shadow mask to this indirect source again. Solar RGB is
+applied once at the end. Shared environment and horizon lighting integrate this same completed sky LUT.
+
+The worker retains one medium table and reuses it across observer and sun-direction changes.
+Its cache identity includes aerosol and both table dimensions; quality changes rebuild it before the
+matching sky is published. Aerosol uses the admitted 0.05 cloud-coverage bucket consistently for all transport, so
+sub-bucket cloud jitter during sun movement does not rebuild the medium table. Aerosol changes
+rebuild it before computing a matching sky; cancellation is checked between
+table cells and view batches. Only complete sky/lighting snapshots reach render-thread publication.
+This remains an RGB isotropic approximation with finite angular/spatial resolution, not a spectral or
+fully directional multiple-scattering solver. It does not add moonlight, clouds or terrain occlusion.
+
+Validation: 70 correctness cases passed across
+`artifacts/AtmosphereMultipleScattering/multiple-scattering-final.trx` (69) and
+`measurements-final.trx` (one additional weather-coherence case). Three opt-in measurement/diagnostic
+cases were skipped in the ordinary run. The refined reference uses 256 directions and 96 ray steps,
+covering aerosol 0.1/1/8, altitude 0/2/25/99 km and twilight/day solar angles. Comparisons use
+`1e-4 + 0.15 * reference` absolute-plus-relative tolerance per channel; this is a numerical convergence
+bound for the approximation, not a claim of that accuracy against physical measurements. The initial
+32-direction table failed high-altitude twilight, prompting the 128-direction budget. Tests also
+cover passive feedback bounds with white ground, darkness at night, ground reflection, cancellation,
+shared sky/environment contributions and unchanged direct solar/extinction. Independent review found
+no remaining normalization or worker/publication ownership defects. User-run visual acceptance remains open.
+
+Final worker-side timings in `measurements-final.trx` on .NET 10.0.12 with tiering disabled and no CPU
+affinity restriction were: source-table build median 361.069 ms (308.668–373.677), cached-medium
+32x24 sky 1.922 ms (1.894–2.367), and cached-medium 256x192 sky 128.315 ms (125.216–131.579).
+These measurements used the default 32x16 source table, including for the larger sky workload;
+they predate shared quality scaling. Startup, weather and quality changes now incur background
+precomputation; sun/observer changes reuse it. Matched 128-direction ABBA samples measured single scattering at 0.303/0.321 ms
+and multiple scattering at 0.328/0.333 ms, both with zero warmed managed allocations. These are CPU
+harness observations, not guaranteed frame costs. No GPU pass or texture allocation is added for the
+source table; existing sky upload and sampling consume the new values. GPU cost was not measured.
 
 ## CPU integration
 
@@ -69,8 +166,8 @@ These measurements cover the CPU integration kernel, not full LUT publication or
 ## Publication and rendering
 
 `AtmosphereLookup` builds a configurable lat-long radiance table (default 32 x 24).
-`AtmosphereComputation` admits one `Task.Run` build at a time. Each task owns its lookup and computes
-the entire table, including its shared lighting integrals, without yielding work across render frames.
+`AtmosphereComputation` admits one `Task.Run` build at a time. These serial tasks reuse one worker-owned
+lookup and compute the entire table, including shared lighting integrals, without yielding across render frames.
 The render callback captures value inputs and polls completion without waiting. Only that callback
 uploads textures and publishes lighting; background code never accesses engine or GPU objects.
 Until the first result arrives, consumers receive a valid 1x1 black sky with zero lighting and extinction.
@@ -80,8 +177,8 @@ Sun direction is quantized to 1/256 component increments,
 altitude to 25 metres, and cloud coverage to 0.05. Stationary unchanged inputs do no integration.
 
 `Atmosphere.SkyLutQuality` is persisted in VGE config and exposed through ConfigLib as one quality
-selector. Levels 0–3 map to 32x24 (default), 64x48, 128x96 and 256x192. Both dimensions are derived
-with bit shifts; each increase quadruples the sample count. Separate width/height settings are removed
+selector. Levels 0–3 map to 32x24 (default), 64x48, 96x72 and 128x96. Both dimensions are derived
+by multiplying their base dimensions by `(quality + 1)`. Separate width/height settings are removed
 without migration. Larger tables increase background integration time. Changes during a build are
 coalesced into the latest inputs captured after it finishes. Admitted work finishes and is published
 before another build starts, preventing continuously changing weather from starving publication.

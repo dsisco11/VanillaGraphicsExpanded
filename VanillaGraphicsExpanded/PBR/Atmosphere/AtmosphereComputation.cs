@@ -10,15 +10,16 @@ internal sealed class AtmosphereComputation : IDisposable
 {
     private readonly CancellationTokenSource cancellation = new();
     private Task<AtmosphereLighting>? pending;
-    private (int, int, int, int, int, int, int)? admittedKey;
+    private (int, int, int, int, int, int, int, int)? admittedKey;
     private bool disposed;
+    private readonly AtmosphereLookup lookup = new();
 
     /// <summary>Exposes the admitted completion dependency without transferring publication ownership.</summary>
     internal Task<AtmosphereLighting>? Pending => pending;
 
     #region Scheduling
     /// <summary>Consumes finished work without blocking, then admits the latest inputs if they changed.</summary>
-    internal AtmosphereLighting? Update(Vector3 sun, float altitude, float clouds, int width, int height)
+    internal AtmosphereLighting? Update(Vector3 sun, float altitude, float clouds, int width, int height, int quality = 0)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         AtmosphereLighting? ready = null;
@@ -33,11 +34,12 @@ internal sealed class AtmosphereComputation : IDisposable
         if (!float.IsFinite(sun.LengthSquared()) || sun.LengthSquared() < .0001f
             || !float.IsFinite(altitude) || !float.IsFinite(clouds)) return ready;
         sun = Vector3.Normalize(sun);
-        width = Math.Clamp(width, 16, AtmosphereLookup.DefaultWidth << 3);
-        height = Math.Clamp(height, 8, AtmosphereLookup.DefaultHeight << 3);
+        width = Math.Clamp(width, 16, AtmosphereLookup.DefaultWidth * 4);
+        height = Math.Clamp(height, 8, AtmosphereLookup.DefaultHeight * 4);
+        quality = Math.Clamp(quality, 0, 3);
         var key = ((int)MathF.Round(sun.X * 256), (int)MathF.Round(sun.Y * 256),
             (int)MathF.Round(sun.Z * 256), (int)MathF.Round(Math.Clamp(altitude, 0, 99) * 40),
-            (int)MathF.Round(Math.Clamp(clouds, 0, 1) * 20), width, height);
+            (int)MathF.Round(Math.Clamp(clouds, 0, 1) * 20), width, height, quality);
         if (admittedKey == key) return ready;
         admittedKey = key;
         var token = cancellation.Token;
@@ -45,9 +47,8 @@ internal sealed class AtmosphereComputation : IDisposable
         // Finish admitted work to avoid starvation; the next render update captures the newest inputs.
         pending = Task.Run(() =>
         {
-            var lookup = new AtmosphereLookup();
             lookup.Update(sun, altitude, clouds, complete: true, width: width, height: height,
-                cancellationToken: token);
+                cancellationToken: token, quality: quality);
             return lookup.Current!;
         }, token);
         // Observe faults even if world teardown abandons this task before the render thread polls it.

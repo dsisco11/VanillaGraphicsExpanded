@@ -19,27 +19,30 @@ internal sealed class AtmosphereLookup
     internal const int DefaultHeight = 24;
     internal const int SamplesPerUpdate = 128;
     private float[] staging = Array.Empty<float>();
-    private (int X, int Y, int Z, int Altitude, int Weather, int Width, int Height)? completedKey, buildingKey;
+    private (int X, int Y, int Z, int Altitude, int Weather, int Width, int Height, int Quality)? completedKey, buildingKey;
+    private int quality;
     private int width, height;
     private Vector3 sun, environment, horizon;
     private float altitude, aerosol;
     private int next;
+    private AtmosphereMultipleScattering? multipleScattering;
+    private float multipleScatteringAerosol;
     internal AtmosphereLighting? Current { get; private set; }
     internal int Revision { get; private set; }
 
     #region Bounded refresh
     /// <summary>Builds a complete snapshot by default; explicit incremental callers can bound weather refresh work.</summary>
     internal bool Update(Vector3 solarDirection, float altitudeKm, float cloudCover, bool complete = true,
-        int width = DefaultWidth, int height = DefaultHeight, CancellationToken cancellationToken = default)
+        int width = DefaultWidth, int height = DefaultHeight, CancellationToken cancellationToken = default, int quality = 0)
     {
         if (!float.IsFinite(solarDirection.LengthSquared()) || solarDirection.LengthSquared() < .0001f
             || !float.IsFinite(altitudeKm) || !float.IsFinite(cloudCover)) return false;
         solarDirection = Vector3.Normalize(solarDirection);
         var key = ((int)MathF.Round(solarDirection.X * 256), (int)MathF.Round(solarDirection.Y * 256),
             (int)MathF.Round(solarDirection.Z * 256), (int)MathF.Round(Math.Clamp(altitudeKm, 0, 99) * 40),
-            (int)MathF.Round(Math.Clamp(cloudCover, 0, 1) * 20), Width: Math.Clamp(width, 16, DefaultWidth << 3), Height: Math.Clamp(height, 8, DefaultHeight << 3));
+            (int)MathF.Round(Math.Clamp(cloudCover, 0, 1) * 20), Width: Math.Clamp(width, 16, DefaultWidth * 4), Height: Math.Clamp(height, 8, DefaultHeight * 4), Quality: Math.Clamp(quality, 0, 3));
         var previous = buildingKey ?? completedKey;
-        bool resized = previous is { } prior && (prior.Width != key.Width || prior.Height != key.Height);
+        bool resized = previous is { } prior && (prior.Width != key.Width || prior.Height != key.Height || prior.Quality != key.Quality);
         if (resized)
         {
             // A resolution edit supersedes pending weather work and uses the latest inputs.
@@ -52,13 +55,28 @@ internal sealed class AtmosphereLookup
             if (completedKey == key && !resized) return false;
             buildingKey = key;
             this.width = key.Width; this.height = key.Height;
+            this.quality = key.Quality;
             int length = checked(this.width * this.height * 4);
             if (staging.Length != length) staging = new float[length];
             sun = solarDirection; altitude = Math.Clamp(altitudeKm, .001f, 99f);
-            aerosol = 1f + 7f * Math.Clamp(cloudCover, 0, 1);
+            // Use the admitted weather bucket consistently for transport and its cached
+            // medium table; tiny cloud jitter during sun motion must not rebuild the table.
+            aerosol = 1f + 7f * (key.Item5 / 20f);
             next = 0; environment = horizon = Vector3.Zero;
         }
         // Finish the admitted snapshot even if inputs change; otherwise moving weather could starve publication.
+        var budget = AtmosphereScatteringBudget.FromQuality(this.quality);
+        if (multipleScattering is null || multipleScatteringAerosol != aerosol
+            || multipleScattering.Width != budget.Width || multipleScattering.Height != budget.Height)
+        {
+            // Independent of observer and sun direction: retain one completed medium table.
+            var replacement = AtmosphereMultipleScattering.Build(aerosol, cancellationToken,
+                sunSamples: budget.Width, altitudeSamples: budget.Height,
+                directionSamples: budget.DirectionSamples, raySamples: budget.RaySamples,
+                lightSamples: budget.LightSamples);
+            multipleScattering = replacement;
+            multipleScatteringAerosol = aerosol;
+        }
         // Resolution belongs to the admitted build, not the latest requested settings.
         width = this.width; height = this.height;
         int end = Math.Min(next + (complete ? width * height : SamplesPerUpdate), width * height);
@@ -75,7 +93,7 @@ internal sealed class AtmosphereLookup
                 float azimuth = (x + .5f) / width * (2f * MathF.PI);
                 directions[lane] = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
             }
-            AtmosphereModel.RadianceBatch(directions[..count], sun, altitude, aerosol, radiances[..count]);
+            AtmosphereModel.RadianceBatch(directions[..count], sun, altitude, aerosol, radiances[..count], multipleScattering);
             // Preserve row-major accumulation order for the shared lighting integrals.
             for (int lane = 0; lane < count; lane++, next++)
             {

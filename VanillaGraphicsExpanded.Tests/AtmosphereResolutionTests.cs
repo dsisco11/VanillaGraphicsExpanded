@@ -9,16 +9,16 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class AtmosphereResolutionTests
 {
     #region Configuration
-    /// <summary>Quality survives serialization, clamps safely and doubles both dimensions together.</summary>
+    /// <summary>Quality survives serialization, clamps safely and scales both dimensions linearly together.</summary>
     [Theory]
     [InlineData("{}", 0, 32, 24)]
     [InlineData("{\"Atmosphere\":null}", 0, 32, 24)]
     [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":0}}", 0, 32, 24)]
     [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":1}}", 1, 64, 48)]
-    [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":2}}", 2, 128, 96)]
-    [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":3}}", 3, 256, 192)]
+    [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":2}}", 2, 96, 72)]
+    [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":3}}", 3, 128, 96)]
     [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":-2147483648}}", 0, 32, 24)]
-    [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":2147483647}}", 3, 256, 192)]
+    [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":2147483647}}", 3, 128, 96)]
     public void QualitySanitizesAndRoundTrips(string json, int quality, int width, int height)
     {
         var config = JsonConvert.DeserializeObject<VgeConfig>(json)!;
@@ -42,7 +42,7 @@ public sealed class AtmosphereResolutionTests
     [Theory]
     [InlineData(16, 8)]
     [InlineData(33, 25)]
-    [InlineData(256, 192)]
+    [InlineData(128, 96)]
     public void InitialSnapshotUsesRequestedDimensions(int width, int height)
     {
         var lookup = new AtmosphereLookup();
