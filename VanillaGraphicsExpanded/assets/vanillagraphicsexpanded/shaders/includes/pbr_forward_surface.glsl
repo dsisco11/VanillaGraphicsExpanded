@@ -39,7 +39,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
     float roughness = clamp(material.r, 0.04, 1.0);
     float metallic = clamp(material.g, 0.0, 1.0);
     vec3 diffuse = vec3(0.0), specular = vec3(0.0);
-    addDirectLight(baseColor, N, V, normalize(lightPosition), (vge_atmosphereSolar * vge_skyVisibility) * visibility,
+    addDirectLight(baseColor, N, V, normalize(vge_atmosphereSunDirection), (vge_atmosphereSolar * vge_skyVisibility) * visibility,
         roughness, metallic, metallic, diffuse, specular);
     // Normalize only physical sunlight; existing engine point-light units retain their calibration.
     diffuse /= 3.14159265359;

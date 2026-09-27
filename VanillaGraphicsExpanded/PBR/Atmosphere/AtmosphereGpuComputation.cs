@@ -27,7 +27,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
     private readonly record struct Request(Vector3 Sun, float Altitude, int Weather, int Width, int Height, int Quality, int Albedo)
     {
         internal (int, int, int, int, int, int, int, int, int) Key =>
-            ((int)MathF.Round(Sun.X * 256), (int)MathF.Round(Sun.Y * 256), (int)MathF.Round(Sun.Z * 256),
+            ((int)MathF.Round(Sun.X * AtmosphereSolarDisk.DirectionResolution), (int)MathF.Round(Sun.Y * AtmosphereSolarDisk.DirectionResolution), (int)MathF.Round(Sun.Z * AtmosphereSolarDisk.DirectionResolution),
                 (int)MathF.Round(Altitude * 40), Weather, Width, Height, Quality, Albedo);
     }
 

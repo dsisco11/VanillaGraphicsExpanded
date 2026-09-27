@@ -41,8 +41,8 @@ internal sealed class AtmosphereLookup
         if (!float.IsFinite(solarDirection.LengthSquared()) || solarDirection.LengthSquared() < .0001f
             || !float.IsFinite(altitudeKm) || !float.IsFinite(cloudCover)) return false;
         solarDirection = Vector3.Normalize(solarDirection);
-        var key = ((int)MathF.Round(solarDirection.X * 256), (int)MathF.Round(solarDirection.Y * 256),
-            (int)MathF.Round(solarDirection.Z * 256), (int)MathF.Round(Math.Clamp(altitudeKm, 0, 99) * 40),
+        var key = ((int)MathF.Round(solarDirection.X * AtmosphereSolarDisk.DirectionResolution), (int)MathF.Round(solarDirection.Y * AtmosphereSolarDisk.DirectionResolution),
+            (int)MathF.Round(solarDirection.Z * AtmosphereSolarDisk.DirectionResolution), (int)MathF.Round(Math.Clamp(altitudeKm, 0, 99) * 40),
             (int)MathF.Round(Math.Clamp(cloudCover, 0, 1) * 20), Width: Math.Clamp(width, 16, DefaultWidth * 4), Height: Math.Clamp(height, 8, DefaultHeight * 4), Quality: Math.Clamp(quality, 0, 3), Albedo: AtmosphereSeasonModel.AlbedoBucket(groundAlbedo));
         var previous = buildingKey ?? completedKey;
         bool resized = previous is { } prior && (prior.Width != key.Width || prior.Height != key.Height || prior.Quality != key.Quality);

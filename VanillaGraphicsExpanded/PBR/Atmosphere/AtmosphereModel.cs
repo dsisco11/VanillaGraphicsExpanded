@@ -51,8 +51,20 @@ internal static partial class AtmosphereModel
     }
 
     /// <summary>Returns direct solar irradiance, including extinction and the planet's horizon occlusion.</summary>
-    internal static Vector3 SolarIrradiance(Vector3 sun, float altitudeKm, float aerosol) =>
-        Solar * Transmittance(new(0, GroundRadius + Math.Clamp(altitudeKm, .001f, 99f), 0), Vector3.Normalize(sun), aerosol);
+    internal static Vector3 SolarIrradiance(Vector3 sun, float altitudeKm, float aerosol)
+    {
+        sun = Vector3.Normalize(sun);
+        float altitude = Math.Clamp(altitudeKm, .001f, 99f);
+        float elevation = MathF.Asin(Math.Clamp(sun.Y, -1, 1));
+        float horizon = AtmosphereSkyMapping.Horizon(altitude);
+        float visible = AtmosphereSolarDisk.Visibility(elevation, horizon);
+        if (visible <= 0) return Vector3.Zero;
+        // The atmosphere is rotationally symmetric. Evaluate extinction at the visible
+        // segment centroid, retaining analytic continuous coverage rather than binary rays.
+        float sample = AtmosphereSolarDisk.VisibleElevation(elevation, horizon, visible);
+        return Solar * Transmittance(new(0, GroundRadius + altitude, 0),
+            new(MathF.Cos(sample), MathF.Sin(sample), 0), aerosol) * visible;
+    }
 
     /// <summary>Integrates optical depth to space; a ray intercepted by the solid planet has zero transmission.</summary>
     private static Vector3 Transmittance(Vector3 origin, Vector3 direction, float aerosol, int samples = LightSamples)

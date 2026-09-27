@@ -221,6 +221,14 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
         UploadAndBindParamsUbo();
     }
 
+    /// <summary>Publishes direction and irradiance together from the same atmospheric generation.</summary>
+    internal void SetSolarLighting(System.Numerics.Vector3 direction, System.Numerics.Vector3 irradiance)
+    {
+        Params.LightDirection = direction;
+        Params.RgbaLightIn = irradiance;
+        UploadAndBindParamsUbo();
+    }
+
     /// <summary>Sets physical solar irradiance using the engine vector API.</summary>
     public Vec3f RgbaLightIn
     {

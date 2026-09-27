@@ -22,6 +22,8 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
     [InlineData(.3f, 1f, 2f)]
     [InlineData(-.05f, .2f, 0f)]
     [InlineData(.05f, 0f, 99f)]
+    [InlineData(-.002f, 0f, .001f)]
+    [InlineData(.002f, 0f, .001f)]
     public void CompletePublicationMatchesCpu(float sunY, float clouds, float altitude)
     {
         EnsureContextValid();

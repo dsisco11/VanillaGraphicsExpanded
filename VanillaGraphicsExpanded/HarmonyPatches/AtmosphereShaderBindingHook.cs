@@ -19,12 +19,27 @@ internal static class AtmosphereShaderBindingHook
         var bindings = AtmosphereProgramBindings.Get(__instance);
         if (bindings == AtmosphereBindings.None) return;
         var lighting = AtmosphereModSystem.Lighting;
+        if ((bindings & AtmosphereBindings.SunDisk) != 0)
+        {
+            // Standard also renders GUI/items and terrain objects. Reset on every Use,
+            // including startup before a snapshot exists, so solar state cannot leak.
+            bool solarDraw = AtmosphereSunDrawHook.Active && lighting is not null;
+            __instance.Uniform("vge_atmosphereSunDraw", solarDraw ? 1 : 0);
+            if (solarDraw)
+            {
+                var disk = AtmosphereSolarDisk.Radiance(lighting!);
+                __instance.Uniform("vge_atmosphereSun", lighting!.Sun.X, lighting.Sun.Y, lighting.Sun.Z, lighting.HorizonElevation);
+                __instance.Uniform("vge_atmosphereDisk", disk.X, disk.Y, disk.Z, AtmosphereSolarDisk.AngularRadius);
+            }
+        }
         // Resource initialization is owned by the Before renderer.
         if (lighting is null) return;
         if ((bindings & AtmosphereBindings.Environment) != 0)
             __instance.Uniform("vge_atmosphereEnvironment", lighting.Environment.X, lighting.Environment.Y, lighting.Environment.Z);
         if ((bindings & AtmosphereBindings.Solar) != 0)
             __instance.Uniform("vge_atmosphereSolar", lighting.Solar.X, lighting.Solar.Y, lighting.Solar.Z);
+        if ((bindings & AtmosphereBindings.SunDirection) != 0)
+            __instance.Uniform("vge_atmosphereSunDirection", lighting.Sun.X, lighting.Sun.Y, lighting.Sun.Z);
         if ((bindings & AtmosphereBindings.Horizon) != 0)
             __instance.Uniform("vge_atmosphereHorizon", lighting.Horizon.X, lighting.Horizon.Y, lighting.Horizon.Z);
         if ((bindings & AtmosphereBindings.Extinction) != 0)

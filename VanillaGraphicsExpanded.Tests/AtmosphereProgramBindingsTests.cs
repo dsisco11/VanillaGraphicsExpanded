@@ -9,15 +9,29 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class AtmosphereProgramBindingsTests
 {
     #region Interface ownership
+    /// <summary>The solar draw contract is enabled only when all three linked uniforms are present.</summary>
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("vge_atmosphereSunDraw", false)]
+    [InlineData("vge_atmosphereSun", false)]
+    [InlineData("vge_atmosphereDisk", false)]
+    public void SolarContractRequiresCompleteLinkedInterface(string? missing, bool expected)
+    {
+        var inputs = AtmosphereProgramBindings.Resolve("standard", name => name != missing);
+        Assert.Equal(expected, (inputs & AtmosphereBindings.SunDisk) != 0);
+        Assert.Equal(AtmosphereBindings.None, AtmosphereProgramBindings.Resolve("moon", _ => true));
+        Assert.Equal(AtmosphereBindings.None, AtmosphereProgramBindings.Resolve("celestialobject", _ => true));
+    }
+
     /// <summary>Only patched engine families declare an atmosphere interface.</summary>
     [Theory]
     [InlineData("sky", AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping)]
     [InlineData("chunkopaque", AtmosphereBindings.Environment)]
     [InlineData("chunktopsoil", AtmosphereBindings.Environment)]
-    [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
-    [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
-    [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
-    [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction)]
+    [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk)]
+    [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection)]
+    [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection)]
+    [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection)]
     public void PatchedFamiliesDeclareExpectedInputs(string family, object expected)
     {
         Assert.Equal((AtmosphereBindings)expected, AtmosphereProgramBindings.Expected(family));
@@ -45,7 +59,7 @@ public sealed class AtmosphereProgramBindingsTests
             return name is "vge_atmosphereSolar" or "vge_atmosphereExtinction";
         });
         Assert.Equal(AtmosphereBindings.Solar | AtmosphereBindings.Extinction, active);
-        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereHorizon", "vge_atmosphereExtinction" }, inspected);
+        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereHorizon", "vge_atmosphereExtinction", "vge_atmosphereSunDirection", "vge_atmosphereSunDraw" }, inspected);
     }
     #endregion
 

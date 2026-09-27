@@ -219,7 +219,15 @@ flat in uint vge_faceId;
                 return true;
             }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
-                return PbrSurfaceShaderPatches.Preprocess(tree, sourceName);
+            {
+                bool patched = PbrSurfaceShaderPatches.Preprocess(tree, sourceName);
+                if (sourceName is "standard.vsh" or "standard.fsh")
+                {
+                    Atmosphere.AtmosphereSunPatches.Preprocess(tree, sourceName);
+                    return true;
+                }
+                return patched;
+            }
             // Chunk vertex shaders - inject only vertex-safe helpers
             if (PatchedChunkVertexShaders.Contains(sourceName))
             {
@@ -328,6 +336,8 @@ flat in uint vge_faceId;
             if (PbrSurfaceShaderPatches.Supports(sourceName))
             {
                 PbrSurfaceShaderPatches.Apply(tree, sourceName);
+                if (sourceName is "standard.vsh" or "standard.fsh")
+                    Atmosphere.AtmosphereSunPatches.Apply(tree);
                 return true;
             }
             if (PatchedChunkVertexShaders.Contains(sourceName))

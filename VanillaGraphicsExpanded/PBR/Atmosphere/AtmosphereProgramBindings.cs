@@ -14,7 +14,9 @@ internal enum AtmosphereBindings
     Horizon = 4,
     Extinction = 8,
     Sky = 16,
-    SkyMapping = 32
+    SkyMapping = 32,
+    SunDisk = 64,
+    SunDirection = 128
 }
 
 /// <summary>Stores the active atmospheric interface once per linked engine program.</summary>
@@ -31,8 +33,10 @@ internal static class AtmosphereProgramBindings
     {
         "sky" => AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping,
         "chunkopaque" or "chunktopsoil" => AtmosphereBindings.Environment,
-        "standard" or "entityanimated" or "instanced" or "chunktransparent" =>
-            AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction,
+        "standard" => AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon
+            | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk,
+        "entityanimated" or "instanced" or "chunktransparent" =>
+            AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Horizon | AtmosphereBindings.Extinction | AtmosphereBindings.SunDirection,
         _ => AtmosphereBindings.None
     };
 
@@ -47,6 +51,9 @@ internal static class AtmosphereProgramBindings
         if ((expected & AtmosphereBindings.Extinction) != 0 && hasUniform("vge_atmosphereExtinction")) active |= AtmosphereBindings.Extinction;
         if ((expected & AtmosphereBindings.Sky) != 0 && hasUniform("vge_atmosphereSky")) active |= AtmosphereBindings.Sky;
         if ((expected & AtmosphereBindings.SkyMapping) != 0 && hasUniform("vge_atmosphereLutHorizon")) active |= AtmosphereBindings.SkyMapping;
+        if ((expected & AtmosphereBindings.SunDirection) != 0 && hasUniform("vge_atmosphereSunDirection")) active |= AtmosphereBindings.SunDirection;
+        if ((expected & AtmosphereBindings.SunDisk) != 0 && hasUniform("vge_atmosphereSunDraw")
+            && hasUniform("vge_atmosphereSun") && hasUniform("vge_atmosphereDisk")) active |= AtmosphereBindings.SunDisk;
         return active;
     }
     #endregion

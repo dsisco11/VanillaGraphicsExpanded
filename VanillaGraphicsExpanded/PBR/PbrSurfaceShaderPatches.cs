@@ -67,6 +67,7 @@ internal static class PbrSurfaceShaderPatches
         uniform int vge_pbrRoute;
         uniform vec3 vge_atmosphereEnvironment;
         uniform vec3 vge_atmosphereSolar;
+        uniform vec3 vge_atmosphereSunDirection;
         uniform vec3 vge_atmosphereHorizon;
         uniform vec3 vge_atmosphereExtinction;
 

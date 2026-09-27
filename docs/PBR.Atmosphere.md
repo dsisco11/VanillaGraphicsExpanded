@@ -21,7 +21,8 @@ The implementation follows the radiative-transfer decomposition described by
 Beer-Lambert extinction, directional scattering and planet occlusion. The multiple-scattering
 approximation below is distinct from Bruneton's higher-dimensional solution. Rayleigh and aerosol scattering,
 aerosol absorption, and ozone absorption contribute separately. The sun's direct transmission
-is zero when its ray intersects the planet; there is no below-horizon sunlight floor.
+uses finite-disk horizon coverage and transmission at the visible segment centroid; it becomes
+zero once the whole disk is occluded. There is no below-horizon sunlight floor.
 
 View integration uses 24 segments and solar optical-depth integration uses 12. Quadratic segment
 spacing resolves the dense near-ground layer. Cloud coverage maps to aerosol multiplier 1–8;
@@ -226,7 +227,7 @@ uploads textures and publishes lighting; background code never accesses engine o
 Until the first result arrives, consumers receive a valid 1x1 black sky with zero lighting and extinction.
 Subsequent builds retain the previous complete LUT. Initialization can therefore briefly show a dark
 sky rather than blocking the first scene frame.
-Sun direction is quantized to 1/256 component increments,
+Sun direction is quantized to 1/65536 component increments to resolve finite-disk horizon transitions,
 altitude to 25 metres, and cloud coverage to 0.05. Stationary unchanged inputs do no integration.
 
 `Atmosphere.SkyLutQuality` is persisted in VGE config and exposed through ConfigLib as one quality
@@ -262,9 +263,10 @@ low-resolution interpolation rather than a full-resolution fragment ray march.
 The installed sky shader samples this table and uses the existing unit-exposure Reinhard/sRGB
 display conversion once. The engine's night/fog alpha calculation is retained, as are subsequent
 underwater/night-vision effects. Stars remain the separate engine night-sky draw before the dome;
-sun and moon remain engine textured draws afterward. Moonlight is not a second atmospheric light
+the sun reuses the engine quad with atmospheric disk shading, while the moon retains its textured
+draw afterward. See [solar disk integration](PBR.Atmosphere.SolarDisk.md). Moonlight is not a second atmospheric light
 source in this implementation. At night only residual solar twilight is integrated; no artificial
-ambient floor is added. Celestial texture photometry and adaptive night exposure are not calibrated
+ambient floor is added. Lunar texture photometry and adaptive night exposure are not calibrated
 by this model.
 
 ## Shared lighting contract

@@ -32,7 +32,7 @@ bounds on render updates, not promises of frame time or completion latency.
 ## Ownership and publication
 
 One immutable request owns each admitted generation. Quantization matches CPU transport: sun components
-at 1/256, altitude at 25 metres and cloud cover at 0.05. Work finishes before the newest request is
+at 1/65536 to resolve finite-disk horizon transitions, altitude at 25 metres and cloud cover at 0.05. Work finishes before the newest request is
 admitted, avoiding starvation from continuously changing inputs. Completed source storage is private
 to the backend. Dimensions, sun, medium and quality cannot mix across its dependent passes.
 

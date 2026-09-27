@@ -292,11 +292,14 @@ Tasks
       - Completed: matching CPU/GPU generation and shader lookup, altitude-aware horizon placement,
         corrected shared-lighting weights and coherent publication. 164 Release tests passed;
         reference comparisons and limits: PBR.Atmosphere.HorizonSampling.md.
-    ☐ Align the rendered sun disk with atmospheric attenuation and direct lighting.
+    ☑ Align the rendered sun disk with atmospheric attenuation and direct lighting.
       - Trace the engine's celestial draw path and define consistent disk radiance, angular size and
         atmospheric transmission without duplicating the existing sun or its scattering halo.
       - Account for the finite disk's gradual horizon occlusion in both appearance and direct solar
         irradiance; validate sunrise/sunset color and continuity while preserving moon/star ordering.
+      - Completed: scoped engine solar draw, finite-disk attenuation and coherent published solar
+        direction across lighting consumers. 199 distinct Release tests passed; five optional
+        measurements skipped. Engine audit, approximation limits and validation: PBR.Atmosphere.SolarDisk.md.
     ☐ Replace homogeneous atmospheric haze with direction-, distance- and altitude-aware aerial perspective.
       - Build on the scattering/transmittance model to evaluate in-scattered radiance and extinction
         along the camera-to-surface segment, with explicit bounded storage and update costs.

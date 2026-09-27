@@ -113,8 +113,9 @@ internal sealed class LumOnUniformBuffers : IDisposable
 
         WriteVec4(frameBytes, offset, anchorJitterScale, velocityRejectThreshold, 0f, 0f); offset += 16;
 
-        WriteVec4(frameBytes, offset, sunPosition.X, sunPosition.Y, sunPosition.Z, 0f); offset += 16;
         var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
+        WriteVec4(frameBytes, offset, atmosphere?.Sun.X ?? sunPosition.X, atmosphere?.Sun.Y ?? sunPosition.Y,
+            atmosphere?.Sun.Z ?? sunPosition.Z, 0f); offset += 16;
         WriteVec4(frameBytes, offset, atmosphere?.Solar.X ?? sunColor.X, atmosphere?.Solar.Y ?? sunColor.Y, atmosphere?.Solar.Z ?? sunColor.Z, 0f); offset += 16;
         WriteVec4(frameBytes, offset, atmosphere?.Environment.X ?? ambientColor.X, atmosphere?.Environment.Y ?? ambientColor.Y, atmosphere?.Environment.Z ?? ambientColor.Z, 0f); offset += 16;
         WriteIvec4(frameBytes, offset, matrixSpaceWorldChunkCoordOffset.X, matrixSpaceWorldChunkCoordOffset.Y, matrixSpaceWorldChunkCoordOffset.Z, 0); offset += 16;

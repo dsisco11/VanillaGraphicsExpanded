@@ -37,8 +37,8 @@ internal sealed class AtmosphereComputation : IDisposable
         width = Math.Clamp(width, 16, AtmosphereLookup.DefaultWidth * 4);
         height = Math.Clamp(height, 8, AtmosphereLookup.DefaultHeight * 4);
         quality = Math.Clamp(quality, 0, 3);
-        var key = ((int)MathF.Round(sun.X * 256), (int)MathF.Round(sun.Y * 256),
-            (int)MathF.Round(sun.Z * 256), (int)MathF.Round(Math.Clamp(altitude, 0, 99) * 40),
+        var key = ((int)MathF.Round(sun.X * AtmosphereSolarDisk.DirectionResolution), (int)MathF.Round(sun.Y * AtmosphereSolarDisk.DirectionResolution),
+            (int)MathF.Round(sun.Z * AtmosphereSolarDisk.DirectionResolution), (int)MathF.Round(Math.Clamp(altitude, 0, 99) * 40),
             (int)MathF.Round(Math.Clamp(clouds, 0, 1) * 20), width, height, quality, AtmosphereSeasonModel.AlbedoBucket(groundAlbedo));
         if (admittedKey == key) return ready;
         admittedKey = key;

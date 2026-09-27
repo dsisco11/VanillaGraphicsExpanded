@@ -47,7 +47,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             uniform sampler2DShadow shadowMapFar;
             vec4 shadowCoordsFar = vec4(0.5, 0.5, 0.8, 1.0);
             float shadowIntensity = 1.0;
-            vec3 lightPosition = vec3(0,0,1);
+            // A newer engine direction must not replace the published atmospheric generation.
+            vec3 lightPosition = vec3(0,0,-1);
+            vec3 vge_atmosphereSunDirection = vec3(0,0,1);
             vec3 vge_viewPosition = vec3(0,0,-2);
             vec3 vge_blockIrradiance = vec3(0);
             vec3 vge_sunIrradiance = vec3(0.2,0.4,0.8);
