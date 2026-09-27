@@ -100,13 +100,16 @@ Tasks
       Source and implementation review completed; no game launch or live appearance claim.
 
   ☐ Add optional depth-map tessellation and relief mapping through the production shader pipeline.
-    ☐ Audit terrain topology, draw submission and the existing depth-map contract.
+    ☑ Audit terrain topology, draw submission and the existing depth-map contract.
       - Trace installed engine opaque/topsoil index layouts, draw calls, vertex attributes and shadow
         variants. Verify whether existing triangles can serve as three-control-point patches without
         rebuilding chunk meshes; identify an explicit, narrowly scoped draw interception point.
       - Confirm atlas neutral height (currently 0.5), signed height convention, mip/filter behavior,
         material scale and supported GPU limits. Record existing tessellation stage support in the
         shader builder/SPIR-V loader and reuse it rather than introducing a parallel pipeline.
+      - Evidence: docs/PBR.Tessellation.DepthMapAudit.md; checked-out API, installed shaders and IL.
+        Identified grouped-draw interception, SSBO vertex-ID preservation, shadow pool routing,
+        single-level height filtering and missing patch-state ownership. Source audit only; no game run.
     ☐ Define material selection, displacement units and optional rendering modes.
       - Use texture-based material identity and existing UVs, including rotated textures; do not add
         per-axis material properties or require block-rotation metadata from chunk tessellation.
