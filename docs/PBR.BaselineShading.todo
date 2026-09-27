@@ -110,13 +110,16 @@ Tasks
       - Evidence: docs/PBR.Tessellation.DepthMapAudit.md; checked-out API, installed shaders and IL.
         Identified grouped-draw interception, SSBO vertex-ID preservation, shadow pool routing,
         single-level height filtering and missing patch-state ownership. Source audit only; no game run.
-    ☐ Define material selection, displacement units and optional rendering modes.
+    ☑ Define material selection, displacement units and optional rendering modes.
       - Use texture-based material identity and existing UVs, including rotated textures; do not add
         per-axis material properties or require block-rotation metadata from chunk tessellation.
       - Specify amplitude in block/metre units, zero level, safe limits and eligible opaque/topsoil
         surfaces. Missing maps, neutral maps and non-opted-in materials must remain undisplaced.
       - Define disabled, relief-only and tessellation modes, capability checks and ordinary-rendering
         fallback. Keep animated entities, liquids and transparent geometry outside the initial scope.
+      - Contract: docs/PBR.Tessellation.MaterialAndModes.md. Defines explicit material amplitude opt-in,
+        fixed neutral height, primary-UV topsoil ownership, exclusive detail modes and safe fallback.
+        Definition only; schema/runtime wiring and migration remain implementation work below.
     ☐ Establish an undisplaced tessellated production terrain path.
       - Complete only missing control/evaluation-stage contract, build, specialization, link/cache
         identity and reload support. Include stage combinations in lifecycle validation.
@@ -125,6 +128,8 @@ Tasks
         abstractions; unrelated draws retain their original topology and programs.
       - Validate unchanged positions, UVs, material identity and coverage before adding displacement.
     ☐ Implement bounded adaptive subdivision and atlas-safe displacement.
+      - Implement the material/schema amplitude contract and GPU metadata transport from
+        docs/PBR.Tessellation.MaterialAndModes.md, including cache identity and neutral fallback.
       - Derive shared-edge subdivision from consistent endpoint data and projected edge size, with
         configurable maximum factors, distance/screen-error limits and stable transitions.
       - Interpolate attributes and sample height before projection; preserve flat material/atlas
@@ -133,6 +138,8 @@ Tasks
         constraints at incompatible material boundaries and face corners; validate internal triangle
         diagonals, atlas seams and chunk boundaries without cracks or cross-tile sampling.
     ☐ Extend existing parallax occlusion mapping into the selected relief contract.
+      - Wire the global mode selector, explicit legacy POM migration and independent height-atlas
+        availability defined in docs/PBR.Tessellation.MaterialAndModes.md.
       - Reuse bounded stepping/refinement and atlas safety. Define grazing-angle behavior, distance
         transitions and whether relief changes depth or only shading/UVs.
       - Initially keep relief and tessellation as alternatives; any combined mode must evaluate only
