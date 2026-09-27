@@ -21,22 +21,6 @@ Tasks
     Per-axis-face overrides were withdrawn: texture-to-material mappings already let different
     block-face textures use different properties and naturally follow block rotation.
 
-  ☐ Upgrade material-face baseColor derivation from a simple texture average to a robust statistic.
-    - Compare median and trimmed-mean estimators to reduce outliers from small bright features in
-      albedo textures. Define linear-color processing, alpha weighting and trimming/channel rules;
-      check that meaningful color variation is retained and document the bias versus an area average.
-    - Reuse the existing texture-derived color path for face lighting materials and Surface Cache.
-      Compute once per relevant texture, reuse across faces, and invalidate cached colors when the
-      estimator changes. Do not introduce authored albedo values or alter visible texture sampling.
-    - Use subagent-run focused tests for uniform colors, sparse bright outliers, multicolor textures,
-      transparent pixels and shared face textures. Compare representative assets and processing cost;
-      obtain a separate review and keep user-run in-game lighting acceptance distinct from tests.
-    - Implemented a 5%-per-tail luminance-trimmed linear RGB mean with bounded, deterministic
-      stratified sampling and unchanged alpha-cutout fallback. Versioned the baseColor cache so
-      legacy means are not reused. Comparison and test evidence: docs/PBR.BaseColor.Validation.md.
-      Independent source review passed after correcting periodic/non-divisible sampling bias.
-      User-run in-game lighting acceptance remains outstanding; this item stays unchecked.
-
   ☐ Establish baseline PBR ownership, lighting contracts and comparison scenes.
     - Audit terrain, entities, transparent surfaces, liquids, sky, fog, shadows and final composition
       through actual engine call sites. Identify remaining vanilla shading and hidden LumOn coupling.
