@@ -59,6 +59,11 @@ are not cleared. Once geometry inputs stabilize and the atlas is complete, tempo
 This conservative policy can reduce temporal smoothing during movement; exact previous-height motion
 would require additional persistent geometry data.
 
+Follow-up validation found that the current marker does not cover a previously displaced surface
+returning to neutral or fully faded geometry. Atlas completion snapshots also do not identify every
+content replacement. See [validation findings](PBR.Tessellation.Validation.md); the temporal behavior
+above is incomplete for those transitions and is not approval for default enablement.
+
 ## LumOn representation
 
 The G-buffer preserves undisplaced base position and geometric normal specifically for voxel PatchId

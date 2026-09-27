@@ -93,6 +93,10 @@ resource/capability failures must not rewrite the user's preference.
 | Relief | Reuse bounded POM stepping/refinement with material amplitude and atlas-safe UVs | Initial implementation changes UV shading only; no silhouette or fragment-depth change |
 | Tessellation | Signed height displaces subdivided geometry | Displaced raster depth, normals and matching shadows; full-height POM is off |
 
+The table describes surface-detail behavior. The independent `UndisplacedTessellationLevel`
+control can still subdivide undisplaced terrain in Disabled or Relief mode. Its current
+user-selected default is 2; use 0 when measuring an ordinary-triangle baseline.
+
 Relief initially retains the existing indentation convention: `depthMetres = amplitudeMetres *
 clamp(1 - 2*H, 0, 1)`. Positive height is not extruded by this approximation. Convert metres into tile
 UV displacement using the actual world-position/UV tangent metric, not an assumed one-metre texture

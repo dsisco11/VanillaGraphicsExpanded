@@ -3,10 +3,9 @@
 Core task complete: the completion build and all 65 focused tests pass in
 `artifacts/PbrColor/tessellation-adaptive-completion.trx` (10 seconds; no skips).
 
-The material contract and GPU stage implementation exist; production still publishes the undisplaced
-terrain path. Selecting displaced production programs remains gated on matching shadow, culling,
-resource binding and temporal-consumer integration. The global detail-mode selector belongs to the
-remaining relief/integration tasks. This document does not claim live-game displacement acceptance.
+The material contract and GPU stage implementation are integrated through the explicit detail-mode
+selector; see `PBR.Tessellation.RenderingConsumers.md` for production publication and limitations.
+This document does not claim live-game displacement acceptance.
 
 ## Material metadata
 
@@ -122,8 +121,8 @@ Compact tile metadata and non-SSBO rectangle resolution pass 62 focused tests in
 `artifacts/PbrColor/tessellation-tile-metadata.trx` (8 seconds). Added coverage includes record-row
 addressing, stale plan/page dimensions, displacement with the non-SSBO rectangle sentinel, absent
 and out-of-range record indices, and rejection of triangles extending beyond the authored tile.
-This completes that core data-path gap; production publication and rendering-consumer integration
-remain pending as described above.
+This completed the core data-path gap. Subsequent production publication and rendering-consumer
+integration are documented in [RenderingConsumers](PBR.Tessellation.RenderingConsumers.md).
 
 ## Completion audit
 

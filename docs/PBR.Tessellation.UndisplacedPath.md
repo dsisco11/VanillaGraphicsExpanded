@@ -7,10 +7,11 @@ and GLSL stages or replace the base-game renderer.
 
 ## Configuration and scope
 
-`MaterialAtlas.UndisplacedTessellationLevel` defaults to `0` (disabled). Values `1` through `8`
+`MaterialAtlas.UndisplacedTessellationLevel` currently defaults to `2`; `0` disables this independent
+identity-path control. Values `1` through `8`
 enable uniform triangle subdivision for `chunkopaque` and `chunktopsoil`. Configuration reload uses
 the existing shader reload path. This is an identity-path validation control, separate from the
-future material amplitude and detail-mode contract in `PBR.Tessellation.MaterialAndModes.md`.
+material amplitude and detail-mode contract in `PBR.Tessellation.MaterialAndModes.md`.
 
 There is no height sampling, displacement, adaptive subdivision or relief change. Evaluation
 interpolates the existing projected clip coordinates and smooth attributes. Flat face/atlas values

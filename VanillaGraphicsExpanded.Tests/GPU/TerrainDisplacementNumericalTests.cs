@@ -15,6 +15,44 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
     public TerrainDisplacementNumericalTests(HeadlessGLFixture fixture):base(fixture) { }
 
     #region Bounded shader functions
+    /// <summary>The production angular metric is symmetric, bounded near the eye and fades with camera distance.</summary>
+    [Theory]
+    [InlineData(.01f)]
+    [InlineData(8f)]
+    [InlineData(16f)]
+    [InlineData(24f)]
+    public void ProductionAngularMetricMatchesCameraDistance(float distance)
+    {
+        EnsureContextValid();
+        using var shaders=new TerrainShaderTestFixture();
+        int vertex=shaders.Compile(ShaderType.VertexShader,"""
+            #version 430 core
+            void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2-1,0,1);}
+            """);
+        int fragment=shaders.Compile(ShaderType.FragmentShader,"#version 430 core\n"+TerrainTessellationTestAssets.Common()+"""
+
+            uniform float distance;
+            out vec4 result;
+            void main(){vec3 a=vec3(-.5,0,distance),b=vec3(.5,0,distance);result=vec4(VgeEdgeLevel(a,b),VgeEdgeLevel(b,a),VgeEdgeLevel(a,a),1);}
+            """);
+        using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
+        using var vao=GpuVao.Create();using var framework=new ShaderTestFramework();
+        using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        int id=program.ProgramId;var layout=GpuProgramLayout.TryBuild(id);
+        target.BindWithViewport();GlStateCache.Current.UseProgram(id);GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"distance"),distance);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),1024f);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),128f,128f,8f,8f);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationDistance"),8f,24f);
+        GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
+        GL.DrawArrays(PrimitiveType.Triangles,0,3);float[] result=target[0].ReadPixels();
+        float radial=MathF.Sqrt(distance*distance+.25f),t=Math.Clamp((radial-8f)/16f,0f,1f);
+        float expected=1f+(Math.Clamp(128f/Math.Max(.05f,radial),1f,7f)-1f)*(1f-t*t*(3f-2f*t));
+        Assert.InRange(result[0],expected-.00001f,expected+.00001f);
+        Assert.Equal(result[0],result[1]);Assert.Equal(1f,result[2]);Assert.InRange(result[0],1f,7f);
+        GlStateCache.Current.UseProgram(0);GlStateCache.Current.BindVertexArray(0);
+    }
+
     /// <summary>Height mapping is signed and bounded; neutral, boundary and invalid samples remain undisplaced.</summary>
     [Theory]
     [InlineData(.5f,.25f,.5f,.04f,0f)]
