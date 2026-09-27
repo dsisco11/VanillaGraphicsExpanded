@@ -208,6 +208,40 @@ Tasks
       remain bounded to 128 directions. The original quality validation passed 47 focused tests. Validation
       evidence and configuration details: PBR.Atmosphere.md.
   ☐ Make atmospheric shader look better and more physically accurate.
+    - Preserve full-LUT background computation, bounded SIMD scratch storage, cancellation on teardown,
+      and coherent render-thread publication while displaying the previous complete result.
+    - Reference: docs/PBR.Atmosphere.md and Hillaire's atmosphere technique:
+      https://sebh.github.io/publications/egsr2020.pdf. Record approximation choices and measured costs.
+    ☐ Add multiple scattering to atmospheric radiance and shared sky lighting.
+      - Implement a bounded LUT-based multiple-scattering approximation, including the chosen ground
+        reflectance contribution; retain consistent units and avoid counting single scattering twice.
+      - Feed the resulting radiance into both the visible sky and shared environment lighting.
+        Validate clear/hazy skies, twilight, altitude changes and energy behavior against a reference.
+    ☐ Introduce horizon-focused sky LUT sampling.
+      - Allocate more angular resolution near the horizon using matching generation and shader lookup
+        mappings; account for observer altitude and preserve azimuth wrapping and pole behavior.
+      - Retain the quality setting and validate interpolation, horizon continuity and sunset gradients
+        against higher-resolution reference results at matched storage and computation budgets.
+    ☐ Align the rendered sun disk with atmospheric attenuation and direct lighting.
+      - Trace the engine's celestial draw path and define consistent disk radiance, angular size and
+        atmospheric transmission without duplicating the existing sun or its scattering halo.
+      - Account for the finite disk's gradual horizon occlusion in both appearance and direct solar
+        irradiance; validate sunrise/sunset color and continuity while preserving moon/star ordering.
+    ☐ Replace homogeneous atmospheric haze with direction-, distance- and altitude-aware aerial perspective.
+      - Build on the scattering/transmittance model to evaluate in-scattered radiance and extinction
+        along the camera-to-surface segment, with explicit bounded storage and update costs.
+      - Integrate deferred and forward consumers in both PBR modes; preserve interior visibility,
+        avoid duplicate engine fog, and define transparent-surface treatment and resource ownership.
+      - Validate terrain-to-sky continuity, elevated views, near/far receivers and lighting changes.
+    ☐ Unify sky, sun and terrain exposure and tone mapping.
+      - Audit existing display conversions and establish one shared exposure/display contract across
+        sky, celestial and surface paths; preserve bright-sky colors without independent sky-only tuning.
+      - Coordinate with the scene-linear HDR/postprocessing task below; distinguish SDR tone mapping
+        from HDR display output and document any required ordering or intermediate-buffer changes.
+      - Validate daylight/twilight/night transitions, highlight hue, scene readability and single
+        application of exposure and display conversion across both PBR modes.
+    - For each subtask, run focused numerical/shader tests through subagents and record matched CPU,
+      GPU and memory costs. Obtain user-run visual comparisons; passing tests are not visual acceptance.
   ☐ Try and make tessellation do square subdivision by subdividing faces as quads.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
