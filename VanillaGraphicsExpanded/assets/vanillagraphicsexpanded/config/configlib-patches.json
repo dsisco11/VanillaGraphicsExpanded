@@ -5,7 +5,7 @@
     "boolean": {
       "ENABLED": {
         "code": "LumOn.Enabled",
-        "name": "LumOn.Enabled",
+        "name": "LumOn/Enabled",
         "ingui": "vanillagraphicsexpanded:config-lumon-enabled",
         "comment": "vanillagraphicsexpanded:config-lumon-enabled-tooltip",
         "default": true,
@@ -13,7 +13,7 @@
       },
       "ANCHOR_JITTER_ENABLED": {
         "code": "LumOn.AnchorJitterEnabled",
-        "name": "LumOn.AnchorJitterEnabled",
+        "name": "LumOn/AnchorJitterEnabled",
         "ingui": "vanillagraphicsexpanded:config-anchor-jitter-enabled",
         "comment": "vanillagraphicsexpanded:config-anchor-jitter-enabled-tooltip",
         "default": false,
@@ -21,7 +21,7 @@
       },
       "HALF_RESOLUTION": {
         "code": "LumOn.HalfResolution",
-        "name": "LumOn.HalfResolution",
+        "name": "LumOn/HalfResolution",
         "ingui": "vanillagraphicsexpanded:config-half-resolution",
         "comment": "vanillagraphicsexpanded:config-half-resolution-tooltip",
         "default": true,
@@ -29,7 +29,7 @@
       },
       "DENOISE_ENABLED": {
         "code": "LumOn.DenoiseEnabled",
-        "name": "LumOn.DenoiseEnabled",
+        "name": "LumOn/DenoiseEnabled",
         "ingui": "vanillagraphicsexpanded:config-denoise-enabled",
         "comment": "vanillagraphicsexpanded:config-denoise-enabled-tooltip",
         "default": true,
@@ -37,7 +37,7 @@
       },
       "UPSAMPLE_HOLE_FILL_ENABLED": {
         "code": "LumOn.UpsampleHoleFillEnabled",
-        "name": "LumOn.UpsampleHoleFillEnabled",
+        "name": "LumOn/UpsampleHoleFillEnabled",
         "ingui": "vanillagraphicsexpanded:config-upsample-hole-fill-enabled",
         "comment": "vanillagraphicsexpanded:config-upsample-hole-fill-enabled-tooltip",
         "default": true,
@@ -45,7 +45,7 @@
       },
       "USE_COMBINE_PASS": {
         "code": "LumOn.UseCombinePass",
-        "name": "LumOn.UseCombinePass",
+        "name": "LumOn/UseCombinePass",
         "ingui": "vanillagraphicsexpanded:config-use-combine-pass",
         "comment": "vanillagraphicsexpanded:config-use-combine-pass-tooltip",
         "default": true,
@@ -53,7 +53,7 @@
       },
       "ENABLE_PBR_COMPOSITE": {
         "code": "LumOn.EnablePbrComposite",
-        "name": "LumOn.EnablePbrComposite",
+        "name": "LumOn/EnablePbrComposite",
         "ingui": "vanillagraphicsexpanded:config-enable-pbr-composite",
         "comment": "vanillagraphicsexpanded:config-enable-pbr-composite-tooltip",
         "default": true,
@@ -61,7 +61,7 @@
       },
       "ENABLE_AO": {
         "code": "LumOn.EnableAO",
-        "name": "LumOn.EnableAO",
+        "name": "LumOn/EnableAO",
         "ingui": "vanillagraphicsexpanded:config-enable-ao",
         "comment": "vanillagraphicsexpanded:config-enable-ao-tooltip",
         "default": true,
@@ -69,7 +69,7 @@
       },
       "ENABLE_SHORT_RANGE_AO": {
         "code": "LumOn.EnableBentNormal",
-        "name": "LumOn.EnableBentNormal",
+        "name": "LumOn/EnableBentNormal",
         "ingui": "vanillagraphicsexpanded:config-enable-short-range-ao",
         "comment": "vanillagraphicsexpanded:config-enable-short-range-ao-tooltip",
         "default": true,
@@ -77,7 +77,7 @@
       },
       "ENABLE_MATERIAL_ATLAS_ASYNC_BUILD": {
         "code": "MaterialAtlas.EnableAsync",
-        "name": "MaterialAtlas.EnableAsync",
+        "name": "MaterialAtlas/EnableAsync",
         "ingui": "vanillagraphicsexpanded:config-material-atlas-async-enabled",
         "comment": "vanillagraphicsexpanded:config-material-atlas-async-enabled-tooltip",
         "default": true,
@@ -85,7 +85,7 @@
       },
       "ENABLE_NORMAL_MAPS": {
         "code": "MaterialAtlas.EnableNormalMaps",
-        "name": "MaterialAtlas.EnableNormalMaps",
+        "name": "MaterialAtlas/EnableNormalMaps",
         "ingui": "vanillagraphicsexpanded:config-enable-normal-maps",
         "comment": "vanillagraphicsexpanded:config-enable-normal-maps-tooltip",
         "default": true,
@@ -93,7 +93,7 @@
       },
       "ENABLE_MATERIAL_ATLAS_DISK_CACHE": {
         "code": "MaterialAtlas.EnableCaching",
-        "name": "MaterialAtlas.EnableCaching",
+        "name": "MaterialAtlas/EnableCaching",
         "ingui": "vanillagraphicsexpanded:config-material-atlas-disk-cache-enabled",
         "comment": "vanillagraphicsexpanded:config-material-atlas-disk-cache-enabled-tooltip",
         "default": true,
@@ -101,7 +101,7 @@
       },
       "SHOW_MATERIAL_ATLAS_PROGRESS_PANEL": {
         "code": "MaterialAtlas.ShowMaterialAtlasProgressPanel",
-        "name": "MaterialAtlas.ShowMaterialAtlasProgressPanel",
+        "name": "MaterialAtlas/ShowMaterialAtlasProgressPanel",
         "ingui": "vanillagraphicsexpanded:config-material-atlas-progress-panel",
         "comment": "vanillagraphicsexpanded:config-material-atlas-progress-panel-tooltip",
         "default": true,
@@ -109,7 +109,7 @@
       },
       "ENABLE_PARALLAX_OCCLUSION_MAPPING": {
         "code": "MaterialAtlas.EnableParallaxOcclusionMapping",
-        "name": "MaterialAtlas.EnableParallaxOcclusionMapping",
+        "name": "MaterialAtlas/EnableParallaxOcclusionMapping",
         "ingui": "vanillagraphicsexpanded:config-parallax-occlusion-enabled",
         "comment": "vanillagraphicsexpanded:config-parallax-occlusion-enabled-tooltip",
         "default": false,
@@ -117,7 +117,7 @@
       },
       "TEXTURE_STREAMING_ENABLED": {
         "code": "TextureStreaming.Enabled",
-        "name": "TextureStreaming.Enabled",
+        "name": "TextureStreaming/Enabled",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-enabled",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-enabled-tooltip",
         "default": true,
@@ -125,7 +125,7 @@
       },
       "TEXTURE_STREAMING_ALLOW_DIRECT_UPLOADS": {
         "code": "TextureStreaming.AllowDirectUploads",
-        "name": "TextureStreaming.AllowDirectUploads",
+        "name": "TextureStreaming/AllowDirectUploads",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-allow-direct-uploads",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-allow-direct-uploads-tooltip",
         "default": true,
@@ -133,7 +133,7 @@
       },
       "TEXTURE_STREAMING_FORCE_DISABLE_PERSISTENT": {
         "code": "TextureStreaming.ForceDisablePersistent",
-        "name": "TextureStreaming.ForceDisablePersistent",
+        "name": "TextureStreaming/ForceDisablePersistent",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-force-disable-persistent",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-force-disable-persistent-tooltip",
         "default": false,
@@ -141,7 +141,7 @@
       },
       "TEXTURE_STREAMING_USE_COHERENT_MAPPING": {
         "code": "TextureStreaming.UseCoherentMapping",
-        "name": "TextureStreaming.UseCoherentMapping",
+        "name": "TextureStreaming/UseCoherentMapping",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-use-coherent-mapping",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-use-coherent-mapping-tooltip",
         "default": true,
@@ -151,7 +151,7 @@
     "integer": {
       "PROBE_SPACING_PX": {
         "code": "LumOn.ProbeSpacingPx",
-        "name": "LumOn.ProbeSpacingPx",
+        "name": "LumOn/ProbeSpacingPx",
         "ingui": "vanillagraphicsexpanded:config-probe-spacing-px",
         "comment": "vanillagraphicsexpanded:config-probe-spacing-px-tooltip",
         "default": 4,
@@ -160,7 +160,7 @@
       },
       "HZB_COARSE_MIP": {
         "code": "LumOn.HzbCoarseMip",
-        "name": "LumOn.HzbCoarseMip",
+        "name": "LumOn/HzbCoarseMip",
         "ingui": "vanillagraphicsexpanded:config-hzb-coarse-mip",
         "comment": "vanillagraphicsexpanded:config-hzb-coarse-mip-tooltip",
         "default": 4,
@@ -169,7 +169,7 @@
       },
       "PROBE_ATLAS_TEXELS_PER_FRAME": {
         "code": "LumOn.ProbeAtlasTexelsPerFrame",
-        "name": "LumOn.ProbeAtlasTexelsPerFrame",
+        "name": "LumOn/ProbeAtlasTexelsPerFrame",
         "ingui": "vanillagraphicsexpanded:config-probe-atlas-texels-per-frame",
         "comment": "vanillagraphicsexpanded:config-probe-atlas-texels-per-frame-tooltip",
         "default": 16,
@@ -178,7 +178,7 @@
       },
       "RAY_STEPS": {
         "code": "LumOn.RaySteps",
-        "name": "LumOn.RaySteps",
+        "name": "LumOn/RaySteps",
         "ingui": "vanillagraphicsexpanded:config-ray-steps",
         "comment": "vanillagraphicsexpanded:config-ray-steps-tooltip",
         "default": 10,
@@ -187,7 +187,7 @@
       },
       "UPSAMPLE_HOLE_FILL_RADIUS": {
         "code": "LumOn.UpsampleHoleFillRadius",
-        "name": "LumOn.UpsampleHoleFillRadius",
+        "name": "LumOn/UpsampleHoleFillRadius",
         "ingui": "vanillagraphicsexpanded:config-upsample-hole-fill-radius",
         "comment": "vanillagraphicsexpanded:config-upsample-hole-fill-radius-tooltip",
         "default": 2,
@@ -196,7 +196,7 @@
       },
       "PROBE_ATLAS_SAMPLE_STRIDE": {
         "code": "LumOn.ProbeAtlasSampleStride",
-        "name": "LumOn.ProbeAtlasSampleStride",
+        "name": "LumOn/ProbeAtlasSampleStride",
         "ingui": "vanillagraphicsexpanded:config-probe-atlas-sample-stride",
         "comment": "vanillagraphicsexpanded:config-probe-atlas-sample-stride-tooltip",
         "default": 2,
@@ -205,7 +205,7 @@
       },
       "PROBE_ATLAS_GATHER_MODE": {
         "code": "LumOn.ProbeAtlasGather",
-        "name": "LumOn.ProbeAtlasGather",
+        "name": "LumOn/ProbeAtlasGather",
         "ingui": "vanillagraphicsexpanded:config-probe-atlas-gather",
         "comment": "vanillagraphicsexpanded:config-probe-atlas-gather-tooltip",
         "default": 1,
@@ -217,7 +217,7 @@
       },
       "MATERIAL_ATLAS_ASYNC_MAX_UPLOADS_PER_FRAME": {
         "code": "MaterialAtlas.AsyncMaxUploadsPerFrame",
-        "name": "MaterialAtlas.AsyncMaxUploadsPerFrame",
+        "name": "MaterialAtlas/AsyncMaxUploadsPerFrame",
         "ingui": "vanillagraphicsexpanded:config-material-atlas-async-max-uploads",
         "comment": "vanillagraphicsexpanded:config-material-atlas-async-max-uploads-tooltip",
         "default": 8,
@@ -226,7 +226,7 @@
       },
       "MATERIAL_ATLAS_ASYNC_MAX_CPU_JOBS_PER_FRAME": {
         "code": "MaterialAtlas.AsyncMaxJobsPerFrame",
-        "name": "MaterialAtlas.AsyncMaxJobsPerFrame",
+        "name": "MaterialAtlas/AsyncMaxJobsPerFrame",
         "ingui": "vanillagraphicsexpanded:config-material-atlas-async-max-cpu-jobs",
         "comment": "vanillagraphicsexpanded:config-material-atlas-async-max-cpu-jobs-tooltip",
         "default": 2,
@@ -235,7 +235,7 @@
       },
       "PARALLAX_MIN_STEPS": {
         "code": "MaterialAtlas.ParallaxMinSteps",
-        "name": "MaterialAtlas.ParallaxMinSteps",
+        "name": "MaterialAtlas/ParallaxMinSteps",
         "ingui": "vanillagraphicsexpanded:config-parallax-min-steps",
         "comment": "vanillagraphicsexpanded:config-parallax-min-steps-tooltip",
         "default": 6,
@@ -244,7 +244,7 @@
       },
       "PARALLAX_MAX_STEPS": {
         "code": "MaterialAtlas.ParallaxMaxSteps",
-        "name": "MaterialAtlas.ParallaxMaxSteps",
+        "name": "MaterialAtlas/ParallaxMaxSteps",
         "ingui": "vanillagraphicsexpanded:config-parallax-max-steps",
         "comment": "vanillagraphicsexpanded:config-parallax-max-steps-tooltip",
         "default": 24,
@@ -253,7 +253,7 @@
       },
       "PARALLAX_REFINEMENT_STEPS": {
         "code": "MaterialAtlas.ParallaxRefinementSteps",
-        "name": "MaterialAtlas.ParallaxRefinementSteps",
+        "name": "MaterialAtlas/ParallaxRefinementSteps",
         "ingui": "vanillagraphicsexpanded:config-parallax-refinement-steps",
         "comment": "vanillagraphicsexpanded:config-parallax-refinement-steps-tooltip",
         "default": 4,
@@ -262,7 +262,7 @@
       },
       "PARALLAX_DEBUG_MODE": {
         "code": "MaterialAtlas.ParallaxDebugMode",
-        "name": "MaterialAtlas.ParallaxDebugMode",
+        "name": "MaterialAtlas/ParallaxDebugMode",
         "ingui": "vanillagraphicsexpanded:config-parallax-debug-mode",
         "comment": "vanillagraphicsexpanded:config-parallax-debug-mode-tooltip",
         "default": 0,
@@ -271,7 +271,7 @@
       },
       "TEXTURE_STREAMING_MAX_UPLOADS_PER_FRAME": {
         "code": "TextureStreaming.MaxUploadsPerFrame",
-        "name": "TextureStreaming.MaxUploadsPerFrame",
+        "name": "TextureStreaming/MaxUploadsPerFrame",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-max-uploads-per-frame",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-max-uploads-per-frame-tooltip",
         "default": 8,
@@ -280,7 +280,7 @@
       },
       "TEXTURE_STREAMING_MAX_BYTES_PER_FRAME": {
         "code": "TextureStreaming.MaxBytesPerFrame",
-        "name": "TextureStreaming.MaxBytesPerFrame",
+        "name": "TextureStreaming/MaxBytesPerFrame",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-max-bytes-per-frame",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-max-bytes-per-frame-tooltip",
         "default": 4194304,
@@ -289,7 +289,7 @@
       },
       "TEXTURE_STREAMING_MAX_STAGING_BYTES": {
         "code": "TextureStreaming.MaxStagingBytes",
-        "name": "TextureStreaming.MaxStagingBytes",
+        "name": "TextureStreaming/MaxStagingBytes",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-max-staging-bytes",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-max-staging-bytes-tooltip",
         "default": 8388608,
@@ -298,7 +298,7 @@
       },
       "TEXTURE_STREAMING_PERSISTENT_RING_BYTES": {
         "code": "TextureStreaming.PersistentRingBytes",
-        "name": "TextureStreaming.PersistentRingBytes",
+        "name": "TextureStreaming/PersistentRingBytes",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-persistent-ring-bytes",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-persistent-ring-bytes-tooltip",
         "default": 33554432,
@@ -307,7 +307,7 @@
       },
       "TEXTURE_STREAMING_TRIPLE_BUFFER_BYTES": {
         "code": "TextureStreaming.TripleBufferBytes",
-        "name": "TextureStreaming.TripleBufferBytes",
+        "name": "TextureStreaming/TripleBufferBytes",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-triple-buffer-bytes",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-triple-buffer-bytes-tooltip",
         "default": 8388608,
@@ -316,7 +316,7 @@
       },
       "TEXTURE_STREAMING_PBO_ALIGNMENT": {
         "code": "TextureStreaming.PboAlignment",
-        "name": "TextureStreaming.PboAlignment",
+        "name": "TextureStreaming/PboAlignment",
         "ingui": "vanillagraphicsexpanded:config-texture-streaming-pbo-alignment",
         "comment": "vanillagraphicsexpanded:config-texture-streaming-pbo-alignment-tooltip",
         "default": 256,
@@ -327,7 +327,7 @@
     "float": {
       "ANCHOR_JITTER_SCALE": {
         "code": "LumOn.AnchorJitterScale",
-        "name": "LumOn.AnchorJitterScale",
+        "name": "LumOn/AnchorJitterScale",
         "ingui": "vanillagraphicsexpanded:config-anchor-jitter-scale",
         "comment": "vanillagraphicsexpanded:config-anchor-jitter-scale-tooltip",
         "default": 0.35,
@@ -336,7 +336,7 @@
       },
       "RAY_MAX_DISTANCE": {
         "code": "LumOn.RayMaxDistance",
-        "name": "LumOn.RayMaxDistance",
+        "name": "LumOn/RayMaxDistance",
         "ingui": "vanillagraphicsexpanded:config-ray-max-distance",
         "comment": "vanillagraphicsexpanded:config-ray-max-distance-tooltip",
         "default": 4.0,
@@ -345,7 +345,7 @@
       },
       "RAY_THICKNESS": {
         "code": "LumOn.RayThickness",
-        "name": "LumOn.RayThickness",
+        "name": "LumOn/RayThickness",
         "ingui": "vanillagraphicsexpanded:config-ray-thickness",
         "comment": "vanillagraphicsexpanded:config-ray-thickness-tooltip",
         "default": 0.5,
@@ -354,7 +354,7 @@
       },
       "TEMPORAL_ALPHA": {
         "code": "LumOn.TemporalAlpha",
-        "name": "LumOn.TemporalAlpha",
+        "name": "LumOn/TemporalAlpha",
         "ingui": "vanillagraphicsexpanded:config-temporal-alpha",
         "comment": "vanillagraphicsexpanded:config-temporal-alpha-tooltip",
         "default": 0.2,
@@ -363,7 +363,7 @@
       },
       "DEPTH_DISCONTINUITY_THRESHOLD": {
         "code": "LumOn.DepthDiscontinuityThreshold",
-        "name": "LumOn.DepthDiscontinuityThreshold",
+        "name": "LumOn/DepthDiscontinuityThreshold",
         "ingui": "vanillagraphicsexpanded:config-depth-discontinuity-threshold",
         "comment": "vanillagraphicsexpanded:config-depth-discontinuity-threshold-tooltip",
         "default": 0.05,
@@ -372,7 +372,7 @@
       },
       "INTENSITY": {
         "code": "LumOn.Intensity",
-        "name": "LumOn.Intensity",
+        "name": "LumOn/Intensity",
         "ingui": "vanillagraphicsexpanded:config-intensity",
         "comment": "vanillagraphicsexpanded:config-intensity-tooltip",
         "default": 1.0,
@@ -381,7 +381,7 @@
       },
       "SKY_MISS_WEIGHT": {
         "code": "LumOn.SkyMissWeight",
-        "name": "LumOn.SkyMissWeight",
+        "name": "LumOn/SkyMissWeight",
         "ingui": "vanillagraphicsexpanded:config-sky-miss-weight",
         "comment": "vanillagraphicsexpanded:config-sky-miss-weight-tooltip",
         "default": 0.5,
@@ -390,7 +390,7 @@
       },
       "GATHER_DEPTH_SIGMA": {
         "code": "LumOn.GatherDepthSigma",
-        "name": "LumOn.GatherDepthSigma",
+        "name": "LumOn/GatherDepthSigma",
         "ingui": "vanillagraphicsexpanded:config-gather-depth-sigma",
         "comment": "vanillagraphicsexpanded:config-gather-depth-sigma-tooltip",
         "default": 0.5,
@@ -399,7 +399,7 @@
       },
       "GATHER_NORMAL_SIGMA": {
         "code": "LumOn.GatherNormalSigma",
-        "name": "LumOn.GatherNormalSigma",
+        "name": "LumOn/GatherNormalSigma",
         "ingui": "vanillagraphicsexpanded:config-gather-normal-sigma",
         "comment": "vanillagraphicsexpanded:config-gather-normal-sigma-tooltip",
         "default": 8.0,
@@ -408,7 +408,7 @@
       },
       "UPSAMPLE_DEPTH_SIGMA": {
         "code": "LumOn.UpsampleDepthSigma",
-        "name": "LumOn.UpsampleDepthSigma",
+        "name": "LumOn/UpsampleDepthSigma",
         "ingui": "vanillagraphicsexpanded:config-upsample-depth-sigma",
         "comment": "vanillagraphicsexpanded:config-upsample-depth-sigma-tooltip",
         "default": 0.1,
@@ -417,7 +417,7 @@
       },
       "UPSAMPLE_NORMAL_SIGMA": {
         "code": "LumOn.UpsampleNormalSigma",
-        "name": "LumOn.UpsampleNormalSigma",
+        "name": "LumOn/UpsampleNormalSigma",
         "ingui": "vanillagraphicsexpanded:config-upsample-normal-sigma",
         "comment": "vanillagraphicsexpanded:config-upsample-normal-sigma-tooltip",
         "default": 16.0,
@@ -426,7 +426,7 @@
       },
       "UPSAMPLE_SPATIAL_SIGMA": {
         "code": "LumOn.UpsampleSpatialSigma",
-        "name": "LumOn.UpsampleSpatialSigma",
+        "name": "LumOn/UpsampleSpatialSigma",
         "ingui": "vanillagraphicsexpanded:config-upsample-spatial-sigma",
         "comment": "vanillagraphicsexpanded:config-upsample-spatial-sigma-tooltip",
         "default": 1.0,
@@ -435,7 +435,7 @@
       },
       "UPSAMPLE_HOLE_FILL_MIN_CONFIDENCE": {
         "code": "LumOn.UpsampleHoleFillMinConfidence",
-        "name": "LumOn.UpsampleHoleFillMinConfidence",
+        "name": "LumOn/UpsampleHoleFillMinConfidence",
         "ingui": "vanillagraphicsexpanded:config-upsample-hole-fill-min-confidence",
         "comment": "vanillagraphicsexpanded:config-upsample-hole-fill-min-confidence-tooltip",
         "default": 0.05,
@@ -444,7 +444,7 @@
       },
       "DIFFUSE_AO_STRENGTH": {
         "code": "LumOn.DiffuseAOStrength",
-        "name": "LumOn.DiffuseAOStrength",
+        "name": "LumOn/DiffuseAOStrength",
         "ingui": "vanillagraphicsexpanded:config-diffuse-ao-strength",
         "comment": "vanillagraphicsexpanded:config-diffuse-ao-strength-tooltip",
         "default": 1.0,
@@ -453,7 +453,7 @@
       },
       "SPECULAR_AO_STRENGTH": {
         "code": "LumOn.SpecularAOStrength",
-        "name": "LumOn.SpecularAOStrength",
+        "name": "LumOn/SpecularAOStrength",
         "ingui": "vanillagraphicsexpanded:config-specular-ao-strength",
         "comment": "vanillagraphicsexpanded:config-specular-ao-strength-tooltip",
         "default": 0.5,
@@ -462,7 +462,7 @@
       },
       "PROBE_ATLAS_LEAK_THRESHOLD": {
         "code": "LumOn.ProbeAtlasLeakThreshold",
-        "name": "LumOn.ProbeAtlasLeakThreshold",
+        "name": "LumOn/ProbeAtlasLeakThreshold",
         "ingui": "vanillagraphicsexpanded:config-probe-atlas-leak-threshold",
         "comment": "vanillagraphicsexpanded:config-probe-atlas-leak-threshold-tooltip",
         "default": 0.5,
@@ -471,7 +471,7 @@
       },
       "MATERIAL_ATLAS_ASYNC_BUDGET_MS": {
         "code": "MaterialAtlas.AsyncBudgetMs",
-        "name": "MaterialAtlas.AsyncBudgetMs",
+        "name": "MaterialAtlas/AsyncBudgetMs",
         "ingui": "vanillagraphicsexpanded:config-material-atlas-async-budget-ms",
         "comment": "vanillagraphicsexpanded:config-material-atlas-async-budget-ms-tooltip",
         "default": 1.5,
@@ -480,7 +480,7 @@
       },
       "NORMAL_MAP_SCALE": {
         "code": "MaterialAtlas.NormalMapScale",
-        "name": "MaterialAtlas.NormalMapScale",
+        "name": "MaterialAtlas/NormalMapScale",
         "ingui": "vanillagraphicsexpanded:config-normal-map-scale",
         "comment": "vanillagraphicsexpanded:config-normal-map-scale-tooltip",
         "default": 1.0,
@@ -489,7 +489,7 @@
       },
       "PARALLAX_SCALE": {
         "code": "MaterialAtlas.ParallaxScale",
-        "name": "MaterialAtlas.ParallaxScale",
+        "name": "MaterialAtlas/ParallaxScale",
         "ingui": "vanillagraphicsexpanded:config-parallax-scale",
         "comment": "vanillagraphicsexpanded:config-parallax-scale-tooltip",
         "default": 0.03,
@@ -498,7 +498,7 @@
       },
       "PARALLAX_FADE_START": {
         "code": "MaterialAtlas.ParallaxFadeStart",
-        "name": "MaterialAtlas.ParallaxFadeStart",
+        "name": "MaterialAtlas/ParallaxFadeStart",
         "ingui": "vanillagraphicsexpanded:config-parallax-fade-start",
         "comment": "vanillagraphicsexpanded:config-parallax-fade-start-tooltip",
         "default": 3.0,
@@ -507,7 +507,7 @@
       },
       "PARALLAX_FADE_END": {
         "code": "MaterialAtlas.ParallaxFadeEnd",
-        "name": "MaterialAtlas.ParallaxFadeEnd",
+        "name": "MaterialAtlas/ParallaxFadeEnd",
         "ingui": "vanillagraphicsexpanded:config-parallax-fade-end",
         "comment": "vanillagraphicsexpanded:config-parallax-fade-end-tooltip",
         "default": 14.0,
@@ -516,7 +516,7 @@
       },
       "PARALLAX_MAX_TEXELS": {
         "code": "MaterialAtlas.ParallaxMaxTexels",
-        "name": "MaterialAtlas.ParallaxMaxTexels",
+        "name": "MaterialAtlas/ParallaxMaxTexels",
         "ingui": "vanillagraphicsexpanded:config-parallax-max-texels",
         "comment": "vanillagraphicsexpanded:config-parallax-max-texels-tooltip",
         "default": 4.0,

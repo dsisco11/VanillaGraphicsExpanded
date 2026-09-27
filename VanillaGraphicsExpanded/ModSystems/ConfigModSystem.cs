@@ -82,7 +82,7 @@ internal sealed class ConfigModSystem : ModSystem
 
         // ConfigLib emits events on the VS event bus when settings change / config is saved.
         // We intentionally avoid reflection against ConfigLib internals. Instead, we treat ConfigLib as the
-        // source of truth for its managed settings, apply those onto our mod config, then persist our mod config.
+        // source of truth for its managed settings and apply those onto our in-memory mod config.
         api.Event.RegisterEventBusListener(OnConfigLibEvent, filterByEventName: string.Format(ConfigSavedEvent, Constants.ModId));
         api.Event.RegisterEventBusListener(OnConfigLibEvent, filterByEventName: string.Format(ConfigChangedEvent, Constants.ModId));
         api.Event.RegisterEventBusListener(OnConfigLibEvent, filterByEventName: string.Format(ConfigLoadedEvent, Constants.ModId));
@@ -301,7 +301,8 @@ internal sealed class ConfigModSystem : ModSystem
 
             try
             {
-                // This is our ConfigLib patch definition file. ConfigLib uses the "code" property as the path into our config.
+                // VGE's "code" is the dot-separated event mapping. ConfigLib reads the JSON file
+                // using its separate slash-separated "name" path (for example LumOn/Enabled).
                 List<IAsset> assets = api.Assets.GetManyInCategory(
                     AssetCategory.config.Code,
                     "configlib-patches.json",

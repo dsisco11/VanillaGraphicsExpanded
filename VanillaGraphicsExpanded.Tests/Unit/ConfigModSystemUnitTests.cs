@@ -1,3 +1,4 @@
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -139,5 +140,51 @@ public sealed class ConfigModSystemUnitTests
         Assert.Equal(0, applied);
         Assert.False(cfg.Debug.LumOnRuntimeSelfCheckEnabled);
     }
+    #region ConfigLib definition paths
+    /// <summary>Every shipped setting uses a resolvable slash path while preserving the dotted VGE property code.</summary>
+    [Fact]
+    public void DefinitionNamesResolveAllSerializedConfigProperties()
+    {
+        var definition = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var config = Newtonsoft.Json.Linq.JObject.FromObject(new VgeConfig());
+        int validated = 0;
+        foreach (var category in ((Newtonsoft.Json.Linq.JObject)definition["settings"]!).Properties())
+        foreach (var setting in ((Newtonsoft.Json.Linq.JObject)category.Value).Properties())
+        {
+            string code = (string)setting.Value["code"]!;
+            string path = (string)setting.Value["name"]!;
+            Assert.Equal(code.Replace('.', '/'), path);
+            Newtonsoft.Json.Linq.JToken? value = config;
+            foreach (string segment in path.Split('/')) value = value?[segment];
+            Assert.True(value is not null, $"Missing serialized setting path: {path}");
+            validated++;
+        }
+        Assert.True(validated > 0);
+    }
+
+    /// <summary>An explicit false value resolves from the shipped name and survives its ConfigLib loaded event.</summary>
+    [Fact]
+    public void EnabledFalseResolvesAndAppliesWithoutDefaultFallback()
+    {
+        var definition = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var setting = definition["settings"]!["boolean"]!["ENABLED"]!;
+        string path = (string)setting["name"]!;
+        string code = (string)setting["code"]!;
+        var stored = Newtonsoft.Json.Linq.JObject.FromObject(new VgeConfig());
+        stored["LumOn"]!["Enabled"] = false;
+        Newtonsoft.Json.Linq.JToken? value = stored;
+        foreach (string segment in path.Split('/')) value = value?[segment];
+        Assert.NotNull(value);
+        Assert.False(value.Value<bool>());
+        var eventData = new TreeAttribute();
+        eventData.SetString("MappingKey", "ENABLED");
+        eventData.SetString("Value", value.Value<bool>() ? "true" : "false");
+        var target = new VgeConfig();
+        Assert.True(target.LumOn.Enabled);
+        var applied = Apply(target, eventData, new Dictionary<string, string> { ["ENABLED"] = code });
+        Assert.Equal(1, applied.applied);
+        Assert.False(target.LumOn.Enabled);
+    }
+    #endregion
 }
 
