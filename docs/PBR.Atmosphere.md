@@ -82,7 +82,11 @@ The table stores the geometric-series closure S/(1-F), separately for each color
 constant-medium segment integration keeps scattering feedback bounded by extinction rather than
 using an unbounded source-times-distance estimate. A 1e-5 denominator floor guards roundoff.
 
-The planet boundary is a uniform Lambertian ground with albedo 0.1. Direct solar ground reflection
+The planet boundary is a uniform Lambertian ground. Its former fixed albedo of 0.1 is now the
+bare-ground fallback; production estimates regional snow reflectance from averaged seasonal
+temperatures and their warming/cooling trend, without scanning terrain. See
+[PBR.Atmosphere.Seasons.md](PBR.Atmosphere.Seasons.md) for assumptions, quantization and engine inputs.
+Direct solar ground reflection
 contributes to S and reflection of isotropic illumination contributes to F. This is a global atmospheric
 boundary assumption, not a sample of game terrain or Surface Cache lighting. The visible sky integration
 does not separately draw that ground reflection, and direct solar irradiance remains unchanged.
@@ -94,7 +98,7 @@ the direct-sun angular distribution or planet-shadow mask to this indirect sourc
 applied once at the end. Shared environment and horizon lighting integrate this same completed sky LUT.
 
 The worker retains one medium table and reuses it across observer and sun-direction changes.
-Its cache identity includes aerosol and both table dimensions; quality changes rebuild it before the
+Its cache identity includes aerosol, quantized ground reflectance and both table dimensions; quality changes rebuild it before the
 matching sky is published. Aerosol uses the admitted 0.05 cloud-coverage bucket consistently for all transport, so
 sub-bucket cloud jitter during sun movement does not rebuild the medium table. Aerosol changes
 rebuild it before computing a matching sky; cancellation is checked between

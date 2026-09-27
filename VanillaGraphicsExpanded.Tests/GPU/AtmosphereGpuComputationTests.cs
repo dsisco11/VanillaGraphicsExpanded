@@ -43,6 +43,28 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         Assert.Null(gpu.Update(sun, altitude, clouds, 32, 24));
     }
 
+    /// <summary>Seasonal ground reflectance changes finish the admitted generation and match CPU sky and shared lighting.</summary>
+    [Fact]
+    public void SeasonalReflectancePreservesGenerationAndMatchesCpu()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        Assert.Null(gpu.Update(Vector3.UnitY, 0, 0, 32, 24, groundAlbedo: .1f));
+        var bare = Complete(gpu, Vector3.UnitY, 0, 0, groundAlbedo: .8f);
+        var snowy = Complete(gpu, Vector3.UnitY, 0, 0, groundAlbedo: .8f);
+        var cpu = new AtmosphereLookup();
+        cpu.Update(Vector3.UnitY, 0, 0, groundAlbedo: .1f);
+        Compare(cpu.Current!.Environment, bare.Environment);
+        cpu.Update(Vector3.UnitY, 0, 0, groundAlbedo: .8f);
+        Compare(cpu.Current!.Environment, snowy.Environment);
+        Compare(cpu.Current.Horizon, snowy.Horizon);
+        Compare(cpu.Current.Solar, snowy.Solar);
+        Compare(cpu.Current.Extinction, snowy.Extinction);
+        for (int i = 0; i < snowy.Sky.Length; i++) Close(cpu.Current.Sky[i], snowy.Sky[i], $"snow sky[{i}]");
+        Assert.True(snowy.Environment.Length() > bare.Environment.Length());
+        Assert.Null(gpu.Update(Vector3.UnitY, 0, 0, 32, 24, groundAlbedo: .801f));
+    }
     /// <summary>Changed sun and weather publish their complete generation after an admitted generation finishes.</summary>
     [Fact]
     public void ChangedInputsAndDisposalKeepGenerationOwnership()
@@ -152,7 +174,10 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
             Assert.Equal(true, typeof(AtmosphereModSystem).GetMethod("Reload", flags)!.Invoke(system, null));
             Assert.Same(display, AtmosphereModSystem.Lighting); Assert.Equal(texture, AtmosphereModSystem.SkyTextureId);
             Assert.Throws<ObjectDisposedException>(() => backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0));
+            var seasonField = typeof(AtmosphereModSystem).GetField("seasonInputs", flags)!;
+            var previousSeasonOwner = seasonField.GetValue(system);
             typeof(AtmosphereModSystem).GetMethod("Reset", flags)!.Invoke(system, null);
+            Assert.NotSame(previousSeasonOwner, seasonField.GetValue(system));
             Assert.Null(AtmosphereModSystem.Lighting); Assert.Equal(0, AtmosphereModSystem.SkyTextureId);
         }
         finally
@@ -165,12 +190,12 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
 
     #region Completion and comparisons
     /// <summary>Waits on submitted GPU dependencies rather than adding unconditional timing delays.</summary>
-    private static AtmosphereLighting Complete(AtmosphereGpuComputation gpu, Vector3 sun, float altitude, float clouds, int width = 32, int height = 24, int quality = 0)
+    private static AtmosphereLighting Complete(AtmosphereGpuComputation gpu, Vector3 sun, float altitude, float clouds, int width = 32, int height = 24, int quality = 0, float groundAlbedo = .1f)
     {
         var clock = Stopwatch.StartNew();
         while (clock.Elapsed < TimeSpan.FromSeconds(30))
         {
-            var result = gpu.Update(sun, altitude, clouds, width, height, quality);
+            var result = gpu.Update(sun, altitude, clouds, width, height, quality, groundAlbedo);
             if (result is not null) return result;
             using var fence = GpuFence.Insert();
             Assert.Contains(fence.Wait(TimeSpan.FromSeconds(5)), new[] { WaitSyncStatus.AlreadySignaled, WaitSyncStatus.ConditionSatisfied });

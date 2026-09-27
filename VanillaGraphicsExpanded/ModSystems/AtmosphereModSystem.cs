@@ -14,6 +14,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
 {
     private ICoreClientAPI? api;
     private AtmosphereBackend? computation;
+    private AtmosphereSeasonInputs seasonInputs = new();
     private DynamicTexture2D? sky;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
@@ -38,6 +39,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     private void Reset()
     {
         Lighting = null; SkyTextureId = 0;
+        seasonInputs = new();
         computation?.Dispose(); computation = api is null ? null : new(api);
         sky?.Dispose(); sky = null;
     }
@@ -69,13 +71,15 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         if (api?.World?.Player?.Entity is not { } player || api.World.Calendar is not { } calendar) return;
         var direction = calendar.SunPositionNormalized;
         var settings = ConfigModSystem.Config.Atmosphere;
+        var seasonal = seasonInputs.Capture(api, player.Pos.AsBlockPos);
         // Supply valid resources without integrating on the render thread before the first result arrives.
         if (Lighting is null)
             Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
                 ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
         var ready = computation!.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
             (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
-            width: settings.LookupWidth, height: settings.LookupHeight, quality: settings.SkyLutQuality);
+            width: settings.LookupWidth, height: settings.LookupHeight, quality: settings.SkyLutQuality,
+            groundAlbedo: seasonal.GroundAlbedo);
         if (ready is not null) Publish(ready);
     }
 

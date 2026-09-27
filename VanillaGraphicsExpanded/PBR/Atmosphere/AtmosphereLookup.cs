@@ -19,7 +19,7 @@ internal sealed class AtmosphereLookup
     internal const int DefaultHeight = 24;
     internal const int SamplesPerUpdate = 128;
     private float[] staging = Array.Empty<float>();
-    private (int X, int Y, int Z, int Altitude, int Weather, int Width, int Height, int Quality)? completedKey, buildingKey;
+    private (int X, int Y, int Z, int Altitude, int Weather, int Width, int Height, int Quality, int Albedo)? completedKey, buildingKey;
     private int quality;
     private int width, height;
     private Vector3 sun, environment, horizon;
@@ -27,20 +27,22 @@ internal sealed class AtmosphereLookup
     private int next;
     private AtmosphereMultipleScattering? multipleScattering;
     private float multipleScatteringAerosol;
+    private float groundAlbedo, multipleScatteringAlbedo;
     internal AtmosphereLighting? Current { get; private set; }
     internal int Revision { get; private set; }
 
     #region Bounded refresh
     /// <summary>Builds a complete snapshot by default; explicit incremental callers can bound weather refresh work.</summary>
     internal bool Update(Vector3 solarDirection, float altitudeKm, float cloudCover, bool complete = true,
-        int width = DefaultWidth, int height = DefaultHeight, CancellationToken cancellationToken = default, int quality = 0)
+        int width = DefaultWidth, int height = DefaultHeight, CancellationToken cancellationToken = default, int quality = 0,
+        float groundAlbedo = .1f)
     {
         if (!float.IsFinite(solarDirection.LengthSquared()) || solarDirection.LengthSquared() < .0001f
             || !float.IsFinite(altitudeKm) || !float.IsFinite(cloudCover)) return false;
         solarDirection = Vector3.Normalize(solarDirection);
         var key = ((int)MathF.Round(solarDirection.X * 256), (int)MathF.Round(solarDirection.Y * 256),
             (int)MathF.Round(solarDirection.Z * 256), (int)MathF.Round(Math.Clamp(altitudeKm, 0, 99) * 40),
-            (int)MathF.Round(Math.Clamp(cloudCover, 0, 1) * 20), Width: Math.Clamp(width, 16, DefaultWidth * 4), Height: Math.Clamp(height, 8, DefaultHeight * 4), Quality: Math.Clamp(quality, 0, 3));
+            (int)MathF.Round(Math.Clamp(cloudCover, 0, 1) * 20), Width: Math.Clamp(width, 16, DefaultWidth * 4), Height: Math.Clamp(height, 8, DefaultHeight * 4), Quality: Math.Clamp(quality, 0, 3), Albedo: AtmosphereSeasonModel.AlbedoBucket(groundAlbedo));
         var previous = buildingKey ?? completedKey;
         bool resized = previous is { } prior && (prior.Width != key.Width || prior.Height != key.Height || prior.Quality != key.Quality);
         if (resized)
@@ -62,20 +64,22 @@ internal sealed class AtmosphereLookup
             // Use the admitted weather bucket consistently for transport and its cached
             // medium table; tiny cloud jitter during sun motion must not rebuild the table.
             aerosol = 1f + 7f * (key.Item5 / 20f);
+            this.groundAlbedo = key.Albedo / 50f;
             next = 0; environment = horizon = Vector3.Zero;
         }
         // Finish the admitted snapshot even if inputs change; otherwise moving weather could starve publication.
         var budget = AtmosphereScatteringBudget.FromQuality(this.quality);
-        if (multipleScattering is null || multipleScatteringAerosol != aerosol
+        if (multipleScattering is null || multipleScatteringAerosol != aerosol || multipleScatteringAlbedo != this.groundAlbedo
             || multipleScattering.Width != budget.Width || multipleScattering.Height != budget.Height)
         {
             // Independent of observer and sun direction: retain one completed medium table.
-            var replacement = AtmosphereMultipleScattering.Build(aerosol, cancellationToken,
+            var replacement = AtmosphereMultipleScattering.Build(aerosol, cancellationToken, groundAlbedo: this.groundAlbedo,
                 sunSamples: budget.Width, altitudeSamples: budget.Height,
                 directionSamples: budget.DirectionSamples, raySamples: budget.RaySamples,
                 lightSamples: budget.LightSamples);
             multipleScattering = replacement;
             multipleScatteringAerosol = aerosol;
+            multipleScatteringAlbedo = this.groundAlbedo;
         }
         // Resolution belongs to the admitted build, not the latest requested settings.
         width = this.width; height = this.height;

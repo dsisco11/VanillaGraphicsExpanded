@@ -16,7 +16,7 @@ contracts, `GpuComputePipeline`, `GpuShaderStorageBuffer`, `GpuFence`, and `GpuQ
 - `atmosphere_scattering.csh`: one 64-lane workgroup per source-table cell; lanes integrate angular
   rays and reduce source and isotropic feedback before computing S/(1-F). Each render update submits
   at most 64 cells and only after the previous batch fence signals. Quality budgets and the uniform
-  ground albedo of 0.1 match the CPU reference.
+  ground reflectance supplied by the seasonal approximation match the CPU reference.
 - `atmosphere_sky.csh`: one invocation per sky texel, using the completed table with the same squared
   altitude interpolation, 24 view segments and 12 solar segments as CPU transport.
 - `atmosphere_lighting.csh`: row-major reduction of that sky into environment and horizon illumination,
@@ -25,7 +25,7 @@ contracts, `GpuComputePipeline`, `GpuShaderStorageBuffer`, `GpuFence`, and `GpuQ
 Storage barriers order source batches, sky sampling, and the lighting reduction. A buffer-update
 barrier precedes the output queue's completion fence. Zero-time polling admits further work; no
 positive-duration GPU wait runs in production. The source cache depends on quantized weather and
-quality; sun and observer movement reuse it. Source construction requires 8/32/72/128 submissions
+quality and the quantized ground-reflectance bucket; sun and observer movement reuse it. Source construction requires 8/32/72/128 submissions
 at quality 0/1/2/3, followed by sky/integral submission and completion consumption. These are lower
 bounds on render updates, not promises of frame time or completion latency.
 

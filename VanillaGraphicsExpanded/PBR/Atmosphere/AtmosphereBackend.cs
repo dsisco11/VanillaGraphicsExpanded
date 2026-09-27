@@ -23,7 +23,7 @@ internal sealed class AtmosphereBackend : IDisposable
 
     #region Scheduling
     /// <summary>Admits work to one backend; initialization or execution failure falls back without clearing display.</summary>
-    internal AtmosphereLighting? Update(Vector3 sun, float altitude, float clouds, int width, int height, int quality)
+    internal AtmosphereLighting? Update(Vector3 sun, float altitude, float clouds, int width, int height, int quality, float groundAlbedo = .1f)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!selected)
@@ -38,14 +38,14 @@ internal sealed class AtmosphereBackend : IDisposable
         }
         if (gpu is not null)
         {
-            try { return gpu.Update(sun, altitude, clouds, width, height, quality); }
+            try { return gpu.Update(sun, altitude, clouds, width, height, quality, groundAlbedo); }
             catch (Exception ex)
             {
                 gpu.Dispose(); gpu = null; cpu = new();
                 api.Logger.Warning("Atmosphere GPU transport failed; using CPU transport: {0}", ex.Message);
             }
         }
-        return cpu!.Update(sun, altitude, clouds, width, height, quality);
+        return cpu!.Update(sun, altitude, clouds, width, height, quality, groundAlbedo);
     }
     #endregion
 

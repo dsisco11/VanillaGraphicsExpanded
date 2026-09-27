@@ -19,16 +19,16 @@ internal sealed class AtmosphereGpuComputation : IDisposable
     private readonly GpuQueue<Vector4> output;
     private GpuFence? batch;
     private Request? admitted, completed;
-    private (int Weather, int Quality)? sourceKey;
+    private (int Weather, int Quality, int Albedo)? sourceKey;
     private int nextCell;
     private bool disposed;
 
     /// <summary>Captures one immutable generation and its quantized invalidation key.</summary>
-    private readonly record struct Request(Vector3 Sun, float Altitude, int Weather, int Width, int Height, int Quality)
+    private readonly record struct Request(Vector3 Sun, float Altitude, int Weather, int Width, int Height, int Quality, int Albedo)
     {
-        internal (int, int, int, int, int, int, int, int) Key =>
+        internal (int, int, int, int, int, int, int, int, int) Key =>
             ((int)MathF.Round(Sun.X * 256), (int)MathF.Round(Sun.Y * 256), (int)MathF.Round(Sun.Z * 256),
-                (int)MathF.Round(Altitude * 40), Weather, Width, Height, Quality);
+                (int)MathF.Round(Altitude * 40), Weather, Width, Height, Quality, Albedo);
     }
 
     #region Creation and capabilities
@@ -81,7 +81,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
 
     #region Scheduling and completion
     /// <summary>Finishes admitted work before accepting newer inputs, keeping publication starvation-free.</summary>
-    internal AtmosphereLighting? Update(Vector3 sun, float altitude, float clouds, int width, int height, int quality = 0)
+    internal AtmosphereLighting? Update(Vector3 sun, float altitude, float clouds, int width, int height, int quality = 0, float groundAlbedo = .1f)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         AtmosphereLighting? ready = null;
@@ -104,7 +104,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
                 || !float.IsFinite(altitude) || !float.IsFinite(clouds)) return ready;
             var request = new Request(Vector3.Normalize(sun), Math.Clamp(altitude, 0, 99),
                 (int)MathF.Round(Math.Clamp(clouds, 0, 1) * 20), Math.Clamp(width, 16, 128),
-                Math.Clamp(height, 8, 96), Math.Clamp(quality, 0, 3));
+                Math.Clamp(height, 8, 96), Math.Clamp(quality, 0, 3), AtmosphereSeasonModel.AlbedoBucket(groundAlbedo));
             if (completed?.Key == request.Key) return ready;
             admitted = request; nextCell = 0;
         }
@@ -119,14 +119,14 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         var budget = AtmosphereScatteringBudget.FromQuality(request.Quality);
         Span<Vector4> values = stackalloc Vector4[4];
         values[0] = new(request.Sun, Math.Clamp(request.Altitude, .001f, 99));
-        values[1] = new(1f + 7f * (request.Weather / 20f), .1f, request.Width, request.Height);
+        values[1] = new(1f + 7f * (request.Weather / 20f), request.Albedo / 50f, request.Width, request.Height);
         values[2] = new(budget.Width, budget.Height, budget.DirectionSamples, budget.RaySamples);
         values[3] = new(budget.LightSamples, nextCell, 0, 0);
         parameters.UploadSubData<Vector4>(values, 0, 64);
         parameters.BindBase(0); source.BindBase(1);
         try
         {
-            if (sourceKey != (request.Weather, request.Quality) && nextCell < budget.Width * budget.Height)
+            if (sourceKey != (request.Weather, request.Quality, request.Albedo) && nextCell < budget.Width * budget.Height)
             {
                 int count = Math.Min(CellsPerDispatch, budget.Width * budget.Height - nextCell);
                 scattering.Dispatch(count);
@@ -139,7 +139,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
                 if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Atmosphere dispatch submission failed.");
                 return;
             }
-            sourceKey = (request.Weather, request.Quality);
+            sourceKey = (request.Weather, request.Quality, request.Albedo);
             int countOutput = request.Width * request.Height + 4;
             // GpuQueue owns allocation/submission; every output record is overwritten by the two producers.
             output.PrepareGpuWrite(countOutput);

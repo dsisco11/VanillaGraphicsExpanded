@@ -260,21 +260,30 @@ Tasks
           for a source rebuild, 0.334–0.361 ms with cached source. Full quality-3 GPU execution and peak
           dispatch were measured; full quality-3 CPU timing and live terrain contention remain unmeasured.
           Ownership, storage bounds, receipts and frame-cadence limits: PBR.Atmosphere.GpuComputation.md.
-    ☐ Derive atmospheric parameters from world calendar, player latitude and seasonal world conditions.
+    ☑ Derive atmospheric parameters from world calendar, player latitude and seasonal world conditions.
       - Trace the base-game calendar, axial tilt, world-relative latitude and climate APIs, including
         coordinate conventions and hemisphere behavior. Reuse its solar direction/season model without
         applying the planet's tilt a second time.
-      - Replace the fixed groundAlbedo assumption with a bounded effective ground reflectance informed
-        by available snow, vegetation and terrain-cover data, with calendar/latitude-driven seasonal
-        behavior and a documented fallback when local data is unavailable. Tilt changes illumination;
-        changes to reflectance must represent surface conditions rather than arbitrary solar-angle tinting.
+        - Replace fixed groundAlbedo with an approximation of regional snow coverage from average
+          temperature and seasonal warming/cooling direction. Do not scan actual terrain, blocks or
+          snow-cover data. Model accumulation delay and persistence during spring melt; use a documented
+          neutral fallback when regional climate is unavailable. Reuse the latitude-aware calendar/climate
+          model without applying axial tilt again or tinting reflectance directly by solar angle.
       - Identify other physically relevant seasonal inputs supported by world data (such as aerosol or
         atmospheric density); document their mappings and avoid inventing changes to fixed physical constants.
       - Capture an immutable input snapshot on the game thread for background computation. Extend cache
         identity and stable quantization to all transport-affecting parameters, preserving coherent
         publication and avoiding rebuild churn from tiny time/position changes.
-      - Validate opposing hemispheres, solstices/equinoxes, latitude transitions, snow-cover changes,
-        time jumps and world teardown; record CPU costs and obtain user-run seasonal appearance checks.
+        - Validate opposing hemispheres, solstices/equinoxes, latitude transitions, snow-cover changes,
+          time jumps and world teardown; record CPU costs and obtain user-run seasonal appearance checks.
+        - Implementation and automated validation complete: climate/calendar-only thermal-lag snow
+          estimate, immutable capture, shared 0.02 reflectance buckets in CPU/GPU transport and cache
+          keys. Release atmosphere suite: 114 passed, five optional measurements skipped. Strict mocks
+          forbid terrain scans. Capture costs are bounded to one climate lookup plus 36 date evaluations
+          (12 with a pinned season), with zero climate calls on cache hits. Mock timings are not engine
+            cost evidence; real callback cost and seasonal appearance remain unverified. Marked complete
+            at user direction; those observations are not completion blockers.
+          Source audit, approximation limits and validation: PBR.Atmosphere.Seasons.md.
     ☐ Introduce horizon-focused sky LUT sampling.
       - Allocate more angular resolution near the horizon using matching generation and shader lookup
         mappings; account for observer altitude and preserve azimuth wrapping and pole behavior.
