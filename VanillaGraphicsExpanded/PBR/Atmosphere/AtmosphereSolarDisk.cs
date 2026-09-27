@@ -6,7 +6,9 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 /// <summary>Defines the finite solar emitter shared by disk rendering and direct illumination.</summary>
 internal static class AtmosphereSolarDisk
 {
-    internal const float AngularRadius = .004675f;
+    // Half the vanilla bright disk's angular diameter, excluding its translucent halo:
+    // 0.5 * atan((48 texture pixels * 0.04 scale) / (50 distance - 128 * 0.04 offset)).
+    internal const float AngularRadius = .021377339f;
     // Resolve the sunrise transition instead of quantizing it into two or three atmosphere builds.
     internal const int DirectionResolution = 1 << 16;
 

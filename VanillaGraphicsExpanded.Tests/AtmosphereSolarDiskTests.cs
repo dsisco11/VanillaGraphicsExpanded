@@ -9,6 +9,14 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class AtmosphereSolarDiskTests
 {
     #region Solar geometry
+    /// <summary>The solar disk uses half the nominal vanilla bright-core angular diameter, excluding the halo.</summary>
+    [Fact]
+    public void DiameterIsHalfVanillaBrightCore()
+    {
+        float vanillaAngularRadius = MathF.Atan((48f * .04f) / (50f - 128f * .04f));
+        Assert.InRange(MathF.Abs(AtmosphereSolarDisk.AngularRadius * 2f - vanillaAngularRadius), 0, 1e-8f);
+    }
+
     /// <summary>Finite-disk extinction stays nonnegative and continuous while the emitter crosses the planetary limb.</summary>
     [Theory]
     [InlineData(.001f)]

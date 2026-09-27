@@ -77,7 +77,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             void main() {
                 vec2 corners[6] = vec2[6](vec2(0,0),vec2(1,0),vec2(1,1),vec2(0,0),vec2(1,1),vec2(0,1));
                 uvIn=corners[gl_VertexID];
-                projectionMatrix=mat4(160,0,0,0, 0,160,0,0, 0,0,-1,-1, 0,0,-1,0);
+                float zoom=.75/tan(vge_atmosphereDisk.w);
+                projectionMatrix=mat4(zoom,0,0,0, 0,zoom,0,0, 0,0,-1,-1, 0,0,-1,0);
                 viewMatrix=mat4(1); viewMatrix[3]=vec4(camera,1);
                 VgeDrawAtmosphericSun();
             }
@@ -103,7 +104,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         GlStateCache.Current.UseProgram(program.ProgramId);
         GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereDisk"), 3f, 2f, 1f, .004675f);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereDisk"), 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         float[]? baseline = null;

@@ -1,7 +1,7 @@
 #ifndef VGE_ATMOSPHERE_SOLAR_DISK
 #define VGE_ATMOSPHERE_SOLAR_DISK
-// Match AtmosphereSolarDisk: 0.5357 degree diameter, constant radiance over the visible segment.
-const float atmSunRadius = .004675;
+// Match AtmosphereSolarDisk: half the vanilla bright disk, approximately 2.45 degrees diameter.
+const float atmSunRadius = .021377339;
 
 // Series for a thin segment of height h; avoids catastrophic acos/chord cancellation.
 float atmSunSmallSegment(float h)

@@ -24,7 +24,12 @@ are retained.
 
 ## Radiometric contract
 
-The fixed angular radius is 0.004675 radians (approximately 0.536 degrees diameter). Solar
+The angular radius is 0.021377339 radians (approximately 2.45 degrees diameter), selected as
+half the vanilla bright disk diameter, excluding its translucent halo. The installed vanilla
+sun texture has an approximately 48-pixel bright-core radius; `prepareSunMat` uses scale 0.04
+and a -128-pixel depth offset, while the calendar places the sun at distance 50. The reference is
+therefore `0.5 * atan(48 * 0.04 / (50 - 128 * 0.04))`. This is a nominal visual reference;
+vanilla eye-height/altitude offsets and texture replacements can alter its apparent size. Solar
 irradiance outside the atmosphere remains `(1.474, 1.8504, 1.91198)` in the existing relative
 scene-linear units. A circular emitter with uniform radiance L supplies normal irradiance
 `E = L * pi * sin(radius)^2` when fully visible.
@@ -91,3 +96,10 @@ nested restoration and exception unwinding.
 
 No game process was launched. Live sunrise/sunset appearance, engine callback execution in a running
 world and the increased sky-refresh frequency's production cost remain unmeasured.
+
+### Half-vanilla disk sizing
+
+The updated diameter passed the Release/SPIR-V build and 27 focused solar geometry, CPU/GPU
+transport and raster tests in artifacts/AtmosphereSolar/solar-half-vanilla.trx. The raster fixture
+uses the production radius; camera translation independence, horizon clipping and energy
+normalization remain covered. No live game verification was performed.
