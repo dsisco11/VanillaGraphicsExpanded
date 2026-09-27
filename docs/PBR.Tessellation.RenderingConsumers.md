@@ -115,5 +115,7 @@ rasterization: neutral, faded and identity cases preserve all four components ex
 non-neutral control verifies displacement and the corresponding bias change. Existing raster,
 cascade, velocity, temporal blending and PBR/LumOn integration checks also pass.
 
-No performance benchmark or game was run for these fixes. Default enablement remains unchanged;
-representative production cost and user-run appearance verification are still separate acceptance work.
+No performance benchmark or game was run for these fixes. The subsequent user decision sets Relief
+as the configuration default to enable POM and closes the default-enablement task without requiring
+a production capture. Explicit saved mode selections are retained. No representative production cost
+or live appearance verification is claimed.

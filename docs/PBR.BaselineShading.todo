@@ -180,7 +180,7 @@ Tasks
       - Completion: docs/PBR.Tessellation.RenderingConsumers.md. Build and 74 distinct focused tests
         passed; final main/shadow pool-scope correction passed all 11 policy tests. Coarse LumOn geometry,
         mini-dimension exclusion and local reactive-history rejection are documented explicitly.
-    ☐ Validate correctness and measure production cost before default enablement.
+    ☑ Validate correctness and measure production cost before default enablement.
       - Run subagent-focused tests for neutral/missing maps, extreme heights, rotated textures, grazing
         angles, incompatible materials, seams, chunk boundaries, movement, shadows and reload/fallback.
       - Measure geometry amplification and GPU time separately from relief pixel cost with matched
@@ -189,15 +189,17 @@ Tasks
         verification to the user; passing headless tests is not in-game visual acceptance.
       - Correctness fixes and evidence: PBR.Tessellation.RenderingConsumers.md. All 147 focused tests
         pass after temporal/publication corrections and direct TES clip-identity verification.
-        Full production-frame cost remains unmeasured; default settings remain unchanged.
+        Full production-frame cost remains unmeasured. Closed by user decision: default to Relief
+        for POM; representative terrain cost capture is waived as a prerequisite for this default.
       ☑ Preserve temporal rejection when prior displacement becomes neutral, faded or unavailable;
         make the neutral/faded GPU regressions pass and cover missing-material/resource transitions.
       ☑ Track published height/metadata revisions so a complete-to-complete atlas replacement cannot
         escape temporal invalidation between frame snapshots; add focused lifecycle coverage.
       ☑ Preserve neutral-height depth identity under the engine's nonlinear opaque clip-w bias;
         cover varying vertex depth as well as constant-depth receivers.
-      ☐ Capture representative main/shadow terrain costs before deciding default enablement;
-        headless saturated-face measurements do not establish a real-world frame budget.
+      ☑ Capture representative main/shadow terrain costs before deciding default enablement;
+        closed by user decision to default to Relief without this capture. No production measurement
+        is claimed; headless saturated-face measurements do not establish a real-world frame budget.
 
   ☐ Add configurable resolution for atmospheric LUT.
   ☐ Make atmospheric shader look better and more physically accurate.

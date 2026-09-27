@@ -228,10 +228,10 @@ public class VgeConfig
         [JsonProperty]
         public bool EnableNormalMaps { get; set; } = true;
 
-        /// <summary>Requested height treatment, disabled unless explicitly selected.</summary>
+        /// <summary>Requested height treatment; relief enables POM by default.</summary>
         [JsonProperty]
         public PBR.Materials.TerrainSurfaceDetailMode TerrainSurfaceDetailMode { get; set; }
-            = PBR.Materials.TerrainSurfaceDetailMode.Disabled;
+            = PBR.Materials.TerrainSurfaceDetailMode.Relief;
 
         /// <summary>Height data is independent of whether its normal channels are used for shading.</summary>
         [JsonIgnore] public bool RequiresNormalDepthAtlas => EnableNormalMaps

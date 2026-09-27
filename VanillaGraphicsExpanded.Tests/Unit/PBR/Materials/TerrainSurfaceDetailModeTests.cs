@@ -18,7 +18,7 @@ public sealed class TerrainSurfaceDetailModeTests
         config.ParallaxMinSteps++;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
         initial=TerrainReliefConfiguration.Capture(config);config.ParallaxFadeEnd++;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
         initial=TerrainReliefConfiguration.Capture(config);config.ParallaxDebugMode++;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
-        initial=TerrainReliefConfiguration.Capture(config);config.TerrainSurfaceDetailMode=TerrainSurfaceDetailMode.Relief;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
+        initial=TerrainReliefConfiguration.Capture(config);config.TerrainSurfaceDetailMode=TerrainSurfaceDetailMode.Disabled;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
         config.ParallaxFadeStart=float.NaN;config.ParallaxFadeEnd=float.NaN;config.Sanitize();
         Assert.True(float.IsFinite(config.ParallaxFadeStart)&&float.IsFinite(config.ParallaxFadeEnd));
         config.ParallaxFadeEnd=config.ParallaxFadeStart;config.Sanitize();
@@ -27,10 +27,10 @@ public sealed class TerrainSurfaceDetailModeTests
     #endregion
 
     #region Configuration selection
-    /// <summary>Old flags do not enable relief when the new mode is absent.</summary>
+    /// <summary>Missing mode uses relief; explicit selections survive and legacy flags are ignored.</summary>
     [Theory]
-    [InlineData("{}", TerrainSurfaceDetailMode.Disabled)]
-    [InlineData("{\"EnableParallaxOcclusionMapping\":true}", TerrainSurfaceDetailMode.Disabled)]
+    [InlineData("{}", TerrainSurfaceDetailMode.Relief)]
+    [InlineData("{\"EnableParallaxOcclusionMapping\":true}", TerrainSurfaceDetailMode.Relief)]
     [InlineData("{\"EnableParallaxOcclusionMapping\":true,\"TerrainSurfaceDetailMode\":0}", TerrainSurfaceDetailMode.Disabled)]
     [InlineData("{\"EnableParallaxOcclusionMapping\":false,\"TerrainSurfaceDetailMode\":1}", TerrainSurfaceDetailMode.Relief)]
     [InlineData("{\"TerrainSurfaceDetailMode\":2}", TerrainSurfaceDetailMode.Tessellation)]

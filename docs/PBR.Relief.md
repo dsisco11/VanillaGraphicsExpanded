@@ -50,7 +50,7 @@ shader reload/material-owner disposal boundary.
 
 ## Configuration
 
-TerrainSurfaceDetailMode defaults to Disabled and must be selected explicitly. Old POM settings are
+TerrainSurfaceDetailMode defaults to Relief, enabling POM. Explicit mode selections are preserved. Old POM settings are
 ignored; no legacy values are migrated or persisted. The obsolete boolean and UV-scale properties
 have been removed. Step/refinement/fade/texel settings remain the active relief controls.
 

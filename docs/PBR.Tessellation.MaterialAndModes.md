@@ -84,7 +84,7 @@ Shadow routing must retain the same material eligibility and displacement bounds
 ## Requested and effective rendering modes
 
 Define a global enum setting `TerrainSurfaceDetailMode` with values `Disabled`, `Relief`, and
-`Tessellation`. Default to `Disabled`. Persist the requested mode separately from the effective mode;
+`Tessellation`. Default to `Relief`. Persist the requested mode separately from the effective mode;
 resource/capability failures must not rewrite the user's preference.
 
 | Mode | Eligible material behavior | Geometry and depth |
@@ -108,7 +108,7 @@ No combined relief+tessellation mode initially. A future combined mode requires 
 height function. Tessellation must not fade automatically to full-height relief underneath it.
 Distance transitions within a mode must preserve the shared-edge rules and temporal history contract.
 
-The new mode defaults to Disabled and must be selected explicitly. Do not migrate legacy POM
+The mode defaults to Relief to enable POM; explicit Disabled or Tessellation selections are retained. Do not migrate legacy POM
 settings. The obsolete boolean and UV-space scale are removed; material amplitudes provide metres.
 Existing step/refinement/fade settings remain active controls.
 
