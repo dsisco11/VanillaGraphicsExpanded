@@ -74,7 +74,7 @@ internal static class TerrainTessellationStages
         }
         if (adaptiveDisplacement)
         {
-            foreach (string required in new[] { "worldPos", "normal", "uv", "vge_uvBase", "vge_uvExtent", "vge_faceId", "renderFlags" })
+            foreach (string required in new[] { "worldPos", "normal", "uv", "vge_uvBase", "vge_uvExtent", "renderFlags" })
                 if (!outputNames.Contains(required)) throw new NotSupportedException($"Adaptive terrain output missing: {required}.");
         }
         return new Sources(Assemble(templates.Control, control.ToString(), copies.ToString(), adaptiveDisplacement),

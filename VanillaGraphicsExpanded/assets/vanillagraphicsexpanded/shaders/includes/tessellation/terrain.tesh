@@ -3,6 +3,7 @@
 #if VGE_ADAPTIVE_DISPLACEMENT
 @import "./terrain_displacement.glsl"
 patch in float vge_patchAmplitude;
+patch in vec4 vge_patchRect;
 layout(triangles, fractional_odd_spacing, ccw) in;
 #else
 layout(triangles, equal_spacing, ccw) in;
@@ -12,6 +13,8 @@ void main() {
         + gl_in[1].gl_Position * gl_TessCoord.y + gl_in[2].gl_Position * gl_TessCoord.z;
 #if VGE_ADAPTIVE_DISPLACEMENT
     if (vge_patchAmplitude > 0.0) {
+        vge_uvBase = vge_patchRect.xy;
+        vge_uvExtent = vge_patchRect.zw;
         vec3 basePosition = worldPos.xyz;
         vec3 e1 = tc_worldPos[1].xyz - tc_worldPos[0].xyz;
         vec3 e2 = tc_worldPos[2].xyz - tc_worldPos[0].xyz;

@@ -139,26 +139,24 @@ Tasks
         VGE_ENABLE_TESSELLATION uses the engine PrefixCode API before compilation. Removed inspection
         compilation/reflection and the varying-name table. Source-preparation receipt:
         artifacts/PbrColor/terrain-tessellation-source-preparation.trx (51 passed, two existing skips).
-    ☐ Implement bounded adaptive subdivision and atlas-safe displacement.
-      - Implemented core: material-only amplitude/schema validation, per-page R32F metadata rebuilt
-        from current plans, bounded fractional-odd edge subdivision, atlas-clamped pre-projection
-        displacement, finite-difference normals and boundary pinning. See
-        docs/PBR.Tessellation.AdaptiveDisplacement.md for resource and stage contracts.
-      - Focused validation: 54 distinct tests pass; final numerical rerun supersedes the initial
-        NaN-guard/ramp failures. Receipts and exact coverage are recorded in the linked document.
-      - Remaining before closing: production adaptive-program/resource publication is deliberately
-        gated on the matching shadow/culling/temporal consumer work below; non-SSBO face rectangles
-        currently retain the zero-displacement fallback. The existing production selector remains
-        on the identity pair, so authored amplitudes do not yet change in-game geometry.
-      - Implement the material/schema amplitude contract and GPU metadata transport from
-        docs/PBR.Tessellation.MaterialAndModes.md, including cache identity and neutral fallback.
-      - Derive shared-edge subdivision from consistent endpoint data and projected edge size, with
-        configurable maximum factors, distance/screen-error limits and stable transitions.
-      - Interpolate attributes and sample height before projection; preserve flat material/atlas
-        metadata, derive displaced normals and use a deliberate height sampling/LOD policy.
-      - Enforce matching displaced positions as well as matching subdivision at shared edges. Define
-        constraints at incompatible material boundaries and face corners; validate internal triangle
-        diagonals, atlas seams and chunk boundaries without cracks or cross-tile sampling.
+    ☑ Implement bounded adaptive subdivision and atlas-safe displacement.
+      - Implemented material-only amplitude/schema validation and current-plan GPU metadata:
+        per-page R32F tile indices plus compact rectangle/amplitude records, coherent removal/resize,
+        neutral fallback and SSBO-independent authored tile lookup.
+      - Implemented bounded fractional-odd shared-edge subdivision with configurable screen target,
+        level cap and distance fade; atlas-clamped LOD-zero displacement before projection,
+        preserved flat attributes and finite-difference normals.
+      - Full-tile quad receivers pin external edges/corners while retaining the internal diagonal.
+        Cropped/interior UV triangles, mixed/out-of-bounds tiles, degenerate geometry, wind faces and
+        invalid metadata remain undisplaced. Arbitrary triangular/UV topology is outside the initial
+        receiver contract; no adjacency or block-rotation inference is attempted.
+      - Completion evidence: docs/PBR.Tessellation.AdaptiveDisplacement.md; build succeeded and all
+        65 focused tests passed, none skipped, in artifacts/PbrColor/tessellation-adaptive-completion.trx.
+        Includes signed/neutral heights, both terrain layouts, atlas isolation, cropped-UV rejection,
+        differently displaced neighboring tiles and separate draw submissions with complete coverage.
+      - Scope: this completes the adaptive stage/material core. Mode selection belongs to the relief
+        task below; production program/resource publication belongs to rendering-consumer integration.
+        The production selector intentionally remains on the identity pair until those tasks finish.
     ☐ Extend existing parallax occlusion mapping into the selected relief contract.
       - Wire the global mode selector, explicit legacy POM migration and independent height-atlas
         availability defined in docs/PBR.Tessellation.MaterialAndModes.md.
@@ -167,6 +165,10 @@ Tasks
       - Initially keep relief and tessellation as alternatives; any combined mode must evaluate only
         residual height rather than applying the full displacement twice. Document silhouette limits.
     ☐ Integrate displaced geometry consistently across rendering consumers.
+      - Publish the completed adaptive program and bind its matching tile-index, record and height
+        textures plus sanitized subdivision/view parameters through the production terrain draw path.
+        Enable only with complete main/shadow variants and coherent resources; until then retain the
+        identity pair. This owns the publication work previously duplicated under the core task.
       - Share displacement evaluation with shadow rendering and define compatible height LOD between
         passes. Produce coherent depth, G-buffer normals/positions and previous-frame reprojection.
       - Account for outward displacement in culling bounds and document occlusion/collision limits.
@@ -181,6 +183,9 @@ Tasks
         workloads. Check stable transitions and bounded worst-case work; document hardware and settings.
       - Review the implementation against the full task and record evidence. Leave live appearance
         verification to the user; passing headless tests is not in-game visual acceptance.
+
+  ☐ Add configurable resolution for atmospheric LUT.
+  ☐ Make atmospheric shader look better and more physically accurate.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
     - Trace vanilla liquid entrypoints and transparency/OIT contracts before replacing their shading;

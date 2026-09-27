@@ -1,5 +1,8 @@
 # Adaptive subdivision and displacement core
 
+Core task complete: the completion build and all 65 focused tests pass in
+`artifacts/PbrColor/tessellation-adaptive-completion.trx` (10 seconds; no skips).
+
 The material contract and GPU stage implementation exist; production still publishes the undisplaced
 terrain path. Selecting displaced production programs remains gated on matching shadow, culling,
 resource binding and temporal-consumer integration. The global detail-mode selector belongs to the
@@ -12,16 +15,16 @@ are zero. Only finite values in [0, 0.05] metres are accepted; invalid values em
 and resolve to zero. Defaults and mapping overrides cannot introduce displacement. Existing built-in
 materials remain opted out.
 
-Resolved atlas plans publish a separate nearest-filtered R32F amplitude texture for each opted-in
-page. No displacement texture is allocated on pages without opted-in material tiles. Unassigned pixels
+Resolved atlas plans publish a nearest-filtered R32F tile-index texture and compact RGBA32F record table for each opted-in
+page. No displacement textures are allocated on pages without opted-in material tiles. Unassigned indices
 are zero. Metadata is rebuilt from the current material plan for warmup and normal rebuild routes;
 it is never restored from a height or BRDF disk cache. Changing only amplitude therefore does not
 require rebaking unchanged normal/height data. Removing/resizing pages discards amplitude metadata,
 and lookup requires a valid neutral-initialized height page. BRDF channels and baked height are unchanged.
 
-Current storage costs four GPU bytes per atlas pixel on opted-in pages and one transient CPU page
-array during upload. Upload is at build time, not per draw. Compact metadata storage is a possible
-future optimization; no throughput improvement is claimed.
+Current storage costs four GPU bytes per atlas pixel on opted-in pages plus 32 bytes per tile record
+and row padding (at most 127 records). A transient CPU page array and compact record array are used
+during upload. Upload is at build time, not per draw; no throughput improvement is claimed.
 
 ## Adaptive stage contract
 
@@ -37,11 +40,13 @@ The engine's existing preprocessor guards, output interpolation and primary/seco
 are preserved. Required terrain outputs are validated before generation. Topsoil height uses only
 the primary `uv`; its secondary UV remains interpolated for color layering.
 
-The control stage requires a consistent face ID, render flags and atlas rectangle. Wind-mode flags
+The control stage resolves the authored tile from the triangle centroid UV and requires consistent render flags. Wind-mode flags
 exclude deformed foliage. Invalid/mixed metadata, zero amplitude and invalid distance configuration
-produce level one and zero displacement. The current safe rectangle source is the existing SSBO face
-metadata. Ordinary terrain with the invalid-rectangle sentinel stays undisplaced; inferring a tile
-rectangle from an arbitrary triangle is deliberately not attempted.
+produce level one and zero displacement. The atlas index selects two record texels: normalized tile
+bounds and amplitude. The complete triangle is checked against those bounds, rejecting cross-tile
+receivers. The resolved rectangle is passed as patch data to evaluation, so non-SSBO and SSBO terrain
+use the same material lookup. No rectangle is inferred from triangle dimensions. Missing/invalid
+indices and mismatched atlas-page dimensions retain zero displacement.
 
 Each outer level depends only on its two world-position endpoints, the projection, viewport, screen
 target and distance fade. Reversing the endpoints produces the same result. Fractional-odd spacing
@@ -54,7 +59,8 @@ start/end metres for later uniform publication. The stage uniform contract is:
 
 | Input | Meaning |
 | --- | --- |
-| `vge_displacementTex` | Current amplitude metadata for this atlas page |
+| `vge_displacementTex` | Current tile-index map for this atlas page; zero means missing |
+| `vge_displacementRecords` | Two RGBA texels per tile: normalized rectangle and amplitude |
 | `vge_normalDepthTex` | Matching normal/height page, alpha height |
 | `vge_tessellationPixels` | Viewport width/height, target pixels, maximum level |
 | `vge_tessellationDistance` | Fade start/end in metres |
@@ -73,6 +79,13 @@ This constrains incompatible material/normal boundaries, including chunk boundar
 trying to stitch unrelated displacement functions. Both triangles of a face evaluate the same
 UV-based height function: the internal diagonal is not pinned. Rotated/mirrored UVs use the actual
 world-position/UV metric. Finite differences of this height function produce the displaced normal.
+
+The initial supported receiver is a full-tile quad represented by two triangles. Each triangle must
+use three distinct tile corners within the pinned one-texel band. Cropped/interior UV triangles are
+ineligible: their physical boundary can cross nonzero height inside the tile, so tile-edge pinning
+alone cannot protect it. Author materials for full-tile quads; isolated triangular faces and arbitrary
+UV topology are outside this initial receiver contract. No adjacency or block-rotation inference is
+performed. The corner check is independent of triangle winding and supports rotated/mirrored UVs.
 
 Available camera-position, vertex-position and G-buffer normal varyings are updated. Shadow-coordinate
 re-evaluation, displaced shadow passes, culling expansion, previous-frame reprojection and LumOn trace
@@ -105,3 +118,25 @@ the shared shader test helpers. Direct driver lifetime/state assertions still ch
 objects and restored patch size, independently of the wrappers.
 The abstraction refactor passes all 37 focused tests in
 `artifacts/PbrColor/tessellation-abstractions.trx` (9 seconds test duration).
+
+Compact tile metadata and non-SSBO rectangle resolution pass 62 focused tests in
+`artifacts/PbrColor/tessellation-tile-metadata.trx` (8 seconds). Added coverage includes record-row
+addressing, stale plan/page dimensions, displacement with the non-SSBO rectangle sentinel, absent
+and out-of-range record indices, and rejection of triangles extending beyond the authored tile.
+This completes that core data-path gap; production publication and rendering-consumer integration
+remain pending as described above.
+
+## Completion audit
+
+The core task is satisfied against the material/height and shared-edge requirements in
+`PBR.Tessellation.MaterialAndModes.md` and the topology/atlas constraints in
+`PBR.Tessellation.DepthMapAudit.md`. The final change rejects cropped UV triangles whose external
+edges were not protected by tile-boundary pinning. The completion run adds opposite-height,
+different-amplitude adjacent tiles in one and separate draw submissions; both sides must actually
+displace and every framebuffer pixel must remain covered.
+
+Global mode migration and production main/shadow resource publication are separately owned by the
+relief and rendering-consumer tasks in `PBR.BaselineShading.todo`. Their earlier duplication as a
+blocker on this core task was removed; those obligations remain open, including culling, temporal
+consumers, LumOn representation, capability/coherent-generation selection and normal-maps-off mode
+support. No in-game enablement, arbitrary receiver topology, or measured production cost is claimed.
