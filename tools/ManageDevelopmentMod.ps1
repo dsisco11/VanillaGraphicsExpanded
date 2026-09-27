@@ -14,8 +14,10 @@ if ([string]::IsNullOrWhiteSpace($env:VGE_DATA_PATH) -or
     -not [System.IO.Path]::IsPathFullyQualified($env:VGE_DATA_PATH)) {
     throw 'Set VGE_DATA_PATH to an absolute automation data directory and restart the IDE.'
 }
-$modsDirectory = Join-Path $env:VGE_DATA_PATH 'Mods'
+# $modsDirectory = Join-Path $env:VGE_DATA_PATH 'Mods'
+$modsDirectory = Join-Path $env:APPDATA 'VintagestoryData\Mods'
 $archivePath = Join-Path $modsDirectory $archiveName
+
 
 if ($Action -eq 'Install') {
     $sourcePath = Join-Path $PSScriptRoot "..\Releases\$archiveName"
