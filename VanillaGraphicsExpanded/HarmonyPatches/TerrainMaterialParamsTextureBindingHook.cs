@@ -117,6 +117,8 @@ internal static class TerrainMaterialParamsTextureBindingHook
     /// </summary>
     public static void SetTex2dTerrain_Postfix(ShaderProgramBase __instance, int value)
     {
+        // Relief has an explicit linked-program allowlist and must reset missing pages too.
+        TerrainReliefBindings.Bind(__instance, value, MaterialAtlasSystem.Instance.TextureStore);
         // Early-out if atlas texture id is invalid.
         if (value == 0)
         {
@@ -193,6 +195,7 @@ internal static class TerrainMaterialParamsTextureBindingHook
     /// </summary>
     public static void ClearUniformCache()
     {
+        TerrainReliefBindings.Reset();
         uniformLocationCache.Clear();
         normalDepthUniformLocationCache.Clear();
     }

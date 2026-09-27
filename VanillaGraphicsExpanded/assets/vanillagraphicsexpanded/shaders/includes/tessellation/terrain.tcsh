@@ -2,6 +2,7 @@
 #if VGE_ENABLE_TESSELLATION
 #if VGE_ADAPTIVE_DISPLACEMENT
 @import "./terrain_displacement.glsl"
+@import "../vge_displacement_metadata.glsl"
 patch out float vge_patchAmplitude;
 patch out vec4 vge_patchRect;
 uniform sampler2D vge_displacementRecords;
@@ -26,26 +27,13 @@ void main() {
 #if VGE_ADAPTIVE_DISPLACEMENT
         // Resolve the authored tile from an interior UV, independently of engine SSBO face data.
         // Validate the complete triangle against that rectangle before any height sampling.
-        vec4 rect = vec4(0);
-        float amplitude = 0.0;
-        if (VgeFinite2(uv[0]) && VgeFinite2(uv[1]) && VgeFinite2(uv[2])) {
-            vec2 center = (uv[0] + uv[1] + uv[2]) / 3.0;
-            if (all(greaterThanEqual(center, vec2(0))) && all(lessThan(center, vec2(1)))) {
-                float encoded = textureLod(vge_displacementTex, center, 0.0).r;
-                ivec2 tableSize = textureSize(vge_displacementRecords, 0);
-                int count = (tableSize.x * tableSize.y) >> 1;
-                if (!isnan(encoded) && !isinf(encoded) && encoded >= 1.0
-                    && encoded <= float(count) && encoded == floor(encoded)) {
-                    int entry = (int(encoded) - 1) << 1;
-                    rect = texelFetch(vge_displacementRecords, ivec2(entry % tableSize.x, entry / tableSize.x), 0);
-                    entry++;
-                    amplitude = texelFetch(vge_displacementRecords, ivec2(entry % tableSize.x, entry / tableSize.x), 0).r;
-                }
-            }
-        }
+        vec4 rect;
+        float amplitude;
+        bool materialValid = VgeResolveDisplacement(vge_displacementTex, vge_displacementRecords,
+            (uv[0] + uv[1] + uv[2]) / 3.0, rect, amplitude);
         vec2 lo = rect.xy;
         vec2 size = rect.zw;
-        bool eligible = VgeFinite2(vge_tessellationDistance) && vge_tessellationDistance.x >= 0.0
+        bool eligible = materialValid && VgeFinite2(vge_tessellationDistance) && vge_tessellationDistance.x >= 0.0
             && vge_tessellationDistance.y > vge_tessellationDistance.x && vge_tessellationPixels.z > 0.0
             && VgeRectValid(lo, size)
             && renderFlags[0] == renderFlags[1] && renderFlags[0] == renderFlags[2];

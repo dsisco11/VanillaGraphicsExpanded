@@ -228,6 +228,15 @@ public class VgeConfig
         [JsonProperty]
         public bool EnableNormalMaps { get; set; } = true;
 
+        /// <summary>Requested height treatment, disabled unless explicitly selected.</summary>
+        [JsonProperty]
+        public PBR.Materials.TerrainSurfaceDetailMode TerrainSurfaceDetailMode { get; set; }
+            = PBR.Materials.TerrainSurfaceDetailMode.Disabled;
+
+        /// <summary>Height data is independent of whether its normal channels are used for shading.</summary>
+        [JsonIgnore] public bool RequiresNormalDepthAtlas => EnableNormalMaps
+            || TerrainSurfaceDetailMode != PBR.Materials.TerrainSurfaceDetailMode.Disabled;
+
         /// <summary>Identity terrain tessellation for pipeline validation: zero disables; levels 1-8 add no displacement.</summary>
         [JsonProperty]
         public int UndisplacedTessellationLevel { get; set; } = 2;
@@ -272,21 +281,6 @@ public class VgeConfig
         /// </summary>
         [JsonProperty]
         public bool ShowMaterialAtlasProgressPanel { get; set; } = true;
-
-        /// <summary>
-        /// Enables Parallax Occlusion Mapping (POM) in patched vanilla chunk shaders.
-        /// POM is only applied when a stable per-face UV rect is available (SSBO path).
-        /// Requires shader reload / re-entering the world to fully apply.
-        /// </summary>
-        [JsonProperty]
-        public bool EnableParallaxOcclusionMapping { get; set; } = false;
-
-        /// <summary>
-        /// POM UV offset scale (in atlas UV units).
-        /// Defaults to the parallax scale for convenience.
-        /// </summary>
-        [JsonProperty]
-        public float ParallaxScale { get; set; } = 0.05f;
 
         /// <summary>
         /// Minimum ray-march steps for POM.
@@ -351,6 +345,8 @@ public class VgeConfig
 
         internal void Sanitize()
         {
+            if (!Enum.IsDefined(TerrainSurfaceDetailMode))
+                TerrainSurfaceDetailMode = PBR.Materials.TerrainSurfaceDetailMode.Disabled;
             // Keep existing behavior for NaNs: clamp/guards are conservative.
             AsyncBudgetMs = Math.Clamp(AsyncBudgetMs, 0.0f, 100.0f);
             AsyncMaxUploadsPerFrame = Math.Clamp(AsyncMaxUploadsPerFrame, 0, 512);
@@ -361,15 +357,15 @@ public class VgeConfig
             UndisplacedTessellationLevel = Math.Clamp(UndisplacedTessellationLevel, 0, 8);
             TerrainSubdivision ??= new();
             TerrainSubdivision.Sanitize();
-            ParallaxScale = Math.Clamp(ParallaxScale, 0.0f, 0.25f);
+
             ParallaxMinSteps = Math.Clamp(ParallaxMinSteps, 1, 128);
             ParallaxMaxSteps = Math.Clamp(ParallaxMaxSteps, ParallaxMinSteps, 256);
             ParallaxRefinementSteps = Math.Clamp(ParallaxRefinementSteps, 0, 16);
 
-            ParallaxFadeStart = Math.Clamp(ParallaxFadeStart, 0.0f, 256.0f);
-            ParallaxFadeEnd = Math.Clamp(ParallaxFadeEnd, ParallaxFadeStart, 512.0f);
+            ParallaxFadeStart = float.IsFinite(ParallaxFadeStart) ? Math.Clamp(ParallaxFadeStart, 0.0f, 256.0f) : 3;
+            ParallaxFadeEnd = float.IsFinite(ParallaxFadeEnd) ? Math.Clamp(ParallaxFadeEnd, ParallaxFadeStart + .01f, 512.0f) : Math.Max(14, ParallaxFadeStart + 1);
 
-            ParallaxMaxTexels = Math.Clamp(ParallaxMaxTexels, 0.0f, 16.0f);
+            ParallaxMaxTexels = float.IsFinite(ParallaxMaxTexels) ? Math.Clamp(ParallaxMaxTexels, 0.0f, 16.0f) : 4;
 
             ParallaxDebugMode = Math.Clamp(ParallaxDebugMode, 0, 4);
 

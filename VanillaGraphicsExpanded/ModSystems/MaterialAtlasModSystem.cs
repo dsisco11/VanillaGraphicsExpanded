@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-public sealed class MaterialAtlasModSystem : ModSystem
+public sealed class MaterialAtlasModSystem : ModSystem, ILiveConfigurable
 {
     private ICoreClientAPI? capi;
 
@@ -15,12 +15,15 @@ public sealed class MaterialAtlasModSystem : ModSystem
     private bool isLevelFinalized;
     private bool pendingPopulate;
     private long populateCallbackId;
+    private bool requiresHeight;
+    private bool heightRebuildQueued;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        requiresHeight = ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas;
 
         // Material params + normal/depth atlas textures:
         // - Phase 1 (allocation) can happen any time (no-op until atlas exists)
@@ -36,6 +39,27 @@ public sealed class MaterialAtlasModSystem : ModSystem
     }
 
     #region Event Handlers
+    /// <summary>Rebuilds height resources when their effective demand changes, independent of normal shading.</summary>
+    public void OnConfigReloaded(ICoreAPI api)
+    {
+        bool requested = ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas;
+        if (requested == requiresHeight) return;
+        requiresHeight = requested;
+        if (capi is null || heightRebuildQueued) return;
+        heightRebuildQueued = true;
+        capi.Event.EnqueueMainThreadTask(() =>
+        {
+            heightRebuildQueued = false;
+            if (capi is null) return;
+            if (isLevelFinalized) MaterialAtlasSystem.Instance.RequestRebuild(capi);
+            else
+            {
+                MaterialAtlasSystem.Instance.CreateTextureObjects(capi);
+                pendingPopulate = true;
+            }
+        }, "VGE.ReliefHeightDemand");
+    }
+
     private void OnBlockTexturesLoaded()
     {
         // Keep textures in sync with the block atlas as soon as it exists,
@@ -132,6 +156,7 @@ public sealed class MaterialAtlasModSystem : ModSystem
         progressPanel = null;
 
         MaterialAtlasSystem.Instance.Dispose();
+        TerrainReliefBindings.Reset();
 
         capi = null;
         isLevelFinalized = false;

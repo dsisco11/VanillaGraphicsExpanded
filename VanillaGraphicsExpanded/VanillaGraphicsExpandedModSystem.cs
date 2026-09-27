@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
@@ -23,7 +24,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private HarmonyLib.Harmony? harmony;
 
-    private bool? lastEnablePom;
+    private TerrainReliefConfiguration? lastSurfaceDetail;
     private int? lastUndisplacedTessellationLevel;
     private bool? lastLumOnEnabled;
     private bool? lastEnableNormalMaps;
@@ -97,7 +98,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Track config values that require shader recompilation when changed.
         lastLumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
-        lastEnablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+        lastSurfaceDetail = TerrainReliefConfiguration.Capture(ConfigModSystem.Config.MaterialAtlas);
         lastUndisplacedTessellationLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
         lastEnableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
         lastNormalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
@@ -118,19 +119,22 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         if (capi is null) return;
 
         int tessellationLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
-        bool enablePom = ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping;
+        bool enablePom = (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode == VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Relief);
         bool lumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         bool enableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
         float normalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
 
-        bool shaderReloadNeeded = lastEnablePom.HasValue && lastEnablePom.Value != enablePom;
+        var surfaceDetail = TerrainReliefConfiguration.Capture(ConfigModSystem.Config.MaterialAtlas);
+        bool shaderReloadNeeded = lastSurfaceDetail.HasValue && lastSurfaceDetail.Value != surfaceDetail;
+        if (lastSurfaceDetail?.Mode != surfaceDetail.Mode && surfaceDetail.Mode == TerrainSurfaceDetailMode.Tessellation)
+            capi.Logger.Notification("[VGE] Tessellation was requested but displaced rendering integration is not available yet; relief remains disabled.");
         shaderReloadNeeded |= lastLumOnEnabled.HasValue && lastLumOnEnabled.Value != lumOnEnabled;
         shaderReloadNeeded |= lastEnableNormalMaps.HasValue && lastEnableNormalMaps.Value != enableNormalMaps;
         shaderReloadNeeded |= lastNormalMapScale.HasValue && Math.Abs(lastNormalMapScale.Value - normalMapScale) > 0.0001f;
 
         shaderReloadNeeded |= lastUndisplacedTessellationLevel.HasValue && lastUndisplacedTessellationLevel.Value != tessellationLevel;
         lastUndisplacedTessellationLevel = tessellationLevel;
-        lastEnablePom = enablePom;
+        lastSurfaceDetail = surfaceDetail;
         lastLumOnEnabled = lumOnEnabled;
         lastEnableNormalMaps = enableNormalMaps;
         lastNormalMapScale = normalMapScale;

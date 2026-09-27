@@ -157,13 +157,14 @@ Tasks
       - Scope: this completes the adaptive stage/material core. Mode selection belongs to the relief
         task below; production program/resource publication belongs to rendering-consumer integration.
         The production selector intentionally remains on the identity pair until those tasks finish.
-    ☐ Extend existing parallax occlusion mapping into the selected relief contract.
-      - Wire the global mode selector, explicit legacy POM migration and independent height-atlas
+    ☑ Extend existing parallax occlusion mapping into the selected relief contract.
+      - Wire the global mode selector without legacy migration and independent height-atlas
         availability defined in docs/PBR.Tessellation.MaterialAndModes.md.
       - Reuse bounded stepping/refinement and atlas safety. Define grazing-angle behavior, distance
         transitions and whether relief changes depth or only shading/UVs.
       - Initially keep relief and tessellation as alternatives; any combined mode must evaluate only
         residual height rather than applying the full displacement twice. Document silhouette limits.
+      - Implemented and validated: docs/PBR.Relief.md; 129 distinct focused tests passed.
     ☐ Integrate displaced geometry consistently across rendering consumers.
       - Publish the completed adaptive program and bind its matching tile-index, record and height
         textures plus sanitized subdivision/view parameters through the production terrain draw path.

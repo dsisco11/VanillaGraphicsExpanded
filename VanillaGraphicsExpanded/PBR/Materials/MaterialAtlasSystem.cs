@@ -257,7 +257,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         textureStore.UpdateDisplacement(materialPlan);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
-        if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
+        if (ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas)
         {
             snapshot = AtlasSnapshot.Capture(atlas);
             var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
@@ -697,7 +697,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         textureStore.UpdateDisplacement(materialPlan);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
-        if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
+        if (ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas)
         {
             snapshot = AtlasSnapshot.Capture(atlas);
             var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
@@ -887,7 +887,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
     public void RebakeNormalDepthAtlas(ICoreClientAPI capi)
     {
         if (capi is null) throw new ArgumentNullException(nameof(capi));
-        if (!ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
+        if (!ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas)
         {
             return;
         }
@@ -979,12 +979,12 @@ internal sealed class MaterialAtlasSystem : IDisposable
             return;
         }
 
-        if (textureStore.NeedsResync(atlasPages, ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps))
+        if (textureStore.NeedsResync(atlasPages, ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas))
         {
             CancelActiveBuildSession();
         }
 
-        textureStore.SyncToAtlasPages(atlasPages, ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps);
+        textureStore.SyncToAtlasPages(atlasPages, ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas);
 
         texturesCreated = textureStore.HasAnyTextures;
         IsInitialized = texturesCreated;
@@ -1096,7 +1096,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
         textureStore.UpdateDisplacement(plan);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
-        if (ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps)
+        if (ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas)
         {
             snapshot = AtlasSnapshot.Capture(atlas);
             var ndPlanner = new MaterialAtlasNormalDepthBuildPlanner();
@@ -1225,7 +1225,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
             capi.Logger.Debug(
                 "[VGE] Normal+depth atlas: enabled={0}, pages={1}, pageSizes=[{2}]",
-                ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps,
+                ConfigModSystem.Config.MaterialAtlas.RequiresNormalDepthAtlas,
                 textureStore.PageCount,
                 string.Join(", ", sizeCounts.Select(kvp => $"{kvp.Key.Width}x{kvp.Key.Height}*{kvp.Value}")));
         }

@@ -12,5 +12,6 @@ internal static class TerrainTessellationCompilationHook
     /// <summary>Publishes the complete macro choice for both engine stages before either is compiled.</summary>
     [HarmonyPrefix]
     internal static void Prefix(ShaderProgram __instance) => TerrainTessellationPatches.Configure(__instance);
+
     #endregion
 }

@@ -107,14 +107,6 @@
         "default": true,
         "weight": 20.3
       },
-      "ENABLE_PARALLAX_OCCLUSION_MAPPING": {
-        "code": "MaterialAtlas.EnableParallaxOcclusionMapping",
-        "name": "MaterialAtlas/EnableParallaxOcclusionMapping",
-        "ingui": "vanillagraphicsexpanded:config-parallax-occlusion-enabled",
-        "comment": "vanillagraphicsexpanded:config-parallax-occlusion-enabled-tooltip",
-        "default": false,
-        "weight": 20.4
-      },
       "TEXTURE_STREAMING_ENABLED": {
         "code": "TextureStreaming.Enabled",
         "name": "TextureStreaming/Enabled",
@@ -149,6 +141,15 @@
       }
     },
     "integer": {
+      "TERRAIN_SURFACE_DETAIL_MODE": {
+        "code": "MaterialAtlas.TerrainSurfaceDetailMode",
+        "name": "MaterialAtlas/TerrainSurfaceDetailMode",
+        "ingui": "vanillagraphicsexpanded:config-terrain-surface-detail",
+        "comment": "vanillagraphicsexpanded:config-terrain-surface-detail-tooltip",
+        "default": 0,
+        "weight": 20.4,
+        "mapping": { "Disabled": 0, "Relief": 1, "Tessellation": 2 }
+      },
       "PROBE_SPACING_PX": {
         "code": "LumOn.ProbeSpacingPx",
         "name": "LumOn/ProbeSpacingPx",
@@ -486,15 +487,6 @@
         "default": 1.0,
         "weight": 20.75,
         "range": { "min": 0.0, "max": 4.0, "step": 0.05 }
-      },
-      "PARALLAX_SCALE": {
-        "code": "MaterialAtlas.ParallaxScale",
-        "name": "MaterialAtlas/ParallaxScale",
-        "ingui": "vanillagraphicsexpanded:config-parallax-scale",
-        "comment": "vanillagraphicsexpanded:config-parallax-scale-tooltip",
-        "default": 0.03,
-        "weight": 20.81,
-        "range": { "min": 0.0, "max": 0.25, "step": 0.005 }
       },
       "PARALLAX_FADE_START": {
         "code": "MaterialAtlas.ParallaxFadeStart",

@@ -1,7 +1,7 @@
 # Terrain displacement material and mode contract
 
 Status: the material amplitude field, atlas metadata and adaptive stage core are implemented in
-[the adaptive core](PBR.Tessellation.AdaptiveDisplacement.md). Mode selection, production displacement
+[the adaptive core](PBR.Tessellation.AdaptiveDisplacement.md). [Relief and mode selection](PBR.Relief.md) are implemented. Production displacement
 publication and matching rendering consumers remain pending in
 [PBR.BaselineShading.todo](PBR.BaselineShading.todo). This contract builds on [the depth-map audit](PBR.Tessellation.DepthMapAudit.md).
 
@@ -103,15 +103,9 @@ No combined relief+tessellation mode initially. A future combined mode requires 
 height function. Tessellation must not fade automatically to full-height relief underneath it.
 Distance transitions within a mode must preserve the shared-edge rules and temporal history contract.
 
-The existing POM configuration remains implemented as-is while this contract is being built. When the
-relief-mode subtask integrates the new selector, replace the legacy boolean as the authoritative switch:
-explicit new mode wins; absent new mode maps legacy enabled=true to requested Relief, otherwise Disabled.
-Carry forward valid step/refinement/fade settings. Do not convert `ParallaxScale` to metres because its
-legacy UV-space meaning cannot establish a material's physical amplitude. Existing materials remain
-opted out until authored; emit one migration diagnostic explaining that requirement when legacy POM was
-enabled. Remove the old boolean from shader decision-making after migration, so it cannot reactivate
-POM in Disabled or Tessellation mode. This is an explicit migration behavior change, not seamless visual
-compatibility for legacy POM users.
+The new mode defaults to Disabled and must be selected explicitly. Do not migrate legacy POM
+settings. The obsolete boolean and UV-space scale are removed; material amplitudes provide metres.
+Existing step/refinement/fade settings remain active controls.
 
 Height-atlas generation is required by an active detail mode even if normal-map shading is disabled.
 Normal-map enablement remains an independent shading preference. If height resources are unavailable,
@@ -144,6 +138,6 @@ GPU validation are required to define the contract, and none were performed here
 
 Carry into implementation tests: zero/neutral identity, amplitude bounds and non-finite authoring,
 rotated UVs, topsoil secondary-layer independence, missing/partial atlas data, material cache rebuild,
-normal-maps-off/detail-on, mixed pools, incompatible patch metadata, legacy/new configuration precedence,
+normal-maps-off/detail-on, mixed pools, incompatible patch metadata, explicit mode selection,
 capability rejection and coherent main/shadow mode replacement. Seam behavior and performance remain
 owned by the subsequent implementation and validation subtasks.

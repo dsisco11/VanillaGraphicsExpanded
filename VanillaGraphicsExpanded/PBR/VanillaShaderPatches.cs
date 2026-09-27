@@ -228,7 +228,7 @@ flat in uint vge_faceId;
             // Chunk shaders - inject vsFunctions AND vge_material imports
             if (PatchedChunkShaders.Contains(sourceName))
             {
-                InjectPomDefines(tree);
+                if (sourceName is "chunkopaque.fsh" or "chunktopsoil.fsh") InjectPomDefines(tree);
                 InjectNormalMapDefines(tree);
 
                 // Find main function and insert @import before it
@@ -259,32 +259,30 @@ flat in uint vge_faceId;
     /// <summary>Publishes configured parallax options for material-aware engine shaders.</summary>
     internal static void InjectPomDefines(SyntaxTree tree)
     {
-        if (!ConfigModSystem.Config.MaterialAtlas.EnableParallaxOcclusionMapping) return;
-        if (!ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps) return;
+        if (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode != Materials.TerrainSurfaceDetailMode.Relief) return;
 
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         if (!tree.Select(versionQuery).Any()) return;
 
         var cfg = ConfigModSystem.Config.MaterialAtlas;
 
-        string scale = cfg.ParallaxScale.ToString("0.0####", CultureInfo.InvariantCulture);
         string fadeStart = cfg.ParallaxFadeStart.ToString("0.0####", CultureInfo.InvariantCulture);
         string fadeEnd = cfg.ParallaxFadeEnd.ToString("0.0####", CultureInfo.InvariantCulture);
         string maxTexels = cfg.ParallaxMaxTexels.ToString("0.0####", CultureInfo.InvariantCulture);
 
-        string defineBlock = $@"
+        string defineBlock = $"""
 
-// VGE: POM settings
-#define {VgeShaderDefines.PbrEnablePom} 1
-#define {VgeShaderDefines.PbrPomScale} {scale}
-#define {VgeShaderDefines.PbrPomMinSteps} {cfg.ParallaxMinSteps}
-#define {VgeShaderDefines.PbrPomMaxSteps} {cfg.ParallaxMaxSteps}
-#define {VgeShaderDefines.PbrPomRefinementSteps} {cfg.ParallaxRefinementSteps}
-#define {VgeShaderDefines.PbrPomFadeStart} {fadeStart}
-#define {VgeShaderDefines.PbrPomFadeEnd} {fadeEnd}
-#define {VgeShaderDefines.PbrPomMaxTexels} {maxTexels}
-#define {VgeShaderDefines.PbrPomDebugMode} {cfg.ParallaxDebugMode}
-";
+            // VGE: material-controlled relief settings
+            #define {VgeShaderDefines.PbrEnablePom} 1
+            #define {VgeShaderDefines.PbrPomMinSteps} {cfg.ParallaxMinSteps}
+            #define {VgeShaderDefines.PbrPomMaxSteps} {cfg.ParallaxMaxSteps}
+            #define {VgeShaderDefines.PbrPomRefinementSteps} {cfg.ParallaxRefinementSteps}
+            #define {VgeShaderDefines.PbrPomFadeStart} {fadeStart}
+            #define {VgeShaderDefines.PbrPomFadeEnd} {fadeEnd}
+            #define {VgeShaderDefines.PbrPomMaxTexels} {maxTexels}
+            #define {VgeShaderDefines.PbrPomDebugMode} {cfg.ParallaxDebugMode}
+
+            """;
 
         tree.CreateEditor()
             .InsertAfter(versionQuery, defineBlock)

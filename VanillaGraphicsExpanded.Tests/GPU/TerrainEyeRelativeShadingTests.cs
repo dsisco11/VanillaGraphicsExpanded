@@ -32,7 +32,9 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             void main() {
                 vec3 toEye=VgeFragmentToEyeWorld(surface);
                 if(outputMode==0) { color=vec4(toEye,length(toEye)); return; }
-                vec2 uv=VgeApplyPomUv_WithTbn(vec2(.5),mat3(1),1,surface,vec2(0),vec2(1));
+                vec2 baseUv=vec2(.5)+(gl_FragCoord.xy-vec2(.5))*.01;
+                vec3 metricSurface=surface+vec3((gl_FragCoord.xy-vec2(.5))*.01,0);
+                vec2 uv=VgeApplyPomUv_WithTbn(baseUv,mat3(1),1,metricSurface,vec2(0),vec2(1));
                 vec4 n=VgeComputePackedWorldNormal01Height01_WithTbn(vec2(.5),vec3(0,0,1),surface,mat3(1),1,vec3(.6,0,.8),.75);
                 color=vec4(uv,n.x,n.z);
             }
@@ -49,6 +51,8 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
         using var target = drawing.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba32f);
         using var texture = drawing.CreateTexture(64, 64, PixelInternalFormat.Rgba32f,
             Enumerable.Range(0,64*64).SelectMany(_ => new[] {.8f,.5f,.9f,.25f}).ToArray());
+        using var indices = drawing.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
+        using var records = drawing.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);
         int vs = Compile(ShaderType.VertexShader, vertex), fs = Compile(ShaderType.FragmentShader, fragment);
         int program = GL.CreateProgram(), vao = GL.GenVertexArray();
         try
@@ -59,6 +63,9 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             GL.UseProgram(program); GL.BindVertexArray(vao);
             GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
             GL.Uniform1(GL.GetUniformLocation(program,"vge_normalDepthTex"),0);
+            indices.Bind(1); records.Bind(2);
+            GL.Uniform1(GL.GetUniformLocation(program,"vge_displacementTex"),1);
+            GL.Uniform1(GL.GetUniformLocation(program,"vge_displacementRecords"),2);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             foreach(float distance in new[] {10f,16f})
             {
@@ -109,7 +116,7 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
     }
 
     /// <summary>Expands relative production includes without altering their implementations.</summary>
-    private static string Expand(string path) => Regex.Replace(File.ReadAllText(path),"@import\\s+\"([^\"]+)\"",
+    internal static string Expand(string path) => Regex.Replace(File.ReadAllText(path),"@import\\s+\"([^\"]+)\"",
         match=>Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!,match.Groups[1].Value))));
     #endregion
 }

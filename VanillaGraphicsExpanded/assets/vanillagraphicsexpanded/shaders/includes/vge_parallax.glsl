@@ -1,23 +1,16 @@
 #ifndef VGE_POM_GLSL
 #define VGE_POM_GLSL
 
-// Parallax Occlusion Mapping (POM) helpers for atlas-based terrain shaders.
-//
-// Note: File name is `vge_parallax.glsl` for compatibility with prior naming,
-// but the feature implemented here is Tier-2 POM.
-//
-// Requirements:
-// - vge_normaldepth.glsl for ReadHeight01/ReadHeightSigned and VgeTryBuildTbnFromDerivatives
-// - `uniform sampler2D vge_normalDepthTex;`
-// - Per-face atlas tile rect: (uvBase, uvExtent) in atlas UV space.
+// Material-controlled relief: bounded indentation-only UV tracing in physical units.
+// vge_normaldepth.glsl supplies the eye-relative view and derivative tangent frame.
+// The material atlas supplies authored tile bounds and amplitude independently of SSBOs.
+// Geometry, silhouettes and fragment depth remain unchanged.
 
 #ifndef VGE_PBR_ENABLE_POM
   #define VGE_PBR_ENABLE_POM 0
 #endif
 
-#ifndef VGE_PBR_POM_SCALE
-  #define VGE_PBR_POM_SCALE 0.03
-#endif
+
 
 #ifndef VGE_PBR_POM_MIN_STEPS
   #define VGE_PBR_POM_MIN_STEPS 8
@@ -59,6 +52,12 @@
 float vge_pomDebugValue;
 #endif
 
+#if VGE_PBR_ENABLE_POM
+@import "./vge_displacement_metadata.glsl"
+uniform sampler2D vge_displacementTex;
+uniform sampler2D vge_displacementRecords;
+#endif
+
 float VgeUvRectEdgeDistance01(vec2 uv, vec2 uvBase, vec2 uvExtent)
 {
     vec2 uvMin = uvBase;
@@ -77,16 +76,18 @@ vec2 VgeClampUvToRect(vec2 uv, vec2 uvBase, vec2 uvExtent)
     vec2 uvMin = uvBase;
     vec2 uvMax = uvBase + uvExtent;
 
-    // Keep at least 1 texel margin for stability.
+    // Clamp every explicit LOD-zero sample inside the authored tile.
     vec2 texel = 1.0 / vec2(textureSize(vge_normalDepthTex, 0));
-    return clamp(uv, uvMin + texel, uvMax - texel);
+    vec2 margin = min(texel * 0.5, uvExtent * 0.5);
+    return clamp(uv, uvMin + margin, uvMax - margin);
 }
 
 float VgeReadPomDepth01(vec2 uv)
 {
     // VGE bake stores height around 0.5 ~= neutral. For POM we treat values below 0.5 as "indentation".
     // This avoids extrusion artifacts and improves temporal stability.
-    float h01 = ReadHeight01(uv);
+    float h01 = textureLod(vge_normalDepthTex, uv, 0.0).a;
+    if (isnan(h01) || isinf(h01)) return 0.0;
     float depth01 = clamp(0.5 - h01, 0.0, 0.5) * 2.0;
     return depth01;
 }
@@ -99,11 +100,21 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
   vge_pomDebugValue = 0.0;
 #endif
 
-    // Rect is required for atlas safety.
-    if (uvBase.x < 0.0 || uvExtent.x <= 0.0 || uvExtent.y <= 0.0)
-    {
-        return uv;
-    }
+    // Derivatives must be evaluated before material-dependent early exits.
+    vec3 dx = dFdx(worldPosWs), dy = dFdy(worldPosWs);
+    vec2 tx = dFdx(uv), ty = dFdy(uv);
+    float determinant = tx.x * ty.y - tx.y * ty.x;
+    vec4 materialRect;
+    float amplitude;
+    if (!VgeResolveDisplacement(vge_displacementTex, vge_displacementRecords, uv, materialRect, amplitude)) return uv;
+    uvBase = materialRect.xy;
+    uvExtent = materialRect.zw;
+    if (determinant == 0.0 || isnan(determinant) || isinf(determinant)) return uv;
+    vec3 tangentU = (dx * ty.y - dy * tx.y) / determinant;
+    vec3 tangentV = (dy * tx.x - dx * ty.x) / determinant;
+    float uu = dot(tangentU, tangentU), vv = dot(tangentV, tangentV), uvMetric = dot(tangentU, tangentV);
+    float metricDeterminant = uu * vv - uvMetric * uvMetric;
+    if (!(metricDeterminant > 1e-12) || isnan(metricDeterminant) || isinf(metricDeterminant)) return uv;
 
     // The render origin is not necessarily the eye; preserve the view matrix's camera offset.
     vec3 fragmentToEyeWs = VgeFragmentToEyeWorld(worldPosWs);
@@ -146,7 +157,9 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
 
     // Scale the maximum parallax amount.
     float denom = max(viewDirTs.z, 0.2);
-    vec2 parallaxDir = (viewDirTs.xy / denom);
+    vec2 projected = vec2(dot(viewDirWs, tangentU), dot(viewDirWs, tangentV));
+    vec2 parallaxDir = vec2(projected.x * vv - projected.y * uvMetric,
+        projected.y * uu - projected.x * uvMetric) / (metricDeterminant * denom);
 
     // Steps: more steps at grazing angles.
     float grazing = 1.0 - clamp(viewDirTs.z, 0.0, 1.0);
@@ -164,20 +177,21 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
     vec2 maxOffset = texel * float(VGE_PBR_POM_MAX_TEXELS);
 
     // Per-step delta in UV space.
-    vec2 totalOffset = parallaxDir * (float(VGE_PBR_POM_SCALE) * weight);
+    vec2 totalOffset = parallaxDir * (amplitude * weight);
     totalOffset = clamp(totalOffset, -maxOffset, maxOffset);
     vec2 deltaUv = totalOffset / float(steps);
 
     // Ray-march.
     vec2 currUv = baseUv;
     float currDepth = VgeReadPomDepth01(currUv);
+    if (currDepth <= 0.0) return uv;
 
     vec2 prevUv = currUv;
     float prevDepth = currDepth;
 
     float clampHit = 0.0;
 
-    while (currentLayerDepth < currDepth && currentLayerDepth < 1.0)
+    for (int step = 0; step < steps && currentLayerDepth < currDepth; step++)
     {
         prevUv = currUv;
         prevDepth = currDepth;
@@ -192,7 +206,7 @@ vec2 VgeApplyPomUv_WithTbn(vec2 uv, mat3 tbn, float handedness, vec3 worldPosWs,
     // Linear interpolate between last two samples.
     float after = currDepth - currentLayerDepth;
     float before = prevDepth - (currentLayerDepth - layerHeight);
-    float w = before / (before - after + 1e-6);
+    float w = after / (after - before + 1e-6);
     vec2 hitUv = mix(currUv, prevUv, clamp(w, 0.0, 1.0));
 
     // Small binary refinement.
