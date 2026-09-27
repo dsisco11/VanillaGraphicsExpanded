@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Owns one bounded SSBO submission from upload through fenced, scoped readback on the current GL context.</summary>
+/// <summary>Owns one bounded SSBO submission from preparation through fenced, scoped readback on the current GL context.</summary>
 internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
 {
     /// <summary>Prevents reuse while completion is unknown, mapping is borrowed or a submission has failed.</summary>
@@ -51,22 +51,31 @@ internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
     /// <summary>Uploads bounded CPU input for a known-count queue without enlarging its active shader range.</summary>
     public void WriteRecords(ReadOnlySpan<T> records)
     {
-        RequireIdle();
-        if (headerBytes != 0 || records.Length > capacity) throw new ArgumentException("Invalid known-count GPU queue input.", nameof(records));
+        PrepareGpuWrite(records.Length);
         writtenCount = -1;
         if (!records.IsEmpty)
         {
             int bytes = checked(records.Length * recordBytes);
-            if (bytes > buffer.SizeBytes)
-            {
-                // Amortize growing batches without exceeding the queue bound or changing the active range.
-                // Widen before doubling so even a near-limit allocation cannot overflow.
-                int retainedBytes = (int)Math.Min((long)buffer.SizeBytes << 1, (long)capacity * recordBytes);
-                buffer.EnsureCapacity(Math.Max(bytes, retainedBytes), growExponentially: false);
-            }
             buffer.UploadSubData(records, 0, bytes);
         }
         writtenCount = records.Length;
+    }
+
+    /// <summary>Reserves bounded headerless output without uploading CPU data; the producer must overwrite every submitted record.</summary>
+    public void PrepareGpuWrite(int count)
+    {
+        RequireIdle();
+        if (headerBytes != 0 || count < 0 || count > capacity)
+            throw new ArgumentException("Invalid known-count GPU queue input.", nameof(count));
+        writtenCount = -1;
+        int bytes = checked(count * recordBytes);
+        if (bytes > buffer.SizeBytes)
+        {
+            // Preserve amortized growth and the queue's hard capacity, including near-limit allocations.
+            int retainedBytes = (int)Math.Min((long)buffer.SizeBytes << 1, (long)capacity * recordBytes);
+            buffer.EnsureCapacity(Math.Max(bytes, retainedBytes), growExponentially: false);
+        }
+        writtenCount = count;
     }
 
     /// <summary>Fences previously issued producer commands; count is supplied only for a headerless queue.</summary>

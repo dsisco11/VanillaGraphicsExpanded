@@ -87,6 +87,24 @@ public sealed class GpuQueueTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Bounds
+    /// <summary>GPU-only preparation follows the same active range and ownership contract without uploading dummy input.</summary>
+    [Fact]
+    public void GpuPreparationEnforcesBoundsAndPendingOwnership()
+    {
+        fixture.MakeCurrent();
+        using var queue = new GpuQueue<uint>(4);
+        using var append = new GpuQueue<uint>(4, 16);
+        Assert.Throws<ArgumentException>(() => append.PrepareGpuWrite(1));
+        Assert.Throws<ArgumentException>(() => queue.PrepareGpuWrite(5));
+        Assert.Throws<ArgumentException>(() => queue.PrepareGpuWrite(-1));
+        queue.PrepareGpuWrite(2);
+        Assert.Throws<InvalidOperationException>(() => queue.Submit(3));
+        queue.Buffer.UploadSubData<uint>([37, 91], 0);
+        queue.Submit(2);
+        Assert.Throws<InvalidOperationException>(() => queue.PrepareGpuWrite(1));
+        Assert.Equal(new uint[] { 37, 91 }, Read(queue));
+    }
+
     /// <summary>Gradual growth retains spare storage, caps at a non-power-of-two bound and never exposes spare records.</summary>
     [Fact]
     public void GradualGrowthRetainsBoundedStorageAndActiveData()

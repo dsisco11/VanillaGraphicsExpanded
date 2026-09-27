@@ -121,8 +121,18 @@ These measurements used the default 32x16 source table, including for the larger
 they predate shared quality scaling. Startup, weather and quality changes now incur background
 precomputation; sun/observer changes reuse it. Matched 128-direction ABBA samples measured single scattering at 0.303/0.321 ms
 and multiple scattering at 0.328/0.333 ms, both with zero warmed managed allocations. These are CPU
-harness observations, not guaranteed frame costs. No GPU pass or texture allocation is added for the
-source table; existing sky upload and sampling consume the new values. GPU cost was not measured.
+harness observations, not guaranteed frame costs. That CPU implementation added no GPU source-table
+pass. The compute backend described below now provides an alternative; these historical results do not measure it.
+
+## GPU computation
+
+Supported devices compute the source table, sky and matching lighting integrals using three
+production SPIR-V compute shaders. Unsupported devices retain the CPU implementation below.
+The GPU owner bounds source work to 64 cells per completed batch, caches the medium across sun and
+observer changes, and uses fenced asynchronous readback before coherent publication. Shader reloads
+discard pending programs/work while retaining the displayed snapshot; world teardown discards both.
+Capability limits, memory, dispatch ordering, numerical tests and measurements are detailed in
+[PBR.Atmosphere.GpuComputation.md](PBR.Atmosphere.GpuComputation.md).
 
 ## CPU integration
 
@@ -170,7 +180,7 @@ applying their linear RGB extinction coefficients once per ray. Occluded sunligh
 from the compacted sample arrays.
 
 Scratch arrays are rented from `ArrayPool<float>` and returned in `finally`; stack scratch is bounded
-by the batch capacity. Every production rebuild computes the entire LUT in one background task;
+by the batch capacity. Every CPU fallback rebuild computes the entire LUT in one background task;
 128 is the SIMD batch capacity, not a per-frame limit. The 24 view samples and 12 sunlight samples
 are unchanged. The original scalar `Radiance` remains a numerical reference, while the lookup uses
 the batch path. SIMD exponentials can round differently, so comparison tests use a small numerical
@@ -200,7 +210,8 @@ These measurements cover the CPU integration kernel, not full LUT publication or
 
 ## Publication and rendering
 
-`AtmosphereLookup` builds a configurable lat-long radiance table (default 32 x 24).
+`AtmosphereBackend` selects GPU compute when the cached capabilities and resource limits support it.
+Otherwise `AtmosphereLookup` builds the configurable lat-long radiance table (default 32 x 24):
 `AtmosphereComputation` admits one `Task.Run` build at a time. These serial tasks reuse one worker-owned
 lookup and compute the entire table, including shared lighting integrals, without yielding across render frames.
 The render callback captures value inputs and polls completion without waiting. Only that callback
@@ -228,8 +239,8 @@ config defaults/null restoration, clamping and quality-only serialization, immed
 incremental weather refresh and partial final batches, immutable previous snapshots, and GPU
 allocation/content/reuse/retirement through the production owner.
 This is headless validation, not live appearance acceptance.
-World teardown cancels work between SIMD batches and discards its owner without waiting; an old-world
-task cannot publish into a new world. Task failures are observed even when their owner is discarded.
+World teardown cancels CPU work between SIMD batches and retires pending GPU resources without waiting;
+an old-world owner cannot publish into a new world. Task failures are observed even when their owner is discarded.
 Camera rotation/bobbing do not affect lookup direction; altitude changes
 below the key threshold do not invalidate it.
 
@@ -237,9 +248,9 @@ Publication contains one immutable sky table, direct solar irradiance, upward La
 response (hemisphere irradiance divided by pi), horizon-average radiance, and local extinction.
 The render service uploads the table before publishing its lighting snapshot. All consumers keep
 the previous complete snapshot while a refresh is in progress. Shaders always receive valid atmospheric
-inputs and have no atmosphere-readiness branches. Rebuild latency now depends on worker scheduling
-and computation rather than a fixed number of render frames. This is a
-bounded CPU approach with low-resolution interpolation, not a full-resolution fragment ray march.
+inputs and have no atmosphere-readiness branches. CPU rebuild latency depends on worker scheduling
+and computation; GPU source-table work is bounded across render updates. Both backends use
+low-resolution interpolation rather than a full-resolution fragment ray march.
 
 The installed sky shader samples this table and uses the existing unit-exposure Reinhard/sRGB
 display conversion once. The engine's night/fog alpha calculation is retained, as are subsequent

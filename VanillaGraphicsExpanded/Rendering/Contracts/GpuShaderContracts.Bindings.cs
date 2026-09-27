@@ -15,6 +15,9 @@ internal static partial class GpuShaderContracts
         if (shader.StartsWith("pbr_heightbake_", StringComparison.Ordinal)) shader = "pbr_heightbake";
         switch (shader)
         {
+            case "atmosphere_scattering":
+            case "atmosphere_sky":
+            case "atmosphere_lighting": AtmosphereCompute(contract, shader); break;
             case "pbr_normaldepth_bake": contract.RegisterUniformBlockBinding("VgePbrNormalDepthBakeParamsUBO", GpuBindingRegistry.Ubo.Object); break;
             case "GpuUniformRingBufferIntegrationTests_1":
             case "tests/GpuUniformRingBufferIntegrationTests_1": contract.RegisterUniformBlockBinding("TestParams", 0); break;

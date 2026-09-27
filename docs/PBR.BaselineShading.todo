@@ -237,7 +237,7 @@ Tasks
         nine hardware-intrinsics-disabled cases; independent review found no defects. Matched default
         table builds measured about 7x faster with identical returned-table allocation. Full evidence
         and bounded higher-quality measurements: PBR.Atmosphere.md.
-    ☐ Port atmospheric sky-model computation to GPU compute shaders with CPU fallback.
+    ☑ Port atmospheric sky-model computation to GPU compute shaders with CPU fallback.
       - Compute the multiple-scattering source table, sky radiance LUT and matching shared lighting
         integrals on supported GPUs. Preserve the current physical model, quality budgets, weather
         quantization and cache invalidation; retain the CPU implementation as the numerical reference
@@ -253,7 +253,13 @@ Tasks
         lifetime abstractions and prevent obsolete completions from publishing into a new world.
       - Validate GPU/CPU numerical agreement across quality levels, clear/hazy skies, twilight,
         altitude extremes and ground reflection. Exercise unsupported-GPU fallback and lifecycle
-        transitions; measure GPU time, CPU overhead, memory and publication latency at matched budgets.
+          transitions; measure GPU time, CPU overhead, memory and publication latency at matched budgets.
+        - Implemented asset-backed SPIR-V source/sky/lighting passes, bounded fenced dispatches, coherent
+          readback/publication and automatic CPU fallback. 124 distinct focused checks passed; all 30
+          GPU/queue checks also passed in Release. Matched default Release GPU execution: 0.721–0.778 ms
+          for a source rebuild, 0.334–0.361 ms with cached source. Full quality-3 GPU execution and peak
+          dispatch were measured; full quality-3 CPU timing and live terrain contention remain unmeasured.
+          Ownership, storage bounds, receipts and frame-cadence limits: PBR.Atmosphere.GpuComputation.md.
     ☐ Derive atmospheric parameters from world calendar, player latitude and seasonal world conditions.
       - Trace the base-game calendar, axial tilt, world-relative latitude and climate APIs, including
         coordinate conventions and hemisphere behavior. Reuse its solar direction/season model without

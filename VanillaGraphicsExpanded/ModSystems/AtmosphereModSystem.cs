@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.ModSystems;
 public sealed class AtmosphereModSystem : ModSystem, IRenderer
 {
     private ICoreClientAPI? api;
-    private AtmosphereComputation computation = new();
+    private AtmosphereBackend? computation;
     private DynamicTexture2D? sky;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
@@ -28,16 +28,25 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     public override void StartClientSide(ICoreClientAPI api)
     {
         this.api = api;
+        computation = new(api);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_atmosphere");
         api.Event.LeaveWorld += Reset;
+        api.Event.ReloadShader += Reload;
     }
 
     /// <summary>Releases the last world's snapshot and owned GPU texture.</summary>
     private void Reset()
     {
         Lighting = null; SkyTextureId = 0;
-        computation.Dispose(); computation = new();
+        computation?.Dispose(); computation = api is null ? null : new(api);
         sky?.Dispose(); sky = null;
+    }
+
+    /// <summary>Invalidates pending shader generations while keeping the last complete display snapshot.</summary>
+    private bool Reload()
+    {
+        computation?.Dispose(); computation = api is null ? null : new(api);
+        return true;
     }
 
     /// <summary>Unregisters callbacks and releases atmosphere resources.</summary>
@@ -47,8 +56,9 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         {
             api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
             api.Event.LeaveWorld -= Reset;
+            api.Event.ReloadShader -= Reload;
         }
-        Reset(); computation.Dispose(); api = null; base.Dispose();
+        Reset(); computation?.Dispose(); computation = null; api = null; base.Dispose();
     }
     #endregion
 
@@ -63,7 +73,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         if (Lighting is null)
             Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
                 ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
-        var ready = computation.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
+        var ready = computation!.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
             (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
             width: settings.LookupWidth, height: settings.LookupHeight, quality: settings.SkyLutQuality);
         if (ready is not null) Publish(ready);
