@@ -1,4 +1,6 @@
 {
+  "config-atmosphere-lut-quality": "Atmospheric LUT quality",
+  "config-atmosphere-lut-resolution-tooltip": "Each quality level doubles both sky lookup dimensions. Higher quality increases memory and build time. Quality changes rebuild the full lookup immediately; weather and sun updates refresh at up to 128 samples per frame.",
   "config-terrain-surface-detail": "Terrain surface detail",
   "config-terrain-surface-detail-tooltip": "Relief offsets texture sampling. Tessellation displaces eligible opaque/topsoil terrain and shadows using authored material amplitude. Moving mini-dimensions remain unchanged. Missing resources leave surfaces unchanged.",
   "hello": "hello world!",

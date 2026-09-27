@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests;
 /// <summary>Protects bounded atmosphere refresh and coherent publication under changing inputs.</summary>
 public sealed class AtmosphereLookupTests
 {
-    private const int Updates = AtmosphereLookup.Width * AtmosphereLookup.Height / AtmosphereLookup.SamplesPerUpdate;
+    private const int Updates = AtmosphereLookup.DefaultWidth * AtmosphereLookup.DefaultHeight / AtmosphereLookup.SamplesPerUpdate;
 
     #region Publication lifetime
     /// <summary>Synchronous initialization publishes a complete table; subsequent bounded refresh retains it until completion.</summary>
@@ -20,7 +20,7 @@ public sealed class AtmosphereLookupTests
         Assert.Same(original, lookup.Current);
         Assert.Equal(1, lookup.Revision);
         float[] originalPixels = original.Sky.ToArray();
-        Assert.Equal(AtmosphereLookup.Width * AtmosphereLookup.Height * 4, originalPixels.Length);
+        Assert.Equal(AtmosphereLookup.DefaultWidth * AtmosphereLookup.DefaultHeight * 4, originalPixels.Length);
         for (int update = 0; update < Updates - 1; update++)
         {
             Assert.False(lookup.Update(Vector3.UnitY, 0, 1));

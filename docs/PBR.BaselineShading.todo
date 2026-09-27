@@ -201,8 +201,14 @@ Tasks
         closed by user decision to default to Relief without this capture. No production measurement
         is claimed; headless saturated-face measurements do not establish a real-world frame budget.
 
-  ☐ Add configurable resolution for atmospheric LUT.
+  ☑ Add configurable resolution for atmospheric LUT.
+    - Atmosphere.SkyLutQuality and ConfigLib selector retain the 32x24 default; each level doubles
+      both dimensions using shifts. Weather refreshes process up to 128 samples per frame, with
+      immediate full resolution rebuilds and coherent texture/lighting replacement. All 47 focused
+      tests pass. Validation
+      evidence and configuration details: PBR.Atmosphere.md.
   ☐ Make atmospheric shader look better and more physically accurate.
+  ☐ Try and make tessellation do square subdivision by subdividing faces as quads.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
     - Trace vanilla liquid entrypoints and transparency/OIT contracts before replacing their shading;

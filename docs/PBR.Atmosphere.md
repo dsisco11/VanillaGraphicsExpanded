@@ -29,11 +29,29 @@ Volumetric clouds remain a separate task.
 
 ## Publication and rendering
 
-`AtmosphereLookup` builds a 32 x 24 lat-long radiance table, evaluating at most 32 directions per
-update after initialization. The initial table completes synchronously before the first scene draw;
-subsequent rebuilds take 24 updates. Sun direction is quantized to 1/256 component increments,
+`AtmosphereLookup` builds a configurable lat-long radiance table (default 32 x 24). Initialization and
+resolution changes complete synchronously before drawing. Weather and solar refreshes evaluate at most
+128 directions per update, taking `ceil(width * height / 128)` updates (6 at the default).
+Sun direction is quantized to 1/256 component increments,
 altitude to 25 metres, and cloud coverage to 0.05. Stationary unchanged inputs do no integration.
-An admitted rebuild finishes even if inputs change, preventing update starvation. It then admits
+
+`Atmosphere.SkyLutQuality` is persisted in VGE config and exposed through ConfigLib as one quality
+selector. Levels 0–3 map to 32x24 (default), 64x48, 128x96 and 256x192. Both dimensions are derived
+with bit shifts; each increase quadruples the sample count. Separate width/height settings are removed
+without migration. Larger tables increase startup
+integration time and total weather-refresh latency. A resolution change discards any pending build
+and computes the entire new table immediately using the latest atmospheric inputs. The render service
+publishes it in the same frame that observes the new settings. Completed snapshots carry their own dimensions;
+the GPU owner uploads a replacement texture before publishing its ID and matching lighting, then
+disposes the old texture. Same-size refreshes reuse the existing allocation. No shader reload is needed.
+
+Quality validation: all 47 focused atmosphere tests passed in
+`artifacts/PbrColor/atmosphere-quality.trx`. Checks include all four levels and the full 256x192 table,
+config defaults/null restoration, clamping and quality-only serialization, immediate resize superseding pending work with the latest inputs,
+incremental weather refresh and partial final batches, immutable previous snapshots, and GPU
+allocation/content/reuse/retirement through the production owner.
+This is headless validation, not live appearance acceptance.
+An admitted weather rebuild finishes even if atmospheric inputs change, preventing update starvation. It then admits
 the newest input state. Camera rotation/bobbing do not affect lookup direction; altitude changes
 below the key threshold do not invalidate it.
 
@@ -91,10 +109,11 @@ solar irradiance normalization, forward point-light/emission preservation, and i
 linking. Across these four receipts, 111 distinct tests passed. Physical solar diffuse uses irradiance
 divided by pi; point lights and emission retain their existing calibration. Solar normalization is now unconditional; the former light0.w mode flag is reserved padding, always written as zero.
 
-On this machine, five warmed full refreshes took 21.446–24.665 ms (median 22.902 ms), approximately
+The original 32-sample-budget measurement on this machine recorded five warmed full refreshes at
+21.446–24.665 ms (median 22.902 ms), approximately
 0.954 ms per bounded 32-direction update. Two full refreshes preceded measurement as warmups.
 These are CPU harness observations, not GPU timings or a guarantee of in-game frame cost. Work is
-spread across 24 render updates after initialization and stops when the quantized input key is unchanged.
+now spread across 6 render updates at the default resolution after initialization and stops when the quantized input key is unchanged.
 The first scene frame pays one complete lookup (approximately 23 ms in this earlier measurement)
 before uploading and exposing the atmospheric resources.
 

@@ -141,6 +141,15 @@
       }
     },
     "integer": {
+      "ATMOSPHERE_SKY_LUT_QUALITY": {
+        "code": "Atmosphere.SkyLutQuality",
+        "name": "Atmosphere/SkyLutQuality",
+        "ingui": "vanillagraphicsexpanded:config-atmosphere-lut-quality",
+        "comment": "vanillagraphicsexpanded:config-atmosphere-lut-resolution-tooltip",
+        "default": 0,
+        "weight": 21.0,
+        "mapping": { "Low (32 x 24)": 0, "Medium (64 x 48)": 1, "High (128 x 96)": 2, "Ultra (256 x 192)": 3 }
+      },
       "TERRAIN_SURFACE_DETAIL_MODE": {
         "code": "MaterialAtlas.TerrainSurfaceDetailMode",
         "name": "MaterialAtlas/TerrainSurfaceDetailMode",

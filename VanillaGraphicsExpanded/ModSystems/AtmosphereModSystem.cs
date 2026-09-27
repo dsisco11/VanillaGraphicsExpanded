@@ -56,18 +56,38 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     {
         if (api?.World?.Player?.Entity is not { } player || api.World.Calendar is not { } calendar) return;
         var direction = calendar.SunPositionNormalized;
+        var settings = ConfigModSystem.Config.Atmosphere;
         // The first scene frame must have a complete texture and matching lighting; later refreshes retain it.
-        if (!lookup.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
-            (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity, complete: lookup.Current is null)) return;
-        var ready = lookup.Current!;
-        sky ??= DynamicTexture2D.Create(AtmosphereLookup.Width, AtmosphereLookup.Height, PixelInternalFormat.Rgba16f,
-            debugName: "Atmosphere.Sky");
-        sky.DisableMipmaps();
-        sky.SetTexFilter(TextureMinFilter.Linear, TextureMagFilter.Linear);
-        sky.SetTexWrap(TextureWrapMode.Repeat, TextureWrapMode.ClampToEdge);
-        sky.UploadData(ready.Sky.AsSpan().ToArray());
+        lookup.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
+            (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
+            complete: lookup.Current is null, width: settings.LookupWidth, height: settings.LookupHeight);
+        if (lookup.Current is { } ready && !ReferenceEquals(Lighting, ready)) Publish(ready);
+    }
+
+    /// <summary>Uploads a completed lookup before swapping dimensions and lighting visible to consumers.</summary>
+    internal void Publish(AtmosphereLighting ready)
+    {
+        bool replace = sky is null || sky.Width != ready.Width || sky.Height != ready.Height;
+        var target = replace
+            ? DynamicTexture2D.Create(ready.Width, ready.Height, PixelInternalFormat.Rgba16f, debugName: "Atmosphere.Sky")
+            : sky!;
+        try
+        {
+            target.DisableMipmaps();
+            target.SetTexFilter(TextureMinFilter.Linear, TextureMagFilter.Linear);
+            target.SetTexWrap(TextureWrapMode.Repeat, TextureWrapMode.ClampToEdge);
+            target.UploadData(ready.Sky.AsSpan().ToArray());
+        }
+        catch
+        {
+            if (replace) target.Dispose();
+            throw;
+        }
+        var previous = sky;
+        sky = target;
         // Publication follows the upload; consumers never see new illumination with the previous lookup.
         SkyTextureId = sky.TextureId; Lighting = ready;
+        if (replace) previous?.Dispose();
     }
     #endregion
 }

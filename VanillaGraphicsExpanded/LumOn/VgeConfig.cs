@@ -1421,6 +1421,10 @@ public class VgeConfig
     [JsonProperty]
     public MaterialAtlasConfig MaterialAtlas { get; set; } = new();
 
+    /// <summary>Resolution of the atmospheric sky and shared lighting lookup.</summary>
+    [JsonProperty]
+    public PBR.Atmosphere.AtmosphereSettings Atmosphere { get; set; } = new();
+
     // ════════════════════════════════════════════════════════════════════════
     // Texture Streaming (PBO)
     // ════════════════════════════════════════════════════════════════════════
@@ -1449,6 +1453,7 @@ public class VgeConfig
     [OnDeserialized]
     internal void OnDeserializedMethod(StreamingContext context)
     {
+        Atmosphere ??= new PBR.Atmosphere.AtmosphereSettings();
         // Ensure nested config objects are initialized
         Debug ??= new DebugConfig();
         Debug.DebugViews ??= new DebugConfig.DebugViewsConfig();
@@ -1472,6 +1477,8 @@ public class VgeConfig
 
         MaterialAtlas ??= new MaterialAtlasConfig();
         MaterialAtlas.Sanitize();
+        Atmosphere ??= new PBR.Atmosphere.AtmosphereSettings();
+        Atmosphere.Sanitize();
 
         TextureStreaming ??= new TextureStreamingConfig();
         TextureStreaming.Sanitize();
