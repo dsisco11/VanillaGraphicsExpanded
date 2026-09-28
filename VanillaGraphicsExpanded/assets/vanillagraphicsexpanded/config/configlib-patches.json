@@ -366,10 +366,10 @@
         "name": "MaterialAtlas/TerrainSubdivision/TargetEdgePixels",
         "ingui": "vanillagraphicsexpanded:config-tessellation-target-edge-pixels",
         "comment": "vanillagraphicsexpanded:config-tessellation-target-edge-pixels-tooltip",
-        "default": 16,
+        "default": 8,
         "weight": 21.3,
         "range": {
-          "min": 2,
+          "min": 1,
           "max": 256,
           "step": 1
         }
@@ -379,11 +379,11 @@
         "name": "MaterialAtlas/TerrainSubdivision/FadeStartMetres",
         "ingui": "vanillagraphicsexpanded:config-tessellation-fade-start",
         "comment": "vanillagraphicsexpanded:config-tessellation-fade-start-tooltip",
-        "default": 8,
+        "default": 4,
         "weight": 21.4,
         "range": {
-          "min": 0,
-          "max": 127,
+          "min": 1,
+          "max": 32,
           "step": 1
         }
       },
@@ -392,11 +392,11 @@
         "name": "MaterialAtlas/TerrainSubdivision/FadeEndMetres",
         "ingui": "vanillagraphicsexpanded:config-tessellation-fade-end",
         "comment": "vanillagraphicsexpanded:config-tessellation-fade-end-tooltip",
-        "default": 24,
+        "default": 16,
         "weight": 21.5,
         "range": {
-          "min": 1,
-          "max": 128,
+          "min": 2,
+          "max": 64,
           "step": 1
         }
       },
