@@ -109,7 +109,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.fsh", 2, 0, 0, 0, 0));
         var sources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
         Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources,
-            TerrainTessellationPatches.EnabledDefine, 1, out int tessellated, out string error), error);
+            TerrainTessellationPatches.EnabledDefine, out int tessellated, out string error), error);
         using var program = GpuProgramObject.Adopt(tessellated);
         using var ordinary = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
@@ -138,8 +138,8 @@ public sealed class TerrainTessellationTests : RenderTestBase
         using var shaders=new TerrainShaderTestFixture();
         int vertex=shaders.Compile(ShaderType.VertexShader,PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.vsh",2,0,0,ssbo,0));
         int fragment=shaders.Compile(ShaderType.FragmentShader,PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.fsh",2,0,0,ssbo,0));
-        var sources=TerrainTessellationTestAssets.Generate(shaders.Source(vertex),adaptiveDisplacement:true);
-        Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,sources,TerrainTessellationPatches.EnabledDefine,4,out int program,out string error),error);
+        var sources=TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
+        Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,sources,TerrainTessellationPatches.EnabledDefine, out int program,out string error),error);
         GpuProgramObject.Adopt(program).Dispose();
     }
     #endregion
@@ -158,12 +158,8 @@ public sealed class TerrainTessellationTests : RenderTestBase
         int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build(family + ".vsh", 2, 0, ssao, ssbo, 0));
         int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 2, 0, ssao, ssbo, 0));
         var sources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
-        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources, TerrainTessellationPatches.EnabledDefine, 4, out int program, out string error), error);
+        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources, TerrainTessellationPatches.EnabledDefine, out int program, out string error), error);
         GpuProgramObject.Adopt(program).Dispose();
-        var adaptiveSources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex), adaptiveDisplacement: true);
-        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, adaptiveSources, TerrainTessellationPatches.EnabledDefine, 4, out int adaptiveProgram, out string adaptiveError), adaptiveError);
-        GpuProgramObject.Adopt(adaptiveProgram).Dispose();
-
     }
     /// <summary>Installing a tessellated executable preserves engine stage objects and scopes topology to its managed owner.</summary>
     [Fact]
@@ -226,11 +222,9 @@ public sealed class TerrainTessellationTests : RenderTestBase
     #endregion
 
     #region Raster equivalence
-    /// <summary>Interpolated colors and last-vertex flat data survive subdivision with nonuniform clip W.</summary>
-    [Theory]
-    [InlineData(1)]
-    [InlineData(4)]
-    public void UndisplacedRasterMatchesTriangles(int level)
+    /// <summary>Disabled displacement retains interpolated colors and last-vertex flat data with nonuniform clip W.</summary>
+    [Fact]
+    public void DisabledDisplacementRasterMatchesTriangles()
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
@@ -238,12 +232,19 @@ public sealed class TerrainTessellationTests : RenderTestBase
             #version 430 core
             out vec4 rgba;
             out vec2 uv;
+            out vec4 worldPos;
+            out vec3 normal;
+            flat out vec2 vge_uvBase;
+            flat out vec2 vge_uvExtent;
             flat out int renderFlags;
             void main() {
                 vec2 p[3] = vec2[3](vec2(-1,-1), vec2(3,-1), vec2(-1,3));
                 float w = float(gl_VertexID + 1);
                 gl_Position = vec4(p[gl_VertexID] * w, (float(gl_VertexID) * 0.2 - 0.2) * w, w);
                 uv = p[gl_VertexID] * 0.25 + 0.25;
+                worldPos = vec4(p[gl_VertexID], 0, 1);
+                normal = vec3(0, 0, 1);
+                vge_uvBase = vec2(0); vge_uvExtent = vec2(1);
                 rgba = vec4(float(gl_VertexID == 0), float(gl_VertexID == 1), float(gl_VertexID == 2), 1);
                 renderFlags = gl_VertexID + 1;
             }
@@ -263,7 +264,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         try
         {
             ordinary = TerrainShaderTestFixture.Link(vertex, fragment);
-            Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, TerrainTessellationTestAssets.Generate(shaders.Source(vertex)), TerrainTessellationPatches.EnabledDefine, level, out tessellated, out string error), error);
+            Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, TerrainTessellationTestAssets.Generate(shaders.Source(vertex)), TerrainTessellationPatches.EnabledDefine, out tessellated, out string error), error);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba32f, 2);
             target.BindWithViewport();
@@ -273,7 +274,11 @@ public sealed class TerrainTessellationTests : RenderTestBase
             var expected = target[0].ReadPixels();
             var expectedCoordinates = target[1].ReadPixels();
             GlStateCache.Current.SetPatchVertices( 3);
-            GlStateCache.Current.UseProgram(tessellated); GL.DrawArrays(PrimitiveType.Patches, 0, 3);
+            GlStateCache.Current.UseProgram(tessellated);
+            var layout = GpuProgramLayout.TryBuild(tessellated);
+            ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementEnabled"), 0);
+            ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementReactive"), 0);
+            GL.DrawArrays(PrimitiveType.Patches, 0, 3);
             var actual = target[0].ReadPixels();
             var actualCoordinates = target[1].ReadPixels();
             for (int i = 0; i < actualCoordinates.Length; i++) Assert.InRange(actualCoordinates[i], expectedCoordinates[i] - .0001f, expectedCoordinates[i] + .0001f);

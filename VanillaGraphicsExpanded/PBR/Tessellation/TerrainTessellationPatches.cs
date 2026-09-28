@@ -21,7 +21,7 @@ internal static class TerrainTessellationPatches
         try
         {
             sources.Add(program.VertexShader, TerrainTessellationStages.Generate(program.VertexShader.Code,
-                TerrainTessellationAssets.Load(assets), TerrainTessellationPrograms.Requested,
+                TerrainTessellationAssets.Load(assets),
                 depthBias: program.PassName == "chunkopaque"));
         }
         catch (Exception ex)

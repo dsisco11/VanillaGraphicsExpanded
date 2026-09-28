@@ -85,7 +85,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
         int oldPatch=GlStateCache.Current.PatchVertices;
         try
         {
-            Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,TerrainTessellationTestAssets.Generate(source,true,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine,8,out program,out string error),error);
+            Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out program,out string error),error);
             using var framework=new ShaderTestFramework();
             using var amplitude=framework.CreateTexture(16,16,PixelInternalFormat.R32f,Enumerable.Range(0,256).Select(i => mode is 10 or 11 ? (i%16<8 ? 1f : 2f) : mode==6 ? 0f : mode==8 ? 2f : 1f).ToArray());
             using var records=framework.CreateTexture(mode is 10 or 11 ? 4 : 2,1,PixelInternalFormat.Rgba32f,mode is 10 or 11 ? new float[] {0,0,.5f,1,.04f,0,0,0, .5f,0,.5f,1,.02f,0,0,0} : new float[] {0,0,mode==7 ? .5f : 1f,1,.04f,0,0,0});
@@ -100,6 +100,8 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationDistance"),10f,20f);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationPixels"),128f,128f,16f,8f);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
+            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementEnabled"),1);
+            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementReactive"),0);
             float[] identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
             ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program,"modelViewMatrix"), identity);
             ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program,"projectionMatrix"), identity);

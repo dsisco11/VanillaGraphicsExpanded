@@ -68,7 +68,7 @@ internal static class TerrainTessellationPrograms
             if (program.GeometryShader is not null)
                 throw new NotSupportedException("Terrain geometry-stage modifications are not supported by the identity path.");
             if (!TerrainTessellationLinker.TryCreate(program.VertexShader.ShaderId, program.FragmentShader.ShaderId,
-                sources, program.VertexShader.PrefixCode + "\n#define VGE_PRODUCTION_DISPLACEMENT 1\n", 1,
+                sources, program.VertexShader.PrefixCode,
                 out int candidate, out string error)) throw new InvalidOperationException(error);
             int ordinary = program.ProgramId;
             program.ProgramId = candidate;

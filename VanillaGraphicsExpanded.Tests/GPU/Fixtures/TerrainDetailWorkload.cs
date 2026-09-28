@@ -69,9 +69,8 @@ internal sealed class TerrainDetailWorkload : IDisposable
         }
         int vs=shaders.Compile(ShaderType.VertexShader,source),fs=shaders.Compile(ShaderType.FragmentShader,fragment);
         programs.Add("triangles",GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vs,fs)));
-        foreach(bool adaptive in new[]{false,true})
         {
-            var stages = TerrainTessellationTestAssets.Generate(source,adaptive,depthBias);
+            var stages = TerrainTessellationTestAssets.Generate(source,depthBias);
             if (observeClipDelta)
             {
                 var tree = SyntaxTree.Parse(stages.Evaluation, GlslSchema.Instance);
@@ -81,8 +80,8 @@ internal sealed class TerrainDetailWorkload : IDisposable
                     """).Commit();
                 stages = stages with { Evaluation = tree.ToText() };
             }
-            Assert.True(TerrainTessellationLinker.TryCreate(vs,fs,stages,TerrainTessellationPatches.EnabledDefine + "#define VGE_PRODUCTION_DISPLACEMENT 1\n",2,out int id,out string error),error);
-            programs.Add(adaptive?"adaptive":"identity2",GpuProgramObject.Adopt(id));
+            Assert.True(TerrainTessellationLinker.TryCreate(vs,fs,stages,TerrainTessellationPatches.EnabledDefine,out int id,out string error),error);
+            programs.Add("adaptive",GpuProgramObject.Adopt(id));
         }
         string includes=Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
         foreach(bool relief in new[]{false,true})
@@ -117,7 +116,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),1);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementEnabled"),eligible?1:0);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementEnabled"),eligible && mode != "adaptiveDisabled"?1:0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementReactive"),reactive?1:0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),256f,256f,8f,8f);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),256f);

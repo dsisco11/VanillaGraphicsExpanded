@@ -21,7 +21,7 @@ public sealed class TerrainDetailMeasurementTests(HeadlessGLFixture fixture) : R
         EnsureContextValid();
         using var scope = new TerrainDetailWorkload();
         var rows=new List<object>();
-        foreach(string candidate in new[]{"identity2","adaptiveNear","adaptiveFaded","adaptiveNeutral","relief"})
+        foreach(string candidate in new[]{"adaptiveDisabled","adaptiveNear","adaptiveFaded","adaptiveNeutral","relief"})
         {
             string baseline=candidate=="relief" ? "reliefOff" : "triangles";
             foreach(string mode in new[]{baseline,candidate}) { scope.Select(mode); for(int i=0;i<8;i++)scope.Draw(); }

@@ -7,9 +7,7 @@ uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 #endif
 uniform float vge_tessellationFocalPixels;
-#if VGE_PRODUCTION_DISPLACEMENT
 uniform int vge_displacementEnabled;
-#endif
 // xy = viewport pixels, z = target pixels per segment, w = maximum subdivision.
 uniform vec4 vge_tessellationPixels;
 // x/y = displacement fade start/end in metres; zero/invalid values disable displacement.

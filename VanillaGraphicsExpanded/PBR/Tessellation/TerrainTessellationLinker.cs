@@ -11,7 +11,7 @@ internal static class TerrainTessellationLinker
     #region Candidate lifetime
     /// <summary>Returns an owned candidate using the engine's existing compiled vertex/fragment objects.</summary>
     internal static bool TryCreate(int vertex, int fragment, TerrainTessellationStages.Sources sources,
-        string prefixCode, int level, out int program, out string error)
+        string prefixCode, out int program, out string error)
     {
         program = 0;
         error = "";
@@ -19,13 +19,11 @@ internal static class TerrainTessellationLinker
         int candidate = 0;
         try
         {
-            if (level is < 1 or > 8) throw new ArgumentOutOfRangeException(nameof(level));
-            // These pass-through stages use no SSBOs, even when the engine vertex stage does.
+            // These tessellation stages use no SSBOs, even when the engine vertex stage does.
             // GLSL versions may differ between linked stages; retain the tessellation minimum here.
             string header = $$"""
                 #version 400 core
                 {{prefixCode}}
-                #define VGE_TESSELLATION_LEVEL {{level}}
 
                 """;
             if (!GpuShaderModule.TryCompileGlsl(ShaderType.TessControlShader, header + sources.Control, out control, out error)) return false;

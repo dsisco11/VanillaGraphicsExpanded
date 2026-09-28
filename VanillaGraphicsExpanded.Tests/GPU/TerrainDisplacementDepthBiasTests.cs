@@ -10,7 +10,7 @@ public sealed class TerrainDisplacementDepthBiasTests(HeadlessGLFixture fixture)
     #region Neutral depth identity
     /// <summary>Neutral or faded geometry must retain the original biased clip interpolation exactly.</summary>
     [Theory]
-    [InlineData("identity2")]
+    [InlineData("adaptiveDisabled")]
     [InlineData("adaptiveNeutral")]
     [InlineData("adaptiveFaded")]
     public void NeutralHeightPreservesBiasedClipAcrossInclinedTriangle(string mode)

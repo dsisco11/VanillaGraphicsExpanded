@@ -1,21 +1,16 @@
 // Runtime terrain stage: interface and engine prefix are supplied by the shader patch pipeline.
 #if VGE_ENABLE_TESSELLATION
-#if VGE_ADAPTIVE_DISPLACEMENT
 @import "./terrain_displacement.glsl"
 patch in float vge_patchAmplitude;
 patch in vec4 vge_patchRect;
-#if VGE_PRODUCTION_DISPLACEMENT && !VGE_TESS_SHADOW
+#if !VGE_TESS_SHADOW
 uniform int vge_displacementReactive;
 #endif
 layout(triangles, fractional_odd_spacing, ccw) in;
-#else
-layout(triangles, equal_spacing, ccw) in;
-#endif
 void main() {
     gl_Position = gl_in[0].gl_Position * gl_TessCoord.x
         + gl_in[1].gl_Position * gl_TessCoord.y + gl_in[2].gl_Position * gl_TessCoord.z;
-#if VGE_ADAPTIVE_DISPLACEMENT
-    #if defined(VGE_TESS_HAS_vge_surfaceDisplaced) && VGE_PRODUCTION_DISPLACEMENT && !VGE_TESS_SHADOW
+    #if defined(VGE_TESS_HAS_vge_surfaceDisplaced) && !VGE_TESS_SHADOW
     // Invalidate previous geometry even when the current map is missing, neutral or
     // fully faded. Current displacement cannot describe what was visible last frame.
     vge_surfaceDisplaced = float(vge_displacementReactive * vge_displacementEnabled);
@@ -46,9 +41,6 @@ void main() {
             float dv = (VgeHeight(uv + vec2(0, delta.y), vge_uvBase, vge_uvExtent, vge_patchAmplitude, basePosition + tangentV * delta.y)
                 - VgeHeight(uv - vec2(0, delta.y), vge_uvBase, vge_uvExtent, vge_patchAmplitude, basePosition - tangentV * delta.y)) / (2.0 * delta.y);
             vec3 displacedNormal = cross(tangentU + faceNormal * du, tangentV + faceNormal * dv);
-            #if defined(VGE_TESS_HAS_vge_surfaceDisplaced) && !VGE_PRODUCTION_DISPLACEMENT
-            vge_surfaceDisplaced = (offset != 0.0 || du != 0.0 || dv != 0.0) ? 1.0 : 0.0;
-            #endif
             if ((du != 0.0 || dv != 0.0) && VgeFinite(displacedNormal) && dot(displacedNormal, displacedNormal) > 0.00000001) {
                 normal = normalize(displacedNormal);
                 if (dot(normal, faceNormal) < 0.0) normal = -normal;
@@ -90,6 +82,5 @@ void main() {
             #endif
         }
     }
-#endif
 }
 #endif

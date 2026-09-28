@@ -32,7 +32,7 @@ public sealed class TerrainDisplacementTemporalTests(HeadlessGLFixture fixture) 
     [InlineData("adaptiveNear", false, true)]
     [InlineData("adaptiveNear", true, false)]
     [InlineData("triangles", true, true)]
-    [InlineData("identity2", true, true)]
+    [InlineData("adaptiveDisabled", true, true)]
     public void StableOrIneligibleGeometryKeepsHistory(string mode, bool reactive, bool eligible)
     {
         EnsureContextValid();

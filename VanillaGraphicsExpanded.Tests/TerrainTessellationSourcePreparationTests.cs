@@ -36,7 +36,7 @@ public sealed class TerrainTessellationSourcePreparationTests
         var owner = new ShaderProgram
         {
             PassName = "chunkopaque", AssetDomain = "game",
-            VertexShader = new Shader { Code = "out vec4 rgba; void main() { gl_Position=vec4(0); }" },
+            VertexShader = new Shader { Code = TerrainTessellationTestAssets.RequiredOutputs + "\nout vec4 rgba; void main() { gl_Position=vec4(0); }" },
             FragmentShader = new Shader()
         };
         TerrainTessellationPatches.Prepare(owner, fixture.Api.Assets);
@@ -58,7 +58,7 @@ public sealed class TerrainTessellationSourcePreparationTests
             flat /* metadata */ out vec2 customAtlas;
             smooth out vec3 customColor;
             void main() { gl_Position=vec4(0); }
-            """);
+            """ + TerrainTessellationTestAssets.RequiredOutputs);
         Assert.Contains("flat in vec2 customAtlas[];", stages.Control);
         Assert.Contains("customAtlas = tc_customAtlas[2];", stages.Evaluation);
         Assert.Contains("smooth out vec3 customColor;", stages.Evaluation);
@@ -84,7 +84,7 @@ public sealed class TerrainTessellationSourcePreparationTests
                 gl_Position=vec4(0);
             #endif
             }
-            """);
+            """ + TerrainTessellationTestAssets.RequiredOutputs);
         Assert.Contains("#extension GL_ARB_shader_draw_parameters : enable", stages.Control);
         Assert.Contains("#if SSAOLEVEL > 0", stages.Control);
         Assert.Contains("#define VGE_TESS_OUTPUT_0 1", stages.Control);
@@ -103,7 +103,7 @@ public sealed class TerrainTessellationSourcePreparationTests
             in vec4 position;
             out vec4 rgba;
             void main() { gl_Position=position; }
-            """);
+            """ + TerrainTessellationTestAssets.RequiredOutputs);
         Assert.DoesNotContain("fakeOutput", stages.Control);
         Assert.DoesNotContain("tc_position", stages.Control);
         Assert.Contains("tc_rgba", stages.Control);

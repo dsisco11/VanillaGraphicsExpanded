@@ -1,6 +1,5 @@
 // Runtime terrain stage: interface and engine prefix are supplied by the shader patch pipeline.
 #if VGE_ENABLE_TESSELLATION
-#if VGE_ADAPTIVE_DISPLACEMENT
 @import "./terrain_displacement.glsl"
 @import "../vge_displacement_metadata.glsl"
 patch out float vge_patchAmplitude;
@@ -15,16 +14,10 @@ int VgeTileCorner(vec2 value, vec2 lo, vec2 size, vec2 band) {
     if (any(equal(lower, upper))) return -1;
     return (upper.x ? 1 : 0) | (upper.y ? 2 : 0);
 }
-#endif
 layout(vertices=3) out;
 void main() {
     gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
     if (gl_InvocationID == 0) {
-        gl_TessLevelOuter[0] = float(VGE_TESSELLATION_LEVEL);
-        gl_TessLevelOuter[1] = float(VGE_TESSELLATION_LEVEL);
-        gl_TessLevelOuter[2] = float(VGE_TESSELLATION_LEVEL);
-        gl_TessLevelInner[0] = float(VGE_TESSELLATION_LEVEL);
-#if VGE_ADAPTIVE_DISPLACEMENT
         // Resolve the authored tile from an interior UV, independently of engine SSBO face data.
         // Validate the complete triangle against that rectangle before any height sampling.
         vec4 rect;
@@ -37,9 +30,7 @@ void main() {
             && vge_tessellationDistance.y > vge_tessellationDistance.x && vge_tessellationPixels.z > 0.0
             && VgeRectValid(lo, size)
             && renderFlags[0] == renderFlags[1] && renderFlags[0] == renderFlags[2];
-#if VGE_PRODUCTION_DISPLACEMENT
         eligible = eligible && vge_displacementEnabled != 0;
-#endif
         eligible = eligible && VgeFinite(normal[0]) && dot(normal[0], normal[0]) > 0.00000001
             && all(equal(normal[0], normal[1])) && all(equal(normal[0], normal[2]));
         vec2 band = 1.0 / vec2(textureSize(vge_normalDepthTex, 0));
@@ -66,7 +57,6 @@ void main() {
         gl_TessLevelOuter[1] = eligible ? VgeEdgeLevel(worldPos[2].xyz, worldPos[0].xyz) : 1.0;
         gl_TessLevelOuter[2] = eligible ? VgeEdgeLevel(worldPos[0].xyz, worldPos[1].xyz) : 1.0;
         gl_TessLevelInner[0] = max(gl_TessLevelOuter[0], max(gl_TessLevelOuter[1], gl_TessLevelOuter[2]));
-#endif
     }
 }
 #endif
