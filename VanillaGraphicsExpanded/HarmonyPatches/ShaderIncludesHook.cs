@@ -27,6 +27,7 @@ public static class ShaderIncludesHook
 {
     private static ILogger? _logger;
     private static IAssetManager? _assetManager;
+    internal static Action<string, string>? ReportError { get; set; }
 
     // VGE shader programs inline imports themselves (VgeShaderProgram + ShaderSourceCode).
     // Skip VGE-owned shader programs here to avoid double-processing and wasted tokenization.
@@ -61,7 +62,15 @@ public static class ShaderIncludesHook
             return;
         }
         //_logger.Audit($"[VGE][Shaders] Processing shader program '{program.PassName}'");
-        ProcessShaderProgram(program);
+        try
+        {
+            ProcessShaderProgram(program);
+        }
+        catch (Exception ex)
+        {
+            if (ReportError is not null) ReportError(program.PassName, ex.ToString());
+            else _logger.Error($"[VGE] Shader patch failed for '{program.PassName}': {ex}");
+        }
     }
 
     /// <summary>
@@ -158,10 +167,10 @@ public static class ShaderIncludesHook
                 _ => throw new InvalidOperationException("Unknown shader stage")
             };
 
-            if (!GlslCompileDiagnostics.TryCompileStage(shaderType, candidate.Source, out string infoLog))
+            string validationSource = BuildValidationSource(candidate.Source, candidate.Shader.PrefixCode);
+            if (!GlslCompileDiagnostics.TryCompileStage(shaderType, validationSource, out string infoLog))
             {
-                _logger?.Error($"[VGE] Skipping shader patches for '{shaderProgram.PassName}': {stageExtension} candidate failed validation. {infoLog}");
-                return;
+                throw new InvalidOperationException($"{stageExtension} candidate failed validation. {infoLog}");
             }
         }
 
@@ -171,6 +180,19 @@ public static class ShaderIncludesHook
         }
         if (_assetManager is not null)
             PBR.Tessellation.TerrainTessellationPatches.Prepare(shaderProgram, _assetManager);
+    }
+
+    /// <summary>Includes engine-owned defines for validation without baking them into the published shader body.</summary>
+    internal static string BuildValidationSource(string source, string? prefixCode)
+    {
+        if (string.IsNullOrEmpty(prefixCode)) return source;
+        // Insert engine definitions at the version directive through the same GLSL
+        // editor used by the patches. Only this temporary validation tree owns them.
+        var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
+        tree.CreateEditor()
+            .InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"), "\n" + prefixCode + "\n")
+            .Commit();
+        return tree.ToText();
     }
 
     /// <summary>

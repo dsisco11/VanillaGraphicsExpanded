@@ -68,3 +68,12 @@ Final Release build and all 20 focused GPU cases passed:
 This includes an ordinary texture draw after VGE stops, with exact expected RGBA,
 plus the previous OIT coverage and framebuffer-state regressions. These tests
 verify the sampler fix; they do not substitute for the user's live visual check.
+
+## Shader patch error notifications
+
+Shader patch failures produce an error log with full diagnostics and a local
+client-chat message naming the affected shader. Startup messages wait for world
+finalization, coalescing repeated failures for the same shader while waiting.
+Parsing, patching and validation exceptions reach the same reporting boundary;
+patch exceptions no longer become warnings that allow a partial candidate to
+continue. Shutdown removes subscriptions and suppresses queued notifications.

@@ -266,8 +266,7 @@ flat in uint vge_faceId;
         }
         catch (Exception ex)
         {
-            log?.Warning($"[VGE] Failed to pre-process shader '{sourceName}': {ex.Message}");
-            return false;
+            throw new InvalidOperationException($"Failed to pre-process shader '{sourceName}'.", ex);
         }
     }
 
@@ -385,8 +384,7 @@ flat in uint vge_faceId;
         }
         catch (Exception ex)
         {
-            log?.Warning($"[VGE] Failed to patch shader '{sourceName}': {ex.Message}");
-            return false;
+            throw new InvalidOperationException($"Failed to patch shader '{sourceName}'.", ex);
         }
     }
 
