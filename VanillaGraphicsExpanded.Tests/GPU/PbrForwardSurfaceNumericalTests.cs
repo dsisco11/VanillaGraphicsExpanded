@@ -115,8 +115,16 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             {
                 float irradiance = scenario == 4 ? new[] { .2f, .4f, .8f }[channel] / MathF.PI : factor;
                 float linear = (channel + 1) * .2f * irradiance;
+                // At normal incidence and roughness .5, dielectric GGX contributes 4*.04/pi.
+                // Direct diffuse retains 1-F0; emission and environment use their separate contracts.
+                float normalSpecular = .16f / MathF.PI;
+                if (scenario is 2 or 3 or 8 or 14)
+                    linear = (.96f * (channel + 1) * .2f + normalSpecular) * factor;
+                if (scenario == 4)
+                    linear = (.96f * (channel + 1) * .2f / MathF.PI + normalSpecular)
+                        * new[] { .2f, .4f, .8f }[channel];
                 if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * .35f * (.96f * (channel + 1) * .2f + .02f);
-                if (scenario == 10) linear = (channel + 1) * .2f * (.3f + channel * .2f) / MathF.PI;
+                if (scenario == 10) linear = (.96f * (channel + 1) * .2f / MathF.PI + normalSpecular) * (.3f + channel * .2f);
                 if (scenario == 12) linear = new[]{.04f,.09f,.16f}[channel];
                 radiance[channel] = linear;
             }

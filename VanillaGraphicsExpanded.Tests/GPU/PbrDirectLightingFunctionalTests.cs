@@ -148,6 +148,73 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
     }
 
+    #region Specular regression coverage
+
+    /// <summary>Checks absolute GGX radiance with terrain's metallic-valued alpha and one Fresnel factor.</summary>
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(0f, 1f)]
+    [InlineData(.5f, .5f)]
+    [InlineData(1f, 1f)]
+    public void DirectLighting_NormalIncidenceMatchesAnalyticSpecular(float metallic, float materialAlpha)
+    {
+        EnsureShaderTestAvailable();
+        var program = CompilePbrDirectLightingProgram();
+        using var output = TestFramework.CreateTestGBuffer(1, 1,
+            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+        // Binary-exact colors keep the comparison independent of half-float input rounding.
+        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .75f, .25f, .125f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
+        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, metallic, 0f, materialAlpha });
+        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1f });
+
+        RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
+            (0f, 0f, 1f), (1f, 1f, 1f), 0, default, default);
+        var specular = ReadPixelFromAttachment(output, 1);
+        var diffuse = ReadPixelFromAttachment(output, 0);
+
+        // At N=V=L, G=1 and F=F0. Roughness=.5 gives D=16/pi,
+        // so outgoing specular radiance is 4*F0/pi for unit incident irradiance.
+        float[] colors = [.75f, .25f, .125f];
+        float[] actualSpecular = [specular.R, specular.G, specular.B];
+        float[] actualDiffuse = [diffuse.R, diffuse.G, diffuse.B];
+        for (int channel = 0; channel < colors.Length; channel++)
+        {
+            float f0 = .04f * (1f - metallic) + colors[channel] * metallic;
+            AssertNear(4f * f0 / MathF.PI, actualSpecular[channel], .001f);
+            AssertNear((1f - f0) * (1f - metallic) * colors[channel] / MathF.PI,
+                actualDiffuse[channel], .001f);
+        }
+    }
+
+    /// <summary>Rejects sunlight behind the surface and zero irradiance without emitting invalid specular values.</summary>
+    [Theory]
+    [InlineData(-1f, 1f)]
+    [InlineData(1f, 0f)]
+    public void DirectLighting_UnlitReceiverHasNoSpecular(float lightZ, float irradiance)
+    {
+        EnsureShaderTestAvailable();
+        var program = CompilePbrDirectLightingProgram();
+        using var output = TestFramework.CreateTestGBuffer(1, 1,
+            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .75f, .25f, .125f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
+        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, 0f, 0f, 0f });
+        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1f });
+
+        RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
+            (0f, 0f, lightZ), (irradiance, irradiance, irradiance), 0, default, default);
+        var specular = ReadPixelFromAttachment(output, 1);
+        AssertAllFinite(specular);
+        AssertNear(0f, specular.R, .00001f);
+        AssertNear(0f, specular.G, .00001f);
+        AssertNear(0f, specular.B, .00001f);
+    }
+
+    #endregion
+
     /// <summary>Emission remains scene-linear in its separate target, including values above one.</summary>
     [Theory]
     [InlineData(0.9f)]

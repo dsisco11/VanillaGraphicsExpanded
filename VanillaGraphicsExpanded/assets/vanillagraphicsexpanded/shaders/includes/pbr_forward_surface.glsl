@@ -40,7 +40,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
     float metallic = clamp(material.g, 0.0, 1.0);
     vec3 diffuse = vec3(0.0), specular = vec3(0.0);
     addDirectLight(baseColor, N, V, normalize(vge_atmosphereSunDirection), (vge_atmosphereSolar * vge_skyVisibility) * visibility,
-        roughness, metallic, metallic, diffuse, specular);
+        roughness, metallic, diffuse, specular);
     // Normalize only physical sunlight; existing engine point-light units retain their calibration.
     diffuse /= 3.14159265359;
     #if DYNLIGHTS > 0
@@ -51,7 +51,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
         vec3 direction = toWorld * delta;
         direction *= inversesqrt(max(dot(direction, direction), 0.0001));
         addDirectLight(baseColor, N, V, direction, pointLightColors[i] * min(1.0 / distanceSquared, 1.0),
-            roughness, metallic, metallic, diffuse, specular);
+            roughness, metallic, diffuse, specular);
     }
     #endif
     // Local block illumination is a bounded fallback for these receivers, not screen-space GI

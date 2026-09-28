@@ -69,7 +69,6 @@ void main()
     float roughness = clamp(m.r, 0.04, 1.0);
     float metallic = clamp(m.g, 0.0, 1.0);
     float emissiveScalar = max(m.b, 0.0);
-    float reflectivity = clamp(m.a, 0.0, 1.0);
 
     vec3 baseColor = baseColorTex.rgb;
 
@@ -91,7 +90,6 @@ void main()
         rgbaLightIn * sunVis,
         roughness,
         metallic,
-        reflectivity,
         accumDiffuse,
         accumSpecular);
 
@@ -122,7 +120,6 @@ void main()
             lc * att,
             roughness,
             metallic,
-            reflectivity,
             accumDiffuse,
             accumSpecular);
     }
