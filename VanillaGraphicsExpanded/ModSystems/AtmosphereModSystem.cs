@@ -78,7 +78,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
                 ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
         var ready = computation!.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
             (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
-            width: settings.LookupWidth, height: settings.LookupHeight, quality: settings.SkyLutQuality,
+            width: settings.LookupWidth, height: settings.LookupHeight, quality: (int)settings.SkyLutQuality,
             groundAlbedo: seasonal.GroundAlbedo);
         if (ready is not null) Publish(ready);
     }

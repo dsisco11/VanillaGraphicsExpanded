@@ -48,7 +48,7 @@ internal static class TerrainDisplacementRuntime
         focalPixels = double.IsFinite(focal) && focal > 0 ? (float)focal : render.FrameHeight;
         var position = player.CameraPos;
         var settings = ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision;
-        var geometry = (position.X, position.Y, position.Z, focalPixels, settings.MaximumLevel,
+        var geometry = (position.X, position.Y, position.Z, focalPixels, (int)settings.MaximumLevel,
             settings.TargetEdgePixels, settings.FadeStartMetres, settings.FadeEndMetres);
         var atlas = MaterialAtlasSystem.Instance;
         capturedAtlasRevision = atlas.SurfaceDetailRevision;

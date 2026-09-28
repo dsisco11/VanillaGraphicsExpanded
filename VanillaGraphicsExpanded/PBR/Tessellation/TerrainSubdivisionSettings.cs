@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.PBR.Tessellation;
 public sealed class TerrainSubdivisionSettings
 {
     #region Defaults
-    private const int DefaultSubdivisionLevel = 8;
+    private const TerrainSubdivisionLevel DefaultSubdivisionLevel = TerrainSubdivisionLevel.Level5;
     private const float DefaultTargetEdgePixels = 8;
     private const float DefaultFadeStartMetres = 4;
     private const float DefaultFadeEndMetres = 16;
@@ -24,7 +24,7 @@ public sealed class TerrainSubdivisionSettings
     private const float MaxFadeEndMetres = 128;
     #endregion
 
-    [JsonProperty] public int MaximumLevel { get; set; } = DefaultSubdivisionLevel;
+    [JsonProperty] public TerrainSubdivisionLevel MaximumLevel { get; set; } = DefaultSubdivisionLevel;
     [JsonProperty] public float TargetEdgePixels { get; set; } = DefaultTargetEdgePixels;
     [JsonProperty] public float FadeStartMetres { get; set; } = DefaultFadeStartMetres;
     [JsonProperty] public float FadeEndMetres { get; set; } = DefaultFadeEndMetres;
@@ -32,7 +32,7 @@ public sealed class TerrainSubdivisionSettings
     /// <summary>Normalizes hostile/non-finite configuration before uniform publication.</summary>
     public void Sanitize()
     {
-        MaximumLevel = Math.Clamp(MaximumLevel, MinSubdivisionLevel, MaxSubdivisionLevel);
+        MaximumLevel = (TerrainSubdivisionLevel)Math.Clamp((int)MaximumLevel, MinSubdivisionLevel, MaxSubdivisionLevel);
         TargetEdgePixels = float.IsFinite(TargetEdgePixels) ? Math.Clamp(TargetEdgePixels, MinTargetEdgePixels, MaxTargetEdgePixels) : DefaultTargetEdgePixels;
         FadeStartMetres = float.IsFinite(FadeStartMetres) ? Math.Clamp(FadeStartMetres, MinFadeStartMetres, MaxFadeStartMetres) : DefaultFadeStartMetres;
         FadeEndMetres = float.IsFinite(FadeEndMetres) ? Math.Clamp(FadeEndMetres, FadeStartMetres + 1, MaxFadeEndMetres) : Math.Clamp(DefaultFadeEndMetres, FadeStartMetres + 1, MaxFadeEndMetres);

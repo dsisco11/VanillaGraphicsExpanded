@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.PBR.Tessellation;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VanillaGraphicsExpanded.PBR.Materials;
@@ -67,14 +68,15 @@ public sealed class MaterialDisplacementTests
     public void SubdivisionSettingsSanitizeNonFiniteAndOutOfRangeValues()
     {
         var settings=new VanillaGraphicsExpanded.PBR.Tessellation.TerrainSubdivisionSettings
-        {MaximumLevel=99,TargetEdgePixels=float.NaN,FadeStartMetres=float.PositiveInfinity,FadeEndMetres=-1};
+        {MaximumLevel=(TerrainSubdivisionLevel)99,TargetEdgePixels=float.NaN,FadeStartMetres=float.PositiveInfinity,FadeEndMetres=-1};
         settings.Sanitize();
-        Assert.Equal(8,settings.MaximumLevel); Assert.Equal(16,settings.TargetEdgePixels);
+        Assert.Equal(TerrainSubdivisionLevel.Level8,settings.MaximumLevel); Assert.Equal(16,settings.TargetEdgePixels);
         Assert.Equal(8,settings.FadeStartMetres); Assert.Equal(9,settings.FadeEndMetres);
         settings.MaximumLevel=0; settings.TargetEdgePixels=999; settings.FadeStartMetres=200; settings.FadeEndMetres=float.NaN;
         settings.Sanitize();
-        Assert.Equal(1,settings.MaximumLevel); Assert.Equal(256,settings.TargetEdgePixels);
+        Assert.Equal(TerrainSubdivisionLevel.Level1,settings.MaximumLevel); Assert.Equal(256,settings.TargetEdgePixels);
         Assert.Equal(127,settings.FadeStartMetres); Assert.Equal(128,settings.FadeEndMetres);
     }
     #endregion
 }
+

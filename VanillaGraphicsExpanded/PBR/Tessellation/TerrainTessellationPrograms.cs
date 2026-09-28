@@ -64,7 +64,7 @@ internal static class TerrainTessellationPrograms
                 throw new NotSupportedException("Unsupported patch limits or provoking-vertex convention.");
             if (Requested && (GpuSupport.MaxCombinedTextureImageUnits <= TerrainReliefBindings.HeightUnit
                 || GpuSupport.MaxTessControlTextureImageUnits < 3 || GpuSupport.MaxTessEvaluationTextureImageUnits < 1
-                || GpuSupport.MaxTessGenLevel < ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision.MaximumLevel))
+                || GpuSupport.MaxTessGenLevel < (int)ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision.MaximumLevel))
                 throw new NotSupportedException("Insufficient adaptive tessellation texture or subdivision limits.");
             if (program.GeometryShader is not null)
                 throw new NotSupportedException("Terrain geometry-stage modifications are not supported by the identity path.");

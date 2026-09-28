@@ -45,7 +45,8 @@ internal sealed class ConfigModSystem : ModSystem
         
         try
         {
-            var loadedConfig = api.LoadModConfig<VgeConfig>(Constants.ConfigFileName);
+            var document = api.LoadModConfig<JObject>(Constants.ConfigFileName);
+            var loadedConfig = document?.ToObject<VgeConfig>();
             if (loadedConfig is null)
             {
                 Config = new VgeConfig();
@@ -58,6 +59,10 @@ internal sealed class ConfigModSystem : ModSystem
             }
 
             Config.Sanitize();
+            // ConfigLib replaces existing JSON paths; it cannot create missing nested
+            // settings. Materialize current defaults before it loads, never during its save.
+            if (document is not null && ConfigDocumentDefaults.FillMissing(document, JObject.FromObject(Config)))
+                api.StoreModConfig(document, Constants.ConfigFileName);
         }
         catch (Exception ex)
         {
@@ -115,6 +120,7 @@ internal sealed class ConfigModSystem : ModSystem
         base.Dispose();
 
         api = null;
+        configLoaded = false;
     }
 
     private readonly record struct ConfigLibSettingUpdate(string Path, string Value);
