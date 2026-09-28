@@ -181,7 +181,7 @@
         "name": "MaterialAtlas/TerrainSurfaceDetailMode",
         "ingui": "vanillagraphicsexpanded:config-terrain-surface-detail",
         "comment": "vanillagraphicsexpanded:config-terrain-surface-detail-tooltip",
-        "default": 1,
+        "default": "Relief",
         "weight": 20.4,
         "mapping": { "Disabled": 0, "Relief": 1, "Tessellation": 2 }
       },
