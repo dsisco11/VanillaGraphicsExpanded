@@ -55,7 +55,6 @@ internal static class TerrainTessellationPrograms
         try
         {
             if (!DrawHookAvailable || !MeshDrawHookAvailable) throw new NotSupportedException("Terrain or shared-shadow topology interception is unavailable.");
-            GpuSupport.Initialize();
             // The engine independently owns any higher requirements of its vertex/fragment variants.
             if (GpuSupport.ApiVersion is not { } version || version < new Version(4, 0))
                 throw new NotSupportedException("Terrain tessellation requires OpenGL 4.0.");
