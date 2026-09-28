@@ -1,7 +1,13 @@
 Issues:
   Current:
-    ☐ Fix atmospheric shader producing color banding
-      ☐ Revise atmospheric LUT to use an aspect ratio of 1:2 rather than 2:1, in order to better distribute samples vertically and avoid vertical banding.
+    ☐ Add debug label scopes for the remaining unlabled base-game rendering passes.
+    ☐ Normal maps not loading from material atlas baking system?
+    ☐ Tessellation not working (possibly due to the normal maps not loading?).
+    ☐ [Indoor areas have significant ambient light]: Scale atmospheric skylight contribution according to "sunlight" value from block-light input in shaders.
+    ☐ [Indoor areas exhibit sunlight shading on block faces]: Scale direct sunlight contribution on block faces according to "sunlight" value from block-light input in shaders.
+    ☐ Add proper PBR foliage shading with foliage-backface (fake) "subsurface scattering" light bleedthrough.
+    ☐ Add edge beveling for geometry normals prior to direct lighting so that lighting appears smoother along edges and corners.
+    ☐ Implement fully deferred lighting pass for point-lights & block-lights.
     ☐ Refactor near-tracing geometry system to support "directional" voxel types (e.g. partial blocks like stairs & slabs), as well as voxel types which are basically pass-through like campfires.
     ☐ Implement support for dynamic updates to the near-tracing geometry, allowing changes in the scene to be reflected in the GPU representation without full re-upload.
 
