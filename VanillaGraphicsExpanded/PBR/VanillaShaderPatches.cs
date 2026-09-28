@@ -492,6 +492,7 @@ flat in uint vge_faceId;
         const string skyGBufferWrites = @"
     // VGE: Write default G-buffer outputs for sky
     vge_outEnvironment = vec4(0.0);
+    vge_outPatchId = uvec4(0u);
     vge_outNormal = vec4(0.0); // Upward normal
     vge_outMaterial = vec4(0.0, 0.0, outGlow.g, 0.0); // Default material properties
 ";

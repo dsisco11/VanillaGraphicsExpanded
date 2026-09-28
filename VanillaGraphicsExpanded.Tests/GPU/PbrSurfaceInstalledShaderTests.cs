@@ -87,6 +87,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereReady"));
             Assert.True(GL.GetUniformLocation(program, "vge_atmosphereSky") >= 0);
             Assert.True(GL.GetUniformLocation(program, "vge_atmosphereLutHorizon") >= 0);
+            Assert.Equal(6, GL.GetFragDataLocation(program, "vge_outPatchId"));
         }
         finally
         {
