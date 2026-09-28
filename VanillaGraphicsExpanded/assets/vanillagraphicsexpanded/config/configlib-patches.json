@@ -141,6 +141,32 @@
       }
     },
     "integer": {
+      "TESSELLATION_MAXIMUM_LEVEL": {
+        "code": "MaterialAtlas.TerrainSubdivision.MaximumLevel",
+        "name": "MaterialAtlas/TerrainSubdivision/MaximumLevel",
+        "ingui": "vanillagraphicsexpanded:config-tessellation-maximum-level",
+        "comment": "vanillagraphicsexpanded:config-tessellation-maximum-level-tooltip",
+        "default": 8,
+        "weight": 21.2,
+        "range": {
+          "min": 1,
+          "max": 8,
+          "step": 1
+        }
+      },
+      "UNDISPLACED_TESSELLATION_LEVEL": {
+        "code": "MaterialAtlas.UndisplacedTessellationLevel",
+        "name": "MaterialAtlas/UndisplacedTessellationLevel",
+        "ingui": "vanillagraphicsexpanded:config-undisplaced-tessellation-level",
+        "comment": "vanillagraphicsexpanded:config-undisplaced-tessellation-level-tooltip",
+        "default": 2,
+        "weight": 21.6,
+        "range": {
+          "min": 0,
+          "max": 8,
+          "step": 1
+        }
+      },
       "ATMOSPHERE_SKY_LUT_QUALITY": {
         "code": "Atmosphere.SkyLutQuality",
         "name": "Atmosphere/SkyLutQuality",
@@ -335,6 +361,45 @@
       }
     },
     "float": {
+      "TESSELLATION_TARGET_EDGE_PIXELS": {
+        "code": "MaterialAtlas.TerrainSubdivision.TargetEdgePixels",
+        "name": "MaterialAtlas/TerrainSubdivision/TargetEdgePixels",
+        "ingui": "vanillagraphicsexpanded:config-tessellation-target-edge-pixels",
+        "comment": "vanillagraphicsexpanded:config-tessellation-target-edge-pixels-tooltip",
+        "default": 16,
+        "weight": 21.3,
+        "range": {
+          "min": 2,
+          "max": 256,
+          "step": 1
+        }
+      },
+      "TESSELLATION_FADE_START": {
+        "code": "MaterialAtlas.TerrainSubdivision.FadeStartMetres",
+        "name": "MaterialAtlas/TerrainSubdivision/FadeStartMetres",
+        "ingui": "vanillagraphicsexpanded:config-tessellation-fade-start",
+        "comment": "vanillagraphicsexpanded:config-tessellation-fade-start-tooltip",
+        "default": 8,
+        "weight": 21.4,
+        "range": {
+          "min": 0,
+          "max": 127,
+          "step": 1
+        }
+      },
+      "TESSELLATION_FADE_END": {
+        "code": "MaterialAtlas.TerrainSubdivision.FadeEndMetres",
+        "name": "MaterialAtlas/TerrainSubdivision/FadeEndMetres",
+        "ingui": "vanillagraphicsexpanded:config-tessellation-fade-end",
+        "comment": "vanillagraphicsexpanded:config-tessellation-fade-end-tooltip",
+        "default": 24,
+        "weight": 21.5,
+        "range": {
+          "min": 1,
+          "max": 128,
+          "step": 1
+        }
+      },
       "ANCHOR_JITTER_SCALE": {
         "code": "LumOn.AnchorJitterScale",
         "name": "LumOn/AnchorJitterScale",
