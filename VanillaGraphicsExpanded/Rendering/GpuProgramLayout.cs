@@ -214,6 +214,16 @@ public class GpuProgramLayout
         samplerContract[samplerUniformName] = new BindingSpec(unit, required);
     }
 
+    /// <summary>Releases sampler overrides at this program's contract slots before another renderer reuses them.</summary>
+    internal void ReleaseSamplerBindings()
+    {
+        // Engine texture binds without a custom sampler rely on the texture's own
+        // filtering and comparison state. A surviving VGE sampler overrides that state.
+        var cache = GlStateCache.Current;
+        foreach (var binding in samplerContract.Values)
+            cache.UnbindSampler(binding.BindingOrUnit);
+    }
+
     /// <summary>
     /// Registers an expected sampler uniform array mapping starting at <paramref name="firstUnit"/>.
     /// </summary>
