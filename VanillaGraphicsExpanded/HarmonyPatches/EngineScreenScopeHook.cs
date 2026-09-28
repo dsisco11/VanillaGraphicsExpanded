@@ -42,7 +42,12 @@ internal static class EngineScreenScopeHook
             foreach (var method in type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
             {
                 if (method.IsAbstract || !boundaries.Contains(method.Name) || method.GetParameters() is not [{ ParameterType: var parameter }] || parameter != typeof(float)) continue;
-                Names[method] = $"VS.Screen.{type.Name}.{method.Name}";
+                // Keep the screen identity and boundary, without redundant engine/category prefixes.
+                string screenName = type.Name.StartsWith(nameof(GuiScreen), StringComparison.Ordinal)
+                    ? type.Name[nameof(GuiScreen).Length..] : type.Name;
+                if (screenName.Length == 0) screenName = "Screen";
+                string boundary = method.Name.StartsWith("Render", StringComparison.Ordinal) ? method.Name[6..] : method.Name;
+                Names[method] = $"{screenName}.{boundary}";
                 yield return method;
             }
         }

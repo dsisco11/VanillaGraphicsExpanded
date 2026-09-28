@@ -25,14 +25,20 @@ internal static class EngineRenderScopes
     /// <summary>Returns the cached name of a dispatched render stage.</summary>
     internal static string StageName(EnumRenderStage stage) => Stages.TryGetValue(stage, out var name) ? name : "VS.UnknownStage";
 
-    /// <summary>Retains registration names, including action callbacks represented by DummyRenderer.</summary>
+    /// <summary>Uses the registration label alone; unnamed callbacks fall back to a short implementation name.</summary>
     internal static string HandlerName(RenderHandler handler) => Handlers.GetValue(handler, static value =>
-        $"VS.Renderer.{value.ProfilingName}.{(value.Renderer is DummyRenderer dummy ? $"{dummy.action.Method.DeclaringType?.FullName}.{dummy.action.Method.Name}" : value.Renderer.GetType().FullName)}");
+    {
+        // The enclosing stage already identifies engine dispatch; avoid repeating namespaces and delegate details.
+        if (!string.IsNullOrWhiteSpace(value.ProfilingName)) return value.ProfilingName;
+        if (value.Renderer is DummyRenderer dummy)
+            return $"{dummy.action.Method.DeclaringType?.Name}.{dummy.action.Method.Name}";
+        return value.Renderer.GetType().Name;
+    });
 
     /// <summary>Identifies the current fullscreen shader without querying driver state.</summary>
     internal static string FullscreenName() => ShaderProgramBase.CurrentShaderProgram is { } program
-        ? Programs.GetValue(program, static value => $"VS.Fullscreen.{value.AssetDomain ?? "game"}:{value.PassName ?? value.GetType().Name}")
-        : "VS.Fullscreen.UnmanagedProgram";
+        ? Programs.GetValue(program, static value => $"{value.AssetDomain ?? "game"}:{value.PassName ?? value.GetType().Name}")
+        : "Fullscreen";
     #endregion
 
     #region Callback dispatch

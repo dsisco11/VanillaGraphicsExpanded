@@ -47,9 +47,8 @@ public sealed class EngineRenderScopeTests
     {
         var first = new RenderHandler { Renderer = new DummyRenderer { action = IgnoreFrame }, ProfilingName = "terrain" };
         var second = new RenderHandler { Renderer = new DummyRenderer { action = IgnoreFrame }, ProfilingName = "first-person" };
-        Assert.StartsWith("VS.Renderer.terrain.", EngineRenderScopes.HandlerName(first));
-        Assert.StartsWith("VS.Renderer.first-person.", EngineRenderScopes.HandlerName(second));
-        Assert.Contains(nameof(IgnoreFrame), EngineRenderScopes.HandlerName(first));
+        Assert.Equal("terrain", EngineRenderScopes.HandlerName(first));
+        Assert.Equal("first-person", EngineRenderScopes.HandlerName(second));
         Assert.Same(EngineRenderScopes.HandlerName(first), EngineRenderScopes.HandlerName(first));
     }
 

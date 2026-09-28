@@ -4,16 +4,16 @@ The installed Vintage Story 1.22.7 renderer was inspected through `ClientEventMa
 
 | Previously uncovered boundary | Scope coverage |
 | --- | --- |
-| Every registered world renderer, including shadow, opaque, OIT, first-person and orthographic callbacks | `VS.Renderer.<registration>.<implementation>` inside `VS.<stage>` |
-| Action registrations represented by `DummyRenderer` | Registration name plus the underlying delegate method |
+| Every registered world renderer, including shadow, opaque, OIT, first-person and orthographic callbacks | `<registration>` inside `VS.<stage>` |
+| Action registrations represented by `DummyRenderer` | Registration name; unnamed callbacks use short type and method names |
 | Transparent accumulation composition | `VS.MergeTransparentRenderPass`, with the transparent-compose fullscreen shader inside |
-| Bloom extraction | Postprocessing parent, then `VS.Fullscreen.game:findbright` |
+| Bloom extraction | Postprocessing parent, then `game:findbright` |
 | Bloom horizontal/vertical blur at both resolutions | Four separate fullscreen blur scopes in submission order |
 | God rays | Fullscreen god-rays scope |
 | SSAO and its horizontal/vertical bilateral filter | Three separate fullscreen scopes |
 | FXAA luminance preparation or ordinary copy | Fullscreen luma or blit scope |
 | Final composition and primary-to-default copy | Named engine method scopes, each containing its fullscreen shader scope |
-| Screen rendering before/after postprocessing, after final composition, after blit and to the default framebuffer | `VS.Screen.<concrete screen>.<boundary>` |
+| Screen rendering before/after postprocessing, after final composition, after blit and to the default framebuffer | `<screen>.<boundary>`, e.g. `RunningGame.ToPrimary` |
 | Shared menu background drawn outside screen callbacks | `VS.GuiCompositeMainMenuLeft.RenderBg` |
 | Whole screen-manager render invocation | `VS.ScreenManager.Render` |
 
