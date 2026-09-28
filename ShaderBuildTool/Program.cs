@@ -96,7 +96,9 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine("[SPIR-V] " + ex.Message);
+            // MSBuild's terminal logger retains recognized errors in its failure summary.
+            // Include the complete exception so IO failures retain their underlying cause.
+            Console.Error.WriteLine("error SPIRV001: " + ex);
             return 1;
         }
     }
