@@ -138,6 +138,9 @@ internal static class PbrSurfaceShaderPatches
             in vec3 vge_sunIrradiance;
             in float vge_skyVisibility;
             #if USEOIT == 0
+            #if defined(ALLOWDEPTHOFFSET) && ALLOWDEPTHOFFSET > 0 && SSAOLEVEL == 0
+            layout(location = 3) out vec4 outGPosition;
+            #endif
             layout(location = 4) out vec4 vge_outNormal;
             layout(location = 5) out vec4 vge_outMaterial;
             layout(location = 6) out uvec4 vge_outPatchId;
@@ -223,6 +226,11 @@ internal static class PbrSurfaceShaderPatches
                 #if USEOIT == 0
                 // Late primary draws still publish defined debug/material metadata; no deferred pass follows them.
                 vge_outNormal = vec4(vge_normal * 0.5 + 0.5, 1.0);
+                #if defined(ALLOWDEPTHOFFSET) && ALLOWDEPTHOFFSET > 0
+                // Visibility depth uses the hand projection and bias; lighting needs the actual receiver.
+                outGPosition = vec4(vge_viewPosition, 1.0);
+                vge_outNormal.a = -1.0;
+                #endif
                 vge_outMaterial = vec4(vge_params, vge_params.g);
                 vge_outPatchId = uvec4(0u);
                 vge_outEnvironment = vec4(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance), vge_skyVisibility);

@@ -75,5 +75,54 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         }
         finally { harmony.UnpatchAll(harmony.Id); GpuFramebuffer.Unbind(); }
     }
+    /// <summary>Receiver storage is reused without transferring owned fallback textures into the engine deletion list.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReceiverPositionPreservesTextureOwnership(bool enginePosition)
+    {
+        EnsureContextValid();
+        using var framework = new ShaderTestFramework();
+        using var primary = framework.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba16f, 4);
+        using var assets = new BinaryShaderApiFixture();
+        var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
+        var frame = frames[(int)EnumFrameBuffer.Primary];
+        frame.FboId = primary.FboId;
+        frame.Width = frame.Height = 2;
+        frame.ColorTextureIds = new int[4];
+        for (int slot = 0; slot < 3; slot++) frame.ColorTextureIds[slot] = primary[slot].TextureId;
+        int borrowed = primary[3].TextureId;
+        frame.ColorTextureIds[3] = enginePosition ? borrowed : 0;
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+        int receiver;
+        using (var manager = new GBufferManager(api.Object))
+        {
+            manager.SetupGBuffers();
+            receiver = manager.PositionTextureId;
+            Assert.NotEqual(0, receiver);
+            Assert.Equal(enginePosition ? borrowed : 0, frame.ColorTextureIds[3]);
+            manager.SetupGBuffers();
+            Assert.Equal(receiver, manager.PositionTextureId);
+            if (enginePosition) Assert.Equal(borrowed, receiver);
+            else
+            {
+                frame.Width = frame.Height = 4;
+                manager.SetupGBuffers();
+                receiver = manager.PositionTextureId;
+                GL.GetTextureLevelParameter(receiver, 0, GetTextureParameter.TextureWidth, out int width);
+                GL.GetTextureLevelParameter(receiver, 0, GetTextureParameter.TextureHeight, out int height);
+                Assert.Equal(4, width);
+                Assert.Equal(4, height);
+                Assert.Equal(0, frame.ColorTextureIds[3]);
+            }
+        }
+        Assert.Equal(enginePosition, GL.IsTexture(receiver));
+        Assert.True(GL.IsTexture(borrowed));
+        GpuFramebuffer.Unbind();
+    }
     #endregion
 }

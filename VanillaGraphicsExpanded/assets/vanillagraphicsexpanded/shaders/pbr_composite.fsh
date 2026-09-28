@@ -37,6 +37,7 @@ uniform sampler2D gBufferAlbedo;
 uniform sampler2D gBufferMaterial;
 uniform sampler2D gBufferNormal;
 uniform sampler2D primaryDepth;
+uniform sampler2D gBufferPosition;
 
 // Fog (VS convention)
 
@@ -49,6 +50,11 @@ void main(void)
     vec3 directLight = texture(directDiffuse, uv).rgb + texture(directSpecular, uv).rgb;
     vec3 emissiveLight = texture(emissive, uv).rgb;
     vec3 finalColor = directLight + emissiveLight;
+
+    // First-person visibility depth cannot reconstruct a physical lighting or fog receiver.
+    vec3 receiverVS = texture(gBufferNormal, uv).a < 0.0
+        ? texelFetch(gBufferPosition, ivec2(gl_FragCoord.xy), 0).xyz
+        : lumonReconstructViewPos(uv, depth, invProjectionMatrix);
 
     // Sky: skip indirect + fog
     if (lumonIsSky(depth))
@@ -77,7 +83,7 @@ void main(void)
         vec3 combined = lumonCombineLighting(directLight, indirect, albedo, metallic, 1.0, vec3(1.0));
         finalColor = combined + emissiveLight;
 #else
-        vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+        vec3 viewPosVS = receiverVS;
         vec3 viewDirVS = normalize(-viewPosVS);
 
         vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
@@ -117,14 +123,13 @@ void main(void)
     vec3 albedo = texture(gBufferAlbedo, uv).rgb;
     vec4 material = texture(gBufferMaterial, uv);
     vec3 normalVS = normalize(mat3(viewMatrix) * lumonDecodeNormal(texture(gBufferNormal, uv).xyz));
-    vec3 toEye = normalize(-lumonReconstructViewPos(uv, depth, invProjectionMatrix));
+    vec3 toEye = normalize(-receiverVS);
     finalColor += VgeEnvironmentResponse(texture(gBufferEnvironment, uv).rgb,
         albedo, material.g, material.r, dot(normalVS, toEye));
 #endif // VGE_LUMON_ENABLED
 
     finalColor = max(finalColor, vec3(0.0));
 
-    vec3 receiverVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     if (vgePbrCompositeParams.fogFloats0.z > .5)
     {
         float fogAmount = clamp(fogMinIn + 1.0 - exp(-length(receiverVS) * fogDensityIn), 0.0, 1.0);

@@ -104,6 +104,7 @@ internal static partial class GpuShaderContracts
         contract.UniformLocations.Add("gBufferEnvironment", 92);
         contract.UniformLocations.Add("vge_atmosphereAerialRadiance", 93);
         contract.UniformLocations.Add("vge_atmosphereAerialAttenuation", 94);
+        contract.UniformLocations.Add("gBufferPosition", 95);
 
         contract.VaryingLocations.Add("uv", 0);
         contract.VaryingLocations.Add("v_uv", 0);

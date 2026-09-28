@@ -197,6 +197,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];
         shader.GBufferMaterial = gBufferManager.MaterialTextureId;
         shader.GBufferNormal = gBufferManager.NormalTextureId;
+        shader.GBufferPosition = gBufferManager.PositionTextureId;
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
         // Fog uniforms

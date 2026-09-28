@@ -42,6 +42,10 @@ internal sealed class PbrCompositeProgramLayout : GpuProgramLayout
     public void BindPrimaryDepth(int programId, int textureId, Action<string>? warn)
         => TryBindSamplerTextureActive(programId, "primaryDepth", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
 
+    /// <summary>Binds unbiased receiver positions without filtering across surface boundaries.</summary>
+    public void BindGBufferPosition(int programId, int textureId, Action<string>? warn)
+        => TryBindSamplerTextureActive(programId, "gBufferPosition", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
+
     public void BindGBufferNormal(int programId, int textureId, Action<string>? warn)
         => TryBindSamplerTextureActive(programId, "gBufferNormal", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
 

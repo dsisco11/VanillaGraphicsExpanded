@@ -9,6 +9,7 @@ layout(location = 2) out vec4 outEmissive;
 // Scene inputs
 uniform sampler2D primaryScene;   // ColorAttachment0: baseColor (linear)
 uniform sampler2D primaryDepth;
+uniform sampler2D gBufferPosition; // Unbiased first-person view position, selected by negative normal alpha.
 
 // VGE G-buffer inputs
 uniform sampler2D gBufferNormal;   // ColorAttachment4: normal packed (RGBA16F)
@@ -56,12 +57,14 @@ void main()
         return;
     }
 
-    vec3 viewPos = reconstructViewPos(uv, depth);
+    vec4 nPacked = texture(gBufferNormal, uv);
+    vec3 viewPos = nPacked.a < 0.0
+        ? texelFetch(gBufferPosition, ivec2(gl_FragCoord.xy), 0).xyz
+        : reconstructViewPos(uv, depth);
 
     // Shadow lookup uses the terrain position reconstructed through the full inverse view.
     vec3 worldPosRel = (invModelViewMatrix * vec4(viewPos, 1.0)).xyz;
 
-    vec4 nPacked = texture(gBufferNormal, uv);
     vec3 N = normalize(nPacked.rgb * 2.0 - 1.0);
 
     vec4 m = texture(gBufferMaterial, uv);

@@ -15,6 +15,7 @@ internal static partial class GpuShaderContracts
         contract.RegisterSamplerUnit("gBufferAlbedo", unit: 4, required: true);
         contract.RegisterSamplerUnit("gBufferMaterial", unit: 5, required: true);
         contract.RegisterSamplerUnit("primaryDepth", unit: 6, required: true);
+        contract.RegisterSamplerUnit("gBufferPosition", unit: 11, required: true);
         contract.RegisterSamplerUnit("gBufferNormal", unit: 7, required: true);
         contract.RegisterSamplerUnit("gBufferEnvironment", unit: 8, required: true);
         contract.RegisterSamplerUnit("vge_atmosphereAerialRadiance", unit: 9, required: true);

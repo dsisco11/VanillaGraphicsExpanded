@@ -109,18 +109,57 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 
     #endregion
 
+    #region Explicit receiver position
+
+    /// <summary>First-person lighting uses the physical receiver position despite visibility-depth and projection changes.</summary>
+    [Theory]
+    [InlineData(0f, 1f, false)]
+    [InlineData(1f, 1f, false)]
+    [InlineData(1f, 0f, true)]
+    public void ExplicitReceiverPositionPreservesSunShadowsAndPointLighting(float shadowDepth, float sunlight, bool pointLight)
+    {
+        EnsureShaderTestAvailable();
+        var baseline = RenderReceiver(shadowDepth, 100f, 0f, sunlight: sunlight, pointLight: pointLight);
+        var firstPerson = RenderReceiver(shadowDepth, 100f, 0f, sunlight: sunlight, pointLight: pointLight,
+            explicitPosition: true, visibilityDepth: .4f, projectionOffset: 2f);
+        // Compare both diffuse and specular lobes, including a completely shadowed receiver.
+        for (int attachment = 0; attachment < 2; attachment++)
+        for (int channel = 0; channel < 3; channel++)
+            Assert.InRange(MathF.Abs(baseline[attachment * 4 + channel] - firstPerson[attachment * 4 + channel]), 0f, .0001f);
+
+        if (shadowDepth == 0f)
+            Assert.InRange(firstPerson[0], 0f, .0001f);
+        else
+            Assert.True(firstPerson[0] > .01f && firstPerson[4] > .001f);
+    }
+
+    /// <summary>Ordinary receivers continue reconstructing depth and do not consume the position attachment.</summary>
+    [Fact]
+    public void UnmarkedReceiverRetainsDepthReconstruction()
+    {
+        EnsureShaderTestAvailable();
+        var baseline = RenderReceiver(1f, 100f, 0f, sunlight: 0f, pointLight: true);
+        var changed = RenderReceiver(1f, 100f, 0f, sunlight: 0f, pointLight: true,
+            visibilityDepth: .4f, projectionOffset: 2f);
+        Assert.True(MathF.Abs(baseline[0] - changed[0]) > .05f,
+            "An unmarked receiver must still respond to reconstructed position changes.");
+    }
+    #endregion
+
     #region Receiver rendering
 
     /// <summary>Renders a front-facing receiver with deterministic cascade coverage and reads all radiance buffers.</summary>
     private float[] RenderReceiver(float shadowDepth, float nearRange, float farRange,
         float sunlight = 1f, bool pointLight = false, float emission = 0f, float intensity = 1f,
-        float? farDepth = null, float[]? color = null, bool upward = false)
+        float? farDepth = null, float[]? color = null, bool upward = false,
+        bool explicitPosition = false, float visibilityDepth = 0f, float projectionOffset = 0f)
     {
         var program = receiverProgram ??= Programs.Create<PBRDirectLightingShaderProgram>();
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 3);
         using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, color ?? [.6f, .6f, .6f, 1f]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, 1f]);
+        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [visibilityDepth]);
+        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, explicitPosition ? -1f : 1f]);
+        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, -1f, 1f]);
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 1f]);
         // A depth-format texture is required by sampler2DShadow. The production resource setters
         // bind the comparison sampler; the test must not repair or replace that binding itself.
@@ -133,10 +172,13 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         program.PrimaryDepth = depth.TextureId;
         program.GBufferNormal = normal.TextureId;
         program.GBufferMaterial = material.TextureId;
+        program.GBufferPosition = position.TextureId;
         program.ShadowMapNear = shadow.TextureId;
         program.ShadowMapFar = farShadow.TextureId;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-        program.InvProjectionMatrix = identity;
+        float[] inverseProjection = (float[])identity.Clone();
+        inverseProjection[12] = projectionOffset;
+        program.InvProjectionMatrix = inverseProjection;
         program.InvModelViewMatrix = identity;
         // Center depth zero reconstructs (0,0,-1), which maps to shadow UV/depth (.5,.5,.5).
         // Its distance of one gives full near coverage at range 100, and .65 near/.35 far at range 2.
@@ -170,5 +212,3 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 
     #endregion
 }
-
-

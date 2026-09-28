@@ -53,6 +53,8 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             Assert.Equal(oit > 0 ? -1 : 4, GL.GetFragDataLocation(program, "vge_outNormal"));
             Assert.Equal(oit > 0 ? -1 : 5, GL.GetFragDataLocation(program, "vge_outMaterial"));
             Assert.Equal(oit > 0 ? -1 : 7, GL.GetFragDataLocation(program, "vge_outEnvironment"));
+            if (depth > 0 && oit == 0)
+                Assert.Equal(3, GL.GetFragDataLocation(program, "outGPosition"));
             if (oit > 0)
             {
                 Assert.Equal(4, GL.GetFragDataLocation(program, "OITaccumulation1"));

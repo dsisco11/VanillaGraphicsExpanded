@@ -13,16 +13,17 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
     #region Installed terrain-independent meshes
     /// <summary>Opaque container and first-person draws retain alpha and reject a later background draw.</summary>
     [Theory]
-    [InlineData(0, 1)]
-    [InlineData(0, 2)]
-    [InlineData(1, 1)]
-    [InlineData(1, 2)]
-    public void StandardMeshOccludesBackground(int offsetVariant, int route)
+    [InlineData(0, 1, 0)]
+    [InlineData(0, 2, 0)]
+    [InlineData(1, 1, 0)]
+    [InlineData(1, 1, 1)]
+    [InlineData(1, 2, 0)]
+    public void StandardMeshOccludesBackground(int offsetVariant, int route, int ssao)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("standard.vsh", 0, 0, 0, 0, offsetVariant));
-        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, 0, 0, 0, offsetVariant));
+        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("standard.vsh", 0, 0, ssao, 0, offsetVariant));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, 0, ssao, 0, offsetVariant));
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         using var vertices = GpuVbo.Create();
@@ -30,7 +31,12 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f, .25f, .1f, 1f]);
         using var color = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
-        using var target = GpuFramebuffer.CreateMRT([color], depth, ownsTextures: false)!;
+        using var glow = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var engineNormal = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var position = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var gbuffer = new GBufferTextures(1, 1);
+        using var target = GpuFramebuffer.CreateMRT([color, glow, engineNormal, position,
+            gbuffer.Normal, gbuffer.Material, gbuffer.PatchId, gbuffer.Environment], depth, ownsTextures: false)!;
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         GlStateCache.Current.UseProgram(program.ProgramId);
         GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
@@ -59,6 +65,11 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         float[] foreground = target[0].ReadPixels();
         Assert.Equal(1f, foreground[3]);
+        if (offsetVariant > 0 && route == 1)
+        {
+            Assert.Equal(-1f, gbuffer.Normal.ReadPixels()[3]);
+            Assert.InRange(position.ReadPixels()[2], -.501f, -.499f);
+        }
         // Draw a distinguishable farther opaque mesh after the first mesh. Depth must reject it.
         vertices.UploadData<float>([-1, -1, .5f, 3, -1, .5f, -1, 3, .5f]);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "rgbaTint"), 0f, 1f, 0f, .25f);

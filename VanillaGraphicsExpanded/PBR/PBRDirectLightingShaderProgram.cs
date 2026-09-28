@@ -68,6 +68,9 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
     /// </summary>
     public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
 
+    /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
+    public int GBufferPosition { set => Layout.BindGBufferPosition(ProgramId, value, LayoutWarn); }
+
     /// <summary>
     /// G-buffer normal texture (Attachment4) (texture unit 2).
     /// Packed normalWS = n*0.5+0.5

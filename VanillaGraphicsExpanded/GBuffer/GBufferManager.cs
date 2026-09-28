@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded;
 /// 
 /// Integrates with VS via Harmony hooks for framebuffer lifecycle management.
 /// </summary>
-public sealed class GBufferManager : IDisposable
+public sealed partial class GBufferManager : IDisposable
 {
     #region Static Instance
     
@@ -50,7 +50,7 @@ public sealed class GBufferManager : IDisposable
             .With(GlPipelineStateId.BlendEnableIndexed)
             .With(GlPipelineStateId.BlendFuncIndexed),
         nonDefaultMask: default,
-        blendEnableIndexedAttachments: [(byte)NormalSlotId, (byte)MaterialSlotId, (byte)PatchIdSlotId, (byte)EnvironmentSlotId],
+        blendEnableIndexedAttachments: [(byte)PositionSlotId, (byte)NormalSlotId, (byte)MaterialSlotId, (byte)PatchIdSlotId, (byte)EnvironmentSlotId],
         blendFuncIndexed:
         [
             new GlBlendFuncIndexed((byte)NormalSlotId, GlBlendFunc.Default),
@@ -77,7 +77,7 @@ public sealed class GBufferManager : IDisposable
 
     /// <summary>
     /// The OpenGL texture ID for the normal G-buffer (ColorAttachment4).
-    /// Format: RGBA16F - World-space normals in XYZ, W = bevel strength.
+    /// Format: RGBA16F - packed world normals in XYZ; negative W selects an explicit receiver position.
     /// </summary>
     public int NormalTextureId => normalTex?.TextureId ?? 0;
 
@@ -151,6 +151,7 @@ public sealed class GBufferManager : IDisposable
         isInjected = true;
 
         // Attach to the Primary framebuffer
+        PrepareReceiverPosition(primaryFb, width, height);
         AttachToFramebuffer(primaryFb.FboId);
     }
 
@@ -390,6 +391,7 @@ public sealed class GBufferManager : IDisposable
             lastHeight = screenHeight;
 
             // Re-attach to framebuffer
+            PrepareReceiverPosition(primaryFb, screenWidth, screenHeight);
             AttachToFramebuffer(primaryFb.FboId);
             
             // Keep engine attachment bookkeeping current after every resize.
@@ -459,6 +461,9 @@ public sealed class GBufferManager : IDisposable
 
     private void DeleteTextures()
     {
+        fallbackPosition?.Dispose();
+        fallbackPosition = null;
+        PositionTextureId = 0;
         textures?.Dispose();
         textures = null;
         normalTex = null;
@@ -477,6 +482,10 @@ public sealed class GBufferManager : IDisposable
     {
         var gl = GlStateCache.Current;
         using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
+
+        // Reuse the engine SSAO position target, or occupy its vacant slot when SSAO is disabled.
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment3,
+            TextureTarget.Texture2D, PositionTextureId, 0);
 
         // Attach normal texture as ColorAttachment4 (matches layout(location = 4))
         GL.FramebufferTexture2D(

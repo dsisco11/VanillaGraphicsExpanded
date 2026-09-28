@@ -75,6 +75,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram
 
     public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
 
+    /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
+    public int GBufferPosition { set => Layout.BindGBufferPosition(ProgramId, value, LayoutWarn); }
+
     public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
 
     /// <summary>Supplies standalone environmental irradiance without any LumOn texture dependency.</summary>
