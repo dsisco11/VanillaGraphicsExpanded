@@ -22,8 +22,8 @@
     <VgeSolutionRoot>$(MSBuildThisFileDirectory)..</VgeSolutionRoot>
     <VgeModProjectDir>$(MSBuildThisFileDirectory)..\VanillaGraphicsExpanded</VgeModProjectDir>
 
-    <!-- Keep output path aligned with existing VGE convention (inside the mod project folder). -->
-    <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(VgeModProjectDir)\artifacts\spirv</SpirvArtifactsDir>
+    <!-- Keep paths short enough for MSBuild copy tasks on Windows, and isolate build configurations. -->
+    <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(VgeSolutionRoot)\artifacts\spirv\$(Configuration)</SpirvArtifactsDir>
 
     <SpirvBuildToolProject>$(VgeSolutionRoot)\ShaderBuildTool\ShaderBuildTool.csproj</SpirvBuildToolProject>
   </PropertyGroup>
@@ -47,7 +47,7 @@
     </MSBuild>
     <Exec
       WorkingDirectory="$(VgeSolutionRoot)"
-      Command="dotnet &quot;@(_BuiltShaderTool)&quot; --clean --incremental $(SpirvConcurrencyArg) --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
+      Command="dotnet &quot;@(_BuiltShaderTool)&quot; --incremental $(SpirvConcurrencyArg) --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
   </Target>
 
 </Project>

@@ -32,12 +32,12 @@ public sealed class LumonOctahedralShGenerationTests
             .ToDictionary(path => path, File.GetLastWriteTimeUtc);
         if (remove) File.Delete(include);
         else File.WriteAllText(include, "corrupt generated input");
-        Assert.Equal(0, fixture.Build(1, incremental: true));
+        Assert.Equal(0, fixture.Build(1, clean: false, incremental: true));
         Assert.Equal(original, File.ReadAllText(include));
         Assert.All(outputs, pair => Assert.Equal(pair.Value, File.GetLastWriteTimeUtc(pair.Key)));
         // A subsequent unchanged invocation still regenerates the include, while compiled outputs stay current.
         File.SetLastWriteTimeUtc(include, DateTime.UnixEpoch);
-        Assert.Equal(0, fixture.Build(1, incremental: true));
+        Assert.Equal(0, fixture.Build(1, clean: false, incremental: true));
         Assert.True(File.GetLastWriteTimeUtc(include) > DateTime.UnixEpoch);
         Assert.All(outputs, pair => Assert.Equal(pair.Value, File.GetLastWriteTimeUtc(pair.Key)));
         Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(fixture.Shaders)!, ".lumon-sh-*.tmp"));

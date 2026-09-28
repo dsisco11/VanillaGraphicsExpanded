@@ -162,12 +162,13 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
    ☐ Phase 18 - World-Space Clipmap Probe System - Implementation (New):
     Work items moved to: docs/LumOn.18-World-Space-Clipmap-Probes.todo
 
-☐ Improve incremental SPIR-V shader builds:
-  ☐ Separate Debug and Release shader artifact/cache directories:
+☑ Improve incremental SPIR-V shader builds:
+  - Implementation and validation: docs/ShaderBuild.Incremental.md.
+  ☑ Separate Debug and Release shader artifact/cache directories:
     - Keep compilation, receipts, digest indexes, output copying and packaging aligned with the selected configuration.
     - Preserve explicit output-directory overrides and concurrent-writer protection.
     - Verify Debug -> Release -> Debug reuses the previous Debug outputs without recompilation when inputs are unchanged.
-  ☐ Add per-variant shader compilation caching:
+  ☑ Add per-variant shader compilation caching:
     - Key reusable results by effective shader source/includes, defines, stage, entry point, binding/layout contract,
       compiler/tool identity, target environment, optimization and debug-information settings.
     - Recompile only affected variants; retain valid unaffected binaries instead of cleaning the entire catalog on a receipt miss.

@@ -1,6 +1,4 @@
-using System.Security.Cryptography;
 using VanillaGraphicsExpanded.Rendering.Spirv;
-using System.Text;
 using System.Diagnostics;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -12,7 +10,8 @@ internal static class ShaderVariantBuild
     #region Build and publication
     /// <summary>Publishes compiler output unchanged; program assignments and shared stages come from the resolver.</summary>
     public static async Task RunAsync(string assetsRoot, string outputRoot, string domain, string workingDirectory,
-        string target, bool warningsAsErrors, ShaderVariantResolver registry, int concurrency, CancellationToken cancellationToken)
+        string target, bool warningsAsErrors, ShaderVariantResolver registry, int concurrency, CancellationToken cancellationToken,
+        bool incremental = false, string? compilerIdentity = null)
     {
         var elapsed = Stopwatch.StartNew();
         string manifestPath = Path.Combine(outputRoot, domain, "shaders", ShaderBinaryDigest.FileName);
@@ -21,6 +20,9 @@ internal static class ShaderVariantBuild
         var digests = new System.Collections.Concurrent.ConcurrentDictionary<string, ShaderBinaryDigest.Entry>(StringComparer.Ordinal);
         ValidateSources(Path.Combine(assetsRoot, domain, "shaders"), registry);
         var sources = new ShaderVariantSource(assetsRoot, domain);
+        var cache = new ShaderVariantCache(outputRoot, compilerIdentity
+            ?? ShaderBuildReceipt.CompilerFingerprint(workingDirectory, target, warningsAsErrors));
+        int hits = 0, misses = 0;
         var expanded = new Dictionary<string, string>(StringComparer.Ordinal);
         Console.WriteLine($"[SPIR-V] Programs: {registry.Programs.Count} programs, {registry.Programs.Values.Sum(p => p.Assignments.Count)} combinations");
         // Expand each source once; workers share only immutable text, never editable syntax trees.
@@ -39,7 +41,7 @@ internal static class ShaderVariantBuild
             string binary = Path.Combine(outputRoot, domain, "shaders", selection.BinaryPath);
             if (!outputs.Add(Path.GetFullPath(binary)))
                 throw new InvalidOperationException("Duplicate shader binary output: " + binary);
-            string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(selection.Key))).ToLowerInvariant();
+            string hash = ShaderVariantIdentifier.Create(selection.Key);
             string input = Path.Combine(outputRoot, "_tmp", stage.Identity + "." + hash + ".glsl");
             string extension = StageExtension(stage.Kind);
             jobs.Add(new ShaderCompilationJob($"stage '{stage.Identity}', source '{stage.Source}', configuration '{selection.Key}'", CompileVariantAsync));
@@ -50,14 +52,24 @@ internal static class ShaderVariantBuild
                 string pending = input + ".spv";
                 Directory.CreateDirectory(Path.GetDirectoryName(input)!);
                 Directory.CreateDirectory(Path.GetDirectoryName(binary)!);
-                File.Delete(binary + ".sha256"); // Remove legacy per-variant metadata during migration.
-                File.Delete(binary);
                 File.Delete(pending);
                 try
                 {
                     var timer = Stopwatch.StartNew();
                     var emitter = new ShaderVariantSource(assetsRoot, domain);
-                    File.WriteAllText(input, ShaderSourceLayout.Apply(emitter.Emit(expanded[stage.Source], selection), extension, stage.Bindings));
+                    string source = ShaderSourceLayout.Apply(emitter.Emit(expanded[stage.Source], selection), extension, stage.Bindings);
+                    string key = cache.Key(source, Program.StageFromExtension(extension), stage.EntryPoint);
+                    if (incremental && cache.TryRead(key, out var cachedBytes, out var cachedDigest))
+                    {
+                        ShaderVariantCache.Publish(binary, cachedBytes);
+                        digests[selection.BinaryPath] = cachedDigest;
+                        Interlocked.Increment(ref hits);
+                        Interlocked.Add(ref emissionTicks, timer.ElapsedTicks);
+                        return new ShaderCompilerResult(0, "", "");
+                    }
+                    Interlocked.Increment(ref misses);
+                    File.Delete(binary);
+                    File.WriteAllText(input, source);
                     Interlocked.Add(ref emissionTicks, timer.ElapsedTicks);
                     token.ThrowIfCancellationRequested();
                     timer.Restart();
@@ -69,7 +81,8 @@ internal static class ShaderVariantBuild
                     if (result.ExitCode == 0)
                     {
                         byte[] bytes = File.ReadAllBytes(pending);
-                        var digest = new ShaderBinaryDigest.Entry(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
+                        var digest = ShaderVariantCache.Digest(bytes);
+                        cache.Store(key, bytes, digest);
                         File.Move(pending, binary, overwrite: true);
                         digests[selection.BinaryPath] = digest;
                     }
@@ -79,11 +92,16 @@ internal static class ShaderVariantBuild
             }
         }
         await ShaderCompilationBatch.RunAsync(jobs, concurrency, Console.Out, Console.Error, cancellationToken);
+        // Catalog changes remove obsolete runtime files only after every required variant succeeds.
+        string publishedRoot = Path.Combine(outputRoot, domain, "shaders");
+        foreach (string path in Directory.EnumerateFiles(publishedRoot, "*", SearchOption.AllDirectories))
+            if (!outputs.Contains(Path.GetFullPath(path)) && path != manifestPath) File.Delete(path);
         // Publish only after every variant succeeds; the build receipt subsequently covers this manifest too.
         File.WriteAllBytes(manifestPath, ShaderBinaryDigest.Encode(digests.ToDictionary(pair => pair.Key, pair => pair.Value)));
         foreach (var stage in registry.Binaries.GroupBy(s => s.Stage.Identity))
             Console.WriteLine($"[SPIR-V] {stage.Key}: {stage.Count()} structural variants");
         Console.WriteLine($"[SPIR-V] Stages: {registry.Stages.Count} stages, {registry.Binaries.Count} variants");
+        Console.WriteLine($"[SPIR-V] Cache hits={hits}; misses={misses}; compilerInvocations={misses}");
         Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Timing: concurrency={concurrency}; expansionMs={expansionMilliseconds:F1}; emissionWorkMs={emissionTicks * 1000.0 / Stopwatch.Frequency:F1}; compilerWorkMs={compilerTicks * 1000.0 / Stopwatch.Frequency:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}"));
     }
 

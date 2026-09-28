@@ -32,10 +32,10 @@ internal sealed class ShaderBuildFixture : IDisposable
 
     #region Build observations
     /// <summary>Invokes the normal entry point with an explicit concurrency limit and optional rebuild policy.</summary>
-    public int Build(int concurrency, bool clean = true, bool incremental = false)
+    public int Build(int concurrency, bool clean = true, bool incremental = false, string registry = "build-validation")
     {
         var args = new List<string> { "--assetsRoot", Assets, "--outputRoot", Output, "--workingDir", Repository,
-            "--registry", "build-validation", "--concurrency", concurrency.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+            "--registry", registry, "--concurrency", concurrency.ToString(System.Globalization.CultureInfo.InvariantCulture) };
         if (clean) args.Add("--clean");
         if (incremental) args.Add("--incremental");
         return Program.Main(args.ToArray());
@@ -43,6 +43,7 @@ internal sealed class ShaderBuildFixture : IDisposable
 
     /// <summary>Records exact compiler inputs and published binaries, excluding the build receipt.</summary>
     public SortedDictionary<string, string> ContentSnapshot() => new(Directory.EnumerateFiles(Output, "*", SearchOption.AllDirectories)
+        .Where(path => !Path.GetRelativePath(Output, path).StartsWith("_cache" + Path.DirectorySeparatorChar))
         .Where(path => path.EndsWith(".spv", StringComparison.Ordinal) || path.EndsWith(".glsl", StringComparison.Ordinal))
         .ToDictionary(path => Path.GetRelativePath(Output, path), path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))), StringComparer.Ordinal);
     #endregion

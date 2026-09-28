@@ -7,7 +7,7 @@
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableSpirv Condition="'$(EnableSpirv)' == ''">true</EnableSpirv>
-    <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(MSBuildProjectDirectory)\..\VanillaGraphicsExpanded\artifacts\spirv</SpirvArtifactsDir>
+    <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(MSBuildProjectDirectory)\..\artifacts\spirv\$(Configuration)</SpirvArtifactsDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -88,10 +88,6 @@
     </ItemGroup>
     <Error Condition="!Exists('$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\%(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv')"
            Text="Missing compiled test shader: %(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv" />
-    <ItemGroup>
-      <_LegacyShaderDigests Include="$(TargetDir)assets\**\*.spv.sha256" />
-    </ItemGroup>
-    <Delete Files="@(_LegacyShaderDigests)" />
     <Copy SourceFiles="@(_TestSpirvFiles)" DestinationFiles="@(_TestSpirvFiles->'$(TargetDir)assets\shaders\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 

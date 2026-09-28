@@ -16,7 +16,7 @@ public sealed class ShaderParallelBuildTests
         Assert.Equal(serial.ToArray(), fixture.ContentSnapshot().ToArray());
         var times = Directory.EnumerateFiles(fixture.Output, "*", SearchOption.AllDirectories)
             .ToDictionary(path => path, File.GetLastWriteTimeUtc);
-        Assert.Equal(0, fixture.Build(1, incremental: true));
+        Assert.Equal(0, fixture.Build(1, clean: false, incremental: true));
         Assert.All(times, pair => Assert.Equal(pair.Value, File.GetLastWriteTimeUtc(pair.Key)));
     }
 
@@ -31,6 +31,8 @@ public sealed class ShaderParallelBuildTests
         File.WriteAllText(path, valid + "\ninvalid compiler input");
         Assert.Equal(1, fixture.Build(4, clean: false, incremental: true));
         Assert.False(File.Exists(Path.Combine(fixture.Output, "build-receipt.json")));
+        Assert.False(File.Exists(Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders",
+            VanillaGraphicsExpanded.Rendering.Spirv.ShaderBinaryDigest.FileName)));
         Assert.Empty(Directory.GetFiles(Path.Combine(fixture.Output, "_tmp"), "*.spv", SearchOption.AllDirectories));
         Assert.False(File.Exists(Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders", "fixture.csh.spv")));
         File.WriteAllText(path, valid);

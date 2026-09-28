@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -28,7 +26,7 @@ internal sealed class ShaderStageSelection
         Key = ShaderAssignments.Key(Structural);
         string defaultKey = ShaderAssignments.Key(stage.Structural.ToDictionary(o => o.Name, o => o.Default, StringComparer.Ordinal));
         BinaryPath = Key == defaultKey ? stage.BinaryAsset + ".spv" : "variants/" + stage.BinaryAsset + "/" +
-            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Key))).ToLowerInvariant() + ".spv";
+            ShaderVariantIdentifier.Create(Key) + ".spv";
         Specializations = Array.AsReadOnly(stage.Specializations.Where(s => s.Condition?.Evaluate(Structural) ?? true)
             .Select(s => new ShaderSpecializationArgument(s.Id, values[s.Option.Name])).ToArray());
     }

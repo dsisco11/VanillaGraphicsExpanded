@@ -18,6 +18,7 @@ internal static class Program
     {
         try
         {
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
             var options = Options.Parse(args);
 
             if (options.ShowHelp)
@@ -53,11 +54,12 @@ internal static class Program
             };
             using var outputLease = ShaderOutputLease.Acquire(outputRoot);
             LumonOctahedralShWeights.Generate(domainShadersRoot);
-            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain,
-                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors) + "|" + options.RegistryScope;
-            if (options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
+            string compilerIdentity = ShaderBuildReceipt.CompilerFingerprint(
+                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors);
+            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, compilerIdentity) + "|" + options.RegistryScope;
+            if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
             {
-                Console.WriteLine("[SPIR-V] All shader binaries and contracts are current.");
+                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current. Cache hits={registry.Binaries.Count}; misses=0; compilerInvocations=0; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
                 return 0;
             }
             if (options.Clean && Directory.Exists(outputRoot))
@@ -76,7 +78,8 @@ internal static class Program
             {
                 ShaderVariantBuild.RunAsync(assetsRoot, outputRoot, domain,
                     options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv,
-                    options.WarningsAsErrors, registry, options.Concurrency, cancellation.Token).GetAwaiter().GetResult();
+                    options.WarningsAsErrors, registry, options.Concurrency, cancellation.Token, options.Incremental,
+                    compilerIdentity).GetAwaiter().GetResult();
             }
             finally { Console.CancelKeyPress -= cancel; }
             ShaderBuildReceipt.Publish(outputRoot, fingerprint);
@@ -226,7 +229,7 @@ internal static class Program
             Console.WriteLine("  --domain <name>       Asset domain (default: vanillagraphicsexpanded)");
             Console.WriteLine("  --targetEnv <env>     shaderc target env (default: opengl4.5)");
             Console.WriteLine("  --warningsAsErrors    Pass -Werror to compiler");
-            Console.WriteLine("  --incremental         Skip compilation only when input and output content matches the last successful build");
+            Console.WriteLine("  --incremental         Reuse verified per-variant compiler results; skip the catalog when its receipt is current");
             Console.WriteLine("  --clean               Delete outputRoot before building");
             Console.WriteLine("  --workingDir <path>   Working directory (should contain .config/dotnet-tools.json)");
         }
