@@ -172,7 +172,7 @@
         "name": "Atmosphere/SkyLutQuality",
         "ingui": "vanillagraphicsexpanded:config-atmosphere-lut-quality",
         "comment": "vanillagraphicsexpanded:config-atmosphere-lut-resolution-tooltip",
-        "default": 0,
+        "default": "Low",
         "weight": 22.0,
         "mapping": { "Low": 0, "Medium": 1, "High": 2, "Ultra": 3 }
       },
