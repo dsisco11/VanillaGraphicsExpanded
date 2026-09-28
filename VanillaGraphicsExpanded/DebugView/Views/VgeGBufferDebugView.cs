@@ -35,7 +35,7 @@ public static partial class VgeBuiltInDebugViews
                 LumOnDebugMode.TraceSceneOccupancyL0,
                 LumOnDebugMode.TraceScenePayloadL0,
                 LumOnDebugMode.LumOnScenesOverview,
-            ]);
+            ], requiresLumOn: false);
 
     private sealed class GBufferDebugViewState : LumOnDebugViewStateBase
     {

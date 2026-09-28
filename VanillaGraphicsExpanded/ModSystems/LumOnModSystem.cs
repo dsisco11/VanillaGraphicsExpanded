@@ -489,6 +489,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         // Initialize LumOn based on config (loaded by ConfigModSystem).
         if (!readConfig().LumOn.Enabled)
         {
+            lumOnDebugRenderer ??= new LumOnDebugRenderer(capi, readConfig(), null, gBufferManager, directLightingBufferManager, null, () => readCamera(capi));
             return;
         }
 
@@ -512,6 +513,7 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
         else
         {
+            lumOnDebugRenderer.SetLumOnBufferManager(lumOnBufferManager);
             lumOnDebugRenderer.SetWorldProbeClipmapBufferManager(clipmapManager);
         }
 

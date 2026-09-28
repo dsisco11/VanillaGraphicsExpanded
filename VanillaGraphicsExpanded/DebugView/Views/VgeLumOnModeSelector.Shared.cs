@@ -15,7 +15,7 @@ public static partial class VgeBuiltInDebugViews
         string category,
         string description,
         ILumOnDebugViewState viewState,
-        LumOnDebugMode[] allowedModes)
+        LumOnDebugMode[] allowedModes, bool requiresLumOn = true)
         => new(
             id: id,
             name: name,
@@ -31,7 +31,7 @@ public static partial class VgeBuiltInDebugViews
             activationMode: DebugViewActivationMode.Exclusive,
             availability: ctx =>
             {
-                if (!ctx.Config.LumOn.Enabled)
+                if (requiresLumOn && !ctx.Config.LumOn.Enabled)
                 {
                     return DebugViewAvailability.Unavailable("LumOn is disabled in config.");
                 }

@@ -188,7 +188,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
-    private readonly LumOnBufferManager? bufferManager;
+    private LumOnBufferManager? bufferManager;
     private readonly GBufferManager? gBufferManager;
     private readonly DirectLightingBufferManager? directLightingBufferManager;
 
@@ -330,6 +330,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         capi.Logger.Notification("[LumOn] Debug renderer initialized");
     }
+
+    /// <summary>Updates screen-probe buffers when LumOn is enabled after debug renderer startup.</summary>
+    internal void SetLumOnBufferManager(LumOnBufferManager? manager) => bufferManager = manager;
 
     internal void SetWorldProbeClipmapBufferManager(LumOnWorldProbeClipmapBufferManager? bufferManager)
     {
