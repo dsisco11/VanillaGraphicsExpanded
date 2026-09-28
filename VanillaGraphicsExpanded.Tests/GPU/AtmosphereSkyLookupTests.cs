@@ -37,13 +37,13 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
         // Exercise both isolated lookup transport and the actual shared display transfer.
         string transfer = displayTransfer
             ? File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"))
-            : "vec3 VgeResolveDisplay(vec3 radiance) { return radiance; }\n";
+            : "vec3 VgeResolveDisplay(vec3 radiance) { return radiance; }\nvec3 VgeDitherDisplay(vec3 value, vec2 pixel) { return value; }\n";
         var tree = SyntaxTree.Parse("#version 430 core\n" + mapping + "\n" + transfer + "\n" + """
             uniform vec3 sampleDirection;
             vec4 skyColor; vec4 skyGlow;
-            layout(location=0) out vec4 result;
+            layout(location=0) out vec4 outColor;
             void getSkyColorAt(vec3 skyPosition) { skyColor=vec4(0,0,0,1); }
-            void main() { getSkyColorAt(sampleDirection); result=skyColor; }
+            void main() { getSkyColorAt(sampleDirection); outColor=skyColor; }
             """, GlslSchema.Instance);
         AtmosphereSkyPatches.Apply(tree);
         int fragment = shaders.Compile(ShaderType.FragmentShader, tree.ToText());
@@ -81,6 +81,7 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
             float[] actual = target[0].ReadPixels();
             float expectedRed = displayTransfer ? Transfer(v, Math.Max(v, .375f)) : v;
             float expectedGreen = displayTransfer ? Transfer(.375f, Math.Max(v, .375f)) : .375f;
+            if (displayTransfer) { expectedRed = Math.Clamp(expectedRed - 31.5f / (64f * 255f), 0f, 1f); expectedGreen = Math.Clamp(expectedGreen - 31.5f / (64f * 255f), 0f, 1f); }
             Assert.True(MathF.Abs(actual[0] - expectedRed) <= .0006f, $"v={v}, azimuth={azimuth}, actual={actual[0]}");
             Assert.InRange(MathF.Abs(actual[1] - expectedGreen), 0, .0001f);
             Assert.Equal(1, actual[3]);

@@ -70,6 +70,6 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
     else
         radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xy);
     // Primary/OIT currently blend display-space colors. Full scene-linear blending is separately owned.
-    return VgeResolveDisplay(radiance);
+    return VgeDitherDisplay(VgeResolveDisplay(radiance), gl_FragCoord.xy);
 }
 #endif

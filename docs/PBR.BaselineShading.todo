@@ -323,6 +323,9 @@ Tasks
       - Validate daylight/twilight/night transitions, highlight hue, scene readability and single
         application of exposure and display conversion across both PBR modes.
     ☐ If sky banding remains after unifying exposure and tone mapping, implement output dithering.
+      - SDR boundary implementation: PBR.OutputDithering.md. Static 8x8 ordered RGB dither
+        uses less than half an RGBA8 code step; live banding diagnosis/visual acceptance remain open.
+      - Release build and 72 focused tests passed; receipt: artifacts/TestResults/output-dithering-final.trx.
       - Recheck the reported horizontal bands near the zenith after the display-boundary changes;
         distinguish color quantization from insufficient LUT sampling before adding dithering.
       - If quantization remains responsible, apply subtle dithering immediately before the first

@@ -14,7 +14,8 @@ void VgeDrawAtmosphericSun()
     float coverage = (1.0 - smoothstep(1.0 - edge * .5, 1.0 + edge * .5, radius))
         * smoothstep(vge_atmosphereSun.w - horizonEdge * .5, vge_atmosphereSun.w + horizonEdge * .5, elevation);
     if (coverage <= 0.0 || max(max(vge_atmosphereDisk.r, vge_atmosphereDisk.g), vge_atmosphereDisk.b) <= 0.0) discard;
-    outColor = vec4(applyUnderwaterEffects(VgeResolveDisplay(vge_atmosphereDisk.rgb), getSkyMurkiness()), coverage);
+    vec3 displayColor = applyUnderwaterEffects(VgeResolveDisplay(vge_atmosphereDisk.rgb), getSkyMurkiness());
+    outColor = vec4(VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
     // No second authored halo: atmospheric scattering provides it. Retain the existing godray channel.
     outGlow = vec4(0.0, extraGodray, 0.0, coverage);
     #if SSAOLEVEL > 0

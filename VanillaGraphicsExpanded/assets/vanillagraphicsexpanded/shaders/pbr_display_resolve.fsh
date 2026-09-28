@@ -12,5 +12,5 @@ void main()
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     vec4 scene = texelFetch(primaryScene, pixel, 0);
     float depth = texelFetch(primaryDepth, pixel, 0).r;
-    outColor = lumonIsSky(depth) ? scene : vec4(VgeResolveDisplay(scene.rgb), scene.a);
+    outColor = lumonIsSky(depth) ? scene : vec4(VgeDitherDisplay(VgeResolveDisplay(scene.rgb), gl_FragCoord.xy), scene.a);
 }

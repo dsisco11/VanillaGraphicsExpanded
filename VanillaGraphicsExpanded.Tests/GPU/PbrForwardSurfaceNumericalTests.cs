@@ -133,6 +133,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             {
                 float mapped = radiance[channel] / (1f + peak);
                 float expected = mapped <= .0031308f ? 12.92f * mapped : 1.055f * MathF.Pow(mapped, 1f / 2.4f) - .055f;
+                expected = Math.Clamp(expected - 31.5f / (64f * 255f), 0f, 1f);
                 Assert.InRange(actual[channel], expected - .0001f, expected + .0001f);
             }
             Assert.InRange(actual[3], .36999f, .37001f);

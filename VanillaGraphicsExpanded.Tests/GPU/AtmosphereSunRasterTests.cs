@@ -95,7 +95,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             float getSkyMurkiness() { return 0; }
             vec3 applyUnderwaterEffects(vec3 color,float murk) { return color; }
             """ + "\n" + (displayTransfer ? File.ReadAllText(Path.Combine(directory, "pbr_color.glsl"))
-                : "vec3 VgeResolveDisplay(vec3 value) { return value; }\n")
+                : "vec3 VgeResolveDisplay(vec3 value) { return value; }\nvec3 VgeDitherDisplay(vec3 value, vec2 pixel) { return value; }\n")
             + "\n" + File.ReadAllText(Path.Combine(directory, "atmosphere_sun_fragment.glsl")) + "\n" + """
             void main() { VgeDrawAtmosphericSun(); }
             """);
@@ -124,6 +124,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             {
                 baseline = pixels;
                 float expected = displayTransfer ? 1.055f * MathF.Pow(.75f, 1 / 2.4f) - .055f : 3f;
+                if (displayTransfer) expected -= 31.5f / (64f * 255f);
                 Assert.InRange(pixels[(32 * 64 + 32) * 4], expected - .00001f, expected + .00001f);
                 Assert.Equal(0f, pixels[0]);
             }
@@ -139,4 +140,3 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
     }
     #endregion
 }
-

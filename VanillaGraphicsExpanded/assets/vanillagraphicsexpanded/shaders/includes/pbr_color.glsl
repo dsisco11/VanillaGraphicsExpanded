@@ -33,4 +33,21 @@ vec3 VgeResolveDisplay(vec3 radiance)
 {
     return VgeLinearToSrgb(VgeToneMapRadiance(radiance));
 }
+
+/** Stable, zero-mean ordered dither in encoded SDR units, bounded below half an RGBA8 code step. */
+vec3 VgeDitherDisplay(vec3 encoded, vec2 pixel)
+{
+    uvec2 position = uvec2(floor(pixel)) & uvec2(7u);
+    uint rank = 0u;
+    // Interleave the Bayer quadrant ordering: each 8x8 tile contains every rank exactly once.
+    for (uint bit = 0u; bit < 3u; ++bit)
+    {
+        uint x = (position.x >> bit) & 1u;
+        uint y = (position.y >> bit) & 1u;
+        rank = (rank << 2u) | ((x ^ y) << 1u) | y;
+    }
+    float offset = ((float(rank) + 0.5) / 64.0 - 0.5) / 255.0;
+    // Share noise across RGB to keep neutral colors neutral. Alpha and lighting data never enter here.
+    return clamp(encoded + vec3(offset), vec3(0.0), vec3(1.0));
+}
 #endif

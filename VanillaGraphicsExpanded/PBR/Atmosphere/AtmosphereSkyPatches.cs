@@ -39,6 +39,12 @@ internal static class AtmosphereSkyPatches
                     skyColor.rgb = VgeResolveDisplay(radiance);
                     skyGlow = vec4(0.0, 0.0, 0.0, 1.0);
                 }
+                """)
+            .InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), """
+
+                // Dither after underwater/night-vision display effects, immediately before primary RGBA8 storage.
+                outColor.rgb = VgeDitherDisplay(outColor.rgb, gl_FragCoord.xy);
+
                 """).Commit();
     }
     #endregion

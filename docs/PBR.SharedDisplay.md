@@ -48,4 +48,5 @@ replaces a vector denominator with two scalar maximum operations and a common
 denominator. No GPU timing improvement is claimed. Tests cover intensity ranges,
 RGB ratios, alpha, sky bypass and real sky/solar display helpers. In-game
 readability, twilight appearance and zenith banding still require user observation.
-Dithering remains a separate follow-up if banding persists.
+The SDR dithering implementation and remaining visual checks are documented in
+PBR.OutputDithering.md.
