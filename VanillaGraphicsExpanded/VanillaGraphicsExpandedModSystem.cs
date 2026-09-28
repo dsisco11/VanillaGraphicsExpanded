@@ -43,8 +43,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         PBR.Tessellation.TerrainTessellationPrograms.Log = message => api.Logger.Warning(message);
         harmony.PatchAll();
 
-        // Manually apply terrain material params texture binding patches (property setters).
-        TerrainMaterialParamsTextureBindingHook.ApplyPatches(harmony, api.Logger.Notification);
+        // Atlas binding is injected by the renderer transpiler; retain frame-level mapping refresh.
         TerrainLumonSceneChunkSlotUniformBindingHook.ApplyPatches(harmony, api.Logger.Notification);
 
         // Preload OpenGL extension strings as early as possible (best-effort; requires a current GL context).

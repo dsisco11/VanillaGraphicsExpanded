@@ -1,10 +1,7 @@
-using HarmonyLib;
-
 using OpenTK.Graphics.OpenGL;
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.ModSystems;
@@ -13,30 +10,11 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
-/// <summary>
-/// Binds VGE's per-atlas material params texture whenever the engine sets a TerrainTex property on chunk shaders.
-/// We patch the property setters (set_TerrainTex2D, set_TerrainTexLinear2D) on concrete shader classes
-/// because patching BindTexture2D is ambiguous (multiple overloads) and not reliably available.
-/// </summary>
+/// <summary>Binds per-atlas material and normal resources at terrain renderer call sites.</summary>
 internal static class TerrainMaterialParamsTextureBindingHook
 {
     private const int NormalDepthTextureUnit = 14;
     private const int MaterialTextureUnit = 15;
-
-    /// <summary>
-    /// Chunk shader class names and the property names that set the block atlas texture.
-    /// We attempt to patch all combinations; missing types/properties are logged and skipped.
-    /// </summary>
-    private static readonly (string TypeName, string PropertyName)[] TargetProperties =
-    {
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTexLinear2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTexLinear2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkliquid", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktransparent", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkshadowmap", "Tex2d2D"),
-    };
 
     /// <summary>
     /// Uniform name for the material params sampler we inject into patched shaders.
@@ -58,11 +36,11 @@ internal static class TerrainMaterialParamsTextureBindingHook
     /// </summary>
     private static readonly Dictionary<int, int> normalDepthUniformLocationCache = new();
 
-    private static Action<string>? runtimeLog;
 
     private static int lastBoundNormalDepthTexId;
     private static int lastBoundAtlasTexId;
 
+    /// <summary>Reports the last atlas pair for existing material debug overlays.</summary>
     public static bool TryGetLastBoundNormalDepthTextureId(out int normalDepthTextureId, out int baseAtlasTextureId)
     {
         normalDepthTextureId = lastBoundNormalDepthTexId;
@@ -70,53 +48,8 @@ internal static class TerrainMaterialParamsTextureBindingHook
         return normalDepthTextureId != 0;
     }
 
-    /// <summary>
-    /// Called from VgeModSystem to apply patches manually via Harmony.
-    /// </summary>
-    public static void ApplyPatches(Harmony harmony, Action<string> log)
-    {
-        runtimeLog = log;
-
-        var postfix = new HarmonyMethod(typeof(TerrainMaterialParamsTextureBindingHook), nameof(SetTex2dTerrain_Postfix));
-        int patchedCount = 0;
-
-        foreach ((string typeName, string propertyName) in TargetProperties)
-        {
-            Type? type = AccessTools.TypeByName(typeName);
-            if (type is null)
-            {
-                log($"[VGE] TerrainMaterialParamsTextureBindingHook: type not found: {typeName}");
-                continue;
-            }
-
-            MethodInfo? setter = AccessTools.PropertySetter(type, propertyName);
-            if (setter is null)
-            {
-                log($"[VGE] TerrainMaterialParamsTextureBindingHook: property setter not found: {typeName}.{propertyName}");
-                continue;
-            }
-
-            try
-            {
-                harmony.Patch(setter, postfix: postfix);
-                patchedCount++;
-                log($"[VGE] Patched {typeName}.set_{propertyName}");
-            }
-            catch (Exception ex)
-            {
-                log($"[VGE] Failed to patch {typeName}.set_{propertyName}: {ex.Message}");
-            }
-        }
-
-        log($"[VGE] TerrainMaterialParamsTextureBindingHook: {patchedCount}/{TargetProperties.Length} property setters patched.");
-    }
-
-    /// <summary>
-    /// Postfix for TerrainTex2D / TerrainTexLinear2D setters.
-    /// The property setter signature is typically `set_TerrainTex2D(int value)` where value is the GL texture id.
-    /// __instance is the ShaderProgramBase-derived shader, value is the atlas texture id just bound.
-    /// </summary>
-    public static void SetTex2dTerrain_Postfix(ShaderProgramBase __instance, int value)
+    /// <summary>Binds material and relief resources for the atlas selected by an engine terrain draw.</summary>
+    internal static void BindAtlas(ShaderProgramBase __instance, int value)
     {
         // Relief has an explicit linked-program allowlist and must reset missing pages too.
         TerrainReliefBindings.Bind(__instance, value, MaterialAtlasSystem.Instance.TextureStore);
@@ -201,4 +134,3 @@ internal static class TerrainMaterialParamsTextureBindingHook
         normalDepthUniformLocationCache.Clear();
     }
 }
-

@@ -15,16 +15,6 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 /// <summary>Restores Surface Cache mapping resources when vanilla terrain programs are used.</summary>
 internal static class TerrainLumonSceneChunkSlotUniformBindingHook
 {
-    private static readonly (string TypeName, string PropertyName)[] TargetProperties =
-    {
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTexLinear2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTexLinear2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkliquid", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktransparent", "TerrainTex2D"),
-    };
-
     private static readonly Dictionary<int, int> genSamplerLocCache = new();
 
     private static readonly Dictionary<int, int> terrainBridgeBlockIndexCache = new();
@@ -32,43 +22,10 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
 
     private static readonly Dictionary<int, int> lastAppliedVersionByProgramId = new();
 
+    /// <summary>Installs program-use refresh independently of renderer atlas call-site binding.</summary>
     public static void ApplyPatches(Harmony harmony, Action<string> log)
     {
-        var postfix = new HarmonyMethod(typeof(TerrainLumonSceneChunkSlotUniformBindingHook), nameof(SetTex2dTerrain_Postfix));
-        int patchedCount = 0;
-
-        foreach ((string typeName, string propertyName) in TargetProperties)
-        {
-            Type? type = AccessTools.TypeByName(typeName);
-            if (type is null)
-            {
-                log($"[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: type not found: {typeName}");
-                continue;
-            }
-
-            MethodInfo? setter = AccessTools.PropertySetter(type, propertyName);
-            if (setter is null)
-            {
-                log($"[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: property setter not found: {typeName}.{propertyName}");
-                continue;
-            }
-
-            try
-            {
-                harmony.Patch(setter, postfix: postfix);
-                patchedCount++;
-                log($"[VGE] Patched {typeName}.set_{propertyName} (LumonScene chunkSlot uniforms)");
-            }
-            catch (Exception ex)
-            {
-                log($"[VGE] Failed to patch {typeName}.set_{propertyName} (LumonScene chunkSlot uniforms): {ex.Message}");
-            }
-        }
-
-        log($"[VGE] TerrainLumonSceneChunkSlotUniformBindingHook: {patchedCount}/{TargetProperties.Length} property setters patched.");
-
-        // Also patch ShaderProgramBase.Use() as a reliable fallback (property setters are not guaranteed to run
-        // after we update the slot window each frame). We keep this light by caching per-program version.
+        // Program use also restores mapping after frame-level slot-window changes.
         try
         {
             MethodInfo? useMethod = AccessTools.Method(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Use));
@@ -89,12 +46,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         }
     }
 
-    public static void SetTex2dTerrain_Postfix(ShaderProgramBase __instance, int value)
-    {
-        _ = value;
-        ApplyUniformsIfNeeded(__instance);
-    }
-
+    /// <summary>Restores mapping on program use and after renderer atlas selection.</summary>
     public static void Use_Postfix(ShaderProgramBase __instance)
     {
         ApplyUniformsIfNeeded(__instance);
