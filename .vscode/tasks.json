@@ -96,7 +96,7 @@
         {
             "label": "build + tail (RenderDoc)",
             "dependsOn": [
-                "build",
+                "Build (dotnet)",
                 "tail: VintageStory client-debug.log"
             ],
             "dependsOrder": "parallel",

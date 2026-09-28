@@ -15,7 +15,7 @@
             "osx": {
                 "program": "${env:VINTAGE_STORY}/Vintagestory"
             },
-            "preLaunchTask": "build",
+            "preLaunchTask": "Build (dotnet)",
             "env": {
                 "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
             },
@@ -71,7 +71,7 @@
             "osx": {
                 "program": "${env:VINTAGE_STORY}/VintagestoryServer"
             },
-            "preLaunchTask": "build",
+            "preLaunchTask": "Build (dotnet)",
             "env": {
                 "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
             },
@@ -91,7 +91,7 @@
             "name": "CakeBuild",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "build (Cake)",
+            "preLaunchTask": "Build (Cake)",
             "program": "${workspaceFolder}/CakeBuild/bin/Debug/net7.0/CakeBuild.dll",
             "args": [],
             "cwd": "${workspaceFolder}/CakeBuild",
