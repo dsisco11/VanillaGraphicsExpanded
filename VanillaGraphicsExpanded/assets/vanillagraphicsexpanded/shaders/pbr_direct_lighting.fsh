@@ -13,6 +13,7 @@ uniform sampler2D gBufferPosition; // Unbiased first-person view position, selec
 
 // VGE G-buffer inputs
 uniform sampler2D gBufferNormal;   // ColorAttachment4: normal packed (RGBA16F)
+uniform sampler2D gBufferEnvironment; // Alpha: propagated engine sunlight at the receiver.
 uniform sampler2D gBufferMaterial; // ColorAttachment5: Roughness, Metallic, Emissive, Reflectivity (RGBA16F)
 
 @import "./includes/pbr_direct_lighting_params_ubo.glsl"
@@ -85,12 +86,14 @@ void main()
     // Directional (sun)
     vec3 Lsun = normalize(lightDirection);
     float sunVis = pbrComputeSunShadowVisibility(worldPosRel);
+    // Match forward lighting: propagated sunlight supplements geometric shadow visibility.
+    float skyVisibility = texture(gBufferEnvironment, uv).a;
     addDirectLight(
         baseColor,
         N,
         V,
         Lsun,
-        rgbaLightIn * sunVis,
+        rgbaLightIn * sunVis * skyVisibility,
         roughness,
         metallic,
         accumDiffuse,

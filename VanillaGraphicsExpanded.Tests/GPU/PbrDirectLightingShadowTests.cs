@@ -24,6 +24,29 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 
     #region Visibility contracts
 
+    /// <summary>Propagated sunlight scales both solar lobes, clamps invalid inputs, and preserves local light and emission.</summary>
+    [Theory]
+    [InlineData(-1f)]
+    [InlineData(0f)]
+    [InlineData(.5f)]
+    [InlineData(1f)]
+    [InlineData(2f)]
+    public void PropagatedSunlightScalesOnlySolarLighting(float skyVisibility)
+    {
+        EnsureShaderTestAvailable();
+        var sun = RenderReceiver(1f, 100f, 100f);
+        var local = RenderReceiver(1f, 100f, 100f, sunlight: 0f, pointLight: true, emission: .3f);
+        var mixed = RenderReceiver(1f, 100f, 100f, pointLight: true, emission: .3f, skyVisibility: skyVisibility);
+        Assert.True(sun[0] > .01f && sun[4] > .01f);
+        float factor = Math.Clamp(skyVisibility, 0f, 1f);
+        for (int channel = 0; channel < 3; channel++)
+        {
+            Assert.InRange(MathF.Abs(mixed[channel] - (local[channel] + sun[channel] * factor)), 0f, .002f);
+            Assert.InRange(MathF.Abs(mixed[4 + channel] - (local[4 + channel] + sun[4 + channel] * factor)), 0f, .002f);
+            Assert.Equal(local[8 + channel], mixed[8 + channel]);
+        }
+    }
+
     /// <summary>Full near coverage shadows terrain-like receivers even when the far cascade is completely clear.</summary>
     [Theory]
     [InlineData(.2f, .5f, .1f, true)]
@@ -152,7 +175,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
     private float[] RenderReceiver(float shadowDepth, float nearRange, float farRange,
         float sunlight = 1f, bool pointLight = false, float emission = 0f, float intensity = 1f,
         float? farDepth = null, float[]? color = null, bool upward = false,
-        bool explicitPosition = false, float visibilityDepth = 0f, float projectionOffset = 0f)
+        bool explicitPosition = false, float visibilityDepth = 0f, float projectionOffset = 0f, float skyVisibility = 1f)
     {
         var program = receiverProgram ??= Programs.Create<PBRDirectLightingShaderProgram>();
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 3);
@@ -160,6 +183,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [visibilityDepth]);
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, explicitPosition ? -1f : 1f]);
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, -1f, 1f]);
+        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, skyVisibility]);
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 1f]);
         // A depth-format texture is required by sampler2DShadow. The production resource setters
         // bind the comparison sampler; the test must not repair or replace that binding itself.
@@ -173,6 +197,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         program.GBufferNormal = normal.TextureId;
         program.GBufferMaterial = material.TextureId;
         program.GBufferPosition = position.TextureId;
+        program.GBufferEnvironment = environment.TextureId;
         program.ShadowMapNear = shadow.TextureId;
         program.ShadowMapFar = farShadow.TextureId;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];

@@ -143,6 +143,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             pbrDirectProg.PrimaryDepth = primaryDepth.TextureId;
             pbrDirectProg.GBufferNormal = gBufferNormal.TextureId;
             pbrDirectProg.GBufferMaterial = gBufferMaterial.TextureId;
+            // This synthetic outdoor scene has full propagated sunlight at every receiver.
+            using var directEnvironment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
+            pbrDirectProg.GBufferEnvironment = directEnvironment.TextureId;
             pbrDirectProg.ShadowMapNear = shadowNear.TextureId;
             pbrDirectProg.ShadowMapFar = shadowFar.TextureId;
 

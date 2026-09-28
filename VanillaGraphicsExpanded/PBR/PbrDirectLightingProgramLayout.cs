@@ -33,6 +33,10 @@ internal sealed class PbrDirectLightingProgramLayout : GpuProgramLayout
     public void BindGBufferNormal(int programId, int textureId, Action<string>? warn)
         => TryBindSamplerTextureActive(programId, "gBufferNormal", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
 
+    /// <summary>Binds local sunlight without filtering across receiver boundaries.</summary>
+    public void BindGBufferEnvironment(int programId, int textureId, Action<string>? warn)
+        => TryBindSamplerTextureActive(programId, "gBufferEnvironment", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
+
     public void BindGBufferMaterial(int programId, int textureId, Action<string>? warn)
         => TryBindSamplerTextureActive(programId, "gBufferMaterial", TextureTarget.Texture2D, textureId, GpuSamplers.NearestClamp.SamplerId, warn);
 

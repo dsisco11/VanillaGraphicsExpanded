@@ -5,7 +5,7 @@ Issues:
     ☐ Tessellation not working (possibly due to the normal maps not loading?).
     ☐ [BRDF Material Value Shaders]: give the random noise (which we inject into the material value FBO from thepatched base-game shaders) a falloff/fadeout so distant geometry isnt so noisy.
     ☐ [Indoor areas have significant ambient light]: Scale atmospheric skylight contribution according to "sunlight" value from block-light input in shaders.
-    ☐ [Indoor areas exhibit sunlight shading on block faces]: Scale direct sunlight contribution on block faces according to "sunlight" value from block-light input in shaders.
+    ✔ [Indoor areas exhibit sunlight shading on block faces]: Scale direct sunlight contribution on block faces according to "sunlight" value from block-light input in shaders. Deferred solar diffuse/specular now use environment alpha, matching forward lighting; build and 37 focused tests passed. See docs/PBR.LightingModes.md. Live indoor appearance remains user verification.
     ☐ Add proper PBR foliage shading with foliage-backface (fake) "subsurface scattering" light bleedthrough.
     ☐ Add edge beveling for geometry normals prior to direct lighting so that lighting appears smoother along edges and corners.
     ☐ Implement fully deferred lighting pass for point-lights & block-lights.

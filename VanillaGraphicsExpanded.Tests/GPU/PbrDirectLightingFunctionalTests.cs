@@ -420,6 +420,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var use = programId.UseScope();
 
         // Samplers
+        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
+        programId.GBufferEnvironment = environment.TextureId;
         programId.PrimaryScene = primaryScene.TextureId;
         programId.PrimaryDepth = primaryDepth.TextureId;
         programId.GBufferNormal = gBufferNormal.TextureId;

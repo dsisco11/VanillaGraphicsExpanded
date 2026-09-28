@@ -163,6 +163,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager.NormalTextureId;
         shader.GBufferPosition = gBufferManager.PositionTextureId;
+        shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;
         shader.GBufferMaterial = gBufferManager.MaterialTextureId;
 
         // Shadow maps (depth textures)
