@@ -310,7 +310,7 @@ Tasks
         and deferred/forward rendering. Contract, bounded costs and validation evidence:
         PBR.Atmosphere.AerialPerspective.md. 218 distinct Release tests passed; four optional
         measurements skipped. Marked complete at user direction; no live visual verification claimed.
-    ☐ Unify sky, sun and terrain exposure and tone mapping.
+    ✔ Unify sky, sun and terrain exposure and tone mapping. @done(26-09-27 23:49)
       - Shared SDR operator and draw-boundary audit: PBR.SharedDisplay.md. Implementation uses
         one unit exposure and RGB-ratio-preserving highlight compression for sky, sun and both
         surface modes; visual acceptance and matched GPU timing remain pending.
