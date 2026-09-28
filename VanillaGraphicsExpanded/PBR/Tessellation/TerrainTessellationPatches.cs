@@ -48,5 +48,8 @@ internal static class TerrainTessellationPatches
 
     /// <summary>Returns only metadata published during source patching; linking never discovers interfaces.</summary>
     internal static bool TryGet(IShader shader, out TerrainTessellationStages.Sources result) => sources.TryGetValue(shader, out result!);
+
+    /// <summary>Removes generated interfaces before restoring an unpatched engine shader.</summary>
+    internal static void Forget(IShader shader) => sources.Remove(shader);
     #endregion
 }

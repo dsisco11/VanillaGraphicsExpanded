@@ -75,7 +75,8 @@ public abstract class GpuResource : IDisposable
     {
     }
 
-    private static void DeleteOrEnqueue(GpuResourceKind kind, nint id)
+    /// <summary>Retires an externally owned handle through the same deletion policy as owned resources.</summary>
+    internal static void DeleteOrEnqueue(GpuResourceKind kind, nint id)
     {
         // If the manager is initialized and we're not on the render thread, enqueue deletion.
         // Otherwise, do immediate deletion (legacy behavior).

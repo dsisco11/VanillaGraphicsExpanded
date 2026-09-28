@@ -9,7 +9,7 @@ using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
-using OpenTK.Graphics.OpenGL;
+
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -64,13 +64,20 @@ public static class ShaderIncludesHook
         //_logger.Audit($"[VGE][Shaders] Processing shader program '{program.PassName}'");
         try
         {
+            ShaderPatchRecovery.Forget(program);
             ProcessShaderProgram(program);
         }
         catch (Exception ex)
         {
-            if (ReportError is not null) ReportError(program.PassName, ex.ToString());
-            else _logger.Error($"[VGE] Shader patch failed for '{program.PassName}': {ex}");
+            ReportFailure(program.PassName, ex.ToString());
         }
+    }
+
+    /// <summary>Publishes full failures to the log and the configured local chat reporter.</summary>
+    internal static void ReportFailure(string program, string details)
+    {
+        if (ReportError is not null) ReportError(program, details);
+        else _logger?.Error($"[VGE] Shader patch failed for '{program}': {details}");
     }
 
     /// <summary>
@@ -116,7 +123,8 @@ public static class ShaderIncludesHook
     //    }
     //}
 
-    private static void ProcessShaderProgram(in IShaderProgram shaderProgram)
+    /// <summary>Prepares stage edits together and retains the engine source before publishing them.</summary>
+    private static void ProcessShaderProgram(ShaderProgram shaderProgram)
     {
         var candidates = new List<(IShader Shader, string Source)>();
 
@@ -150,29 +158,8 @@ public static class ShaderIncludesHook
             }
         }
 
-        foreach (var candidate in candidates)
-        {
-            ShaderType shaderType = candidate.Shader switch
-            {
-                var s when s == shaderProgram.VertexShader => ShaderType.VertexShader,
-                var s when s == shaderProgram.FragmentShader => ShaderType.FragmentShader,
-                var s when s == shaderProgram.GeometryShader => ShaderType.GeometryShader,
-                _ => throw new InvalidOperationException("Unknown shader stage")
-            };
-            string stageExtension = shaderType switch
-            {
-                ShaderType.VertexShader => "vsh",
-                ShaderType.FragmentShader => "fsh",
-                ShaderType.GeometryShader => "gsh",
-                _ => throw new InvalidOperationException("Unknown shader stage")
-            };
-
-            string validationSource = BuildValidationSource(candidate.Source, candidate.Shader.PrefixCode);
-            if (!GlslCompileDiagnostics.TryCompileStage(shaderType, validationSource, out string infoLog))
-            {
-                throw new InvalidOperationException($"{stageExtension} candidate failed validation. {infoLog}");
-            }
-        }
+        if (candidates.Count == 0) return;
+        ShaderPatchRecovery.Capture(shaderProgram);
 
         foreach (var candidate in candidates)
         {
@@ -180,19 +167,6 @@ public static class ShaderIncludesHook
         }
         if (_assetManager is not null)
             PBR.Tessellation.TerrainTessellationPatches.Prepare(shaderProgram, _assetManager);
-    }
-
-    /// <summary>Includes engine-owned defines for validation without baking them into the published shader body.</summary>
-    internal static string BuildValidationSource(string source, string? prefixCode)
-    {
-        if (string.IsNullOrEmpty(prefixCode)) return source;
-        // Insert engine definitions at the version directive through the same GLSL
-        // editor used by the patches. Only this temporary validation tree owns them.
-        var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
-        tree.CreateEditor()
-            .InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"), "\n" + prefixCode + "\n")
-            .Commit();
-        return tree.ToText();
     }
 
     /// <summary>
