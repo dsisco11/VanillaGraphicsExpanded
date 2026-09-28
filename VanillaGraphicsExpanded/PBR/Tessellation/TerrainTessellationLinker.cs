@@ -11,7 +11,7 @@ internal static class TerrainTessellationLinker
     #region Candidate lifetime
     /// <summary>Returns an owned candidate using the engine's existing compiled vertex/fragment objects.</summary>
     internal static bool TryCreate(int vertex, int fragment, TerrainTessellationStages.Sources sources,
-        string prefixCode, out int program, out string error)
+        string prefixCode, out int program, out string error, string? debugName = null)
     {
         program = 0;
         error = "";
@@ -26,8 +26,10 @@ internal static class TerrainTessellationLinker
                 {{prefixCode}}
 
                 """;
-            if (!GpuShaderModule.TryCompileGlsl(ShaderType.TessControlShader, header + sources.Control, out control, out error)) return false;
-            if (!GpuShaderModule.TryCompileGlsl(ShaderType.TessEvaluationShader, header + sources.Evaluation, out evaluation, out error)) return false;
+            if (!GpuShaderModule.TryCompileGlsl(ShaderType.TessControlShader, header + sources.Control, out control, out error,
+                debugName is null ? null : $"{debugName}.tess-control")) return false;
+            if (!GpuShaderModule.TryCompileGlsl(ShaderType.TessEvaluationShader, header + sources.Evaluation, out evaluation, out error,
+                debugName is null ? null : $"{debugName}.tess-evaluation")) return false;
             candidate = ShaderProgramLink.Submit([vertex, control!.ShaderId, evaluation!.ShaderId, fragment], false, out _);
             if (!ShaderProgramLink.Validate(candidate, out error)) return false;
             // The linked executable retains the stages; the engine continues owning vertex/fragment.

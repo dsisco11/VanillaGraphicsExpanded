@@ -69,7 +69,7 @@ internal static class TerrainTessellationPrograms
                 throw new NotSupportedException("Terrain geometry-stage modifications are not supported by the identity path.");
             if (!TerrainTessellationLinker.TryCreate(program.VertexShader.ShaderId, program.FragmentShader.ShaderId,
                 sources, program.VertexShader.PrefixCode,
-                out int candidate, out string error)) throw new InvalidOperationException(error);
+                out int candidate, out string error, $"{(string.IsNullOrWhiteSpace(program.AssetDomain) ? "game" : program.AssetDomain)}:{program.PassName}")) throw new InvalidOperationException(error);
             int ordinary = program.ProgramId;
             program.ProgramId = candidate;
             programs.Add(program, new(candidate, Requested));
