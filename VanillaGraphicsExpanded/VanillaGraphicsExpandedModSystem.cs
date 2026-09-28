@@ -67,8 +67,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         GlDebug.TrySuppressGroupDebugMessages();
 
-        // Register GPU debug label renderers to wrap all VS render stages
-        GpuDebugLabelManager.Register(api);
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
@@ -259,11 +257,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
                 GpuShaderPrograms.Dispose(capi);
             }
 
-            // Unregister GPU debug label renderers
-            if (capi != null)
-            {
-                GpuDebugLabelManager.Unregister(capi);
-            }
 
             gpuProfilerRenderer?.Dispose();
             gpuProfilerRenderer = null;

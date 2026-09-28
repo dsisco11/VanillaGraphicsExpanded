@@ -1,6 +1,6 @@
 Issues:
   Current:
-    ☐ Add debug label scopes for the remaining unlabled base-game rendering passes.
+    ✔ Add debug label scopes for the remaining unlabeled base-game rendering passes. See docs/GPU.EngineRenderScopes.md; Debug build and 16 focused tests passed. Live RenderDoc confirmation remains user-run.
     ☐ Normal maps not loading from material atlas baking system?
     ☐ Tessellation not working (possibly due to the normal maps not loading?).
     ☐ [BRDF Material Value Shaders]: give the random noise (which we inject into the material value FBO from thepatched base-game shaders) a falloff/fadeout so distant geometry isnt so noisy.
