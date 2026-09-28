@@ -1,6 +1,7 @@
 Issues:
   Current:
     ☐ Fix atmospheric shader producing color banding
+      ☐ Revise atmospheric LUT to use an aspect ratio of 1:2 rather than 2:1, in order to better distribute samples vertically and avoid vertical banding.
     ☐ Refactor near-tracing geometry system to support "directional" voxel types (e.g. partial blocks like stairs & slabs), as well as voxel types which are basically pass-through like campfires.
     ☐ Implement support for dynamic updates to the near-tracing geometry, allowing changes in the scene to be reflected in the GPU representation without full re-upload.
 
@@ -8,7 +9,6 @@ Issues:
       ☐ Create debug-view for LumOns geometry irradience surface cache.
     Shaders:
       ☐ WorldProbe Probes View: says "Runtime params missing" for closest probe info.
-      ☐ Seperate massive debug shaders into individual, more manageable shader files for easier maintenance, debugging, and better loading times.
       ☐ Implement a system for automatically reloading modified shader files during development to speed up iteration.
   
   Debug View System:
