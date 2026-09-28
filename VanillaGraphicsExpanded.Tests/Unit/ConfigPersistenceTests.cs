@@ -107,7 +107,21 @@ public sealed class ConfigPersistenceTests
     #endregion
 
     #region Quality serialization
-    /// <summary>ConfigLib mapping names and numeric documents retain the same typed quality.</summary>
+    /// <summary>Whole-document writers preserve the mapping names that ConfigLib expects after reopening a world.</summary>
+    [Fact]
+    public void WholeConfigurationWritesAllMappedEnumNames()
+    {
+        var config = new VgeConfig();
+        config.Atmosphere.SkyLutQuality = AtmosphereQuality.Ultra;
+        config.MaterialAtlas.TerrainSubdivision.MaximumLevel = TerrainSubdivisionLevel.Level8;
+        config.MaterialAtlas.TerrainSurfaceDetailMode = VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Tessellation;
+        var saved = JObject.FromObject(config);
+        Assert.Equal("Ultra", saved["Atmosphere"]!["SkyLutQuality"]!.Value<string>());
+        Assert.Equal("Level8", saved["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"]!.Value<string>());
+        Assert.Equal("Tessellation", saved["MaterialAtlas"]!["TerrainSurfaceDetailMode"]!.Value<string>());
+    }
+
+    /// <summary>Numeric inputs remain readable, but writes use the names required by ConfigLib mappings.</summary>
     [Theory]
     [InlineData("\"Low\"", 0)]
     [InlineData("\"Medium\"", 1)]
@@ -117,16 +131,16 @@ public sealed class ConfigPersistenceTests
     [InlineData("1", 1)]
     [InlineData("2", 2)]
     [InlineData("3", 3)]
-    public void QualityRoundTripsThroughNumericRepresentation(string json, int expected)
+    public void QualityWritesNamedMappingRepresentation(string json, int expected)
     {
         var settings = JsonConvert.DeserializeObject<AtmosphereSettings>("{\"SkyLutQuality\":" + json + "}")!;
         Assert.Equal((AtmosphereQuality)expected, settings.SkyLutQuality);
         var saved = JObject.FromObject(settings);
-        Assert.Equal(JTokenType.Integer, saved["SkyLutQuality"]!.Type);
-        Assert.Equal(expected, saved["SkyLutQuality"]!.Value<int>());
+        Assert.Equal(JTokenType.String, saved["SkyLutQuality"]!.Type);
+        Assert.Equal(((AtmosphereQuality)expected).ToString(), saved["SkyLutQuality"]!.Value<string>());
     }
 
-    /// <summary>Every supported tessellation name round trips through the numeric saved representation.</summary>
+    /// <summary>Every supported tessellation name retains its ConfigLib mapping key on save.</summary>
     [Theory]
     [InlineData(TerrainSubdivisionLevel.Level1)]
     [InlineData(TerrainSubdivisionLevel.Level2)]
@@ -141,8 +155,8 @@ public sealed class ConfigPersistenceTests
         var settings = JsonConvert.DeserializeObject<TerrainSubdivisionSettings>("{\"MaximumLevel\":\"" + level + "\"}")!;
         Assert.Equal(level, settings.MaximumLevel);
         var saved = JObject.FromObject(settings);
-        Assert.Equal(JTokenType.Integer, saved["MaximumLevel"]!.Type);
-        Assert.Equal((int)level, saved["MaximumLevel"]!.Value<int>());
+        Assert.Equal(JTokenType.String, saved["MaximumLevel"]!.Type);
+        Assert.Equal(level.ToString(), saved["MaximumLevel"]!.Value<string>());
         Assert.Equal(level, saved.ToObject<TerrainSubdivisionSettings>()!.MaximumLevel);
     }
 
@@ -173,6 +187,16 @@ public sealed class ConfigPersistenceTests
             Assert.Equal(Convert.ToInt32(Enum.Parse(enumType, property.Name)), property.Value.Value<int>());
     }
     #endregion
+
+    /// <summary>Client-owned rendering settings must also persist when ConfigLib restricts writes to client settings.</summary>
+    [Fact]
+    public void AllRenderingSettingsAreClientOwned()
+    {
+        var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        foreach (var category in ((JObject)definition["settings"]!).Properties())
+        foreach (var setting in ((JObject)category.Value).Properties())
+            Assert.True(setting.Value["clientSide"]?.Value<bool>() == true, setting.Name);
+    }
 }
 
 

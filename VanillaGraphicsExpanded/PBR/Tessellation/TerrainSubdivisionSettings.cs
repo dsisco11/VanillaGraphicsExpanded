@@ -24,7 +24,9 @@ public sealed class TerrainSubdivisionSettings
     private const float MaxFadeEndMetres = 128;
     #endregion
 
-    [JsonProperty] public TerrainSubdivisionLevel MaximumLevel { get; set; } = DefaultSubdivisionLevel;
+    /// <summary>Named ConfigLib selection, preserved when VGE saves the entire configuration.</summary>
+    [JsonProperty, JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+    public TerrainSubdivisionLevel MaximumLevel { get; set; } = DefaultSubdivisionLevel;
     [JsonProperty] public float TargetEdgePixels { get; set; } = DefaultTargetEdgePixels;
     [JsonProperty] public float FadeStartMetres { get; set; } = DefaultFadeStartMetres;
     [JsonProperty] public float FadeEndMetres { get; set; } = DefaultFadeEndMetres;

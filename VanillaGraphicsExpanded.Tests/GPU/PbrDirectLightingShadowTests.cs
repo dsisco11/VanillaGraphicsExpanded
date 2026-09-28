@@ -24,6 +24,25 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 
     #region Visibility contracts
 
+    /// <summary>Full near coverage shadows terrain-like receivers even when the far cascade is completely clear.</summary>
+    [Theory]
+    [InlineData(.2f, .5f, .1f, true)]
+    [InlineData(.4f, .2f, .1f, true)]
+    [InlineData(.4f, .2f, .1f, false)]
+    public void NearOcclusionOverridesClearFarCascade(float red, float green, float blue, bool upward)
+    {
+        EnsureShaderTestAvailable();
+        float[] color = [red, green, blue, 1f];
+        var lit = RenderReceiver(1f, 100f, 100f, farDepth: 1f, color: color, upward: upward);
+        var shadowed = RenderReceiver(0f, 100f, 100f, farDepth: 1f, color: color, upward: upward);
+        Assert.True(lit[0] > .01f && lit[1] > .01f && lit[2] > .01f);
+        for (int channel = 0; channel < 3; channel++)
+        {
+            Assert.InRange(shadowed[channel], 0f, .0001f);
+            Assert.InRange(shadowed[4 + channel], 0f, .0001f);
+        }
+    }
+
     /// <summary>Complete occlusion removes both sun lobes throughout near, far, and overlapping coverage.</summary>
     [Theory]
     [InlineData(100f, 0f)]
@@ -94,25 +113,28 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 
     /// <summary>Renders a front-facing receiver with deterministic cascade coverage and reads all radiance buffers.</summary>
     private float[] RenderReceiver(float shadowDepth, float nearRange, float farRange,
-        float sunlight = 1f, bool pointLight = false, float emission = 0f, float intensity = 1f)
+        float sunlight = 1f, bool pointLight = false, float emission = 0f, float intensity = 1f,
+        float? farDepth = null, float[]? color = null, bool upward = false)
     {
         var program = receiverProgram ??= Programs.Create<PBRDirectLightingShaderProgram>();
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 3);
-        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.6f, .6f, .6f, 1f]);
+        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, color ?? [.6f, .6f, .6f, 1f]);
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.4f, 0f, emission, 1f]);
+        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, 1f]);
+        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 1f]);
         // A depth-format texture is required by sampler2DShadow. The production resource setters
         // bind the comparison sampler; the test must not repair or replace that binding itself.
         using var shadow = DynamicTexture2D.CreateDepth(1, 1, PixelInternalFormat.DepthComponent32f);
         GL.TextureSubImage2D(shadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { shadowDepth });
+        using var farShadow = DynamicTexture2D.CreateDepth(1, 1, PixelInternalFormat.DepthComponent32f);
+        GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
         using var use = program.UseScope();
         program.PrimaryScene = albedo.TextureId;
         program.PrimaryDepth = depth.TextureId;
         program.GBufferNormal = normal.TextureId;
         program.GBufferMaterial = material.TextureId;
         program.ShadowMapNear = shadow.TextureId;
-        program.ShadowMapFar = shadow.TextureId;
+        program.ShadowMapFar = farShadow.TextureId;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         program.InvProjectionMatrix = identity;
         program.InvModelViewMatrix = identity;
@@ -125,7 +147,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         program.ShadowZExtendNear = 1f;
         program.ShadowZExtendFar = 1f;
         program.DropShadowIntensity = intensity;
-        program.LightDirection = new(0f, 0f, 1f);
+        program.LightDirection = upward ? new(0f, 1f, 0f) : new(0f, 0f, 1f);
         program.RgbaLightIn = new(sunlight, sunlight, sunlight);
         program.RgbaAmbientIn = new(0f, 0f, 0f);
         program.SetPointLights(pointLight ? 1 : 0, pointLight ? [0f, 0f, 0f] : null, pointLight ? [1f, 1f, 1f] : null);

@@ -230,6 +230,7 @@ public class VgeConfig
 
         /// <summary>Requested height treatment; relief enables POM by default.</summary>
         [JsonProperty]
+        [JsonConverter(typeof(StringEnumConverter))]
         public PBR.Materials.TerrainSurfaceDetailMode TerrainSurfaceDetailMode { get; set; }
             = PBR.Materials.TerrainSurfaceDetailMode.Relief;
 

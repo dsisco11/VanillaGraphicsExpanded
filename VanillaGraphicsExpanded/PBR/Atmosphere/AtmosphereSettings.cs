@@ -9,6 +9,7 @@ public sealed class AtmosphereSettings
 {
     /// <summary>Quality level from zero to three; both atmospheric lookups scale by quality plus one.</summary>
     [JsonProperty]
+    [JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
     public AtmosphereQuality SkyLutQuality { get; set; } = AtmosphereQuality.Low;
 
     /// <summary>Azimuth resolution derived from the bounded quality level.</summary>
