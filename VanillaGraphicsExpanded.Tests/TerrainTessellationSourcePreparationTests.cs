@@ -132,11 +132,11 @@ public sealed class TerrainTessellationSourcePreparationTests
             FragmentShader=new Shader { PrefixCode="#define SSAOLEVEL 1\n" }
         };
         int previousLevel=ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
-        bool previousHook=TerrainTessellationPrograms.DrawHookAvailable;
+        bool previousHook=TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook=TerrainTessellationPrograms.MeshDrawHookAvailable;
         try
         {
             TerrainTessellationTestAssets.Prepare(owner);
-            TerrainTessellationPrograms.DrawHookAvailable=true;
+            TerrainTessellationPrograms.DrawHookAvailable=true; TerrainTessellationPrograms.MeshDrawHookAvailable=true;
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel=4;
             TerrainTessellationPatches.Configure(owner);
             string initial=owner.VertexShader.PrefixCode;
@@ -153,7 +153,7 @@ public sealed class TerrainTessellationSourcePreparationTests
         finally
         {
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel=previousLevel;
-            TerrainTessellationPrograms.DrawHookAvailable=previousHook;
+            TerrainTessellationPrograms.DrawHookAvailable=previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable=previousMeshHook;
         }
     }
     #endregion

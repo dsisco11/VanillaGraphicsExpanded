@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Tessellation;
 internal static class TerrainTessellationPrograms
 {
     internal static bool DrawHookAvailable { get; set; }
+    internal static bool MeshDrawHookAvailable { get; set; }
     internal static Action<string>? Log { get; set; }
     private static readonly ConditionalWeakTable<ShaderProgramBase, Installed> programs = new();
     /// <summary>Ties draw topology to the exact linked executable, not merely a recycled GL identifier.</summary>
@@ -55,7 +56,7 @@ internal static class TerrainTessellationPrograms
         if (!TerrainTessellationPatches.TryGet(program.VertexShader, out var sources)) return;
         try
         {
-            if (!DrawHookAvailable) throw new NotSupportedException("Grouped terrain topology interception is unavailable.");
+            if (!DrawHookAvailable || !MeshDrawHookAvailable) throw new NotSupportedException("Terrain or shared-shadow topology interception is unavailable.");
             GpuSupport.Initialize();
             // The engine independently owns any higher requirements of its vertex/fragment variants.
             if (GpuSupport.ApiVersion is not { } version || version < new Version(4, 0))

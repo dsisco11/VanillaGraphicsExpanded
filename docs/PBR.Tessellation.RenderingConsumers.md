@@ -119,3 +119,20 @@ No performance benchmark or game was run for these fixes. The subsequent user de
 as the configuration default to enable POM and closes the default-enablement task without requiring
 a production capture. Explicit saved mode selections are retained. No representative production cost
 or live appearance verification is claimed.
+
+### Entity shadow submissions after live mode changes
+
+The automation client crash at 2026-09-27 18:27 (`ShadowFar-ree`) came from the
+engine entity shadow renderer. Its SSBO path reuses `chunkshadowmap`, which has
+tessellation stages in Tessellation mode. The previous topology hook covered
+grouped terrain submissions but not ordinary `RenderMesh(MeshRef)` entity draws.
+Submitting triangles with the tessellation evaluation stage active produces
+`InvalidOperation`; the installed shadow shader regression reproduces this.
+
+Both ordinary and grouped submission paths now select patch topology from the
+installed executable and scope the three-vertex patch state. Non-terrain draws
+retain the existing ineligible-pool policy: subdivision level one and no
+displacement. Both interception paths must be available before enabling terrain
+tessellation. Focused Release validation: 43/43 passed in
+`artifacts/Transparency/tess-shadow-fix.trx`, including real ordinary/grouped
+engine draws and installed shadow variants.

@@ -36,7 +36,7 @@ internal static class TerrainTessellationPatches
     {
         if (!TerrainTessellationPrograms.Eligible(program.PassName) || program.AssetDomain == Constants.ModId) return;
         bool enabled = (TerrainTessellationPrograms.Requested || ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel > 0)
-            && TerrainTessellationPrograms.DrawHookAvailable && program.GeometryShader is null
+            && TerrainTessellationPrograms.DrawHookAvailable && TerrainTessellationPrograms.MeshDrawHookAvailable && program.GeometryShader is null
             && sources.TryGetValue(program.VertexShader, out _);
         // Installed IShader exposes PrefixCode rather than SetDefine. The engine injects this
         // immediately after #version; preserve all other owners' defines and use it for TCS/TES too.

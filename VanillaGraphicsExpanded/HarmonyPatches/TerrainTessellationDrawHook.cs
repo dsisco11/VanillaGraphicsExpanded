@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using VanillaGraphicsExpanded.PBR.Tessellation;
@@ -10,9 +11,8 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
-/// <summary>Changes topology only at the engine's grouped terrain submission, preserving indices and buffer ownership.</summary>
-[HarmonyPatch(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderMesh),
-    [typeof(MeshRef), typeof(int[]), typeof(int[]), typeof(int), typeof(bool)])]
+/// <summary>Matches grouped terrain and ordinary shared-shadow submissions to the installed executable's topology.</summary>
+[HarmonyPatch]
 internal static class TerrainTessellationDrawHook
 {
     #region Scoped patch state
@@ -37,15 +37,27 @@ internal static class TerrainTessellationDrawHook
     #endregion
 
     #region Draw interception
-    /// <summary>Requires both known topology operands, rejecting engine changes before installing a partial patch.</summary>
-    internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+    /// <summary>Includes ordinary meshes because entity shadows reuse the terrain shadow executable.</summary>
+    private static IEnumerable<MethodBase> TargetMethods()
+    {
+        yield return AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderMesh),
+            [typeof(MeshRef)]);
+        yield return AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderMesh),
+            [typeof(MeshRef), typeof(int[]), typeof(int[]), typeof(int), typeof(bool)]);
+    }
+
+    /// <summary>Validates each installed engine draw layout before replacing its topology operands.</summary>
+    internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase? __originalMethod = null)
     {
         var code = instructions.ToList();
         var field = AccessTools.Field(typeof(VAO), nameof(VAO.drawMode));
-        TerrainTessellationPrograms.DrawHookAvailable = code.Count(i => i.opcode == OpCodes.Ldfld && Equals(i.operand, field)) == 2;
-        if (!TerrainTessellationPrograms.DrawHookAvailable)
+        bool ordinary = __originalMethod?.GetParameters().Length == 1;
+        bool supported = code.Count(i => i.opcode == OpCodes.Ldfld && Equals(i.operand, field)) == (ordinary ? 1 : 2);
+        if (ordinary) TerrainTessellationPrograms.MeshDrawHookAvailable = supported;
+        else TerrainTessellationPrograms.DrawHookAvailable = supported;
+        if (!supported)
         {
-            TerrainTessellationPrograms.Log?.Invoke("[VGE] Terrain tessellation disabled: unsupported grouped draw layout.");
+            TerrainTessellationPrograms.Log?.Invoke("[VGE] Terrain tessellation disabled: unsupported mesh draw layout.");
             foreach (var instruction in code) yield return instruction;
             yield break;
         }

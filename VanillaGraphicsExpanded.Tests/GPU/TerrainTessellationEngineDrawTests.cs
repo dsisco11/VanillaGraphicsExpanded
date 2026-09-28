@@ -21,8 +21,10 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
 
     #region Production grouped draw
     /// <summary>The patched engine multidraw preserves index offsets/counts and restores patch state.</summary>
-    [Fact]
-    public void PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw(bool ordinaryDraw)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
@@ -34,15 +36,16 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         var harmony = new Harmony("VGE.Tests.TerrainGroupedDraw");
         var previous = ShaderProgramBase.CurrentShaderProgram;
         int previousLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
-        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable;
+        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
         int previousPatch = GlStateCache.Current.PatchVertices;
         try
         {
             harmony.CreateClassProcessor(typeof(TerrainTessellationDrawHook)).Patch();
             Assert.True(TerrainTessellationPrograms.DrawHookAvailable);
             GlStateCache.Current.BindVertexArray(vao); GL.BindBuffer(BufferTarget.ElementArrayBuffer, indices);
-            // Three skipped sentinel indices make a lost byte offset visibly wrong.
-            GL.BufferData(BufferTarget.ElementArrayBuffer, 6 * sizeof(uint), new uint[] { 2, 2, 2, 0, 1, 2 }, BufferUsageHint.StaticDraw);
+            // Grouped draws skip sentinel indices; ordinary draws use the first triangle directly.
+            GL.BufferData(BufferTarget.ElementArrayBuffer, 6 * sizeof(uint),
+                ordinaryDraw ? new uint[] { 0, 1, 2, 0, 1, 2 } : new uint[] { 2, 2, 2, 0, 1, 2 }, BufferUsageHint.StaticDraw);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(8, 8, PixelInternalFormat.Rgba32f);
             target.BindWithViewport(); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
@@ -64,9 +67,12 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             var mesh = (VAO)RuntimeHelpers.GetUninitializedObject(typeof(VAO));
             GC.SuppressFinalize(mesh);
             mesh.VaoId = vao; mesh.vboIdIndex = indices; mesh.drawMode = PrimitiveType.Triangles;
+            mesh.IndicesCount = 3;
             int[] offsets = [3 * sizeof(uint), 0];
             int[] counts = [3];
-            platform.RenderMesh(mesh, offsets, counts, 1, false);
+            if (ordinaryDraw) platform.RenderMesh(mesh);
+            else platform.RenderMesh(mesh, offsets, counts, 1, false);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
             float[] actual = target[0].ReadPixels();
             for (int i = 0; i < actual.Length; i++) Assert.InRange(actual[i], expected[i] - .0001f, expected[i] + .0001f);
             Assert.Equal(new[] { 12, 0 }, offsets); Assert.Equal(new[] { 3 }, counts);
@@ -82,7 +88,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             harmony.UnpatchAll(harmony.Id);
             TerrainTessellationPrograms.Forget(owner); ShaderProgramBase.CurrentShaderProgram = previous;
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = previousLevel;
-            TerrainTessellationPrograms.DrawHookAvailable = previousHook;
+            TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook;
             GlStateCache.Current.SetPatchVertices(previousPatch);
             GlStateCache.Current.UseProgram(0); GlStateCache.Current.BindVertexArray(0); GL.DeleteBuffer(indices);
             GpuProgramObject.Adopt(owner.ProgramId).Dispose();
@@ -102,12 +108,12 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         var owner = CreateOwner(shaders, vertex, fragment);
         int original = owner.ProgramId;
         int previousLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
-        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable;
+        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
         var previousLog = TerrainTessellationPrograms.Log;
         try
         {
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = 4;
-            TerrainTessellationPrograms.DrawHookAvailable = true;
+            TerrainTessellationPrograms.DrawHookAvailable = true; TerrainTessellationPrograms.MeshDrawHookAvailable = true;
             string diagnostic = ""; TerrainTessellationPrograms.Log = message => diagnostic += message;
             TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPatches.Configure(owner);
@@ -119,7 +125,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         finally
         {
             TerrainTessellationPrograms.Forget(owner); ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = previousLevel;
-            TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.Log = previousLog;
+            TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook; TerrainTessellationPrograms.Log = previousLog;
             GpuProgramObject.Adopt(owner.ProgramId).Dispose();
         }
     }

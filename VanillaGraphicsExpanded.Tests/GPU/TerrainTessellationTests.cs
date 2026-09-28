@@ -27,13 +27,13 @@ public sealed class TerrainTessellationTests : RenderTestBase
         var config=ConfigModSystem.Config.MaterialAtlas;
         bool previousLumon=ConfigModSystem.Config.LumOn.Enabled;
         ConfigModSystem.Config.LumOn.Enabled=lumon;
-        var previousMode=config.TerrainSurfaceDetailMode;bool previousHook=TerrainTessellationPrograms.DrawHookAvailable;
+        var previousMode=config.TerrainSurfaceDetailMode;bool previousHook=TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook=TerrainTessellationPrograms.MeshDrawHookAvailable;
         var owners=new List<ShaderProgram>();
         using var shaders=new TerrainShaderTestFixture();
         try
         {
             config.TerrainSurfaceDetailMode=VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Tessellation;
-            TerrainTessellationPrograms.DrawHookAvailable=true;TerrainTessellationPrograms.BeginReload();
+            TerrainTessellationPrograms.DrawHookAvailable=true; TerrainTessellationPrograms.MeshDrawHookAvailable=true;TerrainTessellationPrograms.BeginReload();
             foreach(string family in new[]{"chunkopaque","chunktopsoil","chunkshadowmap"})
             {
                 Assert.False(TerrainTessellationPrograms.Complete);
@@ -51,12 +51,41 @@ public sealed class TerrainTessellationTests : RenderTestBase
         finally
         {
             foreach(var owner in owners){TerrainTessellationPrograms.Forget(owner);GpuProgramObject.Adopt(owner.ProgramId).Dispose();}
-            TerrainTessellationPrograms.BeginReload();ConfigModSystem.Config.LumOn.Enabled=previousLumon;config.TerrainSurfaceDetailMode=previousMode;TerrainTessellationPrograms.DrawHookAvailable=previousHook;
+            TerrainTessellationPrograms.BeginReload();ConfigModSystem.Config.LumOn.Enabled=previousLumon;config.TerrainSurfaceDetailMode=previousMode;TerrainTessellationPrograms.DrawHookAvailable=previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable=previousMeshHook;
         }
     }
     #endregion
 
     #region Installed shadow interface
+    /// <summary>Demonstrates why an entity triangle draw cannot share a linked terrain tessellation executable.</summary>
+    [Fact]
+    public void TessellatedShadowExecutableRejectsOrdinaryEntityTriangles()
+    {
+        EnsureContextValid();
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.vsh", 2, 0, 0, 0, 0));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.fsh", 2, 0, 0, 0, 0));
+        var sources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
+        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources,
+            TerrainTessellationPatches.EnabledDefine, 1, out int tessellated, out string error), error);
+        using var program = GpuProgramObject.Adopt(tessellated);
+        using var ordinary = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var vao = GpuVao.Create();
+        using var framework = new ShaderTestFramework();
+        using var target = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
+        target.BindWithViewport();
+        GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        GlStateCache.Current.UseProgram(tessellated);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        // This is the primitive submitted by the engine's non-grouped entity shadow path.
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
+        GlStateCache.Current.UseProgram(ordinary.ProgramId);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        GlStateCache.Current.UseProgram(0);
+    }
+
     /// <summary>Compiles installed alpha-tested terrain shadow stages with both terrain mesh layouts.</summary>
     [Theory]
     [InlineData(0)]
@@ -108,12 +137,12 @@ public sealed class TerrainTessellationTests : RenderTestBase
         var owner = new ShaderProgram { PassName = "chunkopaque", AssetDomain = "game", ProgramId = ordinary, VertexShader = vertexObject, FragmentShader = fragmentObject };
         int previousLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
         var previousProgram = ShaderProgramBase.CurrentShaderProgram;
-        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable;
+        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
         var previousLog = TerrainTessellationPrograms.Log;
         try
         {
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = 4;
-            TerrainTessellationPrograms.DrawHookAvailable = true;
+            TerrainTessellationPrograms.DrawHookAvailable = true; TerrainTessellationPrograms.MeshDrawHookAvailable = true;
             string diagnostic = "";
             TerrainTessellationPrograms.Log = message => diagnostic = message;
             TerrainTessellationTestAssets.Prepare(owner);
@@ -146,7 +175,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             TerrainTessellationPrograms.Forget(owner);
             ShaderProgramBase.CurrentShaderProgram = previousProgram;
             ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = previousLevel;
-            TerrainTessellationPrograms.DrawHookAvailable = previousHook;
+            TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook;
             TerrainTessellationPrograms.Log = previousLog;
             GpuProgramObject.Adopt(owner.ProgramId).Dispose();
         }
