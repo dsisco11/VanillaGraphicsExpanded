@@ -59,7 +59,19 @@ public sealed class AtmosphereProgramBindingsTests
             return name is "vge_atmosphereSolar";
         });
         Assert.Equal(AtmosphereBindings.Solar, active);
-        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereAerialParams", "vge_atmosphereSunDirection", "vge_atmosphereSunDraw" }, inspected);
+        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereAerialParams", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation", "vge_atmosphereSunDirection", "vge_atmosphereSunDraw" }, inspected);
+    }
+    #endregion
+
+    #region Independent aerial discovery
+    /// <summary>A missing parameter or sibling sampler cannot suppress another active aerial input.</summary>
+    [Theory]
+    [InlineData("vge_atmosphereAerialParams", AtmosphereBindings.AerialParams)]
+    [InlineData("vge_atmosphereAerialRadiance", AtmosphereBindings.AerialRadiance)]
+    [InlineData("vge_atmosphereAerialAttenuation", AtmosphereBindings.AerialAttenuation)]
+    public void AerialInputsResolveIndependently(string input, object expected)
+    {
+        Assert.Equal((AtmosphereBindings)expected, AtmosphereProgramBindings.Resolve("standard", name => name == input));
     }
     #endregion
 

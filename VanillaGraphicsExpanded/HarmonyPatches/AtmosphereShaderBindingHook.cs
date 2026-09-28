@@ -10,8 +10,8 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 internal static class AtmosphereShaderBindingHook
 {
     private const int SkyTextureUnit = 13;
-    private const int AerialRadianceTextureUnit = 11;
-    private const int AerialAttenuationTextureUnit = 12;
+    private const int AerialRadianceTextureUnit = AtmosphereProgramBindings.AerialRadianceTextureUnit;
+    private const int AerialAttenuationTextureUnit = AtmosphereProgramBindings.AerialAttenuationTextureUnit;
 
     #region Binding
     /// <summary>Shares one snapshot across sky, terrain and forward draws; initialization completes before the first scene draw.</summary>
@@ -34,16 +34,21 @@ internal static class AtmosphereShaderBindingHook
                 __instance.Uniform("vge_atmosphereDisk", disk.X, disk.Y, disk.Z, AtmosphereSolarDisk.AngularRadius);
             }
         }
-        if ((bindings & AtmosphereBindings.Aerial) != 0)
+        if ((bindings & AtmosphereBindings.AerialRadiance) != 0)
         {
             // Standard also draws before world initialization. Assign distinct 3D
             // sampler units even then, so they cannot alias engine 2D samplers at unit zero.
             __instance.Uniform("vge_atmosphereAerialRadiance", AerialRadianceTextureUnit);
-            __instance.Uniform("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
             var cache = Rendering.GlStateCache.Current;
             cache.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTextureId);
+            cache.UnbindSampler(AerialRadianceTextureUnit);
+        }
+        if ((bindings & AtmosphereBindings.AerialAttenuation) != 0)
+        {
+            __instance.Uniform("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
+            var cache = Rendering.GlStateCache.Current;
             cache.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTextureId);
-            cache.UnbindSampler(AerialRadianceTextureUnit); cache.UnbindSampler(AerialAttenuationTextureUnit);
+            cache.UnbindSampler(AerialAttenuationTextureUnit);
         }
         // Resource initialization is owned by the Before renderer.
         if (lighting is null) return;
@@ -53,7 +58,7 @@ internal static class AtmosphereShaderBindingHook
             __instance.Uniform("vge_atmosphereSolar", lighting.Solar.X, lighting.Solar.Y, lighting.Solar.Z);
         if ((bindings & AtmosphereBindings.SunDirection) != 0)
             __instance.Uniform("vge_atmosphereSunDirection", lighting.Sun.X, lighting.Sun.Y, lighting.Sun.Z);
-        if ((bindings & AtmosphereBindings.Aerial) != 0)
+        if ((bindings & AtmosphereBindings.AerialParams) != 0)
         {
             __instance.Uniform("vge_atmosphereAerialParams", lighting.Altitude, lighting.HorizonElevation,
                 PbrDrawRouteHook.Api?.Render.ShaderUniforms.CameraUnderwater ?? 0f);

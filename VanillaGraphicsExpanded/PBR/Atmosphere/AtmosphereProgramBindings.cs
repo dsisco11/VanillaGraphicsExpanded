@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
@@ -15,12 +16,17 @@ internal enum AtmosphereBindings
     SkyMapping = 32,
     SunDisk = 64,
     SunDirection = 128,
-    Aerial = 256
+    AerialParams = 256,
+    AerialRadiance = 512,
+    AerialAttenuation = 1024,
+    Aerial = AerialParams | AerialRadiance | AerialAttenuation
 }
 
 /// <summary>Stores the active atmospheric interface once per linked engine program.</summary>
 internal static class AtmosphereProgramBindings
 {
+    internal const int AerialRadianceTextureUnit = 11;
+    internal const int AerialAttenuationTextureUnit = 12;
     private static readonly ConditionalWeakTable<ShaderProgramBase, LinkedBindings> programs = new();
 
     /// <summary>Keeps linked metadata tied to the managed program lifetime, not a reusable GL identifier.</summary>
@@ -46,8 +52,9 @@ internal static class AtmosphereProgramBindings
         var active = AtmosphereBindings.None;
         if ((expected & AtmosphereBindings.Environment) != 0 && hasUniform("vge_atmosphereEnvironment")) active |= AtmosphereBindings.Environment;
         if ((expected & AtmosphereBindings.Solar) != 0 && hasUniform("vge_atmosphereSolar")) active |= AtmosphereBindings.Solar;
-        if ((expected & AtmosphereBindings.Aerial) != 0 && hasUniform("vge_atmosphereAerialParams")
-            && hasUniform("vge_atmosphereAerialRadiance") && hasUniform("vge_atmosphereAerialAttenuation")) active |= AtmosphereBindings.Aerial;
+        if ((expected & AtmosphereBindings.AerialParams) != 0 && hasUniform("vge_atmosphereAerialParams")) active |= AtmosphereBindings.AerialParams;
+        if ((expected & AtmosphereBindings.AerialRadiance) != 0 && hasUniform("vge_atmosphereAerialRadiance")) active |= AtmosphereBindings.AerialRadiance;
+        if ((expected & AtmosphereBindings.AerialAttenuation) != 0 && hasUniform("vge_atmosphereAerialAttenuation")) active |= AtmosphereBindings.AerialAttenuation;
         if ((expected & AtmosphereBindings.Sky) != 0 && hasUniform("vge_atmosphereSky")) active |= AtmosphereBindings.Sky;
         if ((expected & AtmosphereBindings.SkyMapping) != 0 && hasUniform("vge_atmosphereLutHorizon")) active |= AtmosphereBindings.SkyMapping;
         if ((expected & AtmosphereBindings.SunDirection) != 0 && hasUniform("vge_atmosphereSunDirection")) active |= AtmosphereBindings.SunDirection;
@@ -67,8 +74,30 @@ internal static class AtmosphereProgramBindings
         programs.Remove(program);
         // VGE programs own their own contracts and are not patched engine source families.
         if (program is not ShaderProgram source || source.AssetDomain == Constants.ModId) return;
-        var active = Resolve(source.PassName, source.HasUniform);
+        if (Expected(source.PassName) == AtmosphereBindings.None) return;
+        var layout = new GpuProgramLayout();
+        // The engine's source-derived uniform table is not the linked interface. In particular,
+        // active sampler3D inputs must be registered even when its source scanner omitted them.
+        var active = Resolve(source.PassName, name =>
+        {
+            if (source.ProgramId == 0) return source.HasUniform(name);
+            int location = layout.GetUniformLocation(source.ProgramId, name);
+            if (location < 0) return false; // Legitimately optimized out in this specialization.
+            source.uniformLocations[name] = location;
+            return true;
+        });
         if (active != AtmosphereBindings.None) programs.Add(program, new(active));
+        if (source.ProgramId != 0 && (active & AtmosphereBindings.Aerial) != 0)
+        {
+            // Initialize immediately after linking, including before the first atmospheric snapshot.
+            // The program is linked, not yet active through the engine. Apply its sampler contract
+            // through the GPU layout, which restores GL state without changing engine draw ownership.
+            if ((active & AtmosphereBindings.AerialRadiance) != 0)
+                layout.RegisterSamplerUnit("vge_atmosphereAerialRadiance", AerialRadianceTextureUnit);
+            if ((active & AtmosphereBindings.AerialAttenuation) != 0)
+                layout.RegisterSamplerUnit("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
+            layout.ApplyContract(source.ProgramId);
+        }
     }
 
     /// <summary>Reads cached metadata without uniform discovery, allocation or GL queries during a draw.</summary>
