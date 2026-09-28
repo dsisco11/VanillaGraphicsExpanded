@@ -7,11 +7,17 @@ and GLSL stages or replace the base-game renderer.
 
 ## Configuration and scope
 
-`MaterialAtlas.UndisplacedTessellationLevel` currently defaults to `2`; `0` disables this independent
-identity-path control. Values `1` through `8`
-enable uniform triangle subdivision for `chunkopaque` and `chunktopsoil`. Configuration reload uses
-the existing shader reload path. This is an identity-path validation control, separate from the
-material amplitude and detail-mode contract in `PBR.Tessellation.MaterialAndModes.md`.
+The original independent undisplaced-subdivision configuration has been removed.
+Production installs tessellation stages only for Surface Detail mode Tessellation;
+Disabled and Relief retain ordinary triangles. Tests can request fixed subdivision
+directly from their shader setup without exposing a production configuration setting.
+The following description records the original undisplaced validation path; current
+adaptive production behavior is documented in `PBR.Tessellation.AdaptiveDisplacement.md`.
+
+Removal validation: 54 focused Release tests passed across
+`artifacts/Transparency/detail-mode-only.trx` and the three corrected fixture cases in
+`artifacts/Transparency/detail-mode-draw-recheck.trx`. Coverage includes retaining ordinary
+programs in Disabled/Relief and actual ordinary/grouped engine draws in Tessellation mode.
 
 There is no height sampling, displacement, adaptive subdivision or relief change. Evaluation
 interpolates the existing projected clip coordinates and smooth attributes. Flat face/atlas values

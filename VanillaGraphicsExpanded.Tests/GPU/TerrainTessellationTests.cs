@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
@@ -17,6 +18,47 @@ public sealed class TerrainTessellationTests : RenderTestBase
     public TerrainTessellationTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Coherent production publication
+    /// <summary>Ordinary modes never replace a successfully linked terrain program with tessellation.</summary>
+    [Theory]
+    [InlineData(TerrainSurfaceDetailMode.Disabled)]
+    [InlineData(TerrainSurfaceDetailMode.Relief)]
+    public void OrdinaryModesRetainEngineExecutable(TerrainSurfaceDetailMode mode)
+    {
+        EnsureContextValid();
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.vsh", 2, 0, 0, 0, 0));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.fsh", 2, 0, 0, 0, 0));
+        using var ordinary = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        var owner = new ShaderProgram
+        {
+            PassName = "chunkopaque", AssetDomain = "game", ProgramId = ordinary.ProgramId,
+            VertexShader = new Shader { ShaderId = vertex, Code = shaders.Source(vertex) },
+            FragmentShader = new Shader { ShaderId = fragment }
+        };
+        var previousMode = ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode;
+        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable;
+        bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
+        try
+        {
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = mode;
+            TerrainTessellationPrograms.DrawHookAvailable = true;
+            TerrainTessellationPrograms.MeshDrawHookAvailable = true;
+            TerrainTessellationTestAssets.Prepare(owner);
+            TerrainTessellationPatches.Configure(owner);
+            TerrainTessellationPrograms.Prepare(owner);
+            Assert.Equal(ordinary.ProgramId, owner.ProgramId);
+            Assert.True(GL.IsProgram(ordinary.ProgramId));
+            Assert.False(TerrainTessellationPrograms.Adaptive(owner));
+        }
+        finally
+        {
+            TerrainTessellationPrograms.Forget(owner);
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = previousMode;
+            TerrainTessellationPrograms.DrawHookAvailable = previousHook;
+            TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook;
+        }
+    }
+
     /// <summary>All terrain consumers must publish matching adaptive executables before displacement enables.</summary>
     [Theory]
     [InlineData(false)]
@@ -134,20 +176,21 @@ public sealed class TerrainTessellationTests : RenderTestBase
         int ordinary = TerrainShaderTestFixture.Link(vertex, fragment);
         var vertexObject = new Shader { ShaderId = vertex, Code = shaders.Source(vertex) };
         var fragmentObject = new Shader { ShaderId = fragment };
-        var owner = new ShaderProgram { PassName = "chunkopaque", AssetDomain = "game", ProgramId = ordinary, VertexShader = vertexObject, FragmentShader = fragmentObject };
-        int previousLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
+        var owner = new TerrainLinkedTestProgram { PassName = "chunkopaque", AssetDomain = "game", ProgramId = ordinary, VertexShader = vertexObject, FragmentShader = fragmentObject };
+        var previousMode = ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode;
         var previousProgram = ShaderProgramBase.CurrentShaderProgram;
         bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
         var previousLog = TerrainTessellationPrograms.Log;
         try
         {
-            ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = 4;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = TerrainSurfaceDetailMode.Tessellation;
             TerrainTessellationPrograms.DrawHookAvailable = true; TerrainTessellationPrograms.MeshDrawHookAvailable = true;
             string diagnostic = "";
             TerrainTessellationPrograms.Log = message => diagnostic = message;
             TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPatches.Configure(owner);
             TerrainTessellationPrograms.Prepare(owner);
+            owner.PopulateDisplacementUniforms();
             Assert.True(ordinary != owner.ProgramId, diagnostic);
             Assert.False(GL.IsProgram(ordinary));
             Assert.Same(vertexObject, owner.VertexShader); Assert.Same(fragmentObject, owner.FragmentShader);
@@ -174,7 +217,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         {
             TerrainTessellationPrograms.Forget(owner);
             ShaderProgramBase.CurrentShaderProgram = previousProgram;
-            ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel = previousLevel;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = previousMode;
             TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook;
             TerrainTessellationPrograms.Log = previousLog;
             GpuProgramObject.Adopt(owner.ProgramId).Dispose();

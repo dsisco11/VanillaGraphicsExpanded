@@ -25,7 +25,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private HarmonyLib.Harmony? harmony;
 
     private TerrainReliefConfiguration? lastSurfaceDetail;
-    private int? lastUndisplacedTessellationLevel;
     private bool? lastLumOnEnabled;
     private bool? lastEnableNormalMaps;
     private float? lastNormalMapScale;
@@ -99,7 +98,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         // Track config values that require shader recompilation when changed.
         lastLumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         lastSurfaceDetail = TerrainReliefConfiguration.Capture(ConfigModSystem.Config.MaterialAtlas);
-        lastUndisplacedTessellationLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
         lastEnableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
         lastNormalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;
 
@@ -118,7 +116,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         if (capi is null) return;
 
-        int tessellationLevel = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
         bool enablePom = (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode == VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Relief);
         bool lumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         bool enableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
@@ -130,8 +127,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         shaderReloadNeeded |= lastEnableNormalMaps.HasValue && lastEnableNormalMaps.Value != enableNormalMaps;
         shaderReloadNeeded |= lastNormalMapScale.HasValue && Math.Abs(lastNormalMapScale.Value - normalMapScale) > 0.0001f;
 
-        shaderReloadNeeded |= lastUndisplacedTessellationLevel.HasValue && lastUndisplacedTessellationLevel.Value != tessellationLevel;
-        lastUndisplacedTessellationLevel = tessellationLevel;
         lastSurfaceDetail = surfaceDetail;
         lastLumOnEnabled = lumOnEnabled;
         lastEnableNormalMaps = enableNormalMaps;

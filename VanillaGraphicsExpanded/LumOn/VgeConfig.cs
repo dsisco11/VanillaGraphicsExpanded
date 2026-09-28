@@ -237,10 +237,6 @@ public class VgeConfig
         [JsonIgnore] public bool RequiresNormalDepthAtlas => EnableNormalMaps
             || TerrainSurfaceDetailMode != PBR.Materials.TerrainSurfaceDetailMode.Disabled;
 
-        /// <summary>Identity terrain tessellation for pipeline validation: zero disables; levels 1-8 add no displacement.</summary>
-        [JsonProperty]
-        public int UndisplacedTessellationLevel { get; set; } = 2;
-
         /// <summary>Adaptive displacement limits; publication remains gated by complete rendering-consumer integration.</summary>
         [JsonProperty]
         public PBR.Tessellation.TerrainSubdivisionSettings TerrainSubdivision { get; set; } = new();
@@ -354,7 +350,6 @@ public class VgeConfig
 
             NormalMapScale = Math.Clamp(NormalMapScale, 0.0f, 4.0f);
 
-            UndisplacedTessellationLevel = Math.Clamp(UndisplacedTessellationLevel, 0, 8);
             TerrainSubdivision ??= new();
             TerrainSubdivision.Sanitize();
 

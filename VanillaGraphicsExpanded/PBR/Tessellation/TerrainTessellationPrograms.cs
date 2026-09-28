@@ -50,9 +50,7 @@ internal static class TerrainTessellationPrograms
     internal static void Prepare(ShaderProgram program)
     {
         programs.Remove(program);
-        int level = ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
-        if (Requested) level = 1;
-        if (level == 0 || !Eligible(program.PassName) || program.AssetDomain == Constants.ModId) return;
+        if (!Requested || !Eligible(program.PassName) || program.AssetDomain == Constants.ModId) return;
         if (!TerrainTessellationPatches.TryGet(program.VertexShader, out var sources)) return;
         try
         {
@@ -61,7 +59,7 @@ internal static class TerrainTessellationPrograms
             // The engine independently owns any higher requirements of its vertex/fragment variants.
             if (GpuSupport.ApiVersion is not { } version || version < new Version(4, 0))
                 throw new NotSupportedException("Terrain tessellation requires OpenGL 4.0.");
-            if (GpuSupport.MaxPatchVertices < 3 || GpuSupport.MaxTessGenLevel < level
+            if (GpuSupport.MaxPatchVertices < 3 || GpuSupport.MaxTessGenLevel < 1
                 || GlStateCache.Current.ProvokingVertex != ProvokingVertexMode.LastVertexConvention)
                 throw new NotSupportedException("Unsupported patch limits or provoking-vertex convention.");
             if (Requested && (GpuSupport.MaxCombinedTextureImageUnits <= TerrainReliefBindings.HeightUnit
@@ -71,7 +69,7 @@ internal static class TerrainTessellationPrograms
             if (program.GeometryShader is not null)
                 throw new NotSupportedException("Terrain geometry-stage modifications are not supported by the identity path.");
             if (!TerrainTessellationLinker.TryCreate(program.VertexShader.ShaderId, program.FragmentShader.ShaderId,
-                sources, program.VertexShader.PrefixCode + (Requested ? "\n#define VGE_PRODUCTION_DISPLACEMENT 1\n" : ""), level,
+                sources, program.VertexShader.PrefixCode + "\n#define VGE_PRODUCTION_DISPLACEMENT 1\n", 1,
                 out int candidate, out string error)) throw new InvalidOperationException(error);
             int ordinary = program.ProgramId;
             program.ProgramId = candidate;

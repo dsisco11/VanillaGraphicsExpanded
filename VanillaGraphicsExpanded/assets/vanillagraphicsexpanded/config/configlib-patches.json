@@ -154,19 +154,6 @@
           "step": 1
         }
       },
-      "UNDISPLACED_TESSELLATION_LEVEL": {
-        "code": "MaterialAtlas.UndisplacedTessellationLevel",
-        "name": "MaterialAtlas/UndisplacedTessellationLevel",
-        "ingui": "vanillagraphicsexpanded:config-undisplaced-tessellation-level",
-        "comment": "vanillagraphicsexpanded:config-undisplaced-tessellation-level-tooltip",
-        "default": 2,
-        "weight": 21.6,
-        "range": {
-          "min": 0,
-          "max": 8,
-          "step": 1
-        }
-      },
       "ATMOSPHERE_SKY_LUT_QUALITY": {
         "code": "Atmosphere.SkyLutQuality",
         "name": "Atmosphere/SkyLutQuality",

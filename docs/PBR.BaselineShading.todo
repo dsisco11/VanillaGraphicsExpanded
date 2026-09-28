@@ -129,7 +129,7 @@ Tasks
       - Validate unchanged positions, UVs, material identity and coverage before adding displacement.
       - Implemented engine-owned runtime GLSL control/evaluation stages, as explicitly selected;
         no mixed GLSL/SPIR-V program or migration of engine terrain to VGE binary ownership.
-      - Optional MaterialAtlas.UndisplacedTessellationLevel (0 disabled, 1-8 subdivision), reload,
+      - Original diagnostic subdivision setting removed; production uses Surface Detail mode, reload,
         candidate fallback, grouped patch draws and cached patch-state restoration are implemented.
       - Evidence: docs/PBR.Tessellation.UndisplacedPath.md; 17 focused tests passed in 4 seconds,
         artifacts/PbrColor/terrain-tessellation-engine.trx. Includes actual patched engine multidraw,

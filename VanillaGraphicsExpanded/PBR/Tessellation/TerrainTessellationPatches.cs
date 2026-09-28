@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.CompilerServices;
-using VanillaGraphicsExpanded.ModSystems;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
@@ -35,7 +34,7 @@ internal static class TerrainTessellationPatches
     internal static void Configure(IShaderProgram program)
     {
         if (!TerrainTessellationPrograms.Eligible(program.PassName) || program.AssetDomain == Constants.ModId) return;
-        bool enabled = (TerrainTessellationPrograms.Requested || ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel > 0)
+        bool enabled = TerrainTessellationPrograms.Requested
             && TerrainTessellationPrograms.DrawHookAvailable && TerrainTessellationPrograms.MeshDrawHookAvailable && program.GeometryShader is null
             && sources.TryGetValue(program.VertexShader, out _);
         // Installed IShader exposes PrefixCode rather than SetDefine. The engine injects this

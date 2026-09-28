@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Tessellation;
@@ -122,29 +123,40 @@ public sealed class TerrainTessellationSourcePreparationTests
 
     #region Engine macro lifecycle
     /// <summary>Reconfiguration replaces only VGE's own enable macro and preserves other shader owners' prefixes.</summary>
-    [Fact]
-    public void ConfigureDoesNotAccumulateDefinesOrEraseEnginePrefix()
+    [Theory]
+    [InlineData(TerrainSurfaceDetailMode.Disabled)]
+    [InlineData(TerrainSurfaceDetailMode.Relief)]
+    public void ConfigureDoesNotAccumulateDefinesOrEraseEnginePrefix(TerrainSurfaceDetailMode ordinaryMode)
     {
         var owner = new ShaderProgram
         {
             PassName="chunkopaque", AssetDomain="game",
-            VertexShader=new Shader { Code="out vec4 rgba; void main() { gl_Position=vec4(0); }", PrefixCode="#define USESSBO 1\n" },
+            VertexShader=new Shader { Code="""
+                out vec4 rgba;
+                out vec4 worldPos;
+                out vec3 normal;
+                out vec2 uv;
+                flat out vec2 vge_uvBase;
+                flat out vec2 vge_uvExtent;
+                flat out int renderFlags;
+                void main() { gl_Position=vec4(0); }
+                """, PrefixCode="#define USESSBO 1\n" },
             FragmentShader=new Shader { PrefixCode="#define SSAOLEVEL 1\n" }
         };
-        int previousLevel=ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel;
+        var previousMode=ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode;
         bool previousHook=TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook=TerrainTessellationPrograms.MeshDrawHookAvailable;
         try
         {
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode=TerrainSurfaceDetailMode.Tessellation;
             TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPrograms.DrawHookAvailable=true; TerrainTessellationPrograms.MeshDrawHookAvailable=true;
-            ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel=4;
             TerrainTessellationPatches.Configure(owner);
             string initial=owner.VertexShader.PrefixCode;
             TerrainTessellationPatches.Configure(owner);
             Assert.Equal(initial, owner.VertexShader.PrefixCode);
             Assert.Equal("#define USESSBO 1\n" + TerrainTessellationPatches.EnabledDefine, initial);
             Assert.Equal("#define SSAOLEVEL 1\n" + TerrainTessellationPatches.EnabledDefine, owner.FragmentShader.PrefixCode);
-            ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel=0;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode=ordinaryMode;
             TerrainTessellationPatches.Configure(owner);
             Assert.DoesNotContain("#define VGE_ENABLE_TESSELLATION 1", owner.VertexShader.PrefixCode);
             Assert.StartsWith("#define USESSBO 1\n", owner.VertexShader.PrefixCode);
@@ -152,7 +164,7 @@ public sealed class TerrainTessellationSourcePreparationTests
         }
         finally
         {
-            ConfigModSystem.Config.MaterialAtlas.UndisplacedTessellationLevel=previousLevel;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode=previousMode;
             TerrainTessellationPrograms.DrawHookAvailable=previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable=previousMeshHook;
         }
     }

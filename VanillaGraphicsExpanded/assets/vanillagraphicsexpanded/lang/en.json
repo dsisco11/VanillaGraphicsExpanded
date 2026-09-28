@@ -1,8 +1,6 @@
 {
   "config-tessellation-maximum-level": "Maximum tessellation level",
   "config-tessellation-maximum-level-tooltip": "Upper bound on adaptive terrain subdivision. Higher levels increase geometry cost.",
-  "config-undisplaced-tessellation-level": "Undisplaced tessellation level",
-  "config-undisplaced-tessellation-level-tooltip": "Diagnostic subdivision without displacement. Zero disables this validation path.",
   "config-tessellation-target-edge-pixels": "Tessellation target edge size",
   "config-tessellation-target-edge-pixels-tooltip": "Target edge length in screen pixels. Smaller values produce finer subdivision at greater GPU cost.",
   "config-tessellation-fade-start": "Displacement fade start",
