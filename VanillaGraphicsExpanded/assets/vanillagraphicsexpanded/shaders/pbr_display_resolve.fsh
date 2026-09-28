@@ -6,7 +6,7 @@ uniform sampler2D primaryScene;
 uniform sampler2D primaryDepth;
 layout(location = 0) out vec4 outColor;
 
-/** Converts deferred geometry; the legacy sky is already display-referred. */
+/** Converts deferred geometry; atmosphere sky and sun already used the same display contract before blending. */
 void main()
 {
     ivec2 pixel = ivec2(gl_FragCoord.xy);

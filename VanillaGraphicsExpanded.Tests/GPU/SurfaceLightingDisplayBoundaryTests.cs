@@ -40,7 +40,9 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
             {
                 if ((i & 3) == 3) continue;
                 float positive = Math.Max(0, reference[i]);
-                float mapped = positive / (1 + positive);
+                int pixel = i & ~3;
+                float peak = Math.Max(0, Math.Max(reference[pixel], Math.Max(reference[pixel + 1], reference[pixel + 2])));
+                float mapped = positive / (1 + peak);
                 float expected = mapped <= .0031308f ? mapped * 12.92f : 1.055f * MathF.Pow(mapped, 1 / 2.4f) - .055f;
                 Assert.InRange(displayed[i], expected - .002f, expected + .002f);
             }

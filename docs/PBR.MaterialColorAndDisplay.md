@@ -46,15 +46,15 @@ color to linear. It does not clamp radiance to one or apply a display transform.
 `pbr_display_resolve` performs the explicit opaque display boundary:
 
 1. Fixed unit exposure, common to LumOn-enabled and standalone composition (see [PBR.LightingModes.md](PBR.LightingModes.md)).
-2. Nonnegative per-channel Reinhard mapping: `c / (1 + c)`.
+2. Nonnegative RGB-ratio-preserving mapping: `c / (1 + max(c.r, c.g, c.b))`.
 3. Exact linear-to-sRGB encoding for the ordinary RGBA8 primary attachment.
 
 This is an explicit baseline display policy, not adaptive exposure or a calibrated filmic
 transform. It preserves highlight ordering above one instead of clipping all highlights during
-a blit. Per-channel compression can desaturate bright colors. Future atmosphere/exposure work can
-replace the shared resolve without changing lighting-cache units or material decoding.
+a blit. All channels share a shoulder denominator to retain linear RGB ratios.
+See [PBR.SharedDisplay.md](PBR.SharedDisplay.md) for the sky/sun/surface contract.
 
-Vanilla sky pixels are already display-referred and bypass this resolve. Both composition and
+Sky pixels already used the shared display helper and bypass this resolve. Both composition and
 resolve use `lumonIsSky`, including its exact depth threshold. Vanilla final gamma, brightness,
 contrast and color grading remain subsequent display adjustments. The renderer uses a distinct
 source texture and disables depth testing/writes for the fullscreen draws, restoring fixed

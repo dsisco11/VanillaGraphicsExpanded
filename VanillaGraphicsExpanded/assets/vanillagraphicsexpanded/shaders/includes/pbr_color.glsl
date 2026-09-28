@@ -17,10 +17,20 @@ vec3 VgeLinearToSrgb(vec3 color)
         lessThanEqual(color, vec3(0.0031308)));
 }
 
-/** Fixed unit exposure and Reinhard shoulder; lighting/cache buffers remain unexposed. */
+/** Shared scene-to-display exposure for sky, solar disk and both surface lighting modes. */
+const float VGE_DISPLAY_EXPOSURE = 1.0;
+
+/** RGB-ratio-preserving shoulder: the brightest channel approaches one without clipping its neighbors. */
+vec3 VgeToneMapRadiance(vec3 radiance)
+{
+    vec3 exposed = max(radiance, vec3(0.0)) * VGE_DISPLAY_EXPOSURE;
+    float peak = max(exposed.r, max(exposed.g, exposed.b));
+    return exposed / (1.0 + peak);
+}
+
+/** Apply exposure, highlight compression and sRGB exactly once at each current SDR draw boundary. */
 vec3 VgeResolveDisplay(vec3 radiance)
 {
-    vec3 exposed = max(radiance, vec3(0.0));
-    return VgeLinearToSrgb(exposed / (vec3(1.0) + exposed));
+    return VgeLinearToSrgb(VgeToneMapRadiance(radiance));
 }
 #endif

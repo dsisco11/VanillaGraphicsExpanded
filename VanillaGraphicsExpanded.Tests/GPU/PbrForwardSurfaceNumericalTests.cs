@@ -110,6 +110,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float factor = scenario is 1 or 9 or 15 ? 2f : scenario is 2 or 3 or 8 or 14 ? 0.25f : 0f;
+            float[] radiance = new float[3];
             for (int channel = 0; channel < 3; channel++)
             {
                 float irradiance = scenario == 4 ? new[] { .2f, .4f, .8f }[channel] / MathF.PI : factor;
@@ -117,7 +118,12 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
                 if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * .35f * (.96f * (channel + 1) * .2f + .02f);
                 if (scenario == 10) linear = (channel + 1) * .2f * (.3f + channel * .2f) / MathF.PI;
                 if (scenario == 12) linear = new[]{.04f,.09f,.16f}[channel];
-                float mapped = linear / (1f + linear);
+                radiance[channel] = linear;
+            }
+            float peak = radiance.Max();
+            for (int channel = 0; channel < 3; channel++)
+            {
+                float mapped = radiance[channel] / (1f + peak);
                 float expected = mapped <= .0031308f ? 12.92f * mapped : 1.055f * MathF.Pow(mapped, 1f / 2.4f) - .055f;
                 Assert.InRange(actual[channel], expected - .0001f, expected + .0001f);
             }

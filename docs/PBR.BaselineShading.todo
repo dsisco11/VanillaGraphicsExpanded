@@ -311,6 +311,11 @@ Tasks
         PBR.Atmosphere.AerialPerspective.md. 218 distinct Release tests passed; four optional
         measurements skipped. Marked complete at user direction; no live visual verification claimed.
     ☐ Unify sky, sun and terrain exposure and tone mapping.
+      - Shared SDR operator and draw-boundary audit: PBR.SharedDisplay.md. Implementation uses
+        one unit exposure and RGB-ratio-preserving highlight compression for sky, sun and both
+        surface modes; visual acceptance and matched GPU timing remain pending.
+      - 35 distinct focused GPU cases passed after correcting a test-fixture include newline;
+        shader build reused 381 variants and rebuilt 9. Receipts: artifacts/SharedDisplay/.
       - Audit existing display conversions and establish one shared exposure/display contract across
         sky, celestial and surface paths; preserve bright-sky colors without independent sky-only tuning.
       - Coordinate with the scene-linear HDR/postprocessing task below; distinguish SDR tone mapping

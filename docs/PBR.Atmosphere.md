@@ -260,7 +260,7 @@ inputs and have no atmosphere-readiness branches. CPU rebuild latency depends on
 and computation; GPU source-table work is bounded across render updates. Both backends use
 low-resolution interpolation rather than a full-resolution fragment ray march.
 
-The installed sky shader samples this table and uses the existing unit-exposure Reinhard/sRGB
+The installed sky shader samples this table and uses the shared unit-exposure, RGB-ratio-preserving shoulder/sRGB
 display conversion once. The engine's night/fog alpha calculation is retained, as are subsequent
 underwater/night-vision effects. Stars remain the separate engine night-sky draw before the dome;
 the sun reuses the engine quad with atmospheric disk shading, while the moon retains its textured

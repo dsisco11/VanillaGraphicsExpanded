@@ -18,9 +18,11 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
     #region Lookup transport
     /// <summary>Checks endpoint addressing, depressed horizon and periodic azimuth using actual shader lookup.</summary>
     [Theory]
-    [InlineData(.001f, 24)]
-    [InlineData(99f, 9)]
-    public void PatchedLookupReconstructsRowsAndWrapsSeam(float altitude, int height)
+    [InlineData(.001f, 24, false)]
+    [InlineData(.001f, 24, true)]
+    [InlineData(99f, 9, false)]
+    [InlineData(99f, 9, true)]
+    public void PatchedLookupReconstructsRowsAndWrapsSeam(float altitude, int height, bool displayTransfer)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
@@ -32,12 +34,14 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
             }
             """);
         string mapping = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/atmosphere_sky_mapping.glsl"));
-        // Identity display isolates lookup transport; the production patch itself is applied unchanged.
-        var tree = SyntaxTree.Parse("#version 430 core\n" + mapping + "\n" + """
+        // Exercise both isolated lookup transport and the actual shared display transfer.
+        string transfer = displayTransfer
+            ? File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"))
+            : "vec3 VgeResolveDisplay(vec3 radiance) { return radiance; }\n";
+        var tree = SyntaxTree.Parse("#version 430 core\n" + mapping + "\n" + transfer + "\n" + """
             uniform vec3 sampleDirection;
             vec4 skyColor; vec4 skyGlow;
             layout(location=0) out vec4 result;
-            vec3 VgeResolveDisplay(vec3 radiance) { return radiance; }
             void getSkyColorAt(vec3 skyPosition) { skyColor=vec4(0,0,0,1); }
             void main() { getSkyColorAt(sampleDirection); result=skyColor; }
             """, GlslSchema.Instance);
@@ -75,10 +79,18 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "sampleDirection"), direction.X, direction.Y, direction.Z);
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
-            Assert.True(MathF.Abs(actual[0] - v) <= .0006f, $"v={v}, azimuth={azimuth}, actual={actual[0]}");
-            Assert.InRange(MathF.Abs(actual[1] - .375f), 0, .0001f);
+            float expectedRed = displayTransfer ? Transfer(v, Math.Max(v, .375f)) : v;
+            float expectedGreen = displayTransfer ? Transfer(.375f, Math.Max(v, .375f)) : .375f;
+            Assert.True(MathF.Abs(actual[0] - expectedRed) <= .0006f, $"v={v}, azimuth={azimuth}, actual={actual[0]}");
+            Assert.InRange(MathF.Abs(actual[1] - expectedGreen), 0, .0001f);
             Assert.Equal(1, actual[3]);
         }
+    }
+    /// <summary>Evaluates the display boundary independently of the GLSL helper.</summary>
+    private static float Transfer(float value, float peak)
+    {
+        float mapped = value / (1 + peak);
+        return mapped <= .0031308f ? 12.92f * mapped : 1.055f * MathF.Pow(mapped, 1 / 2.4f) - .055f;
     }
     #endregion
 }

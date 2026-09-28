@@ -61,8 +61,10 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
     }
 
     /// <summary>Solar geometry ignores camera translation and produces bounded disk coverage and HDR color.</summary>
-    [Fact]
-    public void DiskIgnoresCameraTranslationAndClipsAtHorizon()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DiskIgnoresCameraTranslationAndClipsAtHorizon(bool displayTransfer)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
@@ -90,10 +92,11 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             layout(location=0) out vec4 outColor;
             layout(location=1) out vec4 outGlow;
             const float extraGodray=1;
-            vec3 VgeResolveDisplay(vec3 value) { return value; }
             float getSkyMurkiness() { return 0; }
             vec3 applyUnderwaterEffects(vec3 color,float murk) { return color; }
-            """ + File.ReadAllText(Path.Combine(directory, "atmosphere_sun_fragment.glsl")) + """
+            """ + "\n" + (displayTransfer ? File.ReadAllText(Path.Combine(directory, "pbr_color.glsl"))
+                : "vec3 VgeResolveDisplay(vec3 value) { return value; }\n")
+            + "\n" + File.ReadAllText(Path.Combine(directory, "atmosphere_sun_fragment.glsl")) + "\n" + """
             void main() { VgeDrawAtmosphericSun(); }
             """);
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
@@ -120,7 +123,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             if (iteration == 0)
             {
                 baseline = pixels;
-                Assert.Equal(3f, pixels[(32 * 64 + 32) * 4]);
+                float expected = displayTransfer ? 1.055f * MathF.Pow(.75f, 1 / 2.4f) - .055f : 3f;
+                Assert.InRange(pixels[(32 * 64 + 32) * 4], expected - .00001f, expected + .00001f);
                 Assert.Equal(0f, pixels[0]);
             }
             else if (iteration == 1) Assert.Equal(baseline!, pixels);
