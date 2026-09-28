@@ -317,6 +317,14 @@ Tasks
         from HDR display output and document any required ordering or intermediate-buffer changes.
       - Validate daylight/twilight/night transitions, highlight hue, scene readability and single
         application of exposure and display conversion across both PBR modes.
+    ☐ If sky banding remains after unifying exposure and tone mapping, implement output dithering.
+      - Recheck the reported horizontal bands near the zenith after the display-boundary changes;
+        distinguish color quantization from insufficient LUT sampling before adding dithering.
+      - If quantization remains responsible, apply subtle dithering immediately before the first
+        precision-limiting display conversion, with amplitude matched to the output format and color
+        space. Coordinate with the scene-linear HDR task so subsequent changes do not duplicate it.
+      - Verify smooth sky gradients without visible noise, flicker or brightness bias using focused
+        tests and user-run visual comparisons; document if dithering proves unnecessary.
     - For each subtask, run focused numerical/shader tests through subagents and record matched CPU,
       GPU and memory costs. Obtain user-run visual comparisons; passing tests are not visual acceptance.
   ☐ Try and make tessellation do square subdivision by subdividing faces as quads.
