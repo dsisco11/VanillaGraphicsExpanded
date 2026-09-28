@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 
 /// <summary>
 /// Binds VGE's per-atlas material params texture whenever the engine sets a TerrainTex property on chunk shaders.
-/// We patch the property setters (set_Tex2dTerrain, set_Tex2dTerrainLinear) on concrete shader classes
+/// We patch the property setters (set_TerrainTex2D, set_TerrainTexLinear2D) on concrete shader classes
 /// because patching BindTexture2D is ambiguous (multiple overloads) and not reliably available.
 /// </summary>
 internal static class TerrainMaterialParamsTextureBindingHook
@@ -30,9 +30,9 @@ internal static class TerrainMaterialParamsTextureBindingHook
     private static readonly (string TypeName, string PropertyName)[] TargetProperties =
     {
         ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2DLinear"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTexLinear2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2DLinear"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTexLinear2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunkliquid", "TerrainTex2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunktransparent", "TerrainTex2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunkshadowmap", "Tex2d2D"),
@@ -112,8 +112,8 @@ internal static class TerrainMaterialParamsTextureBindingHook
     }
 
     /// <summary>
-    /// Postfix for Tex2dTerrain / Tex2dTerrainLinear setters.
-    /// The property setter signature is typically `set_Tex2dTerrain(int value)` where value is the GL texture id.
+    /// Postfix for TerrainTex2D / TerrainTexLinear2D setters.
+    /// The property setter signature is typically `set_TerrainTex2D(int value)` where value is the GL texture id.
     /// __instance is the ShaderProgramBase-derived shader, value is the atlas texture id just bound.
     /// </summary>
     public static void SetTex2dTerrain_Postfix(ShaderProgramBase __instance, int value)

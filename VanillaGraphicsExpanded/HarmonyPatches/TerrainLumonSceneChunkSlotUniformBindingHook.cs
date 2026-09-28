@@ -18,9 +18,9 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
     private static readonly (string TypeName, string PropertyName)[] TargetProperties =
     {
         ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTex2DLinear"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunkopaque", "TerrainTexLinear2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2D"),
-        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTex2DLinear"),
+        ("Vintagestory.Client.NoObf.ShaderProgramChunktopsoil", "TerrainTexLinear2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunkliquid", "TerrainTex2D"),
         ("Vintagestory.Client.NoObf.ShaderProgramChunktransparent", "TerrainTex2D"),
     };
