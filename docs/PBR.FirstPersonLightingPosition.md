@@ -25,3 +25,25 @@ populate the fallback.
 This corrects the direct-lighting and PBR-composite position contract. It does not
 redesign LumOn's depth-based tracing or temporal reconstruction for first-person
 models.
+
+## Primary outputs with the engine OIT define
+
+The captured first-person `standard` shader defines `USEOIT=1` even though this
+shader family writes primary-framebuffer outputs rather than OIT accumulation.
+Guarding VGE declarations and writes with `USEOIT == 0` removed attachments 4–7
+and the explicit-position marker, while the engine continued writing its own
+normal and position outputs. The same guard also removed the deferred albedo
+branch, allowing forward-lit color to enter deferred lighting with missing
+surface data.
+
+`VGE_SURFACE_PRIMARY_OUTPUTS` now describes the actual shader family: enabled for
+standard and instanced, conditional on `USEOIT` for animated entities, and disabled
+for transparent terrain. The sun's metadata clearing uses the same contract.
+Installed-shader coverage includes standard with `USEOIT=1`, `SSAOLEVEL=2` and
+`ALLOWDEPTHOFFSET=1`; raster coverage checks the first-person position marker,
+material publication, unlit albedo and foreground depth occlusion. Live rendering
+confirmation remains a user-run check.
+
+Focused validation passed 69 tests across installed shader variants, mesh depth
+and G-buffer capture, material capture boundaries and sun rasterization. Receipt:
+`artifacts/StandardOutputGuards/standard-output-guards.trx`.

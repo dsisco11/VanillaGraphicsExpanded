@@ -21,7 +21,7 @@ void VgeDrawAtmosphericSun()
     outGPosition = vec4(0.0, 0.0, 0.0, 1.0);
     outGNormal = vec4(0.0);
     #endif
-    #if USEOIT == 0
+    #if VGE_SURFACE_PRIMARY_OUTPUTS
     vge_outNormal = vec4(0.0);
     vge_outMaterial = vec4(0.0);
     vge_outPatchId = uvec4(0u);

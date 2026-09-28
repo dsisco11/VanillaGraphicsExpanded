@@ -119,7 +119,9 @@ internal static class PbrSurfaceShaderPatches
             return;
         }
 
-        // OIT owns locations 0..5. Only non-OIT variants may declare opaque material attachments.
+        // USEOIT is also defined on standard/instanced, which never publish OIT outputs.
+        // Only actual OIT producers must avoid the primary material attachment locations.
+        string primaryOutputs = chunk ? "0" : entity ? "(USEOIT == 0)" : "1";
         // Transparent terrain's normal-map include already declares modelViewMatrix.
         if (!chunk) declarations += $"""
 
@@ -128,6 +130,7 @@ internal static class PbrSurfaceShaderPatches
         """;
         declarations += $"""
         #define VGE_SURFACE_VIEW {matrix}
+        #define VGE_SURFACE_PRIMARY_OUTPUTS {primaryOutputs}
 
         """;
         declarations += """
@@ -137,7 +140,7 @@ internal static class PbrSurfaceShaderPatches
             in vec3 vge_blockIrradiance;
             in vec3 vge_sunIrradiance;
             in float vge_skyVisibility;
-            #if USEOIT == 0
+            #if VGE_SURFACE_PRIMARY_OUTPUTS
             #if defined(ALLOWDEPTHOFFSET) && ALLOWDEPTHOFFSET > 0 && SSAOLEVEL == 0
             layout(location = 3) out vec4 outGPosition;
             #endif
@@ -223,7 +226,7 @@ internal static class PbrSurfaceShaderPatches
                 vec3 vge_materialColor = VgeSrgbToLinear({{capturedColor}});
                 vec3 vge_params = {{parameters}};
                 vec3 vge_normal = {{surfaceNormal}};
-                #if USEOIT == 0
+                #if VGE_SURFACE_PRIMARY_OUTPUTS
                 // Late primary draws still publish defined debug/material metadata; no deferred pass follows them.
                 vge_outNormal = vec4(vge_normal * 0.5 + 0.5, 1.0);
                 #if defined(ALLOWDEPTHOFFSET) && ALLOWDEPTHOFFSET > 0

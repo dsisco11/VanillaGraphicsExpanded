@@ -18,12 +18,13 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
     [InlineData(1, 1, 0)]
     [InlineData(1, 1, 1)]
     [InlineData(1, 2, 0)]
-    public void StandardMeshOccludesBackground(int offsetVariant, int route, int ssao)
+    [InlineData(1, 1, 2, 1)]
+    public void StandardMeshOccludesBackground(int offsetVariant, int route, int ssao, int oit = 0)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("standard.vsh", 0, 0, ssao, 0, offsetVariant));
-        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, 0, ssao, 0, offsetVariant));
+        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("standard.vsh", 0, oit, ssao, 0, offsetVariant));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, oit, ssao, 0, offsetVariant));
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         using var vertices = GpuVbo.Create();
@@ -44,7 +45,9 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         vertices.Bind();
         GL.EnableVertexAttribArray(0);
         GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 12, 0);
-        GL.VertexAttrib2(1, .5f, .5f); GL.VertexAttrib4(2, 1f, 1f, 1f, 1f); GL.VertexAttribI1(3, 0);
+        GL.VertexAttrib2(1, .5f, .5f); GL.VertexAttrib4(2, 1f, 1f, 1f, 1f);
+        // Engine vertex flags encode positive Y magnitude in bits 18..20.
+        GL.VertexAttribI1(3, 7 << 18);
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         foreach (string name in new[] { "modelMatrix", "viewMatrix", "projectionMatrix" })
             ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program.ProgramId, name), identity);
@@ -65,6 +68,16 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         float[] foreground = target[0].ReadPixels();
         Assert.Equal(1f, foreground[3]);
+        if (route == 1)
+        {
+            // Deferred capture must publish unlit albedo and overwrite the cleared material target.
+            Assert.InRange(foreground[0], .999f, 1.001f);
+            Assert.InRange(gbuffer.Material.ReadPixels()[0], .499f, .501f);
+            float[] normal = gbuffer.Normal.ReadPixels();
+            Assert.Equal(.5f, normal[0]);
+            Assert.Equal(1f, normal[1]);
+            Assert.Equal(.5f, normal[2]);
+        }
         if (offsetVariant > 0 && route == 1)
         {
             Assert.Equal(-1f, gbuffer.Normal.ReadPixels()[3]);

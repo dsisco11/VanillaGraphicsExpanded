@@ -22,10 +22,11 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         {
             foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
                 foreach (int shadow in new[] { 0, 1, 2 })
-                    foreach (int oit in family == "chunktransparent" ? new[] { 1 } : family == "entityanimated" ? new[] { 0, 1 } : new[] { 0 })
+                    foreach (int oit in family == "chunktransparent" ? new[] { 1 } : new[] { 0, 1 })
                         yield return [family, shadow, oit, 0, 0, 1, lumon];
             foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
                 yield return [family, 2, family == "chunktransparent" ? 1 : 0, 1, family == "chunktransparent" ? 1 : 0, 0, lumon];
+            yield return ["standard", 4, 1, 2, 0, 1, lumon];
         }
     }
 
@@ -50,12 +51,14 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            Assert.Equal(oit > 0 ? -1 : 4, GL.GetFragDataLocation(program, "vge_outNormal"));
-            Assert.Equal(oit > 0 ? -1 : 5, GL.GetFragDataLocation(program, "vge_outMaterial"));
-            Assert.Equal(oit > 0 ? -1 : 7, GL.GetFragDataLocation(program, "vge_outEnvironment"));
-            if (depth > 0 && oit == 0)
+            bool oitOutput = family == "chunktransparent" || (family == "entityanimated" && oit > 0);
+            Assert.Equal(oitOutput ? -1 : 4, GL.GetFragDataLocation(program, "vge_outNormal"));
+            Assert.Equal(oitOutput ? -1 : 5, GL.GetFragDataLocation(program, "vge_outMaterial"));
+            Assert.Equal(oitOutput ? -1 : 6, GL.GetFragDataLocation(program, "vge_outPatchId"));
+            Assert.Equal(oitOutput ? -1 : 7, GL.GetFragDataLocation(program, "vge_outEnvironment"));
+            if (depth > 0 && !oitOutput)
                 Assert.Equal(3, GL.GetFragDataLocation(program, "outGPosition"));
-            if (oit > 0)
+            if (oitOutput)
             {
                 Assert.Equal(4, GL.GetFragDataLocation(program, "OITaccumulation1"));
                 Assert.Equal(5, GL.GetFragDataLocation(program, "OITaccumulation2"));
