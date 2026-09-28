@@ -9,6 +9,7 @@
   "config-tessellation-fade-start-tooltip": "Distance in metres where terrain displacement starts fading.",
   "config-tessellation-fade-end": "Displacement fade end",
   "config-tessellation-fade-end-tooltip": "Distance in metres where terrain displacement finishes fading. Kept at least one metre beyond fade start.",
+  "config-section-atmosphere": "Atmosphere Settings",
   "config-atmosphere-lut-quality": "Atmospheric LUT quality",
   "config-atmosphere-lut-resolution-tooltip": "Both lookup dimensions and multiple-scattering angular, ray and sunlight sample counts scale linearly with quality: 1x, 2x, 3x, 4x. Higher levels increase background build time. The previous sky remains visible until the full replacement is ready.",
   "config-terrain-surface-detail": "Terrain surface detail",

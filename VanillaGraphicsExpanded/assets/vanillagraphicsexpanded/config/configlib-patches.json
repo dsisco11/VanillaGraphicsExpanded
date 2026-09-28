@@ -174,7 +174,7 @@
         "comment": "vanillagraphicsexpanded:config-atmosphere-lut-resolution-tooltip",
         "default": 0,
         "weight": 22.0,
-        "mapping": { "Low (32 x 24)": 0, "Medium (64 x 48)": 1, "High (128 x 96)": 2, "Ultra (256 x 192)": 3 }
+        "mapping": { "Low": 0, "Medium": 1, "High": 2, "Ultra": 3 }
       },
       "TERRAIN_SURFACE_DETAIL_MODE": {
         "code": "MaterialAtlas.TerrainSurfaceDetailMode",
@@ -603,6 +603,7 @@
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-integration", "weight": 8.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-probe-atlas-advanced", "weight": 9.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-texture-streaming", "weight": 18.9 },
-    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-material-atlas", "weight": 19.95 }
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-material-atlas", "weight": 19.95 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-atmosphere", "weight": 21.9 }
   ]
 }
