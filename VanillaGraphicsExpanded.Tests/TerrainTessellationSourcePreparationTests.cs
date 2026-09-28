@@ -124,9 +124,9 @@ public sealed class TerrainTessellationSourcePreparationTests
     #region Engine macro lifecycle
     /// <summary>Reconfiguration replaces only VGE's own enable macro and preserves other shader owners' prefixes.</summary>
     [Theory]
-    [InlineData(TerrainSurfaceDetailMode.Disabled)]
-    [InlineData(TerrainSurfaceDetailMode.Relief)]
-    public void ConfigureDoesNotAccumulateDefinesOrEraseEnginePrefix(TerrainSurfaceDetailMode ordinaryMode)
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ConfigureDoesNotAccumulateDefinesOrEraseEnginePrefix(int ordinaryMode)
     {
         var owner = new ShaderProgram
         {
@@ -147,7 +147,7 @@ public sealed class TerrainTessellationSourcePreparationTests
         bool previousHook=TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook=TerrainTessellationPrograms.MeshDrawHookAvailable;
         try
         {
-            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode=TerrainSurfaceDetailMode.Tessellation;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode=2;
             TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPrograms.DrawHookAvailable=true; TerrainTessellationPrograms.MeshDrawHookAvailable=true;
             TerrainTessellationPatches.Configure(owner);

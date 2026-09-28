@@ -8,7 +8,7 @@ internal readonly record struct TerrainReliefConfiguration(TerrainSurfaceDetailM
 {
     /// <summary>Captures the sanitized settings without including the obsolete UV-space scale.</summary>
     internal static TerrainReliefConfiguration Capture(VgeConfig.MaterialAtlasConfig config) => new(
-        config.TerrainSurfaceDetailMode, config.ParallaxMinSteps, config.ParallaxMaxSteps,
+        (TerrainSurfaceDetailMode)config.TerrainSurfaceDetailMode, config.ParallaxMinSteps, config.ParallaxMaxSteps,
         config.ParallaxRefinementSteps, config.ParallaxFadeStart, config.ParallaxFadeEnd,
         config.ParallaxMaxTexels, config.ParallaxDebugMode);
 }

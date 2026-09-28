@@ -1,6 +1,6 @@
 {
   "config-tessellation-maximum-level": "Maximum tessellation level",
-  "config-tessellation-maximum-level-tooltip": "Upper bound on adaptive terrain subdivision. Higher levels increase geometry cost.",
+  "config-tessellation-maximum-level-tooltip": "Integer 1-8 (default 5). Upper bound on adaptive terrain subdivision. Higher levels increase geometry cost.",
   "config-tessellation-target-edge-pixels": "Tessellation target edge size",
   "config-tessellation-target-edge-pixels-tooltip": "Target edge length in screen pixels. Smaller values produce finer subdivision at greater GPU cost.",
   "config-tessellation-fade-start": "Displacement fade start",
@@ -9,9 +9,9 @@
   "config-tessellation-fade-end-tooltip": "Distance in metres where terrain displacement finishes fading. Kept at least one metre beyond fade start.",
   "config-section-atmosphere": "Atmosphere Settings",
   "config-atmosphere-lut-quality": "Atmospheric LUT quality",
-  "config-atmosphere-lut-resolution-tooltip": "Both lookup dimensions and multiple-scattering angular, ray and sunlight sample counts scale linearly with quality: 1x, 2x, 3x, 4x. Higher levels increase background build time. The previous sky remains visible until the full replacement is ready.",
+  "config-atmosphere-lut-resolution-tooltip": "0 = Low, 1 = Medium, 2 = High, 3 = Ultra. Both lookup dimensions and multiple-scattering angular, ray and sunlight sample counts scale linearly with quality: 1x, 2x, 3x, 4x. Higher levels increase background build time. The previous sky remains visible until the full replacement is ready.",
   "config-terrain-surface-detail": "Terrain surface detail",
-  "config-terrain-surface-detail-tooltip": "Relief offsets texture sampling. Tessellation displaces eligible opaque/topsoil terrain and shadows using authored material amplitude. Moving mini-dimensions remain unchanged. Missing resources leave surfaces unchanged.",
+  "config-terrain-surface-detail-tooltip": "0 = Disabled, 1 = Relief, 2 = Tessellation. Relief offsets texture sampling. Tessellation displaces eligible opaque/topsoil terrain and shadows using authored material amplitude. Moving mini-dimensions remain unchanged. Missing resources leave surfaces unchanged.",
   "hello": "hello world!",
 
   "config-section-master": "Master Settings",

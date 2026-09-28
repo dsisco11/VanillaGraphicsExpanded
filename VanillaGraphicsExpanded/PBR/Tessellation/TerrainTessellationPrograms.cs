@@ -21,7 +21,7 @@ internal static class TerrainTessellationPrograms
         [new(null!), new(null!), new(null!)];
 
     /// <summary>True only for the explicitly selected geometric detail mode.</summary>
-    internal static bool Requested => ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode == TerrainSurfaceDetailMode.Tessellation;
+    internal static bool Requested => ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode == (int)TerrainSurfaceDetailMode.Tessellation;
 
     /// <summary>Requires all three live executables before any draw may displace.</summary>
     internal static bool Complete

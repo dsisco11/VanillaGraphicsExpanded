@@ -50,16 +50,16 @@ public sealed class ConfigPersistenceTests
         var api = new Mock<ICoreAPI>();
         api.SetupGet(x => x.Logger).Returns(Mock.Of<ILogger>());
         var document = JObject.FromObject(new VgeConfig());
-        document["Atmosphere"]!["SkyLutQuality"] = "High";
+        document["Atmosphere"]!["SkyLutQuality"] = 2;
         document["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"] = 4;
         api.Setup(x => x.LoadModConfig<JObject>(It.IsAny<string>())).Returns(() => (JObject)document.DeepClone());
         ConfigModSystem.EnsureConfigLoaded(api.Object);
-        Assert.Equal(AtmosphereQuality.High, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
-        Assert.Equal(TerrainSubdivisionLevel.Level4, ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision.MaximumLevel);
-        document["Atmosphere"]!["SkyLutQuality"] = "Ultra";
+        Assert.Equal(2, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
+        Assert.Equal(4, ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision.MaximumLevel);
+        document["Atmosphere"]!["SkyLutQuality"] = 3;
         system.Dispose();
         ConfigModSystem.EnsureConfigLoaded(api.Object);
-        Assert.Equal(AtmosphereQuality.Ultra, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
+        Assert.Equal(3, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
         api.Verify(x => x.LoadModConfig<JObject>(It.IsAny<string>()), Times.Exactly(2));
     }
     #endregion
@@ -106,85 +106,84 @@ public sealed class ConfigPersistenceTests
     }
     #endregion
 
-    #region Quality serialization
-    /// <summary>Whole-document writers preserve the mapping names that ConfigLib expects after reopening a world.</summary>
+    #region Integer configuration
+    /// <summary>Whole-document writes retain the numeric controls used by ConfigLib during initial load and saves.</summary>
     [Fact]
-    public void WholeConfigurationWritesAllMappedEnumNames()
+    public void WholeConfigurationWritesIntegerControls()
     {
         var config = new VgeConfig();
-        config.Atmosphere.SkyLutQuality = AtmosphereQuality.Ultra;
-        config.MaterialAtlas.TerrainSubdivision.MaximumLevel = TerrainSubdivisionLevel.Level8;
-        config.MaterialAtlas.TerrainSurfaceDetailMode = VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Tessellation;
+        config.Atmosphere.SkyLutQuality = 3;
+        config.MaterialAtlas.TerrainSubdivision.MaximumLevel = 8;
+        config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
         var saved = JObject.FromObject(config);
-        Assert.Equal("Ultra", saved["Atmosphere"]!["SkyLutQuality"]!.Value<string>());
-        Assert.Equal("Level8", saved["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"]!.Value<string>());
-        Assert.Equal("Tessellation", saved["MaterialAtlas"]!["TerrainSurfaceDetailMode"]!.Value<string>());
+        Assert.Equal(JTokenType.Integer, saved["Atmosphere"]!["SkyLutQuality"]!.Type);
+        Assert.Equal(JTokenType.Integer, saved["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"]!.Type);
+        Assert.Equal(JTokenType.Integer, saved["MaterialAtlas"]!["TerrainSurfaceDetailMode"]!.Type);
+        var restored = saved.ToObject<VgeConfig>()!;
+        restored.Sanitize();
+        Assert.Equal(3, restored.Atmosphere.SkyLutQuality);
+        Assert.Equal(8, restored.MaterialAtlas.TerrainSubdivision.MaximumLevel);
+        Assert.Equal(2, restored.MaterialAtlas.TerrainSurfaceDetailMode);
     }
 
-    /// <summary>Numeric inputs remain readable, but writes use the names required by ConfigLib mappings.</summary>
+    /// <summary>Every supported quality value retains its integer representation.</summary>
     [Theory]
-    [InlineData("\"Low\"", 0)]
-    [InlineData("\"Medium\"", 1)]
-    [InlineData("\"High\"", 2)]
-    [InlineData("\"Ultra\"", 3)]
-    [InlineData("0", 0)]
-    [InlineData("1", 1)]
-    [InlineData("2", 2)]
-    [InlineData("3", 3)]
-    public void QualityWritesNamedMappingRepresentation(string json, int expected)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void QualityRoundTripsAsInteger(int quality)
     {
-        var settings = JsonConvert.DeserializeObject<AtmosphereSettings>("{\"SkyLutQuality\":" + json + "}")!;
-        Assert.Equal((AtmosphereQuality)expected, settings.SkyLutQuality);
+        var settings = JsonConvert.DeserializeObject<AtmosphereSettings>("{\"SkyLutQuality\":" + quality + "}")!;
         var saved = JObject.FromObject(settings);
-        Assert.Equal(JTokenType.String, saved["SkyLutQuality"]!.Type);
-        Assert.Equal(((AtmosphereQuality)expected).ToString(), saved["SkyLutQuality"]!.Value<string>());
+        Assert.Equal(JTokenType.Integer, saved["SkyLutQuality"]!.Type);
+        Assert.Equal(quality, saved["SkyLutQuality"]!.Value<int>());
     }
 
-    /// <summary>Every supported tessellation name retains its ConfigLib mapping key on save.</summary>
+    /// <summary>All bounded subdivision selections survive numeric serialization.</summary>
     [Theory]
-    [InlineData(TerrainSubdivisionLevel.Level1)]
-    [InlineData(TerrainSubdivisionLevel.Level2)]
-    [InlineData(TerrainSubdivisionLevel.Level3)]
-    [InlineData(TerrainSubdivisionLevel.Level4)]
-    [InlineData(TerrainSubdivisionLevel.Level5)]
-    [InlineData(TerrainSubdivisionLevel.Level6)]
-    [InlineData(TerrainSubdivisionLevel.Level7)]
-    [InlineData(TerrainSubdivisionLevel.Level8)]
-    public void SubdivisionNameRoundTrips(TerrainSubdivisionLevel level)
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    public void SubdivisionNumberRoundTrips(int level)
     {
-        var settings = JsonConvert.DeserializeObject<TerrainSubdivisionSettings>("{\"MaximumLevel\":\"" + level + "\"}")!;
-        Assert.Equal(level, settings.MaximumLevel);
+        var settings = JsonConvert.DeserializeObject<TerrainSubdivisionSettings>("{\"MaximumLevel\":" + level + "}")!;
         var saved = JObject.FromObject(settings);
-        Assert.Equal(JTokenType.String, saved["MaximumLevel"]!.Type);
-        Assert.Equal(level.ToString(), saved["MaximumLevel"]!.Value<string>());
+        Assert.Equal(JTokenType.Integer, saved["MaximumLevel"]!.Type);
         Assert.Equal(level, saved.ToObject<TerrainSubdivisionSettings>()!.MaximumLevel);
     }
 
-    /// <summary>Out-of-range serialized enum values retain the existing bounded subdivision contract.</summary>
+    /// <summary>Out-of-range integer settings clamp before GPU resource publication.</summary>
     [Theory]
-    [InlineData(-1, TerrainSubdivisionLevel.Level1)]
-    [InlineData(0, TerrainSubdivisionLevel.Level1)]
-    [InlineData(99, TerrainSubdivisionLevel.Level8)]
-    public void SubdivisionEnumSanitizesToSupportedBounds(int value, TerrainSubdivisionLevel expected)
+    [InlineData(-1, 1)]
+    [InlineData(0, 1)]
+    [InlineData(99, 8)]
+    public void SubdivisionSanitizesToSupportedBounds(int value, int expected)
     {
-        var settings = new TerrainSubdivisionSettings { MaximumLevel = (TerrainSubdivisionLevel)value };
+        var settings = new TerrainSubdivisionSettings { MaximumLevel = value };
         settings.Sanitize();
         Assert.Equal(expected, settings.MaximumLevel);
     }
 
-    /// <summary>The shipped controls select precisely the typed supported values and named defaults.</summary>
+    /// <summary>ConfigLib uses bounded integer inputs without named mapping serialization.</summary>
     [Theory]
-    [InlineData("ATMOSPHERE_SKY_LUT_QUALITY", typeof(AtmosphereQuality), "Low")]
-    [InlineData("TESSELLATION_MAXIMUM_LEVEL", typeof(TerrainSubdivisionLevel), "Level5")]
-    public void QualityMappingsMatchEnums(string key, Type enumType, string defaultName)
+    [InlineData("ATMOSPHERE_SKY_LUT_QUALITY", 0, 3, 0)]
+    [InlineData("TESSELLATION_MAXIMUM_LEVEL", 1, 8, 5)]
+    [InlineData("TERRAIN_SURFACE_DETAIL_MODE", 0, 2, 1)]
+    public void ControlsDeclareNumericBounds(string key, int minimum, int maximum, int defaultValue)
     {
         var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
         var setting = definition["settings"]!["integer"]![key]!;
-        Assert.Equal(defaultName, setting["default"]!.Value<string>());
-        var mapping = (JObject)setting["mapping"]!;
-        Assert.Equal(Enum.GetNames(enumType), mapping.Properties().Select(p => p.Name));
-        foreach (var property in mapping.Properties())
-            Assert.Equal(Convert.ToInt32(Enum.Parse(enumType, property.Name)), property.Value.Value<int>());
+        Assert.Null(setting["mapping"]);
+        Assert.Equal(defaultValue, setting["default"]!.Value<int>());
+        Assert.Equal(minimum, setting["range"]!["min"]!.Value<int>());
+        Assert.Equal(maximum, setting["range"]!["max"]!.Value<int>());
+        Assert.Equal(1, setting["range"]!["step"]!.Value<int>());
     }
     #endregion
 

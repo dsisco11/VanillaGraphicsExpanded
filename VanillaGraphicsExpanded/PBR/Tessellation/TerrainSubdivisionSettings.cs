@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.PBR.Tessellation;
 public sealed class TerrainSubdivisionSettings
 {
     #region Defaults
-    private const TerrainSubdivisionLevel DefaultSubdivisionLevel = TerrainSubdivisionLevel.Level5;
+    private const int DefaultSubdivisionLevel = 5;
     private const float DefaultTargetEdgePixels = 8;
     private const float DefaultFadeStartMetres = 4;
     private const float DefaultFadeEndMetres = 16;
@@ -24,9 +24,9 @@ public sealed class TerrainSubdivisionSettings
     private const float MaxFadeEndMetres = 128;
     #endregion
 
-    /// <summary>Named ConfigLib selection, preserved when VGE saves the entire configuration.</summary>
-    [JsonProperty, JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
-    public TerrainSubdivisionLevel MaximumLevel { get; set; } = DefaultSubdivisionLevel;
+    /// <summary>Maximum subdivision level, bounded from one to eight.</summary>
+    [JsonProperty]
+    public int MaximumLevel { get; set; } = DefaultSubdivisionLevel;
     [JsonProperty] public float TargetEdgePixels { get; set; } = DefaultTargetEdgePixels;
     [JsonProperty] public float FadeStartMetres { get; set; } = DefaultFadeStartMetres;
     [JsonProperty] public float FadeEndMetres { get; set; } = DefaultFadeEndMetres;
@@ -34,7 +34,7 @@ public sealed class TerrainSubdivisionSettings
     /// <summary>Normalizes hostile/non-finite configuration before uniform publication.</summary>
     public void Sanitize()
     {
-        MaximumLevel = (TerrainSubdivisionLevel)Math.Clamp((int)MaximumLevel, MinSubdivisionLevel, MaxSubdivisionLevel);
+        MaximumLevel = Math.Clamp(MaximumLevel, MinSubdivisionLevel, MaxSubdivisionLevel);
         TargetEdgePixels = float.IsFinite(TargetEdgePixels) ? Math.Clamp(TargetEdgePixels, MinTargetEdgePixels, MaxTargetEdgePixels) : DefaultTargetEdgePixels;
         FadeStartMetres = float.IsFinite(FadeStartMetres) ? Math.Clamp(FadeStartMetres, MinFadeStartMetres, MaxFadeStartMetres) : DefaultFadeStartMetres;
         FadeEndMetres = float.IsFinite(FadeEndMetres) ? Math.Clamp(FadeEndMetres, FadeStartMetres + 1, MaxFadeEndMetres) : Math.Clamp(DefaultFadeEndMetres, FadeStartMetres + 1, MaxFadeEndMetres);

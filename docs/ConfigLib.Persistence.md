@@ -15,6 +15,23 @@ Existing values and unknown keys are preserved. Misplaced legacy values are not
 interpreted or migrated. ConfigLib remains the sole writer during GUI save events.
 VGE resets its loaded flag at world shutdown so the next world reads the file.
 
+The three controls now use plain integer settings with ConfigLib min/max ranges,
+not named dropdown mappings:
+
+- Atmospheric quality: 0-3, default 0.
+- Maximum terrain subdivision: 1-8, default 5.
+- Surface detail mode: 0 disabled, 1 relief, 2 tessellation; default 1.
+
+Both VGE and ConfigLib write numerical values. Existing hand-edited files must use
+these numbers rather than enum names; no legacy conversion is installed.
+
+The installed ConfigLib 1.10.12 JSON-file constructor, setting-loaded event
+publication, file save and reload were exercised with 8/3/2 for subdivision,
+atmospheric quality and surface detail. All preserved those values with the plain
+integer definitions. Evidence: `artifacts/ConfigPersistence/numeric-constructor-results.txt`.
+
+## Previous mapped-setting diagnosis
+
 ConfigLib named mappings save their names, such as `High`. Atmospheric quality
 uses the `AtmosphereQuality` enum (`Low` through `Ultra`). The tessellation maximum
 uses `TerrainSubdivisionLevel` (`Level1` through `Level8`), with matching ConfigLib

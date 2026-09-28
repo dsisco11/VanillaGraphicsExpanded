@@ -28,7 +28,7 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
         var mode=config.TerrainSurfaceDetailMode; bool normals=config.EnableNormalMaps;
         try
         {
-            config.TerrainSurfaceDetailMode=TerrainSurfaceDetailMode.Relief;config.EnableNormalMaps=false;
+            config.TerrainSurfaceDetailMode=1;config.EnableNormalMaps=false;
             using var shaders=new TerrainShaderTestFixture();
             int vs=shaders.Compile(ShaderType.VertexShader,PbrSurfaceInstalledShaderTests.Build(family+".vsh",2,0,1,ssbo,0));
             int fs=shaders.Compile(ShaderType.FragmentShader,PbrSurfaceInstalledShaderTests.Build(family+".fsh",2,0,1,ssbo,0));

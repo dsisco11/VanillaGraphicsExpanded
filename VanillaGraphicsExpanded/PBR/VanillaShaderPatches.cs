@@ -273,7 +273,7 @@ flat in uint vge_faceId;
     /// <summary>Publishes configured parallax options for material-aware engine shaders.</summary>
     internal static void InjectPomDefines(SyntaxTree tree)
     {
-        if (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode != Materials.TerrainSurfaceDetailMode.Relief) return;
+        if (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode != (int)Materials.TerrainSurfaceDetailMode.Relief) return;
 
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
         if (!tree.Select(versionQuery).Any()) return;

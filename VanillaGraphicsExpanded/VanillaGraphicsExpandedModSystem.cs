@@ -116,7 +116,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         if (capi is null) return;
 
-        bool enablePom = (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode == VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Relief);
+        bool enablePom = (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode == (int)VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Relief);
         bool lumOnEnabled = ConfigModSystem.Config.LumOn.Enabled;
         bool enableNormalMaps = ConfigModSystem.Config.MaterialAtlas.EnableNormalMaps;
         float normalMapScale = ConfigModSystem.Config.MaterialAtlas.NormalMapScale;

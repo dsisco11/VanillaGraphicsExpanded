@@ -20,9 +20,9 @@ public sealed class TerrainTessellationTests : RenderTestBase
     #region Coherent production publication
     /// <summary>Ordinary modes never replace a successfully linked terrain program with tessellation.</summary>
     [Theory]
-    [InlineData(TerrainSurfaceDetailMode.Disabled)]
-    [InlineData(TerrainSurfaceDetailMode.Relief)]
-    public void OrdinaryModesRetainEngineExecutable(TerrainSurfaceDetailMode mode)
+    [InlineData(0)]
+    [InlineData(1)]
+    public void OrdinaryModesRetainEngineExecutable(int mode)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
@@ -74,7 +74,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         using var shaders=new TerrainShaderTestFixture();
         try
         {
-            config.TerrainSurfaceDetailMode=VanillaGraphicsExpanded.PBR.Materials.TerrainSurfaceDetailMode.Tessellation;
+            config.TerrainSurfaceDetailMode=2;
             TerrainTessellationPrograms.DrawHookAvailable=true; TerrainTessellationPrograms.MeshDrawHookAvailable=true;TerrainTessellationPrograms.BeginReload();
             foreach(string family in new[]{"chunkopaque","chunktopsoil","chunkshadowmap"})
             {
@@ -179,7 +179,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         var previousLog = TerrainTessellationPrograms.Log;
         try
         {
-            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = TerrainSurfaceDetailMode.Tessellation;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
             TerrainTessellationPrograms.DrawHookAvailable = true; TerrainTessellationPrograms.MeshDrawHookAvailable = true;
             string diagnostic = "";
             TerrainTessellationPrograms.Log = message => diagnostic = message;

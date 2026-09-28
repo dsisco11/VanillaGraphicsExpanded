@@ -26,7 +26,7 @@ public sealed class AtmosphereResolutionTests
         string serialized = JsonConvert.SerializeObject(config);
         var restored = JsonConvert.DeserializeObject<VgeConfig>(serialized)!;
         restored.Sanitize();
-        Assert.Equal((AtmosphereQuality)quality, restored.Atmosphere.SkyLutQuality);
+        Assert.Equal(quality, restored.Atmosphere.SkyLutQuality);
         Assert.Equal(width, restored.Atmosphere.LookupWidth);
         Assert.Equal(height, restored.Atmosphere.LookupHeight);
         Assert.Contains("\"SkyLutQuality\":", serialized);

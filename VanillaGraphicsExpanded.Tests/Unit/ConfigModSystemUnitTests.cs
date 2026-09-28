@@ -141,19 +141,6 @@ public sealed class ConfigModSystemUnitTests
         Assert.False(cfg.Debug.LumOnRuntimeSelfCheckEnabled);
     }
     #region ConfigLib definition paths
-    /// <summary>A named default selects ConfigLib's finite integer mapping instead of its unrestricted numeric editor.</summary>
-    [Fact]
-    public void SurfaceDetailDefinitionSelectsFiniteNamedMapping()
-    {
-        var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
-        var setting = definition["settings"]!["integer"]!["TERRAIN_SURFACE_DETAIL_MODE"]!;
-        Assert.Equal(JTokenType.String, setting["default"]!.Type);
-        Assert.Equal("Relief", (string?)setting["default"]);
-        var mapping = (JObject)setting["mapping"]!;
-        Assert.Equal(new[] { "Disabled", "Relief", "Tessellation" }, mapping.Properties().Select(p => p.Name));
-        Assert.Equal(new[] { 0, 1, 2 }, mapping.Properties().Select(p => (int)p.Value));
-    }
-
     /// <summary>Every shipped setting uses a resolvable slash path while preserving the dotted VGE property code.</summary>
     [Fact]
     public void DefinitionNamesResolveAllSerializedConfigProperties()

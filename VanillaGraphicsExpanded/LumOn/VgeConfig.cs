@@ -230,13 +230,12 @@ public class VgeConfig
 
         /// <summary>Requested height treatment; relief enables POM by default.</summary>
         [JsonProperty]
-        [JsonConverter(typeof(StringEnumConverter))]
-        public PBR.Materials.TerrainSurfaceDetailMode TerrainSurfaceDetailMode { get; set; }
-            = PBR.Materials.TerrainSurfaceDetailMode.Relief;
+        public int TerrainSurfaceDetailMode { get; set; }
+            = (int)PBR.Materials.TerrainSurfaceDetailMode.Relief;
 
         /// <summary>Height data is independent of whether its normal channels are used for shading.</summary>
         [JsonIgnore] public bool RequiresNormalDepthAtlas => EnableNormalMaps
-            || TerrainSurfaceDetailMode != PBR.Materials.TerrainSurfaceDetailMode.Disabled;
+            || TerrainSurfaceDetailMode != (int)PBR.Materials.TerrainSurfaceDetailMode.Disabled;
 
         /// <summary>Adaptive displacement limits; publication remains gated by complete rendering-consumer integration.</summary>
         [JsonProperty]
@@ -342,8 +341,7 @@ public class VgeConfig
 
         internal void Sanitize()
         {
-            if (!Enum.IsDefined(TerrainSurfaceDetailMode))
-                TerrainSurfaceDetailMode = PBR.Materials.TerrainSurfaceDetailMode.Disabled;
+            TerrainSurfaceDetailMode = Math.Clamp(TerrainSurfaceDetailMode, 0, 2);
             // Keep existing behavior for NaNs: clamp/guards are conservative.
             AsyncBudgetMs = Math.Clamp(AsyncBudgetMs, 0.0f, 100.0f);
             AsyncMaxUploadsPerFrame = Math.Clamp(AsyncMaxUploadsPerFrame, 0, 512);

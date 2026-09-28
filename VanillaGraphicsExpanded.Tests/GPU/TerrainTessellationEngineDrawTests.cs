@@ -53,7 +53,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             GlStateCache.Current.UseProgram(owner.ProgramId);
             GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, 3 * sizeof(uint));
             float[] expected = target[0].ReadPixels();
-            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = TerrainSurfaceDetailMode.Tessellation;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
             TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPatches.Configure(owner);
             TerrainTessellationPrograms.Prepare(owner);
@@ -118,7 +118,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         var previousLog = TerrainTessellationPrograms.Log;
         try
         {
-            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = TerrainSurfaceDetailMode.Tessellation;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
             TerrainTessellationPrograms.DrawHookAvailable = true; TerrainTessellationPrograms.MeshDrawHookAvailable = true;
             string diagnostic = ""; TerrainTessellationPrograms.Log = message => diagnostic += message;
             TerrainTessellationTestAssets.Prepare(owner);
