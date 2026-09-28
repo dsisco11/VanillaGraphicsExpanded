@@ -1,5 +1,6 @@
 Issues:
   Current:
+    ☐ Fix atmospheric shader producing color banding
     ☐ Refactor near-tracing geometry system to support "directional" voxel types (e.g. partial blocks like stairs & slabs), as well as voxel types which are basically pass-through like campfires.
     ☐ Implement support for dynamic updates to the near-tracing geometry, allowing changes in the scene to be reflected in the GPU representation without full re-upload.
 
@@ -160,3 +161,18 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
 
    ☐ Phase 18 - World-Space Clipmap Probe System - Implementation (New):
     Work items moved to: docs/LumOn.18-World-Space-Clipmap-Probes.todo
+
+☐ Improve incremental SPIR-V shader builds:
+  ☐ Separate Debug and Release shader artifact/cache directories:
+    - Keep compilation, receipts, digest indexes, output copying and packaging aligned with the selected configuration.
+    - Preserve explicit output-directory overrides and concurrent-writer protection.
+    - Verify Debug -> Release -> Debug reuses the previous Debug outputs without recompilation when inputs are unchanged.
+  ☐ Add per-variant shader compilation caching:
+    - Key reusable results by effective shader source/includes, defines, stage, entry point, binding/layout contract,
+      compiler/tool identity, target environment, optimization and debug-information settings.
+    - Recompile only affected variants; retain valid unaffected binaries instead of cleaning the entire catalog on a receipt miss.
+    - Remove obsolete outputs and publish the complete digest index and success receipt only after all required variants succeed.
+    - Reject missing/corrupt cached outputs and never publish failed or partial compiler results as valid cache entries.
+    - Report cache hits, misses, compiler invocation counts and elapsed time.
+    - Validate unchanged builds, isolated shader/include/contract edits, configuration switches, removed variants,
+      missing/corrupt outputs and failed compilation through subagent-run focused tests.
