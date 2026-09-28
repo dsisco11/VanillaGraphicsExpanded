@@ -54,11 +54,14 @@ internal static class Program
             };
             using var outputLease = ShaderOutputLease.Acquire(outputRoot);
             LumonOctahedralShWeights.Generate(domainShadersRoot);
+            var fileHashes = new ShaderFileHashIndex(outputRoot, options.VerifyContents || options.Clean);
             string compilerIdentity = ShaderBuildReceipt.CompilerFingerprint(
-                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors);
-            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, compilerIdentity) + "|" + options.RegistryScope;
+                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes);
+            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, compilerIdentity, fileHashes) + "|" + options.RegistryScope;
+            Console.WriteLine($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}");
             if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
             {
+                fileHashes.Save();
                 Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current. Cache hits={registry.Binaries.Count}; misses=0; compilerInvocations=0; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
                 return 0;
             }
@@ -82,6 +85,7 @@ internal static class Program
                     compilerIdentity).GetAwaiter().GetResult();
             }
             finally { Console.CancelKeyPress -= cancel; }
+            fileHashes.Save();
             ShaderBuildReceipt.Publish(outputRoot, fingerprint);
             return 0;
         }
@@ -131,6 +135,7 @@ internal static class Program
         public bool WarningsAsErrors { get; private init; }
         public bool Clean { get; private init; }
         public bool Incremental { get; private init; }
+        public bool VerifyContents { get; private init; }
         public string? WorkingDirectory { get; private init; }
         public string RegistryScope { get; private init; } = "production";
 
@@ -158,6 +163,8 @@ internal static class Program
 
                 if (a.Equals("--incremental", StringComparison.OrdinalIgnoreCase))
                 { flags.Add("incremental"); continue; }
+                if (a.Equals("--verifyContents", StringComparison.OrdinalIgnoreCase))
+                { flags.Add("verifyContents"); continue; }
 
                 if (a.Equals("--clean", StringComparison.OrdinalIgnoreCase))
                 {
@@ -208,6 +215,7 @@ internal static class Program
                 WarningsAsErrors = flags.Contains("warningsAsErrors"),
                 Clean = flags.Contains("clean"),
                 Incremental = flags.Contains("incremental"),
+                VerifyContents = flags.Contains("verifyContents"),
                 RegistryScope = dict.TryGetValue("registry", out var scope) ? scope ?? "production" : "production",
                 WorkingDirectory = dict.TryGetValue("workingDir", out var wd) ? wd : null
             };
@@ -231,6 +239,7 @@ internal static class Program
             Console.WriteLine("  --warningsAsErrors    Pass -Werror to compiler");
             Console.WriteLine("  --incremental         Reuse verified per-variant compiler results; skip the catalog when its receipt is current");
             Console.WriteLine("  --clean               Delete outputRoot before building");
+            Console.WriteLine("  --verifyContents      Rehash every input instead of trusting unchanged file metadata");
             Console.WriteLine("  --workingDir <path>   Working directory (should contain .config/dotnet-tools.json)");
         }
         #endregion

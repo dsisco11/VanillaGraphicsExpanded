@@ -36,6 +36,22 @@ public sealed class ShaderIncrementalBuildTests
     #endregion
 
     #region Incremental publication
+    /// <summary>Explicit content verification recompiles an edited include whose metadata was preserved.</summary>
+    [Fact]
+    public void StrictVerificationDetectsPreservedMetadataEdit()
+    {
+        using var fixture = new ShaderBuildFixture();
+        Assert.Equal(0, fixture.Build(2));
+        string include = Path.Combine(fixture.Shaders, "fixture.inc");
+        string binary = Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders", "fixture.fsh.spv");
+        byte[] original = File.ReadAllBytes(binary);
+        DateTime timestamp = File.GetLastWriteTimeUtc(include);
+        File.WriteAllText(include, File.ReadAllText(include).Replace("0.5", "0.7"));
+        File.SetLastWriteTimeUtc(include, timestamp);
+        Assert.Equal(0, fixture.Build(2, clean: false, incremental: true, verifyContents: true));
+        Assert.False(original.SequenceEqual(File.ReadAllBytes(binary)));
+    }
+
     /// <summary>A missing runtime binary is restored from its intact cache without rewriting cache entries or other outputs.</summary>
     [Fact]
     public void MissingPublishedBinaryIsRestoredFromCache()
@@ -44,7 +60,8 @@ public sealed class ShaderIncrementalBuildTests
         Assert.Equal(0, fixture.Build(2));
         string binary = Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders", "fixture.fsh.spv");
         byte[] expected = File.ReadAllBytes(binary);
-        string[] cached = Directory.GetFiles(Path.Combine(fixture.Output, "_cache"), "*", SearchOption.AllDirectories);
+        string[] cached = Directory.GetFiles(Path.Combine(fixture.Output, "_cache"), "*", SearchOption.AllDirectories)
+            .Where(path => Path.GetFileName(path) != "file-hashes.json").ToArray();
         Assert.NotEmpty(cached);
         foreach (string entry in cached) File.SetLastWriteTimeUtc(entry, DateTime.UnixEpoch);
         File.Delete(binary);

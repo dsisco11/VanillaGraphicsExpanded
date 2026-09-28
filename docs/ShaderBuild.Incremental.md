@@ -16,11 +16,26 @@ path collisions with a case-insensitive comparison. Full SHA-256 digests remain
 in use for cache keys and binary integrity verification. Old variant filenames
 are pruned by the normal successful catalog build and asset-copy cleanup.
 
-An unchanged catalog uses the existing content-verified success receipt and runs
+An unchanged catalog uses the success receipt with content-verified outputs and runs
 no shader compiler processes. Receipt enumeration skips private cache/work trees
 before descending into them, so historical cache entries do not add directory
-traversal work. Compiler/tool files are streamed into a shared fingerprint once
-per invocation, reused for the catalog receipt and variant keys. A receipt miss expands source imports and emits
+traversal work. Source, include and compiler/tool hashes share a single
+`_cache/file-hashes.json` index per output directory. Normal builds reuse hashes
+when file size, UTC last-write time and creation time match; changed files are
+streamed through SHA-256. Paths are still enumerated to detect additions and
+deletions, and saving the index prunes entries no longer used. Index publication
+is atomic under the existing output lease. Missing or malformed index data falls
+back to hashing file contents.
+
+`--verifyContents` (MSBuild `-p:SpirvVerifyContents=true`) bypasses metadata reuse;
+`--clean` also rehashes inputs. This detects edits that preserve size and timestamps,
+which ordinary metadata-assisted builds can miss. Published output and compiler
+result integrity checks still hash their actual bytes. Logs report input hashes
+reused versus files read. The generated SH include is regenerated each invocation,
+so its changed timestamp normally requires rehashing that one input.
+
+The shared compiler fingerprint is computed once per invocation and reused for
+the catalog receipt and variant keys. A receipt miss expands source imports and emits
 each variant through the existing TinyAst and layout pipeline. Its cache key
 includes the final emitted source (including defines, specialization declarations
 and binding layouts), stage, entry point, tool/compiler contents, target,

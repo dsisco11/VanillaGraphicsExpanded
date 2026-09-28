@@ -32,12 +32,13 @@ internal sealed class ShaderBuildFixture : IDisposable
 
     #region Build observations
     /// <summary>Invokes the normal entry point with an explicit concurrency limit and optional rebuild policy.</summary>
-    public int Build(int concurrency, bool clean = true, bool incremental = false, string registry = "build-validation")
+    public int Build(int concurrency, bool clean = true, bool incremental = false, string registry = "build-validation", bool verifyContents = false)
     {
         var args = new List<string> { "--assetsRoot", Assets, "--outputRoot", Output, "--workingDir", Repository,
             "--registry", registry, "--concurrency", concurrency.ToString(System.Globalization.CultureInfo.InvariantCulture) };
         if (clean) args.Add("--clean");
         if (incremental) args.Add("--incremental");
+        if (verifyContents) args.Add("--verifyContents");
         return Program.Main(args.ToArray());
     }
 

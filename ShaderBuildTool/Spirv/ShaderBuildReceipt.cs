@@ -12,7 +12,7 @@ internal static class ShaderBuildReceipt
 
     #region Input and output validation
     /// <summary>Hashes source paths and contents against the invocation's compiler identity, including removed inputs.</summary>
-    public static string Fingerprint(string assetsRoot, string domain, string compilerIdentity)
+    public static string Fingerprint(string assetsRoot, string domain, string compilerIdentity, ShaderFileHashIndex? index = null)
     {
         var inputs = Directory.EnumerateFiles(Path.Combine(assetsRoot, domain), "*", SearchOption.AllDirectories)
             .Where(p => p.Contains(Path.DirectorySeparatorChar + "shaders" + Path.DirectorySeparatorChar)
@@ -23,14 +23,18 @@ internal static class ShaderBuildReceipt
         foreach (string path in inputs)
         {
             hash.AppendData(Encoding.UTF8.GetBytes(path));
-            using var stream = File.OpenRead(path);
-            hash.AppendData(SHA256.HashData(stream));
+            if (index is not null) hash.AppendData(index.GetHash(path));
+            else
+            {
+                using var stream = File.OpenRead(path);
+                hash.AppendData(SHA256.HashData(stream));
+            }
         }
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 
     /// <summary>Computes compiler and build-tool identity once for receipt checking and every variant in an invocation.</summary>
-    public static string CompilerFingerprint(string workingDirectory, string target, bool warnings)
+    public static string CompilerFingerprint(string workingDirectory, string target, bool warnings, ShaderFileHashIndex? index = null)
     {
         string toolManifest = Path.Combine(workingDirectory, ".config", "dotnet-tools.json");
         using var configuration = JsonDocument.Parse(File.ReadAllText(toolManifest));
@@ -49,8 +53,12 @@ internal static class ShaderBuildReceipt
         foreach (string path in inputs)
         {
             hash.AppendData(Encoding.UTF8.GetBytes(Path.GetFullPath(path)));
-            using var stream = File.OpenRead(path);
-            hash.AppendData(SHA256.HashData(stream));
+            if (index is not null) hash.AppendData(index.GetHash(path));
+            else
+            {
+                using var stream = File.OpenRead(path);
+                hash.AppendData(SHA256.HashData(stream));
+            }
         }
         return Convert.ToHexString(hash.GetHashAndReset());
     }

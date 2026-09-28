@@ -29,6 +29,7 @@ public sealed class LumonOctahedralShGenerationTests
         string include = Path.Combine(fixture.Shaders, "includes", "lumon_octahedral_sh9_weights.glsl");
         string original = File.ReadAllText(include);
         var outputs = Directory.EnumerateFiles(fixture.Output, "*", SearchOption.AllDirectories)
+            .Where(path => Path.GetFileName(path) != "file-hashes.json")
             .ToDictionary(path => path, File.GetLastWriteTimeUtc);
         if (remove) File.Delete(include);
         else File.WriteAllText(include, "corrupt generated input");

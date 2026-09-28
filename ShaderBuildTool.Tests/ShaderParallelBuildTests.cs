@@ -15,6 +15,7 @@ public sealed class ShaderParallelBuildTests
         Assert.Equal(0, fixture.Build(4));
         Assert.Equal(serial.ToArray(), fixture.ContentSnapshot().ToArray());
         var times = Directory.EnumerateFiles(fixture.Output, "*", SearchOption.AllDirectories)
+            .Where(path => Path.GetFileName(path) != "file-hashes.json")
             .ToDictionary(path => path, File.GetLastWriteTimeUtc);
         Assert.Equal(0, fixture.Build(1, clean: false, incremental: true));
         Assert.All(times, pair => Assert.Equal(pair.Value, File.GetLastWriteTimeUtc(pair.Key)));
