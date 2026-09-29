@@ -99,7 +99,7 @@ flat in uint vge_faceId;
     private const string ParallaxUvProlog_Chunk = @"
 
     // VGE: Parallax mapping (UV indirection)
-    vec3 vge_terrainNormal = VgeTerrainNormal(normal, worldPos.xyz);
+    vec3 vge_terrainNormal = VgeTerrainNormal(normal, worldPos.xyz, texture(vge_materialParamsTex, uv).a);
 #define normal vge_terrainNormal
     vec2 vge_uv = uv;
     mat3 vge_tbn;
@@ -122,6 +122,9 @@ flat in uint vge_faceId;
 
     private const string ParallaxUvProlog_Topsoil = @"
 
+    // VGE: Transmitting topsoil materials also use the visible geometric normal.
+    vec3 vge_terrainNormal = VgeTerrainNormal(normal, worldPos.xyz, texture(vge_materialParamsTex, uv).a);
+#define normal vge_terrainNormal
     // VGE: Parallax mapping (UV indirection)
     vec2 vge_uv = uv;
     vec2 vge_uv2 = uv2;
@@ -144,6 +147,7 @@ flat in uint vge_faceId;
 
     private const string ParallaxUvEpilog_Topsoil = @"
 
+#undef normal
 #undef uv
 #undef uv2
 ";

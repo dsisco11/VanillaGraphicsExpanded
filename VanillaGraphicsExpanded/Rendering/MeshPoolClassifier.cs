@@ -17,6 +17,7 @@ internal sealed class MeshPoolClassifier
     private MeshPoolClassifier(MeshDataPoolManager[][] pools)
     {
         Add(pools, EnumChunkRenderPass.OpaqueNoCull, twoSided);
+        Add(pools, EnumChunkRenderPass.BlendNoCull, twoSided);
         Add(pools, EnumChunkRenderPass.Opaque, displacement);
         Add(pools, EnumChunkRenderPass.TopSoil, displacement);
     }

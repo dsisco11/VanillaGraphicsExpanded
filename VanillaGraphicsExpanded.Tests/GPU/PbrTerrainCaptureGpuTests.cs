@@ -67,20 +67,24 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     #region Two-sided foliage normals
     /// <summary>Real derivatives correct fake UP normals while preserving opaque and authored smooth normals.</summary>
     [Theory]
-    [InlineData(false, false, false, 0f, 1f, 0f)]
-    [InlineData(true, false, false, 0f, 0f, 1f)]
-    [InlineData(true, false, true, 0f, 0f, -1f)]
-    [InlineData(true, true, false, 0f, 0.7071068f, 0.7071068f)]
-    [InlineData(true, true, true, 0f, -0.7071068f, -0.7071068f)]
-    public void FoliageNormalUsesGeometryOnlyForLegacyUp(bool twoSided, bool smooth, bool back, float x, float y, float z)
+    [InlineData(false, false, false, 0f, 0f, 1f, 0f)]
+    [InlineData(true, false, false, 0f, 0f, 0f, 1f)]
+    [InlineData(true, false, true, 0f, 0f, 0f, -1f)]
+    [InlineData(true, true, false, 0f, 0f, 0.7071068f, 0.7071068f)]
+    [InlineData(true, true, true, 0f, 0f, -0.7071068f, -0.7071068f)]
+    [InlineData(false, true, false, .35f, 0f, 0f, 1f)]
+    [InlineData(true, true, true, .35f, 0f, 0f, -1f)]
+    [InlineData(false, false, true, .01f, 0f, 0f, -1f)]
+    public void SurfaceNormalUsesGeometryForTransmissionOrLegacyUp(bool twoSided, bool smooth, bool back, float transmission, float x, float y, float z)
     {
         EnsureContextValid();
         string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "vge_terrain_normal.glsl"));
         string authored = smooth ? "normalize(vec3(0,1,1))" : "vec3(0,1,0)";
         int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\n" + helper + $$"""
+            uniform float transmission;
             in vec3 world;
             layout(location=0) out vec4 result;
-            void main() { result = vec4(VgeTerrainNormal({{authored}}, world), 1); }
+            void main() { result = vec4(VgeTerrainNormal({{authored}}, world, transmission), 1); }
             """);
         string side = back ? "-position.x" : "position.x";
         int vertex = Compile(ShaderType.VertexShader, $$"""
@@ -97,6 +101,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_twoSidedTerrain"), twoSided ? 1 : 0);
+            GL.Uniform1(GL.GetUniformLocation(program, "transmission"), transmission);
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
             framework.RenderQuadTo(program, output);

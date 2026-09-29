@@ -10,16 +10,19 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class MeshPoolClassifierTests
 {
     #region Pool selection
-    /// <summary>Only the no-cull manager is selected; unrelated and out-of-scope draws reset the policy.</summary>
-    [Fact]
-    public void SelectsOnlyOpaqueNoCullPool()
+    /// <summary>Both no-cull passes are two-sided without becoming displacement eligible.</summary>
+    [Theory]
+    [InlineData(EnumChunkRenderPass.OpaqueNoCull)]
+    [InlineData(EnumChunkRenderPass.BlendNoCull)]
+    public void SelectsNoCullPools(EnumChunkRenderPass pass)
     {
         var opaque = (MeshDataPoolManager)RuntimeHelpers.GetUninitializedObject(typeof(MeshDataPoolManager));
         var foliage = (MeshDataPoolManager)RuntimeHelpers.GetUninitializedObject(typeof(MeshDataPoolManager));
         MeshDataPoolManager[][] pools = new MeshDataPoolManager[8][];
         pools[(int)EnumChunkRenderPass.Opaque] = [opaque];
-        pools[(int)EnumChunkRenderPass.OpaqueNoCull] = [foliage];
+        pools[(int)pass] = [foliage];
         Assert.True(MeshPoolClassifier.For(pools).IsTwoSided(foliage));
+        Assert.False(MeshPoolClassifier.For(pools).IsDisplacementEligible(foliage));
         Assert.False(MeshPoolClassifier.For(pools).IsTwoSided(opaque));
         Assert.False(MeshPoolClassifier.For([]).IsTwoSided(foliage));
     }

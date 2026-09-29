@@ -14,7 +14,7 @@ plant normals incorrectly make vertical faces receive overhead sunlight.
 
 ## Correction
 
-`MeshPoolClassifier` builds shared reference-identity hash sets for `OpaqueNoCull` and
+`MeshPoolClassifier` builds shared reference-identity hash sets for `OpaqueNoCull`/`BlendNoCull` and
 opaque/topsoil displacement managers. Postfixes on `ChunkRenderer` construction and
 `RuntimeAddBlockTextureAtlas` refresh membership after the engine populates or extends its
 table, including additions within the same outer array. Installed-engine inspection confirmed
@@ -78,3 +78,7 @@ Live acceptance remains user-run: inspect SceneNormal and direct diffuse/specula
 tall grass, ferns, and leaves from both sides with sun ahead, behind, and overhead. Compare
 ordinary opaque blocks and topsoil; also check wind motion and normal maps on/off. No live
 visual or performance result is claimed by these automated tests.
+
+## Transmitting materials
+
+Positive material-atlas transmission now selects the visible geometric normal unconditionally, before constructing the normal-map tangent frame. This bypasses the upward-normal heuristic and pool restriction for transmitting terrain, including gradient-shaded and sheltered leaves. Zero-transmission materials retain the existing two-sided correction. Transmission consequently opts into flat geometric base shading; normal maps still perturb that base normal.
