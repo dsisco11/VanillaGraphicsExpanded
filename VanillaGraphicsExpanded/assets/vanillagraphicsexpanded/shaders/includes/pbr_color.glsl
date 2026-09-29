@@ -50,4 +50,10 @@ vec3 VgeDitherDisplay(vec3 encoded, vec2 pixel)
     // Share noise across RGB to keep neutral colors neutral. Alpha and lighting data never enter here.
     return clamp(encoded + vec3(offset), vec3(0.0), vec3(1.0));
 }
+/** Quantizes final postprocessed SDR explicitly, preserving existing integer output codes at every rank. */
+vec3 VgeDitherFinalDisplay(vec3 encoded, vec2 pixel)
+{
+    // Explicit rounding prevents the final framebuffer conversion from biasing repeated dithering.
+    return floor(VgeDitherDisplay(encoded, pixel) * 255.0 + 0.5) / 255.0;
+}
 #endif

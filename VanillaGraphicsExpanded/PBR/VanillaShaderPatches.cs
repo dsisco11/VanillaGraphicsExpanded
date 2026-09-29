@@ -213,6 +213,11 @@ flat in uint vge_faceId;
         {
             bool displacementInterface = Tessellation.TerrainDisplacementPatches.Apply(tree, sourceName);
             if (sourceName == "chunkshadowmap.vsh") return displacementInterface;
+            if (sourceName == "final.fsh")
+            {
+                PbrFinalDisplayPatches.Preprocess(tree);
+                return true;
+            }
             if (sourceName == "sky.fsh")
             {
                 Atmosphere.AtmosphereSkyPatches.Preprocess(tree);
@@ -332,6 +337,11 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (sourceName == "final.fsh")
+            {
+                PbrFinalDisplayPatches.Apply(tree);
+                return true;
+            }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
             {
                 PbrSurfaceShaderPatches.Apply(tree, sourceName);

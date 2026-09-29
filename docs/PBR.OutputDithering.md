@@ -22,6 +22,21 @@ before existing primary/OIT blending. Sky-depth pixels bypass deferred dithering
 because their sky/celestial draws have already applied it. Transparency blending
 can attenuate the dither, and later vanilla grading may introduce new quantization.
 
+The engine `final.fsh` is also patched through TinyAst to apply `VgeDitherFinalDisplay`
+after god-ray/bloom composition, color grading and vignettes. These effects create
+gradients after primary-buffer dithering, so they need coverage at their own SDR
+output boundary. The final patch changes RGB only; it does not apply exposure or
+tone mapping again, and does not alter halo intensity, falloff or alpha. Dithering
+earlier buffers remains necessary because final noise cannot reconstruct precision
+already lost in the primary. The user accepted the initial sky result but reported
+remaining solar-halo bands; attribution to atmospheric LUT sampling versus later
+postprocessing remains unconfirmed without a visual comparison.
+
+The final helper explicitly rounds the dithered RGB to 8-bit codes before output.
+This preserves already-quantized colors at every dither rank while distributing
+new fractional postprocessing values between adjacent codes. Simply adding noise
+again failed the unchanged-color GPU check on the test driver.
+
 The current primary is SDR RGBA8; this amplitude must not be carried unchanged
 into a future higher-bit-depth HDR presentation path. When scene-linear HDR
 composition moves display conversion to a final pass, move this dither with it
@@ -55,3 +70,10 @@ is assumed by the implementation.
 Release build and all 72 subagent-run focused cases passed, including sky/solar,
 forward/deferred, runtime display boundaries and patch/binding coverage. Receipt:
 `artifacts/TestResults/output-dithering-final.trx`. No game was launched.
+
+Final-postprocessing follow-up: Release build and 12/12 subagent-run focused
+tests passed, including all 256 existing output codes at every dither rank,
+fractional halo-like gradients, alpha/channel preservation and the installed
+GLSL 330 final shader with bloom, god rays and FXAA enabled. Receipt:
+`artifacts/tests/halo-dither/halo-dither.trx`; log: `artifacts/halo-dither-test.log`.
+The reported halo still requires user visual verification.
