@@ -339,7 +339,7 @@ Tasks
     - For each subtask, run focused numerical/shader tests through subagents and record matched CPU,
       GPU and memory costs. Obtain user-run visual comparisons; passing tests are not visual acceptance.
 
-  ☐ Diagnose and fix sun-colored specular highlights remaining on shadowed surfaces.
+  ✔ Diagnose and fix sun-colored specular highlights remaining on shadowed surfaces. @done(26-09-29 02:58)
     - Prioritize this investigation before the remaining tasks below. Direct solar specular already
       receives shadow visibility in both deferred and forward BRDF calls; do not assume a missing
       multiplier or change the lighting model without reproducing the failing path.
