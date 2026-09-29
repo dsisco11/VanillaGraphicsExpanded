@@ -2,6 +2,7 @@
 #define VGE_NORMALDEPTH_GLSL
 
 @import "./vge_view.glsl"
+@import "./vge_terrain_normal.glsl"
 
 #ifndef VGE_PBR_ENABLE_NORMAL_MAPS
     #define VGE_PBR_ENABLE_NORMAL_MAPS 1

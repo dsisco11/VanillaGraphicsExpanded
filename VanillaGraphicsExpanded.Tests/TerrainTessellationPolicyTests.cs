@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using System.Reflection.Emit;
 using HarmonyLib;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -26,19 +27,19 @@ public sealed class TerrainTessellationPolicyTests
     [Fact]
     public void ShadowPoolProvenanceExcludesOtherTerrainPasses()
     {
-        var previous=TerrainDisplacementRuntime.TerrainPools;
+        var previous=MeshPoolClassifier.Current;
         var opaque=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
         var soil=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
         var liquid=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
         GC.SuppressFinalize(opaque);GC.SuppressFinalize(soil);GC.SuppressFinalize(liquid);
         try
         {
-            TerrainDisplacementRuntime.TerrainPools=null;Assert.False(TerrainDisplacementRuntime.IsEligiblePool(opaque));
-            TerrainDisplacementRuntime.TerrainPools=[[opaque],[liquid],[],[],[],[soil]];
+            MeshPoolClassifier.Current=null;Assert.False(TerrainDisplacementRuntime.IsEligiblePool(opaque));
+            MeshPoolClassifier.Current=MeshPoolClassifier.For([[opaque],[liquid],[],[],[],[soil]]);
             Assert.True(TerrainDisplacementRuntime.IsEligiblePool(opaque));Assert.True(TerrainDisplacementRuntime.IsEligiblePool(soil));
             Assert.False(TerrainDisplacementRuntime.IsEligiblePool(liquid));
         }
-        finally { TerrainDisplacementRuntime.TerrainPools=previous; }
+        finally { MeshPoolClassifier.Current=previous; }
     }
     #endregion
 

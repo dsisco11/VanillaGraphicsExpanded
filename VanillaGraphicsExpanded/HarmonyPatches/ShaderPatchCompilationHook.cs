@@ -14,7 +14,12 @@ internal static class ShaderPatchCompilationHook
     [HarmonyFinalizer]
     internal static Exception? Finalizer(ShaderProgram __instance, ref bool __result, Exception? __exception)
     {
-        if (__exception is null && __result) return null;
+        if (__exception is null && __result)
+        {
+            ShaderCapabilities.PublishDeclared(__instance);
+            return null;
+        }
+        ShaderCapabilities.InvalidateLinked(__instance);
         try
         {
             if (ShaderPatchRecovery.TryRecover(__instance, __instance.Compile,

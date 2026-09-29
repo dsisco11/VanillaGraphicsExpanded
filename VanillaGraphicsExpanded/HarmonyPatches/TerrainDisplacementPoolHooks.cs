@@ -1,4 +1,5 @@
 using HarmonyLib;
+using VanillaGraphicsExpanded.Rendering;
 using System.Collections.Generic;
 using System.Reflection;
 using VanillaGraphicsExpanded.PBR.Tessellation;
@@ -20,15 +21,15 @@ internal static class TerrainDisplacementRenderScope
     }
     /// <summary>Captures the engine pool table only for the duration of terrain rendering.</summary>
     [HarmonyPrefix]
-    internal static void Prefix(MeshDataPoolManager[][] ___poolsByRenderPass, out MeshDataPoolManager[][]? __state)
+    internal static void Prefix(MeshDataPoolManager[][] ___poolsByRenderPass, out MeshPoolClassifier? __state)
     {
-        __state = TerrainDisplacementRuntime.TerrainPools;
-        TerrainDisplacementRuntime.TerrainPools = ___poolsByRenderPass;
+        __state = MeshPoolClassifier.Current;
+        MeshPoolClassifier.Current = MeshPoolClassifier.For(___poolsByRenderPass);
     }
 
     /// <summary>Clears provenance even when rendering throws.</summary>
     [HarmonyFinalizer]
-    internal static void Finalizer(MeshDataPoolManager[][]? __state) => TerrainDisplacementRuntime.TerrainPools = __state;
+    internal static void Finalizer(MeshPoolClassifier? __state) => MeshPoolClassifier.Current = __state;
     #endregion
 }
 
@@ -43,6 +44,7 @@ internal static class TerrainDisplacementManagerScope
     {
         __state = TerrainDisplacementRuntime.EligiblePool;
         TerrainDisplacementRuntime.EligiblePool = TerrainDisplacementRuntime.IsEligiblePool(__instance);
+        VanillaGraphicsExpanded.PBR.TerrainSurfaceNormals.Bind(__instance, MeshPoolClassifier.Current);
     }
 
     /// <summary>Restores the enclosing manager scope.</summary>

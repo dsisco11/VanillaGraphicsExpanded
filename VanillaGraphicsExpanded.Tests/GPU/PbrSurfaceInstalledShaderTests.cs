@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
@@ -106,9 +107,25 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     }
     #endregion
 
+    #region Capability declarations
+    /// <summary>Only fragment patches which install two-sided normal handling declare that feature.</summary>
+    [Theory]
+    [InlineData("chunkopaque.fsh", true)]
+    [InlineData("chunktransparent.fsh", true)]
+    [InlineData("chunktopsoil.fsh", false)]
+    [InlineData("standard.fsh", false)]
+    [InlineData("chunkopaque.vsh", false)]
+    public void PatchesDeclareOnlyTheirInstalledCapabilities(string name, bool expected)
+    {
+        ShaderCapability capabilities = ShaderCapability.None;
+        Build(name, 2, name == "chunktransparent.fsh" ? 1 : 0, 0, 0, 0, value => capabilities |= value);
+        Assert.Equal(expected ? ShaderCapability.TwoSidedSurfaceNormals : ShaderCapability.None, capabilities);
+    }
+    #endregion
+
     #region Installed source expansion
     /// <summary>Applies imports before expansion and material patches after expansion as the engine does.</summary>
-    internal static string Build(string name, int shadow, int oit, int ssao, int ssbo, int depth)
+    internal static string Build(string name, int shadow, int oit, int ssao, int ssbo, int depth, Action<ShaderCapability>? declare = null)
     {
         string game = Environment.GetEnvironmentVariable("VINTAGE_STORY")!;
         string original = File.ReadAllText(Path.Combine(game, "assets/game/shaders", name));
@@ -129,7 +146,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             return included.Add(path) ? Expand(File.ReadAllText(path), Path.GetDirectoryName(path)!) : "";
         });
         tree = SyntaxTree.Parse(Expand(tree.ToText(), Path.Combine(AppContext.BaseDirectory, "assets/shaders")), GlslSchema.Instance);
-        if (name is not ("sky.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name));
+        if (name is not ("sky.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
         if (name == "standard.fsh")
         {
             string main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single().ToText();

@@ -50,6 +50,7 @@ public static class EngineShaderProcessingHook
         {
             return;
         }
+        ShaderCapabilities.Forget(program);
         if (_logger is null)
         {
             return;
@@ -128,7 +129,7 @@ public static class EngineShaderProcessingHook
     {
         var candidates = new List<(IShader Shader, string Source)>();
 
-        if (!TryProcessShader(shaderProgram.VertexShader, $"{shaderProgram.PassName}.vsh", preProcess: true, inlineImports: true, postProcess: true, out string? vertexSource))
+        if (!TryProcessShader(shaderProgram.VertexShader, $"{shaderProgram.PassName}.vsh", preProcess: true, inlineImports: true, postProcess: true, out string? vertexSource, out var vertexCapabilities))
         {
             return;
         }
@@ -137,7 +138,7 @@ public static class EngineShaderProcessingHook
             candidates.Add((shaderProgram.VertexShader, vertexSource));
         }
 
-        if (!TryProcessShader(shaderProgram.FragmentShader, $"{shaderProgram.PassName}.fsh", preProcess: true, inlineImports: true, postProcess: true, out string? fragmentSource))
+        if (!TryProcessShader(shaderProgram.FragmentShader, $"{shaderProgram.PassName}.fsh", preProcess: true, inlineImports: true, postProcess: true, out string? fragmentSource, out var fragmentCapabilities))
         {
             return;
         }
@@ -146,9 +147,10 @@ public static class EngineShaderProcessingHook
             candidates.Add((shaderProgram.FragmentShader, fragmentSource));
         }
 
+        ShaderCapability geometryCapabilities = ShaderCapability.None;
         if (shaderProgram.GeometryShader is not null)
         {
-            if (!TryProcessShader(shaderProgram.GeometryShader, $"{shaderProgram.PassName}.gsh", preProcess: true, inlineImports: true, postProcess: true, out string? geometrySource))
+            if (!TryProcessShader(shaderProgram.GeometryShader, $"{shaderProgram.PassName}.gsh", preProcess: true, inlineImports: true, postProcess: true, out string? geometrySource, out geometryCapabilities))
             {
                 return;
             }
@@ -165,6 +167,7 @@ public static class EngineShaderProcessingHook
         {
             candidate.Shader.Code = candidate.Source;
         }
+        ShaderCapabilities.Declare(shaderProgram, vertexCapabilities | fragmentCapabilities | geometryCapabilities);
         if (_assetManager is not null)
             PBR.Tessellation.TerrainTessellationPatches.Prepare(shaderProgram, _assetManager);
     }
@@ -181,8 +184,10 @@ public static class EngineShaderProcessingHook
         bool preProcess,
         bool inlineImports,
         bool postProcess,
-        out string? candidateSource)
+        out string? candidateSource, out ShaderCapability capabilities)
     {
+        capabilities = ShaderCapability.None;
+        ShaderCapability declared = ShaderCapability.None;
         candidateSource = null;
 
         if (!RequiresProcessing(shaderName, shader.Code))
@@ -221,13 +226,14 @@ public static class EngineShaderProcessingHook
         // Stage 3: Post-processing (after imports are inlined)
         if (postProcess)
         {
-            hasChanges |= VanillaShaderPatches.TryApplyPatches(_logger, tree, shaderName);
+            hasChanges |= VanillaShaderPatches.TryApplyPatches(_logger, tree, shaderName, capability => declared |= capability);
         }
 
         if (hasChanges)
         {
             // Build, strip non-ASCII (GLSL compliance), and write back to shader
             candidateSource = SourceCodeImportsProcessor.StripNonAscii(tree.ToText());
+            capabilities = declared;
         }
 
         return true;

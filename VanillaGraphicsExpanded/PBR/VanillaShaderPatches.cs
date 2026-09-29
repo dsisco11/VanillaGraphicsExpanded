@@ -99,6 +99,8 @@ flat in uint vge_faceId;
     private const string ParallaxUvProlog_Chunk = @"
 
     // VGE: Parallax mapping (UV indirection)
+    vec3 vge_terrainNormal = VgeTerrainNormal(normal, worldPos.xyz);
+#define normal vge_terrainNormal
     vec2 vge_uv = uv;
     mat3 vge_tbn;
     float vge_tbnHandedness;
@@ -114,6 +116,7 @@ flat in uint vge_faceId;
 
     private const string ParallaxUvEpilog_Chunk = @"
 
+#undef normal
 #undef uv
 ";
 
@@ -356,7 +359,7 @@ flat in uint vge_faceId;
     /// <param name="tree">The SyntaxTree instance (already has imports processed).</param>
     /// <param name="sourceName">The name of the shader source.</param>
     /// <returns>True if patches were applied, false if no patches needed for this shader.</returns>
-    internal static bool TryApplyPatches(ILogger? log, SyntaxTree tree, string sourceName)
+    internal static bool TryApplyPatches(ILogger? log, SyntaxTree tree, string sourceName, Action<ShaderCapability>? declare = null)
     {
         try
         {
@@ -372,6 +375,7 @@ flat in uint vge_faceId;
                     Atmosphere.AtmosphereSunPatches.Apply(editor);
                 PbrSurfaceShaderPatches.Apply(tree, editor, sourceName);
                 editor.Commit();
+                if (sourceName == "chunktransparent.fsh") declare?.Invoke(ShaderCapability.TwoSidedSurfaceNormals);
                 return true;
             }
             if (PatchedChunkVertexShaders.Contains(sourceName))
@@ -385,6 +389,7 @@ flat in uint vge_faceId;
             if (PatchedChunkShaders.Contains(sourceName))
             {
                 ApplyChunkFragmentPatches(tree, sourceName);
+                if (sourceName == "chunkopaque.fsh") declare?.Invoke(ShaderCapability.TwoSidedSurfaceNormals);
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
             }

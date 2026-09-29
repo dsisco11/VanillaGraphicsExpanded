@@ -39,6 +39,7 @@ internal static class ShaderPatchRecovery
         // can carry them into an unrelated render-stage error check.
         string errors = GlDebug.GetErrorsString("OpenGL errors observed after failed patched compilation");
         if (errors.Length != 0) report(errors);
+        ShaderCapabilities.Forget(program);
         TerrainTessellationPrograms.Forget(program);
         if (program.VertexShader is not null) TerrainTessellationPatches.Forget(program.VertexShader);
         RetireStage(program.VertexShader);

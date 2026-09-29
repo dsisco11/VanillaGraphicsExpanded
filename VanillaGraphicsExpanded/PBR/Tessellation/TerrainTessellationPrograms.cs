@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using System;
-using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
@@ -14,9 +14,6 @@ internal static class TerrainTessellationPrograms
     internal static bool DrawHookAvailable { get; set; }
     internal static bool MeshDrawHookAvailable { get; set; }
     internal static Action<string>? Log { get; set; }
-    private static readonly ConditionalWeakTable<ShaderProgramBase, Installed> programs = new();
-    /// <summary>Ties draw topology to the exact linked executable, not merely a recycled GL identifier.</summary>
-    private sealed record Installed(int ProgramId, bool Adaptive);
     private static readonly WeakReference<ShaderProgram>[] family =
         [new(null!), new(null!), new(null!)];
 
@@ -29,8 +26,7 @@ internal static class TerrainTessellationPrograms
         get
         {
             foreach (var reference in family)
-                if (!reference.TryGetTarget(out var program) || !programs.TryGetValue(program, out var installed)
-                    || !installed.Adaptive || installed.ProgramId != program.ProgramId) return false;
+                if (!reference.TryGetTarget(out var program) || !Adaptive(program)) return false;
             return Requested;
         }
     }
@@ -49,7 +45,7 @@ internal static class TerrainTessellationPrograms
     /// <summary>Compiles a candidate before publishing; unsupported or failed candidates retain the engine's ordinary program.</summary>
     internal static void Prepare(ShaderProgram program)
     {
-        programs.Remove(program);
+        ShaderCapabilities.Remove(program, ShaderCapability.TerrainDisplacement);
         if (!Requested || !Eligible(program.PassName) || program.AssetDomain == Constants.ModId) return;
         if (!TerrainTessellationPatches.TryGet(program.VertexShader, out var sources)) return;
         try
@@ -72,7 +68,7 @@ internal static class TerrainTessellationPrograms
                 out int candidate, out string error, $"{(string.IsNullOrWhiteSpace(program.AssetDomain) ? "game" : program.AssetDomain)}:{program.PassName}")) throw new InvalidOperationException(error);
             int ordinary = program.ProgramId;
             program.ProgramId = candidate;
-            programs.Add(program, new(candidate, Requested));
+            ShaderCapabilities.Publish(program, ShaderCapability.TerrainDisplacement);
             if (Requested) family[program.PassName switch { "chunkopaque" => 0, "chunktopsoil" => 1, _ => 2 }].SetTarget(program);
             GL.DeleteProgram(ordinary);
         }
@@ -82,16 +78,17 @@ internal static class TerrainTessellationPrograms
         }
     }
 
-    /// <summary>Clears metadata before disposal; failed in-place compiles retain the old executable and its topology.</summary>
-    internal static void Forget(ShaderProgramBase program) => programs.Remove(program);
+    /// <summary>Withdraws displacement metadata without removing other features owned by the executable.</summary>
+    internal static void Forget(ShaderProgramBase program)
+        => ShaderCapabilities.Remove(program, ShaderCapability.TerrainDisplacement);
 
     /// <summary>Determines topology from the active managed program and its currently installed executable.</summary>
     internal static bool Active => ShaderProgramBase.CurrentShaderProgram is { } program
-        && programs.TryGetValue(program, out var installed) && installed.ProgramId == program.ProgramId;
+        && Adaptive(program);
 
     /// <summary>Identifies adaptive executables independently of current configuration during reload.</summary>
-    internal static bool Adaptive(ShaderProgramBase program) => programs.TryGetValue(program, out var installed)
-        && installed.Adaptive && installed.ProgramId == program.ProgramId;
+    internal static bool Adaptive(ShaderProgramBase program)
+        => ShaderCapabilities.Has(program, ShaderCapability.TerrainDisplacement);
 
     /// <summary>Changes only triangle submissions belonging to the published terrain executable.</summary>
     internal static PrimitiveType Topology(PrimitiveType original) =>

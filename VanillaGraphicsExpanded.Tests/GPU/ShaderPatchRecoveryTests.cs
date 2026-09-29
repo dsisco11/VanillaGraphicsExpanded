@@ -42,6 +42,7 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
             int other = unrelated.ProgramId;
             string vertex = owner.VertexShader.Code, fragment = owner.FragmentShader.Code;
             ShaderPatchRecovery.Capture(owner);
+            ShaderCapabilities.Declare(owner, ShaderCapability.TwoSidedSurfaceNormals);
             owner.VertexShader.PrefixCode = "#define LATE_ENGINE_VALUE 1\n";
             if (linkFailure)
             {
@@ -54,6 +55,7 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
                 owner.FragmentShader.Code += "\ninvalid patched fragment syntax";
             }
             Assert.True(owner.Compile());
+            Assert.False(ShaderCapabilities.Has(owner, ShaderCapability.TwoSidedSurfaceNormals));
             Assert.Equal(vertex, owner.VertexShader.Code);
             Assert.Equal(fragment, owner.FragmentShader.Code);
             Assert.Equal("#define LATE_ENGINE_VALUE 1\n", owner.VertexShader.PrefixCode);

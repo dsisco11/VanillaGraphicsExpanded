@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering;
 using System.Runtime.CompilerServices;
 using VanillaGraphicsExpanded.ModSystems;
 using Vintagestory.API.Client;
@@ -11,7 +12,6 @@ namespace VanillaGraphicsExpanded.PBR.Tessellation;
 internal static class TerrainDisplacementRuntime
 {
     internal static ICoreClientAPI? Api { get; set; }
-    internal static MeshDataPoolManager[][]? TerrainPools { get; set; }
     internal static bool EligiblePool { get; set; }
     internal static bool MovingPool { get; set; }
     private static float focalPixels;
@@ -32,11 +32,7 @@ internal static class TerrainDisplacementRuntime
     #region Draw policy
     /// <summary>Matches the engine's opaque and topsoil pool entries by identity, without classifying individual blocks.</summary>
     internal static bool IsEligiblePool(MeshDataPoolManager manager)
-    {
-        const int opaque = (int)EnumChunkRenderPass.Opaque, topsoil = (int)EnumChunkRenderPass.TopSoil;
-        if (TerrainPools is not { } pools || pools.Length <= topsoil) return false;
-        return Array.IndexOf(pools[opaque], manager) >= 0 || Array.IndexOf(pools[topsoil], manager) >= 0;
-    }
+        => MeshPoolClassifier.Current?.IsDisplacementEligible(manager) == true;
 
     /// <summary>Freezes one perspective metric before shadow and visible passes so both choose identical edge levels.</summary>
     internal static void CaptureView()
