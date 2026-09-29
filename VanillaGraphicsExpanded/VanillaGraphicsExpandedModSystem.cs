@@ -52,6 +52,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             {
                 GlExtensions.TryLoadExtensions();
                 GpuSupport.TryInitialize();
+                GlDebug.TrySuppressGroupDebugMessages();
             },
             "vge-load-gl-extensions");
     }
@@ -64,9 +65,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
-
-        GlDebug.TrySuppressGroupDebugMessages();
-
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);

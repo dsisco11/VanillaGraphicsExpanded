@@ -87,7 +87,7 @@ internal static class GlDebug
         }
 
         // The game can enable GL debug output and log all debug callback events.
-        // Push/Pop group messages are extremely noisy and not actionable.
+        // Notification-severity messages, including push/pop groups, are extremely noisy.
         // Opt-out for deep GPU debugging sessions.
         if (string.Equals(Environment.GetEnvironmentVariable("VGE_GL_DEBUG_GROUP_MESSAGES"), "1", StringComparison.Ordinal))
         {
@@ -96,6 +96,14 @@ internal static class GlDebug
 
         try
         {
+            GL.DebugMessageControl(
+                DebugSourceControl.DontCare,
+                DebugTypeControl.DontCare,
+                DebugSeverityControl.DebugSeverityNotification,
+                0,
+                Array.Empty<int>(),
+                false);
+
             GL.DebugMessageControl(
                 DebugSourceControl.DontCare,
                 DebugTypeControl.DebugTypePushGroup,
