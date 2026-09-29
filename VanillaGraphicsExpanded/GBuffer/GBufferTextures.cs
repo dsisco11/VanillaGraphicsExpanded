@@ -7,6 +7,8 @@ namespace VanillaGraphicsExpanded;
 /// <summary>Owns terrain normal, material, patch-identity and environment render targets independently of framebuffer injection.</summary>
 internal sealed class GBufferTextures : IDisposable
 {
+    private readonly GpuResourceCollection resources = new();
+
     public DynamicTexture2D Normal { get; }
     public DynamicTexture2D Material { get; }
     public DynamicTexture2D PatchId { get; }
@@ -27,9 +29,9 @@ internal sealed class GBufferTextures : IDisposable
     }
 
     /// <summary>Configures non-mipmapped attachments so raw-ID readers and sampler-based readers agree.</summary>
-    private static DynamicTexture2D Create(int width, int height, PixelInternalFormat format, string name)
+    private DynamicTexture2D Create(int width, int height, PixelInternalFormat format, string name)
     {
-        var texture = DynamicTexture2D.Create(width, height, format, debugName: name);
+        var texture = resources.Own(DynamicTexture2D.Create(width, height, format, debugName: name));
         texture.DisableMipmaps();
         texture.SetTexFilter(TextureMinFilter.Nearest, TextureMagFilter.Nearest);
         texture.SetTexWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
@@ -39,6 +41,6 @@ internal sealed class GBufferTextures : IDisposable
 
     #region Lifetime
     /// <summary>Releases all attachments, including a partially allocated set.</summary>
-    public void Dispose() { Normal?.Dispose(); Material?.Dispose(); PatchId?.Dispose(); Environment?.Dispose(); }
+    public void Dispose() => resources.Dispose();
     #endregion
 }

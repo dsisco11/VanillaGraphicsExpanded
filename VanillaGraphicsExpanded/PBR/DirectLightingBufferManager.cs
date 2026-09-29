@@ -41,13 +41,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     private int lastScreenWidth;
     private int lastScreenHeight;
 
-    // Direct lighting output textures (all RGBA16F)
-    private DynamicTexture2D? directDiffuseTex;
-    private DynamicTexture2D? directSpecularTex;
-    private DynamicTexture2D? emissiveTex;
-
-    // Framebuffer for MRT output
-    private GpuFramebuffer? directLightingFbo;
+    private DirectLightingTargets? targets;
 
     private bool isInitialized;
 
@@ -64,40 +58,40 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// Texture for direct diffuse radiance (RGBA16F).
     /// RGB = diffuse BRDF contribution, A = reserved.
     /// </summary>
-    public DynamicTexture2D? DirectDiffuseTex => directDiffuseTex;
+    public DynamicTexture2D? DirectDiffuseTex => targets?.DirectDiffuse;
 
     /// <summary>
     /// OpenGL texture ID for direct diffuse.
     /// </summary>
-    public int DirectDiffuseTextureId => directDiffuseTex?.TextureId ?? 0;
+    public int DirectDiffuseTextureId => targets?.DirectDiffuse.TextureId ?? 0;
 
     /// <summary>
     /// Texture for direct specular radiance (RGBA16F).
     /// RGB = specular BRDF contribution, A = reserved.
     /// </summary>
-    public DynamicTexture2D? DirectSpecularTex => directSpecularTex;
+    public DynamicTexture2D? DirectSpecularTex => targets?.DirectSpecular;
 
     /// <summary>
     /// OpenGL texture ID for direct specular.
     /// </summary>
-    public int DirectSpecularTextureId => directSpecularTex?.TextureId ?? 0;
+    public int DirectSpecularTextureId => targets?.DirectSpecular.TextureId ?? 0;
 
     /// <summary>
     /// Texture for emissive radiance (RGBA16F).
     /// RGB = emissive contribution, A = reserved.
     /// </summary>
-    public DynamicTexture2D? EmissiveTex => emissiveTex;
+    public DynamicTexture2D? EmissiveTex => targets?.Emissive;
 
     /// <summary>
     /// OpenGL texture ID for emissive.
     /// </summary>
-    public int EmissiveTextureId => emissiveTex?.TextureId ?? 0;
+    public int EmissiveTextureId => targets?.Emissive.TextureId ?? 0;
 
     /// <summary>
     /// Framebuffer for direct lighting MRT output.
     /// Attachment0 = DirectDiffuse, Attachment1 = DirectSpecular, Attachment2 = Emissive.
     /// </summary>
-    public GpuFramebuffer? DirectLightingFbo => directLightingFbo;
+    public GpuFramebuffer? DirectLightingFbo => targets?.Framebuffer;
 
     #endregion
 
@@ -139,10 +133,10 @@ public sealed class DirectLightingBufferManager : IDisposable
         // These attachments remain exclusively VGE-owned across engine rebuilds; their owner
         // tracks lifetime without querying the driver for every texture on every frame.
         bool resourcesValid = isInitialized
-            && directLightingFbo is { IsValid: true }
-            && directDiffuseTex is { IsValid: true }
-            && directSpecularTex is { IsValid: true }
-            && emissiveTex is { IsValid: true };
+            && targets?.Framebuffer is { IsValid: true }
+            && targets?.DirectDiffuse is { IsValid: true }
+            && targets?.DirectSpecular is { IsValid: true }
+            && targets?.Emissive is { IsValid: true };
 
         if (!resourcesValid)
         {
@@ -152,12 +146,12 @@ public sealed class DirectLightingBufferManager : IDisposable
         }
         else if (screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
         {
-            ResizeBuffers(screenWidth, screenHeight);
+            isInitialized = targets!.Resize(screenWidth, screenHeight);
             lastScreenWidth = screenWidth;
             lastScreenHeight = screenHeight;
         }
 
-        return isInitialized && directLightingFbo != null && directLightingFbo.IsValid;
+        return isInitialized && targets?.Framebuffer is { IsValid: true };
     }
 
     /// <summary>
@@ -165,13 +159,13 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// </summary>
     public void BindForRendering()
     {
-        if (directLightingFbo == null || !directLightingFbo.IsValid)
+        if (targets?.Framebuffer is not { IsValid: true } framebuffer)
         {
             capi.Logger.Warning("[VGE] DirectLightingBufferManager: FBO not valid for binding");
             return;
         }
 
-        directLightingFbo.Bind();
+        framebuffer.Bind();
         GL.DrawBuffers(DirectLightingDrawBuffers.Length, DirectLightingDrawBuffers);
     }
 
@@ -188,12 +182,12 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// </summary>
     public void ClearBuffers()
     {
-        if (directLightingFbo == null || !directLightingFbo.IsValid)
+        if (targets?.Framebuffer is not { IsValid: true } framebuffer)
             return;
 
         int prevFbo = GpuFramebuffer.SaveBinding();
 
-        directLightingFbo.Bind();
+        framebuffer.Bind();
 
         // Clear all color attachments to black
         float[] clearColor = [0f, 0f, 0f, 0f];
@@ -208,103 +202,25 @@ public sealed class DirectLightingBufferManager : IDisposable
 
     #region Private Methods
 
-    private void ResizeBuffers(int width, int height)
-    {
-        int prevFbo = GpuFramebuffer.SaveBinding();
-
-        try
-        {
-            directLightingFbo!.Resize(width, height);
-            directLightingFbo.Bind();
-            if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
-            {
-                isInitialized = false;
-            }
-        }
-        finally
-        {
-            GpuFramebuffer.RestoreBinding(prevFbo);
-        }
-    }
-
+    /// <summary>Replaces the owned allocation while preserving engine framebuffer state.</summary>
     private void CreateBuffers(int width, int height)
     {
-        // NOTE: This method may run during rendering (e.g. on window resize).
-        // Preserve the currently-bound framebuffer so we don't break the engine's render pipeline.
-        int prevFbo = GpuFramebuffer.SaveBinding();
-
-        try
-        {
-            // Delete old buffers if they exist
-            DeleteBuffers();
-
+        DeleteBuffers();
         capi.Logger.Notification($"[VGE] Creating direct lighting buffers: {width}x{height}");
-
-        // Create output textures (all RGBA16F for HDR)
-        // Use linear filtering: these are screen-space radiance buffers that are sampled with
-        // normalized UVs (e.g., LumOn ray-march hit sampling) rather than integer texelFetch.
-        directDiffuseTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "DirectDiffuse");
-        directSpecularTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "DirectSpecular");
-        emissiveTex = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "Emissive");
-
-        // Validate texture creation
-        if (directDiffuseTex == null || !directDiffuseTex.IsValid ||
-            directSpecularTex == null || !directSpecularTex.IsValid ||
-            emissiveTex == null || !emissiveTex.IsValid)
+        targets = new DirectLightingTargets(width, height);
+        isInitialized = targets.IsValid;
+        if (!isInitialized)
         {
-            capi.Logger.Error("[VGE] Failed to create direct lighting textures");
+            capi.Logger.Error("[VGE] Failed to create complete direct lighting targets");
             DeleteBuffers();
-            return;
-        }
-
-        // Create MRT framebuffer
-        directLightingFbo = GpuFramebuffer.CreateMRT(
-            [directDiffuseTex, directSpecularTex, emissiveTex],
-            depthTexture: null,
-            ownsTextures: false,
-            debugName: "DirectLightingFBO");
-
-        if (directLightingFbo == null || !directLightingFbo.IsValid)
-        {
-            capi.Logger.Error("[VGE] Failed to create direct lighting FBO");
-            DeleteBuffers();
-            return;
-        }
-
-            // Verify FBO completeness
-            directLightingFbo.Bind();
-            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-            GpuFramebuffer.Unbind();
-
-            if (status != FramebufferErrorCode.FramebufferComplete)
-            {
-                capi.Logger.Error($"[VGE] Direct lighting FBO incomplete: {status}");
-                DeleteBuffers();
-                return;
-            }
-
-            isInitialized = true;
-        }
-        finally
-        {
-            GpuFramebuffer.RestoreBinding(prevFbo);
         }
     }
 
+    /// <summary>Retires owned targets and withdraws readiness.</summary>
     private void DeleteBuffers()
     {
-        directLightingFbo?.Dispose();
-        directLightingFbo = null;
-
-        directDiffuseTex?.Dispose();
-        directDiffuseTex = null;
-
-        directSpecularTex?.Dispose();
-        directSpecularTex = null;
-
-        emissiveTex?.Dispose();
-        emissiveTex = null;
-
+        targets?.Dispose();
+        targets = null;
         isInitialized = false;
     }
 
@@ -312,6 +228,7 @@ public sealed class DirectLightingBufferManager : IDisposable
 
     #region IDisposable
 
+    /// <summary>Unregisters screen notifications and releases the owned allocation.</summary>
     public void Dispose()
     {
         unregisterResize();

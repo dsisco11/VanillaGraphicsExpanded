@@ -33,105 +33,7 @@ public sealed class LumOnBufferManager : IDisposable
     private int halfResWidth;
     private int halfResHeight;
 
-    // ═══════════════════════════════════════════════════════════════
-    // Probe Anchor Buffers
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? probeAnchorPositionTex;
-    private DynamicTexture2D? probeAnchorNormalTex;
-    private Rendering.GpuFramebuffer? probeAnchorFbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Probe Trace Mask (Phase 10)
-    // Probe-resolution selection mask for which atlas texels to trace this frame.
-    // Format: RG32F (two 32-bit lanes used as uint bitfields via uintBitsToFloat).
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? probeTraceMaskTex;
-    private DynamicTexture2D? probePisEnergyTex;
-    private Rendering.GpuFramebuffer? probeTraceMaskFbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Screen-Probe Atlas (2D atlas layout)
-    // Implementation detail: octahedral direction mapping per probe tile.
-    // Layout: (probeCountX * 8, probeCountY * 8) - tiled 8×8 per probe
-    // RGBA16F: RGB = radiance, A = log-encoded hit distance
-    // ═══════════════════════════════════════════════════════════════
-
-    // Trace output probe atlas (written by trace pass, read by temporal pass)
-    private DynamicTexture2D? screenProbeAtlasTraceTex;
-    private Rendering.GpuFramebuffer? screenProbeAtlasTraceFbo;
-
-    // Trace output meta (written by trace pass, read by temporal pass)
-    // RG32F: R = confidence, G = uintBitsToFloat(flags)
-    private DynamicTexture2D? screenProbeAtlasMetaTraceTex;
-
-    // Current frame probe atlas (written by temporal pass, read by gather)
-    private DynamicTexture2D? screenProbeAtlasCurrentTex;
-    private Rendering.GpuFramebuffer? screenProbeAtlasCurrentFbo;
-
-    // Current frame meta (written by temporal pass, swapped to history each frame)
-    private DynamicTexture2D? screenProbeAtlasMetaCurrentTex;
-
-    // History probe atlas (previous frame's current, read by temporal pass)
-    private DynamicTexture2D? screenProbeAtlasHistoryTex;
-    private Rendering.GpuFramebuffer? screenProbeAtlasHistoryFbo;
-
-    // History meta (previous frame's current, read by trace/temporal passes)
-    private DynamicTexture2D? screenProbeAtlasMetaHistoryTex;
-
-    // Filtered probe atlas (derived from current frame's temporal output)
-    // Used as gather input when available.
-    private DynamicTexture2D? screenProbeAtlasFilteredTex;
-    private DynamicTexture2D? screenProbeAtlasMetaFilteredTex;
-    private Rendering.GpuFramebuffer? screenProbeAtlasFilteredFbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Probe-Atlas → SH9 Projection Output (Option B)
-    // Stores packed SH9 coefficients per probe across 7 RGBA16F textures.
-    // Used by the cheap SH9 gather path.
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? probeSh9Tex0;
-    private DynamicTexture2D? probeSh9Tex1;
-    private DynamicTexture2D? probeSh9Tex2;
-    private DynamicTexture2D? probeSh9Tex3;
-    private DynamicTexture2D? probeSh9Tex4;
-    private DynamicTexture2D? probeSh9Tex5;
-    private DynamicTexture2D? probeSh9Tex6;
-    private Rendering.GpuFramebuffer? probeSh9Fbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Indirect Diffuse Output Buffers
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? indirectHalfTex;
-    private Rendering.GpuFramebuffer? indirectHalfFbo;
-
-    private DynamicTexture2D? indirectFullTex;
-    private Rendering.GpuFramebuffer? indirectFullFbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Surface Capture Buffers (for probe hit radiance sampling)
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? surfaceAlbedoTex;
-    private Rendering.GpuFramebuffer? surfaceAlbedoFbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Reprojection Velocity Buffer (Phase 14)
-    // RGBA32F: RG = velocityUv, A = uintBitsToFloat(flags)
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? velocityTex;
-    private Rendering.GpuFramebuffer? velocityFbo;
-
-    // ═══════════════════════════════════════════════════════════════
-    // Depth Pyramid / HZB
-    // ═══════════════════════════════════════════════════════════════
-
-    private DynamicTexture2D? hzbDepthTex;
-    private Rendering.GpuFramebuffer? hzbFbo;
+    private LumOnTargets? targets;
 
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
@@ -161,38 +63,38 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for probe anchor pass output (position + normal).
     /// </summary>
-    public Rendering.GpuFramebuffer? ProbeAnchorFbo => probeAnchorFbo;
+    public Rendering.GpuFramebuffer? ProbeAnchorFbo => targets?.ProbeAnchorFbo;
 
     /// <summary>
     /// Texture for probe anchor positions (posVS.xyz, valid).
     /// </summary>
-    public DynamicTexture2D? ProbeAnchorPositionTex => probeAnchorPositionTex;
+    public DynamicTexture2D? ProbeAnchorPositionTex => targets?.ProbeAnchorPositionTex;
 
     /// <summary>
     /// Texture for probe anchor normals (normalVS.xyz, reserved).
     /// </summary>
-    public DynamicTexture2D? ProbeAnchorNormalTex => probeAnchorNormalTex;
+    public DynamicTexture2D? ProbeAnchorNormalTex => targets?.ProbeAnchorNormalTex;
 
     // ═══════════════════════════════════════════════════════════════
-    // Probe Trace Mask (Phase 10)
+    // Probe Trace Mask
     // ═══════════════════════════════════════════════════════════════
 
     /// <summary>
     /// Probe-resolution trace mask (RG32F) storing two uint bitfields.
     /// Debug label: <c>LumOn.ProbeTraceMask</c>.
     /// </summary>
-    public DynamicTexture2D? ProbeTraceMaskTex => probeTraceMaskTex;
+    public DynamicTexture2D? ProbeTraceMaskTex => targets?.ProbeTraceMaskTex;
 
     /// <summary>
     /// Probe-resolution PIS importance energy (R32F).
     /// Debug label: <c>LumOn.ProbePisEnergy</c>.
     /// </summary>
-    public DynamicTexture2D? ProbePisEnergyTex => probePisEnergyTex;
+    public DynamicTexture2D? ProbePisEnergyTex => targets?.ProbePisEnergyTex;
 
     /// <summary>
     /// FBO for the probe trace mask pass.
     /// </summary>
-    public Rendering.GpuFramebuffer? ProbeTraceMaskFbo => probeTraceMaskFbo;
+    public Rendering.GpuFramebuffer? ProbeTraceMaskFbo => targets?.ProbeTraceMaskFbo;
 
     // ═══════════════════════════════════════════════════════════════
     // Screen-Probe Atlas (2D atlas)
@@ -202,71 +104,71 @@ public sealed class LumOnBufferManager : IDisposable
     /// 2D atlas for trace output probe-atlas radiance.
     /// Layout: (probeCountX * 8, probeCountY * 8), RGBA16F.
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasTraceTex => screenProbeAtlasTraceTex;
+    public DynamicTexture2D? ScreenProbeAtlasTraceTex => targets?.ScreenProbeAtlasTraceTex;
 
     /// <summary>
     /// 2D atlas for trace output probe-atlas meta.
     /// Format: RG32F (confidence, flagsBitsAsFloat).
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasMetaTraceTex => screenProbeAtlasMetaTraceTex;
+    public DynamicTexture2D? ScreenProbeAtlasMetaTraceTex => targets?.ScreenProbeAtlasMetaTraceTex;
 
     /// <summary>
     /// FBO for probe-atlas trace output.
     /// </summary>
-    public Rendering.GpuFramebuffer? ScreenProbeAtlasTraceFbo => screenProbeAtlasTraceFbo;
+    public Rendering.GpuFramebuffer? ScreenProbeAtlasTraceFbo => targets?.ScreenProbeAtlasTraceFbo;
 
     /// <summary>
     /// 2D atlas for current frame probe-atlas radiance (after temporal blend).
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasCurrentTex => screenProbeAtlasCurrentTex;
+    public DynamicTexture2D? ScreenProbeAtlasCurrentTex => targets?.ScreenProbeAtlasCurrentTex;
 
     /// <summary>
     /// 2D atlas for current frame probe-atlas meta (after temporal pass).
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasMetaCurrentTex => screenProbeAtlasMetaCurrentTex;
+    public DynamicTexture2D? ScreenProbeAtlasMetaCurrentTex => targets?.ScreenProbeAtlasMetaCurrentTex;
 
     /// <summary>
     /// 2D atlas for filtered probe-atlas radiance (post-temporal denoise).
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasFilteredTex => screenProbeAtlasFilteredTex;
+    public DynamicTexture2D? ScreenProbeAtlasFilteredTex => targets?.ScreenProbeAtlasFilteredTex;
 
     /// <summary>
     /// 2D atlas for filtered probe-atlas meta (post-temporal denoise).
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasMetaFilteredTex => screenProbeAtlasMetaFilteredTex;
+    public DynamicTexture2D? ScreenProbeAtlasMetaFilteredTex => targets?.ScreenProbeAtlasMetaFilteredTex;
 
     /// <summary>
     /// FBO for probe-atlas filtered output.
     /// </summary>
-    public Rendering.GpuFramebuffer? ScreenProbeAtlasFilteredFbo => screenProbeAtlasFilteredFbo;
+    public Rendering.GpuFramebuffer? ScreenProbeAtlasFilteredFbo => targets?.ScreenProbeAtlasFilteredFbo;
 
     /// <summary>
     /// FBO for SH9 projection output (7 MRT attachments).
     /// </summary>
-    public Rendering.GpuFramebuffer? ProbeSh9Fbo => probeSh9Fbo;
+    public Rendering.GpuFramebuffer? ProbeSh9Fbo => targets?.ProbeSh9Fbo;
 
-    public DynamicTexture2D? ProbeSh9Tex0 => probeSh9Tex0;
-    public DynamicTexture2D? ProbeSh9Tex1 => probeSh9Tex1;
-    public DynamicTexture2D? ProbeSh9Tex2 => probeSh9Tex2;
-    public DynamicTexture2D? ProbeSh9Tex3 => probeSh9Tex3;
-    public DynamicTexture2D? ProbeSh9Tex4 => probeSh9Tex4;
-    public DynamicTexture2D? ProbeSh9Tex5 => probeSh9Tex5;
-    public DynamicTexture2D? ProbeSh9Tex6 => probeSh9Tex6;
+    public DynamicTexture2D? ProbeSh9Tex0 => targets?.ProbeSh9Tex0;
+    public DynamicTexture2D? ProbeSh9Tex1 => targets?.ProbeSh9Tex1;
+    public DynamicTexture2D? ProbeSh9Tex2 => targets?.ProbeSh9Tex2;
+    public DynamicTexture2D? ProbeSh9Tex3 => targets?.ProbeSh9Tex3;
+    public DynamicTexture2D? ProbeSh9Tex4 => targets?.ProbeSh9Tex4;
+    public DynamicTexture2D? ProbeSh9Tex5 => targets?.ProbeSh9Tex5;
+    public DynamicTexture2D? ProbeSh9Tex6 => targets?.ProbeSh9Tex6;
 
     /// <summary>
     /// FBO for probe-atlas current output.
     /// </summary>
-    public Rendering.GpuFramebuffer? ScreenProbeAtlasCurrentFbo => screenProbeAtlasCurrentFbo;
+    public Rendering.GpuFramebuffer? ScreenProbeAtlasCurrentFbo => targets?.ScreenProbeAtlasCurrentFbo;
 
     /// <summary>
     /// 2D atlas for history probe-atlas radiance (previous frame).
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasHistoryTex => screenProbeAtlasHistoryTex;
+    public DynamicTexture2D? ScreenProbeAtlasHistoryTex => targets?.ScreenProbeAtlasHistoryTex;
 
     /// <summary>
     /// 2D atlas for history probe-atlas meta (previous frame).
     /// </summary>
-    public DynamicTexture2D? ScreenProbeAtlasMetaHistoryTex => screenProbeAtlasMetaHistoryTex;
+    public DynamicTexture2D? ScreenProbeAtlasMetaHistoryTex => targets?.ScreenProbeAtlasMetaHistoryTex;
 
     /// <summary>
     /// Width of the probe atlas (probeCountX × 8).
@@ -290,22 +192,22 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for half-resolution indirect diffuse output.
     /// </summary>
-    public Rendering.GpuFramebuffer? IndirectHalfFbo => indirectHalfFbo;
+    public Rendering.GpuFramebuffer? IndirectHalfFbo => targets?.IndirectHalfFbo;
 
     /// <summary>
     /// Texture for half-resolution indirect diffuse.
     /// </summary>
-    public DynamicTexture2D? IndirectHalfTex => indirectHalfTex;
+    public DynamicTexture2D? IndirectHalfTex => targets?.IndirectHalfTex;
 
     /// <summary>
     /// FBO for full-resolution indirect diffuse output.
     /// </summary>
-    public Rendering.GpuFramebuffer? IndirectFullFbo => indirectFullFbo;
+    public Rendering.GpuFramebuffer? IndirectFullFbo => targets?.IndirectFullFbo;
 
     /// <summary>
     /// Texture for full-resolution indirect diffuse (final output).
     /// </summary>
-    public DynamicTexture2D? IndirectFullTex => indirectFullTex;
+    public DynamicTexture2D? IndirectFullTex => targets?.IndirectFullTex;
 
     /// <summary>True only after the current render callback completed all indirect-lighting passes.</summary>
     internal bool HasPublishedIndirect { get; set; }
@@ -317,37 +219,37 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for the captured surface albedo (used for blitting from the primary attachment).
     /// </summary>
-    public Rendering.GpuFramebuffer? SurfaceAlbedoFbo => surfaceAlbedoFbo;
+    public Rendering.GpuFramebuffer? SurfaceAlbedoFbo => targets?.SurfaceAlbedoFbo;
 
     /// <summary>
     /// Captured surface albedo sampled by screen-probe ray hits.
     /// </summary>
-    public DynamicTexture2D? SurfaceAlbedoTex => surfaceAlbedoTex;
+    public DynamicTexture2D? SurfaceAlbedoTex => targets?.SurfaceAlbedoTex;
 
     /// <summary>
     /// FBO for velocity output (full resolution).
     /// </summary>
-    public Rendering.GpuFramebuffer? VelocityFbo => velocityFbo;
+    public Rendering.GpuFramebuffer? VelocityFbo => targets?.VelocityFbo;
 
     /// <summary>
     /// Velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
     /// </summary>
-    public DynamicTexture2D? VelocityTex => velocityTex;
+    public DynamicTexture2D? VelocityTex => targets?.VelocityTex;
 
     /// <summary>
     /// HZB depth pyramid texture (mipmapped R32F), mip 0 matches screen size.
     /// </summary>
-    public DynamicTexture2D? HzbDepthTex => hzbDepthTex;
+    public DynamicTexture2D? HzbDepthTex => targets?.HzbDepthTex;
 
     /// <summary>
     /// FBO used for rendering into HZB mip levels.
     /// </summary>
-    public Rendering.GpuFramebuffer? HzbFbo => hzbFbo;
+    public Rendering.GpuFramebuffer? HzbFbo => targets?.HzbFbo;
 
     /// <summary>
     /// FBO id used for rendering into HZB mip levels.
     /// </summary>
-    public int HzbFboId => hzbFbo?.FboId ?? 0;
+    public int HzbFboId => targets?.HzbFbo?.FboId ?? 0;
 
     // ═══════════════════════════════════════════════════════════════
     // Dimensions
@@ -378,6 +280,7 @@ public sealed class LumOnBufferManager : IDisposable
 
     #region Constructor
 
+    /// <summary>Registers screen-resource rebuilding while retaining LumOn history policy.</summary>
     public LumOnBufferManager(ICoreClientAPI capi, VgeConfig config)
     {
         this.capi = capi;
@@ -387,6 +290,7 @@ public sealed class LumOnBufferManager : IDisposable
             OnScreenResized);
     }
 
+    /// <summary>Recreates storage using published engine dimensions when required.</summary>
     private void OnScreenResized()
     {
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
@@ -436,10 +340,13 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void SwapRadianceBuffers()
     {
-        // Swap screen-probe atlas textures (2D atlas)
-        (screenProbeAtlasCurrentTex, screenProbeAtlasHistoryTex) = (screenProbeAtlasHistoryTex, screenProbeAtlasCurrentTex);
-        (screenProbeAtlasMetaCurrentTex, screenProbeAtlasMetaHistoryTex) = (screenProbeAtlasMetaHistoryTex, screenProbeAtlasMetaCurrentTex);
-        (screenProbeAtlasCurrentFbo, screenProbeAtlasHistoryFbo) = (screenProbeAtlasHistoryFbo, screenProbeAtlasCurrentFbo);
+        // Swapping roles does not change collection ownership or duplicate resource registrations.
+        if (targets is not null)
+        {
+            (targets.ScreenProbeAtlasCurrentTex, targets.ScreenProbeAtlasHistoryTex) = (targets.ScreenProbeAtlasHistoryTex, targets.ScreenProbeAtlasCurrentTex);
+            (targets.ScreenProbeAtlasMetaCurrentTex, targets.ScreenProbeAtlasMetaHistoryTex) = (targets.ScreenProbeAtlasMetaHistoryTex, targets.ScreenProbeAtlasMetaCurrentTex);
+            (targets.ScreenProbeAtlasCurrentFbo, targets.ScreenProbeAtlasHistoryFbo) = (targets.ScreenProbeAtlasHistoryFbo, targets.ScreenProbeAtlasCurrentFbo);
+        }
 
         currentBufferIndex = 1 - currentBufferIndex;
     }
@@ -461,20 +368,20 @@ public sealed class LumOnBufferManager : IDisposable
         int previousFbo = Rendering.GpuFramebuffer.SaveBinding();
 
         // Clear screen-probe atlas textures (2D atlas)
-        screenProbeAtlasTraceFbo?.BindAndClear();
-        screenProbeAtlasCurrentFbo?.BindAndClear();
-        screenProbeAtlasHistoryFbo?.BindAndClear();
-        screenProbeAtlasFilteredFbo?.BindAndClear();
-        probeSh9Fbo?.BindAndClear();
+        targets?.ScreenProbeAtlasTraceFbo?.BindAndClear();
+        targets?.ScreenProbeAtlasCurrentFbo?.BindAndClear();
+        targets?.ScreenProbeAtlasHistoryFbo?.BindAndClear();
+        targets?.ScreenProbeAtlasFilteredFbo?.BindAndClear();
+        targets?.ProbeSh9Fbo?.BindAndClear();
         // Composition can still hold these outputs after world teardown; reject stale indirect light too.
-        indirectHalfFbo?.BindAndClear();
-        indirectFullFbo?.BindAndClear();
+        targets?.IndirectHalfFbo?.BindAndClear();
+        targets?.IndirectFullFbo?.BindAndClear();
 
         // Clear probe trace mask (computed each frame, but keep deterministic on resets).
-        probeTraceMaskFbo?.BindAndClear();
+        targets?.ProbeTraceMaskFbo?.BindAndClear();
 
         // Clear velocity output (debug/temporal safety on resets)
-        velocityFbo?.BindAndClear();
+        targets?.VelocityFbo?.BindAndClear();
 
         // Restore previous framebuffer
         Rendering.GpuFramebuffer.RestoreBinding(previousFbo);
@@ -502,16 +409,17 @@ public sealed class LumOnBufferManager : IDisposable
     /// <param name="screenHeight">Screen height</param>
     public void CaptureSurfaceAlbedo(int primaryFboId, int screenWidth, int screenHeight)
     {
-        if (!isInitialized || surfaceAlbedoFbo == null)
+        if (!isInitialized || targets?.SurfaceAlbedoFbo == null)
             return;
 
-        surfaceAlbedoFbo.BlitFromExternal(primaryFboId, screenWidth, screenHeight);
+        targets?.SurfaceAlbedoFbo.BlitFromExternal(primaryFboId, screenWidth, screenHeight);
     }
 
     #endregion
 
     #region Private Methods
 
+    /// <summary>Resolves domain dimensions and replaces the owned target allocation.</summary>
     private void CreateBuffers(int screenWidth, int screenHeight)
     {
         // Delete existing buffers
@@ -527,116 +435,7 @@ public sealed class LumOnBufferManager : IDisposable
         halfResWidth = cfg.HalfResolution ? screenWidth / 2 : screenWidth;
         halfResHeight = cfg.HalfResolution ? screenHeight / 2 : screenHeight;
 
-        // ═══════════════════════════════════════════════════════════════
-        // Create Probe Anchor Buffers
-        // ═══════════════════════════════════════════════════════════════
-
-        probeAnchorPositionTex = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorPosition");
-        probeAnchorNormalTex = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorNormal");
-        probeAnchorFbo = Rendering.GpuFramebuffer.CreateMRT("ProbeAnchorFBO", probeAnchorPositionTex, probeAnchorNormalTex);
-
-        // ═══════════════════════════════════════════════════════════════
-        // Create Probe Trace Mask (Phase 10)
-        // ═══════════════════════════════════════════════════════════════
-
-        probeTraceMaskTex = DynamicTexture2D.Create(
-            probeCountX,
-            probeCountY,
-            PixelInternalFormat.Rg32f,
-            TextureFilterMode.Nearest,
-            debugName: "LumOn.ProbeTraceMask");
-
-        // Debug/diagnostics: per-probe importance energy (sum of weights).
-        probePisEnergyTex = DynamicTexture2D.Create(
-            probeCountX,
-            probeCountY,
-            PixelInternalFormat.R32f,
-            TextureFilterMode.Nearest,
-            debugName: "LumOn.ProbePisEnergy");
-
-        probeTraceMaskFbo = Rendering.GpuFramebuffer.CreateMRT(
-            [probeTraceMaskTex, probePisEnergyTex],
-            depthTexture: null,
-            ownsTextures: false,
-            debugName: "LumOn.ProbeTraceMaskFBO");
-
-        // ═══════════════════════════════════════════════════════════════
-        // Create Screen-Probe Atlas (2D atlas)
-        // Implementation detail: octahedral direction mapping per probe tile.
-        // Layout: (probeCountX * 8, probeCountY * 8) - tiled 8×8 per probe
-        // RGBA16F: RGB = radiance, A = log-encoded hit distance
-        // ═══════════════════════════════════════════════════════════════
-
-        int atlasWidth = probeCountX * 8;
-        int atlasHeight = probeCountY * 8;
-        screenProbeAtlasTraceTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasTrace");
-        screenProbeAtlasMetaTraceTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaTrace");
-        screenProbeAtlasTraceFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasTraceTex, screenProbeAtlasMetaTraceTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasTraceFBO");
-
-        screenProbeAtlasCurrentTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasCurrent");
-        screenProbeAtlasMetaCurrentTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaCurrent");
-        screenProbeAtlasCurrentFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasCurrentTex, screenProbeAtlasMetaCurrentTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasCurrentFBO");
-
-        screenProbeAtlasHistoryTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasHistory");
-        screenProbeAtlasMetaHistoryTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaHistory");
-        screenProbeAtlasHistoryFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasHistoryTex, screenProbeAtlasMetaHistoryTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasHistoryFBO");
-
-        // Filtered atlas output (Pass 3.5): derived from temporal output each frame
-        screenProbeAtlasFilteredTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasFiltered");
-        screenProbeAtlasMetaFilteredTex = DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaFiltered");
-        screenProbeAtlasFilteredFbo = Rendering.GpuFramebuffer.CreateMRT([screenProbeAtlasFilteredTex, screenProbeAtlasMetaFilteredTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasFilteredFBO");
-
-        // Probe-atlas → SH9 projection output (Option B)
-        // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)
-        probeSh9Tex0 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_0");
-        probeSh9Tex1 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_1");
-        probeSh9Tex2 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_2");
-        probeSh9Tex3 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_3");
-        probeSh9Tex4 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_4");
-        probeSh9Tex5 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_5");
-        probeSh9Tex6 = DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_6");
-        probeSh9Fbo = Rendering.GpuFramebuffer.CreateMRT(
-            [probeSh9Tex0, probeSh9Tex1, probeSh9Tex2, probeSh9Tex3, probeSh9Tex4, probeSh9Tex5, probeSh9Tex6],
-            null,
-            ownsTextures: false,
-            debugName: "ProbeSH9FBO");
-
-        // ═══════════════════════════════════════════════════════════════
-        // Create Indirect Diffuse Output Buffers
-        // ═══════════════════════════════════════════════════════════════
-
-        indirectHalfTex = DynamicTexture2D.Create(halfResWidth, halfResHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectHalf");
-        indirectHalfFbo = Rendering.GpuFramebuffer.CreateSingle(indirectHalfTex, debugName: "IndirectHalfFBO");
-
-        indirectFullTex = DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectFull");
-        indirectFullFbo = Rendering.GpuFramebuffer.CreateSingle(indirectFullTex, debugName: "IndirectFullFBO");
-
-        // ═══════════════════════════════════════════════════════════════
-        // Create LumOn-owned surface capture buffers.
-        // ═══════════════════════════════════════════════════════════════
-
-        surfaceAlbedoTex = DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "LumOn.SurfaceAlbedo");
-        surfaceAlbedoFbo = Rendering.GpuFramebuffer.CreateSingle(surfaceAlbedoTex, debugName: "LumOn.SurfaceAlbedoFBO");
-
-        // ═══════════════════════════════════════════════════════════════
-        // Velocity Buffer (Phase 14)
-        // NOTE: Packed uintBitsToFloat flags require a 32-bit float channel.
-        // We use RGBA32F for simplicity and correctness.
-        // ═══════════════════════════════════════════════════════════════
-
-        velocityTex = DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest, debugName: "Velocity");
-        velocityFbo = Rendering.GpuFramebuffer.CreateSingle(velocityTex, debugName: "VelocityFBO");
-
-        // ═══════════════════════════════════════════════════════════════
-        // HZB Depth Pyramid (mipmapped R32F)
-        // ═══════════════════════════════════════════════════════════════
-
-        int maxDim = Math.Max(screenWidth, screenHeight);
-        int mipLevels = 1;
-        while ((maxDim >>= 1) > 0) mipLevels++;
-
-        hzbDepthTex = DynamicTexture2D.CreateMipmapped(screenWidth, screenHeight, PixelInternalFormat.R32f, mipLevels, debugName: "HZBDepth");
-        hzbFbo = Rendering.GpuFramebuffer.CreateEmpty(debugName: "HZBFBO");
+        targets = new LumOnTargets(screenWidth, screenHeight, probeCountX, probeCountY, halfResWidth, halfResHeight);
 
         isInitialized = true;
         currentBufferIndex = 0;
@@ -646,91 +445,12 @@ public sealed class LumOnBufferManager : IDisposable
             $"spacing={cfg.ProbeSpacingPx}px, halfRes={halfResWidth}x{halfResHeight}");
     }
 
+    /// <summary>Retires the allocation and withdraws its published lighting.</summary>
     private void DeleteBuffers()
     {
-        // Dispose FBOs (they don't own textures)
-        probeAnchorFbo?.Dispose();
-        probeTraceMaskFbo?.Dispose();
-        indirectHalfFbo?.Dispose();
         HasPublishedIndirect = false;
-        indirectFullFbo?.Dispose();
-        surfaceAlbedoFbo?.Dispose();
-        velocityFbo?.Dispose();
-        screenProbeAtlasTraceFbo?.Dispose();
-        screenProbeAtlasCurrentFbo?.Dispose();
-        screenProbeAtlasHistoryFbo?.Dispose();
-        screenProbeAtlasFilteredFbo?.Dispose();
-        probeSh9Fbo?.Dispose();
-        hzbFbo?.Dispose();
-
-        probeAnchorFbo = null;
-        probeTraceMaskFbo = null;
-        indirectHalfFbo = null;
-        indirectFullFbo = null;
-        surfaceAlbedoFbo = null;
-        velocityFbo = null;
-        screenProbeAtlasTraceFbo = null;
-        screenProbeAtlasCurrentFbo = null;
-        screenProbeAtlasHistoryFbo = null;
-        screenProbeAtlasFilteredFbo = null;
-        probeSh9Fbo = null;
-        hzbFbo = null;
-
-        // Dispose 2D textures
-        probeAnchorPositionTex?.Dispose();
-        probeAnchorNormalTex?.Dispose();
-        probeTraceMaskTex?.Dispose();
-        probePisEnergyTex?.Dispose();
-        indirectHalfTex?.Dispose();
-        indirectFullTex?.Dispose();
-        surfaceAlbedoTex?.Dispose();
-        velocityTex?.Dispose();
-        screenProbeAtlasTraceTex?.Dispose();
-        screenProbeAtlasCurrentTex?.Dispose();
-        screenProbeAtlasHistoryTex?.Dispose();
-        screenProbeAtlasFilteredTex?.Dispose();
-        screenProbeAtlasMetaTraceTex?.Dispose();
-        screenProbeAtlasMetaCurrentTex?.Dispose();
-        screenProbeAtlasMetaHistoryTex?.Dispose();
-        screenProbeAtlasMetaFilteredTex?.Dispose();
-
-        probeSh9Tex0?.Dispose();
-        probeSh9Tex1?.Dispose();
-        probeSh9Tex2?.Dispose();
-        probeSh9Tex3?.Dispose();
-        probeSh9Tex4?.Dispose();
-        probeSh9Tex5?.Dispose();
-        probeSh9Tex6?.Dispose();
-
-        hzbDepthTex?.Dispose();
-
-        probeAnchorPositionTex = null;
-        probeAnchorNormalTex = null;
-        probeTraceMaskTex = null;
-        probePisEnergyTex = null;
-        indirectHalfTex = null;
-        indirectFullTex = null;
-        surfaceAlbedoTex = null;
-        velocityTex = null;
-        screenProbeAtlasTraceTex = null;
-        screenProbeAtlasCurrentTex = null;
-        screenProbeAtlasHistoryTex = null;
-        screenProbeAtlasFilteredTex = null;
-        screenProbeAtlasMetaTraceTex = null;
-        screenProbeAtlasMetaCurrentTex = null;
-        screenProbeAtlasMetaHistoryTex = null;
-        screenProbeAtlasMetaFilteredTex = null;
-
-        probeSh9Tex0 = null;
-        probeSh9Tex1 = null;
-        probeSh9Tex2 = null;
-        probeSh9Tex3 = null;
-        probeSh9Tex4 = null;
-        probeSh9Tex5 = null;
-        probeSh9Tex6 = null;
-
-        hzbDepthTex = null;
-
+        targets?.Dispose();
+        targets = null;
         isInitialized = false;
     }
 
@@ -738,6 +458,7 @@ public sealed class LumOnBufferManager : IDisposable
 
     #region IDisposable
 
+    /// <summary>Unregisters screen notifications and releases owned targets.</summary>
     public void Dispose()
     {
         unregisterResize();
