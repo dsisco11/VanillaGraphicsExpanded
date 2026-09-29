@@ -114,9 +114,9 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         }
     }
 
-    /// <summary>Partial engine shadow intensity scales sunlight while preserving its intentional fade.</summary>
+    /// <summary>Partial engine shadow intensity fades diffuse sunlight but removes solar specular.</summary>
     [Fact]
-    public void HalfShadowIntensityRetainsHalfSunlight()
+    public void HalfShadowIntensityRetainsHalfDiffuseAndRemovesSpecular()
     {
         EnsureShaderTestAvailable();
         var lit = RenderReceiver(1f, 100f, 0f);
@@ -124,7 +124,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         for (int channel = 0; channel < 3; channel++)
         {
             Assert.InRange(MathF.Abs(lit[channel] * .5f - halfShadow[channel]), 0f, .0001f);
-            Assert.InRange(MathF.Abs(lit[4 + channel] * .5f - halfShadow[4 + channel]), 0f, .0001f);
+            Assert.InRange(halfShadow[4 + channel], 0f, .0001f);
         }
     }
 

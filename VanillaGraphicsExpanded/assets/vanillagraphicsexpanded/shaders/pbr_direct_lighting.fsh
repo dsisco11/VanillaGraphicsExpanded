@@ -99,6 +99,9 @@ void main()
         accumDiffuse,
         accumSpecular);
 
+    // Do not retain softened sunlight in the direct-specular target inside shadows.
+    accumSpecular *= step(0.999999, sunVis);
+
     // Atmosphere supplies irradiance rather than the legacy pre-scaled lighting convention.
     accumDiffuse /= 3.14159265359;
 
