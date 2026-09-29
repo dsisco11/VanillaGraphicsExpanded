@@ -141,13 +141,8 @@ public sealed partial class GBufferManager : IDisposable
         // Label VS framebuffer and textures for debugging
         LabelVintageStoryFramebuffer(primaryFb);
 
-        // Inject our textures into the framebuffers array
-        // Need to expand the ColorTextureIds array to hold our attachments
-        Array.Resize(ref primaryFb.ColorTextureIds, 8);
-        primaryFb.ColorTextureIds[NormalSlotId] = NormalTextureId;
-        primaryFb.ColorTextureIds[MaterialSlotId] = MaterialTextureId;
-        primaryFb.ColorTextureIds[PatchIdSlotId] = PatchIdTextureId;
-        primaryFb.ColorTextureIds[EnvironmentSlotId] = EnvironmentTextureId;
+        // Keep VGE-owned textures out of the engine deletion array. They are attached directly
+        // below and remain exclusively owned by this manager across framebuffer rebuilds.
         isInjected = true;
 
         // Attach to the Primary framebuffer
@@ -363,14 +358,6 @@ public sealed partial class GBufferManager : IDisposable
             return;
         }
 
-        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        if (primaryFb?.ColorTextureIds is { Length: > NormalSlotId })
-        {
-            // The engine deletes every texture recorded in this array during framebuffer teardown.
-            // Remove VGE-owned attachments first so their wrappers remain the sole owners.
-            Array.Resize(ref primaryFb.ColorTextureIds, NormalSlotId);
-        }
-
         isInjected = false;
     }
 
@@ -407,12 +394,6 @@ public sealed partial class GBufferManager : IDisposable
             PrepareReceiverPosition(primaryFb, screenWidth, screenHeight);
             AttachToFramebuffer(primaryFb.FboId);
             
-            // Keep engine attachment bookkeeping current after every resize.
-            Array.Resize(ref primaryFb.ColorTextureIds, 8);
-            primaryFb.ColorTextureIds[NormalSlotId] = NormalTextureId;
-            primaryFb.ColorTextureIds[MaterialSlotId] = MaterialTextureId;
-            primaryFb.ColorTextureIds[PatchIdSlotId] = PatchIdTextureId;
-            primaryFb.ColorTextureIds[EnvironmentSlotId] = EnvironmentTextureId;
             isInjected = true;
             capi.Logger.Debug($"[VGE] EnsureBuffers: Recreated G-buffer textures for {screenWidth}x{screenHeight}");
         }
@@ -477,6 +458,16 @@ public sealed partial class GBufferManager : IDisposable
         fallbackPosition?.Dispose();
         fallbackPosition = null;
         PositionTextureId = 0;
+
+        bool externallyDeleted = RelinquishIfDeleted(normalTex)
+            | RelinquishIfDeleted(materialTex)
+            | RelinquishIfDeleted(patchIdTex)
+            | RelinquishIfDeleted(environmentTex);
+        if (externallyDeleted)
+        {
+            GlStateCache.Current.InvalidateAll();
+        }
+
         textures?.Dispose();
         textures = null;
         normalTex = null;
@@ -485,6 +476,17 @@ public sealed partial class GBufferManager : IDisposable
         environmentTex = null;
         isInitialized = false;
         isInjected = false;
+    }
+
+    private static bool RelinquishIfDeleted(DynamicTexture2D? texture)
+    {
+        if (texture is null || !texture.IsValid || GL.IsTexture(texture.TextureId))
+        {
+            return false;
+        }
+
+        texture.ReleaseHandle();
+        return true;
     }
 
     /// <summary>
