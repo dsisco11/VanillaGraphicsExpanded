@@ -207,7 +207,7 @@ Tasks
       displayed LUT until coherent texture/lighting replacement on the render thread. SIMD batches
       remain bounded to 128 directions. The original quality validation passed 47 focused tests. Validation
       evidence and configuration details: PBR.Atmosphere.md.
-  ☐ Make atmospheric shader look better and more physically accurate.
+  ✔ Make atmospheric shader look better and more physically accurate. @done(26-09-28 21:01)
     - Preserve full-LUT background computation, bounded SIMD scratch storage, cancellation on teardown,
       and coherent render-thread publication while displaying the previous complete result.
     - Reference: docs/PBR.Atmosphere.md and Hillaire's atmosphere technique:
@@ -338,7 +338,22 @@ Tasks
         tests and user-run visual comparisons; document if dithering proves unnecessary.
     - For each subtask, run focused numerical/shader tests through subagents and record matched CPU,
       GPU and memory costs. Obtain user-run visual comparisons; passing tests are not visual acceptance.
-      
+
+  ☐ Diagnose and fix sun-colored specular highlights remaining on shadowed surfaces.
+    - Prioritize this investigation before the remaining tasks below. Direct solar specular already
+      receives shadow visibility in both deferred and forward BRDF calls; do not assume a missing
+      multiplier or change the lighting model without reproducing the failing path.
+    - Identify the visible contribution and affected draw route. Inspect direct-specular output
+      separately from environment reflections, point lights, atmospheric scattering and bloom.
+    - Trace production shadow textures/comparison samplers, matrices, reconstructed receiver space,
+      cascade coverage/ranges and shadow intensity. Check that valid occlusion reaches the BRDF,
+      including terrain, entities and forward/transparent receivers with LumOn enabled and disabled.
+    - Reproduce the confirmed defect with focused GPU tests, then fix it through existing lighting
+      and resource owners. Full shadow visibility loss must suppress direct solar diffuse and
+      specular together; preserve legitimate indirect/environment lighting and other light sources.
+    - Run focused build/tests through subagents, document the cause and evidence, and obtain user-run
+      visual confirmation. Source inspection alone does not establish the cause of the live artifact.
+
   ☐ Try and make tessellation do square subdivision by subdividing faces as quads.
   ☐ BUG: held lights seem to be placed at exactly the players feet position, which is causing the illumination to appear incorrectly low and also to clip into the ground which prevents lighting fro showing on the terrain being walked on; investigate the light attachment and transformation logic.
   ☐ Issue: foliage materials arent taking into account their facing direction when calculating lighting and specularity? plants seem to be fullbright from the sun even when facing away.
