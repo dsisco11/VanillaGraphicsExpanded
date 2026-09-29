@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -189,6 +190,26 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         Assert.All([manager.NormalTextureId, manager.MaterialTextureId, manager.PatchIdTextureId, manager.EnvironmentTextureId],
             texture => Assert.True(GL.IsTexture(texture)));
         GpuFramebuffer.Unbind();
+    }
+
+    /// <summary>Direct-light buffer recreation does not restore a texture binding deleted by the engine.</summary>
+    [Fact]
+    public void DirectLightingResizeInvalidatesExternallyDeletedTextureBinding()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var buffers = new DirectLightingBufferManager(assets.Api);
+        Assert.True(buffers.EnsureBuffers(2, 2));
+        using var stale = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
+        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, 0, stale.TextureId);
+        GL.DeleteTexture(stale.ReleaseHandle().ToInt32());
+
+        Assert.True(buffers.EnsureBuffers(4, 4));
+
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        Assert.True(GL.IsTexture(buffers.DirectDiffuseTextureId));
+        Assert.True(GL.IsTexture(buffers.DirectSpecularTextureId));
+        Assert.True(GL.IsTexture(buffers.EmissiveTextureId));
     }
     #endregion
 }

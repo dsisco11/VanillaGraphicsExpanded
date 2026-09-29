@@ -2,6 +2,7 @@ using HarmonyLib;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded;
+using VanillaGraphicsExpanded.Rendering;
 
 [Harmony]
 public static class GBufferHooks
@@ -15,14 +16,13 @@ public static class GBufferHooks
        GBufferManager.Instance?.UnloadGBuffer(framebuffer);
     }
 
-    // NOTE: this happens before mods load, so we cant hook it.
-    // Vintagestory.Client.NoObf.ClientPlatformWindows.SetupDefaultFrameBuffers()
-    //[HarmonyPatch(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.SetupDefaultFrameBuffers))]
-    //[HarmonyPostfix]
-    //public static void SetupDefaultFrameBuffers_Hook()
-    //{
-    //    GBufferManager.Instance?.SetupGBuffers();
-    //}
+    // Initial setup happens before mods load, but later calls rebuild these objects after resize.
+    [HarmonyPatch(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.SetupDefaultFrameBuffers))]
+    [HarmonyPostfix]
+    public static void SetupDefaultFrameBuffers_Hook()
+    {
+        GlStateCache.Current.InvalidateAll();
+    }
 
 // Vintagestory.Client.NoObf.ClientPlatformWindows.ClearFrameBuffer(EnumFrameBuffer framebuffer)
     [HarmonyPatch(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.ClearFrameBuffer), typeof(EnumFrameBuffer))]

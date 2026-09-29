@@ -183,6 +183,10 @@ public sealed class DirectLightingBufferManager : IDisposable
     private void CreateBuffers(int width, int height)
     {
         // NOTE: This method may run during rendering (e.g. on window resize).
+        // The engine rebuilds its textures outside GlStateCache, so discard stale bindings before
+        // any allocation scope can capture and later restore a deleted texture name.
+        GlStateCache.Current.InvalidateAll();
+
         // Preserve the currently-bound framebuffer so we don't break the engine's render pipeline.
         int prevFbo = GpuFramebuffer.SaveBinding();
 

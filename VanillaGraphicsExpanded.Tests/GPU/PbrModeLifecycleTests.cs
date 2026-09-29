@@ -44,6 +44,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1,1,1];
         using var gbuffer = new GBufferManager(api);
         Assert.True(gbuffer.EnsureBuffers(1,1));
+        int engineAttachmentCount = terrain.Primary.ColorTextureIds.Length;
         using var direct = new DirectLightingBufferManager(api);
         Assert.True(direct.EnsureBuffers(1,1));
         direct.DirectDiffuseTex!.TryClearToZero(); direct.DirectSpecularTex!.TryClearToZero(); direct.EmissiveTex!.TryClearToZero();
@@ -91,7 +92,8 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         Assert.Equal("0", shader.InstalledSettings!.Values["VGE_LUMON_ENABLED"].Canonical);
 
         Assert.True(gbuffer.EnsureBuffers(2,2));
-        Assert.Equal(gbuffer.EnvironmentTextureId, terrain.Primary.ColorTextureIds[7]);
+        Assert.Equal(engineAttachmentCount, terrain.Primary.ColorTextureIds.Length);
+        Assert.DoesNotContain(gbuffer.EnvironmentTextureId, terrain.Primary.ColorTextureIds);
         Assert.NotEqual(0, gbuffer.EnvironmentTextureId);
         GL.ClearTexImage(gbuffer.EnvironmentTextureId, 0, PixelFormat.Rgba, PixelType.Float, new[] { 1f,1f,1f,1f });
         gbuffer.ClearGBuffer(EnumFrameBuffer.Primary);
