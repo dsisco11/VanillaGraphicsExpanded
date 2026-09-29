@@ -54,7 +54,7 @@
 
     "dirt": { "roughness": 0.95, "metallic": 0.0 },
     "grass": { "roughness": 0.9, "metallic": 0.0, "scale": { "normal": 0.05, "depth": 0.1 } },
-    "plant": { "transmission": 0.35, "roughness": 0.9, "metallic": 0.0, "scale": { "normal": 0, "depth": 0 } },
+    "plant": { "transmission": 0.5, "roughness": 0.9, "metallic": 0.0, "scale": { "normal": 0, "depth": 0 } },
     "mud": { "roughness": 0.97, "metallic": 0.0 },
     "clay": { "roughness": 0.9, "metallic": 0.0 },
     "sand": { "roughness": 0.9, "metallic": 0.0 },
@@ -70,10 +70,10 @@
     "log": { "roughness": 0.75, "metallic": 0.0 },
     "planks": { "roughness": 0.65, "metallic": 0.0 },
     "wicker": { "roughness": 0.8, "metallic": 0.0 },
-    "paper": { "roughness": 0.8, "metallic": 0.0 },
+    "paper": { "transmission": 0.5, "roughness": 0.8, "metallic": 0.0 },
 
-    "cloth": { "roughness": 0.9, "metallic": 0.0 },
-    "wool": { "roughness": 0.93, "metallic": 0.0 },
+    "cloth": { "transmission": 0.3, "roughness": 0.9, "metallic": 0.0 },
+    "wool": { "transmission": 0.25, "roughness": 0.93, "metallic": 0.0 },
     "leather": { "roughness": 0.75, "metallic": 0.0 },
 
     "ceramic": { "roughness": 0.55, "metallic": 0.0 },
@@ -82,8 +82,8 @@
 
     "glass": { "roughness": 0.05, "metallic": 0.0 },
     "water": { "roughness": 0.02, "metallic": 0.0 },
-    "ice": { "roughness": 0.5, "metallic": 0.0 },
-    "snow": { "roughness": 0.5, "metallic": 0.0 },
+    "ice": { "transmission": 0.75, "roughness": 0.5, "metallic": 0.0 },
+    "snow": { "transmission": 0.3, "roughness": 0.5, "metallic": 0.0 },
     "lava": { "roughness": 0.1, "metallic": 0.0, "emissive": 10.0 },
     "fire": { "roughness": 1.0, "metallic": 0.0, "emissive": 3.0, "scale": { "normal": 0.0, "depth": 0.0 } },
     "ember": { "roughness": 1.0, "metallic": 0.0, "emissive": 1.0, "scale": { "normal": 0.0, "depth": 0.0 } },
@@ -98,7 +98,7 @@
     "ember_faint": { "roughness": 1.0, "metallic": 0.0, "emissive": 0.12, "scale": { "normal": 0.0, "depth": 0.0 } },
     "luminescent_liquid": { "roughness": 0.02, "metallic": 0.0, "emissive": 0.6, "scale": { "normal": 0.0, "depth": 0.0 } },
     "tar": { "roughness": 0.08, "metallic": 0.0 },
-    "honey": { "roughness": 0.05, "metallic": 0.0 },
+    "honey": { "transmission": 0.7, "roughness": 0.05, "metallic": 0.0 },
 
     "coal": { "roughness": 0.7, "metallic": 0.0 },
     "charcoal": { "roughness": 0.9, "metallic": 0.0 },
