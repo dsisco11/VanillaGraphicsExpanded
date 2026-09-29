@@ -24,7 +24,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
     // diffuseAOStrength.x, specularAOStrength.y, reserved.zw
     vec4 aoStrengths;
     vec4 atmosphereAerial; // admitted altitude (km), horizon elevation, reserved.zw
-    vec4 atmosphereReserved;
+    vec4 atmosphereSun; // admitted solar direction, reserved.w
 } vgePbrCompositeParams;
 
 // Matrices

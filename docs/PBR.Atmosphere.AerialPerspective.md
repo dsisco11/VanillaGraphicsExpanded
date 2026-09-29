@@ -40,14 +40,14 @@ Underwater receivers retain engine water fog instead of applying atmospheric tra
 ## Storage and lifetime
 
 Angular dimensions follow atmospheric quality: 32x24, 64x48, 96x72 or 128x96. Distance depth
-is fixed at 24. The paired RGBA16F aerial textures consume 288 KiB at default quality and
-4.5 MiB at maximum quality, per complete set. Sky storage is additional. Two resource sets
+is fixed at 24. The paired RGBA16F aerial textures consume 432 KiB at default quality and
+6.75 MiB at maximum quality, per complete set. Sky storage is additional. Two resource sets
 allow upload into the spare set before atomically publishing all three texture IDs and the
 matching immutable lighting snapshot. Upload failure retains the previous complete set.
 
 The GPU queue output includes four lighting vectors, sky texels and both aerial arrays in
-RGBA32F: 602176 bytes at default quality, 9633856 bytes at maximum. Maximum buffer payload
-including the 64-byte parameters and 131072-byte source table is 9764992 bytes. Immutable
+RGBA32F: 909376 bytes at default quality, 14549056 bytes at maximum. Maximum buffer payload
+including the 64-byte parameters and 131072-byte source table is 14680192 bytes. Immutable
 CPU snapshots and the two display texture sets are additional. GPU results currently pass
 through the existing readback/publication path; this increases transfer costs as well as
 integration work. CPU fallback builds complete generations asynchronously with pooled,
@@ -94,3 +94,8 @@ One maximum-quality run measured 1.239 ms for its first source batch and 324.858
 for the remaining generation (353.466 ms harness wall). Its largest measured update was 6.716 ms.
 That is a material frame-budget cost; bounded storage/work does not imply negligible rendering cost.
 Live appearance and production terrain contention remain unverified and require user-run comparison.
+
+The halo reconstruction update packs background and unweighted Mie transport into two
+elevation bands of the radiance texture; attenuation retains its original layout.
+The memory bounds above include this update. Historical timings above precede it.
+See [halo reconstruction](PBR.Atmosphere.HaloSampling.md).

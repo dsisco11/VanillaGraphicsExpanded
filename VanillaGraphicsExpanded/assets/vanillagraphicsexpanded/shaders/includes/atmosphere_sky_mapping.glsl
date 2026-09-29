@@ -1,5 +1,12 @@
 #ifndef VGE_ATMOSPHERE_SKY_MAPPING
 #define VGE_ATMOSPHERE_SKY_MAPPING
+/** Concentrated solar scattering is evaluated at the pixel direction, not interpolated from the LUT. */
+float atmMieFactor(vec3 direction, vec3 sun)
+{
+    const float g = .76;
+    float cosine = clamp(dot(direction, sun), -1.0, 1.0);
+    return (1.0 - g * g) / (12.56637061436 * pow(1.0 + g * g - 2.0 * g * cosine, 1.5));
+}
 // Matches AtmosphereSkyMapping: endpoints are poles, the middle coordinate is the depressed horizon.
 float atmSkyElevation(float v, float horizon)
 {

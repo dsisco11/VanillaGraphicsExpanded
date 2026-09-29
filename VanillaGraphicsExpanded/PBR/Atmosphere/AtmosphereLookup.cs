@@ -8,6 +8,8 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 /// <summary>A coherent sky lookup and its hemispherical lighting integrals, expressed in scene-linear units.</summary>
 internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 Environment, Vector3 Horizon, Vector3 Extinction, ImmutableArray<float> Sky)
 {
+    internal ImmutableArray<float> SkyMie { get; init; } = ImmutableArray<float>.Empty;
+    internal ImmutableArray<float> AerialMie { get; init; } = ImmutableArray<float>.Empty;
     internal int Width { get; init; } = AtmosphereLookup.DefaultWidth;
     internal int Height { get; init; } = AtmosphereLookup.DefaultHeight;
     internal float HorizonElevation { get; init; }
@@ -23,6 +25,7 @@ internal sealed class AtmosphereLookup
     internal const int DefaultHeight = 24;
     internal const int SamplesPerUpdate = 128;
     private float[] staging = Array.Empty<float>();
+    private float[] mieStaging = Array.Empty<float>();
     private (int X, int Y, int Z, int Altitude, int Weather, int Width, int Height, int Quality, int Albedo)? completedKey, buildingKey;
     private int quality;
     private int width, height;
@@ -63,7 +66,7 @@ internal sealed class AtmosphereLookup
             this.width = key.Width; this.height = key.Height;
             this.quality = key.Quality;
             int length = checked(this.width * this.height * 4);
-            if (staging.Length != length) staging = new float[length];
+            if (staging.Length != length) { staging = new float[length]; mieStaging = new float[length]; }
             sun = solarDirection; altitude = Math.Clamp(altitudeKm, .001f, 99f);
             // Use the admitted weather bucket consistently for transport and its cached
             // medium table; tiny cloud jitter during sun motion must not rebuild the table.
@@ -91,6 +94,7 @@ internal sealed class AtmosphereLookup
         int end = Math.Min(next + (complete ? width * height : SamplesPerUpdate), width * height);
         Span<Vector3> directions = stackalloc Vector3[SamplesPerUpdate];
         Span<Vector3> radiances = stackalloc Vector3[SamplesPerUpdate];
+        Span<Vector3> mie = stackalloc Vector3[SamplesPerUpdate];
         while (next < end)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -102,12 +106,14 @@ internal sealed class AtmosphereLookup
                 float azimuth = (x + .5f) / width * (2f * MathF.PI);
                 directions[lane] = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
             }
-            AtmosphereModel.RadianceBatch(directions[..count], sun, altitude, aerosol, radiances[..count], multipleScattering);
+            AtmosphereModel.RadianceBatch(directions[..count], sun, altitude, aerosol, radiances[..count], multipleScattering, mie[..count]);
             // Preserve row-major accumulation order for the shared lighting integrals.
             for (int lane = 0; lane < count; lane++, next++)
             {
                 int y = next / width;
                 Vector3 radiance = radiances[lane];
+                mieStaging[next * 4] = mie[lane].X; mieStaging[next * 4 + 1] = mie[lane].Y;
+                mieStaging[next * 4 + 2] = mie[lane].Z; mieStaging[next * 4 + 3] = 1;
                 staging[next * 4] = radiance.X; staging[next * 4 + 1] = radiance.Y;
                 staging[next * 4 + 2] = radiance.Z; staging[next * 4 + 3] = 1;
                 // Irradiance/pi is the Lambertian sky response at unit albedo, used by the shared environment model.
@@ -126,10 +132,11 @@ internal sealed class AtmosphereLookup
             horizon += Vector3.Lerp(new(staging[a], staging[a + 1], staging[a + 2]),
                 new(staging[b], staging[b + 1], staging[b + 2]), horizontalRow - lower) / width;
         }
-        var aerial = AtmosphereAerialVolume.Build(sun, altitude, aerosol, width, height, staging, multipleScattering, cancellationToken);
+        var aerial = AtmosphereAerialVolume.Build(sun, altitude, aerosol, width, height, staging, multipleScattering, cancellationToken, mieStaging);
         Current = new(sun, AtmosphereModel.SolarIrradiance(sun, altitude, aerosol), environment, horizon,
             AtmosphereModel.LocalExtinction(altitude, aerosol), ImmutableArray.CreateRange(staging))
             { Width = width, Height = height, HorizonElevation = horizonElevation, Altitude = altitude,
+                SkyMie = ImmutableArray.CreateRange(mieStaging), AerialMie = aerial.Mie,
                 AerialRadiance = aerial.Radiance, AerialAttenuation = aerial.Attenuation };
         completedKey = buildingKey; buildingKey = null; Revision++;
         return true;

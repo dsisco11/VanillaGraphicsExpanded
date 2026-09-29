@@ -25,7 +25,7 @@ public sealed class AtmosphereProgramBindingsTests
 
     /// <summary>Only patched engine families declare an atmosphere interface.</summary>
     [Theory]
-    [InlineData("sky", AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping)]
+    [InlineData("sky", AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping | AtmosphereBindings.SunDirection)]
     [InlineData("chunkopaque", AtmosphereBindings.Environment)]
     [InlineData("chunktopsoil", AtmosphereBindings.Environment)]
     [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk)]

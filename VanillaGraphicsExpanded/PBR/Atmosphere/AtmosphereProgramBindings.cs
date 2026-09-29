@@ -36,7 +36,7 @@ internal static class AtmosphereProgramBindings
     /// <summary>Allows only shader families whose sources receive atmospheric patches.</summary>
     internal static AtmosphereBindings Expected(string? passName) => passName switch
     {
-        "sky" => AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping,
+        "sky" => AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping | AtmosphereBindings.SunDirection,
         "chunkopaque" or "chunktopsoil" => AtmosphereBindings.Environment,
         "standard" => AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial
             | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk,

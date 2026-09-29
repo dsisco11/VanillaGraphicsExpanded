@@ -54,21 +54,25 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
         using var owner = new AtmosphereModSystem();
         const int width = 4;
         float[] pixels = new float[width * height * 4];
+        float[] mie = new float[pixels.Length];
+        float horizon = AtmosphereSkyMapping.Horizon(altitude);
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
         {
             int i = (y * width + x) * 4;
-            pixels[i] = (float)y / (height - 1); pixels[i + 1] = x * .25f; pixels[i + 3] = 1;
+            float angular = AtmosphereMieTransport.Factor(AtmosphereMieTransport.Direction(x, y, width, height, horizon).Y);
+            pixels[i] = (float)y / (height - 1) + .05f * angular; pixels[i + 1] = x * .25f + .05f * angular; pixels[i + 2] = .05f * angular; pixels[i + 3] = 1;
+            mie[i] = mie[i + 1] = mie[i + 2] = .05f; mie[i + 3] = 1;
         }
-        float horizon = AtmosphereSkyMapping.Horizon(altitude);
         owner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.CreateRange(pixels))
-            { Width = width, Height = height, HorizonElevation = horizon });
+            { Width = width, Height = height, HorizonElevation = horizon, SkyMie = ImmutableArray.CreateRange(mie) });
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         target.BindWithViewport();
         GlStateCache.Current.UseProgram(program.ProgramId); GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
         using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereSky"), 0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereLutHorizon"), horizon);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereSunDirection"), 0f, 1f, 0f);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         foreach (float v in new[] { 0f, .25f, .499f, .5f, .501f, .75f, 1f })
         foreach (float azimuth in new[] { -.00001f, 0f, .00001f })
@@ -79,8 +83,9 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "sampleDirection"), direction.X, direction.Y, direction.Z);
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
-            float expectedRed = displayTransfer ? Transfer(v, Math.Max(v, .375f)) : v;
-            float expectedGreen = displayTransfer ? Transfer(.375f, Math.Max(v, .375f)) : .375f;
+            float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y);
+            float expectedRed = displayTransfer ? Transfer(v + lobe, Math.Max(v, .375f) + lobe) : v + lobe;
+            float expectedGreen = displayTransfer ? Transfer(.375f + lobe, Math.Max(v, .375f) + lobe) : .375f + lobe;
             if (displayTransfer) { expectedRed = Math.Clamp(expectedRed - 31.5f / (64f * 255f), 0f, 1f); expectedGreen = Math.Clamp(expectedGreen - 31.5f / (64f * 255f), 0f, 1f); }
             Assert.True(MathF.Abs(actual[0] - expectedRed) <= .0006f, $"v={v}, azimuth={azimuth}, actual={actual[0]}");
             Assert.InRange(MathF.Abs(actual[1] - expectedGreen), 0, .0001f);

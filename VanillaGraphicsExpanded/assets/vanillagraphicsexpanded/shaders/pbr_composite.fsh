@@ -137,7 +137,7 @@ void main(void)
     }
     else
         finalColor = VgeApplyAerial(finalColor, transpose(mat3(viewMatrix)) * receiverVS,
-            texture(gBufferEnvironment, uv).a, vgePbrCompositeParams.atmosphereAerial.xy);
+            texture(gBufferEnvironment, uv).a, vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
 
     outColor = vec4(finalColor, 1.0);
 }

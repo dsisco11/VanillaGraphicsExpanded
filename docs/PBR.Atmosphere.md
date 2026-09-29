@@ -2,6 +2,11 @@
 
 ## Model and units
 
+The halo sampling update separates unweighted Mie transport from the smooth
+background for sky and aerial display, evaluating its concentrated angular factor
+per pixel. Shared lighting still integrates full radiance. Representation,
+storage cost and validation are documented in [halo sampling](PBR.Atmosphere.HaloSampling.md).
+
 `AtmosphereModel` integrates RGB single scattering plus a LUT-based isotropic multiple-scattering
 approximation in a spherical atmosphere. Geometry uses
 kilometres: ground radius 6360 km, atmosphere top 6460 km; one game block is interpreted as one

@@ -52,7 +52,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
         UboPacking.WriteVec4(DataWritable, 192, lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 0);
-        UboPacking.WriteVec4(DataWritable, 208, 0, 0, 0, 0);
+        UboPacking.WriteVec4(DataWritable, 208, lighting?.Sun.X ?? 0, lighting?.Sun.Y ?? 1, lighting?.Sun.Z ?? 0, 0);
         MarkDirty(192, 32);
     }
 

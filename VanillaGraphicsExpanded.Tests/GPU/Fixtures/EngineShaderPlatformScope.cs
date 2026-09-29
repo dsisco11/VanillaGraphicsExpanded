@@ -23,6 +23,10 @@ internal sealed class EngineShaderPlatformScope : IDisposable
         typeof(ClientPlatformWindows).GetProperty(nameof(ClientPlatformWindows.ShaderUniforms))!.SetValue(platform,new DefaultShaderUniforms());
         ScreenManager.Platform=platform;
         ShaderProgramBase.CurrentShaderProgram=null;
+        // Engine compilation restores the currently bound program through the state cache.
+        // A preceding fixture may have retired its raw engine program without a cache hook.
+        GL.UseProgram(0);
+        GlStateCache.Current.NotifyProgramBound(0);
     }
 
     /// <summary>Restores both engine and GL program ownership even if a production upload throws.</summary>

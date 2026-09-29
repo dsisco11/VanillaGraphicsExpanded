@@ -68,7 +68,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
     if (vge_atmosphereAerialParams.z > .7)
         radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
     else
-        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xy);
+        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
     // Primary/OIT currently blend display-space colors. Full scene-linear blending is separately owned.
     return VgeDitherDisplay(VgeResolveDisplay(radiance), gl_FragCoord.xy);
 }

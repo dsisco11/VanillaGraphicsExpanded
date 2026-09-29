@@ -22,8 +22,10 @@ internal static class AtmosphereSkyPatches
                 """
                 uniform sampler2D vge_atmosphereSky;
                 uniform float vge_atmosphereLutHorizon;
+                uniform vec3 vge_atmosphereSunDirection;
                 vec3 VgeResolveDisplay(vec3 radiance);
                 float atmSkyCoordinate(float elevation, float horizon);
+                float atmMieFactor(vec3 direction, vec3 sun);
 
                 """)
             .InsertBefore(Query.Syntax<GlFunctionNode>().Named("getSkyColorAt").InnerEnd("body"), """
@@ -32,9 +34,11 @@ internal static class AtmosphereSkyPatches
                     vec3 direction = normalize(skyPosition);
                     float azimuth = dot(direction.xz, direction.xz) > 0.0000001 ? atan(direction.z, direction.x) : 0.0;
                     float row = atmSkyCoordinate(asin(clamp(direction.y, -1.0, 1.0)), vge_atmosphereLutHorizon);
-                    float rows = float(textureSize(vge_atmosphereSky, 0).y);
-                    vec2 lookupUv = vec2(azimuth / 6.28318530718, (row * (rows - 1.0) + 0.5) / rows);
-                    vec3 radiance = texture(vge_atmosphereSky, lookupUv).rgb;
+                    float rows = float(textureSize(vge_atmosphereSky, 0).y / 2);
+                    vec2 lookupUv = vec2(azimuth / 6.28318530718, (row * (rows - 1.0) + 0.5) / (2.0 * rows));
+                    vec3 radiance = texture(vge_atmosphereSky, lookupUv).rgb
+                        + texture(vge_atmosphereSky, lookupUv + vec2(0.0, 0.5)).rgb
+                            * atmMieFactor(direction, vge_atmosphereSunDirection);
                     // Stars are rendered before the dome. Retain the engine's twilight alpha policy.
                     skyColor.rgb = VgeResolveDisplay(radiance);
                     skyGlow = vec4(0.0, 0.0, 0.0, 1.0);

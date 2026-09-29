@@ -92,6 +92,9 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereReady"));
             Assert.True(GL.GetUniformLocation(program, "vge_atmosphereSky") >= 0);
             Assert.True(GL.GetUniformLocation(program, "vge_atmosphereLutHorizon") >= 0);
+            // The expanded engine lookup precedes our helper definitions. Linking this real
+            // ordering must retain the per-pixel Mie reconstruction and its sun input.
+            Assert.True(GL.GetUniformLocation(program, "vge_atmosphereSunDirection") >= 0);
             Assert.Equal(6, GL.GetFragDataLocation(program, "vge_outPatchId"));
         }
         finally

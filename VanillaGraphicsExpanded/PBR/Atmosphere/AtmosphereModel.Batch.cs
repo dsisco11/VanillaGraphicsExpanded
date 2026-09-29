@@ -13,37 +13,45 @@ internal static partial class AtmosphereModel
     #region Batched integration
     /// <summary>Builds one bounded batch of finite-path columns using the same tensor density and sunlight integration kernels.</summary>
     internal static void AerialBatch(ReadOnlySpan<Vector3> directions, Vector3 sun, float altitude,
-        float aerosol, AtmosphereMultipleScattering? scattering, Span<Vector4> radiances, Span<Vector4> transmissions)
+        float aerosol, AtmosphereMultipleScattering? scattering, Span<Vector4> radiances, Span<Vector4> transmissions,
+        Span<Vector4> mieTransport = default)
     {
         if (directions.Length > BatchCapacity || radiances.Length < directions.Length * AtmosphereAerialPerspective.Depth
-            || transmissions.Length < directions.Length * AtmosphereAerialPerspective.Depth)
+            || transmissions.Length < directions.Length * AtmosphereAerialPerspective.Depth
+            || (!mieTransport.IsEmpty && mieTransport.Length < directions.Length * AtmosphereAerialPerspective.Depth))
             throw new ArgumentException("Invalid aerial batch dimensions.");
         Span<Vector3> result = stackalloc Vector3[directions.Length];
         IntegrateBatch(directions, Vector3.Normalize(sun), new(0, GroundRadius + Math.Clamp(altitude, .001f, 99f), 0),
-            Math.Clamp(aerosol, .1f, 8f), result, scattering, radiances, transmissions);
+            Math.Clamp(aerosol, .1f, 8f), result, scattering, radiances, transmissions, aerialMie: mieTransport);
     }
 
     /// <summary>Evaluates independent sky directions with bounded scratch storage and scalar-compatible integration order.</summary>
     internal static void RadianceBatch(ReadOnlySpan<Vector3> directions, Vector3 sun, float altitudeKm,
-        float aerosol, Span<Vector3> destination, AtmosphereMultipleScattering? multipleScattering = null)
+        float aerosol, Span<Vector3> destination, AtmosphereMultipleScattering? multipleScattering = null,
+        Span<Vector3> mieTransport = default)
     {
         if (destination.Length < directions.Length) throw new ArgumentException("Destination is too short.", nameof(destination));
+        if (!mieTransport.IsEmpty && mieTransport.Length < directions.Length)
+            throw new ArgumentException("Mie transport destination is too short.", nameof(mieTransport));
         sun = Vector3.Normalize(sun);
         aerosol = Math.Clamp(aerosol, .1f, 8f);
         var origin = new Vector3(0, GroundRadius + Math.Clamp(altitudeKm, .001f, 99f), 0);
         for (int offset = 0; offset < directions.Length; offset += BatchCapacity)
         {
             int count = Math.Min(BatchCapacity, directions.Length - offset);
-            IntegrateBatch(directions.Slice(offset, count), sun, origin, aerosol, destination.Slice(offset, count), multipleScattering);
+            IntegrateBatch(directions.Slice(offset, count), sun, origin, aerosol, destination.Slice(offset, count), multipleScattering,
+                skyMie: mieTransport.IsEmpty ? default : mieTransport.Slice(offset, count));
         }
     }
 
     /// <summary>Compacts visible sunlight samples, vectorizes their transcendental math, then accumulates each ray in order.</summary>
     private static void IntegrateBatch(ReadOnlySpan<Vector3> directions, Vector3 sun, Vector3 origin,
         float aerosol, Span<Vector3> result, AtmosphereMultipleScattering? multipleScattering,
-        Span<Vector4> aerialRadiance = default, Span<Vector4> aerialTransmission = default)
+        Span<Vector4> aerialRadiance = default, Span<Vector4> aerialTransmission = default,
+        Span<Vector3> skyMie = default, Span<Vector4> aerialMie = default)
     {
         bool finite = !aerialRadiance.IsEmpty;
+        bool collectMie = !skyMie.IsEmpty || !aerialMie.IsEmpty;
         int count = directions.Length, capacity = count * (LightSamples + 1);
         float[] rented = ArrayPool<float>.Shared.Rent(capacity * 5 + count * 6);
         try
@@ -56,6 +64,8 @@ internal static partial class AtmosphereModel
             Span<float> transmission = rented.AsSpan(capacity * 5, count * 6);
             Span<Vector3> rays = stackalloc Vector3[count];
             Span<Vector3> optical = stackalloc Vector3[count];
+            Span<Vector3> mieIntegral = stackalloc Vector3[count];
+            mieIntegral.Clear();
             Span<Vector3> extinction = stackalloc Vector3[count];
             Span<Vector3> indirect = stackalloc Vector3[count];
             Span<float> distances = stackalloc float[count];
@@ -67,14 +77,14 @@ internal static partial class AtmosphereModel
             for (int lane = 0; lane < count; lane++)
             {
                 if (finite) { aerialRadiance[lane] = new(0, 0, 0, 1); aerialTransmission[lane] = Vector4.One; }
+                if (!aerialMie.IsEmpty) aerialMie[lane] = new(0, 0, 0, 1);
                 rays[lane] = Vector3.Normalize(directions[lane]);
                 float distance = Boundary(origin, rays[lane], TopRadius);
                 float ground = GroundDistance(origin, rays[lane]);
                 distances[lane] = ground > 0 ? MathF.Min(distance, ground) : distance;
                 float cosine = Math.Clamp(Vector3.Dot(rays[lane], sun), -1f, 1f);
                 rayleighPhase[lane] = 3f * (1f + cosine * cosine) / (16f * MathF.PI);
-                const float g = .76f;
-                miePhase[lane] = (1f - g * g) / (4f * MathF.PI * MathF.Pow(1f + g * g - 2f * g * cosine, 1.5f));
+                miePhase[lane] = AtmosphereMieTransport.Factor(cosine);
             }
             int viewCount = finite ? (AtmosphereAerialPerspective.Depth - 1) * 2 : ViewSamples;
             for (int view = 0; view < viewCount; view++)
@@ -167,6 +177,8 @@ internal static partial class AtmosphereModel
                         ? new(SegmentIntegral(extinction[lane].X, steps[lane]), SegmentIntegral(extinction[lane].Y, steps[lane]), SegmentIntegral(extinction[lane].Z, steps[lane]))
                         : new(steps[lane]);
                     result[lane] += transmittance * scattering * integrated;
+                    // Retain smooth transport without the concentrated angular factor.
+                    if (collectMie) mieIntegral[lane] += transmittance * (.003996f * aerosol * aerosols[lane]) * integrated;
                     if (multipleScattering is not null)
                     {
                         // Isotropic incoming radiance already includes angular normalization.
@@ -180,11 +192,16 @@ internal static partial class AtmosphereModel
                     {
                         int target = ((view >> 1) + 1) * count + lane;
                         aerialRadiance[target] = new(Vector3.Max(Vector3.Zero, result[lane] * Solar), 1);
+                        if (!aerialMie.IsEmpty) aerialMie[target] = new(mieIntegral[lane] * Solar, 1);
                         aerialTransmission[target] = new(ExpNegative(optical[lane]), 1);
                     }
                 }
             }
-            for (int lane = 0; lane < count; lane++) result[lane] = Vector3.Max(Vector3.Zero, result[lane] * Solar);
+            for (int lane = 0; lane < count; lane++)
+            {
+                result[lane] = Vector3.Max(Vector3.Zero, result[lane] * Solar);
+                if (!skyMie.IsEmpty) skyMie[lane] = mieIntegral[lane] * Solar;
+            }
         }
         finally { ArrayPool<float>.Shared.Return(rented); }
     }

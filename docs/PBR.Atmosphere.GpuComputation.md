@@ -38,12 +38,12 @@ admitted, avoiding starvation from continuously changing inputs. Completed sourc
 to the backend. Dimensions, sun, medium and quality cannot mix across its dependent passes.
 
 After the final fence signals, `GpuQueue` maps four lighting vectors, sky radiance and paired
-finite-path radiance/attenuation volumes into one immutable snapshot. Publication uploads a spare
+finite-path radiance/attenuation volumes plus unweighted sky/aerial Mie transport into one immutable snapshot. Publication uploads a spare
 sky/volume texture set before exposing all matching IDs and lighting. Failed uploads retain the
 previous complete generation. Readback and re-upload remain part of this ownership path.
 
-Maximum GPU buffer payload is 9764992 bytes: 64-byte parameters, 131072-byte source table and
-9633856-byte output. Driver/program storage, immutable CPU snapshots and two RGBA16F display sets
+Maximum GPU buffer payload is 14680192 bytes: 64-byte parameters, 131072-byte source table and
+14549056-byte output (including unweighted sky/aerial Mie transport). Driver/program storage, immutable CPU snapshots and two RGBA16F display sets
 are additional. See [aerial perspective](PBR.Atmosphere.AerialPerspective.md) for detailed bounds.
 Historical measurements below precede finite-path volume construction and do not describe its cost.
 

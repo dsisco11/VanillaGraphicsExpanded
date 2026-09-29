@@ -34,7 +34,7 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             uniform vec3 displacement;
             uniform float visibility;
             layout(location=0) out vec4 result;
-            void main() { result=vec4(VgeApplyAerial(vec3(1), displacement, visibility, vec2(.001,0)),1); }
+            void main() { result=vec4(VgeApplyAerial(vec3(1), displacement, visibility, vec2(.001,0), vec3(0,1,0)),1); }
             """);
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
@@ -42,7 +42,7 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         using var owner = new AtmosphereModSystem();
         const int width = 4, height = 5, depth = 24;
-        float[] scatter = new float[width * height * depth * 4], loss = new float[scatter.Length];
+        float[] scatter = new float[width * height * depth * 4], loss = new float[scatter.Length], mie = new float[scatter.Length];
         for (int z = 0; z < depth; z++)
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
@@ -50,10 +50,13 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             int offset = ((z * height + y) * width + x) * 4;
             scatter[offset] = (float)z / (depth - 1); scatter[offset + 1] = (float)y / (height - 1);
             scatter[offset + 2] = (float)x / width; scatter[offset + 3] = loss[offset + 3] = 1;
+            float angular = AtmosphereMieTransport.Factor(AtmosphereMieTransport.Direction(x, y, width, height, 0).Y);
+            for (int c = 0; c < 3; c++) { mie[offset + c] = .05f; scatter[offset + c] += .05f * angular; }
+            mie[offset + 3] = 1;
         }
         owner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.CreateRange(new float[width * height * 4]))
-        { Width = width, Height = height, AerialRadiance = ImmutableArray.CreateRange(scatter), AerialAttenuation = ImmutableArray.CreateRange(loss) });
+        { Width = width, Height = height, AerialRadiance = ImmutableArray.CreateRange(scatter), AerialAttenuation = ImmutableArray.CreateRange(loss), AerialMie = ImmutableArray.CreateRange(mie) });
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         GlStateCache.Current.UseProgram(program.ProgramId); GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
         using var r = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
@@ -75,6 +78,8 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "visibility"), visibility);
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
+            float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y) * visibility;
+            for (int c = 0; c < 3; c++) actual[c] -= lobe;
             Assert.InRange(MathF.Abs(actual[0] - (1 + slice * visibility)), 0, .001f);
             Assert.InRange(MathF.Abs(actual[1] - (1 + row * visibility)), 0, .001f);
             Assert.InRange(MathF.Abs(actual[2] - (1 + (azimuth == 0 ? .375f : .125f) * visibility)), 0, .001f);

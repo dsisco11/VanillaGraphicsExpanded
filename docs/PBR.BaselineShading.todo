@@ -292,6 +292,9 @@ Tasks
       - Completed: matching CPU/GPU generation and shader lookup, altitude-aware horizon placement,
         corrected shared-lighting weights and coherent publication. 164 Release tests passed;
         reference comparisons and limits: PBR.Atmosphere.HorizonSampling.md.
+      - Solar-halo follow-up: separate Mie transport and reconstruct its concentrated angular factor
+        per pixel in sky/aerial consumers. Implementation and validation: PBR.Atmosphere.HaloSampling.md.
+        User-run comparison of the reported halo bands remains pending.
     ☑ Align the rendered sun disk with atmospheric attenuation and direct lighting.
       - Trace the engine's celestial draw path and define consistent disk radiance, angular size and
         atmospheric transmission without duplicating the existing sun or its scattering halo.

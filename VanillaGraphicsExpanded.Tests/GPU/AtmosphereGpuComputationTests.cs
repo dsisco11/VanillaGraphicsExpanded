@@ -42,6 +42,10 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         Compare(expected.Horizon, actual.Horizon); Compare(expected.Extinction, actual.Extinction);
         Assert.Equal(expected.Sky.Length, actual.Sky.Length);
         for (int i = 0; i < expected.Sky.Length; i++) Close(expected.Sky[i], actual.Sky[i], $"sky[{i}]");
+        Assert.Equal(expected.SkyMie.Length, actual.SkyMie.Length);
+        for (int i = 0; i < expected.SkyMie.Length; i++) Close(expected.SkyMie[i], actual.SkyMie[i], $"sky Mie[{i}]");
+        Assert.Equal(expected.AerialMie.Length, actual.AerialMie.Length);
+        for (int i = 0; i < expected.AerialMie.Length; i++) Close(expected.AerialMie[i], actual.AerialMie[i], $"aerial Mie[{i}]");
         Assert.Equal(expected.Altitude, actual.Altitude);
         Assert.Equal(expected.AerialRadiance.Length, actual.AerialRadiance.Length);
         Assert.Equal(expected.AerialAttenuation.Length, actual.AerialAttenuation.Length);

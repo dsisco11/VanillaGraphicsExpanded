@@ -32,7 +32,7 @@ void main()
     float rayleighPhase = 3.0 * (1.0 + cosine * cosine) / (16.0 * atmPi);
     const float g = .76;
     float miePhase = (1.0 - g * g) / (4.0 * atmPi * pow(1.0 + g * g - 2.0 * g * cosine, 1.5));
-    vec3 optical = vec3(0.0), radiance = vec3(0.0);
+    vec3 optical = vec3(0.0), radiance = vec3(0.0), mieTransport = vec3(0.0);
     for (int i = 0; i < 24; ++i)
     {
         float start = distance * float(i * i) / 576.0;
@@ -43,7 +43,9 @@ void main()
         vec3 extinction = atmExtinction(density);
         vec3 view = exp(-(optical + extinction * (.5 * (end - start))));
         vec3 scattering = atmRayleigh * (density.x * rayleighPhase) + vec3(.003996 * mediumSize.x * density.y * miePhase);
-        radiance += view * atmTransmission(p, sun, 12) * scattering * (end - start);
+        vec3 sunlight = atmTransmission(p, sun, 12);
+        radiance += view * sunlight * scattering * (end - start);
+        mieTransport += view * sunlight * (.003996 * mediumSize.x * density.y) * (end - start);
         radiance += view * atmScattering(density) * atmSampleSource(radius - atmGround, dot(p, sun) / radius) * (end - start);
         optical += extinction * (end - start);
     }
@@ -51,7 +53,10 @@ void main()
     // Cumulative finite paths share the admitted medium/source table. Each interval
     // integrates two locally constant samples analytically, with fixed work per ray.
     int count = width * height, base = 4 + count, transBase = base + count * vgeAerialDepth;
-    vec3 throughput = vec3(1.0), aerial = vec3(0.0);
+    int mieBase = transBase + count * vgeAerialDepth, aerialMieBase = mieBase + count;
+    outputValues[mieBase + index] = vec4(mieTransport * atmSolar, 1.0);
+    outputValues[aerialMieBase + index] = vec4(0.0, 0.0, 0.0, 1.0);
+    vec3 throughput = vec3(1.0), aerial = vec3(0.0), aerialMie = vec3(0.0);
     outputValues[base + index] = vec4(0.0, 0.0, 0.0, 1.0);
     outputValues[transBase + index] = vec4(0.0, 0.0, 0.0, 1.0);
     float previous = 0.0;
@@ -64,19 +69,31 @@ void main()
             float radius = length(p);
             vec3 density = atmDensity(max(0.0, radius - atmGround));
             vec3 extinction = atmExtinction(density);
-            vec3 source = atmTransmission(p, sun, 12)
+            vec3 sunlight = atmTransmission(p, sun, 12);
+            vec3 source = sunlight
                 * (atmRayleigh * (density.x * rayleighPhase) + vec3(.003996 * mediumSize.x * density.y * miePhase));
             source += atmScattering(density) * atmSampleSource(radius - atmGround, dot(p, sun) / radius);
             vec3 integral = vec3(atmSegment(extinction.x, step), atmSegment(extinction.y, step), atmSegment(extinction.z, step));
             aerial += throughput * source * integral;
+            aerialMie += throughput * sunlight * (.003996 * mediumSize.x * density.y) * integral;
             throughput *= exp(-extinction * step);
         }
         outputValues[base + slice * count + index] = vec4(max(vec3(0.0), aerial * atmSolar), 1.0);
+        outputValues[aerialMieBase + slice * count + index] = vec4(aerialMie * atmSolar, 1.0);
         outputValues[transBase + slice * count + index] = vec4(vec3(1.0) - throughput, 1.0);
         previous = end;
     }
     // Align terminal source quadrature with the sky; extinction remains the finite-path integral.
-    vec3 scale = outputValues[index + 4].rgb / max(aerial * atmSolar, vec3(1e-20));
+    // Normalize smooth terms independently, avoiding a baked angular factor in the correction.
+    vec3 scale = max(vec3(0.0), radiance - mieTransport * miePhase)
+        / max(aerial - aerialMie * miePhase, vec3(1e-20));
+    vec3 mieScale = mieTransport / max(aerialMie, vec3(1e-20));
     for (int slice = 1; slice < vgeAerialDepth; ++slice)
-        outputValues[base + slice * count + index].rgb *= scale;
+    {
+        int address = base + slice * count + index, mieAddress = aerialMieBase + slice * count + index;
+        vec3 rawMie = outputValues[mieAddress].rgb;
+        outputValues[mieAddress].rgb = rawMie * mieScale;
+        outputValues[address].rgb = max(vec3(0.0), outputValues[address].rgb - rawMie * miePhase) * scale
+            + outputValues[mieAddress].rgb * miePhase;
+    }
 }
