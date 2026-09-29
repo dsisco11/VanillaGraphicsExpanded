@@ -106,8 +106,9 @@ void main()
 
     // Atmosphere supplies irradiance rather than the legacy pre-scaled lighting convention.
     accumDiffuse /= 3.14159265359;
-    accumDiffuse += VgeFoliageTransmission(baseColor, N, V, Lsun, rgbaLightIn * skyVisibility,
+    vec3 transmission = VgeTransmission(baseColor, N, V, Lsun, rgbaLightIn * skyVisibility,
         metallic, m.a, sunPcfVis);
+    accumDiffuse += transmission;
 
     // Vanilla passes camPos into applyLight: its point-light array is in view space.
     // Measure distance there, then rotate the direction into the world space of N and V.
@@ -142,7 +143,8 @@ void main()
     // Emissive stored separately
     vec3 emissive = baseColor * emissiveScalar;
 
-    outDirectDiffuse = vec4(accumDiffuse, 1.0);
-    outDirectSpecular = vec4(accumSpecular, 1.0);
-    outEmissive = vec4(emissive, 1.0);
+    // Preserve isolated transmission RGB in the otherwise unused attachment alpha channels.
+    outDirectDiffuse = vec4(accumDiffuse, transmission.r);
+    outDirectSpecular = vec4(accumSpecular, transmission.g);
+    outEmissive = vec4(emissive, transmission.b);
 }

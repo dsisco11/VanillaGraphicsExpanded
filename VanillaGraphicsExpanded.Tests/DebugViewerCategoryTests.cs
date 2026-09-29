@@ -48,6 +48,20 @@ public sealed class DebugViewerActiveSelectionTests
             registerRenderer: _ => new NoopDisposable(),
             activationMode: DebugViewActivationMode.Toggle);
 
+    /// <summary>Direct PBR diagnostics remain selectable when indirect lighting is disabled.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PbrViewIsAvailableIndependentlyOfLumOn(bool enabled)
+    {
+        var context = CreateContext();
+        context.Config.LumOn.Enabled = enabled;
+        var factory = typeof(VgeBuiltInDebugViews).GetMethod("CreatePbrDebugView", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(factory);
+        var view = Assert.IsType<DebugViewDefinition>(factory.Invoke(null, null));
+        Assert.True(view.GetAvailability(context).IsAvailable);
+    }
+
     [Fact]
     public void GetActiveToggleViewIds_ReturnsEmpty_WhenNoTogglesActive()
     {

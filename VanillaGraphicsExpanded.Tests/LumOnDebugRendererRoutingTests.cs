@@ -49,4 +49,15 @@ public sealed class LumOnDebugRendererRoutingTests
         Assert.Equal(LumOnDebugShaderProgramKind.WorldProbe, (LumOnDebugShaderProgramKind)kind.Invoke(null, [LumOnDebugMode.NearFieldGeometry])!);
         Assert.False((bool)requiresBuffers.Invoke(null, [LumOnDebugMode.NearFieldGeometry])!);
     }
+    /// <summary>Transmission uses direct-light targets and remains available without indirect-light buffers.</summary>
+    [Fact]
+    public void Transmission_RoutesToDirectWithoutRequiringLumOnBuffers()
+    {
+        var kind = typeof(LumOnDebugRenderer).GetMethod("GetShaderProgramKind", BindingFlags.NonPublic | BindingFlags.Static);
+        var requiresBuffers = typeof(LumOnDebugRenderer).GetMethod("RequiresLumOnBuffers", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(kind);
+        Assert.NotNull(requiresBuffers);
+        Assert.Equal(LumOnDebugShaderProgramKind.Direct, (LumOnDebugShaderProgramKind)kind.Invoke(null, [LumOnDebugMode.Transmission])!);
+        Assert.False((bool)requiresBuffers.Invoke(null, [LumOnDebugMode.Transmission])!);
+    }
 }

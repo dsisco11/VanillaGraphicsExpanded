@@ -366,7 +366,7 @@ Tasks
 
   ☐ Validate thin foliage sunlight transmission visually.
     - Material-controlled albedo-tinted backlighting is implemented for deferred and forward sunlight;
-      see PBR.FoliageTransmission.md for storage, shadow behavior and limits.
+      see PBR.Transmission.md for storage, shadow behavior and limits.
       Focused validation: 193 passed; one cache-key expectation failed (details in the linked document).
       Keep open pending user-run visual acceptance.
 

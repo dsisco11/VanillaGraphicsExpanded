@@ -215,6 +215,7 @@ public static partial class VgeBuiltInDebugViews
             LumOnDebugMode.DirectDiffuse => "Direct Diffuse",
             LumOnDebugMode.DirectSpecular => "Direct Specular",
             LumOnDebugMode.DirectEmissive => "Direct Emissive",
+            LumOnDebugMode.Transmission => "Transmission",
             LumOnDebugMode.DirectTotal => "Direct Total (diffuse+spec)",
             LumOnDebugMode.VelocityMagnitude => "Velocity Magnitude",
             LumOnDebugMode.VelocityValidity => "Velocity Validity",

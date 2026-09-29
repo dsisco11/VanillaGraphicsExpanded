@@ -42,12 +42,14 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         var emissive = ReadPixelFromAttachment(output, 2);
         float[] tint = [.2f, .8f, .1f];
         float[] actual = [diffuse.R, diffuse.G, diffuse.B];
+        float[] isolated = [diffuse.A, specular.A, emissive.A];
         Assert.InRange(specular.R + specular.G + specular.B, 0, .0001f);
         Assert.InRange(emissive.R + emissive.G + emissive.B, 0, .0001f);
         for (int i = 0; i < 3; i++)
         {
             float expected = tint[i] * transmission * (1 - metallic) / MathF.PI;
             Assert.InRange(actual[i], expected - .001f, expected + .001f);
+            Assert.InRange(isolated[i], expected - .001f, expected + .001f);
         }
     }
 

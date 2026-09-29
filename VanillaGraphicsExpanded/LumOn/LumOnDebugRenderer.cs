@@ -2595,6 +2595,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         mode is LumOnDebugMode.DirectDiffuse
             or LumOnDebugMode.DirectSpecular
             or LumOnDebugMode.DirectEmissive
+            or LumOnDebugMode.Transmission
             or LumOnDebugMode.DirectTotal;
 
     // Planned multi-entrypoint shader split: debugMode -> shader program kind -> program name.
@@ -2672,6 +2673,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         LumOnDebugMode.DirectDiffuse
             or LumOnDebugMode.DirectSpecular
             or LumOnDebugMode.DirectEmissive
+            or LumOnDebugMode.Transmission
             or LumOnDebugMode.DirectTotal
             => LumOnDebugShaderProgramKind.Direct,
 

@@ -16,7 +16,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     private const int OffsetToShadowNear = 128;         // mat4 at 128
     private const int OffsetToShadowFar = 192;          // mat4 at 192
     private const int OffsetZPlanes = 256;              // vec4 at 256 (zNear, zFar, shadowRangeNear, shadowRangeFar)
-    private const int OffsetShadowExtend = 272;         // vec4 at 272 (shadowZExtendNear, shadowZExtendFar, dropShadowIntensity, 0)
+    private const int OffsetShadowExtend = 272;         // vec4 at 272 (shadowZExtendNear, shadowZExtendFar, dropShadowIntensity, reserved)
     private const int OffsetLightDirection = 288;       // vec4 at 288
     private const int OffsetRgbaAmbient = 304;          // vec4 at 304
     private const int OffsetRgbaLight = 320;            // vec4 at 320

@@ -143,4 +143,6 @@ public enum LumOnDebugMode
     ProbeAtlasTraceOutcome = 69,
     /// <summary>Camera-ray visualization of the uploaded near-field tracing geometry and region readiness.</summary>
     NearFieldGeometry = 70,
+    /// <summary>Isolated transmitted sunlight from the deferred direct-light pass.</summary>
+    Transmission = 71,
 }

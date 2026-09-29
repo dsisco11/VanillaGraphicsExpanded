@@ -43,7 +43,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
         roughness, metallic, diffuse, specular);
     // Normalize only physical sunlight; existing engine point-light units retain their calibration.
     diffuse /= 3.14159265359;
-    diffuse += VgeFoliageTransmission(baseColor, N, V, normalize(vge_atmosphereSunDirection),
+    diffuse += VgeTransmission(baseColor, N, V, normalize(vge_atmosphereSunDirection),
         vge_atmosphereSolar * vge_skyVisibility, metallic, transmission, clamp(1.0 - occlusion, 0.0, 1.0));
     #if DYNLIGHTS > 0
     for (int i = 0; i < min(pointLightQuantity, DYNLIGHTS); ++i)

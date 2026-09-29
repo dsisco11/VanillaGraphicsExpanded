@@ -117,16 +117,16 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     [InlineData(.5f, false, false, .5f)]
     [InlineData(1f, true, false, 0f)]
     [InlineData(1f, false, true, .25f)]
-    public void FoliageTransmissionRespectsVisibilityAndAngles(float visibility, bool frontLit, bool sideView, float factor)
+    public void TransmissionRespectsVisibilityAndAngles(float visibility, bool frontLit, bool sideView, float factor)
     {
         EnsureContextValid();
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_foliage_transmission.glsl"));
+        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_transmission.glsl"));
         int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\n" + helper + """
             uniform float visibility;
             uniform vec3 lightDirection;
             uniform vec3 viewDirection;
             layout(location=0) out vec4 result;
-            void main() { result = vec4(VgeFoliageTransmission(vec3(.2,.8,.1), vec3(0,0,1),
+            void main() { result = vec4(VgeTransmission(vec3(.2,.8,.1), vec3(0,0,1),
                 viewDirection, lightDirection, vec3(1), 0, .5, visibility), 1); }
             """);
         int vertex = Compile(ShaderType.VertexShader, """

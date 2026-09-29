@@ -33,6 +33,7 @@ internal static partial class LumOnDebugShaderProgramFamily
         LumOnDebugMode.DirectDiffuse => "lumon_debug_view_direct_diffuse",
         LumOnDebugMode.DirectSpecular => "lumon_debug_view_direct_specular",
         LumOnDebugMode.DirectEmissive => "lumon_debug_view_direct_emissive",
+        LumOnDebugMode.Transmission => "lumon_debug_view_transmission",
         LumOnDebugMode.DirectTotal => "lumon_debug_view_direct_total",
         LumOnDebugMode.VelocityMagnitude => "lumon_debug_view_velocity_magnitude",
         LumOnDebugMode.VelocityValidity => "lumon_debug_view_velocity_validity",

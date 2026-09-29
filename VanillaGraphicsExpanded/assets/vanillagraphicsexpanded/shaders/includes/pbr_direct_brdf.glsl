@@ -1,6 +1,6 @@
 #ifndef VGE_PBR_DIRECT_BRDF_GLSL
 #define VGE_PBR_DIRECT_BRDF_GLSL
-@import "./pbr_foliage_transmission.glsl"
+@import "./pbr_transmission.glsl"
 /** Shared direct-light BRDF for deferred and forward receivers. */
 void addDirectLight(
     vec3 baseColor,
