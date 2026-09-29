@@ -356,6 +356,9 @@ Tasks
 
   ☐ Try and make tessellation do square subdivision by subdividing faces as quads.
   ☐ BUG: held lights seem to be placed at exactly the players feet position, which is causing the illumination to appear incorrectly low and also to clip into the ground which prevents lighting fro showing on the terrain being walked on; investigate the light attachment and transformation logic.
+    - Engine collection uses entity.Pos and merges hand emissions. Attachment correction separates hands
+      and resolves current poses after animation updates; see PBR.HeldLightAttachments.md for ownership,
+      fallback, engine evidence, and regression coverage. Keep open pending user-run visual acceptance.
   ☐ Issue: foliage materials arent taking into account their facing direction when calculating lighting and specularity? plants seem to be fullbright from the sun even when facing away.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
