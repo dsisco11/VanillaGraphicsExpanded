@@ -2,7 +2,7 @@
 #define VGE_MATERIAL_GLSL
 
 // Requires: `uniform sampler2D vge_materialParamsTex;`
-// Encoding: RGB16F = (roughness, metallic, emissive)
+// Encoding: RGBA16F = (roughness, metallic, emissive, sunlight transmission)
 
 vec3 ReadMaterialParams(vec2 uv)
 {

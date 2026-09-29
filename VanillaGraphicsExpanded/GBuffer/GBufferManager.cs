@@ -84,7 +84,7 @@ public sealed partial class GBufferManager : IDisposable
 
     /// <summary>
     /// The OpenGL texture ID for the material G-buffer (ColorAttachment5).
-    /// Format: RGBA16F - (Roughness, Metallic, Emissive, Reflectivity).
+    /// Format: RGBA16F - (Roughness, Metallic, Emissive, Transmission).
     /// </summary>
     public int MaterialTextureId => materialTex?.TextureId ?? 0;
 

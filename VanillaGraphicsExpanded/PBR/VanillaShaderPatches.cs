@@ -44,12 +44,12 @@ internal static class VanillaShaderPatches
 
     // G-Buffer output declarations (locations 4-5, after VS's 0-3)
     // Location 4: World-space normals (RGBA16F)
-    // Location 5: Material properties (RGBA16F) - Roughness, Metallic, Emissive, Reflectivity
+    // Location 5: Material properties (RGBA16F) - Roughness, Metallic, Emissive, Transmission
     // Note: VS's ColorAttachment0 (outColor) serves as albedo
     private const string GBufferInputDeclarations = @"
 // VGE G-Buffer outputs
 layout(location = 4) out vec4 vge_outNormal;    // World-space normal (XYZ), unused (W)
-layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive, Reflectivity
+layout(location = 5) out vec4 vge_outMaterial;  // Roughness, Metallic, Emissive, Transmission
 layout(location = 7) out vec4 vge_outEnvironment;
 layout(location = 6) out uvec4 vge_outPatchId;  // (chunkSlot, patchId, packedPatchUv, misc/flags)
 ";
@@ -161,16 +161,16 @@ flat in uint vge_faceId;
     vge_outNormal.w = clamp(vge_pomDebugValue, 0.0, 1.0);
 #endif
     
-    // Material: per-texel params stored in vge_materialParamsTex (RGB16F)
+    // Material: per-texel params stored in vge_materialParamsTex (RGBA16F)
     vec3 vge_params = ReadMaterialParams(vge_uv);
     vge_params = ApplyMaterialNoise(vge_params, vge_uv, renderFlags);
     float vge_roughness = clamp(vge_params.r, 0.0, 1.0);
     float vge_metallic  = clamp(vge_params.g, 0.0, 1.0);
     float vge_emissive  = clamp(vge_params.b, 0.0, 1.0);
 
-    float vge_reflectivity = ComputeReflectivity(vge_roughness, vge_metallic);
+    float vge_transmission = clamp(texture(vge_materialParamsTex, vge_uv).a, 0.0, 1.0);
 
-    vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_reflectivity);
+    vge_outMaterial = vec4(vge_roughness, vge_metallic, vge_emissive, vge_transmission);
 
     // VGE: PatchId (Phase 22 - LumonScene voxel patches)
     // Keep injected code small: the mapping logic lives in an include.

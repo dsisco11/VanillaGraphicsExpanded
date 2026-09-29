@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -15,6 +16,25 @@ public sealed class PbrMaterialParamsTextureSmokeTests
     public PbrMaterialParamsTextureSmokeTests(HeadlessGLFixture fixture)
     {
         this.fixture = fixture;
+    }
+
+    /// <summary>Production atlas allocation preserves independent transmission alongside existing RGB properties.</summary>
+    [Fact]
+    public void MaterialAtlasPublishesTransmissionInAlpha()
+    {
+        fixture.EnsureContextValid();
+        fixture.MakeCurrent();
+        using var store = new MaterialAtlasTextureStore();
+        store.SyncToAtlasPages([(101, 1, 1)], false);
+        Assert.True(store.TryGetPageTextures(101, out var page));
+        Assert.Equal(PixelInternalFormat.Rgba16f, page.MaterialParamsTexture.InternalFormat);
+        Assert.Equal(0f, page.MaterialParamsTexture.ReadPixels()[3]);
+        page.MaterialParamsTexture.UploadDataImmediate(MaterialTransmission.Pack([.25f, .5f, .75f], .35f), 0, 0, 1, 1);
+        float[] actual = page.MaterialParamsTexture.ReadPixels();
+        float[] expected = [.25f, .5f, .75f, .35f];
+        for (int channel = 0; channel < 4; channel++)
+            Assert.InRange(actual[channel], expected[channel] - .001f, expected[channel] + .001f);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     [Fact]

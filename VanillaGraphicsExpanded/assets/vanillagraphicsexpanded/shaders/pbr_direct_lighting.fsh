@@ -14,7 +14,7 @@ uniform sampler2D gBufferPosition; // Unbiased first-person view position, selec
 // VGE G-buffer inputs
 uniform sampler2D gBufferNormal;   // ColorAttachment4: normal packed (RGBA16F)
 uniform sampler2D gBufferEnvironment; // Alpha: propagated engine sunlight at the receiver.
-uniform sampler2D gBufferMaterial; // ColorAttachment5: Roughness, Metallic, Emissive, Reflectivity (RGBA16F)
+uniform sampler2D gBufferMaterial; // ColorAttachment5: Roughness, Metallic, Emissive, Transmission (RGBA16F)
 
 @import "./includes/pbr_direct_lighting_params_ubo.glsl"
 
@@ -106,6 +106,8 @@ void main()
 
     // Atmosphere supplies irradiance rather than the legacy pre-scaled lighting convention.
     accumDiffuse /= 3.14159265359;
+    accumDiffuse += VgeFoliageTransmission(baseColor, N, V, Lsun, rgbaLightIn * skyVisibility,
+        metallic, m.a, sunPcfVis);
 
     // Vanilla passes camPos into applyLight: its point-light array is in view space.
     // Measure distance there, then rotate the direction into the world space of N and V.

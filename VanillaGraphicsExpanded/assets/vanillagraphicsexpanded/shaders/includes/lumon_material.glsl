@@ -10,7 +10,7 @@
 //   R = Roughness (0 = smooth, 1 = rough)
 //   G = Metallic (0 = dielectric, 1 = metal)
 //   B = Emissive strength
-//   A = Reflectivity
+//   A = Sunlight transmission
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -78,7 +78,7 @@ float lumonGetEmissive(sampler2D gBufferMaterial, vec2 texCoord) {
  * @return Reflectivity value
  */
 float lumonGetReflectivity(sampler2D gBufferMaterial, vec2 texCoord) {
-    return texture(gBufferMaterial, texCoord).a;
+    return texture(gBufferMaterial, texCoord).g;
 }
 
 /**
@@ -98,7 +98,7 @@ void lumonGetMaterialProperties(sampler2D gBufferMaterial, vec2 texCoord,
     roughness = mat.r;
     metallic = mat.g;
     emissive = mat.b;
-    reflectivity = mat.a;
+    reflectivity = mat.g;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

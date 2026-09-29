@@ -90,7 +90,7 @@ void main(void)
         vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
         // AO is intentionally a no-op for now.
-        // In Vintage Story content, gBufferMaterial.a is reflectivity (not AO), so using it
+        // In Vintage Story content, gBufferMaterial.a is transmission (not AO), so using it
         // as an occlusion term can incorrectly attenuate/wipe indirect lighting.
         // TODO: When LumOn provides a dedicated short-range AO signal, wire it here.
         float ao = 1.0;

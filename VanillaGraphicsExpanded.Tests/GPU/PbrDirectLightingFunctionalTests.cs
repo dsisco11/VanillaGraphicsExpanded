@@ -18,6 +18,39 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 {
     public PbrDirectLightingFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    /// <summary>Backlit dielectric leaves transmit colored sunlight without creating specular or emissive light.</summary>
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(0.5f, 0f)]
+    [InlineData(0.5f, 1f)]
+    public void BacklitLeavesTransmitOnlyOptedInDielectricSunlight(float transmission, float metallic)
+    {
+        EnsureShaderTestAvailable();
+        var program = CompilePbrDirectLightingProgram();
+        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+        using var color = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .2f, .8f, .1f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
+        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .8f, metallic, 0f, transmission });
+        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1f });
+        RenderDirectLighting(program, output, color, depth, normal, material, shadow, shadow,
+            lightDirection: (0f, 0f, -1f), rgbaLightIn: (1f, 1f, 1f), pointLightCount: 0,
+            pointLightPos0: (0f, 0f, 0f), pointLightColor0: (0f, 0f, 0f));
+        var diffuse = ReadPixelFromAttachment(output, 0);
+        var specular = ReadPixelFromAttachment(output, 1);
+        var emissive = ReadPixelFromAttachment(output, 2);
+        float[] tint = [.2f, .8f, .1f];
+        float[] actual = [diffuse.R, diffuse.G, diffuse.B];
+        Assert.InRange(specular.R + specular.G + specular.B, 0, .0001f);
+        Assert.InRange(emissive.R + emissive.G + emissive.B, 0, .0001f);
+        for (int i = 0; i < 3; i++)
+        {
+            float expected = tint[i] * transmission * (1 - metallic) / MathF.PI;
+            Assert.InRange(actual[i], expected - .001f, expected + .001f);
+        }
+    }
+
     [Theory]
     [InlineData(0.0f)]
     [InlineData(1.0f)]

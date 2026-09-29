@@ -170,8 +170,8 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
         var updated = Texture2D.CreateWithDataImmediate(
             width,
             height,
-            PixelInternalFormat.Rgb16f,
-            rgbTriplets,
+            PixelInternalFormat.Rgba16f,
+            MaterialTransmission.Pack(rgbTriplets),
             TextureFilterMode.Nearest,
             debugName: $"vge_materialParams_atlas_{atlasTextureId}");
 
@@ -191,8 +191,8 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
         var materialParamsTex = Texture2D.CreateWithDataImmediate(
             width,
             height,
-            PixelInternalFormat.Rgb16f,
-            defaultParams,
+            PixelInternalFormat.Rgba16f,
+            MaterialTransmission.Pack(defaultParams),
             TextureFilterMode.Nearest,
             debugName: $"vge_materialParams_atlas_{atlasTextureId}");
 

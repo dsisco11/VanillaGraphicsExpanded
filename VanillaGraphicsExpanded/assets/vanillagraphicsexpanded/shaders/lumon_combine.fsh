@@ -102,7 +102,7 @@ void main(void)
     vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
     // AO is not implemented yet. Keep it as a no-op (1.0).
-    // NOTE: gBufferMaterial.a is reflectivity, not AO.
+    // NOTE: gBufferMaterial.a is transmission, not AO.
     float ao = 1.0;
 #if VGE_LUMON_ENABLE_AO
     // NaN-guard references: does not change behavior for valid values.

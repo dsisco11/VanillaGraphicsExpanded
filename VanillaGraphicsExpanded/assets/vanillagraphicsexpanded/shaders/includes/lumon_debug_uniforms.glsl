@@ -38,7 +38,7 @@ uniform sampler2D probePisEnergy;        // Probe-resolution R32F importance ene
 // Phase 15: compositing debug inputs
 uniform sampler2D indirectDiffuseFull;   // Upsampled indirect buffer (full-res)
 uniform sampler2D gBufferAlbedo;         // Albedo (fallback: captured scene)
-uniform sampler2D gBufferMaterial;       // Material properties (roughness/metallic/emissive/reflectivity)
+uniform sampler2D gBufferMaterial;       // Material properties (roughness/metallic/emissive/transmission)
 
 // Phase 16: direct lighting debug inputs
 uniform sampler2D directDiffuse;

@@ -364,6 +364,12 @@ Tasks
       Focused checks passed; additional tessellation capability-gate failures are recorded in that document.
       Keep open pending user-run visual acceptance.
 
+  ☐ Validate thin foliage sunlight transmission visually.
+    - Material-controlled albedo-tinted backlighting is implemented for deferred and forward sunlight;
+      see PBR.FoliageTransmission.md for storage, shadow behavior and limits.
+      Focused validation: 193 passed; one cache-key expectation failed (details in the linked document).
+      Keep open pending user-run visual acceptance.
+
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
     - Trace vanilla liquid entrypoints and transparency/OIT contracts before replacing their shading;
       preserve engine flow, animation, texture selection, face visibility and rendering order.

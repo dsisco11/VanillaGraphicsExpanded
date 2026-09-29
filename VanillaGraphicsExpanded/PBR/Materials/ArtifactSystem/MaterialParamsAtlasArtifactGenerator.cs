@@ -63,8 +63,12 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
     public void FinishOnCurrentThread(CancellationToken cancellationToken = default)
         => scheduler.FinishOnCurrentThread(cancellationToken);
 
+    /// <summary>Captures current material metadata before scheduling an atlas job.</summary>
     public bool Enqueue(WorkKey key)
     {
+        // Override-only RGB jobs still require the mapped material transmission at publication.
+        if (key.Definition == null && PbrMaterialRegistry.Instance.TryGetMaterial(key.TargetTexture, out var material))
+            key = key with { Definition = material };
         return scheduler.Enqueue(new WorkItem(key));
     }
 
@@ -99,7 +103,8 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         AtlasCacheKey BaseCacheKey,
         bool StoreOverride,
         AtlasCacheKey OverrideCacheKey,
-        int Priority);
+        int Priority,
+        float Transmission = 0);
 
     private sealed class WorkItem : IArtifactWorkItem<WorkKey>
     {
@@ -151,7 +156,8 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
                     BaseCacheKey: default,
                     StoreOverride: false,
                     OverrideCacheKey: default,
-                    Priority: key.Priority);
+                    Priority: key.Priority,
+                    Transmission: key.Definition?.Transmission ?? 0);
 
                 return ValueTask.FromResult(new ArtifactComputeResult<Output>(IsNoop: false, Output: new Optional<Output>(output), RequiresApply: true));
             }
@@ -233,7 +239,8 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
                 BaseCacheKey: key.BaseCacheKey,
                 StoreOverride: storeOverride,
                 OverrideCacheKey: key.OverrideCacheKey,
-                Priority: key.Priority);
+                Priority: key.Priority,
+                Transmission: key.Definition?.Transmission ?? 0);
 
             return ValueTask.FromResult(new ArtifactComputeResult<Output>(IsNoop: false, Output: new Optional<Output>(outp), RequiresApply: true));
         }
@@ -257,11 +264,12 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
                 return ValueTask.CompletedTask;
             }
 
+            float[] rgba = MaterialTransmission.Pack(context.Output.RgbTriplets, context.Output.Transmission);
             if (context.Session.Mode == ArtifactExecutionMode.InlineCurrentThread)
             {
                 MaterialAtlasPageTextures? pageTextures = tryGetPageTextures(context.Output.AtlasTextureId);
                 pageTextures?.MaterialParamsTexture.UploadDataImmediate(
-                    context.Output.RgbTriplets,
+                    rgba,
                     context.Output.Rect.X,
                     context.Output.Rect.Y,
                     context.Output.Rect.Width,
@@ -273,9 +281,9 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
                     textureId: context.Output.MaterialParamsTextureId,
                     target: TextureUploadTarget.For2D(),
                     region: TextureUploadRegion.For2D(context.Output.Rect.X, context.Output.Rect.Y, context.Output.Rect.Width, context.Output.Rect.Height),
-                    pixelFormat: PixelFormat.Rgb,
+                    pixelFormat: PixelFormat.Rgba,
                     pixelType: PixelType.Float,
-                    data: context.Output.RgbTriplets,
+                    data: rgba,
                     priority: TextureUploadPriority.Normal,
                     unpackAlignment: 4);
             }

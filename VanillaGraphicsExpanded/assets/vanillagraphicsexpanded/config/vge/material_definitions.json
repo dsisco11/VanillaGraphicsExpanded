@@ -54,7 +54,7 @@
 
     "dirt": { "roughness": 0.95, "metallic": 0.0 },
     "grass": { "roughness": 0.9, "metallic": 0.0, "scale": { "normal": 0.05, "depth": 0.1 } },
-    "plant": { "roughness": 0.9, "metallic": 0.0, "scale": { "normal": 0, "depth": 0 } },
+    "plant": { "transmission": 0.35, "roughness": 0.9, "metallic": 0.0, "scale": { "normal": 0, "depth": 0 } },
     "mud": { "roughness": 0.97, "metallic": 0.0 },
     "clay": { "roughness": 0.9, "metallic": 0.0 },
     "sand": { "roughness": 0.9, "metallic": 0.0 },

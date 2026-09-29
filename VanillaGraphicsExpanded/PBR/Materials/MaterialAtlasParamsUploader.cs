@@ -9,22 +9,24 @@ internal sealed class MaterialAtlasParamsUploader
 {
     private readonly MaterialAtlasTextureStore textureStore;
 
+    /// <summary>Uses the owning atlas store to resolve upload destinations.</summary>
     public MaterialAtlasParamsUploader(MaterialAtlasTextureStore textureStore)
     {
         this.textureStore = textureStore ?? throw new ArgumentNullException(nameof(textureStore));
     }
 
-    public bool TryUploadTile(int atlasTextureId, AtlasRect rect, float[] rgbTriplets)
+    /// <summary>Publishes RGB properties with independently authored transmission in alpha.</summary>
+    public bool TryUploadTile(int atlasTextureId, AtlasRect rect, float[] rgbTriplets, float transmission = 0)
     {
         ArgumentNullException.ThrowIfNull(rgbTriplets);
 
-            if (!textureStore.TryGetPageTextures(atlasTextureId, out MaterialAtlasPageTextures pageTextures))
+        if (!textureStore.TryGetPageTextures(atlasTextureId, out MaterialAtlasPageTextures pageTextures))
         {
             return false;
         }
 
         pageTextures.MaterialParamsTexture.UploadData(
-            rgbTriplets,
+            MaterialTransmission.Pack(rgbTriplets, transmission),
             rect.X,
             rect.Y,
             rect.Width,

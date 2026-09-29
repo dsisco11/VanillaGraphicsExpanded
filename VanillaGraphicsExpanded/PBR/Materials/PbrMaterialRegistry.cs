@@ -1338,7 +1338,8 @@ internal sealed class PbrMaterialRegistry
                 Emissive: noise?.Emissive ?? 0.0f,
                 Reflectivity: noise?.Reflectivity ?? 0.0f,
                 Normals: noise?.Normals ?? 0.0f),
-            Scale: scale);
+            Scale: scale,
+            Transmission: MaterialTransmission.Clamp(file.Defaults?.Transmission ?? 0));
     }
 
     private static PbrMaterialDefinition BuildDefinition(
@@ -1371,7 +1372,8 @@ internal sealed class PbrMaterialRegistry
             Priority: json.Priority ?? 0,
             Notes: json.Notes,
             DisplacementAmplitudeMetres: MaterialDisplacement.ResolveAmplitude(json.Displacement?.AmplitudeMetres ?? 0,
-                message => logger.Warning("[VGE] Material '{0}' source={1}: {2}", materialId, source, message)));
+                message => logger.Warning("[VGE] Material '{0}' source={1}: {2}", materialId, source, message)),
+            Transmission: MaterialTransmission.Clamp(json.Transmission ?? defaults.Transmission));
         return definition;
     }
 
@@ -1565,7 +1567,7 @@ internal sealed class PbrMaterialRegistry
 
 internal readonly record struct PbrMaterialDefinitionsSource(string Domain, AssetLocation Location, PbrMaterialDefinitionsJsonFile File);
 
-internal readonly record struct PbrMaterialDefaults(float Roughness, float Metallic, float Emissive, PbrMaterialNoise Noise, PbrOverrideScale Scale);
+internal readonly record struct PbrMaterialDefaults(float Roughness, float Metallic, float Emissive, PbrMaterialNoise Noise, PbrOverrideScale Scale, float Transmission = 0);
 
 internal readonly record struct PbrMaterialMappingRule(
     int OrderIndex,

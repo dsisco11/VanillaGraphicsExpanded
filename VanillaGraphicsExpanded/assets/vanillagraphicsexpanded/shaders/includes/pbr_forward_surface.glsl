@@ -24,7 +24,7 @@ float VgeForwardOcclusion(sampler2DShadow map, vec4 coords, float bias)
 }
 
 /** Evaluates late/OIT radiance before the engine blends its color; alpha remains owned by the caller. */
-vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
+vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float transmission)
 {
     mat3 toWorld = transpose(mat3(VGE_SURFACE_VIEW));
     vec3 V = normalize(toWorld * -vge_viewPosition);
@@ -43,6 +43,8 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
         roughness, metallic, diffuse, specular);
     // Normalize only physical sunlight; existing engine point-light units retain their calibration.
     diffuse /= 3.14159265359;
+    diffuse += VgeFoliageTransmission(baseColor, N, V, normalize(vge_atmosphereSunDirection),
+        vge_atmosphereSolar * vge_skyVisibility, metallic, transmission, clamp(1.0 - occlusion, 0.0, 1.0));
     #if DYNLIGHTS > 0
     for (int i = 0; i < min(pointLightQuantity, DYNLIGHTS); ++i)
     {
@@ -71,5 +73,10 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
         radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
     // Primary/OIT currently blend display-space colors. Full scene-linear blending is separately owned.
     return VgeDitherDisplay(VgeResolveDisplay(radiance), gl_FragCoord.xy);
+}
+/** Preserves non-transmitting callers which have no material transmission metadata. */
+vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)
+{
+    return VgeForwardSurface(baseColor, N, material, fog, 0.0);
 }
 #endif

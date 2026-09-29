@@ -8,6 +8,7 @@ internal class BRDFPropertiesJson
     [JsonProperty("roughness")] public float? Roughness { get; set; }
     [JsonProperty("metallic")] public float? Metallic { get; set; }
     [JsonProperty("emissive")] public float? Emissive { get; set; }
+    [JsonProperty("transmission")] public float? Transmission { get; set; }
     [JsonProperty("noise")] public PbrMaterialNoiseJson? Noise { get; set; }
     [JsonProperty("scale")] public PbrOverrideScaleJson? Scale { get; set; }
 }

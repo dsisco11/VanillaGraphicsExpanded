@@ -758,7 +758,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             }
 
             pageTextures.MaterialParamsTexture.UploadDataImmediate(
-                rgbTriplets,
+                MaterialTransmission.Pack(rgbTriplets, tile.Definition.Transmission),
                 x: tile.Rect.X,
                 y: tile.Rect.Y,
                 regionWidth: tile.Rect.Width,
@@ -796,7 +796,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             }
 
             pageTextures.MaterialParamsTexture.UploadDataImmediate(
-                rgbTriplets,
+                MaterialTransmission.Pack(rgbTriplets, MaterialTransmission.Resolve(ov.TargetTexture)),
                 x: ov.Rect.X,
                 y: ov.Rect.Y,
                 regionWidth: ov.Rect.Width,
@@ -1973,7 +1973,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                             ov.RuleId,
                             ov.RuleSource),
                         out float[] cachedOverrideRgb)
-                    && uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, cachedOverrideRgb))
+                    && uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, cachedOverrideRgb, tile.Definition.Transmission))
                 {
                     overriddenRectsByCache.Add((tile.AtlasTextureId, tile.Rect));
                     overrideHits++;
@@ -1995,7 +1995,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
                 if (diskCache.TryLoadMaterialParamsTile(key, out float[] cached))
                 {
-                    if (uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, cached))
+                    if (uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, cached, tile.Definition.Transmission))
                     {
                         filledRects++;
                     }
@@ -2014,7 +2014,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 rectHeight: tile.Rect.Height,
                 CancellationToken.None);
 
-            if (uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, rgb))
+            if (uploader.TryUploadTile(tile.AtlasTextureId, tile.Rect, rgb, tile.Definition.Transmission))
             {
                 filledRects++;
             }
@@ -2050,7 +2050,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
 
                 if (diskCache.TryLoadMaterialParamsTile(overrideKey, out float[] cachedOverrideRgb))
                 {
-                    if (uploader.TryUploadTile(ov.AtlasTextureId, ov.Rect, cachedOverrideRgb))
+                    if (uploader.TryUploadTile(ov.AtlasTextureId, ov.Rect, cachedOverrideRgb, MaterialTransmission.Resolve(ov.TargetTexture)))
                     {
                         overriddenRects++;
                     }
@@ -2089,7 +2089,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 overrideRgba01: floatRgba01,
                 scale: ov.Scale);
 
-            if (uploader.TryUploadTile(ov.AtlasTextureId, ov.Rect, rgb))
+            if (uploader.TryUploadTile(ov.AtlasTextureId, ov.Rect, rgb, MaterialTransmission.Resolve(ov.TargetTexture)))
             {
                 overriddenRects++;
             }

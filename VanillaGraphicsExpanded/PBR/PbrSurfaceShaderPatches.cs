@@ -227,6 +227,7 @@ internal static class PbrSurfaceShaderPatches
 
             """);
         string parameters = chunk ? "texture(vge_materialParamsTex, uv).rgb" : "vec3(0.5, getMatMetallicFromRenderFlags(renderFlags), glowLevel)";
+        string transmission = chunk ? "clamp(texture(vge_materialParamsTex, uv).a, 0.0, 1.0)" : "0.0";
         string surfaceNormal = chunk
             ? "normalize(VgeComputePackedWorldNormal01Height01_WithTbn(vge_uv, normal, worldPos.xyz, vge_tbn, vge_tbnHandedness).rgb * 2.0 - 1.0)"
             : "normalize(normal)";
@@ -239,6 +240,7 @@ internal static class PbrSurfaceShaderPatches
             {
                 vec3 vge_materialColor = VgeSrgbToLinear({{capturedColor}});
                 vec3 vge_params = {{parameters}};
+                float vge_transmission = {{transmission}};
                 vec3 vge_normal = {{surfaceNormal}};
                 #if VGE_SURFACE_PRIMARY_OUTPUTS
                 // Late primary draws still publish defined debug/material metadata; no deferred pass follows them.
@@ -248,7 +250,7 @@ internal static class PbrSurfaceShaderPatches
                 outGPosition = vec4(vge_viewPosition, 1.0);
                 vge_outNormal.a = -1.0;
                 #endif
-                vge_outMaterial = vec4(vge_params, vge_params.g);
+                vge_outMaterial = vec4(vge_params, vge_transmission);
                 vge_outPatchId = uvec4(0u);
                 vge_outEnvironment = vec4(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance), vge_skyVisibility);
                 if (vge_pbrRoute == 1)
@@ -258,7 +260,7 @@ internal static class PbrSurfaceShaderPatches
                 else
                 #endif
                 {
-                    {{output}}.rgb = VgeForwardSurface(vge_materialColor, vge_normal, vge_params, fogAmount);
+                    {{output}}.rgb = VgeForwardSurface(vge_materialColor, vge_normal, vge_params, fogAmount, vge_transmission);
                 }
             }
             #endif

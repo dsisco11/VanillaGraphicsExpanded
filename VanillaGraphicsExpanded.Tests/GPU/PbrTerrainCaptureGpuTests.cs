@@ -109,6 +109,56 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     }
     #endregion
 
+    #region Thin foliage transmission
+    /// <summary>Transmission respects shadow visibility and surface direction, with a broad viewing lobe.</summary>
+    [Theory]
+    [InlineData(1f, false, false, 1f)]
+    [InlineData(0f, false, false, 0f)]
+    [InlineData(.5f, false, false, .5f)]
+    [InlineData(1f, true, false, 0f)]
+    [InlineData(1f, false, true, .25f)]
+    public void FoliageTransmissionRespectsVisibilityAndAngles(float visibility, bool frontLit, bool sideView, float factor)
+    {
+        EnsureContextValid();
+        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_foliage_transmission.glsl"));
+        int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\n" + helper + """
+            uniform float visibility;
+            uniform vec3 lightDirection;
+            uniform vec3 viewDirection;
+            layout(location=0) out vec4 result;
+            void main() { result = vec4(VgeFoliageTransmission(vec3(.2,.8,.1), vec3(0,0,1),
+                viewDirection, lightDirection, vec3(1), 0, .5, visibility), 1); }
+            """);
+        int vertex = Compile(ShaderType.VertexShader, """
+            #version 330 core
+            layout(location=0) in vec2 position;
+            void main() { gl_Position = vec4(position,0,1); }
+            """);
+        int program = GL.CreateProgram();
+        try
+        {
+            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            GL.UseProgram(program);
+            GL.Uniform1(GL.GetUniformLocation(program, "visibility"), visibility);
+            GL.Uniform3(GL.GetUniformLocation(program, "lightDirection"), 0f, 0f, frontLit ? 1f : -1f);
+            GL.Uniform3(GL.GetUniformLocation(program, "viewDirection"), sideView ? 1f : 0f, 0f, sideView ? 0f : 1f);
+            using var framework = new ShaderTestFramework();
+            using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            framework.RenderQuadTo(program, output);
+            float[] actual = output[0].ReadPixels();
+            float[] tint = [.2f, .8f, .1f];
+            for (int channel = 0; channel < 3; channel++)
+            {
+                float expected = tint[channel] * .5f * factor / MathF.PI;
+                Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
+            }
+        }
+        finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
+    }
+    #endregion
+
     #region Runtime GLSL validation
     /// <summary>Compiles actual transformed text and reports driver diagnostics on lexical or interface errors.</summary>
     private static int Compile(ShaderType type, string source)
