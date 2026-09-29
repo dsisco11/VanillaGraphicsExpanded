@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -26,6 +27,7 @@ public sealed class AssetSyntaxTreeResourceResolver : IResourceResolver<SyntaxTr
 
     private readonly IAssetManager _assets;
     private readonly string _defaultDomain;
+    private ConcurrentDictionary<string, Lazy<SyntaxTree>> _imports = new(StringComparer.Ordinal);
 
     public AssetSyntaxTreeResourceResolver(IAssetManager assets, string defaultDomain)
     {
@@ -64,26 +66,42 @@ public sealed class AssetSyntaxTreeResourceResolver : IResourceResolver<SyntaxTr
         }
 
         var id = new ResourceId(resolvedIdPath);
-        var location = AssetLocation.Create(resolvedIdPath, _defaultDomain);
-
-        IAsset? asset = _assets.TryGet(location, loadAsset: true);
-        if (asset is null)
+        var imports = Volatile.Read(ref _imports);
+        Lazy<SyntaxTree> cached = imports.GetOrAdd(resolvedIdPath,
+            static (path, resolver) => new Lazy<SyntaxTree>(
+                () => resolver.LoadImport(path), LazyThreadSafetyMode.ExecutionAndPublication), this);
+        SyntaxTree tree;
+        try
         {
-            var diag = new ResolutionFailedDiagnostic(reference, $"Asset not found: {location}", relativeTo?.Id, null);
+            // TinyAst shares immutable green nodes while giving each caller a mutable tree wrapper.
+            tree = cached.Value.WithSchema(GlslSchema.Instance);
+        }
+        catch (Exception ex)
+        {
+            // Do not retain a faulted Lazy: a missing import may become available on retry.
+            ((ICollection<KeyValuePair<string, Lazy<SyntaxTree>>>)imports)
+                .Remove(new KeyValuePair<string, Lazy<SyntaxTree>>(resolvedIdPath, cached));
+            if (ex is not FileNotFoundException and not InvalidDataException) throw;
+            var diag = new ResolutionFailedDiagnostic(reference, ex.Message, relativeTo?.Id, null);
             return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Failure(diag));
         }
-
-        string text = asset.ToText();
-        if (string.IsNullOrEmpty(text))
-        {
-            var diag = new ResolutionFailedDiagnostic(reference, $"Asset was empty: {location}", relativeTo?.Id, null);
-            return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Failure(diag));
-        }
-
-        var tree = SyntaxTree.Parse(text, GlslSchema.Instance);
         var resource = new Resource<SyntaxTree>(id, tree, EmptyMetadata);
 
         return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Success(resource));
+    }
+
+    /// <summary>Releases parsed imports when the owning shader-import system shuts down.</summary>
+    public void Clear() => Interlocked.Exchange(ref _imports, new ConcurrentDictionary<string, Lazy<SyntaxTree>>(StringComparer.Ordinal));
+
+    /// <summary>Loads and parses one import for its cache generation.</summary>
+    private SyntaxTree LoadImport(string resolvedIdPath)
+    {
+        var location = AssetLocation.Create(resolvedIdPath, _defaultDomain);
+        IAsset? asset = _assets.TryGet(location, loadAsset: true);
+        if (asset is null) throw new FileNotFoundException($"Asset not found: {location}");
+        string source = asset.ToText();
+        if (string.IsNullOrEmpty(source)) throw new InvalidDataException($"Asset was empty: {location}");
+        return SyntaxTree.Parse(source, GlslSchema.Instance);
     }
 
     private static string RemoveControlChars(string value)

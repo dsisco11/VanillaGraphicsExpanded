@@ -14,6 +14,7 @@ internal static class ShaderDigestReloadHook
     {
         if (ShaderRegistry.SupressShaderAndBufferReloads) return;
         ShaderDigestIndexCache.Clear();
+        PBR.ShaderImportsSystem.Instance.ClearImportCache();
         PBR.Tessellation.TerrainTessellationPrograms.BeginReload();
         // The engine destroys all registered programs before compiling this generation.
         // Composition must use the same snapshot even when an individual replacement fails.

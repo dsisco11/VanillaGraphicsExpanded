@@ -32,6 +32,7 @@ public sealed class ShaderImportsSystem
 
     private ILogger? _logger;
     private ShaderSyntaxTreePreprocessor? _preprocessor;
+    private AssetSyntaxTreeResourceResolver? _resolver;
 
     internal ILogger? Logger => _logger;
 
@@ -52,8 +53,9 @@ public sealed class ShaderImportsSystem
 
         _logger = api.Logger;
 
-        var resolver = new AssetSyntaxTreeResourceResolver(api.Assets, DefaultDomain);
-        _preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+        _resolver?.Clear();
+        _resolver = new AssetSyntaxTreeResourceResolver(api.Assets, DefaultDomain);
+        _preprocessor = new ShaderSyntaxTreePreprocessor(_resolver);
     }
 
     /// <summary>
@@ -63,7 +65,12 @@ public sealed class ShaderImportsSystem
     {
         _logger = null;
         _preprocessor = null;
+        ClearImportCache();
+        _resolver = null;
     }
+
+    /// <summary>Discards parsed import assets before the engine reloads shader sources.</summary>
+    public void ClearImportCache() => _resolver?.Clear();
 
     /// <summary>
     /// Creates a SyntaxTree for the given asset using the GLSL schema.
