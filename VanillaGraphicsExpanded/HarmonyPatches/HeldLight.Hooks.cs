@@ -12,18 +12,36 @@ using VanillaGraphicsExpanded.PBR.HeldLighting;
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
 /// <summary>Connects engine light collection and current animation publication to held-light ownership.</summary>
-[HarmonyPatch]
 internal static class HeldLightHooks
 {
+    #region Patch ownership
+    /// <summary>Installs only held-light hooks under the subsystem owner, outside the mod-wide PatchAll scan.</summary>
+    internal static void Install(Harmony harmony)
+    {
+        // Register collection last: a transpiler compatibility failure must also retire earlier hooks.
+        harmony.Patch(AccessTools.Method(typeof(EntityShapeRenderer), "RenderItem"),
+            prefix: new HarmonyMethod(typeof(HeldLightHooks), nameof(Capture)));
+        harmony.Patch(AccessTools.Method(typeof(PerceptionEffects), nameof(PerceptionEffects.ApplyToTpPlayer)),
+            prefix: new HarmonyMethod(typeof(HeldLightHooks), nameof(ApplyPerception)));
+        harmony.Patch(AccessTools.Method(typeof(PerceptionEffects), nameof(PerceptionEffects.OnBeforeGameRender)),
+            prefix: new HarmonyMethod(typeof(HeldLightHooks), nameof(UpdatePerception)));
+        harmony.Patch(AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender"),
+            postfix: new HarmonyMethod(typeof(HeldLightHooks), nameof(Complete)));
+        harmony.Patch(AccessTools.Method(typeof(SystemRenderPlayerEffects), "onBeforeRender"),
+            prefix: new HarmonyMethod(typeof(HeldLightHooks), nameof(Begin)),
+            transpiler: new HarmonyMethod(typeof(HeldLightHooks), nameof(Collect)),
+            finalizer: new HarmonyMethod(typeof(HeldLightHooks), nameof(Finish)));
+    }
+    #endregion
+
     #region Collection and animation boundaries
     /// <summary>Clears pending attachment work at the engine's light-array reset boundary.</summary>
-    [HarmonyPatch(typeof(SystemRenderPlayerEffects), "onBeforeRender")]
-    [HarmonyPrefix]
-    private static void Begin(SystemRenderPlayerEffects __instance) => HeldLightSources.Begin(__instance);
+    private static void Begin(SystemRenderPlayerEffects __instance) => HeldLightSystem.Begin(__instance);
+
+    /// <summary>Handles only exceptions attributed to the held-light extension of collection.</summary>
+    private static Exception? Finish(Exception? __exception) => HeldLightSystem.FinishCollection(__exception);
 
     /// <summary>Passes entity identity through the one entity-light call without replacing engine enumeration.</summary>
-    [HarmonyPatch(typeof(SystemRenderPlayerEffects), "onBeforeRender")]
-    [HarmonyTranspiler]
     internal static IEnumerable<CodeInstruction> Collect(IEnumerable<CodeInstruction> instructions)
     {
         var code = new List<CodeInstruction>(instructions);
@@ -39,7 +57,7 @@ internal static class HeldLightHooks
             code[i - 1].opcode = OpCodes.Nop;
             code[i - 1].operand = null;
             code[i].opcode = OpCodes.Call;
-            code[i].operand = AccessTools.Method(typeof(HeldLightSources), nameof(HeldLightSources.AddEntityLight));
+            code[i].operand = AccessTools.Method(typeof(HeldLightSystem), nameof(HeldLightSystem.AddEntityLight));
             matches++;
         }
         if (matches != 1) throw new InvalidOperationException($"Expected one engine entity-light call; found {matches}.");
@@ -47,21 +65,18 @@ internal static class HeldLightHooks
     }
 
     /// <summary>Publishes current hand positions before terrain or deferred lighting consumes the shared arrays.</summary>
-    [HarmonyPatch(typeof(SystemRenderEntities), "OnBeforeRender")]
-    [HarmonyPostfix]
-    private static void Complete(SystemRenderEntities __instance, float __0) => HeldLightSources.Complete(__instance, __0);
+    private static void Complete(SystemRenderEntities __instance, float __0) => HeldLightSystem.Complete(__instance, __0);
     #endregion
 
     #region Draw-free item evaluation
     /// <summary>Leaves pose-mutating perception callbacks to the live renderer's normal invocation.</summary>
-    [HarmonyPatch(typeof(PerceptionEffects), nameof(PerceptionEffects.ApplyToTpPlayer))]
-    [HarmonyPrefix]
-    private static bool ApplyPerception(EntityPlayer entityPlr) => HeldLightAttachment.ApplyPerception(entityPlr);
+    private static bool ApplyPerception(EntityPlayer entityPlr) => HeldLightSystem.ApplyPerception(entityPlr);
+
+    /// <summary>A recovery collection must not advance perception a second time.</summary>
+    private static bool UpdatePerception() => HeldLightSystem.ShouldUpdatePerception;
 
     /// <summary>Captures item placement only for the temporary attachment renderer.</summary>
-    [HarmonyPatch(typeof(EntityShapeRenderer), "RenderItem")]
-    [HarmonyPrefix]
     private static bool Capture(EntityShapeRenderer __instance, ItemStack stack, AttachmentPointAndPose apap, ItemRenderInfo renderInfo)
-        => HeldLightAttachment.Capture(__instance, stack, apap, renderInfo);
+        => HeldLightSystem.Capture(__instance, stack, apap, renderInfo);
     #endregion
 }

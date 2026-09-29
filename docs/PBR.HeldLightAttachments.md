@@ -69,6 +69,37 @@ The temporary change of `selfNowShadowPass` is restored in `finally`, as is the 
 
 ## Limits and fallback
 
+### Failure containment
+
+`HeldLightSystem` installs this feature explicitly under its own Harmony ID,
+`vanillagraphicsexpanded.heldlighting`; the hooks are excluded from the mod-wide `PatchAll` scan.
+The mod composition root starts and stops this owner alongside its other rendering resources.
+
+A held-light exception disables the feature for the remainder of the mod session and logs the operation
+and full `Exception.ToString()` output, including the stack and inner exceptions. Startup installation
+is also guarded: a compatibility failure in the transpiler removes any hooks already installed by this
+owner. There is no per-frame retry or automatic re-enable.
+
+Collection failures are attributed inside the held-light wrapper and handled by a finalizer on the
+collector. Attachment failures are caught at the post-animation boundary, after the temporary renderer's
+`finally` blocks restore capture and shadow state. Failures outside the wrapped operations continue
+through the engine's normal exception path; this is not a global exception suppressor.
+
+Recovery runs the installed collector once with held-light callbacks disabled. Its normal reset removes
+partially published entries, and complete enumeration restores the original merged player lights and
+any standalone lights excluded by the extra hand slots. Recovery uses an owned copy of the original
+collection matrix and restores the surrounding matrix stack afterward. If normal collection already
+updated perception, recovery suppresses that callback; otherwise it runs once during recovery.
+
+After recovery the subsystem removes only its own patches and clears pending frame work and engine
+references. Other VGE and third-party patch owners remain installed. If vanilla recovery itself fails,
+that exception is also logged and the partial dynamic-light count is cleared for the current frame;
+subsequent frames use the vanilla collector. Harmony removes this owner's patches with `UnpatchAll(PatchId)`.
+A patch-removal failure is logged, and any remaining callbacks stay disabled/pass-through.
+Logger failures cannot escape the recovery boundary.
+
+### Attachment fallback
+
 - A missing renderer/attachment, hidden first-person hands, or a custom player renderer uses
   `Pos + (0, 0.75 * LocalEyePos.Y, 0)` for the held entry. This is an explicit body-relative fallback,
   not a claim of precise custom-renderer attachment support.
@@ -94,8 +125,16 @@ pose and overwrites the engine matrix scratch array before the production comple
 It checks that the old model matrix is ignored, live renderer state is preserved, and removal of the
 held emitters does not retain pending work into the next frame.
 
-Validation on 2026-09-29: build succeeded; **54 passed, 0 failed, 0 skipped** in the combined focused
+Initial attachment validation on 2026-09-29: build succeeded; **54 passed, 0 failed, 0 skipped** in the combined focused
 suite below, including 12 held-light cases. Output: `artifacts/held-light-validation.log`.
+
+Recovery validation on 2026-09-29: build succeeded; **59 passed, 0 failed, 0 skipped** with the same
+combined filter, including 17 held-light cases. Output: `artifacts/held-light-recovery-validation.log`.
+Fault-injection cases cover a failure after the first hand is admitted, a later attachment failure,
+failure of the vanilla recovery itself, and a startup transpiler mismatch after other hooks have been
+installed. Assertions check actual Harmony owner removal, preservation of foreign patches, restored
+vanilla positions and light capacity, matrix/shadow-state restoration, full exception logging, and
+perception updating exactly once. An unrelated engine-query exception is verified to propagate.
 
 ```powershell
 dotnet test .\VanillaGraphicsExpanded.Tests\VanillaGraphicsExpanded.Tests.csproj --no-restore --filter "FullyQualifiedName~HeldLightTests|FullyQualifiedName~GBufferExternalFramebufferTests|FullyQualifiedName~PbrModeLifecycleTests|FullyQualifiedName~PbrDirectLightingShadowTests|FullyQualifiedName~PbrTerrainCaptureGpuTests|FullyQualifiedName~PbrDirectLightingFunctionalTests" -v minimal

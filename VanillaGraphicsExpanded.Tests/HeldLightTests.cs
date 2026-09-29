@@ -167,6 +167,173 @@ public sealed class HeldLightTests
     #endregion
 
     #region Installed engine lifecycle
+    /// <summary>Partial collection must be replaced with vanilla output without losing unrelated patch owners.</summary>
+    [Fact]
+    public void CollectionFailureDisablesOnlyHeldLightingAndRebuildsVanillaList()
+    {
+        using var fixture = new EngineFixture();
+        fixture.InstallCollection();
+        fixture.Patch(AccessTools.Method(typeof(HeldLightSources), "AddHand"), nameof(FailLeftHand));
+        var perception = new CountingPerception(fixture.Api.Object);
+        fixture.Render.Object.PerceptionEffects.RegisterPerceptionEffect(perception, "counter");
+        fixture.Render.Object.PerceptionEffects.TriggerEffect("counter", 1, true);
+        active = fixture;
+        try
+        {
+            fixture.Collect();
+            Assert.False(HeldLightSystem.Enabled);
+            Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
+            Assert.Equal(new float[] { 10, 100, 20 }, fixture.Game.shUniforms.PointLights3.Take(3));
+            Assert.Equal(1, perception.BeforeUpdates);
+            string error = Assert.Single(fixture.Errors);
+            Assert.Contains("injected collection failure", error);
+            Assert.Contains("System.InvalidOperationException", error);
+            Assert.Contains("AddEntityLight", error);
+            AssertHeldPatchesRemoved();
+            Assert.Contains("VGE.Tests.HeldLight", Harmony.GetPatchInfo(
+                AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender"))!.Owners);
+            fixture.Collect();
+            Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
+            Assert.Single(fixture.Errors);
+        }
+        finally { active = null; }
+    }
+
+    /// <summary>Failure after a hand update restores the whole vanilla list, including lights excluded by split capacity.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AttachmentFailureRollsBackCurrentFrameAndContainsRecoveryErrors(bool failRecovery)
+    {
+        using var fixture = new EngineFixture();
+        fixture.InstallCollection();
+        fixture.AttachRenderer();
+        Set(fixture.Effects, "maxDynLights", 2);
+        var standalone = new Mock<IPointLight>();
+        standalone.SetupGet(light => light.Pos).Returns(new Vec3d(3, 4, 5));
+        standalone.SetupGet(light => light.Color).Returns(new Vec3f(0.3f, 0.5f, 0.7f));
+        Set(fixture.Game, "pointlights", new List<IPointLight> { standalone.Object });
+        var perception = new CountingPerception(fixture.Api.Object);
+        fixture.Render.Object.PerceptionEffects.RegisterPerceptionEffect(perception, "counter");
+        fixture.Render.Object.PerceptionEffects.TriggerEffect("counter", 1, true);
+        fixture.Render.Setup(render => render.GetItemStackRenderInfo(It.IsAny<ItemSlot>(), It.IsAny<EnumItemRenderTarget>(), It.IsAny<float>()))
+            .Returns((ItemSlot slot, EnumItemRenderTarget target, float dt) =>
+            {
+                if (ReferenceEquals(slot, fixture.Player.Left))
+                {
+                    fixture.FailQuery = failRecovery;
+                    throw new InvalidOperationException("injected attachment failure");
+                }
+                return new ItemRenderInfo { Transform = new ModelTransform().EnsureDefaultValues() };
+            });
+        active = fixture;
+        try
+        {
+            fixture.Collect();
+            Assert.Equal(2, fixture.Game.shUniforms.PointLightsCount);
+            fixture.Game.MvMatrix.Translate(1000, 1000, 1000);
+            fixture.Player.selfNowShadowPass = true;
+            AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender").Invoke(fixture.Entities, [0.016f]);
+            Assert.False(HeldLightSystem.Enabled);
+            Assert.True(fixture.Player.selfNowShadowPass);
+            Assert.Equal(1, fixture.Game.MvMatrix.Count);
+            Assert.Equal(1000, fixture.Game.MvMatrix.Top[13]);
+            Assert.Equal(1, perception.BeforeUpdates);
+            Assert.Contains("injected attachment failure", fixture.Errors[0]);
+            Assert.Contains("HeldLightAttachment.Resolve", fixture.Errors[0]);
+            AssertHeldPatchesRemoved();
+            if (failRecovery)
+            {
+                Assert.Equal(0, fixture.Game.shUniforms.PointLightsCount);
+                Assert.Equal(2, fixture.Errors.Count);
+                Assert.Contains("injected engine query failure", fixture.Errors[1]);
+            }
+            else
+            {
+                Assert.Equal(2, fixture.Game.shUniforms.PointLightsCount);
+                Assert.Equal(new float[] { 10, 100, 20, 3, 4, 5 }, fixture.Game.shUniforms.PointLights3.Take(6));
+                Assert.Single(fixture.Errors);
+            }
+            fixture.FailQuery = false;
+            fixture.Collect();
+            Assert.Equal(2, fixture.Game.shUniforms.PointLightsCount);
+        }
+        finally { active = null; }
+    }
+
+    /// <summary>Engine failures outside held-light work remain visible and are not misreported as subsystem failures.</summary>
+    [Fact]
+    public void UnrelatedEngineExceptionIsNotSuppressed()
+    {
+        using var fixture = new EngineFixture();
+        fixture.InstallCollection();
+        fixture.FailQuery = true;
+        active = fixture;
+        try
+        {
+            var error = Assert.Throws<TargetInvocationException>(fixture.Collect);
+            Assert.Contains("injected engine query failure", error.InnerException!.Message);
+            Assert.True(HeldLightSystem.Enabled);
+            Assert.Empty(fixture.Errors);
+        }
+        finally { active = null; }
+    }
+
+    /// <summary>A changed engine call shape must roll back hooks already installed before the failing transpiler.</summary>
+    [Fact]
+    public void InstallationFailureRemovesPartialPatchesAndPreservesForeignOwner()
+    {
+        var foreign = new Harmony("VGE.Tests.HeldLight.Foreign");
+        var method = AccessTools.Method(typeof(SystemRenderPlayerEffects), "onBeforeRender");
+        var errors = new List<string>();
+        try
+        {
+            foreign.Patch(method, transpiler: new HarmonyMethod(typeof(HeldLightTests), nameof(ChangeCollectionCall)) { priority = Priority.First });
+            HeldLightSystem.Start(errors.Add);
+            Assert.False(HeldLightSystem.Enabled);
+            Assert.Contains("Expected one engine entity-light call", Assert.Single(errors));
+            AssertHeldPatchesRemoved();
+            Assert.Contains(foreign.Id, Harmony.GetPatchInfo(method)!.Owners);
+            Assert.Empty(typeof(HeldLightHooks).GetCustomAttributes<HarmonyAttribute>());
+        }
+        finally
+        {
+            HeldLightSystem.Stop();
+            foreign.UnpatchAll(foreign.Id);
+        }
+    }
+
+    /// <summary>Checks real Harmony ownership rather than only the subsystem's enabled flag.</summary>
+    private static void AssertHeldPatchesRemoved()
+        => Assert.DoesNotContain(Harmony.GetAllPatchedMethods(), method =>
+            Harmony.GetPatchInfo(method)?.Owners.Contains(HeldLightSystem.PatchId) == true);
+
+    /// <summary>Fails after the first hand has been admitted, before the second is published.</summary>
+    private static void FailLeftHand(bool right)
+    {
+        if (!right) throw new InvalidOperationException("injected collection failure");
+    }
+
+    /// <summary>Simulates an incompatible collection call while keeping the foreign transpiler valid.</summary>
+    private static IEnumerable<CodeInstruction> ChangeCollectionCall(IEnumerable<CodeInstruction> instructions)
+    {
+        var add = AccessTools.Method(typeof(SystemRenderPlayerEffects), "AddPointLight", [typeof(byte[]), typeof(EntityPos)]);
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Calls(add))
+            {
+                instruction.opcode = OpCodes.Call;
+                instruction.operand = AccessTools.Method(typeof(HeldLightTests), nameof(AlternateEngineCall));
+            }
+            yield return instruction;
+        }
+    }
+
+    /// <summary>Supplies a differently named but equivalent engine-light call for startup compatibility testing.</summary>
+    private static void AlternateEngineCall(SystemRenderPlayerEffects effects, byte[] light, EntityPos position)
+        => AccessTools.Method(typeof(SystemRenderPlayerEffects), "AddPointLight", [typeof(byte[]), typeof(EntityPos)])
+            .Invoke(effects, [light, position]);
+
     /// <summary>Runs installed collection and a patched animation boundary with a fresh pose and no graphics calls.</summary>
     [Theory]
     [InlineData(0, false)]
@@ -234,6 +401,7 @@ public sealed class HeldLightTests
     /// <summary>Retains the real collection predicate while supplying a deterministic nearby entity set.</summary>
     private static bool Nearby(ActionConsumable<Entity> __3, ref Entity[] __result)
     {
+        if (active!.FailQuery) throw new InvalidOperationException("injected engine query failure");
         __result = __3(active!.Player) ? [active.Player] : [];
         return false;
     }
@@ -272,6 +440,8 @@ public sealed class HeldLightTests
         internal readonly AttachmentPointAndPose LeftPose = new() { AttachPoint = new AttachmentPoint { PosX = 4, PosY = 8 } };
         internal EntityPlayerShapeRenderer? Renderer;
         private readonly Harmony harmony = new("VGE.Tests.HeldLight");
+        internal readonly List<string> Errors = new();
+        internal bool FailQuery;
 
         /// <summary>Creates engine light storage and a player with independently colored emitting hands.</summary>
         internal EngineFixture()
@@ -329,7 +499,8 @@ public sealed class HeldLightTests
         /// <summary>Installs production hooks, replacing only native session dependencies.</summary>
         internal void InstallCollection()
         {
-            harmony.CreateClassProcessor(typeof(HeldLightHooks)).Patch();
+            HeldLightSystem.Start(Errors.Add);
+            Assert.True(HeldLightSystem.Enabled, string.Join("\n", Errors));
             Patch(AccessTools.Method(typeof(Vintagestory.Common.GameMain), "GetEntitiesAround", [typeof(Vec3d), typeof(float), typeof(float), typeof(ActionConsumable<Entity>)]), nameof(Nearby));
             Patch(AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender"), nameof(Animate));
         }
@@ -370,16 +541,23 @@ public sealed class HeldLightTests
         internal void Collect() => AccessTools.Method(typeof(SystemRenderPlayerEffects), "onBeforeRender").Invoke(Effects, [0.016f]);
 
         /// <summary>Installs a named fixture prefix.</summary>
-        private void Patch(MethodInfo method, string prefix) => harmony.Patch(method, prefix: new HarmonyMethod(typeof(HeldLightTests), prefix));
+        internal void Patch(MethodInfo method, string prefix) => harmony.Patch(method, prefix: new HarmonyMethod(typeof(HeldLightTests), prefix));
 
         /// <summary>Removes all temporary engine patches even after a failed assertion.</summary>
-        public void Dispose() => harmony.UnpatchAll(harmony.Id);
+        public void Dispose()
+        {
+            HeldLightSystem.Stop();
+            harmony.UnpatchAll(harmony.Id);
+        }
     }
 
     /// <summary>Detects unintended invocation of pose-mutating perception callbacks during snapshot evaluation.</summary>
     private sealed class CountingPerception(ICoreClientAPI api) : PerceptionEffect(api)
     {
         internal int Applications;
+        internal int BeforeUpdates;
+        /// <summary>Counts frame updates to detect accidental replay during light-list recovery.</summary>
+        public override void OnBeforeGameRender(float dt) => BeforeUpdates++;
         /// <summary>Counts calls without needing a fully simulated shared pose tree.</summary>
         public override void ApplyToTpPlayer(EntityPlayer player, float[] matrix, float? intensity = null) => Applications++;
     }

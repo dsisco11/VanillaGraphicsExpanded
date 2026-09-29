@@ -27,6 +27,9 @@ internal sealed class HeldLightSources
     private readonly double[] view = new double[16];
 
     #region Engine collection
+    /// <summary>Releases all pending frame work when the held-light subsystem shuts down.</summary>
+    internal static void Clear() => Frames.Clear();
+
     /// <summary>Starts a fresh collection; no attachment or light-array index survives across frames.</summary>
     internal static void Begin(SystemRenderPlayerEffects effects)
     {
