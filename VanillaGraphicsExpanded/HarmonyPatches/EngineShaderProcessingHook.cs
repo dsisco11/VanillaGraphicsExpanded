@@ -207,6 +207,12 @@ public static class EngineShaderProcessingHook
         // Stage 2: Inline imports
         if (inlineImports)
         {
+            if (hasChanges)
+            {
+                tree = ShaderImportsSystem.Instance.CreateSyntaxTree(tree.ToText(), shaderName)
+                    ?? throw new InvalidOperationException($"Failed to reparse pre-processed GLSL for '{shaderName}'.");
+            }
+
             // Import inlining is VGE-owned and safe for VGE shaders; vanilla patch injection remains separate.
             var preprocess = GlslPreprocessor.InlineImports(tree, shaderName, _logger);
             tree = preprocess.OutputTree;
