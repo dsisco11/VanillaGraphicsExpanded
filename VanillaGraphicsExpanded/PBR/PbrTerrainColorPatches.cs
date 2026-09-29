@@ -13,7 +13,16 @@ internal static class PbrTerrainColorPatches
     internal static void ApplyVertex(SyntaxTree tree, string sourceName)
     {
         if (sourceName is not ("chunkopaque.vsh" or "chunktopsoil.vsh")) return;
-        tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), """
+        var editor = tree.CreateEditor();
+        ApplyVertex(editor, sourceName);
+        editor.Commit();
+    }
+
+    /// <summary>Queues vertex material capture edits into a stage-scoped transaction.</summary>
+    internal static void ApplyVertex(SyntaxEditor editor, string sourceName)
+    {
+        if (sourceName is not ("chunkopaque.vsh" or "chunktopsoil.vsh")) return;
+        editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), """
 
         uniform vec3 vge_atmosphereEnvironment;
         out vec4 vge_environment;
@@ -27,11 +36,20 @@ internal static class PbrTerrainColorPatches
                 rgba.rgb = vec3(1.0);
                 vge_environment = vec4(max(rgbaLightIn.rgb, vec3(0.0)) + vge_atmosphereEnvironment * clamp(rgbaLightIn.a, 0.0, 1.0), clamp(rgbaLightIn.a, 0.0, 1.0));
 
-            """).Commit();
+            """);
     }
 
     /// <summary>Captures color-mapped terrain before forward effects without changing coverage or glow outputs.</summary>
     internal static void ApplyFragment(SyntaxTree tree, string sourceName)
+    {
+        if (sourceName is not ("chunkopaque.fsh" or "chunktopsoil.fsh")) return;
+        var editor = tree.CreateEditor();
+        ApplyFragment(tree, editor, sourceName);
+        editor.Commit();
+    }
+
+    /// <summary>Queues fragment material capture edits into a stage-scoped transaction.</summary>
+    internal static void ApplyFragment(SyntaxTree tree, SyntaxEditor editor, string sourceName)
     {
         if (sourceName is not ("chunkopaque.fsh" or "chunktopsoil.fsh")) return;
 
@@ -52,8 +70,7 @@ internal static class PbrTerrainColorPatches
             throw new InvalidOperationException($"Unsupported material capture boundary in {sourceName}.");
         string color = sourceName == "chunkopaque.fsh" ? "texColor.rgb" : "outColor.rgb";
         // Restore after the complete body, independently of its final output statement.
-        tree.CreateEditor()
-            .InsertBefore(boundary, $"""
+        editor.InsertBefore(boundary, $"""
             vec3 vge_materialColor = VgeSrgbToLinear({color});
 
             """)
@@ -64,8 +81,7 @@ internal static class PbrTerrainColorPatches
                     outColor.rgb = vge_materialColor;
                 #endif
 
-                """)
-            .Commit();
+                """);
     }
 
     #endregion

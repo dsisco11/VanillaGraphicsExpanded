@@ -17,8 +17,15 @@ internal static class AtmosphereSkyPatches
     /// <summary>Replaces sky RGB after engine alpha evaluation; the lookup is initialized before the first scene draw.</summary>
     internal static void Apply(SyntaxTree tree)
     {
-        tree.CreateEditor()
-            .InsertBefore(Query.Syntax<GlFunctionNode>().Named("getSkyColorAt"),
+        var editor = tree.CreateEditor();
+        Apply(editor);
+        editor.Commit();
+    }
+
+    /// <summary>Queues sky lookup replacement into a stage-scoped transaction.</summary>
+    internal static void Apply(SyntaxEditor editor)
+    {
+        editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("getSkyColorAt"),
                 """
                 uniform sampler2D vge_atmosphereSky;
                 uniform float vge_atmosphereLutHorizon;
@@ -49,7 +56,7 @@ internal static class AtmosphereSkyPatches
                 // Dither after underwater/night-vision display effects, immediately before primary RGBA8 storage.
                 outColor.rgb = VgeDitherDisplay(outColor.rgb, gl_FragCoord.xy);
 
-                """).Commit();
+                """);
     }
     #endregion
 }

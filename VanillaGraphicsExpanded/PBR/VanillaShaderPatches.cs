@@ -218,8 +218,8 @@ flat in uint vge_faceId;
     {
         try
         {
-            bool displacementInterface = Tessellation.TerrainDisplacementPatches.Apply(tree, sourceName);
-            if (sourceName == "chunkshadowmap.vsh") return displacementInterface;
+            if (sourceName == "chunkshadowmap.vsh")
+                return Tessellation.TerrainDisplacementPatches.Apply(tree, sourceName);
             if (sourceName == "final.fsh")
             {
                 PbrFinalDisplayPatches.Preprocess(tree);
@@ -232,21 +232,24 @@ flat in uint vge_faceId;
             }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
             {
-                bool patched = PbrSurfaceShaderPatches.Preprocess(tree, sourceName);
+                var editor = tree.CreateEditor();
+                bool patched = PbrSurfaceShaderPatches.Preprocess(tree, editor, sourceName);
                 if (sourceName is "standard.vsh" or "standard.fsh")
                 {
-                    Atmosphere.AtmosphereSunPatches.Preprocess(tree, sourceName);
-                    return true;
+                    Atmosphere.AtmosphereSunPatches.Preprocess(editor, sourceName);
+                    patched = true;
                 }
+                if (patched) editor.Commit();
                 return patched;
             }
             // Chunk vertex shaders - inject only vertex-safe helpers
             if (PatchedChunkVertexShaders.Contains(sourceName))
             {
-                var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-                tree.CreateEditor()
-                    .InsertBefore(mainQuery, "@import \"./includes/vge_uvrect.glsl\"\n")
-                    .Commit();
+                var editor = tree.CreateEditor();
+                Tessellation.TerrainDisplacementPatches.Apply(editor, sourceName);
+                editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
+                    "@import \"./includes/vge_uvrect.glsl\"\n");
+                editor.Commit();
 
                 log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");
                 return true;
@@ -255,13 +258,13 @@ flat in uint vge_faceId;
             // Chunk shaders - inject vsFunctions AND vge_material imports
             if (PatchedChunkShaders.Contains(sourceName))
             {
-                if (sourceName is "chunkopaque.fsh" or "chunktopsoil.fsh") InjectPomDefines(tree);
-                InjectNormalMapDefines(tree);
+                var editor = tree.CreateEditor();
+                InjectNormalMapDefines(editor);
+                InjectPomDefines(tree, editor);
 
                 // Find main function and insert @import before it
                 var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
-                tree.CreateEditor()
-                    .InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
+                editor.InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/pbr_color.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
@@ -285,10 +288,18 @@ flat in uint vge_faceId;
     /// <summary>Publishes configured parallax options for material-aware engine shaders.</summary>
     internal static void InjectPomDefines(SyntaxTree tree)
     {
-        if (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode != (int)Materials.TerrainSurfaceDetailMode.Relief) return;
+        var editor = tree.CreateEditor();
+        if (!InjectPomDefines(tree, editor)) return;
+        editor.Commit();
+    }
+
+    /// <summary>Queues configured parallax options into a stage-scoped transaction.</summary>
+    internal static bool InjectPomDefines(SyntaxTree tree, SyntaxEditor editor)
+    {
+        if (ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode != (int)Materials.TerrainSurfaceDetailMode.Relief) return false;
 
         var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
-        if (!tree.Select(versionQuery).Any()) return;
+        if (!tree.Select(versionQuery).Any()) return false;
 
         var cfg = ConfigModSystem.Config.MaterialAtlas;
 
@@ -310,28 +321,33 @@ flat in uint vge_faceId;
 
             """;
 
-        tree.CreateEditor()
-            .InsertAfter(versionQuery, defineBlock)
-            .Commit();
+        editor.InsertAfter(versionQuery, defineBlock);
+        return true;
     }
 
-            /// <summary>Publishes configured normal-map options for material-aware engine shaders.</summary>
-            internal static void InjectNormalMapDefines(SyntaxTree tree)
-            {
-            var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
-            var cfg = ConfigModSystem.Config.MaterialAtlas;
-            string scale = cfg.NormalMapScale.ToString("0.0####", CultureInfo.InvariantCulture);
-            string defineBlock = $@"
+    /// <summary>Publishes configured normal-map options for material-aware engine shaders.</summary>
+    internal static void InjectNormalMapDefines(SyntaxTree tree)
+    {
+        var editor = tree.CreateEditor();
+        InjectNormalMapDefines(editor);
+        editor.Commit();
+    }
+
+    /// <summary>Queues configured normal-map options into a stage-scoped transaction.</summary>
+    internal static void InjectNormalMapDefines(SyntaxEditor editor)
+    {
+        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
+        var cfg = ConfigModSystem.Config.MaterialAtlas;
+        string scale = cfg.NormalMapScale.ToString("0.0####", CultureInfo.InvariantCulture);
+        string defineBlock = $@"
 
         // VGE: normal-map settings
         #define {VgeShaderDefines.PbrEnableNormalMaps} {(cfg.EnableNormalMaps ? 1 : 0)}
         #define {VgeShaderDefines.PbrNormalMapScale} {scale}
         ";
 
-            tree.CreateEditor()
-                .InsertAfter(versionQuery, defineBlock)
-                .Commit();
-            }
+        editor.InsertAfter(versionQuery, defineBlock);
+    }
 
     /// <summary>
     /// Attempts to apply patches to the given SyntaxTree based on the shader name.
@@ -351,34 +367,24 @@ flat in uint vge_faceId;
             }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
             {
-                PbrSurfaceShaderPatches.Apply(tree, sourceName);
+                var editor = tree.CreateEditor();
                 if (sourceName is "standard.vsh" or "standard.fsh")
-                    Atmosphere.AtmosphereSunPatches.Apply(tree);
+                    Atmosphere.AtmosphereSunPatches.Apply(editor);
+                PbrSurfaceShaderPatches.Apply(tree, editor, sourceName);
+                editor.Commit();
                 return true;
             }
             if (PatchedChunkVertexShaders.Contains(sourceName))
             {
-                InjectUvRectVaryings_Vsh(tree);
-                InjectUvRectAssign_Vsh(tree);
-                PbrTerrainColorPatches.ApplyVertex(tree, sourceName);
+                ApplyChunkVertexPatches(tree, sourceName);
 
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
             }
 
             if (PatchedChunkShaders.Contains(sourceName))
-            {// Chunk shaders - inject G-buffer inputs, material sampler, and outputs
-                InjectGBufferInputs(tree);
-                InjectChunkMaterialSampler(tree);
-
-                InjectUvRectVaryings_Fsh(tree);
-                InjectGBufferOutputs(tree, GBufferOutputWrites_Chunk);
-
-                // Inject UV/TBN helpers after output injection (still placed at start of main()).
-                InjectParallaxUvMapping(tree, sourceName);
-
-                PatchFogAndLight(tree);
-                PbrTerrainColorPatches.ApplyFragment(tree, sourceName);
+            {
+                ApplyChunkFragmentPatches(tree, sourceName);
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
             }
@@ -389,9 +395,11 @@ flat in uint vge_faceId;
                 //     return true;
                 case "sky.fsh":
                     {
-                        Atmosphere.AtmosphereSkyPatches.Apply(tree);
-                        InjectGBufferInputs(tree);
-                        InjectSkyGBufferOutputs(tree);
+                        var editor = tree.CreateEditor();
+                        Atmosphere.AtmosphereSkyPatches.Apply(editor);
+                        InjectGBufferInputs(editor);
+                        InjectSkyGBufferOutputs(editor);
+                        editor.Commit();
                         log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                         return true;
                     }
@@ -405,18 +413,48 @@ flat in uint vge_faceId;
         }
     }
 
+    /// <summary>Applies all opaque terrain vertex edits in one tree rebind.</summary>
+    private static void ApplyChunkVertexPatches(SyntaxTree tree, string sourceName)
+    {
+        var main = Query.Syntax<GlFunctionNode>().Named("main");
+        var editor = tree.CreateEditor();
+        editor.InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"), UvRectVaryings_Vsh)
+            .InsertAfter(main.InnerStart("body"), UvRectAssign_Vsh);
+        PbrTerrainColorPatches.ApplyVertex(editor, sourceName);
+        editor.Commit();
+    }
+
+    /// <summary>Applies all opaque terrain fragment edits in one tree rebind.</summary>
+    private static void ApplyChunkFragmentPatches(SyntaxTree tree, string sourceName)
+    {
+        var main = Query.Syntax<GlFunctionNode>().Named("main");
+        string prolog = sourceName == "chunktopsoil.fsh" ? ParallaxUvProlog_Topsoil : ParallaxUvProlog_Chunk;
+        string epilog = sourceName == "chunktopsoil.fsh" ? ParallaxUvEpilog_Topsoil : ParallaxUvEpilog_Chunk;
+        var editor = tree.CreateEditor();
+
+        editor.InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"),
+                UvRectVaryings_Fsh + ChunkMaterialParamsSamplerDeclaration + GBufferInputDeclarations)
+            .InsertAfter(main.InnerStart("body"), prolog + GBufferOutputWrites_Chunk)
+            .InsertBefore(main.InnerEnd("body"), epilog);
+
+        ReplaceFogAndLightFunctions(editor);
+        PbrTerrainColorPatches.ApplyFragment(tree, editor, sourceName);
+        editor.Commit();
+    }
+
     /// <summary>
     /// Injects G-buffer output declarations after #version directive.
     /// </summary>
     private static void InjectGBufferInputs(SyntaxTree tree)
     {
-        // Find the #version directive and insert after it
-        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
-
-        tree.CreateEditor()
-            .InsertAfter(versionQuery, GBufferInputDeclarations)
-            .Commit();
+        var editor = tree.CreateEditor();
+        InjectGBufferInputs(editor);
+        editor.Commit();
     }
+
+    /// <summary>Queues shared G-buffer declarations into a stage-scoped transaction.</summary>
+    private static void InjectGBufferInputs(SyntaxEditor editor) =>
+        editor.InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"), GBufferInputDeclarations);
 
     private static void InjectChunkMaterialSampler(SyntaxTree tree)
     {
@@ -430,34 +468,54 @@ flat in uint vge_faceId;
     /// <summary>Declares the terrain vertex tile bounds used by atlas-safe parallax.</summary>
     internal static void InjectUvRectVaryings_Vsh(SyntaxTree tree)
     {
-        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
-        tree.CreateEditor()
-            .InsertAfter(versionQuery, UvRectVaryings_Vsh)
-            .Commit();
+        var editor = tree.CreateEditor();
+        InjectUvRectVaryings_Vsh(editor);
+        editor.Commit();
     }
+
+    /// <summary>Queues vertex tile-bound declarations into a stage-scoped transaction.</summary>
+    internal static void InjectUvRectVaryings_Vsh(SyntaxEditor editor) =>
+        editor.InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"), UvRectVaryings_Vsh);
 
     /// <summary>Declares matching fragment tile bounds.</summary>
     internal static void InjectUvRectVaryings_Fsh(SyntaxTree tree)
     {
-        var versionQuery = Query.Syntax<GlDirectiveNode>().Named("version");
-        tree.CreateEditor()
-            .InsertAfter(versionQuery, UvRectVaryings_Fsh)
-            .Commit();
+        var editor = tree.CreateEditor();
+        InjectUvRectVaryings_Fsh(editor);
+        editor.Commit();
     }
+
+    /// <summary>Queues fragment tile-bound declarations into a stage-scoped transaction.</summary>
+    internal static void InjectUvRectVaryings_Fsh(SyntaxEditor editor) =>
+        editor.InsertAfter(Query.Syntax<GlDirectiveNode>().Named("version"), UvRectVaryings_Fsh);
 
     /// <summary>Reads terrain tile bounds from the engine's packed face data.</summary>
     internal static void InjectUvRectAssign_Vsh(SyntaxTree tree)
     {
+        var editor = tree.CreateEditor();
+        InjectUvRectAssign_Vsh(editor);
+        editor.Commit();
+    }
+
+    /// <summary>Queues terrain tile-bound initialization into a stage-scoped transaction.</summary>
+    internal static void InjectUvRectAssign_Vsh(SyntaxEditor editor)
+    {
         // Insert at the start of main() body to avoid AST editor wrapping issues.
         // We re-fetch FaceData from the SSBO so this does not depend on local variable ordering.
         var mainStart = Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body");
-        tree.CreateEditor()
-            .InsertAfter(mainStart, UvRectAssign_Vsh)
-            .Commit();
+        editor.InsertAfter(mainStart, UvRectAssign_Vsh);
     }
 
     /// <summary>Applies shared atlas-safe UV indirection and derivative tangent construction.</summary>
     internal static void InjectParallaxUvMapping(SyntaxTree tree, string sourceName)
+    {
+        var editor = tree.CreateEditor();
+        InjectParallaxUvMapping(editor, sourceName);
+        editor.Commit();
+    }
+
+    /// <summary>Queues atlas-safe UV indirection into a stage-scoped transaction.</summary>
+    internal static void InjectParallaxUvMapping(SyntaxEditor editor, string sourceName)
     {
         // Insert at the top of main() so subsequent vanilla code can see the uv macros.
         var mainStart = Query.Syntax<GlFunctionNode>().Named("main").InnerStart("body");
@@ -477,15 +535,12 @@ flat in uint vge_faceId;
             epilog = ParallaxUvEpilog_Chunk;
         }
 
-        var editor = tree.CreateEditor();
         editor.InsertAfter(mainStart, prolog);
 
         if (!string.IsNullOrEmpty(epilog))
         {
             editor.InsertBefore(mainEnd, epilog);
         }
-
-        editor.Commit();
     }
 
     /// <summary>
@@ -503,7 +558,14 @@ flat in uint vge_faceId;
 
     private static void InjectSkyGBufferOutputs(SyntaxTree tree)
     {
-        // Sky shader only needs to write default values to G-buffer outputs
+        var editor = tree.CreateEditor();
+        InjectSkyGBufferOutputs(editor);
+        editor.Commit();
+    }
+
+    /// <summary>Queues default sky G-buffer values into a stage-scoped transaction.</summary>
+    private static void InjectSkyGBufferOutputs(SyntaxEditor editor)
+    {
         const string skyGBufferWrites = @"
     // VGE: Write default G-buffer outputs for sky
     vge_outEnvironment = vec4(0.0);
@@ -511,46 +573,46 @@ flat in uint vge_faceId;
     vge_outNormal = vec4(0.0); // Upward normal
     vge_outMaterial = vec4(0.0, 0.0, outGlow.g, 0.0); // Default material properties
 ";
-
-        // Find main function and insert at inner end of body (before closing brace)
-        var mainQuery = Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body");
-        tree.CreateEditor()
-            .InsertBefore(mainQuery, skyGBufferWrites)
-            .Commit();
+        editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), skyGBufferWrites);
     }
 
-    /// <summary>
-    /// Patches the fogandlight.fsh shader to disable fog, shadow, and normal shading effects.
-    /// </summary>
+    /// <summary>Patches the fog and lighting helpers in one transaction.</summary>
     private static void PatchFogAndLight(SyntaxTree tree)
     {
         var editor = tree.CreateEditor();
 
-        // intercept 'applyFog' function and just return unadjusted color
-        ReplaceFunctionBody(tree, editor, "applyFog", "\nreturn rgbaPixel;");
-
-        // intercept 'getBrightnessFromShadowMap' function and return full brightness
-        ReplaceFunctionBody(tree, editor, "getBrightnessFromShadowMap", "\nreturn 1.0;");
-
-        // intercept 'getBrightnessFromNormal' function and return full brightness
-        ReplaceFunctionBody(tree, editor, "getBrightnessFromNormal", "\nreturn 1.0;");
-
-        // intercept 'applyFogAndShadow' function and just return unadjusted color
-        ReplaceFunctionBody(tree, editor, "applyFogAndShadow", "\nreturn rgbaPixel;");
-
-        // intercept 'applyFogAndShadowWithNormal' function and just return unadjusted color
-        ReplaceFunctionBody(tree, editor, "applyFogAndShadowWithNormal", "\nreturn rgbaPixel;");
-
-        // intercept 'applyFogAndShadowFromBrightness' function and just return unadjusted color
-        ReplaceFunctionBody(tree, editor, "applyFogAndShadowFromBrightness", "\nreturn rgbaPixel;");
+        ReplaceFogAndLightFunctions(editor);
 
         editor.Commit();
+    }
+
+    /// <summary>Queues replacement bodies for the engine's forward fog and light helpers.</summary>
+    private static void ReplaceFogAndLightFunctions(SyntaxEditor editor)
+    {
+
+        // intercept 'applyFog' function and just return unadjusted color
+        ReplaceFunctionBody(editor, "applyFog", "\nreturn rgbaPixel;");
+
+        // intercept 'getBrightnessFromShadowMap' function and return full brightness
+        ReplaceFunctionBody(editor, "getBrightnessFromShadowMap", "\nreturn 1.0;");
+
+        // intercept 'getBrightnessFromNormal' function and return full brightness
+        ReplaceFunctionBody(editor, "getBrightnessFromNormal", "\nreturn 1.0;");
+
+        // intercept 'applyFogAndShadow' function and just return unadjusted color
+        ReplaceFunctionBody(editor, "applyFogAndShadow", "\nreturn rgbaPixel;");
+
+        // intercept 'applyFogAndShadowWithNormal' function and just return unadjusted color
+        ReplaceFunctionBody(editor, "applyFogAndShadowWithNormal", "\nreturn rgbaPixel;");
+
+        // intercept 'applyFogAndShadowFromBrightness' function and just return unadjusted color
+        ReplaceFunctionBody(editor, "applyFogAndShadowFromBrightness", "\nreturn rgbaPixel;");
     }
 
     /// <summary>
     /// Helper method to insert code at the top of a function body using the editor.
     /// </summary>
-    private static void ReplaceFunctionBody(SyntaxTree tree, SyntaxEditor editor, string functionName, string code)
+    private static void ReplaceFunctionBody(SyntaxEditor editor, string functionName, string code)
     {
         var methodBody = Query.Syntax<GlFunctionNode>().Named(functionName).Block("body");
         var bodyContents = methodBody.Inner();
@@ -565,7 +627,7 @@ flat in uint vge_faceId;
         var editor = tree.CreateEditor();
 
         // intercept 'getBrightnessFromNormal' function and return full brightness
-        ReplaceFunctionBody(tree, editor, "getBrightnessFromNormal", "\nreturn 1.0;");
+        ReplaceFunctionBody(editor, "getBrightnessFromNormal", "\nreturn 1.0;");
 
         editor.Commit();
     }

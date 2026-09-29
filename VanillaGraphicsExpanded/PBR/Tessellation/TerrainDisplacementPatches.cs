@@ -9,9 +9,18 @@ internal static class TerrainDisplacementPatches
     /// <summary>Exposes stage uniforms to the engine's ordinary uniform collection and prepares shadow varyings.</summary>
     internal static bool Apply(SyntaxTree tree, string name)
     {
+        var editor = tree.CreateEditor();
+        if (!Apply(editor, name)) return false;
+        editor.Commit();
+        return true;
+    }
+
+    /// <summary>Queues displacement interface edits into a stage-scoped transaction.</summary>
+    internal static bool Apply(SyntaxEditor editor, string name)
+    {
         if (name is not ("chunkopaque.vsh" or "chunktopsoil.vsh" or "chunkshadowmap.vsh")) return false;
         var main = Query.Syntax<GlFunctionNode>().Named("main");
-        tree.CreateEditor().InsertBefore(main, """
+        editor.InsertBefore(main, """
             uniform sampler2D vge_displacementTex;
             uniform sampler2D vge_displacementRecords;
             uniform sampler2D vge_normalDepthTex;
@@ -21,10 +30,10 @@ internal static class TerrainDisplacementPatches
             uniform int vge_displacementEnabled;
             uniform int vge_displacementReactive;
 
-            """).Commit();
+            """);
         if (name != "chunkshadowmap.vsh")
         {
-            tree.CreateEditor().InsertBefore(main, """
+            editor.InsertBefore(main, """
                 out vec4 vge_surfaceBasePosition;
                 out vec3 vge_surfaceBaseNormal;
                 out float vge_surfaceDisplaced;
@@ -34,11 +43,11 @@ internal static class TerrainDisplacementPatches
                 vge_surfaceBasePosition = worldPos;
                 vge_surfaceBaseNormal = normal;
                 vge_surfaceDisplaced = 0.0;
-                """).Commit();
+                """);
             return true;
         }
         // Keep the engine's local worldPos and export it under a distinct name.
-        tree.CreateEditor().InsertBefore(main, """
+        editor.InsertBefore(main, """
             out vec4 vge_shadowPosition;
             out vec3 normal;
             flat out int renderFlags;
@@ -56,7 +65,7 @@ internal static class TerrainDisplacementPatches
             normal = unpackNormal(renderFlags);
             vge_uvBase = vec2(-1.0);
             vge_uvExtent = vec2(0.0);
-            """).Commit();
+            """);
         return true;
     }
     #endregion

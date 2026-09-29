@@ -16,28 +16,37 @@ internal static class PbrSurfaceShaderPatches
     /// <summary>Adds shared BRDF imports before the engine import expansion step.</summary>
     internal static bool Preprocess(SyntaxTree tree, string name)
     {
+        var editor = tree.CreateEditor();
+        bool patched = Preprocess(tree, editor, name);
+        if (patched) editor.Commit();
+        return patched;
+    }
+
+    /// <summary>Queues shared BRDF imports into a stage-scoped transaction.</summary>
+    internal static bool Preprocess(SyntaxTree tree, SyntaxEditor editor, string name)
+    {
         if (name == "chunktransparent.vsh")
         {
-            tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
+            editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
                 """
                 @import "./includes/vge_uvrect.glsl"
 
-                """).Commit();
+                """);
             return true;
         }
         if (name.EndsWith(".vsh", StringComparison.Ordinal)) return false;
         string terrainImports = "";
         if (name == "chunktransparent.fsh")
         {
-            VanillaShaderPatches.InjectPomDefines(tree);
-            VanillaShaderPatches.InjectNormalMapDefines(tree);
+            VanillaShaderPatches.InjectNormalMapDefines(editor);
+            VanillaShaderPatches.InjectPomDefines(tree, editor);
             terrainImports = """
             @import "./includes/vge_normaldepth.glsl"
             @import "./includes/vge_parallax.glsl"
 
             """;
         }
-        tree.CreateEditor().InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
+        editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
             $"""
             #define VGE_PBR_FORWARD_LUMON {(PbrShaderLightingMode.LumOnEnabled ? 1 : 0)}
             @import "./includes/vsfunctions.glsl"
@@ -48,7 +57,7 @@ internal static class PbrSurfaceShaderPatches
             @import "./includes/atmosphere_aerial.glsl"
             {terrainImports}@import "./includes/pbr_forward_surface.glsl"
 
-            """).Commit();
+            """);
         return true;
     }
     #endregion
@@ -56,6 +65,14 @@ internal static class PbrSurfaceShaderPatches
     #region Material and lighting integration
     /// <summary>Patches matching vertex/fragment interfaces without changing deformation, depth or coverage.</summary>
     internal static void Apply(SyntaxTree tree, string name)
+    {
+        var editor = tree.CreateEditor();
+        Apply(tree, editor, name);
+        editor.Commit();
+    }
+
+    /// <summary>Queues material and lighting integration into a stage-scoped transaction.</summary>
+    internal static void Apply(SyntaxTree tree, SyntaxEditor editor, string name)
     {
         bool chunk = name.StartsWith("chunktransparent", StringComparison.Ordinal);
         bool instanced = name.StartsWith("instanced", StringComparison.Ordinal);
@@ -76,8 +93,8 @@ internal static class PbrSurfaceShaderPatches
         {
             if (chunk)
             {
-                VanillaShaderPatches.InjectUvRectVaryings_Vsh(tree);
-                VanillaShaderPatches.InjectUvRectAssign_Vsh(tree);
+                VanillaShaderPatches.InjectUvRectVaryings_Vsh(editor);
+                VanillaShaderPatches.InjectUvRectAssign_Vsh(editor);
             }
             declarations += """
             out vec3 vge_viewPosition;
@@ -90,7 +107,7 @@ internal static class PbrSurfaceShaderPatches
             string color = chunk ? "rgba" : "color";
             string lights = instanced ? "rgbaLightIn * rgbaBlockIn" : "rgbaLightIn";
             // Retain applyLight's alpha/glow/shadow side outputs, but never divide by lit RGB to recover tint.
-            tree.CreateEditor().InsertBefore(mainQuery, declarations)
+            editor.InsertBefore(mainQuery, declarations)
                 .InsertBefore(mainQuery.InnerEnd("body"), $"""
 
                     vge_viewPosition = ({matrix} * worldPos).xyz;
@@ -100,11 +117,11 @@ internal static class PbrSurfaceShaderPatches
                     vge_sunIrradiance = (vge_atmosphereEnvironment / 0.35) * vge_skyVisibility;
                     if (vge_pbrRoute != 0) {color}.rgb = {tint};
 
-                """).Commit();
+                """);
             if (!chunk && !entity && !instanced)
             {
                 // The standard mesh's partial-glow tint is material appearance, not vertex illumination.
-                tree.CreateEditor().InsertBefore(mainQuery.InnerEnd("body"), """
+                editor.InsertBefore(mainQuery.InnerEnd("body"), """
 
                     #if defined(GLOWSUB)
                     if (vge_pbrRoute != 0)
@@ -114,7 +131,7 @@ internal static class PbrSurfaceShaderPatches
                     }
                     #endif
 
-                    """).Commit();
+                """);
             }
             return;
         }
@@ -159,11 +176,11 @@ internal static class PbrSurfaceShaderPatches
         // Helpers are expanded before main, so declarations must precede the helper functions as well.
         var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("extension")).LastOrDefault()
             ?? tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
-        tree.CreateEditor().InsertAfter(header, declarations).Commit();
+        editor.InsertAfter(header, declarations);
         if (chunk)
         {
-            VanillaShaderPatches.InjectUvRectVaryings_Fsh(tree);
-            VanillaShaderPatches.InjectParallaxUvMapping(tree, name);
+            VanillaShaderPatches.InjectUvRectVaryings_Fsh(editor);
+            VanillaShaderPatches.InjectParallaxUvMapping(editor, name);
         }
 
         var main = tree.Select(mainQuery).OfType<GlFunctionNode>().Single();
@@ -173,11 +190,11 @@ internal static class PbrSurfaceShaderPatches
             // Preserve the authored thermal/glow tint, but do not bake the no-bloom light boost into albedo.
             var bloom = children.FirstOrDefault(node => node.ToText().TrimStart().StartsWith("#if BLOOM", StringComparison.Ordinal))
                 ?? throw new InvalidOperationException($"Missing standard glow boundary in {name}.");
-            tree.CreateEditor().InsertAfter(bloom, """
+            editor.InsertAfter(bloom, """
 
             if (vge_pbrRoute == 0)
 
-            """).Commit();
+            """);
         }
 
         // Capture the actual input at the lighting boundary, independent of local names or branch layout.
@@ -186,7 +203,6 @@ internal static class PbrSurfaceShaderPatches
         string lightingEntry = !chunk && !entity && !instanced ? "applyFogAndShadow" : "applyFogAndShadowWithNormal";
         if (!tree.Select(Query.Syntax<GlFunctionNode>().Named(lightingEntry)).Any())
             throw new InvalidOperationException($"Missing lighting helper {lightingEntry} in {name}.");
-        var editor = tree.CreateEditor();
         foreach (string function in new[] { "applyFog", "applyFogAndShadow", "applyFogAndShadowWithNormal", "applyFogAndShadowFromBrightness" })
             editor.InsertAfter(Query.Syntax<GlFunctionNode>().Named(function).InnerStart("body"),
                 """
@@ -210,8 +226,6 @@ internal static class PbrSurfaceShaderPatches
             if (vge_pbrRoute != 0) return texColor;
 
             """);
-        editor.Commit();
-
         string parameters = chunk ? "texture(vge_materialParamsTex, uv).rgb" : "vec3(0.5, getMatMetallicFromRenderFlags(renderFlags), glowLevel)";
         string surfaceNormal = chunk
             ? "normalize(VgeComputePackedWorldNormal01Height01_WithTbn(vge_uv, normal, worldPos.xyz, vge_tbn, vge_tbnHandedness).rgb * 2.0 - 1.0)"
@@ -259,10 +273,8 @@ internal static class PbrSurfaceShaderPatches
             : main.Body.Children.FirstOrDefault(node => node is SyntaxToken { Text: "OIT" });
         if ((chunk || entity) && oit is null)
             throw new InvalidOperationException($"Missing OIT publication boundary in {name}.");
-        editor = tree.CreateEditor();
         if (oit is not null) editor.InsertBefore(oit, finish);
         else editor.InsertBefore(mainQuery.InnerEnd("body"), finish);
-        editor.Commit();
     }
 
     #endregion

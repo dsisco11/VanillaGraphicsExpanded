@@ -32,7 +32,7 @@ Issues:
     ✔ Skip TinyAst parsing for engine shader stages that require no VGE edits or import expansion. Unsupported import-free stages now bypass SyntaxTree creation; 20 focused stage-selection, patching, and import-cache tests passed.
       - Select supported stage names before parsing, while retaining required processing for every patched shader variant.
       - Verify unaffected stages remain byte-identical and patched stages still compile and render through focused tests.
-    ☐ Consolidate repeated TinyAst edits and commits within each patched shader stage.
+    ✔ Consolidate repeated TinyAst edits and commits within each patched shader stage. Independent edits now use one stage-scoped transaction per pre/post phase; 119 focused tests passed with 1 known skip, followed by 77 passing sky/installed-shader tests. Live CPU recapture remains required for timing comparison.
       - Reduce whole-tree rebinding without changing insertion order, import expansion, or the resulting shader interfaces.
       - Compare patched output and startup patch-processing cost against the current capture in docs/StartupLoadingCosts.Analysis.md.
 

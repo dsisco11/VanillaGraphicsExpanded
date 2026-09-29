@@ -23,6 +23,8 @@ public sealed class VanillaShaderPatchesPreProcessingTests
 
         Assert.True(applied);
         Assert.Contains("@import \"./includes/lumonscene_chunkslot.glsl\"", tree.ToText());
+        Assert.True(tree.ToText().IndexOf("VGE_PBR_ENABLE_NORMAL_MAPS", StringComparison.Ordinal)
+            < tree.ToText().IndexOf("@import \"./includes/vsfunctions.glsl\"", StringComparison.Ordinal));
     }
 }
 
