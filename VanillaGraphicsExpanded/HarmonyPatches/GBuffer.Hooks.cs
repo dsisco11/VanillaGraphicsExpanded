@@ -9,7 +9,7 @@ public static class GBufferHooks
 
 // Vintagestory.Client.NoObf.ClientPlatformWindows.UnloadFrameBuffer(EnumFrameBuffer framebuffer)
     [HarmonyPatch(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.UnloadFrameBuffer), typeof(EnumFrameBuffer))]
-    [HarmonyPostfix]
+    [HarmonyPrefix]
     public static void UnloadFrameBuffer_Hook(EnumFrameBuffer framebuffer)
     {
        GBufferManager.Instance?.UnloadGBuffer(framebuffer);

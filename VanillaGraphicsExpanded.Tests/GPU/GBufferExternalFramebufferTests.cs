@@ -124,5 +124,35 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         Assert.True(GL.IsTexture(borrowed));
         GpuFramebuffer.Unbind();
     }
+
+    /// <summary>Primary teardown must not transfer VGE-owned attachments to the engine's deletion list.</summary>
+    [Fact]
+    public void UnloadPrimaryRemovesVgeTexturesFromEngineBookkeeping()
+    {
+        EnsureContextValid();
+        using var framework = new ShaderTestFramework();
+        using var primary = framework.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba16f, 4);
+        using var assets = new BinaryShaderApiFixture();
+        var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
+        var frame = frames[(int)EnumFrameBuffer.Primary];
+        frame.FboId = primary.FboId;
+        frame.Width = frame.Height = 2;
+        frame.ColorTextureIds = Enumerable.Range(0, 4).Select(slot => primary[slot].TextureId).ToArray();
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+
+        using var manager = new GBufferManager(api.Object);
+        manager.SetupGBuffers();
+        int[] owned = [manager.NormalTextureId, manager.MaterialTextureId, manager.PatchIdTextureId, manager.EnvironmentTextureId];
+
+        manager.UnloadGBuffer(EnumFrameBuffer.Primary);
+
+        Assert.Equal(4, frame.ColorTextureIds.Length);
+        Assert.All(owned, texture => Assert.True(GL.IsTexture(texture)));
+        GpuFramebuffer.Unbind();
+    }
     #endregion
 }

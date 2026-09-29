@@ -358,7 +358,20 @@ public sealed partial class GBufferManager : IDisposable
     /// <param name="framebuffer">The framebuffer being unloaded</param>
     public void UnloadGBuffer(EnumFrameBuffer framebuffer)
     {
-        // Currently no cleanup needed on unload
+        if (framebuffer != EnumFrameBuffer.Primary || !isInjected)
+        {
+            return;
+        }
+
+        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb?.ColorTextureIds is { Length: > NormalSlotId })
+        {
+            // The engine deletes every texture recorded in this array during framebuffer teardown.
+            // Remove VGE-owned attachments first so their wrappers remain the sole owners.
+            Array.Resize(ref primaryFb.ColorTextureIds, NormalSlotId);
+        }
+
+        isInjected = false;
     }
 
     #endregion
