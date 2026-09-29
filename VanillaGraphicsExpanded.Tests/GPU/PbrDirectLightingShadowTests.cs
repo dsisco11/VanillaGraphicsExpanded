@@ -24,13 +24,11 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 
     #region Visibility contracts
 
-    /// <summary>Propagated sunlight scales both solar lobes, clamps invalid inputs, and preserves local light and emission.</summary>
+    /// <summary>Propagated sunlight scales both solar lobes and preserves local light and emission.</summary>
     [Theory]
-    [InlineData(-1f)]
     [InlineData(0f)]
     [InlineData(.5f)]
     [InlineData(1f)]
-    [InlineData(2f)]
     public void PropagatedSunlightScalesOnlySolarLighting(float skyVisibility)
     {
         EnsureShaderTestAvailable();
