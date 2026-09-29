@@ -29,7 +29,7 @@ Issues:
     ✔ Cache parsed shader-import SyntaxTrees during engine shader loading. Resolver cache clears before ShaderRegistry.ReloadShaders; 24 focused tests passed, 1 skipped.
       - Reuse unchanged import assets across programs and reloads while keeping each patch operation isolated from cached mutable state.
       - Invalidate cached trees when an import asset changes; verify edited imports appear after reload.
-    ☐ Skip TinyAst parsing for engine shader stages that require no VGE edits or import expansion.
+    ✔ Skip TinyAst parsing for engine shader stages that require no VGE edits or import expansion. Unsupported import-free stages now bypass SyntaxTree creation; 20 focused stage-selection, patching, and import-cache tests passed.
       - Select supported stage names before parsing, while retaining required processing for every patched shader variant.
       - Verify unaffected stages remain byte-identical and patched stages still compile and render through focused tests.
     ☐ Consolidate repeated TinyAst edits and commits within each patched shader stage.

@@ -185,6 +185,11 @@ public static class ShaderIncludesHook
     {
         candidateSource = null;
 
+        if (!RequiresProcessing(shaderName, shader.Code))
+        {
+            return true;
+        }
+
         // Create SyntaxTree without processing imports yet
         var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(shader.Code, shaderName);
         if (tree is null)
@@ -221,6 +226,11 @@ public static class ShaderIncludesHook
 
         return true;
     }
+
+    /// <summary>Limits TinyAst parsing to patched stages and stages containing imports to expand.</summary>
+    internal static bool RequiresProcessing(string shaderName, string source) =>
+        VanillaShaderPatches.Supports(shaderName)
+        || source.Contains("@import", StringComparison.Ordinal);
 
     /// <summary>
     /// Processes a list of shader assets through the full pipeline:
