@@ -19,6 +19,7 @@ public sealed class LumOnBufferManager : IDisposable
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
+    private readonly Action unregisterResize;
 
     // Screen dimensions tracking
     private int lastScreenWidth;
@@ -381,6 +382,18 @@ public sealed class LumOnBufferManager : IDisposable
     {
         this.capi = capi;
         this.config = config;
+        unregisterResize = ScreenResourceManager.Register(
+            ScreenResourceManager.LumOnOrder,
+            OnScreenResized);
+    }
+
+    private void OnScreenResized()
+    {
+        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is not null)
+        {
+            EnsureBuffers(primaryFb.Width, primaryFb.Height);
+        }
     }
 
     #endregion
@@ -727,6 +740,7 @@ public sealed class LumOnBufferManager : IDisposable
 
     public void Dispose()
     {
+        unregisterResize();
         WorldProbeSuppressedLighting = null;
         DeleteBuffers();
     }

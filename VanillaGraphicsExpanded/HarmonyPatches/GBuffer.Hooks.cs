@@ -21,7 +21,7 @@ public static class GBufferHooks
     [HarmonyPostfix]
     public static void SetupDefaultFrameBuffers_Hook()
     {
-        GlStateCache.Current.InvalidateAll();
+        ScreenResourceManager.HandleScreenResize();
     }
 
 // Vintagestory.Client.NoObf.ClientPlatformWindows.ClearFrameBuffer(EnumFrameBuffer framebuffer)

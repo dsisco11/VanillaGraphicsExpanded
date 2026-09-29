@@ -42,6 +42,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private readonly VgeConfig? lumOnConfig;
     private readonly Func<LumOnBufferManager?> getLumOnBuffers;
     private readonly Func<bool> readLightingMode;
+    private readonly Action unregisterResize;
 
     private MeshRef? quadMeshRef;
 
@@ -73,6 +74,9 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         this.lumOnConfig = lumOnConfig;
         this.getLumOnBuffers = getLumOnBuffers;
         this.readLightingMode = readLightingMode ?? (() => lumOnConfig?.LumOn.Enabled == true);
+        unregisterResize = ScreenResourceManager.Register(
+            ScreenResourceManager.CompositeOrder,
+            OnScreenResized);
 
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
@@ -81,6 +85,15 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "pbr_composite");
 
         capi.Logger.Notification("[VGE] PBRCompositeRenderer registered (Opaque @ 11.0)");
+    }
+
+    private void OnScreenResized()
+    {
+        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is not null && compositeFbo is { IsValid: true })
+        {
+            compositeFbo.Resize(primaryFb.Width, primaryFb.Height);
+        }
     }
 
     /// <summary>Combines scene-linear lighting, then resolves it into the engine's display target.</summary>
@@ -146,12 +159,6 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
                 return;
             }
         }
-        else
-        {
-            // Resizes attached textures in-place when resolution changes.
-            compositeFbo.Resize(screenW, screenH);
-        }
-
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         bool lumOnEnabled = readLightingMode();
         var currentBuffers = lumOnEnabled ? getLumOnBuffers() : null;
@@ -244,6 +251,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     /// <summary>Releases owned fullscreen resources and unregisters the renderer.</summary>
     public void Dispose()
     {
+        unregisterResize();
         if (quadMeshRef is not null)
         {
             capi.Render.DeleteMesh(quadMeshRef);

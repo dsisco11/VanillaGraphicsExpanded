@@ -30,6 +30,7 @@ public sealed partial class GBufferManager : IDisposable
     #region Fields
     
     private readonly ICoreClientAPI capi;
+    private readonly Action unregisterResize;
     
     // G-buffer textures using DynamicTexture
     private GBufferTextures? textures;
@@ -109,6 +110,18 @@ public sealed partial class GBufferManager : IDisposable
     {
         this.capi = capi;
         Instance = this;
+        unregisterResize = ScreenResourceManager.Register(
+            ScreenResourceManager.GBufferOrder,
+            ResizeAfterDefaultFramebufferRebuild);
+    }
+
+    private void ResizeAfterDefaultFramebufferRebuild()
+    {
+        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is not null)
+        {
+            EnsureBuffers(primaryFb.Width, primaryFb.Height);
+        }
     }
     
     #endregion
@@ -597,6 +610,7 @@ public sealed partial class GBufferManager : IDisposable
 
     public void Dispose()
     {
+        unregisterResize();
         // Clean up textures (framebuffer attachment cleanup happens via UnloadGBuffer hook)
         DeleteTextures();
         

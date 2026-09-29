@@ -35,6 +35,7 @@ public sealed class DirectLightingBufferManager : IDisposable
     #region Fields
 
     private readonly ICoreClientAPI capi;
+    private readonly Action unregisterResize;
 
     // Screen dimensions tracking
     private int lastScreenWidth;
@@ -106,6 +107,18 @@ public sealed class DirectLightingBufferManager : IDisposable
     {
         this.capi = capi;
         Instance = this;
+        unregisterResize = ScreenResourceManager.Register(
+            ScreenResourceManager.DirectLightingOrder,
+            OnScreenResized);
+    }
+
+    private void OnScreenResized()
+    {
+        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is not null)
+        {
+            EnsureBuffers(primaryFb.Width, primaryFb.Height);
+        }
     }
 
     #endregion
@@ -121,10 +134,24 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// <returns>True if buffers are valid and ready to use</returns>
     public bool EnsureBuffers(int screenWidth, int screenHeight)
     {
-        // Check if buffers need to be (re)created
-        if (!isInitialized || screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
+        bool resourcesValid = isInitialized
+            && directLightingFbo is { IsValid: true }
+            && directDiffuseTex is { IsValid: true }
+            && directSpecularTex is { IsValid: true }
+            && emissiveTex is { IsValid: true }
+            && GL.IsTexture(directDiffuseTex.TextureId)
+            && GL.IsTexture(directSpecularTex.TextureId)
+            && GL.IsTexture(emissiveTex.TextureId);
+
+        if (!resourcesValid)
         {
             CreateBuffers(screenWidth, screenHeight);
+            lastScreenWidth = screenWidth;
+            lastScreenHeight = screenHeight;
+        }
+        else if (screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
+        {
+            ResizeBuffers(screenWidth, screenHeight);
             lastScreenWidth = screenWidth;
             lastScreenHeight = screenHeight;
         }
@@ -180,13 +207,28 @@ public sealed class DirectLightingBufferManager : IDisposable
 
     #region Private Methods
 
+    private void ResizeBuffers(int width, int height)
+    {
+        int prevFbo = GpuFramebuffer.SaveBinding();
+
+        try
+        {
+            directLightingFbo!.Resize(width, height);
+            directLightingFbo.Bind();
+            if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
+            {
+                isInitialized = false;
+            }
+        }
+        finally
+        {
+            GpuFramebuffer.RestoreBinding(prevFbo);
+        }
+    }
+
     private void CreateBuffers(int width, int height)
     {
         // NOTE: This method may run during rendering (e.g. on window resize).
-        // The engine rebuilds its textures outside GlStateCache, so discard stale bindings before
-        // any allocation scope can capture and later restore a deleted texture name.
-        GlStateCache.Current.InvalidateAll();
-
         // Preserve the currently-bound framebuffer so we don't break the engine's render pipeline.
         int prevFbo = GpuFramebuffer.SaveBinding();
 
@@ -271,6 +313,7 @@ public sealed class DirectLightingBufferManager : IDisposable
 
     public void Dispose()
     {
+        unregisterResize();
         DeleteBuffers();
 
         if (Instance == this)

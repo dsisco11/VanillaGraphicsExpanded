@@ -198,11 +198,19 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
-        using var buffers = new DirectLightingBufferManager(assets.Api);
+        var frames = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(value => (int)value) + 1).ToList();
+        frames[(int)EnumFrameBuffer.Primary] = new FrameBufferRef { Width = 4, Height = 4 };
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+        using var buffers = new DirectLightingBufferManager(api.Object);
         Assert.True(buffers.EnsureBuffers(2, 2));
         using var stale = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         GlStateCache.Current.BindTexture(TextureTarget.Texture2D, 0, stale.TextureId);
         GL.DeleteTexture(stale.ReleaseHandle().ToInt32());
+        GBufferHooks.SetupDefaultFrameBuffers_Hook();
 
         Assert.True(buffers.EnsureBuffers(4, 4));
 
