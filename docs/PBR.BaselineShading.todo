@@ -338,7 +338,10 @@ Tasks
         tests and user-run visual comparisons; document if dithering proves unnecessary.
     - For each subtask, run focused numerical/shader tests through subagents and record matched CPU,
       GPU and memory costs. Obtain user-run visual comparisons; passing tests are not visual acceptance.
+      
   ☐ Try and make tessellation do square subdivision by subdividing faces as quads.
+  ☐ BUG: held lights seem to be placed at exactly the players feet position, which is causing the illumination to appear incorrectly low and also to clip into the ground which prevents lighting fro showing on the terrain being walked on; investigate the light attachment and transformation logic.
+  ☐ Issue: foliage materials arent taking into account their facing direction when calculating lighting and specularity? plants seem to be fullbright from the sun even when facing away.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
     - Trace vanilla liquid entrypoints and transparency/OIT contracts before replacing their shading;
