@@ -86,12 +86,16 @@ float pbrShadowOcclusionPcf3x3(sampler2DShadow shadowMap, vec4 shadowCoords, flo
     return 1.0 - lit;
 }
 
-/// Returns direct-sun visibility without retaining an artificial ambient-light floor.
-float pbrComputeSunShadowVisibility(vec3 worldPosRel)
+/// Returns intensity-scaled and raw PCF direct-sun visibility.
+void pbrComputeSunShadowVisibility(vec3 worldPosRel, out float visibility, out float pcfVisibility)
 {
     // When intensity is 0, avoid sampling shadow maps at all.
-    if (dropShadowIntensity <= 0.0001) return 1.0;
-    if (shadowRangeNear <= 0.0 && shadowRangeFar <= 0.0) return 1.0;
+    if (dropShadowIntensity <= 0.0001 || (shadowRangeNear <= 0.0 && shadowRangeFar <= 0.0))
+    {
+        visibility = 1.0;
+        pcfVisibility = 1.0;
+        return;
+    }
 
     vec4 scNear;
     vec4 scFar;
@@ -110,10 +114,8 @@ float pbrComputeSunShadowVisibility(vec3 worldPosRel)
         occlusion += pbrShadowOcclusionPcf3x3(shadowMapNear, scNear, 0.0005) * scNear.w;
     }
 
-    // Full cascade coverage and full shadow strength must remove all direct sunlight.
-    // Indirect lighting and emissive terms are combined separately after this pass.
-    float visibility = 1.0 - dropShadowIntensity * occlusion;
-    return clamp(visibility, 0.0, 1.0);
+    pcfVisibility = clamp(1.0 - occlusion, 0.0, 1.0);
+    visibility = clamp(1.0 - dropShadowIntensity * occlusion, 0.0, 1.0);
 }
 
 #endif

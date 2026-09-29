@@ -114,7 +114,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         }
     }
 
-    /// <summary>Partial engine shadow intensity fades diffuse sunlight but removes solar specular.</summary>
+    /// <summary>Shadow intensity fades diffuse sunlight but does not weaken full PCF occlusion for specular.</summary>
     [Fact]
     public void HalfShadowIntensityRetainsHalfDiffuseAndRemovesSpecular()
     {

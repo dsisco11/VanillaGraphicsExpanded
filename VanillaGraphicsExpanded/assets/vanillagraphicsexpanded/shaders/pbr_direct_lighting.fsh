@@ -85,7 +85,9 @@ void main()
 
     // Directional (sun)
     vec3 Lsun = normalize(lightDirection);
-    float sunVis = pbrComputeSunShadowVisibility(worldPosRel);
+    float sunVis;
+    float sunPcfVis;
+    pbrComputeSunShadowVisibility(worldPosRel, sunVis, sunPcfVis);
     // Match forward lighting: propagated sunlight supplements geometric shadow visibility.
     float skyVisibility = texture(gBufferEnvironment, uv).a;
     addDirectLight(
@@ -93,14 +95,14 @@ void main()
         N,
         V,
         Lsun,
-        rgbaLightIn * sunVis * skyVisibility,
+        rgbaLightIn * skyVisibility,
         roughness,
         metallic,
         accumDiffuse,
         accumSpecular);
 
-    // Do not retain softened sunlight in the direct-specular target inside shadows.
-    accumSpecular *= step(0.999999, sunVis);
+    accumDiffuse *= sunVis;
+    accumSpecular *= sunPcfVis;
 
     // Atmosphere supplies irradiance rather than the legacy pre-scaled lighting convention.
     accumDiffuse /= 3.14159265359;
