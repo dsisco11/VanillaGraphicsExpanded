@@ -429,3 +429,28 @@ Tasks
     - Add focused generator tests and compiled SPIR-V/GPU checks for generated contracts, shared
       stages and enabled/disabled variants. Run builds/tests through subagents and document field
       attribute authoring with examples before marking complete.
+
+  ☐ Improve bloom quality and efficiency using the completed scene-linear rendering pipeline.
+    - Re-audit the installed engine's extraction, downsampling, blur and composition passes after
+      the preceding tasks land. Record actual formats, color spaces, pass ownership and measured
+      costs; the inspected findbright formula alone does not establish the whole pipeline's limits.
+    - Build on the scene-linear HDR task's bloom/color-space integration rather than duplicating it.
+      Extract from linear HDR radiance before tone mapping, define exposure-relative thresholding
+      with a soft transition, and preserve intentional material emission without double counting.
+      Revisit the interim solar outGlow marker derived from display color under the final contract;
+      retain atmospheric attenuation, disk coverage and occlusion without amplifying Mie scattering.
+    - Evaluate a bounded multiresolution downsample/upsample filter for narrow and broad glare.
+      Reuse suitable engine passes and existing GPU/resource owners; replace only where quality or
+      matched GPU measurements justify it. Bound quality, storage and work, preserving bloom disable.
+    - Account for preceding PBR liquids, optional caustics and volumetric clouds when selecting bloom
+      inputs: include their composed radiance and correct transparency/cloud attenuation, preserve
+      OIT attachment ownership, and keep offscreen GUI/UI outside scene bloom. Cover late held items.
+    - Composite bloom before the final shared tone mapping/output transfer. Follow the native-HDR
+      task's established SDR/HDR luminance and presentation contracts without requiring an HDR monitor;
+      retain one final format-appropriate dithering boundary and avoid reintroducing early clipping.
+    - Use the preceding generated shader-binding contracts and established demand-loading/lifecycle
+      abstractions for any new programs; preserve resize, reload, teardown and both LumOn modes.
+    - Run focused subagent numerical/GPU tests for bright/dim/occluded sun, emission, threshold
+      continuity, exposure changes, transparency, UI exclusion and SDR/HDR output. Compare halo shape,
+      temporal stability, GPU time and bandwidth at matched workloads against the then-current bloom.
+      Obtain user-run visual acceptance; document costs and remaining limits before marking complete.
