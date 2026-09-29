@@ -22,6 +22,14 @@ their existing shaders and order. The atmospheric LUT already contains the scatt
 the new disk adds no textured halo. Underwater treatment and the engine godray output channel
 are retained.
 
+The disk also participates in the engine's existing bloom extraction. Its `outGlow.r`
+is the bounded maximum RGB component after atmospheric attenuation, display conversion and
+underwater treatment, before dithering. Attachment blending applies disk coverage; the
+godray channel is unchanged. The engine bloom setting controls the resulting blurred glare.
+This adds no atmospheric scattering energy or extra rendering pass, and does not change the
+disk's displayed color. It restores bloom participation within the current display pipeline;
+it is not an HDR bloom conversion.
+
 ## Radiometric contract
 
 The angular radius is 0.021377339 radians (approximately 2.45 degrees diameter), selected as
@@ -76,6 +84,14 @@ the new physical disk size. This does not scale VGE's direct solar irradiance; r
 base-game liquid lighting remains a separate baseline PBR task.
 
 ## Validation
+
+The solar bloom correction passed 58 focused Release GPU cases
+(`artifacts/TestResults/solar-bloom.trx` and `solar-bloom-installed.trx`). They exercise the production disk's color/glow
+outputs and installed `findbright.fsh` with ambient and extra bloom disabled, proving a
+positive dedicated contribution that decreases with attenuated radiance and underwater
+treatment and vanishes for extinguished input. Raster coverage checks include horizon
+clipping and foreground depth occlusion; installed sky and Standard shader linking also pass.
+No live appearance check was performed for this correction.
 
 Release validation passed 199 distinct tests; five optional measurement tests were skipped.
 The broad receipt is `artifacts/AtmosphereSolar/solar-stable.trx`. Its grazing-centroid failure

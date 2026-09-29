@@ -126,3 +126,11 @@ was changed during this follow-up.
 All 10 focused Release cases passed, including installed sky linking, lookup
 reconstruction and engine binding/raster coverage. Log:
 `artifacts/missing-halo-focused-tests.log`.
+
+### Solar bloom correction
+
+The subsequent correction restores a nonzero solar `outGlow.r`, derived from the disk's
+attenuated display color before dithering. The engine's existing bloom extraction and blur
+provide glare when bloom is enabled. The Mie lookup and reconstruction are unchanged.
+See `PBR.Atmosphere.SolarDisk.md` for the output contract and validation. The live appearance
+still requires user verification; the diagnostic above did not reproduce a missing Mie halo.

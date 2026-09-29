@@ -103,7 +103,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var vao = GpuVao.Create();
         using var color = DynamicTexture2D.Create(64, 64, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(64, 64, PixelInternalFormat.DepthComponent32f);
-        using var target = GpuFramebuffer.CreateMRT([color], depth, ownsTextures: false)!;
+        using var glow = DynamicTexture2D.Create(64, 64, PixelInternalFormat.Rgba32f);
+        using var target = GpuFramebuffer.CreateMRT([color, glow], depth, ownsTextures: false)!;
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         GlStateCache.Current.UseProgram(program.ProgramId);
         GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
@@ -120,6 +121,13 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereSun"), 0f, 0f, -1f, iteration == 2 ? 0f : -1f);
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
             float[] pixels = target[0].ReadPixels();
+            float[] glowPixels = target[1].ReadPixels();
+            for (int pixel = 0; pixel < pixels.Length; pixel += 4)
+            {
+                Assert.Equal(pixels[pixel + 3], glowPixels[pixel + 3]);
+                if (pixels[pixel + 3] == 0) Assert.Equal(0f, glowPixels[pixel]);
+                else Assert.InRange(glowPixels[pixel], .88f, 1f);
+            }
             if (iteration == 0)
             {
                 baseline = pixels;

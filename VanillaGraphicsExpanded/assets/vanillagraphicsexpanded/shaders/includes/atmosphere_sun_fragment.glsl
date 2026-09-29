@@ -16,8 +16,11 @@ void VgeDrawAtmosphericSun()
     if (coverage <= 0.0 || max(max(vge_atmosphereDisk.r, vge_atmosphereDisk.g), vge_atmosphereDisk.b) <= 0.0) discard;
     vec3 displayColor = applyUnderwaterEffects(VgeResolveDisplay(vge_atmosphereDisk.rgb), getSkyMurkiness());
     outColor = vec4(VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
-    // No second authored halo: atmospheric scattering provides it. Retain the existing godray channel.
-    outGlow = vec4(0.0, extraGodray, 0.0, coverage);
+    // Feed the engine's bloom extraction separately from atmospheric scattering.
+    // Use attenuated, underwater-adjusted color before dithering, so a dim disk
+    // fades its bloom too. Coverage is applied by the existing attachment blending.
+    float bloom = clamp(max(displayColor.r, max(displayColor.g, displayColor.b)), 0.0, 1.0);
+    outGlow = vec4(bloom, extraGodray, 0.0, coverage);
     #if SSAOLEVEL > 0
     outGPosition = vec4(0.0, 0.0, 0.0, 1.0);
     outGNormal = vec4(0.0);
