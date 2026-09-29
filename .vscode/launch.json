@@ -33,6 +33,26 @@
             "stopAtEntry": false
         },
         {
+            "name": "Launch Client (CPU Profile)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "C:/Program Files/PowerShell/7/pwsh.exe",
+            "preLaunchTask": "Build (dotnet)",
+            "env": {
+                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+            },
+            "args": [
+                "-NoProfile",
+                "-File", "${workspaceFolder}/tools/Start-ClientCpuProfile.ps1",
+                "-WorkspaceRoot", "${workspaceFolder}",
+                "-GameRoot", "${env:VINTAGE_STORY}",
+                "-DataPath", "${config:vanillaGraphicsExpanded.dataPath}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
             "name": "Launch Server",
             "type": "coreclr",
             "request": "launch",
