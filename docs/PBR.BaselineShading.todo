@@ -472,3 +472,18 @@ Tasks
       continuity, exposure changes, transparency, UI exclusion and SDR/HDR output. Compare halo shape,
       temporal stability, GPU time and bandwidth at matched workloads against the then-current bloom.
       Obtain user-run visual acceptance; document costs and remaining limits before marking complete.
+
+  ☐ Profile and optimize cached material-atlas restoration with batched uploads.
+    - Establish a matched warm-cache world-load baseline, separating cache reads/decompression,
+      CPU tile preparation, scheduling, texture allocation and GPU upload submission/completion.
+      The observed 3228 ms synchronous finish with 4944 material and 7460 normal/depth cache hits
+      identifies a loading cost, but does not yet prove that individual uploads dominate it.
+    - Compare current per-tile uploads with CPU assembly into bounded page or region buffers followed
+      by fewer, larger uploads. Measure call count, transferred bytes, peak scratch memory and total
+      loading time; avoid trading excessive CPU copying or full-page transfers for fewer calls.
+    - Reuse existing texture, streaming and pooled-memory abstractions. Preserve atlas rectangles,
+      formats, overrides, neutral/unfilled regions and coherent publication. Keep incremental runtime
+      updates efficient and retain the uncached GPU normal/depth baking path where appropriate.
+    - Validate mixed cache hits/misses, multiple pages, cancellation, reload and resource retirement
+      through subagent-run focused tests. Adopt the measured improvement and document the result;
+      distinguish material-atlas savings from the separate unexplained startup delay.
