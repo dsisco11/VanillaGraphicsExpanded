@@ -68,7 +68,7 @@ public sealed partial class GBufferManager : IDisposable
     private bool isInitialized;
 
     /// <summary>
-    /// Whether the G-buffer textures have been injected into the framebuffer array.
+    /// Whether the G-buffer textures have been attached to the current primary framebuffer.
     /// </summary>
     private bool isInjected;
 
@@ -106,31 +106,23 @@ public sealed partial class GBufferManager : IDisposable
 
     #region Constructor / Destructor
 
+    /// <summary>Registers primary attachment setup after engine framebuffer publication and retirement.</summary>
     public GBufferManager(ICoreClientAPI capi)
     {
         this.capi = capi;
         Instance = this;
         unregisterResize = ScreenResourceManager.Register(
             ScreenResourceManager.GBufferOrder,
-            ResizeAfterDefaultFramebufferRebuild);
+            SetupGBuffers);
     }
 
-    private void ResizeAfterDefaultFramebufferRebuild()
-    {
-        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        if (primaryFb is not null)
-        {
-            EnsureBuffers(primaryFb.Width, primaryFb.Height);
-        }
-    }
     
     #endregion
 
     #region Harmony Hook Methods
     
     /// <summary>
-    /// Called by Harmony hook when VS sets up default framebuffers.
-    /// Creates and attaches G-buffer textures to the Primary framebuffer.
+    /// Creates or reattaches primary targets after engine framebuffer replacement or initial primary load.
     /// </summary>
     public void SetupGBuffers()
     {
@@ -158,7 +150,8 @@ public sealed partial class GBufferManager : IDisposable
         // below and remain exclusively owned by this manager across framebuffer rebuilds.
         isInjected = true;
 
-        // Attach to the Primary framebuffer
+        // Reborrow engine position and attach owned targets even when dimensions are unchanged:
+        // an equal-sized rebuild still replaces the primary FBO and deletes its old position texture.
         PrepareReceiverPosition(primaryFb, width, height);
         AttachToFramebuffer(primaryFb.FboId);
     }

@@ -103,6 +103,7 @@ public sealed class DirectLightingBufferManager : IDisposable
 
     #region Constructor / Destructor
 
+    /// <summary>Registers owned lighting targets after primary attachment setup.</summary>
     public DirectLightingBufferManager(ICoreClientAPI capi)
     {
         this.capi = capi;
@@ -112,6 +113,7 @@ public sealed class DirectLightingBufferManager : IDisposable
             OnScreenResized);
     }
 
+    /// <summary>Resizes owned targets using the newly published primary framebuffer dimensions.</summary>
     private void OnScreenResized()
     {
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
@@ -134,14 +136,13 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// <returns>True if buffers are valid and ready to use</returns>
     public bool EnsureBuffers(int screenWidth, int screenHeight)
     {
+        // These attachments remain exclusively VGE-owned across engine rebuilds; their owner
+        // tracks lifetime without querying the driver for every texture on every frame.
         bool resourcesValid = isInitialized
             && directLightingFbo is { IsValid: true }
             && directDiffuseTex is { IsValid: true }
             && directSpecularTex is { IsValid: true }
-            && emissiveTex is { IsValid: true }
-            && GL.IsTexture(directDiffuseTex.TextureId)
-            && GL.IsTexture(directSpecularTex.TextureId)
-            && GL.IsTexture(emissiveTex.TextureId);
+            && emissiveTex is { IsValid: true };
 
         if (!resourcesValid)
         {

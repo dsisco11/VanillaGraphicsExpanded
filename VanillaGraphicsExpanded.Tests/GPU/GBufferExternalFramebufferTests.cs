@@ -210,7 +210,7 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         using var stale = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         GlStateCache.Current.BindTexture(TextureTarget.Texture2D, 0, stale.TextureId);
         GL.DeleteTexture(stale.ReleaseHandle().ToInt32());
-        GBufferHooks.SetupDefaultFrameBuffers_Hook();
+        GBufferHooks.RebuildFrameBuffers_Hook();
 
         Assert.True(buffers.EnsureBuffers(4, 4));
 

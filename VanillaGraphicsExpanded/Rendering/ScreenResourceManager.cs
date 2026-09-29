@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Coordinates screen-sized VGE resources after the engine rebuilds its default framebuffers.</summary>
+/// <summary>Coordinates screen-sized resources after the engine publishes new framebuffers and retires the old ones.</summary>
 internal static class ScreenResourceManager
 {
     public const int GBufferOrder = 100;
@@ -13,6 +13,8 @@ internal static class ScreenResourceManager
 
     private static readonly SortedDictionary<int, List<Action>> callbacks = [];
 
+    #region Resource lifecycle
+    /// <summary>Registers a render-thread resize callback in dependency order and returns its unregistration action.</summary>
     public static Action Register(int order, Action callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
@@ -26,8 +28,11 @@ internal static class ScreenResourceManager
         return () => orderedCallbacks.Remove(callback);
     }
 
+    /// <summary>Reattaches and resizes resources after the complete engine framebuffer rebuild.</summary>
     public static void HandleScreenResize()
     {
+        // Engine retirement deletes cached framebuffer and texture bindings. Invalidate after
+        // that deletion, before any resource callback can save and restore those bindings.
         GlStateCache.Current.InvalidateAll();
         foreach (var orderedCallbacks in callbacks.Values)
         {
@@ -37,4 +42,5 @@ internal static class ScreenResourceManager
             }
         }
     }
+    #endregion
 }
