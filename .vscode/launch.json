@@ -5,36 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Client (Debug)",
-            "type": "coreclr",
-            "request": "launch",
-            "program": "${env:VINTAGE_STORY}/Vintagestory.exe",
-            "linux": {
-                "program": "${env:VINTAGE_STORY}/Vintagestory"
-            },
-            "osx": {
-                "program": "${env:VINTAGE_STORY}/Vintagestory"
-            },
-            "preLaunchTask": "Build (dotnet)",
-            "env": {
-                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
-            },
-            "args": [
-                // "--playStyle" , "preset-surviveandbuild",
-                // "--openWorld" , "modding test world",
-                "--tracelog",
-                "--dataPath",
-                "${config:vanillaGraphicsExpanded.dataPath}",
-                "--addModPath",
-                "${workspaceFolder}/VanillaGraphicsExpanded/bin/Debug/Mods",
-                "--addOrigin",
-                "${workspaceFolder}/VanillaGraphicsExpanded/assets"
-            ],
-            "console": "internalConsole",
-            "stopAtEntry": false
-        },
-        {
-            "name": "Launch Client (RenderDoc)",
+            "name": "Launch Client",
             "type": "coreclr",
             "request": "launch",
             "program": "${config:vanillaGraphicsExpanded.renderdocPath}/renderdoccmd.exe",
@@ -47,6 +18,7 @@
                 "capture",
                 "--wait-for-exit",
                 "${env:VINTAGE_STORY}/Vintagestory.exe",
+                "--openWorld", "TestWorld",
                 "--tracelog",
                 "--dataPath",
                 "${config:vanillaGraphicsExpanded.dataPath}",
