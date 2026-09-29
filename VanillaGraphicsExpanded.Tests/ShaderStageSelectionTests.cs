@@ -10,7 +10,7 @@ public sealed class ShaderStageSelectionTests
     {
         const string source = "#version 330 core\nvoid main() { }\n";
 
-        bool requiresProcessing = ShaderIncludesHook.RequiresProcessing("unaffected.vsh", source);
+        bool requiresProcessing = EngineShaderProcessingHook.RequiresProcessing("unaffected.vsh", source);
 
         Assert.False(requiresProcessing);
     }
@@ -33,7 +33,7 @@ public sealed class ShaderStageSelectionTests
     [InlineData("chunktransparent.fsh")]
     public void RequiresProcessing_PatchedStage_ReturnsTrue(string shaderName)
     {
-        bool requiresProcessing = ShaderIncludesHook.RequiresProcessing(shaderName, "#version 330 core\n");
+        bool requiresProcessing = EngineShaderProcessingHook.RequiresProcessing(shaderName, "#version 330 core\n");
 
         Assert.True(requiresProcessing);
     }
@@ -43,7 +43,7 @@ public sealed class ShaderStageSelectionTests
     {
         const string source = "#version 330 core\n@import \"./includes/shared.glsl\"\n";
 
-        bool requiresProcessing = ShaderIncludesHook.RequiresProcessing("importonly.gsh", source);
+        bool requiresProcessing = EngineShaderProcessingHook.RequiresProcessing("importonly.gsh", source);
 
         Assert.True(requiresProcessing);
     }

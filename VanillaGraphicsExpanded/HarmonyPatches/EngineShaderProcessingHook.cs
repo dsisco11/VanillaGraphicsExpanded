@@ -23,7 +23,7 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 /// This class only defines WHERE the patch is applied, delegating WHAT to do to other systems.
 /// </summary>
 [HarmonyPatch]
-public static class ShaderIncludesHook
+public static class EngineShaderProcessingHook
 {
     private static ILogger? _logger;
     private static IAssetManager? _assetManager;

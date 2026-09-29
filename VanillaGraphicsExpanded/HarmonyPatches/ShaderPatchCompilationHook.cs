@@ -18,7 +18,7 @@ internal static class ShaderPatchCompilationHook
         try
         {
             if (ShaderPatchRecovery.TryRecover(__instance, __instance.Compile,
-                detail => ShaderIncludesHook.ReportFailure(__instance.PassName,
+                detail => EngineShaderProcessingHook.ReportFailure(__instance.PassName,
                     __exception is null ? detail : detail + "\n" + __exception), out bool recovered))
             {
                 __result = recovered;
@@ -27,7 +27,7 @@ internal static class ShaderPatchCompilationHook
         }
         catch (Exception recoveryError)
         {
-            ShaderIncludesHook.ReportFailure(__instance.PassName, recoveryError.ToString());
+            EngineShaderProcessingHook.ReportFailure(__instance.PassName, recoveryError.ToString());
             return __exception ?? recoveryError;
         }
         return __exception;

@@ -30,9 +30,9 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
         using var platform = new EngineShaderPlatformScope();
         InstallLogger();
         var harmony = new Harmony("VGE.Tests.ShaderPatchRecovery");
-        var report = ShaderIncludesHook.ReportError;
+        var report = EngineShaderProcessingHook.ReportError;
         var messages = new List<string>();
-        ShaderIncludesHook.ReportError = (_, text) => messages.Add(text);
+        EngineShaderProcessingHook.ReportError = (_, text) => messages.Add(text);
         var owner = CreateProgram();
         var unrelated = CreateProgram();
         try
@@ -67,7 +67,7 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            ShaderIncludesHook.ReportError = report;
+            EngineShaderProcessingHook.ReportError = report;
             owner.Dispose();
             unrelated.Dispose();
             ShaderPatchRecovery.Forget(owner);

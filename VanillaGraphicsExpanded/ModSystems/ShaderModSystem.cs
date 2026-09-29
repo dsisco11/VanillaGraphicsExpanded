@@ -20,11 +20,11 @@ public sealed class ShaderModSystem : ModSystem
     {
         ShaderDigestIndexCache.Clear();
         PbrShaderLightingMode.GenerationLumOnEnabled = null;
-        // Initialize the shader includes hook with dependencies
-        ShaderIncludesHook.Initialize(api.Logger, api.Assets);
+        // Initialize engine shader processing with its asset dependencies.
+        EngineShaderProcessingHook.Initialize(api.Logger, api.Assets);
         patchErrors?.Dispose();
         patchErrors = new ShaderPatchErrors((ICoreClientAPI)api);
-        ShaderIncludesHook.ReportError = patchErrors.Report;
+        EngineShaderProcessingHook.ReportError = patchErrors.Report;
 
         // Initialize the shader imports system to load mod shader imports (shaders/includes)
         ShaderImportsSystem.Instance.Initialize(api);
@@ -34,7 +34,7 @@ public sealed class ShaderModSystem : ModSystem
     public override void Dispose()
     {
         base.Dispose();
-        ShaderIncludesHook.ReportError = null;
+        EngineShaderProcessingHook.ReportError = null;
         patchErrors?.Dispose();
         patchErrors = null;
         ShaderDigestIndexCache.Clear();
