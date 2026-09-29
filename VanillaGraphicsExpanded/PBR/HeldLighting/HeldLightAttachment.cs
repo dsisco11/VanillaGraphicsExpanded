@@ -1,5 +1,6 @@
 using System;
-using HarmonyLib;
+using System.Numerics;
+using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
@@ -7,79 +8,57 @@ using Vintagestory.GameContent;
 
 namespace VanillaGraphicsExpanded.PBR.HeldLighting;
 
-/// <summary>Evaluates current held-item attachments without drawing or advancing the live renderer.</summary>
+/// <summary>Evaluates current held-item attachments through public engine data without drawing or mutating renderer state.</summary>
 internal static class HeldLightAttachment
 {
-    private static readonly System.Func<object, object> Clone = AccessTools.MethodDelegate<System.Func<object, object>>(
-        AccessTools.Method(typeof(object), "MemberwiseClone"));
-    private static readonly Action<EntityShapeRenderer, float, bool, bool> RenderHeldItem =
-        AccessTools.MethodDelegate<Action<EntityShapeRenderer, float, bool, bool>>(
-            AccessTools.Method(typeof(EntityShapeRenderer), "RenderHeldItem"));
-    private static readonly AccessTools.FieldRef<EntityPlayerShapeRenderer, RenderMode> Mode =
-        AccessTools.FieldRefAccess<EntityPlayerShapeRenderer, RenderMode>("renderMode");
-    [ThreadStatic] private static EntityPlayerShapeRenderer? evaluating;
-    [ThreadStatic] private static Vec4f? emitter;
-
     #region Attachment evaluation
-    /// <summary>Resolves one hand using the installed renderer's hand selection and item-render callbacks.</summary>
-    internal static Vec3d? Resolve(EntityPlayerShapeRenderer renderer, EntityPlayer player, bool right, float dt)
+    /// <summary>Resolves a hand from public current-pose and item-render APIs without invoking entity drawing.</summary>
+    internal static Vec3d? Resolve(EntityPlayerShapeRenderer renderer, EntityPlayer player, bool right)
     {
-        // Only the standard renderer has an audited snapshot contract. Custom renderers use the body fallback.
         if (renderer.GetType() != typeof(EntityPlayerShapeRenderer)) return null;
-        var snapshot = (EntityPlayerShapeRenderer)Clone(renderer);
-        snapshot.ModelMat = Mat4f.Create();
-        bool wasShadow = player.selfNowShadowPass;
-        var previous = evaluating;
-        var previousEmitter = emitter;
-        try
-        {
-            player.selfNowShadowPass = false;
-            bool self = ReferenceEquals(renderer.capi.World.Player.Entity, player);
-            evaluating = snapshot;
-            emitter = null;
-            snapshot.loadModelMatrixForPlayer(player, self, dt, false);
-            // This calls the engine's first/third-person and tong selection. The RenderItem hook below
-            // captures its arguments and stops before any shader binding, drawing or particle spawning.
-            RenderHeldItem(snapshot, 0, false, right);
-            if (emitter == null) return null;
-            Vec4f position = emitter;
-            if (self && (int)Mode(snapshot) == 0)
-            {
-                // Match the engine particle path: unproject hand-FOV coordinates into the normal camera.
-                var render = renderer.capi.Render;
-                position = ReprojectHand(position, render.CameraMatrixOriginf,
-                    render.CurrentProjectionMatrix, snapshot.HandRenderFov);
-            }
-            Vec3d origin = renderer.capi.World.Player.Entity.CameraPos;
-            return new Vec3d(origin.X + position.X, origin.Y + position.Y, origin.Z + position.Z);
-        }
-        finally
-        {
-            player.selfNowShadowPass = wasShadow;
-            evaluating = previous;
-            emitter = previousEmitter;
-        }
-    }
+        var api = renderer.capi;
+        bool self = ReferenceEquals(api.World.Player.Entity, player);
+        bool firstPerson = self && api.World.Player.CameraMode == EnumCameraMode.FirstPerson;
+        bool handView = HeldLightPlayerTransform.UsesHandView(api, player, firstPerson);
+        ItemSlot slot = right ? player.RightHandItemSlot : player.LeftHandItemSlot;
+        ItemStack? stack = slot?.Itemstack;
+        if (stack == null || slot is ItemSlotSkill) return null;
 
-    /// <summary>Prevents snapshot evaluation from writing perception offsets back into shared animation poses.</summary>
-    internal static bool ApplyPerception(EntityPlayer player) => evaluating?.entity != player;
-
-    /// <summary>Intercepts only the temporary renderer; ordinary held-item rendering continues unchanged.</summary>
-    internal static bool Capture(EntityShapeRenderer renderer, ItemStack stack, AttachmentPointAndPose? pose, ItemRenderInfo? info)
-    {
-        if (!ReferenceEquals(renderer, evaluating)) return true;
-        if (pose?.AttachPoint != null && info?.Transform != null)
+        // Select the normal camera's animator directly; shadow rendering must not choose the attachment pose.
+        IAnimationManager? animations = firstPerson ? player.SelfFpAnimManager : player.TpAnimManager;
+        animations ??= player.AnimManager;
+        var leftAttributes = player.LeftHandItemSlot?.Itemstack?.ItemAttributes;
+        bool onTongs = right && stack.Collectible.GetTemperature(player.World, stack) >
+            Vintagestory.API.Config.GlobalConstants.TooHotToTouchTemperature &&
+            leftAttributes?.IsTrue("heatResistant") == true;
+        if (!onTongs && handView && api.Settings.Bool["hideFpHands"]) return null;
+        var pose = animations?.Animator?.GetAttachmentPointPose(right && !onTongs ? "RightHand" : "LeftHand");
+        if (pose?.AttachPoint == null) return null;
+        var info = api.Render.GetItemStackRenderInfo(slot,
+            right && !onTongs ? EnumItemRenderTarget.HandTp : EnumItemRenderTarget.HandTpOff, 0);
+        ModelTransform? transform = info?.Transform;
+        if (onTongs)
         {
-            var top = stack.Collectible.TopMiddlePos;
-            emitter = Compose(renderer.ModelMat, pose, info.Transform, new Vec4f(top.X, top.Y, top.Z, 1));
+            string code = leftAttributes?["transformCode"].AsString() ?? "onTongTransform";
+            if (stack.ItemAttributes?[code].Exists != true) code = "onTongTransform";
+            transform = stack.ItemAttributes?[code].AsObject(EntityPlayerShapeRenderer.DefaultTongTransform)
+                ?? EntityPlayerShapeRenderer.DefaultTongTransform;
         }
-        return false;
+        if (transform == null) return null;
+        var top = stack.Collectible.TopMiddlePos;
+        var model = HeldLightPlayerTransform.Build(renderer, player, self, handView);
+        Vector4 position = Compose(model, pose, transform, new Vector4(top.X, top.Y, top.Z, 1));
+        if (handView)
+            position = ReprojectHand(position, api.Render.CameraMatrixOriginf,
+                api.Render.CurrentProjectionMatrix, renderer.HandRenderFov);
+        Vec3d origin = api.World.Player.Entity.CameraPos;
+        return new Vec3d(origin.X + position.X, origin.Y + position.Y, origin.Z + position.Z);
     }
     #endregion
 
     #region Coordinate transforms
     /// <summary>Applies the affine transform order used by EntityShapeRenderer.RenderItem.</summary>
-    internal static Vec4f Compose(float[] model, AttachmentPointAndPose pose, ModelTransform transform, Vec4f point)
+    internal static Vector4 Compose(Matrix4x4 model, AttachmentPointAndPose pose, ModelTransform transform, Vector4 point)
     {
         transform = transform.EnsureDefaultValues();
         var origin = transform.Origin;
@@ -87,27 +66,31 @@ internal static class HeldLightAttachment
         var translation = transform.Translation;
         var rotation = transform.Rotation;
         var attachment = pose.AttachPoint;
-        return new Matrixf().Set(model).Mul(pose.AnimModelMatrix)
-            .Translate(origin.X, origin.Y, origin.Z)
-            .Scale(scale.X, scale.Y, scale.Z)
-            .Translate(attachment.PosX / 16 + translation.X, attachment.PosY / 16 + translation.Y,
-                attachment.PosZ / 16 + translation.Z)
-            .Rotate((float)(attachment.RotationX + rotation.X) * GameMath.DEG2RAD,
-                (float)(attachment.RotationY + rotation.Y) * GameMath.DEG2RAD,
-                (float)(attachment.RotationZ + rotation.Z) * GameMath.DEG2RAD)
-            .Translate(-origin.X, -origin.Y, -origin.Z).TransformVector(point);
+        // Reverse the engine's post-multiplied column-vector chain for Numerics row-vector transforms.
+        var matrix = Matrix4x4.CreateTranslation(-origin.X, -origin.Y, -origin.Z) *
+            Matrix4x4.CreateRotationZ((float)(attachment.RotationZ + rotation.Z) * GameMath.DEG2RAD) *
+            Matrix4x4.CreateRotationY((float)(attachment.RotationY + rotation.Y) * GameMath.DEG2RAD) *
+            Matrix4x4.CreateRotationX((float)(attachment.RotationX + rotation.X) * GameMath.DEG2RAD) *
+            Matrix4x4.CreateTranslation((float)(attachment.PosX / 16 + translation.X),
+                (float)(attachment.PosY / 16 + translation.Y), (float)(attachment.PosZ / 16 + translation.Z)) *
+            Matrix4x4.CreateScale(scale.X, scale.Y, scale.Z) *
+            Matrix4x4.CreateTranslation(origin.X, origin.Y, origin.Z) *
+            MatrixHelper.FromColumnMajorForRowVectors(pose.AnimModelMatrix) * model;
+        return Vector4.Transform(point, matrix);
     }
 
     /// <summary>Matches inverse(normal projection) * hand projection without changing engine GL matrices.</summary>
-    internal static Vec4f ReprojectHand(Vec4f position, float[] view, float[] projection, float handFov)
+    internal static Vector4 ReprojectHand(Vector4 position, float[] view, float[] projection, float handFov)
     {
-        var camera = new Matrixf(view);
-        Vec4f point = camera.TransformVector(position);
+        var camera = MatrixHelper.FromColumnMajorForRowVectors(view);
+        Vector4 point = Vector4.Transform(position, camera);
         // Both projections use the same aspect ratio and clip planes; only their X/Y scale differs.
         float ratio = 1f / (MathF.Tan(handFov * 0.5f) * projection[5]);
         point.X *= ratio;
         point.Y *= ratio;
-        return camera.Invert().TransformVector(point);
+        if (!Matrix4x4.Invert(camera, out var inverse))
+            throw new InvalidOperationException("Held-light camera matrix is singular.");
+        return Vector4.Transform(point, inverse);
     }
     #endregion
 }

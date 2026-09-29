@@ -4,7 +4,6 @@ using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.Client.NoObf;
-using Vintagestory.GameContent;
 using VanillaGraphicsExpanded.HarmonyPatches;
 
 namespace VanillaGraphicsExpanded.PBR.HeldLighting;
@@ -15,34 +14,33 @@ internal static class HeldLightSystem
     internal const string PatchId = Constants.ModId + ".heldlighting";
     private static Harmony? patches;
     private static Action<string>? log;
-    private static SystemRenderPlayerEffects? collector;
     private static ClientMain? game;
-    private static double[]? collectionView;
     private static Exception? collectionFailure;
     private static Action<SystemRenderPlayerEffects, byte[], EntityPos>? vanillaLight;
-    private static bool resolving;
-    private static bool perceptionUpdated;
+    private static ICoreClientAPI? api;
+    private static HeldLightRenderer? renderer;
     internal static bool Enabled { get; private set; }
-    internal static bool Recovering { get; private set; }
-    internal static bool ShouldUpdatePerception => !Recovering || !perceptionUpdated;
 
     #region Lifecycle
     /// <summary>Starts one mod-session installation; partial installation failures retire only this owner's hooks.</summary>
-    internal static void Start(Action<string> logger)
+    internal static void Start(ICoreClientAPI clientApi, Action<string> logger)
     {
         Stop();
         log = logger;
+        api = clientApi;
         patches = new Harmony(PatchId);
         try
         {
             vanillaLight = AccessTools.MethodDelegate<Action<SystemRenderPlayerEffects, byte[], EntityPos>>(
                 AccessTools.Method(typeof(SystemRenderPlayerEffects), "AddPointLight", [typeof(byte[]), typeof(EntityPos)]));
+            renderer = new HeldLightRenderer();
+            api.Event.RegisterRenderer(renderer, EnumRenderStage.Before, "vge-held-lights");
             HeldLightHooks.Install(patches);
             Enabled = true;
         }
         catch (Exception error)
         {
-            Disable(error, "patch installation", false);
+            Disable(error, "patch installation");
         }
     }
 
@@ -50,9 +48,21 @@ internal static class HeldLightSystem
     internal static void Stop()
     {
         Enabled = false;
+        RemoveRenderer();
         RemovePatches();
         ClearFrame();
         log = null;
+        api = null;
+    }
+
+    /// <summary>Unregisters the renderer and disables callbacks retained by an in-progress render dispatch.</summary>
+    private static void RemoveRenderer()
+    {
+        if (renderer == null) return;
+        renderer.Dispose();
+        try { api?.Event.UnregisterRenderer(renderer, EnumRenderStage.Before); }
+        catch (Exception error) { Report("Could not unregister held-light renderer; its callback remains disabled.", error); }
+        finally { renderer = null; }
     }
 
     /// <summary>Logs a complete exception without allowing a failing logger to turn recovery into a crash.</summary>
@@ -74,11 +84,8 @@ internal static class HeldLightSystem
     /// <summary>Clears retained engine owners and any partial attachment work, including after initialization failure.</summary>
     private static void ClearFrame()
     {
-        collector = null;
         game = null;
-        collectionView = null;
         collectionFailure = null;
-        perceptionUpdated = false;
         try { HeldLightSources.Clear(); }
         catch (Exception error) { Report("Could not clear held-light attachment work.", error); }
     }
@@ -86,19 +93,15 @@ internal static class HeldLightSystem
 
     #region Guarded engine boundaries
     /// <summary>Records the collection context before entering fallible held-light preparation.</summary>
-    internal static void Begin(SystemRenderPlayerEffects effects)
+    internal static void Begin(ClientMain client)
     {
         if (!Enabled) return;
-        collector = effects;
         collectionFailure = null;
         game = null;
-        collectionView = null;
-        perceptionUpdated = false;
         try
         {
-            game = (ClientMain)AccessTools.Field(typeof(ClientSystem), "game").GetValue(effects)!;
-            collectionView = game.MvMatrix.Count > 0 ? (double[])game.MvMatrix.Top.Clone() : null;
-            HeldLightSources.Begin(effects);
+            game = client;
+            HeldLightSources.Begin(game);
         }
         catch (Exception error) { collectionFailure = error; throw; }
     }
@@ -108,117 +111,50 @@ internal static class HeldLightSystem
     {
         if (!Enabled || entity is not EntityPlayer)
         {
-            // This path also supports the current compiled collector during recovery, before it is unpatched.
-            if (vanillaLight != null) vanillaLight(effects, combined, entity.Pos);
-            else AccessTools.Method(typeof(SystemRenderPlayerEffects), "AddPointLight", [typeof(byte[]), typeof(EntityPos)])
-                    .Invoke(effects, [combined, entity.Pos]);
+            // Any callback retained after shutdown stays pass-through.
+            // Bound before installing the collection patch; no reflective invocation is needed during a frame.
+            vanillaLight!(effects, combined, entity.Pos);
             return;
         }
-        try { HeldLightSources.AddEntityLight(effects, combined, entity); }
+        try { HeldLightSources.AddEntityLight(effects, combined, entity, game!); }
         catch (Exception error) { collectionFailure = error; throw; }
     }
 
     /// <summary>Aborts partial collection and suppresses only the exact exception raised inside held-light work.</summary>
     internal static Exception? FinishCollection(Exception? error)
     {
-        if (Enabled && error == null) perceptionUpdated = true;
         if (error == null || !ReferenceEquals(error, collectionFailure)) return error;
         collectionFailure = null;
-        Disable(error, "light collection", true);
+        Disable(error, "light collection");
         return null;
     }
 
-    /// <summary>Contains attachment-resolution failures after the temporary renderer's finally blocks have unwound.</summary>
-    internal static void Complete(ClientSystem system, float dt)
+    /// <summary>Contains attachment failures at the scheduled renderer boundary.</summary>
+    internal static void Complete()
     {
-        if (!Enabled) return;
+        if (!Enabled || game == null) return;
         try
         {
-            resolving = true;
-            HeldLightSources.Complete(system, dt);
+            HeldLightSources.Complete(game);
         }
         catch (Exception error)
         {
-            resolving = false;
-            Disable(error, "attachment resolution", true);
-        }
-        finally { resolving = false; }
-    }
-
-    /// <summary>Guards capture hooks used by both temporary evaluation and ordinary engine drawing.</summary>
-    internal static bool Capture(EntityShapeRenderer renderer, ItemStack stack, AttachmentPointAndPose pose, ItemRenderInfo info)
-    {
-        if (!Enabled) return true;
-        try { return HeldLightAttachment.Capture(renderer, stack, pose, info); }
-        catch (Exception error)
-        {
-            // Wait for the resolver's finally to restore its temporary shadow and capture state before unpatching.
-            if (resolving) throw;
-            Disable(error, "item capture", true);
-            return true;
+            Disable(error, "attachment resolution");
         }
     }
 
-    /// <summary>Contains hook initialization errors without suppressing failures in the engine perception callback.</summary>
-    internal static bool ApplyPerception(EntityPlayer player)
-    {
-        if (!Enabled) return true;
-        try { return HeldLightAttachment.ApplyPerception(player); }
-        catch (Exception error)
-        {
-            if (resolving) throw;
-            Disable(error, "perception hook", true);
-            return true;
-        }
-    }
     #endregion
 
-    #region Current-frame recovery
-    /// <summary>Latches the subsystem off, restores vanilla lighting, and removes only held-light patches.</summary>
-    private static void Disable(Exception error, string operation, bool restoreLights)
+    #region Failure shutdown
+    /// <summary>Retires held lighting; the next normal engine collection restores vanilla output.</summary>
+    private static void Disable(Exception error, string operation)
     {
         Enabled = false;
-        Report($"Disabled for this mod session after an error during {operation}. Restoring vanilla held lights.", error);
-        try
-        {
-            if (restoreLights) RestoreVanillaCollection();
-        }
-        finally
-        {
-            RemovePatches();
-            ClearFrame();
-        }
-    }
-
-    /// <summary>Rebuilds the complete engine list so partial hand entries and displaced capacity are both rolled back.</summary>
-    private static void RestoreVanillaCollection()
-    {
-        bool pushed = false;
-        Recovering = true;
-        try
-        {
-            if (collector == null || game == null) return;
-            // Other Before callbacks may have changed the stack. Use the original collection coordinate frame.
-            if (collectionView != null)
-            {
-                game.MvMatrix.Push(collectionView);
-                pushed = true;
-            }
-            // The disabled transpiler wrapper delegates to engine AddPointLight. Its normal reset discards
-            // partial entries; rerunning the complete list restores lights previously excluded by capacity.
-            AccessTools.Method(typeof(SystemRenderPlayerEffects), "onBeforeRender").Invoke(collector, [0f]);
-        }
-        catch (Exception error)
-        {
-            Report("Vanilla light-list recovery also failed; discarding this frame's partial dynamic lights.", error);
-            if (game?.shUniforms != null) game.shUniforms.PointLightsCount = 0;
-        }
-        finally
-        {
-            try { if (pushed) game!.MvMatrix.Pop(); }
-            catch (Exception error) { Report("Could not restore the collection matrix stack.", error); }
-            Recovering = false;
-        }
+        Report($"Disabled for this mod session after an error during {operation}. Vanilla lighting resumes next frame.", error);
+        // Leave the failure frame alone: replaying collection would repeat unrelated engine side effects.
+        RemoveRenderer();
+        RemovePatches();
+        ClearFrame();
     }
     #endregion
 }

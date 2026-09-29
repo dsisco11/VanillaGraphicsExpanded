@@ -17,6 +17,14 @@ public static class MatrixHelper
     #region Conversion Methods
 
     /// <summary>
+    /// Reads an engine column-vector matrix as its row-vector equivalent for Vector4.Transform.
+    /// Column-major storage already matches the transposed matrix's row-major layout, so no shuffle is needed.
+    /// Unlike FromColumnMajor, this changes the mathematical convention as well as the storage interpretation.
+    /// </summary>
+    public static Matrix4x4 FromColumnMajorForRowVectors(ReadOnlySpan<float> matrix)
+        => MemoryMarshal.Read<Matrix4x4>(MemoryMarshal.AsBytes(matrix));
+
+    /// <summary>
     /// Converts a VS/OpenGL column-major float[16] to Matrix4x4.
     /// Uses SIMD transpose when SSE is available.
     /// </summary>

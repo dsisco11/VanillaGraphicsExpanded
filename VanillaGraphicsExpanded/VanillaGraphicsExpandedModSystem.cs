@@ -42,7 +42,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         harmony = new HarmonyLib.Harmony(Constants.ModId);
         PBR.Tessellation.TerrainTessellationPrograms.Log = message => api.Logger.Warning(message);
         harmony.PatchAll();
-        PBR.HeldLighting.HeldLightSystem.Start(message => api.Logger.Error(message));
 
         // Atlas binding is injected by the renderer transpiler; retain frame-level mapping refresh.
         TerrainLumonSceneChunkSlotUniformBindingHook.ApplyPatches(harmony, api.Logger.Notification);
@@ -66,6 +65,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        PBR.HeldLighting.HeldLightSystem.Start(api, message => api.Logger.Error(message));
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);

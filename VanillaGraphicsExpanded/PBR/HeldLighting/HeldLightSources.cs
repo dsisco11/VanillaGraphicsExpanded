@@ -14,12 +14,9 @@ namespace VanillaGraphicsExpanded.PBR.HeldLighting;
 internal sealed class HeldLightSources
 {
     private static readonly ConditionalWeakTable<ClientMain, HeldLightSources> Frames = new();
-    private static readonly AccessTools.FieldRef<ClientSystem, ClientMain> Game =
-        AccessTools.FieldRefAccess<ClientSystem, ClientMain>("game");
     private static readonly AccessTools.FieldRef<EntityPlayer, byte[]> BaseLight =
         AccessTools.FieldRefAccess<EntityPlayer, byte[]>("baseLightHsv");
-    private static readonly AccessTools.FieldRef<ClientMain, Dictionary<long, EntityRenderer>> Renderers =
-        AccessTools.FieldRefAccess<ClientMain, Dictionary<long, EntityRenderer>>("EntityRenderers");
+    private static readonly Dictionary<Type, bool> StandardEmission = new();
     private static readonly Action<SystemRenderPlayerEffects, byte[], EntityPos> AddPointLight =
         AccessTools.MethodDelegate<Action<SystemRenderPlayerEffects, byte[], EntityPos>>(
             AccessTools.Method(typeof(SystemRenderPlayerEffects), "AddPointLight", [typeof(byte[]), typeof(EntityPos)]));
@@ -31,18 +28,17 @@ internal sealed class HeldLightSources
     internal static void Clear() => Frames.Clear();
 
     /// <summary>Starts a fresh collection; no attachment or light-array index survives across frames.</summary>
-    internal static void Begin(SystemRenderPlayerEffects effects)
+    internal static void Begin(ClientMain game)
     {
-        ClientMain game = Game(effects);
         HeldLightSources frame = Frames.GetValue(game, static _ => new HeldLightSources());
         frame.pending.Clear();
     }
 
     /// <summary>Replaces only the player entity emission call, preserving the engine's color conversion and limit.</summary>
-    internal static void AddEntityLight(SystemRenderPlayerEffects effects, byte[] combined, Entity entity)
+    internal static void AddEntityLight(SystemRenderPlayerEffects effects, byte[] combined, Entity entity, ClientMain game)
     {
         if (entity is not EntityPlayer player ||
-            AccessTools.PropertyGetter(entity.GetType(), nameof(Entity.LightHsv)).DeclaringType != typeof(EntityPlayer))
+            !UsesStandardEmission(entity.GetType()))
         {
             AddPointLight(effects, combined, entity.Pos);
             return;
@@ -55,13 +51,23 @@ internal sealed class HeldLightSources
             AddPointLight(effects, combined, player.Pos);
             return;
         }
-        ClientMain game = Game(effects);
         HeldLightSources frame = Frames.GetValue(game, static _ => new HeldLightSources());
         // The getter has already applied its normal side effects. Its private base source excludes both hands.
         byte[]? innate = BaseLight(player);
         if (Emits(innate)) AddPointLight(effects, innate!, player.Pos);
         frame.AddHand(effects, game, player, right, true);
         frame.AddHand(effects, game, player, left, false);
+    }
+
+    /// <summary>Checks each entity type once, preserving custom emission overrides without per-frame reflection.</summary>
+    private static bool UsesStandardEmission(Type type)
+    {
+        if (!StandardEmission.TryGetValue(type, out bool standard))
+        {
+            standard = AccessTools.PropertyGetter(type, nameof(Entity.LightHsv)).DeclaringType == typeof(EntityPlayer);
+            StandardEmission.Add(type, standard);
+        }
+        return standard;
     }
 
     /// <summary>Publishes a hand with a body-height fallback and records only successfully admitted entries.</summary>
@@ -93,17 +99,15 @@ internal sealed class HeldLightSources
 
     #region Current attachment publication
     /// <summary>Updates admitted hand positions after SystemRenderEntities has advanced this frame's animations.</summary>
-    internal static void Complete(ClientSystem system, float dt)
+    internal static void Complete(ClientMain game)
     {
-        ClientMain game = Game(system);
         if (!Frames.TryGetValue(game, out HeldLightSources? frame)) return;
         try
         {
             foreach (var entry in frame.pending)
             {
-                if (!Renderers(game).TryGetValue(entry.Player.EntityId, out var renderer) ||
-                    renderer is not EntityPlayerShapeRenderer shape) continue;
-                Vec3d? position = HeldLightAttachment.Resolve(shape, entry.Player, entry.Right, dt);
+                if (entry.Player.Properties.Client.Renderer is not EntityPlayerShapeRenderer shape) continue;
+                Vec3d? position = HeldLightAttachment.Resolve(shape, entry.Player, entry.Right);
                 if (position != null)
                     WriteViewPosition(game.shUniforms.PointLights3, entry.Index, frame.view, position);
             }

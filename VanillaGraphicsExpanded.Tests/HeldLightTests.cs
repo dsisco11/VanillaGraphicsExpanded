@@ -1,3 +1,5 @@
+using System.Numerics;
+using VanillaGraphicsExpanded.Rendering;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -26,6 +28,47 @@ public sealed class HeldLightTests
     private static EngineFixture? active;
 
     #region Coordinates and source ownership
+    /// <summary>Checks public-state player geometry against the installed engine when yaw smoothing is settled.</summary>
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    public void PlayerGeometryMatchesEngineAtSettledOrientation(int mode, bool mounted)
+    {
+        using var fixture = new EngineFixture();
+        fixture.AttachRenderer(mode);
+        var player = fixture.Player;
+        var renderer = fixture.Renderer!;
+        player.BodyYaw = 0.35f;
+        renderer.bodyYawLerped = player.BodyYaw;
+        Set(renderer, "smoothedBodyYaw", player.BodyYaw);
+        player.Pos.Pitch = MathF.PI + 0.2f;
+        player.Pos.Roll = 0.13f;
+        player.WalkPitch = 0.1f;
+        player.LocalEyePos.Y = 1.15;
+        player.Properties.Client.Size = 0.8f;
+        player.Properties.Client.Shape = new CompositeShape { rotateX = 12, rotateY = 23, rotateZ = -8 };
+        renderer.nowSwivelRad = 0.08f;
+        fixture.Api.SetupGet(api => api.Settings.Float["fpHandsYOffset"]).Returns(0.1f);
+        if (mounted)
+        {
+            var seat = new Mock<IMountableSeat>();
+            seat.SetupGet(value => value.RenderTransform).Returns(new Matrixf().RotateY(0.2f));
+            var position = new EntityPos(10, 100, 20) { Pitch = 0.15f };
+            seat.SetupGet(value => value.SeatPosition).Returns(position);
+            seat.SetupGet(value => value.FpHandPitchFollow).Returns(0.6f);
+            player.SetMount(seat.Object);
+        }
+        var actual = new float[16];
+        MatrixHelper.ToColumnMajor(Matrix4x4.Transpose(
+            HeldLightPlayerTransform.Build(renderer, player, true, mode == 0)), actual);
+        renderer.loadModelMatrixForPlayer(player, true, 0, false);
+        for (int i = 0; i < 16; i++) Assert.Equal(renderer.ModelMat[i], actual[i], 5);
+    }
+
     /// <summary>Checks attachment rotation, item origin and nonuniform scale against installed RenderItem IL.</summary>
     [Fact]
     public void AttachmentCompositionMatchesInstalledItemRenderer()
@@ -55,7 +98,8 @@ public sealed class HeldLightTests
                 new ItemRenderInfo { Transform = transform, ModelRef = Empty<MultiTextureMeshRef>() }]);
             var matrix = (Matrixf)AccessTools.Field(typeof(EntityShapeRenderer), "ItemModelMat").GetValue(renderer)!;
             Vec4f expected = matrix.TransformVector(point);
-            Vec4f actual = HeldLightAttachment.Compose(renderer.ModelMat, pose, transform, point);
+            Vector4 actual = HeldLightAttachment.Compose(MatrixHelper.FromColumnMajorForRowVectors(renderer.ModelMat),
+                pose, transform, new Vector4(point.X, point.Y, point.Z, point.W));
             Assert.Equal(expected.X, actual.X, 5);
             Assert.Equal(expected.Y, actual.Y, 5);
             Assert.Equal(expected.Z, actual.Z, 5);
@@ -110,7 +154,8 @@ public sealed class HeldLightTests
         var input = new Vec4f(0.4f, 1.1f, -0.8f, 1);
         Vec4f clip = new Matrixf(hand).Mul(view).TransformVector(input);
         Vec4f expected = new Matrixf(view).Invert().Mul(new Matrixf(normal).Invert()).TransformVector(clip);
-        Vec4f actual = HeldLightAttachment.ReprojectHand(input, view, normal, handDegrees * GameMath.DEG2RAD);
+        Vector4 actual = HeldLightAttachment.ReprojectHand(new Vector4(input.X, input.Y, input.Z, input.W),
+            view, normal, handDegrees * GameMath.DEG2RAD);
         Assert.Equal(expected.X, actual.X, 4);
         Assert.Equal(expected.Y, actual.Y, 4);
         Assert.Equal(expected.Z, actual.Z, 4);
@@ -122,8 +167,8 @@ public sealed class HeldLightTests
     {
         using var fixture = new EngineFixture();
         fixture.Player.LightHsv = [3, 2, 7];
-        HeldLightSources.Begin(fixture.Effects);
-        HeldLightSources.AddEntityLight(fixture.Effects, fixture.Player.LightHsv, fixture.Player);
+        HeldLightSources.Begin(fixture.Game);
+        HeldLightSources.AddEntityLight(fixture.Effects, fixture.Player.LightHsv, fixture.Player, fixture.Game);
         Assert.Equal(3, fixture.Game.shUniforms.PointLightsCount);
         Assert.Equal(100, fixture.Game.shUniforms.PointLights3[1]);
         Assert.Equal(101.2f, fixture.Game.shUniforms.PointLights3[4], 4);
@@ -143,11 +188,11 @@ public sealed class HeldLightTests
         using var fixture = new EngineFixture();
         fixture.Player.Right.Itemstack = null;
         fixture.Player.Left.Itemstack = null;
-        HeldLightSources.Begin(fixture.Effects);
-        HeldLightSources.AddEntityLight(fixture.Effects, [33, 7, 10], fixture.Player);
+        HeldLightSources.Begin(fixture.Game);
+        HeldLightSources.AddEntityLight(fixture.Effects, [33, 7, 10], fixture.Player, fixture.Game);
         var dropped = new EntityItem();
         dropped.Pos.SetPos(3, 4, 5);
-        HeldLightSources.AddEntityLight(fixture.Effects, [5, 4, 12], dropped);
+        HeldLightSources.AddEntityLight(fixture.Effects, [5, 4, 12], dropped, fixture.Game);
         Assert.Equal(2, fixture.Game.shUniforms.PointLightsCount);
         Assert.Equal(new float[] { 10, 100, 20, 3, 4, 5 }, fixture.Game.shUniforms.PointLights3.Take(6));
     }
@@ -158,18 +203,36 @@ public sealed class HeldLightTests
     {
         using var fixture = new EngineFixture();
         Set(fixture.Effects, "maxDynLights", 1);
-        HeldLightSources.Begin(fixture.Effects);
-        HeldLightSources.AddEntityLight(fixture.Effects, fixture.Player.LightHsv, fixture.Player);
+        HeldLightSources.Begin(fixture.Game);
+        HeldLightSources.AddEntityLight(fixture.Effects, fixture.Player.LightHsv, fixture.Player, fixture.Game);
         Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
-        HeldLightSources.Complete(fixture.Entities, 0.016f);
+        HeldLightSources.Complete(fixture.Game);
         Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
     }
     #endregion
 
     #region Installed engine lifecycle
-    /// <summary>Partial collection must be replaced with vanilla output without losing unrelated patch owners.</summary>
+    /// <summary>Only collection is patched; the registered renderer owns post-animation work and is removed on shutdown.</summary>
     [Fact]
-    public void CollectionFailureDisablesOnlyHeldLightingAndRebuildsVanillaList()
+    public void UsesOneHarmonyBoundaryAndScheduledRenderer()
+    {
+        using var fixture = new EngineFixture();
+        fixture.InstallCollection();
+        var owned = Harmony.GetAllPatchedMethods().Where(method =>
+            Harmony.GetPatchInfo(method)?.Owners.Contains(HeldLightSystem.PatchId) == true).ToArray();
+        Assert.Equal(AccessTools.Method(typeof(SystemRenderPlayerEffects), "onBeforeRender"), Assert.Single(owned));
+        Assert.IsType<HeldLightRenderer>(fixture.ScheduledRenderer);
+        Assert.Equal(0.45, fixture.ScheduledRenderer!.RenderOrder);
+        HeldLightSystem.Stop();
+        Assert.Equal(1, fixture.Unregistrations);
+        AssertHeldPatchesRemoved();
+        fixture.ScheduledRenderer.OnRenderFrame(0.016f, EnumRenderStage.Before);
+        Assert.False(HeldLightSystem.Enabled);
+    }
+
+    /// <summary>Partial collection shuts down held lighting; the next frame restores vanilla output without losing foreign patches.</summary>
+    [Fact]
+    public void CollectionFailureDisablesOnlyHeldLightingAndRestoresVanillaNextFrame()
     {
         using var fixture = new EngineFixture();
         fixture.InstallCollection();
@@ -182,9 +245,9 @@ public sealed class HeldLightTests
         {
             fixture.Collect();
             Assert.False(HeldLightSystem.Enabled);
+            Assert.Equal(1, fixture.Unregistrations);
             Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
-            Assert.Equal(new float[] { 10, 100, 20 }, fixture.Game.shUniforms.PointLights3.Take(3));
-            Assert.Equal(1, perception.BeforeUpdates);
+            Assert.Equal(0, perception.BeforeUpdates);
             string error = Assert.Single(fixture.Errors);
             Assert.Contains("injected collection failure", error);
             Assert.Contains("System.InvalidOperationException", error);
@@ -194,16 +257,16 @@ public sealed class HeldLightTests
                 AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender"))!.Owners);
             fixture.Collect();
             Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
+            Assert.Equal(new float[] { 10, 100, 20 }, fixture.Game.shUniforms.PointLights3.Take(3));
+            Assert.Equal(1, perception.BeforeUpdates);
             Assert.Single(fixture.Errors);
         }
         finally { active = null; }
     }
 
-    /// <summary>Failure after a hand update restores the whole vanilla list, including lights excluded by split capacity.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AttachmentFailureRollsBackCurrentFrameAndContainsRecoveryErrors(bool failRecovery)
+    /// <summary>Attachment failure does not replay collection; the next frame restores vanilla lights and capacity.</summary>
+    [Fact]
+    public void AttachmentFailureShutsDownWithoutReplayingCollection()
     {
         using var fixture = new EngineFixture();
         fixture.InstallCollection();
@@ -221,7 +284,7 @@ public sealed class HeldLightTests
             {
                 if (ReferenceEquals(slot, fixture.Player.Left))
                 {
-                    fixture.FailQuery = failRecovery;
+                    fixture.FailQuery = true; // Any attempted collector replay would throw.
                     throw new InvalidOperationException("injected attachment failure");
                 }
                 return new ItemRenderInfo { Transform = new ModelTransform().EnsureDefaultValues() };
@@ -233,7 +296,7 @@ public sealed class HeldLightTests
             Assert.Equal(2, fixture.Game.shUniforms.PointLightsCount);
             fixture.Game.MvMatrix.Translate(1000, 1000, 1000);
             fixture.Player.selfNowShadowPass = true;
-            AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender").Invoke(fixture.Entities, [0.016f]);
+            fixture.AdvanceAnimationsAndLights();
             Assert.False(HeldLightSystem.Enabled);
             Assert.True(fixture.Player.selfNowShadowPass);
             Assert.Equal(1, fixture.Game.MvMatrix.Count);
@@ -242,21 +305,14 @@ public sealed class HeldLightTests
             Assert.Contains("injected attachment failure", fixture.Errors[0]);
             Assert.Contains("HeldLightAttachment.Resolve", fixture.Errors[0]);
             AssertHeldPatchesRemoved();
-            if (failRecovery)
-            {
-                Assert.Equal(0, fixture.Game.shUniforms.PointLightsCount);
-                Assert.Equal(2, fixture.Errors.Count);
-                Assert.Contains("injected engine query failure", fixture.Errors[1]);
-            }
-            else
-            {
-                Assert.Equal(2, fixture.Game.shUniforms.PointLightsCount);
-                Assert.Equal(new float[] { 10, 100, 20, 3, 4, 5 }, fixture.Game.shUniforms.PointLights3.Take(6));
-                Assert.Single(fixture.Errors);
-            }
+            Assert.Equal(1, fixture.Unregistrations);
+            Assert.Single(fixture.Errors);
             fixture.FailQuery = false;
+            Mat4d.Identity(fixture.Game.MvMatrix.Top); // Normal engine frame setup supplies the next collection view.
             fixture.Collect();
             Assert.Equal(2, fixture.Game.shUniforms.PointLightsCount);
+            Assert.Equal(new float[] { 10, 100, 20, 3, 4, 5 }, fixture.Game.shUniforms.PointLights3.Take(6));
+            Assert.Equal(2, perception.BeforeUpdates);
         }
         finally { active = null; }
     }
@@ -279,7 +335,7 @@ public sealed class HeldLightTests
         finally { active = null; }
     }
 
-    /// <summary>A changed engine call shape must roll back hooks already installed before the failing transpiler.</summary>
+    /// <summary>A changed engine call shape must roll back renderer registration and any partial patch installation.</summary>
     [Fact]
     public void InstallationFailureRemovesPartialPatchesAndPreservesForeignOwner()
     {
@@ -289,7 +345,7 @@ public sealed class HeldLightTests
         try
         {
             foreign.Patch(method, transpiler: new HarmonyMethod(typeof(HeldLightTests), nameof(ChangeCollectionCall)) { priority = Priority.First });
-            HeldLightSystem.Start(errors.Add);
+            HeldLightSystem.Start(new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock }.Object, errors.Add);
             Assert.False(HeldLightSystem.Enabled);
             Assert.Contains("Expected one engine entity-light call", Assert.Single(errors));
             AssertHeldPatchesRemoved();
@@ -369,13 +425,14 @@ public sealed class HeldLightTests
             fixture.Player.selfNowShadowPass = true;
             fixture.Game.MvMatrix.Translate(1000, 1000, 1000);
             _ = fixture.Game.CurrentModelViewMatrixd; // Overwrite the engine's shared matrix scratch array.
-            // The animation method replacement updates a pose. Production's postfix must observe that update.
-            AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender").Invoke(fixture.Entities, [0.016f]);
+            // The animation method replacement updates a pose. The scheduled renderer must observe that update.
+            fixture.AdvanceAnimationsAndLights();
             float after = fixture.Game.shUniforms.PointLights3[1];
             Assert.NotEqual(before, after);
             Assert.Equal(103.5f, after, 4);
             Assert.Equal(103.5f, fixture.Game.shUniforms.PointLights3[4], 4);
-            Assert.NotEqual(fixture.Game.shUniforms.PointLights3[0], fixture.Game.shUniforms.PointLights3[3]);
+            Assert.False(fixture.Game.shUniforms.PointLights3.Take(3)
+                .SequenceEqual(fixture.Game.shUniforms.PointLights3.Skip(3).Take(3)));
             Assert.Same(originalModel, fixture.Renderer.ModelMat);
             Assert.Equal(originalValues, originalModel);
             Assert.Equal(0.2f, fixture.Renderer.bodyYawLerped);
@@ -391,7 +448,7 @@ public sealed class HeldLightTests
             Mat4d.Identity(fixture.Game.MvMatrix.Top);
             fixture.Collect();
             Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
-            AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender").Invoke(fixture.Entities, [0.016f]);
+            fixture.AdvanceAnimationsAndLights();
             Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
             Assert.Equal(new float[] { 3, 4, 5 }, fixture.Game.shUniforms.PointLights3.Take(3));
         }
@@ -442,10 +499,16 @@ public sealed class HeldLightTests
         private readonly Harmony harmony = new("VGE.Tests.HeldLight");
         internal readonly List<string> Errors = new();
         internal bool FailQuery;
+        internal IRenderer? ScheduledRenderer;
+        internal int Unregistrations;
 
         /// <summary>Creates engine light storage and a player with independently colored emitting hands.</summary>
         internal EngineFixture()
         {
+            Api.Setup(api => api.Event.RegisterRenderer(It.IsAny<IRenderer>(), EnumRenderStage.Before, "vge-held-lights"))
+                .Callback((IRenderer renderer, EnumRenderStage stage, string name) => ScheduledRenderer = renderer);
+            Api.Setup(api => api.Event.UnregisterRenderer(It.IsAny<IRenderer>(), EnumRenderStage.Before))
+                .Callback((IRenderer renderer, EnumRenderStage stage) => Unregistrations++);
             Game.shUniforms = new DefaultShaderUniforms();
             Game.MvMatrix = new StackMatrix4();
             Game.MvMatrix.PushIdentity();
@@ -499,7 +562,7 @@ public sealed class HeldLightTests
         /// <summary>Installs production hooks, replacing only native session dependencies.</summary>
         internal void InstallCollection()
         {
-            HeldLightSystem.Start(Errors.Add);
+            HeldLightSystem.Start(Api.Object, Errors.Add);
             Assert.True(HeldLightSystem.Enabled, string.Join("\n", Errors));
             Patch(AccessTools.Method(typeof(Vintagestory.Common.GameMain), "GetEntitiesAround", [typeof(Vec3d), typeof(float), typeof(float), typeof(ActionConsumable<Entity>)]), nameof(Nearby));
             Patch(AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender"), nameof(Animate));
@@ -509,6 +572,7 @@ public sealed class HeldLightTests
         internal void AttachRenderer(int mode = 2)
         {
             Renderer = Empty<EntityPlayerShapeRenderer>();
+            Player.Properties.Client.Renderer = Renderer;
             Renderer.entity = Player;
             Renderer.capi = Api.Object;
             Renderer.ModelMat = Mat4f.Create();
@@ -521,6 +585,7 @@ public sealed class HeldLightTests
             ((ClientPlayer)Api.Object.World.Player).OverrideCameraMode = mode == 2 ? EnumCameraMode.ThirdPerson : EnumCameraMode.FirstPerson;
             Player.Pos.Pitch = MathF.PI;
             Api.SetupGet(api => api.Settings.Int["fpHandsFoV"]).Returns(70);
+            Api.SetupGet(api => api.Settings.Bool["immersiveFpMode"]).Returns(mode == 1);
             float[] projection = Mat4f.Create();
             Mat4f.Perspective(projection, 70 * GameMath.DEG2RAD, 1.7f, 0.1f, 1000f);
             Render.SetupGet(render => render.CurrentProjectionMatrix).Returns(projection);
@@ -532,9 +597,20 @@ public sealed class HeldLightTests
             var animations = new Mock<IAnimationManager>();
             animations.SetupGet(a => a.Animator).Returns(animator.Object);
             Player.Animation = animations.Object;
+            Player.TpAnimManager.Animator = animator.Object;
+            Player.SelfFpAnimManager.Animator = animator.Object;
             Render.Setup(r => r.GetItemStackRenderInfo(It.IsAny<ItemSlot>(), It.IsAny<EnumItemRenderTarget>(), It.IsAny<float>()))
                 .Returns(new ItemRenderInfo { Transform = new ModelTransform().EnsureDefaultValues() });
             Set(Game, "EntityRenderers", new Dictionary<long, EntityRenderer> { [Player.EntityId] = Renderer });
+        }
+
+        /// <summary>Runs the engine animation boundary, then the registered VGE renderer in Before-stage order.</summary>
+        internal void AdvanceAnimationsAndLights()
+        {
+            Assert.NotNull(ScheduledRenderer);
+            Assert.True(ScheduledRenderer.RenderOrder > 0.4 && ScheduledRenderer.RenderOrder < 1);
+            AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender").Invoke(Entities, [0.016f]);
+            ScheduledRenderer.OnRenderFrame(0.016f, EnumRenderStage.Before);
         }
 
         /// <summary>Runs the installed collection loop including its predicate and production transpiler.</summary>
@@ -551,7 +627,7 @@ public sealed class HeldLightTests
         }
     }
 
-    /// <summary>Detects unintended invocation of pose-mutating perception callbacks during snapshot evaluation.</summary>
+    /// <summary>Detects unintended invocation of pose-mutating perception callbacks during attachment evaluation.</summary>
     private sealed class CountingPerception(ICoreClientAPI api) : PerceptionEffect(api)
     {
         internal int Applications;
@@ -576,6 +652,8 @@ public sealed class HeldLightTests
         public override ItemSlot LeftHandItemSlot => Left;
         /// <summary>Provides the current test animation pose without a running game simulation.</summary>
         public override IAnimationManager AnimManager { get => Animation!; set => Animation = value; }
+        /// <summary>Supplies a mount without starting the engine interaction system.</summary>
+        internal void SetMount(IMountableSeat seat) => MountedOn = seat;
     }
     #endregion
 }

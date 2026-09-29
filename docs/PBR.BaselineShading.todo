@@ -355,7 +355,7 @@ Tasks
       visual confirmation. Source inspection alone does not establish the cause of the live artifact.
 
   ☐ Try and make tessellation do square subdivision by subdividing faces as quads.
-  ☐ BUG: held lights seem to be placed at exactly the players feet position, which is causing the illumination to appear incorrectly low and also to clip into the ground which prevents lighting fro showing on the terrain being walked on; investigate the light attachment and transformation logic.
+  ✔ BUG: held lights seem to be placed at exactly the players feet position, which is causing the illumination to appear incorrectly low and also to clip into the ground which prevents lighting fro showing on the terrain being walked on; investigate the light attachment and transformation logic. @done(26-09-29 05:35)
     - Engine collection uses entity.Pos and merges hand emissions. Attachment correction separates hands
       and resolves current poses after animation updates; see PBR.HeldLightAttachments.md for ownership,
       fallback, engine evidence, and regression coverage. Keep open pending user-run visual acceptance.
