@@ -101,7 +101,7 @@ vec4 applySpheresFog(vec4 color, float standardFogAmount, vec3 worldPos) {
 			}
 		}
 		
-		color.rgb = mix(color.rgb, fogrgb, clamp(fogamount - (standardFogAmount - fogamount), 0, 1));
+		color.rgb = mix(color.rgb, fogrgb, clamp(fogamount - (standardFogAmount - fogamount), 0.0, 1.0));
 	}	
 
 	return color;

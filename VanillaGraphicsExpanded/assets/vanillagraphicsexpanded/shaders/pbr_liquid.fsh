@@ -13,8 +13,8 @@ layout(location = 9) in vec3 vge_viewPosition;
 layout(location = 10) in vec3 vge_blockIrradiance;
 layout(location = 11) in float vge_skyVisibility;
 layout(location = 12) in float glowLevel;
-layout(location = 14) in vec4 shadowCoordsNear;
-layout(location = 15) in vec4 shadowCoordsFar;
+layout(location = 21) in vec2 vge_wavePosition;
+layout(location = 22) in vec2 vge_waveWeights;
 layout(location = 100, binding = 0) uniform sampler2D terrainTex;
 layout(location = 101, binding = 1) uniform sampler2D depthTex;
 layout(location = 102, binding = 2) uniform sampler2D vge_materialParamsTex;
@@ -25,14 +25,24 @@ layout(location = 48, binding = 4) uniform sampler2DShadow shadowMapFar;
 @import "./includes/texture_animation.glsl"
 @import "./includes/fog_spheres.glsl"
 @import "./includes/perception_fragment.glsl"
+#if VGE_LIQUID_CAPTURE_MODE > 0
+layout(location = 0) out vec4 outSpecularCapture;
+#else
 @import "./includes/oit.glsl"
+#endif
 @import "./includes/pbr_color.glsl"
 @import "./includes/pbr_common.glsl"
+@import "./includes/liquids/waves.glsl"
+@import "./includes/pbr_shadowcoords.glsl"
 @import "./includes/atmosphere_aerial.glsl"
 @import "./includes/pbr_liquid.glsl"
 /** Samples the animated material before PBR optics and engine-compatible OIT accumulation. */
 void main()
 {
+#if VGE_LIQUID_CAPTURE_MODE == 2
+    outSpecularCapture = vec4(1.0);
+    return;
+#endif
 	vec4 texColor;
 	
 	float vn = max(0, 0.9 - abs(fragNormal.y));
@@ -71,7 +81,11 @@ void main()
 
     vec4 material = texture(vge_materialParamsTex, uv);
     vec4 liquid = VgeLiquidSurface(texColor, material, isLava, fullAlpha);
+#if VGE_LIQUID_CAPTURE_MODE > 0
+    outSpecularCapture = liquid;
+#else
     liquid = applySpheresFog(liquid, 0.0, fWorldPos);
     liquid.a *= 1.0 - forcedTransparency;
     writeOit(liquid, max(glowLevel, clamp(material.b, 0, 1)));
+#endif
 }

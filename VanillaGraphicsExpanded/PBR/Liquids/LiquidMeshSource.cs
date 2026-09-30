@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using HarmonyLib;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
@@ -9,6 +10,9 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidMeshSource(ChunkRenderer renderer, Vec2f tileSize)
 {
     private static readonly ConditionalWeakTable<ICoreClientAPI, LiquidMeshSource> sources = new();
+    // The public rendering API exposes only a getter for this engine mesh-layout selector.
+    internal static readonly AccessTools.FieldRef<Vintagestory.Client.RenderAPIBase, bool> UseSsbo =
+        AccessTools.FieldRefAccess<Vintagestory.Client.RenderAPIBase, bool>("useSSBOs");
     internal ChunkRenderer Renderer { get; } = renderer;
     internal Vec2f TileSize { get; } = tileSize;
     internal bool SuppressNextEngineDraw { get; set; }

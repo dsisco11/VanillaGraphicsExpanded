@@ -365,8 +365,8 @@ Tasks
       Keep open pending user-run visual acceptance.
 
   ✔ Replace base-game liquid shading with integrated PBR liquid rendering. @done(26-09-30 04:05)
-    - VGE-owned color submission is implemented; see PBR.Liquids.md for validation and interim
-      undisplaced geometry, retained engine liquid depth and pending underwater-medium behavior.
+    - VGE-owned color and liquid-depth submissions use shared Gerstner displacement; see
+      PBR.Liquids.md for validation limits, engine depth-target ownership and pending underwater medium.
     - Follow PBR.LiquidRenderer.Proposal.md for VGE-owned SPIR-V, UBOs and submission. Legacy water-fog
       and wave-displacement parity are not requirements; their replacements have dedicated tasks below.
     - Establish shared base-game vertex flag definitions/decoders and reusable texture-animation and
@@ -386,6 +386,9 @@ Tasks
       LumOn switching; measure pass and bandwidth costs separately from optional caustics.
 
   ☐ Select and implement a modern liquid wave displacement model with a VGE-owned liquid-depth pass.
+    - Selected a four-band Gerstner model; see PBR.Liquids.md for SI-unit parameters, depth-pass
+      handoff, shared frame snapshot, source references and current validation limits. Keep this task
+      open until color/depth visual agreement, liquid-type behavior and GPU cost are reviewed.
     - Compare suitable modern algorithms (including Gerstner waves and spectral/FFT approaches)
       against the game's block-scale aesthetic, bounded inland/flowing surfaces, ocean scale,
       geometric sampling, controllable weather response, stability and measured GPU/memory cost.

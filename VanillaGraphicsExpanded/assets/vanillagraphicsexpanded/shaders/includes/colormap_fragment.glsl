@@ -24,7 +24,7 @@ vec4 getColorMapped(sampler2D sourceTex, vec4 color) {
 	}
 	
 	if (frostAlpha > 0) {
-		float w = clamp((0.333 - heretemp) * 15, 0, 1);
+		float w = clamp((0.333 - heretemp) * 15, 0.0, 1.0);
 		
 		if (mapped) {
 			tint.rgb = mix(tint.rgb, tint.rgb * (1 - frostAlpha) + vec3(1) * frostAlpha, w);
@@ -44,7 +44,7 @@ vec4 getColorMapped(sampler2D sourceTex, vec4 color) {
 /** Applies frost coverage without climate or season tint. */
 vec4 getFrosted(vec4 color) {
 	if (heretemp < 0.333 && frostAlpha > 0) {
-		float w = clamp((0.333 - heretemp) * 15, 0, 1);
+		float w = clamp((0.333 - heretemp) * 15, 0.0, 1.0);
 		
 		float b = (color.r + color.g + color.b) / 3.0;
 		

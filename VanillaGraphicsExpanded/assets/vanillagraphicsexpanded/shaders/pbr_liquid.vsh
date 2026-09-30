@@ -13,8 +13,8 @@ layout(location = 9) out vec3 vge_viewPosition;
 layout(location = 10) out vec3 vge_blockIrradiance;
 layout(location = 11) out float vge_skyVisibility;
 layout(location = 12) out float glowLevel;
-layout(location = 14) out vec4 shadowCoordsNear;
-layout(location = 15) out vec4 shadowCoordsFar;
+layout(location = 21) out vec2 vge_wavePosition;
+layout(location = 22) out vec2 vge_waveWeights;
 layout(location = 0) in vec3 xyz;
 layout(location = 1) in vec2 uvIn;
 layout(location = 2) in vec4 rgbaLightIn;
@@ -23,15 +23,19 @@ layout(location = 4) in vec2 flowVector;
 layout(location = 5) in int colormapData;
 layout(location = 6) in int waterFlagsIn;
 @import "./includes/vertex_flags.glsl"
+@import "./includes/liquids/waves.glsl"
 @import "./includes/colormap_noise.glsl"
 @import "./includes/colormap_vertex.glsl"
-@import "./includes/pbr_shadowcoords.glsl"
 /** Prepares the existing liquid mesh layout without vanilla lighting or Fresnel alpha. */
 void main()
 {
     vec4 truePos = vec4(xyz + origin, 1);
     vec4 worldPos = truePos;
-    // Undisplaced mesh geometry until the shared color/depth wave model is implemented.
+    vec3 meshNormal = unpackNormal(renderFlags);
+    vge_waveWeights = VgeLiquidWaveWeights(waterFlagsIn, meshNormal);
+    vge_wavePosition = truePos.xz;
+    vec3 waveNormal;
+    VgeLiquidWaveSurface(truePos.xyz, vge_waveWeights, worldPos.xyz, waveNormal);
     vec4 cameraPos = modelViewMatrix * worldPos;
     gl_Position = projectionMatrix * cameraPos;
     waterStillCounterOff = smoothstep(0, 1, abs(mod(waterStillCounter + length(worldPos.xz + playerpos.xz) / 3.0, 2.0) - 1.0));
@@ -43,12 +47,11 @@ void main()
     uvBase = uv - uvSize;
     flowVectorf = flowVector;
     waterFlags = waterFlagsIn;
-    fragNormal = unpackNormal(renderFlags);
+    fragNormal = meshNormal;
     glowLevel = float(renderFlags & GlowLevelBitMask) / 256.0;
     vge_viewPosition = cameraPos.xyz;
     vge_blockIrradiance = max(rgbaLightIn.rgb, vec3(0));
     vge_skyVisibility = clamp(rgbaLightIn.a, 0, 1);
-    pbrCalcShadowMapCoords(worldPos.xyz, shadowCoordsNear, shadowCoordsFar);
     calcColorMapUvs(colormapData, truePos + vec4(playerpos, 1), rgbaLightIn.a, false);
     gl_Position.w += .0008 / max(.1, gl_Position.z);
 }

@@ -20,6 +20,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private DirectLightingRenderer? directLightingRenderer;
     private PBRCompositeRenderer? pbrCompositeRenderer;
     private PBR.Liquids.LiquidRenderer? liquidRenderer;
+    private PBR.Liquids.LiquidDepthRenderer? liquidDepthRenderer;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -52,6 +53,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
 
         liquidRenderer?.Dispose();
         liquidRenderer = null;
+        liquidDepthRenderer?.Dispose();
+        liquidDepthRenderer = null;
         directLightingRenderer?.Dispose();
         directLightingRenderer = null;
 
@@ -75,6 +78,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         directLightingBufferManager ??= new DirectLightingBufferManager(capi);
         directLightingRenderer ??= new DirectLightingRenderer(capi, gBufferManager, directLightingBufferManager);
 
+        liquidDepthRenderer ??= new PBR.Liquids.LiquidDepthRenderer(capi);
         liquidRenderer ??= new PBR.Liquids.LiquidRenderer(capi);
 
         var lumOnSystem = capi.ModLoader.GetModSystem<LumOnModSystem>();

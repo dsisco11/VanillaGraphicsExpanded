@@ -9,6 +9,10 @@
 float VgeLiquidVisibility()
 {
     float blocked = 0.0;
+    // Cascade coverage is nonlinear, so evaluate it at the fragment instead of interpolating vertex weights.
+    vec4 shadowCoordsNear;
+    vec4 shadowCoordsFar;
+    pbrCalcShadowMapCoords(fWorldPos, shadowCoordsNear, shadowCoordsFar);
 #if SHADOWQUALITY > 0
     if (shadowCoordsFar.w > 0.0) blocked += (1.0 - texture(shadowMapFar, vec3(shadowCoordsFar.xy, shadowCoordsFar.z - .0009))) * shadowCoordsFar.w;
 #endif
@@ -23,15 +27,22 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
 {
     mat3 toWorld = transpose(mat3(modelViewMatrix));
     vec3 V = normalize(toWorld * -vge_viewPosition);
-    vec3 geometric = cross(dFdx(fWorldPos), dFdy(fWorldPos));
-    float normSquared = dot(geometric, geometric);
-    vec3 N = normSquared > 1e-16 ? geometric * inversesqrt(normSquared) : normalize(fragNormal);
-    if (dot(N, V) < 0.0) N = -N;
-    vec3 tint = clamp(VgeSrgbToLinear(textureColor.rgb), vec3(0), vec3(1));
-    float roughness = clamp(material.r, .04, 1.0);
     float emission = max(material.b, glowLevel);
     // Only explicitly transmitting, non-emissive liquid materials select water optics.
     bool water = material.a > 0.0 && !lava && !fullAlpha && emission <= 0.0;
+    vec3 geometric = cross(dFdx(fWorldPos), dFdy(fWorldPos));
+    float normSquared = dot(geometric, geometric);
+    vec3 N = normSquared > 1e-16 ? geometric * inversesqrt(normSquared) : normalize(fragNormal);
+    if (water && fragNormal.y > 0.7)
+    {
+        // Evaluate the continuous wave normal here; vertex interpolation exposes coarse mesh triangles in highlights.
+        vec3 unusedPosition;
+        VgeLiquidWaveSurface(vec3(vge_wavePosition.x, 0.0, vge_wavePosition.y),
+            vge_waveWeights, unusedPosition, N);
+    }
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 tint = clamp(VgeSrgbToLinear(textureColor.rgb), vec3(0), vec3(1));
+    float roughness = clamp(material.r, .04, 1.0);
     bool underwater = cameraUnderwater > .7;
     float cosine = clamp(dot(N, V), 0.0, 1.0);
     float fresnel = water ? VgeLiquidFresnel(cosine, underwater) : fresnelSchlick(cosine, vec3(.04)).r;
@@ -39,6 +50,10 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     vec3 L = normalize(vge_atmosphereSunDirection);
     vec3 solar = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility();
     vec3 reflected = cookTorranceBRDF(N, V, L, F0, roughness) * solar * max(dot(N,L), 0.0);
+#if VGE_LIQUID_CAPTURE_MODE == 1
+    // The GPU test captures this direct-sun term before medium and OIT composition.
+    return vec4(VgeDitherDisplay(VgeResolveDisplay(max(reflected, vec3(0))), gl_FragCoord.xy), 1.0);
+#endif
     vec3 bodyLight = vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility;
     vec3 diffuse = tint * solar * max(dot(N,L), 0.0) / 3.14159265359;
 #if DYNLIGHTS > 0

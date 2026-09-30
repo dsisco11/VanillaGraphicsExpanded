@@ -19,7 +19,7 @@ vec4 applyPsychedelicEffect(vec4 texColor, vec3 rustVec, int sub) {
 	
     vec3 uv0 = uv;
     vec3 fcol = vec3(-0.01, -0.01, -0.01);
-    float f = max(5, 15.0 * clamp((df + 0.2)/3.0, 0, 1));
+    float f = max(5.0, 15.0 * clamp((df + 0.2)/3.0, 0.0, 1.0));
     
 	float t = windWaveCounter / 15.5;
 	

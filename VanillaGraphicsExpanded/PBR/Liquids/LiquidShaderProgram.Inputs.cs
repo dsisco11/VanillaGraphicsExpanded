@@ -15,7 +15,15 @@ internal sealed partial class LiquidShaderProgram
     /// <summary>Sets ForcedTransparency and publishes an immutable draw snapshot on the active program.</summary>
     internal float ForcedTransparency { set { draw.SetTransparency(value); PublishDraw(); } }
     /// <summary>Publishes staged frame inputs and the current draw parameters on the active program.</summary>
-    internal void ApplyInputs() { PublishFrame(); PublishDraw(); }
+    internal void ApplyInputs()
+    {
+        PublishFrame();
+        if (!GpuUniformRingSystem.TryBind(this, LiquidWaveParamsUbo.BlockName, wave.Bytes, "VGE.Liquid.Waves", true))
+            throw new System.InvalidOperationException("Liquid waves require an active uniform ring and linked block.");
+        PublishDraw();
+    }
+    /// <summary>Stages the depth pass's coherent wave snapshot before publishing frame inputs.</summary>
+    internal LiquidWaveFrame WaveFrame { set { wave.Phases = value.Phases; wave.Wind = value.Wind; } }
     #endregion
 
     #region Texture inputs

@@ -51,7 +51,7 @@ The mod-system composition root only constructs, registers and disposes the owne
 - Reuse existing PBR, color, atmosphere and shadow helpers. Extend `includes/oit.glsl` for liquid alpha and glow output instead of keeping a second OIT implementation.
 - Do not retain copied legacy water-fog or wave/noise code solely to reproduce vanilla appearance. Select the replacement wave algorithm in the dedicated task; implement water absorption/in-scattering in the existing medium task. Fog spheres and perception effects are separate compatibility decisions, not reasons to retain legacy water fog.
 
-The modern wave task also replaces the rendering pass that uses `chunkliquiddepth.vsh` with a fully VGE-owned pass and SPIR-V program. Both color and depth programs consume one displacement implementation and a coherent parameter snapshot. Until that work lands, explicitly document any interim surface/depth behavior; do not assume independent models match. Engine consumers of the liquid-depth texture must retain a valid resource contract even though the rendering pass becomes VGE-owned.
+The liquid-depth handoff replaces the shader/draw block using `chunkliquiddepth.vsh` with a VGE-owned SPIR-V pass while retaining the engine framebuffer and surrounding method operations. Both color and depth programs consume one Gerstner displacement include and one coherent parameter snapshot. Engine consumers retain the liquid-depth texture contract.
 
 ## Reusing engine mesh submission
 

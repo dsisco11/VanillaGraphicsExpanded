@@ -8,13 +8,18 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.PBR.Liquids;
 
 /// <summary>Owns liquid SPIR-V and publishes mesh-pool parameters through the engine shader interface.</summary>
-[ShaderProgram("Contract", "pbr_liquid", 1)]
+[ShaderProgram("Contract", "pbr_liquid", 3)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_liquid.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_liquid.fsh")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(CaptureMode))]
 internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram
 {
+    /// <summary>Selects normal OIT output or a precompiled diagnostic output for GPU tests.</summary>
+    [ShaderOption("VGE_LIQUID_CAPTURE_MODE", 0, Domain = new object[] { 0, 1, 2 })]
+    internal partial int CaptureMode { get; set; }
     private readonly LiquidDrawParamsUbo draw = new();
     private readonly LiquidFrameParamsUbo frame = new();
+    private readonly LiquidWaveParamsUbo wave = new();
     /// <summary>Returns the generated offline contract.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
 

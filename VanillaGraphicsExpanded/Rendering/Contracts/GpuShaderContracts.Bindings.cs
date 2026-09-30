@@ -29,6 +29,7 @@ internal static partial class GpuShaderContracts
             case "pbr_composite": PbrComposite(contract); break;
             case "pbr_display_resolve": PbrDisplayResolve(contract); break;
             case "pbr_liquid": Liquid(contract); break;
+            case "pbr_liquid_depth": LiquidDepth(contract); break;
             case "pbr_direct_lighting": PbrDirectLighting(contract); break;
             case "pbr_heightbake": PbrHeightBake(contract); break;
             case "lumon_hzb_copy": LumOnHzbCopy(contract); break;

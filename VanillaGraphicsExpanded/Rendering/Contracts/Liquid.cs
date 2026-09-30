@@ -9,6 +9,7 @@ internal static partial class GpuShaderContracts
     {
         contract.RegisterUniformBlockBinding("VgeLiquidFrameParams", GpuBindingRegistry.Ubo.Frame);
         contract.RegisterUniformBlockBinding("VgeLiquidDrawParams", GpuBindingRegistry.Ubo.Object);
+        contract.RegisterUniformBlockBinding("VgeLiquidWaveParams", 15);
         contract.RegisterSamplerUnit("terrainTex", 0);
         contract.UniformLocations["terrainTex"] = 100;
         contract.RegisterSamplerUnit("depthTex", 1);
@@ -23,6 +24,14 @@ internal static partial class GpuShaderContracts
         contract.UniformLocations["vge_atmosphereAerialRadiance"] = 93;
         contract.RegisterSamplerUnit("vge_atmosphereAerialAttenuation", 6);
         contract.UniformLocations["vge_atmosphereAerialAttenuation"] = 94;
+    }
+
+    /// <summary>Declares the owned depth pass's projection, draw and shared wave blocks.</summary>
+    private static void LiquidDepth(GpuBindingContract contract)
+    {
+        contract.RegisterUniformBlockBinding("VgeLiquidDepthFrameParams", GpuBindingRegistry.Ubo.Frame);
+        contract.RegisterUniformBlockBinding("VgeLiquidDrawParams", GpuBindingRegistry.Ubo.Object);
+        contract.RegisterUniformBlockBinding("VgeLiquidWaveParams", 15);
     }
     #endregion
 }

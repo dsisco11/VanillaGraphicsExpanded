@@ -47,19 +47,31 @@ Water uses IOR 1.333, dielectric Fresnel including underwater total internal ref
 
 Transmission remains straight-through weighted OIT. There is no screen-space refraction or scene reflection. Scalar revealage and display-space engine composition remain approximations; their improvements have separate tasks.
 
-## Deliberate interim behavior
+## Wave displacement and liquid-depth ownership
 
-The owned color pass uses undisplaced liquid mesh geometry. It does not preserve vanilla wave displacement, murkiness discard or water fog, and it does not sample the engine liquid-depth texture. It still animates material textures and applies authored colormaps. Local fog spheres and perception tint are independent compatibility effects.
+Visible water and liquid depth now evaluate the same four-band Gerstner function from one frame snapshot. The wavelengths are 3, 5, 8 and 13 metres, with component amplitudes 0.012, 0.018, 0.024 and 0.016 metres. Each block is one cubic metre, so engine vertex coordinates are metres. Phase speeds use the gravity-wave dispersion relation with 9.80665 m/s² gravity and a fixed 3 m reference depth. CPU phase reduction in double precision keeps waves world-anchored as the camera moves. Wind intensity, the engine's weak-wave flag and its oceanity bits scale displacement; lava and non-upward faces remain undisplaced. Other non-lava liquids currently share this bounded wave response because the engine's packed liquid flags do not identify their material type. Lateral Gerstner motion fades near shore flags to reduce cracks. Wave heights and steepness are bounded; this is a GPU geometric wave model, not a fluid simulation.
+
+The shared wave evaluation also differentiates its parametric surface to produce a smooth upward normal. Water optics evaluate that normal per fragment from the original surface coordinates and interpolated wave weights, avoiding linear normal interpolation over the coarse mesh triangles. Side faces, lava and other opaque liquid responses retain their existing geometric-normal path. Flag or mesh discontinuities at shore boundaries may still require local handling after in-game inspection.
+
+Liquid shadow-cascade coordinates and nonlinear coverage are evaluated per fragment from the displaced surface position. Interpolating cascade coverage from mesh vertices can imprint triangle boundaries onto the sun reflection even when the water normal is continuous.
+
+The selected direct evaluation avoids an FFT texture/synchronization pass for every visible water body and does not require maintaining a shallow-water grid across chunk boundaries. FFT oceans or local interaction simulation may be added independently if their visual benefit and GPU cost justify them. The current engine mesh has approximately block-scale vertices, so wavelengths below two metres should be expressed through shading normals rather than geometric displacement. Shore attenuation uses packed oceanity as a proxy, not measured bathymetry. Wave-dependent roughness and visual calibration still require in-game evaluation.
+
+The selection follows the direct Gerstner evaluation and geometric-versus-normal separation described in [NVIDIA GPU Gems, chapter 1](https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models). [Tessendorf's spectral ocean notes](https://jtessen.people.clemson.edu/reports/papers_files/coursenotes2004.pdf) are the FFT alternative considered for large open water. The selected model has not yet been timed against that alternative in this engine.
+
+`SystemRenderTerrain` registers its `OnRenderBefore` callback at order 0.995 of the Before stage, after VGE's uniform-ring begin callback at -1000. `LiquidDepthRenderHook` replaces only the shader/draw block inside `ChunkRenderer.OnRenderBefore`; the engine retains its liquid-depth framebuffer, clear, matrix scope, profiler marker and following primary-framebuffer bind. `LiquidDepthRenderer` uses an owned SPIR-V program and UBOs with the engine-owned liquid pools. The color OIT pass draws only when the owned depth pass completed and consumes its exact `LiquidWaveFrame` snapshot. If depth preparation is unavailable, both paths leave their vanilla submissions enabled; a partial depth-pass failure avoids a duplicate depth draw. The two shaders import the same wave implementation, so their submitted water geometry uses identical displacement.
+
+The owned shaders do not preserve vanilla murkiness discard or water fog and do not sample the engine liquid-depth texture. Material textures and authored colormaps still animate; local fog spheres and perception tint remain independent compatibility effects.
 
 Above-water aerial perspective uses VGE atmosphere resources. This pass adds no camera-to-interface underwater fog while the water-volume task is pending. Other engine scene consumers still use their existing underwater behavior.
 
-The separate engine pass using `chunkliquiddepth.vsh` is still active and can disagree with the undisplaced visible surface. Replacing it with a VGE-owned pass and sharing a modern displacement model with color rendering is explicitly tracked in PBR.BaselineShading.todo; this work does not claim color/depth surface parity yet.
+The depth target remains an engine resource for existing consumers. Color has a small clip-space depth bias for shoreline layering, so exact rasterized depth values are intentionally not identical to the unbiased liquid-depth pass even when geometry matches.
 
 ## Failure and lifecycle
 
 Preparation and complete atlas/atmosphere availability are checked before taking liquid submission ownership. Unavailable inputs leave vanilla rendering enabled. A runtime exception logs its stack and disables the owned renderer for the world session. If some owned submission may already have occurred, vanilla is suppressed for that invocation only to avoid double accumulation; subsequent invocations use vanilla. Leaving the world resets the failure state. Arbitrary GL/context failures are not guaranteed recoverable.
 
-The renderer allocates no screen target and samples current primary/shadow framebuffer references each invocation, including after resize. Shader reload follows the existing program library. Engine liquid depth and OIT resources remain engine-owned.
+Neither renderer allocates a screen target. They sample current framebuffer references at their own render boundaries, including after resize. Shader reload follows the existing program library. Engine liquid depth and OIT resources remain engine-owned.
 
 ## Validation and acceptance
 
@@ -69,7 +81,7 @@ The earlier combined focused run passed 142/142 tests with no skips, including f
 
 The captured bucket-contract regression run passed 18/18 liquid tests after a fresh shader build. `LiquidTransparencyTests` renders the production program into six independent float targets with the captured blend factors. It checks opacity 0, 0.1, 0.5 and 1, actual transmitting-water optics, and differently tinted overlapping layers in both draw orders. It models the installed three-bucket compositor on the CPU for a known-background resolve; it does not execute the engine compositor or test texture-array attachment wiring. `LiquidSunHighlightTests` also allocates all six outputs while retaining its bucket-0 highlight readback. These checks validate shader outputs and blending, not live callback state or the original opacity symptom.
 
-User-run acceptance remains required for water/lava and other liquids, mini-dimensions, previews, reload/resize, world changes, day/night and both PBR modes. Inspect the documented interim surface/depth mismatch and missing replacement underwater medium explicitly. GPU timing has not been measured. The parent liquid task remains open.
+User-run acceptance remains required for water/lava and other liquids, mini-dimensions, previews, reload/resize, world changes, day/night and both PBR modes. Inspect color/depth shoreline alignment, wave motion and the missing replacement underwater medium explicitly. GPU timing has not been measured. The parent liquid task remains open.
 
 ## Sun highlight at the screen edge
 

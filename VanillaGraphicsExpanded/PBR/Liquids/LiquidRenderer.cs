@@ -14,9 +14,6 @@ internal sealed class LiquidRenderer : IRenderer
     private readonly ICoreClientAPI api;
     private static LiquidRenderer? active;
     private bool failed;
-    // The API exposes only a getter; resolve the installed engine field once, never per draw.
-    private static readonly HarmonyLib.AccessTools.FieldRef<Vintagestory.Client.RenderAPIBase, bool> UseSsbo =
-        HarmonyLib.AccessTools.FieldRefAccess<Vintagestory.Client.RenderAPIBase, bool>("useSSBOs");
     public double RenderOrder => .369;
     public int RenderRange => int.MaxValue;
 
@@ -52,12 +49,30 @@ internal sealed class LiquidRenderer : IRenderer
         return suppress;
     }
 
+    /// <summary>Checks that color rendering can take ownership before depth abandons its vanilla draw.</summary>
+    internal static bool CanTakeOwnership(ICoreClientAPI api, int[] atlases)
+    {
+        if (active is null || !ReferenceEquals(active.api, api) || active.failed
+            || !MaterialAtlasSystem.Instance.IsInitialized
+            || AtmosphereModSystem.Lighting is null
+            || AtmosphereModSystem.AerialRadianceTextureId == 0
+            || AtmosphereModSystem.AerialAttenuationTextureId == 0
+            || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
+        var program = GpuShaderPrograms.Get<LiquidShaderProgram>(api, "pbr_liquid");
+        if (program is null || !program.EnsureReady()) return false;
+        var store = MaterialAtlasSystem.Instance.TextureStore;
+        foreach (int atlas in atlases)
+            if (!store.TryGetMaterialParamsTextureId(atlas, out _)) return false;
+        return true;
+    }
+
     /// <summary>Prepares all resources before submitting, then restores engine state even on failure.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.OIT || !LiquidMeshSource.TryGet(api, out var source)) return;
         source.SuppressNextEngineDraw = false;
-        if (failed || api.Render.FrameWidth <= 0 || api.Render.FrameHeight <= 0) return;
+        if (failed || !LiquidDepthRenderer.TryGetCompletedWaveFrame(out var waves)
+            || api.Render.FrameWidth <= 0 || api.Render.FrameHeight <= 0) return;
         var render = api.Render;
         var buffers = render.FrameBuffers;
         if (buffers.Count <= (int)EnumFrameBuffer.Transparent
@@ -71,13 +86,10 @@ internal sealed class LiquidRenderer : IRenderer
             GlStateCache.Current.InvalidateAll();
             if (!program.EnsureReady()) return;
             // Missing atlas or atmosphere data retains vanilla ownership for the entire invocation.
-            if (!source.TryGetAtlasPools(out var atlases, out var pools) || !MaterialAtlasSystem.Instance.IsInitialized
-                || AtmosphereModSystem.Lighting is null || AtmosphereModSystem.AerialRadianceTextureId == 0
-                || AtmosphereModSystem.AerialAttenuationTextureId == 0) return;
+            if (!source.TryGetAtlasPools(out var atlases, out var pools) || !CanTakeOwnership(api, atlases)) return;
             var store = MaterialAtlasSystem.Instance.TextureStore;
-            foreach (int atlas in atlases) if (!store.TryGetMaterialParamsTextureId(atlas, out _)) return;
-            if (!GpuUniformRingSystem.TryGetCurrent(out _)) return;
             program.CaptureFrameInputs(api, source.TileSize);
+            program.WaveFrame = waves;
             using var scope = program.UseScope();
             if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return;
             program.ModelViewMatrix = render.CameraMatrixOriginf;
@@ -89,10 +101,10 @@ internal sealed class LiquidRenderer : IRenderer
             program.AerialRadianceTexture = AtmosphereModSystem.AerialRadianceTextureId;
             program.AerialAttenuationTexture = AtmosphereModSystem.AerialAttenuationTextureId;
             var engineRender = (Vintagestory.Client.RenderAPIBase)render;
-            bool previousSsbo = UseSsbo(engineRender);
+            bool previousSsbo = LiquidMeshSource.UseSsbo(engineRender);
             try
             {
-                UseSsbo(engineRender) = false;
+                LiquidMeshSource.UseSsbo(engineRender) = false;
                 // Once submission begins, a partial failure must not draw the same water twice.
                 source.SuppressNextEngineDraw = true;
                 for (int i = 0; i < atlases.Length; i++)
@@ -103,7 +115,7 @@ internal sealed class LiquidRenderer : IRenderer
                     pools[i].Render(api.World.Player.Entity.CameraPos, "origin", EnumFrustumCullMode.CullNormal);
                 }
             }
-            finally { UseSsbo(engineRender) = previousSsbo; }
+            finally { LiquidMeshSource.UseSsbo(engineRender) = previousSsbo; }
         }
         catch (Exception error)
         {
