@@ -75,15 +75,14 @@ public sealed class EngineRenderScopeTests
         Assert.Equal(11, PatchProcessor.GetOriginalInstructions(method).Count(instruction => instruction.Calls(fullscreen)));
     }
 
-    /// <summary>Concrete menu and world screen overrides, including non-stage work, are covered.</summary>
+    /// <summary>Concrete screen overrides retain their scopes except the running game's primary pass.</summary>
     [Fact]
     public void InstalledScreensAreCovered()
     {
         using var dependencies = new EngineDependencyResolution();
         var methods = EngineScreenScopeHook.TargetMethods().ToArray();
-        Assert.Contains(methods, method => method.DeclaringType?.Name == "GuiScreenRunningGame" && method.Name == "RenderToPrimary");
-        var frame = Assert.Single(typeof(EngineFrameScopeHook).GetCustomAttributes(typeof(HarmonyPatch), false).Cast<HarmonyPatch>()).info;
-        Assert.NotNull(AccessTools.Method(frame.declaringType, frame.methodName, frame.argumentTypes));
+        Assert.DoesNotContain(methods, method => method.DeclaringType?.Name == "GuiScreenRunningGame" && method.Name == "RenderToPrimary");
+        Assert.Contains(methods, method => method.DeclaringType?.Name == "GuiScreenRunningGame" && method.Name == "RenderAfterPostProcessing");
         var menu = Assert.Single(typeof(EngineMenuBackgroundScopeHook).GetCustomAttributes(typeof(HarmonyPatch), false).Cast<HarmonyPatch>()).info;
         Assert.NotNull(AccessTools.Method(menu.declaringType, menu.methodName, menu.argumentTypes));
         Assert.Equal(methods.Length, methods.Distinct().Count());

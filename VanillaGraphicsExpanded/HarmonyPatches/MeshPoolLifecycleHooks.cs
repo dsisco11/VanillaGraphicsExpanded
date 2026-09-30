@@ -22,6 +22,9 @@ internal static class MeshPoolLifecycleHooks
     /// <summary>Publishes completed manager membership, including changes made within the same outer array.</summary>
     [HarmonyPostfix]
     internal static void Postfix(MeshDataPoolManager[][] ___poolsByRenderPass)
-        => MeshPoolClassifier.Rebuild(___poolsByRenderPass);
+    {
+        MeshPoolClassifier.Rebuild(___poolsByRenderPass);
+        VanillaGraphicsExpanded.Rendering.Diagnostics.EngineMeshPoolDebugLabels.Register(___poolsByRenderPass);
+    }
     #endregion
 }

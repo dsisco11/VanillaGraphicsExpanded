@@ -25,7 +25,7 @@ internal static class EngineScreenScopeHook
 #endif
     }
 
-    /// <summary>Discovers concrete engine screen implementations of the five screen render boundaries.</summary>
+    /// <summary>Discovers concrete screen boundaries, excluding the running game's primary pass.</summary>
     internal static IEnumerable<MethodBase> TargetMethods()
     {
         var assembly = typeof(ClientMain).Assembly;
@@ -42,6 +42,7 @@ internal static class EngineScreenScopeHook
             foreach (var method in type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
             {
                 if (method.IsAbstract || !boundaries.Contains(method.Name) || method.GetParameters() is not [{ ParameterType: var parameter }] || parameter != typeof(float)) continue;
+                if (type.Name == "GuiScreenRunningGame" && method.Name == nameof(GuiScreen.RenderToPrimary)) continue;
                 // Keep the screen identity and boundary, without redundant engine/category prefixes.
                 string screenName = type.Name.StartsWith(nameof(GuiScreen), StringComparison.Ordinal)
                     ? type.Name[nameof(GuiScreen).Length..] : type.Name;

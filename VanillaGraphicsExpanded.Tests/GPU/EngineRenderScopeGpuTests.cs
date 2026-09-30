@@ -26,7 +26,7 @@ public sealed class EngineRenderScopeGpuTests(HeadlessGLFixture fixture) : Rende
             harmony.CreateClassProcessor(typeof(EngineRenderStageScopeHook)).Patch();
             Type[] compositionHooks = [typeof(EngineFullscreenScopeHook), typeof(EngineTransparentCompositionScopeHook),
                 typeof(EnginePostprocessingScopeHook), typeof(EngineFinalCompositionScopeHook), typeof(EnginePrimaryBlitScopeHook),
-                typeof(EngineFrameScopeHook), typeof(EngineMenuBackgroundScopeHook)];
+                typeof(EngineMenuBackgroundScopeHook)];
             foreach (var hook in compositionHooks) harmony.CreateClassProcessor(hook).Patch();
             harmony.CreateClassProcessor(typeof(EngineScreenScopeHook)).Patch();
 #if DEBUG

@@ -144,7 +144,7 @@ public sealed partial class GBufferManager : IDisposable
         }
 
         // Label VS framebuffer and textures for debugging
-        LabelVintageStoryFramebuffer(primaryFb);
+        Rendering.Diagnostics.EngineFramebufferDebugLabels.Apply(primaryFb, "VS.Primary");
 
         // Keep VGE-owned textures out of the engine deletion array. They are attached directly
         // below and remain exclusively owned by this manager across framebuffer rebuilds.
@@ -411,40 +411,6 @@ public sealed partial class GBufferManager : IDisposable
     #endregion
 
     #region Private Methods
-
-    /// <summary>
-    /// Labels the VS primary framebuffer and its textures for easier debugging.
-    /// </summary>
-    private void LabelVintageStoryFramebuffer(FrameBufferRef fb)
-    {
-#if DEBUG
-        // Label the framebuffer itself
-        GlDebug.TryLabelFramebuffer(fb.FboId, "VS_Primary");
-
-        // Label color attachments
-        if (fb.ColorTextureIds != null)
-        {
-            for (int i = 0; i < fb.ColorTextureIds.Length && i < 4; i++)
-            {
-                string texName = i switch
-                {
-                    0 => "VS_outColor",
-                    1 => "VS_outGlow",
-                    2 => "VS_outGNormal",
-                    3 => "VS_outGPosition",
-                    _ => $"VS_Color{i}"
-                };
-                GlDebug.TryLabel(ObjectLabelIdentifier.Texture, fb.ColorTextureIds[i], texName);
-            }
-        }
-
-        // Label depth attachment
-        if (fb.DepthTextureId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.Texture, fb.DepthTextureId, "VS_Depth");
-        }
-#endif
-    }
 
     private void CreateGBufferTextures(int width, int height)
     {
