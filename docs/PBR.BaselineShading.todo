@@ -364,7 +364,7 @@ Tasks
       Focused checks passed; additional tessellation capability-gate failures are recorded in that document.
       Keep open pending user-run visual acceptance.
 
-  ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
+  ✔ Replace base-game liquid shading with integrated PBR liquid rendering. @done(26-09-30 04:05)
     - VGE-owned color submission is implemented; see PBR.Liquids.md for validation and interim
       undisplaced geometry, retained engine liquid depth and pending underwater-medium behavior.
     - Follow PBR.LiquidRenderer.Proposal.md for VGE-owned SPIR-V, UBOs and submission. Legacy water-fog
@@ -413,6 +413,10 @@ Tasks
     - Legacy water displacement parity is not a requirement. Share one displacement implementation,
       time/origin convention and parameter snapshot between visible liquid geometry and liquid depth;
       derive shading normals consistently and define behavior for lava and other non-water liquids.
+    - Calibrate surface roughness against the chosen wave geometry and shading-normal model; document
+      the reference appearance or measurements and avoid using roughness to compensate for missing waves.
+      Express dimensional wave parameters in SI units (for example, metres, metres per second and
+      seconds), using the one-metre-per-block scale shared with the water-medium model.
     - Trace the pass using chunkliquiddepth.vsh, then replace that rendering pass with a fully VGE-owned
       renderer, precompiled SPIR-V program and UBO/resource bindings. Suppress only the replaced engine
       submission; retain engine mesh ownership and preserve the depth texture contract for consumers.
@@ -427,8 +431,15 @@ Tasks
   ☐ Implement water volume absorption and in-scattering (depth fog).
     - Extend the initial liquid path documented in PBR.Liquids.md; replace its albedo-derived
       extinction and local-light scattering approximation with explicit medium parameters.
-      Define RGB absorption/scattering coefficients in inverse blocks and a bounded directional
+      Define RGB absorption/scattering coefficients in inverse metres and a bounded directional
       scattering model through the existing material-definition ownership; keep other liquids distinct.
+      Treat each game block as one cubic metre (one metre along each axis), so a path length in blocks
+      is numerically a path length in metres. State SI units for all dimensional water parameters;
+      identify dimensionless quantities such as IOR, Fresnel reflectance and roughness explicitly.
+    - Establish and cite a measured clear-water absorption baseline at specified visible wavelengths;
+      define separate, documented turbidity or water-type parameters for additional absorption and
+      scattering instead of deriving them from the water texture tint. Record the RGB spectral fit and
+      reference conditions so material values can be evaluated against real-world measurements.
     - Determine the actual submerged segment of the camera ray for above-water and underwater views.
       Handle shallow/deep water, sloped interfaces, shorelines, foreground intersections, multiple
       interfaces and missing depth explicitly; a screen-depth difference is not universally water depth.
@@ -436,11 +447,15 @@ Tasks
       sun/shadow visibility and bounded local/environment lighting in both PBR modes. Avoid light
       leaking through terrain and double application of vanilla underwater fog or atmospheric haze.
     - Share medium evaluation with the refraction task below so attenuation follows the selected
-      transmitted path. Specify OIT/color-space limitations and coordinate any required linear-color
-      intermediates with the scene-linear HDR task without introducing a second exposure resolve.
+      transmitted path. Preserve wavelength-dependent RGB transmission through composition rather
+      than reducing it to a luminance-weighted scalar opacity; adapt or supplement OIT where its
+      revealage contract cannot represent colored transmission. Specify OIT/color-space limitations
+      and coordinate any required linear-color intermediates with the scene-linear HDR task without
+      introducing a second exposure resolve.
     - Validate analytic homogeneous-medium cases, zero density, increasing path length, occluded sun,
-      underwater transitions and unavailable geometry through focused subagent tests. Obtain user-run
-      visual acceptance and measure GPU time, sampling and bandwidth; keep caustics separate.
+      underwater transitions, measured-reference transmittance and colored background transmission
+      through focused subagent tests. Obtain user-run visual acceptance and measure GPU time, sampling
+      and bandwidth; keep caustics separate.
 
   ☐ Implement water refraction integrated with PBR liquids and OIT.
     - Gate refraction behind a user-facing Water Refraction option in VGE graphics settings, persisted
