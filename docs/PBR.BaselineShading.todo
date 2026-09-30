@@ -385,26 +385,6 @@ Tasks
     - Validate shallow/deep water, flowing liquids, submerged views, intersections, day/night and
       LumOn switching; measure pass and bandwidth costs separately from optional caustics.
 
-  ☐ Add a camera-contact waterline/meniscus screen effect at the liquid transition boundary.
-    - Follow the active liquid-rendering task immediately. Simulate liquid contacting the camera
-      lens when the view straddles the surface: a narrow curved/distorted waterline with restrained
-      optical highlights and tint, rather than an abrupt above-water/underwater seam.
-    - Derive the screen-space boundary from camera/liquid intersection and the animated local
-      surface, not a fixed horizontal screen band or only the camera-underwater boolean. Handle
-      partial submersion, camera pitch/roll, waves, flowing surfaces and entering/exiting liquid.
-    - Integrate with existing liquid depth, fog and OIT ownership. Keep distortion bounded, avoid
-      active-framebuffer feedback and prevent leakage onto unrelated foreground geometry or UI.
-      Reuse refraction sampling/resources when available, with a defined fallback when disabled.
-    - Keep this localized contact effect distinct from bulk underwater absorption/scattering and
-      optional persistent lens droplets. Define suitable behavior for non-water liquids, including
-      emissive liquids, instead of applying water highlights indiscriminately.
-    - Expose a persisted graphics setting; disabling it must skip effect-specific rendering and
-      resources. Support both PBR modes, runtime toggling, resize/reload and stable transitions
-      without flicker when the camera or waves repeatedly cross the surface.
-    - Validate boundary placement and depth rejection with focused subagent tests, then obtain
-      user-run acceptance for slow/fast entry and exit, bobbing, tilted views, shorelines and waves.
-      Measure GPU time and any scene-copy bandwidth; document the lens-contact approximation.
-
   ☐ Select and implement a modern liquid wave displacement model with a VGE-owned liquid-depth pass.
     - Compare suitable modern algorithms (including Gerstner waves and spectral/FFT approaches)
       against the game's block-scale aesthetic, bounded inland/flowing surfaces, ocean scale,
@@ -505,6 +485,26 @@ Tasks
       geometry, shorelines, submerged views and settings/lifecycle changes with focused subagent
       tests. Obtain user-run visual acceptance and measure GPU tracing, filtering, snapshot bandwidth
       and memory costs separately and with refraction enabled.
+
+  ☐ Add a camera-contact waterline/meniscus screen effect at the liquid transition boundary.
+    - Follow the active liquid-rendering task immediately. Simulate liquid contacting the camera
+      lens when the view straddles the surface: a narrow curved/distorted waterline with restrained
+      optical highlights and tint, rather than an abrupt above-water/underwater seam.
+    - Derive the screen-space boundary from camera/liquid intersection and the animated local
+      surface, not a fixed horizontal screen band or only the camera-underwater boolean. Handle
+      partial submersion, camera pitch/roll, waves, flowing surfaces and entering/exiting liquid.
+    - Integrate with existing liquid depth, fog and OIT ownership. Keep distortion bounded, avoid
+      active-framebuffer feedback and prevent leakage onto unrelated foreground geometry or UI.
+      Reuse refraction sampling/resources when available, with a defined fallback when disabled.
+    - Keep this localized contact effect distinct from bulk underwater absorption/scattering and
+      optional persistent lens droplets. Define suitable behavior for non-water liquids, including
+      emissive liquids, instead of applying water highlights indiscriminately.
+    - Expose a persisted graphics setting; disabling it must skip effect-specific rendering and
+      resources. Support both PBR modes, runtime toggling, resize/reload and stable transitions
+      without flicker when the camera or waves repeatedly cross the surface.
+    - Validate boundary placement and depth rejection with focused subagent tests, then obtain
+      user-run acceptance for slow/fast entry and exit, bobbing, tilted views, shorelines and waves.
+      Measure GPU time and any scene-copy bandwidth; document the lens-contact approximation.
 
   ☐ Explore approximate underwater caustics and decide whether to adopt them.
     - Compare bounded procedural/projected approaches against desired appearance and GPU cost.
