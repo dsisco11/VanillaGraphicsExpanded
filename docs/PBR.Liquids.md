@@ -18,7 +18,26 @@ All precompiled stages pass through `ShaderSourceLayout`, which emits explicit l
 
 The installed engine exposes only a getter for its SSBO mode. One cached typed field accessor temporarily selects the existing non-SSBO liquid mesh layout and restores the previous mode in a finally block. No per-frame reflection lookup is performed. Program ownership uses `UseScope`; the existing program-stop hook releases contract samplers before engine rendering resumes. The GL cache is invalidated at entry because preceding engine callbacks bind resources directly.
 
-Shared includes own vertex flags and normal decoding, climate/season colormaps, atlas-local animation, perception tint and local fog spheres. Liquid-specific flow rates and still-texture blending remain in the liquid shader. `oit.glsl` supplies straight-alpha accumulation and glow output; `pbr_shadowcoords.glsl` shares cascade coordinates independently of fragment shadow filtering.
+Shared includes own vertex flags and normal decoding, climate/season colormaps, atlas-local animation, perception tint and local fog spheres. Liquid-specific flow rates and still-texture blending remain in the liquid shader. `oit.glsl` accepts straight-alpha color and writes premultiplied weighted color into three depth buckets, along with revealage and glow; `pbr_shadowcoords.glsl` shares cascade coordinates independently of fragment shadow filtering.
+
+### Captured OIT contract
+
+The user-supplied RenderDoc pipeline export `renderdoc-capture-9-30-2026.html`, capture `Vintagestory_2026.09.30_01.48_frame9439.rdc`, event 7331 (`game:chunkliquid`, a subdraw of the reported multidraw), confirms six enabled draw buffers with identity mappings:
+
+| Output | Contents | Source / destination blend factors |
+| --- | --- | --- |
+| 0 | Three bucket transmission values | `DST_COLOR` / `ZERO` |
+| 1 | Overall transmission (`1 - opacity`) | `DST_COLOR` / `ZERO` |
+| 2 | Glow | `SRC_ALPHA` / `ONE_MINUS_SRC_ALPHA` |
+| 3-5 | Weighted premultiplied color and alpha per bucket | `ONE` / `ONE` |
+
+All blend equations are additive, with the same factors for RGB and alpha. Depth testing is enabled with `LESS`, and depth writes are disabled. The framebuffer history supplied alongside the export shows attachment 0 replaced after initial creation and attachments 3-5 populated from layers 0-2 of one texture array. Reading only the original three-attachment engine setup misses these later changes.
+
+The previous diagnosis of an installation asset/binary mismatch was incorrect. The captured runtime uses bucket OIT, matching the installed GLSL. In particular, writing opacity to attachment 1 would invert transmission under its multiplicative blend; the shader must write `1 - opacity`. The reverted three-target change and its test assumptions are not the supported contract.
+
+Inspection of the installed engine's nested types identifies the missing setup in `SystemRenderOITLayers.BeforeOIT`. At OIT order 0, `OnRenderFrame` rebuilds bucket resources if needed, enables six draw buffers, sets the multiplicative/additive blend factors and clears revealage to one and accumulation to zero. Its `rebuild` method replaces attachment 0 and attaches the array layers at 3-5. `BeforeOIT` also assigns the compositor's bucket sampler units 6 and 7; `SystemRenderOITLayers.AfterOIT` binds their textures at OIT order 1. The ordinary platform framebuffer and merge methods therefore describe only part of the contract.
+
+Bucket setup precedes VGE's order 0.369 callback and the engine terrain callback at 0.37. This capture establishes the vanilla liquid draw state, not the state at the actual VGE draw. The original opaque-water symptom remains unresolved until the framebuffer, draw-buffer mappings and blend state at `pbr_liquid` are checked for intervening changes against this contract.
 
 ## Material and optics
 
@@ -46,7 +65,9 @@ The renderer allocates no screen target and samples current primary/shadow frame
 
 Focused tests cover production SPIR-V linking, GPU readback of consecutive pool-origin UBO ranges, retained previous allocations, transform/transparency restoration, installed engine bypass boundaries in either atlas-patch order, and real Harmony hook installation. Existing material/surface, atmosphere and uniform-ring suites remain part of validation.
 
-The combined focused run passed 142/142 tests with no skips, including fresh SPIR-V compilation. This is headless validation, not live-game visual acceptance.
+The earlier combined focused run passed 142/142 tests with no skips, including fresh SPIR-V compilation. This is headless validation, not live-game visual acceptance.
+
+The captured bucket-contract regression run passed 18/18 liquid tests after a fresh shader build. `LiquidTransparencyTests` renders the production program into six independent float targets with the captured blend factors. It checks opacity 0, 0.1, 0.5 and 1, actual transmitting-water optics, and differently tinted overlapping layers in both draw orders. It models the installed three-bucket compositor on the CPU for a known-background resolve; it does not execute the engine compositor or test texture-array attachment wiring. `LiquidSunHighlightTests` also allocates all six outputs while retaining its bucket-0 highlight readback. These checks validate shader outputs and blending, not live callback state or the original opacity symptom.
 
 User-run acceptance remains required for water/lava and other liquids, mini-dimensions, previews, reload/resize, world changes, day/night and both PBR modes. Inspect the documented interim surface/depth mismatch and missing replacement underwater medium explicitly. GPU timing has not been measured. The parent liquid task remains open.
 

@@ -1,5 +1,7 @@
 #ifndef VGE_OIT_GLSL
 #define VGE_OIT_GLSL
+// Bucket OIT uses six draw buffers: multiplicative revealage at 0-1,
+// alpha-blended glow at 2, and additive premultiplied accumulation at 3-5.
 layout(location = 2) out vec4 outOitGlow;
 layout(location = 0) out vec4 outOitRevealBins;
 layout(location = 1) out vec4 outRevealage;
@@ -16,7 +18,7 @@ float vgeOitBellCurve(float t)
     return exp(-n * n);
 }
 
-/** Accumulates straight-alpha radiance into the engine transparency targets. */
+/** Converts straight-alpha radiance into the engine's bucket accumulation and revealage outputs. */
 void writeOit(vec4 color, float glow)
 {
     float depth = ((gl_FragCoord.z * 2.0) - 1.0) / gl_FragCoord.w;
@@ -35,6 +37,8 @@ void writeOit(vec4 color, float glow)
     outOitAccumulation0 = weightedColor * bin0;
     outOitAccumulation1 = weightedColor * bin1;
     outOitAccumulation2 = weightedColor * bin2;
+    // Revealage blending is DST_COLOR, ZERO: emit remaining transmission,
+    // not opacity. Each fragment multiplies the destination by this value.
     outOitRevealBins = vec4(
         1.0 - color.a * bin0,
         1.0 - color.a * bin1,

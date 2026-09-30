@@ -28,6 +28,7 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         const int size = 512;
         using var target = CreateMRTRenderTarget(size, size,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var material = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
