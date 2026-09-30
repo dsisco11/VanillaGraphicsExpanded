@@ -21,12 +21,12 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     {
         foreach (bool lumon in new[] { false, true })
         {
-            foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
+            foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent", "chunkliquid" })
                 foreach (int shadow in new[] { 0, 1, 2 })
-                    foreach (int oit in family == "chunktransparent" ? new[] { 1 } : new[] { 0, 1 })
+                    foreach (int oit in family is "chunktransparent" or "chunkliquid" ? new[] { 1 } : new[] { 0, 1 })
                         yield return [family, shadow, oit, 0, 0, 1, lumon];
-            foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent" })
-                yield return [family, 2, family == "chunktransparent" ? 1 : 0, 1, family == "chunktransparent" ? 1 : 0, 0, lumon];
+            foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent", "chunkliquid" })
+                yield return [family, 2, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 1, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 0, lumon];
             yield return ["standard", 4, 1, 2, 0, 1, lumon];
         }
     }
@@ -52,7 +52,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            bool oitOutput = family == "chunktransparent" || (family == "entityanimated" && oit > 0);
+            bool oitOutput = family is "chunktransparent" or "chunkliquid" || (family == "entityanimated" && oit > 0);
             Assert.Equal(oitOutput ? -1 : 4, GL.GetFragDataLocation(program, "vge_outNormal"));
             Assert.Equal(oitOutput ? -1 : 5, GL.GetFragDataLocation(program, "vge_outMaterial"));
             Assert.Equal(oitOutput ? -1 : 6, GL.GetFragDataLocation(program, "vge_outPatchId"));
@@ -165,6 +165,8 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         string defines = $"\n#define SHADOWQUALITY {shadow}\n#define USEOIT {oit}\n#define ALLOWDEPTHOFFSET {depth}\n#define SSAOLEVEL {ssao}\n#define NORMALVIEW 0\n#define DYNLIGHTS 4\n#define MINBRIGHT 0\n#define SHINYEFFECT 1\n#define FOAMEFFECT 0\n#define USESSBO {ssbo}\n#define MAXANIMATEDELEMENTS 46\n";
         if (name.StartsWith("standard", StringComparison.Ordinal) && ssao > 0) defines += "#define GLOWSUB 1\n";
         string result = Regex.Replace(tree.ToText(), "(?m)^(#version[^\\r\\n]*)", "$1" + defines);
+        if (name.StartsWith("chunkliquid", StringComparison.Ordinal) && ssao > 0)
+            result = result.Replace("#define FOAMEFFECT 0", "#define FOAMEFFECT 1\n#define WAVINGSTUFF 1");
         // The engine upgrades SSBO variants before driver compilation, as documented in chunktransparent.vsh.
         return ssbo > 0 && name.EndsWith(".vsh", StringComparison.Ordinal) ? result.Replace("#version 330 core", "#version 430 core") : result;
     }

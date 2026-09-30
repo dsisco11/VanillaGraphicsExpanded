@@ -365,6 +365,9 @@ Tasks
       Keep open pending user-run visual acceptance.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
+    - Initial OIT-integrated implementation: see PBR.Liquids.md for engine evidence, material policy,
+      optical approximations and pending visual/performance acceptance. The water-medium and
+      refraction follow-ups below own those remaining optical extensions. Keep this task open.
     - Trace vanilla liquid entrypoints and transparency/OIT contracts before replacing their shading;
       preserve engine flow, animation, texture selection, face visibility and rendering order.
     - Define water's Fresnel reflection/transmission, roughness, normals, depth-dependent absorption
@@ -375,6 +378,93 @@ Tasks
       depth/normal outputs and avoid screen-buffer feedback, transparency sorting and shoreline artifacts.
     - Validate shallow/deep water, flowing liquids, submerged views, intersections, day/night and
       LumOn switching; measure pass and bandwidth costs separately from optional caustics.
+
+  ☐ Add a camera-contact waterline/meniscus screen effect at the liquid transition boundary.
+    - Follow the active liquid-rendering task immediately. Simulate liquid contacting the camera
+      lens when the view straddles the surface: a narrow curved/distorted waterline with restrained
+      optical highlights and tint, rather than an abrupt above-water/underwater seam.
+    - Derive the screen-space boundary from camera/liquid intersection and the animated local
+      surface, not a fixed horizontal screen band or only the camera-underwater boolean. Handle
+      partial submersion, camera pitch/roll, waves, flowing surfaces and entering/exiting liquid.
+    - Integrate with existing liquid depth, fog and OIT ownership. Keep distortion bounded, avoid
+      active-framebuffer feedback and prevent leakage onto unrelated foreground geometry or UI.
+      Reuse refraction sampling/resources when available, with a defined fallback when disabled.
+    - Keep this localized contact effect distinct from bulk underwater absorption/scattering and
+      optional persistent lens droplets. Define suitable behavior for non-water liquids, including
+      emissive liquids, instead of applying water highlights indiscriminately.
+    - Expose a persisted graphics setting; disabling it must skip effect-specific rendering and
+      resources. Support both PBR modes, runtime toggling, resize/reload and stable transitions
+      without flicker when the camera or waves repeatedly cross the surface.
+    - Validate boundary placement and depth rejection with focused subagent tests, then obtain
+      user-run acceptance for slow/fast entry and exit, bobbing, tilted views, shorelines and waves.
+      Measure GPU time and any scene-copy bandwidth; document the lens-contact approximation.
+
+  ☐ Implement water volume absorption and in-scattering (depth fog).
+    - Extend the initial liquid path documented in PBR.Liquids.md; replace its albedo-derived
+      extinction and local-light scattering approximation with explicit medium parameters.
+      Define RGB absorption/scattering coefficients in inverse blocks and a bounded directional
+      scattering model through the existing material-definition ownership; keep other liquids distinct.
+    - Determine the actual submerged segment of the camera ray for above-water and underwater views.
+      Handle shallow/deep water, sloped interfaces, shorelines, foreground intersections, multiple
+      interfaces and missing depth explicitly; a screen-depth difference is not universally water depth.
+    - Integrate Beer-Lambert transmittance and light scattered toward the camera, accounting for
+      sun/shadow visibility and bounded local/environment lighting in both PBR modes. Avoid light
+      leaking through terrain and double application of vanilla underwater fog or atmospheric haze.
+    - Share medium evaluation with the refraction task below so attenuation follows the selected
+      transmitted path. Specify OIT/color-space limitations and coordinate any required linear-color
+      intermediates with the scene-linear HDR task without introducing a second exposure resolve.
+    - Validate analytic homogeneous-medium cases, zero density, increasing path length, occluded sun,
+      underwater transitions and unavailable geometry through focused subagent tests. Obtain user-run
+      visual acceptance and measure GPU time, sampling and bandwidth; keep caustics separate.
+
+  ☐ Implement water refraction integrated with PBR liquids and OIT.
+    - Gate refraction behind a user-facing Water Refraction option in VGE graphics settings, persisted
+      through the existing configuration system. When disabled, retain straight-through liquid
+      transmission and skip refraction-only snapshots, ray traversal and resource allocation.
+      Support runtime toggling through existing resource ownership, and test saved-setting restoration
+      plus repeated enable/disable transitions with LumOn both on and off.
+    - Extend PBR.Liquids.md's current straight-through transmission into visible background distortion.
+      Trace the final opaque scene-color/depth publication boundary and capture a coherent, immutable
+      source before liquid rendering; never sample the active color attachment. Own snapshot resize,
+      reload, teardown and LumOn-switching through the existing screen-resource lifecycle.
+    - Refract the view ray using the water surface normal and material IOR, with correct air/water
+      entry and exit behavior, Fresnel reflection/transmission weighting and total internal reflection.
+      Use bounded depth-aware screen-space sampling or ray traversal with explicit quality limits.
+    - Reject foreground hits, invalid depths and offscreen samples. Define a stable fallback for sky,
+      unavailable scene data and geometry hidden behind the opaque depth layer; suppress shoreline
+      halos and disocclusion artifacts without treating missing geometry as a confirmed ray hit.
+    - Apply the water-medium task's absorption and in-scattering along the refracted submerged path.
+      Establish composition ownership so OIT does not blend the original background a second time
+      after the refracted background has already been included. Document handling of overlapping
+      liquids and other transparent surfaces that are absent from the opaque snapshot.
+    - Preserve flow/wave animation, shadows, fog, emissive-liquid behavior and both PBR modes.
+      Validate flat/tilted interfaces, grazing angles, underwater exit, foreground intersections,
+      screen edges, resize/reload and mode switching with focused subagent tests. Obtain user-run
+      visual acceptance and measure snapshot bandwidth, traversal cost and total GPU pass time.
+
+  ☐ Implement scene reflections for PBR liquids.
+    - Extend PBR.Liquids.md's current environment approximation with reflected scene radiance.
+      Evaluate bounded screen-space reflection tracing against the available scene depth/color;
+      specify which geometry is represented and provide an atmosphere/environment fallback for
+      offscreen rays, disocclusions, missing depth and unsupported transparent receivers.
+    - Use the animated liquid normal, view direction, material roughness and Fresnel response.
+      Coordinate with refraction and total internal reflection so reflected/transmitted energy is
+      combined once; replace the existing reflection approximation rather than adding it twice.
+      Retain distinct material and emission behavior for water, lava and other liquids.
+    - Share coherent scene snapshots with refraction where their publication boundaries permit it.
+      Avoid active-framebuffer feedback, self-intersections and foreground leakage. Define handling
+      of rough reflections, screen edges, underwater views and overlapping transparent surfaces.
+    - Provide a persisted Liquid Reflections graphics option and bounded quality settings. When
+      disabled, retain the inexpensive environment fallback and skip reflection-only work/resources;
+      shared snapshots remain alive only while another enabled consumer needs them.
+    - Reuse screen-resource lifecycle and shader ownership for resize, reload and runtime toggling.
+      If temporal reconstruction is adopted, reject invalid history on camera/world changes and
+      disocclusion. Support both PBR modes without requiring LumOn and coordinate color/exposure
+      with the scene-linear HDR task.
+    - Validate reflection direction, Fresnel weighting, roughness, fallback transitions, moving
+      geometry, shorelines, submerged views and settings/lifecycle changes with focused subagent
+      tests. Obtain user-run visual acceptance and measure GPU tracing, filtering, snapshot bandwidth
+      and memory costs separately and with refraction enabled.
 
   ☐ Explore approximate underwater caustics and decide whether to adopt them.
     - Compare bounded procedural/projected approaches against desired appearance and GPU cost.

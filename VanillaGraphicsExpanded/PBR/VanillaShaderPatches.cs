@@ -36,7 +36,8 @@ internal static class VanillaShaderPatches
         "chunkshadowmap.vsh" or "final.fsh" or "sky.fsh"
         || PatchedChunkVertexShaders.Contains(sourceName)
         || PatchedChunkShaders.Contains(sourceName)
-        || PbrSurfaceShaderPatches.Supports(sourceName);
+        || PbrSurfaceShaderPatches.Supports(sourceName)
+        || Liquids.PbrLiquidShaderPatches.Supports(sourceName);
 
     #endregion
 
@@ -237,6 +238,11 @@ flat in uint vge_faceId;
                 Atmosphere.AtmosphereSkyPatches.Preprocess(tree);
                 return true;
             }
+            if (Liquids.PbrLiquidShaderPatches.Supports(sourceName))
+            {
+                Liquids.PbrLiquidShaderPatches.Preprocess(tree, sourceName);
+                return true;
+            }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
             {
                 var editor = tree.CreateEditor();
@@ -370,6 +376,11 @@ flat in uint vge_faceId;
             if (sourceName == "final.fsh")
             {
                 PbrFinalDisplayPatches.Apply(tree);
+                return true;
+            }
+            if (Liquids.PbrLiquidShaderPatches.Supports(sourceName))
+            {
+                Liquids.PbrLiquidShaderPatches.Apply(tree, sourceName);
                 return true;
             }
             if (PbrSurfaceShaderPatches.Supports(sourceName))

@@ -81,7 +81,8 @@
     "terracotta": { "roughness": 0.65, "metallic": 0.0 },
 
     "glass": { "roughness": 0.05, "metallic": 0.0 },
-    "water": { "roughness": 0.02, "metallic": 0.0 },
+    "liquid_opaque": { "roughness": 0.25, "metallic": 0.0, "transmission": 0.0, "scale": { "normal": 0.0, "depth": 0.0 }, "noise": { "roughness": 0, "metallic": 0, "normals": 0, "reflectivity": 0, "emissive": 0 } },
+    "water": { "transmission": 1.0, "roughness": 0.02, "metallic": 0.0, "scale": { "normal": 0.0, "depth": 0.0 }, "noise": { "roughness": 0, "metallic": 0, "normals": 0, "reflectivity": 0, "emissive": 0 } },
     "ice": { "transmission": 0.75, "roughness": 0.5, "metallic": 0.0 },
     "snow": { "transmission": 0.3, "roughness": 0.5, "metallic": 0.0 },
     "lava": { "roughness": 0.1, "metallic": 0.0, "emissive": 10.0 },
@@ -519,12 +520,12 @@
     },
     {
       "id": "other-liquid-blocks",
-      "description": "Other liquid textures (milk, beer, wine, dyes, etc.). Default to water-like surface smoothness.",
+      "description": "Other liquid textures (milk, beer, wine, dyes, etc.). Use a non-transmitting liquid body by default.",
       "match": {
         "glob": "assets/**/textures/block/liquid/**/*.png"
       },
       "values": {
-        "material": "water"
+        "material": "liquid_opaque"
       }
     },
     {

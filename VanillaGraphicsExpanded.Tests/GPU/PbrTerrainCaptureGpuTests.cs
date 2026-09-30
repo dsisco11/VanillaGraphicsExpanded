@@ -164,6 +164,54 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     }
     #endregion
 
+    #region Liquid interface optics
+    /// <summary>Checks water reflectance, underwater total internal reflection and bounded missing-depth fallback.</summary>
+    [Theory]
+    [InlineData(1f, false, .0203732f, 16f)]
+    [InlineData(1f, true, .0203732f, 0f)]
+    [InlineData(.5f, true, 1f, 0f)]
+    [InlineData(0f, false, 1f, 16f)]
+    public void LiquidOpticsRemainBounded(float cosine, bool underwater, float reflection, float missingThickness)
+    {
+        EnsureContextValid();
+        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_liquid_optics.glsl"));
+        int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\nconst float zNear=.1; const float zFar=100.0;\n" + helper + """
+            uniform float cosine;
+            uniform bool underwater;
+            layout(location=0) out vec4 result;
+            void main() { result = vec4(VgeLiquidFresnel(cosine, underwater),
+                VgeLiquidThickness(1.0,.5,vec3(0,0,-1),underwater),
+                VgeLiquidThickness(.4,.5,vec3(0,0,-1),underwater),
+                VgeLiquidThickness(.75,.5,vec3(0,0,-1),underwater)); }
+            """);
+        int vertex = Compile(ShaderType.VertexShader, """
+            #version 330 core
+            layout(location=0) in vec2 position;
+            void main() { gl_Position = vec4(position,0,1); }
+            """);
+        int program = GL.CreateProgram();
+        try
+        {
+            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            GL.UseProgram(program);
+            GL.Uniform1(GL.GetUniformLocation(program, "cosine"), cosine);
+            GL.Uniform1(GL.GetUniformLocation(program, "underwater"), underwater ? 1 : 0);
+            using var framework = new ShaderTestFramework();
+            using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            framework.RenderQuadTo(program, output);
+            float[] actual = output[0].ReadPixels();
+            Assert.InRange(actual[0], reflection - .00001f, reflection + .00001f);
+            Assert.Equal(missingThickness, actual[1]);
+            Assert.Equal(0f, actual[2]);
+            if (underwater) Assert.Equal(0f, actual[3]);
+            else Assert.InRange(actual[3], .19f, .21f);
+        }
+        finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
+    }
+    #endregion
+
     #region Runtime GLSL validation
     /// <summary>Compiles actual transformed text and reports driver diagnostics on lexical or interface errors.</summary>
     private static int Compile(ShaderType type, string source)
