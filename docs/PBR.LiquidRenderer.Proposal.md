@@ -4,7 +4,7 @@
 
 VGE owns liquid shader programs, precompiled SPIR-V, UBOs and resource bindings. The engine continues to own chunk meshes, mesh-pool lifecycle, visibility/culling and OIT targets/composition. Glass and other transparent terrain retain their existing renderer.
 
-The first replacement preserves the current PBR liquid appearance. Waterline effects, volume scattering, refraction and scene reflections remain separate follow-up tasks in PBR.BaselineShading.todo.
+The replacement retains the PBR material and lighting contract, but preserving legacy water fog or wave displacement is not a requirement. Do not port those implementations merely for visual parity. Waterline effects, volume scattering, modern wave displacement with a VGE-owned liquid-depth pass, refraction and scene reflections remain linked tasks in PBR.BaselineShading.todo.
 
 ## Rendering architecture
 
@@ -31,17 +31,27 @@ The VGE renderer must explicitly establish and restore its required state; it ca
 
 ## Proposed code layout
 
-| Owner | Responsibility |
-| --- | --- |
-| `PBR/Liquids/LiquidRenderer.cs` | Own the OIT callback; obtain current engine atlas/pool pairs; coordinate program activation, resource binding and liquid submission. |
-| `PBR/Liquids/LiquidShaderProgram.cs` | Own the SPIR-V program and generated shader binding contracts through the existing `GpuProgram` infrastructure. |
+| Owner                                                | Responsibility                                                                                                                                                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PBR/Liquids/LiquidRenderer.cs`                      | Own the OIT callback; obtain current engine atlas/pool pairs; coordinate program activation, resource binding and liquid submission.                                                                     |
+| `PBR/Liquids/LiquidShaderProgram.cs`                 | Own the SPIR-V program and generated shader binding contracts through the existing `GpuProgram` infrastructure.                                                                                          |
 | `PBR/Liquids/LiquidShaderProgram.EngineInterface.cs` | Explicitly implement the small `IShaderProgram` surface used by mesh pools, translating origin/transform writes into draw parameters. This is part of the program itself, not a separate shader wrapper. |
-| `PBR/Liquids/LiquidFrameParamsUbo.cs` | Own frame-stable camera, lighting, animation and optical inputs. Reuse established shared blocks where appropriate. |
-| `PBR/Liquids/LiquidDrawParamsUbo.cs` | Own pool origin and per-draw transforms, including mini-dimension overrides and restoration. |
-| `HarmonyPatches/LiquidRenderHooks.cs` | Suppress the validated engine liquid section only while VGE liquid rendering owns submission. |
-| Liquid shader assets/includes | Own vertex preparation, animated material sampling, optics and OIT output under the existing offline shader build system. |
+| `PBR/Liquids/LiquidFrameParamsUbo.cs`                | Own frame-stable camera, lighting, animation and optical inputs. Reuse established shared blocks where appropriate.                                                                                      |
+| `PBR/Liquids/LiquidDrawParamsUbo.cs`                 | Own pool origin and per-draw transforms, including mini-dimension overrides and restoration.                                                                                                             |
+| `HarmonyPatches/LiquidRenderHooks.cs`                | Suppress the validated engine liquid section only while VGE liquid rendering owns submission.                                                                                                            |
+| Liquid shader assets/includes                        | Own vertex preparation, animated material sampling, optics and OIT output under the existing offline shader build system.                                                                                |
 
 The mod-system composition root only constructs, registers and disposes the owner. It does not contain liquid rendering policy. Reuse existing material-atlas and atmosphere providers; do not duplicate their ownership inside the liquid renderer.
+
+## Shared shader responsibilities
+
+- Establish `includes/vertex_flags.glsl` as the shared definition and decoding utility for base-game vertex flags, including liquid flags. It must be usable by future terrain/entity shader replacements without liquid UBOs or varyings. Preserve distinct flag fields and their bit-layout contracts.
+- Place reusable atlas addressing and texture-animation operations in `includes/texture_animation.glsl`. Keep liquid-specific flow speed, lava behavior and still-water blending policy in the liquid material helper; do not generalize those policies into every material.
+- Place reusable climate/season colormap decoding and tint application in dedicated `includes/colormap_vertex.glsl` and `includes/colormap_fragment.glsl`. Supply their inputs through caller-owned bindings; do not couple them to liquid parameter names.
+- Reuse existing PBR, color, atmosphere and shadow helpers. Extend `includes/oit.glsl` for liquid alpha and glow output instead of keeping a second OIT implementation.
+- Do not retain copied legacy water-fog or wave/noise code solely to reproduce vanilla appearance. Select the replacement wave algorithm in the dedicated task; implement water absorption/in-scattering in the existing medium task. Fog spheres and perception effects are separate compatibility decisions, not reasons to retain legacy water fog.
+
+The modern wave task also replaces the rendering pass that uses `chunkliquiddepth.vsh` with a fully VGE-owned pass and SPIR-V program. Both color and depth programs consume one displacement implementation and a coherent parameter snapshot. Until that work lands, explicitly document any interim surface/depth behavior; do not assume independent models match. Engine consumers of the liquid-depth texture must retain a valid resource contract even though the rendering pass becomes VGE-owned.
 
 ## Reusing engine mesh submission
 
@@ -69,4 +79,4 @@ Remove `PbrLiquidShaderPatches` and liquid-specific engine shader injection once
 - Compile/link the owned SPIR-V variants and test OIT outputs, material/lighting bindings, reload, atlas changes and ownership recovery through subagent-run tests.
 - Obtain user-run visual acceptance for water/lava, moving liquid surfaces, mini-dimensions, underwater transitions and both PBR modes. Compare pass time and UBO/submission costs before claiming a performance improvement.
 
-This proposal removes dependencies on vanilla shader-body variable names. Engine mesh formats, pool interface calls and OIT behavior remain explicit compatibility boundaries. The interface-to-UBO dispatch and per-draw publication path are proposed, not yet implemented or validated.
+This proposal removes dependencies on vanilla shader-body variable names. Engine mesh formats, pool interface calls and OIT behavior remain explicit compatibility boundaries. The implementation and its validation status are tracked in [PBR.Liquids.md](PBR.Liquids.md).

@@ -1,11 +1,7 @@
 #ifndef VGE_PBR_LIQUID_GLSL
 #define VGE_PBR_LIQUID_GLSL
 
-#if DYNLIGHTS > 0
-uniform vec3 pointLights[DYNLIGHTS];
-uniform vec3 pointLightColors[DYNLIGHTS];
-uniform int pointLightQuantity;
-#endif
+
 
 @import "./pbr_liquid_optics.glsl"
 
@@ -78,9 +74,7 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
         // Milk/dyes/oil and emissive lava retain distinct opaque body response; no water absorption is inferred.
         radiance = reflected + diffuse + tint * bodyLight + tint * max(emission, 0.0);
     }
-    if (underwater)
-        radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fogAmount,0.0,1.0));
-    else
+    if (!underwater)
         radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility,
             vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
     return vec4(VgeDitherDisplay(VgeResolveDisplay(max(radiance,vec3(0))), gl_FragCoord.xy), alpha);

@@ -365,6 +365,12 @@ Tasks
       Keep open pending user-run visual acceptance.
 
   ☐ Replace base-game liquid shading with integrated PBR liquid rendering.
+    - VGE-owned color submission is implemented; see PBR.Liquids.md for validation and interim
+      undisplaced geometry, retained engine liquid depth and pending underwater-medium behavior.
+    - Follow PBR.LiquidRenderer.Proposal.md for VGE-owned SPIR-V, UBOs and submission. Legacy water-fog
+      and wave-displacement parity are not requirements; their replacements have dedicated tasks below.
+    - Establish shared base-game vertex flag definitions/decoders and reusable texture-animation and
+      colormap includes for future shader replacements; keep liquid-specific policy in liquid helpers.
     - Initial OIT-integrated implementation: see PBR.Liquids.md for engine evidence, material policy,
       optical approximations and pending visual/performance acceptance. The water-medium and
       refraction follow-ups below own those remaining optical extensions. Keep this task open.
@@ -398,6 +404,25 @@ Tasks
     - Validate boundary placement and depth rejection with focused subagent tests, then obtain
       user-run acceptance for slow/fast entry and exit, bobbing, tilted views, shorelines and waves.
       Measure GPU time and any scene-copy bandwidth; document the lens-contact approximation.
+
+  ☐ Select and implement a modern liquid wave displacement model with a VGE-owned liquid-depth pass.
+    - Compare suitable modern algorithms (including Gerstner waves and spectral/FFT approaches)
+      against the game's block-scale aesthetic, bounded inland/flowing surfaces, ocean scale,
+      geometric sampling, controllable weather response, stability and measured GPU/memory cost.
+      Record the selected model and tradeoffs; do not assume the most complex model is preferable.
+    - Legacy water displacement parity is not a requirement. Share one displacement implementation,
+      time/origin convention and parameter snapshot between visible liquid geometry and liquid depth;
+      derive shading normals consistently and define behavior for lava and other non-water liquids.
+    - Trace the pass using chunkliquiddepth.vsh, then replace that rendering pass with a fully VGE-owned
+      renderer, precompiled SPIR-V program and UBO/resource bindings. Suppress only the replaced engine
+      submission; retain engine mesh ownership and preserve the depth texture contract for consumers.
+    - Specify depth target ownership, resolution, clear/depth conventions, scheduling before consumers,
+      resize/reload/world-change behavior and coherent fallback for both visible and depth rendering.
+    - Coordinate animated surface/depth data with the preceding camera-contact waterline task,
+      water-volume scattering, refraction and reflections. The waterline task remains immediately
+      after the active liquid-rendering task; revisit its surface integration when this model lands.
+    - Validate color/depth agreement, silhouettes, shorelines, flowing surfaces, mini-dimensions and
+      camera crossings through focused subagent tests and user-run visual checks. Measure GPU cost.
 
   ☐ Implement water volume absorption and in-scattering (depth fog).
     - Extend the initial liquid path documented in PBR.Liquids.md; replace its albedo-derived

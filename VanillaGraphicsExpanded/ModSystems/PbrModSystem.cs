@@ -19,6 +19,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private DirectLightingBufferManager? directLightingBufferManager;
     private DirectLightingRenderer? directLightingRenderer;
     private PBRCompositeRenderer? pbrCompositeRenderer;
+    private PBR.Liquids.LiquidRenderer? liquidRenderer;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -49,6 +50,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         base.Dispose();
         HarmonyPatches.PbrDrawRouteHook.Api = null;
 
+        liquidRenderer?.Dispose();
+        liquidRenderer = null;
         directLightingRenderer?.Dispose();
         directLightingRenderer = null;
 
@@ -71,6 +74,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
 
         directLightingBufferManager ??= new DirectLightingBufferManager(capi);
         directLightingRenderer ??= new DirectLightingRenderer(capi, gBufferManager, directLightingBufferManager);
+
+        liquidRenderer ??= new PBR.Liquids.LiquidRenderer(capi);
 
         var lumOnSystem = capi.ModLoader.GetModSystem<LumOnModSystem>();
         lumOnSystem.SetDependencies(capi, gBufferManager, directLightingBufferManager);

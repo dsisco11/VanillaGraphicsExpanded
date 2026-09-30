@@ -21,7 +21,7 @@ float VgeLiquidFresnel(float cosine, bool underwater)
 /** Bounded opaque-depth thickness; missing sky depth uses a finite deep-water fallback. */
 float VgeLiquidThickness(float depth, float surfaceDepth, vec3 viewPosition, bool underwater)
 {
-    if (underwater) return 0.0; // The camera-to-surface medium is already handled by underwater fog.
+    if (underwater) return 0.0; // Camera-to-surface transport belongs to the separate water-volume task.
     if (depth >= .999999) return 16.0;
     float rayScale = length(viewPosition) / max(abs(viewPosition.z), .001);
     return clamp((VgeLiquidViewDepth(depth) - VgeLiquidViewDepth(surfaceDepth)) * rayScale, 0.0, 32.0);

@@ -3,8 +3,41 @@ using System.Buffers.Binary;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Packs std140 components into caller-owned byte spans without tracking buffer lifetime.</summary>
 internal static class UboPacking
 {
+    #region Scalar and vector packing
+    /// <summary>Writes a four-byte float component at the caller's layout offset.</summary>
+    public static void WriteFloat(Span<byte> dst, int byteOffset, float value)
+        => BinaryPrimitives.WriteSingleLittleEndian(dst.Slice(byteOffset, 4), value);
+
+    /// <summary>Writes a four-byte int component at the caller's layout offset.</summary>
+    public static void WriteInt32(Span<byte> dst, int byteOffset, int value)
+        => BinaryPrimitives.WriteInt32LittleEndian(dst.Slice(byteOffset, 4), value);
+
+    /// <summary>Writes a four-byte uint component at the caller's layout offset.</summary>
+    public static void WriteUInt32(Span<byte> dst, int byteOffset, uint value)
+        => BinaryPrimitives.WriteUInt32LittleEndian(dst.Slice(byteOffset, 4), value);
+
+    /// <summary>Writes 2 float components without overwriting adjacent std140 padding or members.</summary>
+    public static void WriteVec2(Span<byte> dst, int byteOffset, float x, float y)
+    {
+        Span<byte> target = dst.Slice(byteOffset, 8);
+        WriteFloat(target, 0, x);
+        WriteFloat(target, 4, y);
+    }
+
+    /// <summary>Writes 3 float components without overwriting adjacent std140 padding or members.</summary>
+    public static void WriteVec3(Span<byte> dst, int byteOffset, float x, float y, float z)
+    {
+        Span<byte> target = dst.Slice(byteOffset, 12);
+        WriteFloat(target, 0, x);
+        WriteFloat(target, 4, y);
+        WriteFloat(target, 8, z);
+    }
+
+    #endregion
+
     public static void WriteMat4(Span<byte> dst, int byteOffset, ReadOnlySpan<float> m16)
     {
         if (m16.Length < 16) throw new ArgumentOutOfRangeException(nameof(m16), "Expected 16 floats for mat4.");

@@ -28,6 +28,7 @@ internal static partial class GpuShaderContracts
             case "lumon_probe_sh9_gather": LumOnSh9Gather(contract); break;
             case "pbr_composite": PbrComposite(contract); break;
             case "pbr_display_resolve": PbrDisplayResolve(contract); break;
+            case "pbr_liquid": Liquid(contract); break;
             case "pbr_direct_lighting": PbrDirectLighting(contract); break;
             case "pbr_heightbake": PbrHeightBake(contract); break;
             case "lumon_hzb_copy": LumOnHzbCopy(contract); break;

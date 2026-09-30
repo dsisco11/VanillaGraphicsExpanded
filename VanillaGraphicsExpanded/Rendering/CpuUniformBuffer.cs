@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -70,6 +71,83 @@ public abstract class CpuUniformBuffer : IDisposable
     /// Callers must call <see cref="MarkDirty"/> after modifying the span.
     /// </summary>
     protected Span<byte> DataWritable => data;
+
+    #region Typed parameter writes
+    // Layout offsets and array strides belong to the derived block. Pack first so a failed
+    // write cannot mark the buffer dirty; mark only the bytes actually occupied by the value.
+    /// <summary>Writes a float at a byte offset and marks its 4 occupied bytes dirty.</summary>
+    protected void WriteFloat(int byteOffset, float value)
+    {
+        UboPacking.WriteFloat(DataWritable, byteOffset, value);
+        MarkDirty(byteOffset, 4);
+    }
+
+    /// <summary>Writes a int at a byte offset and marks its 4 occupied bytes dirty.</summary>
+    protected void WriteInt32(int byteOffset, int value)
+    {
+        UboPacking.WriteInt32(DataWritable, byteOffset, value);
+        MarkDirty(byteOffset, 4);
+    }
+
+    /// <summary>Writes a uint at a byte offset and marks its 4 occupied bytes dirty.</summary>
+    protected void WriteUInt32(int byteOffset, uint value)
+    {
+        UboPacking.WriteUInt32(DataWritable, byteOffset, value);
+        MarkDirty(byteOffset, 4);
+    }
+
+    /// <summary>Writes a Vector2 at a byte offset and marks its 8 occupied bytes dirty.</summary>
+    protected void WriteVector2(int byteOffset, Vector2 value)
+    {
+        UboPacking.WriteVec2(DataWritable, byteOffset, value.X, value.Y);
+        MarkDirty(byteOffset, 8);
+    }
+
+    /// <summary>Writes a Vector3 at a byte offset and marks its 12 occupied bytes dirty.</summary>
+    protected void WriteVector3(int byteOffset, Vector3 value)
+    {
+        UboPacking.WriteVec3(DataWritable, byteOffset, value.X, value.Y, value.Z);
+        MarkDirty(byteOffset, 12);
+    }
+
+    /// <summary>Writes a Vector4 at a byte offset and marks its 16 occupied bytes dirty.</summary>
+    protected void WriteVector4(int byteOffset, Vector4 value)
+    {
+        UboPacking.WriteVec4(DataWritable, byteOffset, value.X, value.Y, value.Z, value.W);
+        MarkDirty(byteOffset, 16);
+    }
+
+    /// <summary>Writes four int components and marks their std140 slot dirty.</summary>
+    protected void WriteIntVector4(int byteOffset, int x, int y, int z, int w)
+    {
+        UboPacking.WriteIVec4(DataWritable, byteOffset, x, y, z, w);
+        MarkDirty(byteOffset, 16);
+    }
+
+    /// <summary>Writes four uint components and marks their std140 slot dirty.</summary>
+    protected void WriteUIntVector4(int byteOffset, uint x, uint y, uint z, uint w)
+    {
+        UboPacking.WriteUVec4(DataWritable, byteOffset, x, y, z, w);
+        MarkDirty(byteOffset, 16);
+    }
+
+    /// <summary>Writes sixteen floats in GLSL column order and marks the matrix dirty.</summary>
+    protected void WriteMatrix4(int byteOffset, ReadOnlySpan<float> columnMajor)
+    {
+        UboPacking.WriteMat4(DataWritable, byteOffset, columnMajor);
+        MarkDirty(byteOffset, 64);
+    }
+
+    /// <summary>Stores Numerics rows as GLSL columns, preserving the equivalent row-vector transform.</summary>
+    protected void WriteMatrix4(int byteOffset, in Matrix4x4 value)
+    {
+        ReadOnlySpan<float> columns = [value.M11, value.M12, value.M13, value.M14,
+            value.M21, value.M22, value.M23, value.M24,
+            value.M31, value.M32, value.M33, value.M34,
+            value.M41, value.M42, value.M43, value.M44];
+        WriteMatrix4(byteOffset, columns);
+    }
+    #endregion
 
     /// <summary>
     /// Marks the buffer as dirty, requiring an upload before the next draw/dispatch.

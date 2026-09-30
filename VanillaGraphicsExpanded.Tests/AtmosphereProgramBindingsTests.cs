@@ -32,7 +32,6 @@ public sealed class AtmosphereProgramBindingsTests
     [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection)]
     [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection)]
     [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection)]
-    [InlineData("chunkliquid", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection)]
     public void PatchedFamiliesDeclareExpectedInputs(string family, object expected)
     {
         Assert.Equal((AtmosphereBindings)expected, AtmosphereProgramBindings.Expected(family));
@@ -42,6 +41,7 @@ public sealed class AtmosphereProgramBindingsTests
     [Theory]
     [InlineData(null)]
     [InlineData("gui")]
+    [InlineData("chunkliquid")]
     [InlineData("pbr_direct_lighting")]
     public void UnrelatedFamiliesSkipDiscovery(string? family)
     {

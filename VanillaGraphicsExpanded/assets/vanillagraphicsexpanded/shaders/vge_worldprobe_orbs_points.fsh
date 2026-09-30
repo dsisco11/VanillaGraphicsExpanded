@@ -1,7 +1,7 @@
 #version 330 core
 
 @import "./includes/lumon_worldprobe.glsl"
-@import "./includes/vge_oit.glsl"
+@import "./includes/oit.glsl"
 
 in vec4 vColor;
 in vec2 vAtlasCoord;

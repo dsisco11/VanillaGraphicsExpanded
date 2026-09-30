@@ -23,6 +23,21 @@ Issues:
     ☐ Split all of the Probe-view debug modes into nested categories for better organization. e.g. all "Probe-atlas" views should be under the "Probe atlas" category, etc.
 
   Performance:
+    ☐ Refactor uniform-buffer writes to report changes and avoid unnecessary dirty marking.
+      - Make UboPacking write methods return bool: true only when the destination's stored data
+        changes, false for an identical write. Cover scalar, vector and matrix writers consistently.
+      - Have CpuUniformBuffer's typed writers consume that result and call MarkDirty only for changed
+        data. CpuUniformBuffer owns dirty tracking; review GpuUniformBuffer and the upload/ring path
+        as consumers rather than moving CPU dirty tracking into the GPU storage owner.
+      - Preserve previously dirty ranges when a later write is unchanged. Migrate direct packing callers
+        that currently mark dirty unconditionally, preserving batching and explicit raw-write contracts.
+      - Define comparison by stored representation, including NaN bit patterns and signed zero; preserve
+        adjacent members/padding and validate the full destination range before modifying bytes.
+      - Do not skip a required GPU bind or reuse an expired ring allocation merely because CPU bytes
+        are unchanged. Any upload-elision work must respect frame/ring lifetime and program reload.
+      - Add focused subagent-run tests for changed/unchanged scalar, integer, vector and matrix writes,
+        dirty-range preservation, invalid writes and floating-point bit patterns. Measure comparison
+        overhead separately from any claimed reduction in GPU uploads.
     ☐ Audit each of the LumOn shaders for opportunities to reduce shader code instruction count.
     ☐ Profile the performance of the near-tracing geometry system to identify bottlenecks and optimize GPU memory usage.
     ☐ Investigate potential optimizations for memory layout and data transfer patterns to improve overall GPU efficiency.

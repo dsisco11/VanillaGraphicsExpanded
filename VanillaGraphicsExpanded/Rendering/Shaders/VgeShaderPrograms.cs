@@ -19,6 +19,7 @@ internal static class VgeShaderPrograms
             new VgeDebugLinesShaderProgram(),
             new VgeWorldProbeOrbsPointsShaderProgram(),
             new PBRDirectLightingShaderProgram(),
+            new PBR.Liquids.LiquidShaderProgram(),
             new PBRCompositeShaderProgram(),
             new PBRDisplayResolveShaderProgram(),
             new LumOnWorldProbeClipmapResolveShaderProgram(),

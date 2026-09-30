@@ -1,0 +1,93 @@
+using System;
+using System.Numerics;
+using VanillaGraphicsExpanded.ModSystems;
+using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
+
+namespace VanillaGraphicsExpanded.PBR.Liquids;
+
+/// <summary>Exposes typed frame inputs independently of their packed storage.</summary>
+internal sealed partial class LiquidShaderProgram
+{
+    #region Frame inputs
+    /// <summary>Stages the column-major projection matrix; call ApplyInputs after frame updates.</summary>
+    internal ReadOnlySpan<float> ProjectionMatrix { set => frame.ProjectionMatrix = value; }
+    /// <summary>Stages the column-major near-cascade transform; call ApplyInputs after frame updates.</summary>
+    internal ReadOnlySpan<float> ShadowMatrixNear { set => frame.ShadowMatrixNear = value; }
+    /// <summary>Stages the column-major far-cascade transform; call ApplyInputs after frame updates.</summary>
+    internal ReadOnlySpan<float> ShadowMatrixFar { set => frame.ShadowMatrixFar = value; }
+    /// <summary>Stages still-water time, flow time, reserved zero, and wind time; call ApplyInputs after frame updates.</summary>
+    internal Vector4 Animation { set => frame.Animation = value; }
+    /// <summary>Stages near and far shadow ranges in XY; ZW are reserved; call ApplyInputs after frame updates.</summary>
+    internal Vector4 ShadowRanges { set => frame.ShadowRanges = value; }
+    /// <summary>Stages world player position in XYZ; W is reserved; call ApplyInputs after frame updates.</summary>
+    internal Vector4 PlayerPosition { set => frame.PlayerPosition = value; }
+    /// <summary>Stages tile UV dimensions in XY and atlas pixel dimensions in ZW; call ApplyInputs after frame updates.</summary>
+    internal Vector4 AtlasMetrics { set => frame.AtlasMetrics = value; }
+    /// <summary>Stages near/far depth planes in XY and viewport pixels in ZW; call ApplyInputs after frame updates.</summary>
+    internal Vector4 DepthRangeAndFrameSize { set => frame.DepthRangeAndFrameSize = value; }
+    /// <summary>Stages season fraction, sea level, atlas height, and seasonal temperature; call ApplyInputs after frame updates.</summary>
+    internal Vector4 Season { set => frame.Season = value; }
+    /// <summary>Stages world sun direction in XYZ; W is reserved; call ApplyInputs after frame updates.</summary>
+    internal Vector4 SunDirection { set => frame.SunDirection = value; }
+    /// <summary>Stages solar irradiance in RGB; W is reserved; call ApplyInputs after frame updates.</summary>
+    internal Vector4 SolarIrradiance { set => frame.SolarIrradiance = value; }
+    /// <summary>Stages environment irradiance in RGB; W is reserved; call ApplyInputs after frame updates.</summary>
+    internal Vector4 EnvironmentIrradiance { set => frame.EnvironmentIrradiance = value; }
+    /// <summary>Stages altitude, horizon elevation, camera-underwater amount, and reserved zero; call ApplyInputs after frame updates.</summary>
+    internal Vector4 AerialParameters { set => frame.AerialParameters = value; }
+    /// <summary>Stages psychedelic strength in Y; other components are reserved; call ApplyInputs after frame updates.</summary>
+    internal Vector4 Perception { set => frame.Perception = value; }
+    /// <summary>Stages perception world offset in XYZ; W is reserved; call ApplyInputs after frame updates.</summary>
+    internal Vector4 PerceptionPosition { set => frame.PerceptionPosition = value; }
+    /// <summary>Stages the active point-light and fog-sphere counts.</summary>
+    internal void SetCounts(int lights, int spheres)
+    {
+        if ((uint)lights > 100) throw new ArgumentOutOfRangeException(nameof(lights));
+        if ((uint)spheres > 3) throw new ArgumentOutOfRangeException(nameof(spheres));
+        frame.SetCounts(lights, spheres);
+    }
+    /// <summary>Stages one ColorMapRect array element.</summary>
+    internal void SetColorMapRect(int index, Vector4 value) => frame.SetColorMapRect(index, value);
+    /// <summary>Stages one PointLightPosition array element.</summary>
+    internal void SetPointLightPosition(int index, Vector3 value) => frame.SetPointLightPosition(index, value);
+    /// <summary>Stages one PointLightColor array element.</summary>
+    internal void SetPointLightColor(int index, Vector3 value) => frame.SetPointLightColor(index, value);
+    /// <summary>Stages one FogSphereComponent array element.</summary>
+    internal void SetFogSphereComponent(int index, float value) => frame.SetFogSphereComponent(index, value);
+    /// <summary>Copies one coherent render-frame snapshot; arrays use std140 sixteen-byte strides.</summary>
+    internal void CaptureFrameInputs(ICoreClientAPI api, Vec2f tileSize)
+    {
+        var render = api.Render;
+        var u = render.ShaderUniforms;
+        var atmosphere = AtmosphereModSystem.Lighting;
+        ProjectionMatrix = render.CurrentProjectionMatrix;
+        ShadowMatrixNear = u.ToShadowMapSpaceMatrixNear;
+        ShadowMatrixFar = u.ToShadowMapSpaceMatrixFar;
+        Animation = new(u.WaterStillCounter, u.WaterFlowCounter, 0, u.WindWaveCounter);
+        int shadows = Vintagestory.Client.NoObf.ClientSettings.ShadowMapQuality;
+        ShadowRanges = new(shadows > 1 ? u.ShadowRangeNear : 0, shadows > 0 ? u.ShadowRangeFar : 0, 0, 0);
+        PlayerPosition = new(u.PlayerPos.X, u.PlayerPos.Y, u.PlayerPos.Z, 0);
+        AtlasMetrics = new(tileSize.X, tileSize.Y, api.BlockTextureAtlas.Size.Width, api.BlockTextureAtlas.Size.Height);
+        DepthRangeAndFrameSize = new(u.ZNear, u.ZFar, render.FrameWidth, render.FrameHeight);
+        Season = new(u.SeasonRel, u.SeaLevel, u.BlockAtlasHeight, u.SeasonTemperature);
+        SunDirection = new(atmosphere?.Sun ?? Vector3.UnitY, 0);
+        SolarIrradiance = new(atmosphere?.Solar ?? Vector3.Zero, 0);
+        EnvironmentIrradiance = new(atmosphere?.Environment ?? Vector3.Zero, 0);
+        AerialParameters = new(atmosphere?.Altitude ?? 0, atmosphere?.HorizonElevation ?? 0, u.CameraUnderwater, 0);
+        int lights = Math.Clamp(u.PointLightsCount, 0, Math.Min(100, Math.Min(u.PointLights3.Length, u.PointLightColors3.Length) / 3));
+        int spheres = Math.Clamp(u.FogSphereQuantity, 0, Math.Min(3, u.FogSpheres.Length / 8));
+        SetCounts(lights, spheres);
+        Perception = new(0, u.PsychedelicStrength, 0, 0);
+        PerceptionPosition = new(u.PlayerPosForFoam.X, u.PlayerPosForFoam.Y, u.PlayerPosForFoam.Z, 0);
+        for (int i = 0; i < 40; i++)
+            SetColorMapRect(i, new(u.ColorMapRects4[i * 4], u.ColorMapRects4[i * 4 + 1], u.ColorMapRects4[i * 4 + 2], u.ColorMapRects4[i * 4 + 3]));
+        for (int i = 0; i < lights; i++)
+        {
+            SetPointLightPosition(i, new(u.PointLights3[i * 3], u.PointLights3[i * 3 + 1], u.PointLights3[i * 3 + 2]));
+            SetPointLightColor(i, new(u.PointLightColors3[i * 3], u.PointLightColors3[i * 3 + 1], u.PointLightColors3[i * 3 + 2]));
+        }
+        for (int i = 0; i < spheres * 8; i++) SetFogSphereComponent(i, u.FogSpheres[i]);
+    }
+    #endregion
+}

@@ -40,7 +40,7 @@ internal static class AtmosphereProgramBindings
         "chunkopaque" or "chunktopsoil" => AtmosphereBindings.Environment,
         "standard" => AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial
             | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk,
-        "entityanimated" or "instanced" or "chunktransparent" or "chunkliquid" =>
+        "entityanimated" or "instanced" or "chunktransparent" =>
             AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection,
         _ => AtmosphereBindings.None
     };
