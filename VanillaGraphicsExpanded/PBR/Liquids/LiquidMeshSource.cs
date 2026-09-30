@@ -13,6 +13,21 @@ internal sealed class LiquidMeshSource(ChunkRenderer renderer, Vec2f tileSize)
     internal Vec2f TileSize { get; } = tileSize;
     internal bool SuppressNextEngineDraw { get; set; }
 
+    #region Submission resources
+    /// <summary>Reads current atlas and liquid-pool arrays, validating only the engine's active atlas prefix.</summary>
+    internal bool TryGetAtlasPools(out int[] atlases, out MeshDataPoolManager[] pools)
+    {
+        atlases = Renderer.textureIds;
+        pools = Renderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid];
+        // The engine reserves extra pool slots for runtime atlas growth. Those trailing
+        // slots may be null; only entries indexed by the current atlas array are drawn.
+        if (pools.Length < atlases.Length) return false;
+        for (int i = 0; i < atlases.Length; i++)
+            if (pools[i] is null) return false;
+        return true;
+    }
+    #endregion
+
     #region Engine lifetime
     /// <summary>Publishes the completed renderer and its atlas metric after engine construction.</summary>
     internal static void Register(ICoreClientAPI api, ChunkRenderer renderer, Vec2f tileSize)

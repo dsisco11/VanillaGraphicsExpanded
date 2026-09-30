@@ -70,11 +70,8 @@ internal sealed class LiquidRenderer : IRenderer
             // Engine callbacks bind GL resources directly between VGE passes.
             GlStateCache.Current.InvalidateAll();
             if (!program.EnsureReady()) return;
-            var renderer = source.Renderer;
-            var atlases = renderer.textureIds;
-            var pools = renderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid];
             // Missing atlas or atmosphere data retains vanilla ownership for the entire invocation.
-            if (pools.Length != atlases.Length || !MaterialAtlasSystem.Instance.IsInitialized
+            if (!source.TryGetAtlasPools(out var atlases, out var pools) || !MaterialAtlasSystem.Instance.IsInitialized
                 || AtmosphereModSystem.Lighting is null || AtmosphereModSystem.AerialRadianceTextureId == 0
                 || AtmosphereModSystem.AerialAttenuationTextureId == 0) return;
             var store = MaterialAtlasSystem.Instance.TextureStore;

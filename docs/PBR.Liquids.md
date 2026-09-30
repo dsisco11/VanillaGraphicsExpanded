@@ -4,7 +4,7 @@
 
 `LiquidRenderer` registers at OIT order 0.369, immediately before the installed engine terrain OIT callback at 0.37. VGE owns `LiquidShaderProgram`, precompiled SPIR-V, frame/draw UBOs and texture bindings. The engine retains mesh creation, pool culling/submission, OIT framebuffer ownership and transparency composition. See [the renderer proposal](PBR.LiquidRenderer.Proposal.md).
 
-`LiquidMeshSourceHook` captures the completed engine renderer and atlas tile metric at construction. The renderer reads current atlas/pool arrays each invocation, rather than retaining arrays across atlas additions. Leave-world and disposal drop borrowed references without deleting engine resources.
+`LiquidMeshSourceHook` captures the completed engine renderer and atlas tile metric at construction. The renderer reads current atlas/pool arrays each invocation, rather than retaining arrays across atlas additions. Pool capacity may exceed the atlas count: the engine reserves three extra slots. Only the active atlas prefix must have non-null liquid managers, and only that prefix is submitted. Leave-world and disposal drop borrowed references without deleting engine resources.
 
 `LiquidRenderHooks` inserts a conditional bypass from the engine liquid shader selection through its stop call. Matrix pushes/pops, transparent terrain and meta-block submission remain in place. The original liquid instructions remain available as a vanilla fallback. The previous `PbrLiquidShaderPatches` source injection and liquid atmosphere interception are removed.
 
@@ -49,3 +49,13 @@ Focused tests cover production SPIR-V linking, GPU readback of consecutive pool-
 The combined focused run passed 142/142 tests with no skips, including fresh SPIR-V compilation. This is headless validation, not live-game visual acceptance.
 
 User-run acceptance remains required for water/lava and other liquids, mini-dimensions, previews, reload/resize, world changes, day/night and both PBR modes. Inspect the documented interim surface/depth mismatch and missing replacement underwater medium explicitly. GPU timing has not been measured. The parent liquid task remains open.
+
+## Sun highlight at the screen edge
+
+Investigation against installed Vintage Story 1.22.7 found a screen-visibility dependency in the vanilla liquid path. `SystemRenderSunMoon.OnRenderFrame3DPost` queries samples passed around the sun quad and sets `targetSunSpec = clamp(samples / 1500, 0, 1)`. `OnRenderFrame3D` smooths that value into `DefaultShaderUniforms.SunSpecularIntensity`; `ChunkRenderer.RenderOIT` supplies it to `chunkliquid.fsh`, where it multiplies the water specular term. A clipped or occluded sun can therefore suppress vanilla water highlights.
+
+The VGE liquid shader does not consume this value. Its solar irradiance comes from `AtmosphereModSystem`, independently of the sun quad. `LiquidSunHighlightTests.FixedReceiverRetainsSunlightAcrossViewportEdge` renders the actual precompiled liquid program with fixed world-space sunlight and a fixed water receiver. Camera rotation moves sun NDC Y from 0.992354 to 1.012532; recovered receiver RGB changes from 0.787089 to 0.787002 (ratio 0.999889). The test passes with shadows disabled and zero aerial contribution. It isolates the shader's view transform and direct highlight, not live engine shadow contents, renderer selection, or final post-processing.
+
+The user confirmed in RenderDoc that the affected draw used vanilla `chunkliquid`. The ownership handoff rejected the installed engine layout: `ChunkRenderer` allocates each pool array with `textureIds.Length + 3` capacity, while VGE required equal lengths. That readiness check returned before submission and before setting the Harmony suppression flag. `LiquidMeshSource.TryGetAtlasPools` now checks coverage and non-null entries only for the active atlas prefix; unused trailing capacity does not trigger fallback. The suppression transpiler remains unchanged. User-run RenderDoc verification of `pbr_liquid` ownership and off-screen highlights remains required after rebuilding/restarting.
+
+The ownership regression executes the installed `ChunkRenderer` constructor under `LiquidMeshSourceHook`: one atlas produces four slots, with three null spare entries. It also exercises actual runtime atlas growth and rejects missing active entries or insufficient capacity. The focused source/hook/shader/sun-highlight run passed 9/9 tests after the readiness fix.
