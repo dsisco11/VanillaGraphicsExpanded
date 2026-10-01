@@ -54,6 +54,7 @@ internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
         writer.Write(0);
         writer.Write(0);
         writer.Write(0);
+        writer.Write(0);
         writer.Write(pixels);
     }
     #endregion
