@@ -229,6 +229,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
             scene.Yaw=yaw; runtime.Frame();
             for(int i=0;i<24;i++) runtime.Frame();
             var final=runtime.FinalPixels();
+            TestContext.Current.TestOutputHelper?.WriteLine($"sh9={sh9}, yaw={yaw}, finalMin={final.Where((_,i)=>i%4!=3).Min()}, finalMax={final.Where((_,i)=>i%4!=3).Max()}, worldEnergy={SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())}, screenPublished={runtime.Screen.HasPublishedIndirect}, indirectTexture={runtime.Screen.IndirectFullTex?.TextureId}, suppressedTexture={runtime.Screen.WorldProbeSuppressedLighting?.TextureId}");
             AssertPixels(final,true); var without=runtime.Screen.WorldProbeSuppressedLighting!.ReadPixels();
             float difference=final.Zip(without).Where((_,i)=>i%4!=3).Max(p=>Math.Abs(p.First-p.Second));
             var meta=runtime.Screen.ScreenProbeAtlasMetaTraceTex!.ReadPixels();

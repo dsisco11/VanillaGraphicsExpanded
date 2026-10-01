@@ -1184,21 +1184,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             $"Expected preserved meta flags bits at ({x},{y}) to match history, got {flagsBitsAsFloat:F6}");
     }
 
-    /// <summary>
-    /// Tests that sun contribution is added to sky miss results.
-    ///
-    /// DESIRED BEHAVIOR:
-    /// - When rays miss geometry, sun color should contribute based on ray direction
-    ///
-    /// Setup:
-    /// - Sky depth (1.0 everywhere)
-    /// - Compare with sunColor=(1,0,0) vs sunColor=(0,0,0)
-    ///
-    /// Expected:
-    /// - With sun enabled, red channel should be higher
-    /// </summary>
+    /// <summary>Sky misses retain the published hemispherical ambient response without adding an independent solar halo.</summary>
     [Fact]
-    public void SunContribution_AddedToSkyMiss()
+    public void SkyMissRetainsAmbientWithoutIndependentSolarHalo()
     {
         EnsureShaderTestAvailable();
 
@@ -1236,7 +1224,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView,
                 texelsPerFrame: 64,
-                ambientColor: (0f, 0f, 0f),
+                ambientColor: (0.2f, 0.2f, 0.2f),
                 sunColor: (1f, 0f, 0f),
                 sunPosition: (0f, 1f, 0f));
 
@@ -1281,7 +1269,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView,
                 texelsPerFrame: 64,
-                ambientColor: (0f, 0f, 0f),
+                ambientColor: (0.2f, 0.2f, 0.2f),
                 sunColor: (0f, 0f, 0f),
                 sunPosition: (0f, 1f, 0f));
 
@@ -1301,8 +1289,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 withoutSunRed += atlasData[i];
         }
 
-        Assert.True(withSunRed > withoutSunRed,
-            $"Sun should add red contribution: with sun R={withSunRed:F4}, without R={withoutSunRed:F4}");
+        // docs/PBR.Atmosphere.md: hemispherical sky replaces the former fabricated solar halo.
+        Assert.True(withoutSunRed > 0f);
+        Assert.Equal(withoutSunRed, withSunRed);
     }
 
     /// <summary>

@@ -42,21 +42,24 @@ public sealed class LumonSceneChunkResidencyManagerTests
         Assert.True(page.PhysicalPageId != 0);
     }
 
+    /// <summary>A four-page atlas rejects excess residency without evicting admitted pages.</summary>
     [Fact]
     public void Activation_WhenOverCapacity_FailsWithoutEviction()
     {
         var pools = new LumonScenePhysicalPoolManager();
 
-        // Force a tiny capacity per atlas: tileSize=2048 -> 2x2 tiles => 4 pages.
-        // Then clamp to 1 atlas so requested pages > capacity => eviction path engaged.
+        // Two tiles on each axis produce four pages regardless of the configured physical atlas size.
+        int faceTexels = LumonScenePhysicalPoolPlanner.PhysicalAtlasSizeTexels /
+            (2 * LumonScenePhysicalPoolPlanner.PatchSizeVoxels);
+        // Clamp to one atlas so requests beyond those four pages exercise admission failure.
         pools.Near.Configure(LumonScenePhysicalPoolPlanner.CreateNearPlan(
-            nearTexelsPerVoxelFaceEdge: 512,
+            nearTexelsPerVoxelFaceEdge: faceTexels,
             nearRadiusXZChunks: 1,
             nearRadiusYChunks: 0,
             nearPagesPerChunkBudget: 1,
             maxAtlasCount: 1));
         pools.Far.Configure(LumonScenePhysicalPoolPlanner.CreateFarPlanAnnulus(
-            farTexelsPerVoxelFaceEdge: 512,
+            farTexelsPerVoxelFaceEdge: faceTexels,
             nearRadiusXZChunks: 0,
             nearRadiusYChunks: 0,
             farRadiusXZChunks: 0,

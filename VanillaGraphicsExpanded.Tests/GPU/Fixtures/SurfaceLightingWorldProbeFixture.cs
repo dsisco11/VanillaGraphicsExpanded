@@ -1,13 +1,13 @@
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
-using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>Owns the production world-probe atlas and its actual SPIR-V upload programs.</summary>
 internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
 {
+    private readonly EngineShaderPlatformScope platform=new();
     private readonly BinaryShaderApiFixture assets=new();
     private readonly LumOnWorldProbeClipmapResolveShaderProgram metadata=new();
     private readonly LumOnWorldProbeRadianceTileResolveShaderProgram radiance=new();
@@ -19,15 +19,12 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
     public SurfaceLightingWorldProbeFixture(int resolution=1)
     {
         Resources=new(assets.Api,resolution,1,8);
-        var shaders=RuntimeRenderEvents.Adapt<IShaderAPI>((method,args)=>method.Name=="GetProgramByName"
-            ? (string)args![0]! == "lumon_worldprobe_clipmap_resolve" ? metadata : radiance
-            : throw new NotSupportedException(method.Name));
-        var api=RuntimeRenderEvents.Adapt<ICoreClientAPI>((method,args)=>method.Name=="get_Shader"?shaders:method.Invoke(assets.Api,args));
-        metadata.PassName="lumon_worldprobe_clipmap_resolve";metadata.VertexShader=new Vintagestory.Client.NoObf.Shader();metadata.FragmentShader=new Vintagestory.Client.NoObf.Shader();
-        radiance.PassName="lumon_worldprobe_radiance_tile_resolve";radiance.VertexShader=new Vintagestory.Client.NoObf.Shader();radiance.FragmentShader=new Vintagestory.Client.NoObf.Shader();
-        metadata.Initialize(api);radiance.Initialize(api);
-        Assert.True(metadata.CompileAndLink(),string.Join('\n',assets.Logs));Assert.True(radiance.CompileAndLink(),string.Join('\n',assets.Logs));
-        uploader=new(api);
+        // The uploader discovers retained owners through the production declaration library.
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(assets.Api, metadata);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(assets.Api, radiance);
+        Assert.True(metadata.EnsureReady(),string.Join('\n',assets.Logs));
+        Assert.True(radiance.EnsureReady(),string.Join('\n',assets.Logs));
+        uploader=new(assets.Api);
     }
 
     /// <summary>Publishes the actual resolved result; unresolved batches must be rejected by the caller.</summary>
@@ -47,6 +44,6 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
         => uploader.Upload(Resources,results,budget);
 
     /// <summary>Retires uploads before deleting programs and their atlas resources.</summary>
-    public void Dispose() { uploader.Dispose();Resources.Dispose();metadata.Dispose();radiance.Dispose();assets.Dispose(); }
+    public void Dispose() { uploader.Dispose();Resources.Dispose();metadata.Dispose();radiance.Dispose();assets.Dispose();platform.Dispose(); }
     #endregion
 }

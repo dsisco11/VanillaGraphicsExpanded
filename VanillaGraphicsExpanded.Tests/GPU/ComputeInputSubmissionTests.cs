@@ -13,6 +13,64 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>A missing required counter fails closed and retained inputs remain available for a corrected retry.</summary>
+    [Fact]
+    public void RequiredCounterFailureCanRetryRetainedInputs()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
+        using var usage = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
+        using var counter = new ComponentAtomicCounters(23, 3);
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
+        using var shader = loaded!;
+        shader.BindPatchIdGBuffer(texture.TextureId);
+        shader.BindPageUsageStampImage(usage);
+        Assert.Throws<InvalidOperationException>(shader.Use);
+        Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
+        shader.BindDebugCounters(counter.Buffer);
+        using (shader.UseScope()) AssertBound(shader.ProgramId, texture.TextureId, counter.Buffer.BufferId);
+        Assert.Equal(23u, counter.Read());
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>Retiring the enclosing compute owner cannot restore a deleted program identifier.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RetiredEnclosingComputeFailsClosed(bool innerGraphics)
+    {
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        using var assets = new BinaryShaderApiFixture();
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
+        using var usage = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
+        using var counters = new ComponentAtomicCounters(0, 3);
+        Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
+        using var outer = loaded!;
+        outer.BindPatchIdGBuffer(texture.TextureId);
+        outer.BindPageUsageStampImage(usage);
+        outer.BindDebugCounters(counters.Buffer);
+        using var outerScope = outer.UseScope();
+        var graphics = programs.Create<LumOnHzbCopyShaderProgram>();
+        graphics.PrimaryDepth = texture.TextureId;
+        IDisposable inner;
+        if (innerGraphics) inner = graphics.UseScope();
+        else inner = outer.UseScope();
+        outer.Dispose();
+        try
+        {
+            Assert.Throws<ObjectDisposedException>(inner.Dispose);
+            Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            GlStateCache.Current.UnbindProgram();
+            while (GL.GetError() != ErrorCode.NoError) { }
+        }
+    }
+
     /// <summary>Nested owners restore graphics, compute samplers and counter storage without resetting values.</summary>
     [Fact]
     public void NestedGraphicsAndComputeScopesRestoreRetainedInputs()

@@ -55,7 +55,8 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
         RequireInputMutation();
         var previous = ShaderProgramBase.CurrentShaderProgram;
         int previousId = GlStateCache.Current.GetCurrentProgram();
-        var scope = new SubmissionScope(previous, previousId);
+        // Retain owner identity before nested work can dispose it or recycle its GL name.
+        var scope = new SubmissionScope(previous, previousId, FindOwner(previousId));
         try { Use(); return scope; }
         catch { scope.Dispose(); throw; }
     }
@@ -89,12 +90,11 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
         pipeline.Dispose();
     }
 
-    /// <summary>Restores an owned compute executable together with its complete retained resources.</summary>
-    internal static bool TryRestore(int program)
+    /// <summary>Captures compute ownership so scopes cannot mistake a retired owner for a raw executable.</summary>
+    internal static GpuComputeShader? FindOwner(int program)
     {
-        if (owners == null || !owners.TryGetValue(program, out var reference) || !reference.TryGetTarget(out var owner)) return false;
-        owner.Use();
-        return true;
+        return owners != null && owners.TryGetValue(program, out var reference) && reference.TryGetTarget(out var owner)
+            ? owner : null;
     }
     #endregion
     #endregion
@@ -116,7 +116,7 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
 
     #region Private
     /// <summary>Restores graphics and compute ownership as well as the underlying GL executable.</summary>
-    private sealed class SubmissionScope(ShaderProgramBase? previous, int program) : IDisposable
+    private sealed class SubmissionScope(ShaderProgramBase? previous, int program, GpuComputeShader? compute) : IDisposable
     {
         private bool ended;
         /// <summary>Re-publishes the enclosing owner's resources once on scope exit.</summary>
@@ -128,7 +128,8 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
             {
                 if (previous is GpuProgram graphics) graphics.Use();
                 else if (previous != null) previous.Use();
-                else if (!TryRestore(program)) GlStateCache.Current.UseProgram(program);
+                else if (compute != null) compute.Use();
+                else GlStateCache.Current.UseProgram(program);
             }
             catch { GlStateCache.Current.UnbindProgram(); throw; }
         }

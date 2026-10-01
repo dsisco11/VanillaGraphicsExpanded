@@ -79,6 +79,14 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         later.RequestRecreateBuffers("lighting mode lifecycle test");
         Assert.False(later.HasPublishedIndirect);
         Assert.InRange(Compose(), 0, .001f);
+        // Re-publish the retained absent input after a live provider was withdrawn.
+        using (shader.UseScope())
+        {
+            int previousUnit = GL.GetInteger(GetPName.ActiveTexture);
+            GL.ActiveTexture(TextureUnit.Texture3);
+            Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2D));
+            GL.ActiveTexture((TextureUnit)previousUnit);
+        }
         later.HasPublishedIndirect = true;
         later.ClearHistory();
         Assert.False(later.HasPublishedIndirect);

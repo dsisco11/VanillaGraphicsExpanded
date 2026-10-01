@@ -57,6 +57,9 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             uniform vec3 normal;
             void main() {
                 vec4 worldPos=vec4(position,1); uvec4 vge_outPatchId;
+                vec3 vge_surfaceBasePosition=position;
+                vec3 vge_surfaceBaseNormal=normal;
+                float vge_surfaceDisplaced=0.0;
             """ + patchWrites + """
                 value=uvec4(vge_outPatchId.xy,vge_outPatchId.w,vge_outPatchId.y>0u?1u:0u);
                 patchUv=vec4(vge_patchUv,0,0);

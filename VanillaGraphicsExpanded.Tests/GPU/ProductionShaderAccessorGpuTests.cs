@@ -20,6 +20,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
     public void CompositeGeneratedAccessorSelectsBinaryAndPreservesFailedReplacement()
     {
         EnsureContextValid();
+        using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         var program = new PBRCompositeShaderProgram
         {
@@ -34,7 +35,8 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             int first = program.ProgramId;
             var firstLayout = program.ResourceBindings;
             program.EnableShortRangeAo = false;
-            Assert.Single(assets.ScheduledTasks)();
+            Assert.Empty(assets.ScheduledTasks);
+            Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
             assets.ScheduledTasks.Clear();
             Assert.NotEqual(first, program.ProgramId);
             Assert.False(GL.IsProgram(first));
@@ -45,7 +47,8 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             var installedLayout = program.ResourceBindings;
             program.EnableShortRangeAo = true;
             assets.Overrides["shaders/pbr_composite.fsh.spv"] = new byte[20];
-            Assert.Single(assets.ScheduledTasks)();
+            Assert.Empty(assets.ScheduledTasks);
+            Assert.False(program.EnsureReady());
             assets.ScheduledTasks.Clear();
             Assert.Equal(installed, program.ProgramId);
             Assert.True(GL.IsProgram(installed));
@@ -56,9 +59,9 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         }
         finally { program.Dispose(); }
     }
-    /// <summary>Queued writes which return to installed inputs do no asset or GPU work; disposal cancels pending work.</summary>
+    /// <summary>Retained edits that revert before preparation do no work; explicit disposal permanently retires the owner.</summary>
     [Fact]
-    public void CoalescedRevertedSettingsAndDisposedCallbacksDoNotLoad()
+    public void RevertedSettingsAndRetiredOwnersDoNotLoad()
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
@@ -68,7 +71,8 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         assets.Reads.Clear();
         program.EnableShortRangeAo = false;
         program.EnableShortRangeAo = true;
-        Assert.Single(assets.ScheduledTasks)();
+        Assert.Empty(assets.ScheduledTasks);
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
         assets.ScheduledTasks.Clear();
         Assert.Empty(assets.Reads);
         Assert.Equal(installed, program.ProgramId);
@@ -76,30 +80,23 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         Assert.Empty(assets.ScheduledTasks);
         program.EnableShortRangeAo = false;
         program.Dispose();
-        Assert.Single(assets.ScheduledTasks)();
+        Assert.Empty(assets.ScheduledTasks);
+        Assert.False(program.EnsureReady());
         Assert.Empty(assets.Reads);
         Assert.Null(program.InstalledSettings);
         Assert.False(GL.IsProgram(installed));
         program.Dispose();
-        for (int generation = 0; generation < 2; generation++)
-        {
-            Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
-            Assert.False(program.Disposed);
-            Assert.NotNull(program.InstalledSettings);
-            int reloaded = program.ProgramId;
-            program.Dispose();
-            program.Dispose();
-            Assert.False(GL.IsProgram(reloaded));
-        }
+        Assert.False(program.EnsureReady());
     }
 
     /// <summary>A setting changed by an asset callback cannot mix settings between the two stages of one load.</summary>
     [Fact]
-    public void AssetReadMutationInstallsOneSnapshotThenQueuesNewSnapshot()
+    public void AssetReadMutationRejectsSupersededSnapshotThenPreparesLatest()
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
         using var program = Create(assets);
+        using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         bool changed = false;
         assets.BeforeRead = path =>
         {
@@ -107,13 +104,15 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             changed = true;
             program.EnableShortRangeAo = false;
         };
-        Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+        Assert.False(program.CompileAndLink());
         Assert.True(changed);
-        Assert.Equal("1", program.InstalledSettings!.Values["VGE_LUMON_ENABLE_SHORT_RANGE_AO"].Canonical);
+        Assert.Equal(0, program.ProgramId);
+        Assert.Null(program.InstalledSettings);
         Assert.Equal("0", program.RequestedSettings.Values["VGE_LUMON_ENABLE_SHORT_RANGE_AO"].Canonical);
         Assert.Contains("shaders/pbr_composite.fsh.spv", assets.Reads);
         int installed = program.ProgramId;
-        Assert.Single(assets.ScheduledTasks)();
+        Assert.Empty(assets.ScheduledTasks);
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
         Assert.NotEqual(installed, program.ProgramId);
         Assert.Equal("0", program.InstalledSettings!.Values["VGE_LUMON_ENABLE_SHORT_RANGE_AO"].Canonical);
     }
@@ -140,7 +139,8 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         Assert.Equal(27, program.WorldProbeResolution);
         int installed = program.ProgramId;
         program.RaySteps = 24;
-        Assert.Single(assets.ScheduledTasks)();
+        Assert.Empty(assets.ScheduledTasks);
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
         Assert.NotEqual(installed, program.ProgramId);
         Assert.Equal(firstReads, assets.Reads.Where(path => path.EndsWith(".spv", StringComparison.Ordinal)).ToArray());
         Assert.Equal("24", program.InstalledSettings!.Values["VGE_LUMON_RAY_STEPS"].Canonical);
@@ -176,7 +176,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         Assert.Equal(steps.ToString(System.Globalization.CultureInfo.InvariantCulture), program.InstalledSettings!.Values["VGE_LUMON_RAY_STEPS"].Canonical);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
-    /// <summary>Bulk edits configure before initialization, coalesce queued changes and replace only the final generation.</summary>
+    /// <summary>Bulk edits configure before initialization, coalesce retained changes and replace only the final generation.</summary>
     [Fact]
     public void BulkUpdatesPublishOnlyCompleteInstalledGenerations()
     {
@@ -210,9 +210,10 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             program.EnablePbrComposite = true;
             Assert.Equal(first, program.ProgramId);
         });
-        Assert.Single(assets.ScheduledTasks);
+        Assert.Empty(assets.ScheduledTasks);
         program.ConfigureOptions(() => program.EnableShortRangeAo = false);
-        Assert.Single(assets.ScheduledTasks)();
+        Assert.Empty(assets.ScheduledTasks);
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
         assets.ScheduledTasks.Clear();
         Assert.NotEqual(first, program.ProgramId);
         Assert.False(GL.IsProgram(first));

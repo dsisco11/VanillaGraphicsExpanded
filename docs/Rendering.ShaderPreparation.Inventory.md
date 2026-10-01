@@ -1,13 +1,13 @@
 # Shader preparation migration inventory
 
-Snapshot: 2026-10-01. Migration and focused validation are complete; broader validation remains tracked in the checklist.
+Snapshot: 2026-10-01. Migration and lifecycle validation are complete. The contract document records full-suite results and three unresolved broader numerical/material-policy assertions.
 Implementation update: graphics owners and production compute owners use retained contract inputs and generated Submit. Graphics activate through GpuProgram; compute wrappers adopt GpuComputeShader while GpuComputePipeline retains executable preparation. Liquid pool callbacks stage inputs for LiquidPoolSubmissionHook. No production compatibility Submit overrides remain.
 Contract: [Rendering.ShaderPreparation.md](Rendering.ShaderPreparation.md).
 Bulleted file paths are relative to the repository root. Infrastructure table paths beginning Rendering/ or LumOn/ are inside VanillaGraphicsExpanded/. Partial declarations are grouped by their owning type during implementation; static declarations are not runtime shader instances.
 
 ## Infrastructure and generators
 
-| Owner | Required migration |
+| Owner | Contract responsibility |
 | --- | --- |
 | Rendering/Shaders/GpuProgram.cs, GpuProgram.Preparation.cs | Persistent inputs; generated Submit; Use/TryUse/UseScope and engine interface routing; activation failure and restoration semantics |
 | Rendering/Shaders/GpuProgram.Options.cs, GpuProgram.Spirv.cs | Preserve option transaction and executable installation; retain runtime inputs across reload |
@@ -74,7 +74,7 @@ These files reference GpuComputePipeline directly. The six Scene/Shaders compute
 
 ## Submission callers and shared input producers
 
-The following production files contain activation/dispatch entry points or parameter-publication calls. They are candidate migration sites, not all immediate-upload defects. Inspect each owning render sequence: prepare options and retained inputs first, activate/submit next, then draw or dispatch. Helpers using UseScope for uniform updates must not accidentally recurse into Submit. Infrastructure activation/restoration and low-level GL primitives remain infrastructure.
+The following production files contain activation/dispatch entry points or retained-input producers. Owned render sequences prepare options and inputs first, activate/submit next, then draw or dispatch. Infrastructure activation/restoration and low-level GL primitives remain explicit operations.
 - `VanillaGraphicsExpanded/DebugView/Views/VgeGBufferOverlayDebugView.cs`
 - `VanillaGraphicsExpanded/DebugView/Views/VgeWorldCellBoundsDebugView.cs`
 - `VanillaGraphicsExpanded/HarmonyPatches/TerrainLumonSceneChunkSlotUniformBindingHook.cs`
@@ -127,21 +127,21 @@ The following production files contain activation/dispatch entry points or param
 - HarmonyPatches/TerrainDisplacementPoolHooks.cs: existing MeshDataPool.RenderMesh and manager hooks must retain ordering with the liquid bridge. vsapi/Client/MeshPool/MeshDataPool.cs:465 forwards the actual pool draw; the installed MeshDataPoolManager assigns mini-dimension transforms, transparency and pool origin before that call and restores them afterwards.
 - HarmonyPatches/AtmosphereShaderBindingHook.cs, TerrainLumonSceneChunkSlotUniformBindingHook.cs and other engine binding hooks: vanilla shader adapters remain outside the owned-shader inheritance contract. Preserve their explicit engine publication boundaries.
 - LumOn/LumOnUniformBuffers.cs, near-field retained inputs, SurfaceLightingParamsUbo, TraceGeometryComputeShader, PBR material and atmosphere bindings distinguish externally uploaded shared buffers from owned CPU parameter UBOs. Submission borrows resource references without transferring ownership or duplicating shared uploads.
-- Texture/sampler setters (including raw texture IDs), image bindings, SSBO ranges, UBO references, atomic counters and raw Uniform/UniformMatrix/UniformMatrixArray methods all need staging or an explicit low-level execution classification. Counter clears, barriers and readbacks stay execution operations.
+- Texture/sampler setters (including raw texture IDs), image bindings, SSBO ranges, UBO references and atomic counters retain their inputs. Liquid Uniform/UniformMatrix/UniformMatrixArray adapters write CPU parameters. Foreign engine uniforms remain low-level operations; counter clears, barriers and readbacks stay execution operations.
 - PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs and PbrHeightBakeShaderProgram.cs: preserve family-selected contracts and pass-by-pass inputs; descriptors in PbrNormalDepthBakeShaderProgram.cs are static.
-- DebugView/Views and Rendering/Shaders/VgeDebugLinesShaderProgram.cs/VgeWorldProbeOrbsPointsShaderProgram.cs: preserve lazy program preparation and retained debug settings while moving publication to Use.
+- DebugView/Views and Rendering/Shaders/VgeDebugLinesShaderProgram.cs/VgeWorldProbeOrbsPointsShaderProgram.cs: preserve lazy program preparation and retained debug settings; publication occurs at Use.
 
 ## Fixtures, tests and documentation
 
-Migrate concrete fixture owners in Rendering/Shaders/Fixtures, including GeneratedResourceBindingShader and GeneratedTextureImageShader which have no ShaderProgram attribute. Static fixture declarations remain descriptors. Nested test-local subclasses retain explicit Submit implementations: GPU/DriverProgramCacheTests.cs, EngineShaderDebugLabelsTests.cs, ShaderDigestIndexCacheTests.cs, ShaderLinkBatchTests.cs, SpirvGraphicsLifecycleTests.cs, and Unit/Rendering/Contracts/ShaderOptionBatchTests.cs under VanillaGraphicsExpanded.Tests. Include engine-interface activation paths in their migration. Nested fixtures currently supply an explicit Submit because top-level generation does not own nested declarations. Top-level fixtures can use generated Submit after declaring their runtime resource sources.
+Concrete fixture owners in Rendering/Shaders/Fixtures use the same contract, including GeneratedResourceBindingShader and GeneratedTextureImageShader which have no ShaderProgram attribute. Static fixture declarations remain descriptors. Nested test-local subclasses retain explicit Submit implementations: GPU/DriverProgramCacheTests.cs, EngineShaderDebugLabelsTests.cs, ShaderDigestIndexCacheTests.cs, ShaderLinkBatchTests.cs, SpirvGraphicsLifecycleTests.cs, and Unit/Rendering/Contracts/ShaderOptionBatchTests.cs under VanillaGraphicsExpanded.Tests. Engine-interface activation paths are covered by GpuProgramUseScopeTests. Nested fixtures currently supply an explicit Submit because top-level generation does not own nested declarations. Top-level fixtures can use generated Submit after declaring their runtime resource sources.
 
-Relevant tests include CpuUniformBufferTests, UniformBufferCallerTests, UboPackingTests, shader declaration/generator suites, GPU/GpuUniformRingBufferIntegrationTests, GPU/TestUniformRingRetirementTests and existing program preparation/reload/layout/state-cache suites. Update the generated-resource fixtures to prove setters make no GL calls and Submit does the binding. Execute builds/tests through subagents only during implementation.
+Relevant tests include CpuUniformBufferTests, UniformBufferCallerTests, UboPackingTests, shader declaration/generator suites, GPU/GpuUniformRingBufferIntegrationTests, GPU/TestUniformRingRetirementTests and existing program preparation/reload/layout/state-cache suites. Generated-resource fixtures verify that setters make no GL calls and Submit publishes the bindings. The contract document maps lifecycle requirements to their focused tests.
 
-Update docs/ShaderAuthoring.md after API implementation; preserve the executable readiness rules in docs/GPU.ShaderDemandLoading.md. ShaderAuthoring.md describes retained input publication and the compute and liquid boundaries.
+docs/ShaderAuthoring.md documents the API; docs/GPU.ShaderDemandLoading.md governs executable readiness. ShaderAuthoring.md describes retained input publication and the compute and liquid boundaries.
 
 ## Reconciliation searches
 
-Repeat these searches during migration and classify remaining matches; a textual hit is not by itself a defect:
+Repeat these searches when adding shader owners and classify matches; a textual hit is not by itself a defect:
 
 ```powershell
 rg -n 'class .*:.*(GpuProgram|LumOnShaderProgram|VgeShaderProgram)' VanillaGraphicsExpanded VanillaGraphicsExpanded.Tests

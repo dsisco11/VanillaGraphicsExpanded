@@ -29,7 +29,11 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var second = DynamicTexture2D.CreateMipmapped(4, 4, PixelInternalFormat.R32f, 3);
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
         using var draws = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
+        GpuSupport.Initialize();
+        Assert.True(GpuSupport.IsInitializedForCurrentContext);
         using var ring = new GpuUniformRingBuffer(4096, 1, persistent);
+        Assert.SkipWhen(persistent && !ring.UsesPersistentMapping, "Persistent uniform mapping is unavailable in this headless context.");
+        Assert.Equal(persistent, ring.UsesPersistentMapping);
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
         try
@@ -79,6 +83,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             {
                 Assert.Equal(firstTexture.TextureId, BoundTextures()[0]);
                 Assert.Equal(0.25f, SubmittedDepthSigma());
+                Assert.Equal(0f, SubmittedDepthSigma(4));
+                Assert.Equal(0f, SubmittedDepthSigma(8));
+                Assert.Equal(0f, SubmittedDepthSigma(16));
                 using (second.UseScope())
                 {
                     Assert.Equal(secondTexture.TextureId, BoundTextures()[0]);
@@ -86,6 +93,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 }
                 Assert.Equal(firstTexture.TextureId, BoundTextures()[0]);
                 Assert.Equal(0.25f, SubmittedDepthSigma());
+                Assert.Equal(0f, SubmittedDepthSigma(4));
+                Assert.Equal(0f, SubmittedDepthSigma(8));
+                Assert.Equal(0f, SubmittedDepthSigma(16));
             }
             Assert.Equal(3, ring.AllocationsWritten);
         }
@@ -103,14 +113,18 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var frame = GpuUniformBuffer.Create();
         frame.Allocate(544);
+        GpuSupport.Initialize();
+        Assert.True(GpuSupport.IsInitializedForCurrentContext);
         using var ring = new GpuUniformRingBuffer(4096, 1, persistent);
+        Assert.SkipWhen(persistent && !ring.UsesPersistentMapping, "Persistent uniform mapping is unavailable in this headless context.");
+        Assert.Equal(persistent, ring.UsesPersistentMapping);
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<LumOnUpsampleShaderProgram>();
             int[] priorTextures = BoundTextures();
-                        shader.FrameUniformBuffer = frame;
+            shader.FrameUniformBuffer = frame;
             shader.IndirectHalf = texture;
             shader.PrimaryDepth = texture.TextureId;
             shader.GBufferNormal = texture.TextureId;
@@ -139,9 +153,10 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             // The retained resource set remains usable after program replacement and page reuse.
             shader.InvalidateAssets();
             GL.Finish();
-            ring.BeginFrame(0);
+            ring.BeginFrame(1);
             shader.Use();
             Assert.Equal(3, ring.AllocationsWritten);
+            Assert.Equal(0.75f, SubmittedDepthSigma());
             Assert.Equal(shader.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(0.75f, UboPacking.ReadFloat(Parameters(shader).Bytes, 0));
             shader.Stop();
@@ -227,7 +242,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 shader.ProgramLayout.ResolveUniformLocation(shader.ProgramId, "gBufferNormal").State);
             Assert.Equal(GpuProgramLayout.ResolutionState.Missing,
                 shader.ProgramLayout.ResolveUniformBlockActive(shader.ProgramId, LumOnUpsampleParamsUbo.BlockName).State);
-                        shader.FrameUniformBuffer = frame;
+            shader.FrameUniformBuffer = frame;
             shader.IndirectHalf = texture;
             shader.PrimaryDepth = texture.TextureId;
 
@@ -243,7 +258,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     /// <summary>Supplies required borrowed inputs while giving each owner distinct parameter bytes.</summary>
     private static void AssignResources(LumOnUpsampleShaderProgram shader, GpuTexture texture, GpuUniformBuffer frame, float sigma)
     {
-                shader.FrameUniformBuffer = frame;
+        shader.FrameUniformBuffer = frame;
         shader.IndirectHalf = texture;
         shader.PrimaryDepth = texture.TextureId;
         shader.GBufferNormal = texture.TextureId;

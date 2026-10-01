@@ -6,21 +6,23 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests;
 
+/// <summary>Checks expanded production traversal helpers remain at global GLSL scope.</summary>
 public sealed class ShaderProcessedSourceDiagnosticsTests
 {
+    /// <summary>Expands the per-view near-field shader and checks the shared traversal definition.</summary>
     [Fact]
     public void LumonDebugFsh_ProcessedSource_HasTopLevelTraceSceneHelpers()
     {
         using var helper = new ShaderTestHelper(shaderBasePath: ".", includeBasePath: ".");
-        var src = helper.GetProcessedSource("lumon_debug.fsh");
+        var src = helper.GetProcessedSource("lumon_debug_view_near_field_geometry.fsh");
         Assert.NotNull(src);
 
         string source = src!;
         Assert.StartsWith("#version", source.TrimStart(), StringComparison.Ordinal);
         Assert.Contains("#version 330 core", source, StringComparison.Ordinal);
 
-        int idx = source.IndexOf("VgeUnpackBlockLevel", StringComparison.Ordinal);
-        Assert.True(idx >= 0, "Expected VgeUnpackBlockLevel to exist in processed source.");
+        int idx = source.IndexOf("lumonTraceSceneEndpoint", StringComparison.Ordinal);
+        Assert.True(idx >= 0, "Expected lumonTraceSceneEndpoint to exist in processed source.");
 
         int line = 1;
         for (int i = 0; i < idx; i++)
@@ -37,7 +39,7 @@ public sealed class ShaderProcessedSourceDiagnosticsTests
             else if (c == '}') braceDepth--;
         }
 
-        Console.WriteLine($"VgeUnpackBlockLevel appears at line {line}, braceDepth≈{braceDepth}");
+        Console.WriteLine($"lumonTraceSceneEndpoint appears at line {line}, braceDepth≈{braceDepth}");
 
         // Dump a small window around the target line to help diagnose shader compiler errors.
         var lines = source.Split('\n');

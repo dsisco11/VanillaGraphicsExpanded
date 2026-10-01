@@ -363,6 +363,8 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         int previousId = previous?.ProgramId ?? 0;
         if (previous is null)
             GlStateCache.Current.TryGetCachedCurrentProgram(out previousId);
+        // Capture ownership now; nested disposal must fail restoration rather than bind a retired GL name.
+        var previousCompute = previous is null ? GpuComputeShader.FindOwner(previousId) : null;
 
         try
         {
@@ -374,12 +376,12 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
             }
             Use();
             GlStateCache.Current.NotifyProgramBound(ProgramId);
-            return new ProgramUseScope(previous, previousId, this);
+            return new ProgramUseScope(previous, previousId, previousCompute, this);
         }
         catch
         {
             // Restore the caller's ownership if activation failed during shutdown/reload.
-            RestoreProgram(previous, previousId);
+            RestoreProgram(previous, previousId, previousCompute);
             throw;
         }
     }
@@ -400,14 +402,15 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     }
 
     /// <summary>Restores owned resources through submission and preserves foreign engine activation policy.</summary>
-    private static void RestoreProgram(ShaderProgramBase? previous, int previousId)
+    private static void RestoreProgram(ShaderProgramBase? previous, int previousId, GpuComputeShader? previousCompute)
     {
         try
         {
             if (previous is GpuProgram owner) owner.Use();
             else if (previous is not null) previous.Use();
-            else if (!GpuComputeShader.TryRestore(previousId)) GlStateCache.Current.UseProgram(previousId);
-            GlStateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousId);
+            else if (previousCompute is not null) previousCompute.Use();
+            else GlStateCache.Current.UseProgram(previousId);
+            GlStateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousCompute?.ProgramId ?? previousId);
         }
         catch
         {
@@ -423,13 +426,15 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     {
         private readonly ShaderProgramBase? previous;
         private readonly int previousProgramId;
+        private readonly GpuComputeShader? previousCompute;
         private readonly GpuProgram? current;
 
         /// <summary>Remembers both the engine owner and any engine-independent GL binding.</summary>
-        internal ProgramUseScope(ShaderProgramBase? previous, int previousProgramId, GpuProgram current)
+        internal ProgramUseScope(ShaderProgramBase? previous, int previousProgramId, GpuComputeShader? previousCompute, GpuProgram current)
         {
             this.previous = previous;
             this.previousProgramId = previousProgramId;
+            this.previousCompute = previousCompute;
             this.current = current;
         }
 
@@ -442,7 +447,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
                 current.Stop();
                 GlStateCache.Current.NotifyProgramBound(0);
             }
-            RestoreProgram(previous, previousProgramId);
+            RestoreProgram(previous, previousProgramId, previousCompute);
         }
     }
     #endregion

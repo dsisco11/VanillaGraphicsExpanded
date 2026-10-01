@@ -11,7 +11,7 @@ internal static class RuntimeSubmissionEmitter
 {
     #region Public API
     #region Discovery and validation
-    /// <summary>Identifies concrete graphics owners independently of declaration attributes.</summary>
+    /// <summary>Identifies concrete graphics and compute owners independently of declaration attributes.</summary>
     public static bool IsRuntimeOwner(INamedTypeSymbol symbol)
     {
         if (symbol.IsStatic || symbol.IsAbstract) return false;
@@ -20,7 +20,7 @@ internal static class RuntimeSubmissionEmitter
         return false;
     }
 
-    /// <summary>Preserves explicit legacy submission while consumers migrate their runtime data sources.</summary>
+    /// <summary>Generates contract submission unless a specialized owner supplies its own override.</summary>
     public static bool GeneratesSubmission(INamedTypeSymbol symbol) => IsRuntimeOwner(symbol) &&
         !symbol.GetMembers("Submit").OfType<IMethodSymbol>().Any(m => m.IsOverride);
 

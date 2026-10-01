@@ -40,12 +40,22 @@ Shader input submission:
       ../VanillaGraphicsExpanded.Tests/TestResults/migration-atmosphere-final.trx. Latest Debug build passed.
       Second source review and independent test/inventory review found no remaining migration gaps.
 
-  ☐ Validate and document the completed contract.
+  ✔ Validate and document the completed contract.
     - Test retained/default values, partial assignments, generated binding coverage, submission failure/retry,
       nested scopes/restoration, reload, required/optional resources, frame rollover and both ring paths.
     - Verify several assignments followed by Use publish one active CPU block; do not claim frame-time savings.
     - Update authoring guidance and resource lifetime responsibilities.
     - Perform second review and independent audit before completion; no game launch for acceptance.
-    - Broader-suite follow-up: assess trace sun and debug/registration-count expectations, accessor reload queues,
-      PBR mode lifecycle, installed-engine GLSL/depth fixtures, terrain GLSL variables and the raw SPIR-V GL error.
-      The broad run was interrupted; these exclusions are not established baseline failures or a clean-suite result.
+    - Completion: second source review and independent contract audit confirm lifecycle coverage and documentation.
+      Retired enclosing compute scopes now fail closed; PBR composition accepts an absent GI texture at zero intensity.
+    - Validation: shader-enabled Debug build passed (0 errors, 101 warnings); generator tests passed 150/150.
+      Focused boundary tests passed 28/28 with no skips, asserting actual persistent and fallback paths.
+      Unfiltered main suite: 4,482 passed, 3 failed, 17 skipped out of 4,502. No game launched or performance claim.
+      Evidence: ../VanillaGraphicsExpanded.Tests/TestResults/contract-validation-boundaries.trx,
+      ../VanillaGraphicsExpanded.Tests/TestResults/contract-validation-final.trx,
+      ../ShaderContractGenerator.Tests/TestResults/contract-validation-generator.trx.
+    - Broader-suite assessment: obsolete queue/count/sun expectations and installed-engine/depth/terrain fixtures
+      were reconciled; raw SPIR-V and sky sampler isolation, atmosphere inputs and world-owner registration were fixed.
+      Three assertions remain unchanged: material cache-key policy, subdivision default, and SH9 mixed-consumer lighting.
+      See Rendering.ShaderPreparation.md, Broader-suite residuals, for exact tests and observed mismatches.
+      These are unresolved follow-ups, not an established baseline or a clean full-suite result.

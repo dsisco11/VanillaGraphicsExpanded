@@ -73,7 +73,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             .Replace("@import \"./atmosphere_sky_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_sky_mapping.glsl")))
             .Replace("@import \"./atmosphere_aerial_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_aerial_mapping.glsl")));
         string source = header + "\n" + aerial + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
-            + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl")) + "\n"
+            + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl")).Replace("@import \"./pbr_transmission.glsl\"", File.ReadAllText(Path.Combine(directory, "pbr_transmission.glsl"))) + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_environment.glsl")).Replace("@import \"./pbr_common.glsl\"", "") + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl")).Replace("@import \"./pbr_environment.glsl\"", "").Replace("@import \"./atmosphere_aerial.glsl\"", "")
             + $"\nvoid main() {{ outColor = vec4(VgeForwardSurface(vec3(0.2,0.4,0.6), {(scenario == 3 ? "vec3(1,0,0)" : "vec3(0,0,1)")}, vec3(0.5,0,{(scenario is 1 or 9 or 15 ? "2.0" : "0.0")}), 0.0), 0.37); }}";

@@ -21,8 +21,8 @@ internal interface IPBRCompositeShaderProgramBindings
     /// <summary>Declares the emissive Sampler slot.</summary>
     [ShaderBinding("emissive", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? Emissive { set; }
-    /// <summary>Declares the indirectDiffuse Sampler slot.</summary>
-    [ShaderBinding("indirectDiffuse", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    /// <summary>Allows missing or unpublished GI; the renderer sets indirect intensity to zero in that case.</summary>
+    [ShaderBinding("indirectDiffuse", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? IndirectDiffuse { set; }
     /// <summary>Declares the gBufferAlbedo Sampler slot.</summary>
     [ShaderBinding("gBufferAlbedo", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]

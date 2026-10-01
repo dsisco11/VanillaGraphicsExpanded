@@ -47,7 +47,8 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumOnDebugShaderProgramFamily.Register(assets.Api));
         var declarations = LumOnDebugShaderProgramFamily.GetAll();
-        Assert.Equal(68, declarations.Count());
+        Assert.Equal(LumOnDebugShaderProgram.Contracts.Select(contract => contract.Identity).Order(),
+            declarations.Select(program => program.PassName).Order());
         foreach (var program in declarations)
         {
             Assert.Equal(0, program.ProgramId);

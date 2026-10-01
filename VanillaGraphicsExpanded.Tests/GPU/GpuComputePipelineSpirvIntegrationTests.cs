@@ -8,25 +8,20 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Exercises explicit compute contracts with independently named SPIR-V files.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class GpuComputePipelineSpirvIntegrationTests : IDisposable
+public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
+    #region Public API
+    /// <summary>Uses the shared GL state and error isolation applied to all rendering tests.</summary>
+    public GpuComputePipelineSpirvIntegrationTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    public GpuComputePipelineSpirvIntegrationTests(HeadlessGLFixture fixture)
-    {
-        _fixture = fixture;
-    }
-
-    public void Dispose()
-    {
-    }
-
+    /// <summary>The explicit contract selects a binary's interface independently of its file name.</summary>
     [Fact]
     public void DirectFileUsesExplicitContractDespiteArbitraryFilename()
     {
-        _fixture.EnsureContextValid();
+        EnsureContextValid();
 
         bool supportsSpirv = GpuShaderModule.SupportsSpirv();
         Assert.True(supportsSpirv, "GPU shader tests require GL_ARB_gl_spirv support.");
@@ -46,24 +41,25 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : IDisposable
         File.WriteAllBytes(renamed, bytes);
         try
         {
-        bool ok = GpuComputePipeline.TryLoadFromSpirv(
-            spirvBinaryPath: renamed,
-            settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
-            pipeline: out var pipeline,
-            infoLog: out string infoLog,
-            debugName: "Tests.GpuComputePipelineSpirvIntegration");
+            bool ok = GpuComputePipeline.TryLoadFromSpirv(
+                spirvBinaryPath: renamed,
+                settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
+                pipeline: out var pipeline,
+                infoLog: out string infoLog,
+                debugName: "Tests.GpuComputePipelineSpirvIntegration");
 
-        Assert.True(ok, $"Expected SPIR-V pipeline creation to succeed. InfoLog:\n{infoLog}");
-        Assert.NotNull(pipeline);
-        Assert.True(pipeline!.IsValid);
-        Assert.True(pipeline.ProgramId != 0);
+            Assert.True(ok, $"Expected SPIR-V pipeline creation to succeed. InfoLog:\n{infoLog}");
+            Assert.NotNull(pipeline);
+            Assert.True(pipeline!.IsValid);
+            Assert.True(pipeline.ProgramId != 0);
 
-        pipeline.Dispose();
-        pipeline.Dispose();
+            pipeline.Dispose();
+            pipeline.Dispose();
         }
         finally { File.Delete(renamed); }
 
-        // Drain errors so flaky drivers don't poison later tests.
-        while (GL.GetError() != ErrorCode.NoError) { }
+        // Newly introduced driver errors are failures; the shared fixture owns test isolation.
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
+    #endregion
 }

@@ -88,12 +88,20 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
     public void RegisteredCompositionAddsLightingTermsOnce(bool sh9)
     {
         EnsureContextValid();
+        Assert.Null(VanillaGraphicsExpanded.ModSystems.AtmosphereModSystem.Lighting);
+        using var atmosphere = new VanillaGraphicsExpanded.ModSystems.AtmosphereModSystem();
+        // DirectLightingRenderer consumes the published atmospheric generation, not engine solar uniforms.
+        atmosphere.Publish(new(Vector3.UnitZ, Vector3.One, Vector3.Zero, Vector3.Zero, Vector3.Zero,
+            System.Collections.Immutable.ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f) };
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
         var receiver = new RuntimeReceiverSurface(new(.5f, .25f, .125f), Emission: .5f, Reflectivity: 1);
         runtime.Receiver = (_, _) => receiver;
-        runtime.EngineUniforms.SunPosition3D = new(0, 0, 1);
         SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
+        // The engine environment attachment carries propagated sunlight independently of solar irradiance.
+        OpenTK.Graphics.OpenGL.GL.ClearTexImage(runtime.Cache.Buffers.EnvironmentTextureId, 0,
+            OpenTK.Graphics.OpenGL.PixelFormat.Rgba, OpenTK.Graphics.OpenGL.PixelType.Float,
+            new[] { 0f, 0f, 0f, 1f });
         for (int frame = 0; frame < 24; frame++) runtime.Frame();
         var incident = scene.SourceAlbedo.Value * (32 / MathF.PI);
         var direct = runtime.Direct.DirectDiffuseTex!.ReadPixels();

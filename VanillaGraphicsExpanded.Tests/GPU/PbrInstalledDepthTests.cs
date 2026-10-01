@@ -31,7 +31,7 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f, .25f, .1f, 1f]);
         using var color = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         using var glow = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var engineNormal = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var position = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);

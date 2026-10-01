@@ -21,6 +21,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
     public void ProductionRegistrationAndConfigurationTimings()
     {
         EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var depth = DynamicTexture2D.Create(8, 8, PixelInternalFormat.R32f);
         depth.UploadDataImmediate(Enumerable.Repeat(.5f, 64).ToArray());
@@ -44,13 +45,13 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.Empty(assets.Reads);
             Assert.Empty(assets.RegisteredPrograms);
             var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray();
-            Assert.Equal(19, selected.Length);
+            Assert.Equal(22, selected.Length);
             Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
             double startup = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double startupUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Startup driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
             submitted = completed = 0; consumed = peak = 0;
-            Assert.Equal(19, assets.RegisteredPrograms.Count);
+            Assert.Equal(22, assets.RegisteredPrograms.Count);
             Assert.Equal(LumOnDebugShaderProgram.Contracts.Count(), LumOnDebugShaderProgramFamily.GetAll().Count());
             foreach (var program in assets.RegisteredPrograms.Values) Assert.True(GL.IsProgram(program.ProgramId));
 
@@ -83,7 +84,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             double reload = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double reloadUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Re-registration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
-            Assert.Equal(19, assets.RegisteredPrograms.Count);
+            Assert.Equal(22, assets.RegisteredPrograms.Count);
             output.WriteLine($"Production mode={(disable ? "sync" : "batch")}, registered={assets.RegisteredPrograms.Count}, changed={changed.Length}, startup={startup:F3} ms, configuration={configuration:F3} ms, re-registration={reload:F3} ms; HZB use+readback startup={startupUse:F3}/configuration={configurationUse:F3}/re-registration={reloadUse:F3} ms.");
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -94,8 +95,8 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
         var program = Assert.IsType<LumOnHzbCopyShaderProgram>(assets.RegisteredPrograms["lumon_hzb_copy"]);
         long started = Stopwatch.GetTimestamp();
         target.BindWithViewport();
-        GlStateCache.Current.UseProgram(program.ProgramId);
         program.PrimaryDepth = depth.TextureId;
+        using var scope = program.UseScope();
         RenderFullscreenQuad(program.ProgramId);
         var pixel = ReadPixel(target, 4, 4);
         double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
