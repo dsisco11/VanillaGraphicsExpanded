@@ -27,8 +27,30 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(MinConfidenceWeight), SpecializationId = 7)]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(UniformMask))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WeightEpsilon), SpecializationId = 10, When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
+[ShaderBindingSet(typeof(LumOnScreenProbeAtlasTraceShaderProgram), Stages = new[] { ShaderStageKind.Vertex })]
 public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderProgram
 {
+
+    #region Private: GPU binding declarations
+    /// <summary>Declares the fragment stage's frame parameter block.</summary>
+    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer LumOnFrame { set; }
+    /// <summary>Declares the fragment stage's anchor position sampler.</summary>
+    [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAnchorPositionTexture { set; }
+    /// <summary>Declares the fragment stage's anchor normal sampler.</summary>
+    [ShaderBinding("probeAnchorNormal", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAnchorNormalTexture { set; }
+    /// <summary>Declares the fragment stage's history radiance sampler.</summary>
+    [ShaderBinding("octahedralHistory", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment)]
+    private partial GpuTexture OctahedralHistory { set; }
+    /// <summary>Declares the fragment stage's history metadata sampler.</summary>
+    [ShaderBinding("probeAtlasMetaHistory", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAtlasMetaHistory { set; }
+    #endregion
+
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.BatchSlicing))]
@@ -60,7 +82,7 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
     #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+    internal override GpuShaderContract ProgramContract => Contract;
 
     public LumOnProbeAtlasPisMaskShaderProgram()
     {

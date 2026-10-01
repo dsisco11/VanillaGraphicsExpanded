@@ -13,7 +13,7 @@ public sealed class LumOnDebugViewContractTests
     {
         var modes = Enum.GetValues<LumOnDebugMode>().Where(mode => mode is not
             (LumOnDebugMode.Off or LumOnDebugMode.VgeNormalDepthAtlas or LumOnDebugMode.WorldProbeOrbsPoints)).ToArray();
-        Assert.Equal(68, modes.Length);
+        Assert.Equal(69, modes.Length);
         string[] names = modes.Select(LumOnDebugShaderProgramFamily.GetProgramName).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(names.Order(), LumOnDebugShaderProgram.Contracts.Select(contract => contract.Identity).Order());

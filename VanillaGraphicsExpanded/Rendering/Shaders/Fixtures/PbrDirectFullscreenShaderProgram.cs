@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
@@ -6,6 +7,9 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderProgram("Contract", "tests/pbr_direct_fullscreen", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "tests/fullscreen_uv.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_direct_lighting.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
+[ShaderBindingSet(typeof(PBRDirectLightingShaderProgram), Stages = new[] { ShaderStageKind.Fragment })]
 internal static partial class PbrDirectFullscreenShaderProgram
 {
 }

@@ -14,9 +14,10 @@ internal sealed class LumOnDebugProgramLayout : GpuProgramLayout
 
     internal LumOnNearFieldVisibilityBindings NearFieldVisibility { get; }
 
+    /// <summary>Consumes the debug shader's generated resource contract and creates its visibility binder.</summary>
     public LumOnDebugProgramLayout()
     {
-        RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.DeclareBindings("lumon_debug"));
+        RegisterContract(LumOnDebugShaderProgram.WorldProbeIrradianceCombinedContract.Stages[1].Bindings);
         NearFieldVisibility = new LumOnNearFieldVisibilityBindings(this);
 
     }

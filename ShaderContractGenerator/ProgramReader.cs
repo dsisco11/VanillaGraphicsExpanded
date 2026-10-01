@@ -68,7 +68,6 @@ internal sealed class ProgramReader(Dictionary<INamedTypeSymbol, OwnerDeclaratio
     {
         var kind = (ShaderStageKind)(int)Argument(attribute, 1).Value!;
         string source = Text(attribute, 2), identity = Text(attribute, "Identity", source)!;
-        string layout = Text(attribute, "Layout", source.Contains('.') ? source.Substring(0, source.LastIndexOf('.')) : source)!;
         string entry = Text(attribute, "EntryPoint", "main")!, binary = Text(attribute, "BinaryAsset", identity)!;
         var uses = Attributes(owner.Symbol, "ShaderUse").Where(a => Text(a, 0) == program && (int)Argument(a, 1).Value! == (int)kind).ToArray();
         // Gather structural dependencies first so attribute order cannot change condition validity.
@@ -109,8 +108,9 @@ internal sealed class ProgramReader(Dictionary<INamedTypeSymbol, OwnerDeclaratio
             fixedValues.Add(name, Scalar(Argument(define, 3)));
             fixedExpressions.Add(name, "ShaderScalar.From(" + Literal(Argument(define, 3)) + ")");
         }
-        var model = new ShaderStageContract(identity, source, kind, new GpuBindingContract(), structural.Select(o => o.Model), constants.Select(c => c.Model), fixedValues, entry, binary);
-        string expression = $"new ShaderStageContract({Quote(identity)}, {Quote(source)}, ShaderStageKind.{kind}, GpuShaderContracts.DeclareBindings({Quote(layout)}), " +
+        var bindings = BindingReader.Read(owner.Symbol, program, kind);
+        var model = new ShaderStageContract(identity, source, kind, bindings.Model, structural.Select(o => o.Model), constants.Select(c => c.Model), fixedValues, entry, binary);
+        string expression = $"new ShaderStageContract({Quote(identity)}, {Quote(source)}, ShaderStageKind.{kind}, {bindings.Expression}, " +
             $"new ShaderOption[] {{ {string.Join(", ", structural.Select(o => o.KeyExpression))} }}, new ShaderSpecialization[] {{ {string.Join(", ", constants.Select(c => c.Expression))} }}, " +
             "new System.Collections.Generic.Dictionary<string, ShaderScalar> { " + string.Join(", ", fixedExpressions.Select(p => $"[{Quote(p.Key)}] = {p.Value}")) +
             $" }}, {Quote(entry)}, {Quote(binary)})";

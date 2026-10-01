@@ -47,10 +47,19 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 [ShaderProgram("SubContract", "pbr_heightbake_sub", 1)]
 [ShaderStage("SubContract", ShaderStageKind.Vertex, "pbr_heightbake_fullscreen.vsh")]
 [ShaderStage("SubContract", ShaderStageKind.Fragment, "pbr_heightbake_sub.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 internal sealed partial class PbrHeightBakeShaderProgram : GpuProgram
 {
+
+    #region Private: GPU binding declarations
+    /// <summary>Declares the VgePbrHeightBakeParamsUBO UniformBlock slot.</summary>
+    [ShaderBinding("VgePbrHeightBakeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer Parameters { set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => System.Linq.Enumerable.Single(Contracts, contract => contract.Identity == PassName);
+    internal override GpuShaderContract ProgramContract => System.Linq.Enumerable.Single(Contracts, contract => contract.Identity == PassName);
 
     private const string ParamsBlockName = "VgePbrHeightBakeParamsUBO";
 

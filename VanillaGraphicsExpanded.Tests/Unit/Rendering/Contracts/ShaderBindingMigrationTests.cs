@@ -1,0 +1,56 @@
+using System.Security.Cryptography;
+using System.Text;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+
+namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
+
+/// <summary>Compares every generated resource layout with fingerprints captured from the pre-migration owning switch.</summary>
+public sealed class ShaderBindingMigrationTests
+{
+    #region Public API
+    /// <summary>Indices, explicit locations, optional-resource policy and shared-stage layouts retain their original values.</summary>
+    [Fact]
+    public void GeneratedBindingsPreserveAllOriginalStageLayouts()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "project.todo"))) directory = directory.Parent;
+        Assert.NotNull(directory);
+        string path = Path.Combine(directory.FullName, "VanillaGraphicsExpanded.Tests", "Unit", "Rendering", "Contracts", "Fixtures", "ShaderBindingMigrationBaseline.txt");
+        string[] expected = File.ReadAllLines(path);
+        string[] actual = new[] { "production", "build-validation", "generator-fixture" }.SelectMany(scope =>
+            GeneratedShaderCatalog.Programs(scope).SelectMany(p => p.Stages).DistinctBy(s => s.Identity)
+                .Select(stage => scope + "|" + stage.Identity + "|" + Fingerprint(stage.Bindings)))
+            .Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(expected, actual);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Canonicalizes each independent namespace before hashing; declaration order cannot affect the baseline.</summary>
+    private static string Fingerprint(GpuBindingContract bindings)
+    {
+        var rows = new List<string>();
+        AddBindings("UniformBlocks", bindings.UniformBlocks);
+        AddBindings("StorageBlocks", bindings.StorageBlocks);
+        AddBindings("Samplers", bindings.Samplers);
+        AddBindings("Images", bindings.Images);
+        AddLocations("UniformLocations", bindings.UniformLocations);
+        AddLocations("VaryingLocations", bindings.VaryingLocations);
+        AddLocations("FragmentOutputLocations", bindings.FragmentOutputLocations);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", rows.Order(StringComparer.Ordinal)))));
+
+        // Slot presence and Required are both observable runtime contracts, including resources
+        // optimized out of a particular binary. Preserve them independently of linked reflection.
+        /// <summary>Adds the complete resource policy to canonical fingerprint rows.</summary>
+        void AddBindings(string kind, IDictionary<string, GpuBindingContract.Binding> values)
+        {
+            rows.AddRange(values.Select(p => kind + "|" + p.Key + "|" + p.Value.Slot + "|" + (p.Value.Required ? "true" : "false")));
+        }
+        /// <summary>Adds stable explicit interface indices to canonical fingerprint rows.</summary>
+        void AddLocations(string kind, IDictionary<string, int> values)
+        {
+            rows.AddRange(values.Select(p => kind + "|" + p.Key + "|" + p.Value));
+        }
+    }
+    #endregion
+}

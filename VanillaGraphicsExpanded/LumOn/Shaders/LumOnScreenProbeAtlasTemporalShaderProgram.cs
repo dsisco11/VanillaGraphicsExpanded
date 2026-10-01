@@ -27,8 +27,44 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(TexelsPerFrame), SpecializationId = 1)]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(BatchSlicing))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ImportanceSampling))]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderProgram
 {
+
+    #region Private: GPU binding declarations
+    /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
+    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer LumOnFrame { set; }
+    /// <summary>Declares the VgeLumOnProbeParamsUBO UniformBlock slot.</summary>
+    [ShaderBinding("VgeLumOnProbeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer Parameters { set; }
+    /// <summary>Declares the octahedralCurrent Sampler slot.</summary>
+    [ShaderBinding("octahedralCurrent", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture OctahedralCurrent { set; }
+    /// <summary>Declares the octahedralHistory Sampler slot.</summary>
+    [ShaderBinding("octahedralHistory", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture OctahedralHistory { set; }
+    /// <summary>Declares the probeAnchorPosition Sampler slot.</summary>
+    [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAnchorPositionTexture { set; }
+    /// <summary>Declares the probeAtlasMetaCurrent Sampler slot.</summary>
+    [ShaderBinding("probeAtlasMetaCurrent", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAtlasMetaCurrent { set; }
+    /// <summary>Declares the probeAtlasMetaHistory Sampler slot.</summary>
+    [ShaderBinding("probeAtlasMetaHistory", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAtlasMetaHistory { set; }
+    /// <summary>Declares the velocityTex Sampler slot.</summary>
+    [ShaderBinding("velocityTex", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture VelocityTexTexture { set; }
+    /// <summary>Declares the pmjJitter Sampler slot.</summary>
+    [ShaderBinding("pmjJitter", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture PmjJitterTexture { set; }
+    /// <summary>Declares the probeTraceMask Sampler slot.</summary>
+    [ShaderBinding("probeTraceMask", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    private partial GpuTexture ProbeTraceMaskTexture { set; }
+    #endregion
+
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.BatchSlicing))]
@@ -40,7 +76,7 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
     #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+    internal override GpuShaderContract ProgramContract => Contract;
 
     private LumOnProbeParamsUbo? paramsUbo;
 

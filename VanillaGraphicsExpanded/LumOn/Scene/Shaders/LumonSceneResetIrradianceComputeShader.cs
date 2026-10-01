@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
@@ -5,6 +6,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns shader declarations for this packaged source or fixture.</summary>
 [ShaderProgram("Contract", "lumonscene_reset_irradiance", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_reset_irradiance.csh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 internal static partial class LumonSceneResetIrradianceComputeShader
 {
 }

@@ -12,8 +12,23 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 [ShaderProgram("Contract", "pbr_liquid_depth", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_liquid_depth.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_liquid_depth.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProgram
 {
+
+    #region Private: GPU binding declarations
+    /// <summary>Declares the VgeLiquidDepthFrameParams UniformBlock slot.</summary>
+    [ShaderBinding("VgeLiquidDepthFrameParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer FrameParameters { set; }
+    /// <summary>Declares the VgeLiquidDrawParams UniformBlock slot.</summary>
+    [ShaderBinding("VgeLiquidDrawParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer DrawParameters { set; }
+    /// <summary>Declares the VgeLiquidWaveParams UniformBlock slot.</summary>
+    [ShaderBinding("VgeLiquidWaveParams", ShaderBindingKind.UniformBlock, 15, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer WaveParameters { set; }
+    #endregion
+
     private readonly LiquidDepthFrameParamsUbo frame = new();
     private readonly LiquidWaveParamsUbo wave = new();
     private readonly LiquidDrawParamsUbo draw = new();

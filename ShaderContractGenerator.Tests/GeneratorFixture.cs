@@ -11,22 +11,23 @@ namespace ShaderContractGenerator.Tests;
 internal static class GeneratorFixture
 {
     internal const string Prelude = "using VanillaGraphicsExpanded.Rendering.Contracts;\nnamespace Example;\n";
-    private const string Bindings = "namespace VanillaGraphicsExpanded.Rendering.Contracts { internal static class GpuShaderContracts { internal static GpuBindingContract DeclareBindings(string identity) => new(); } }";
     private static readonly CSharpParseOptions ParseOptions = new(LanguageVersion.CSharp13);
     private static readonly MetadataReference[] References = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
         .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path)).ToArray();
     private static readonly SyntaxTree[] Models = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "ContractSources"), "*.cs")
-        .Order(StringComparer.Ordinal).Select(path => CSharpSyntaxTree.ParseText(File.ReadAllText(path), ParseOptions, path)).Append(CSharpSyntaxTree.ParseText(Bindings, ParseOptions)).ToArray();
+        .Order(StringComparer.Ordinal).Select(path => CSharpSyntaxTree.ParseText(File.ReadAllText(path), ParseOptions, path)).ToArray();
 
     #region Compilation
     /// <summary>Runs the same generator on normal source or semantic-only additional files.</summary>
     internal static Result Generate(string source, bool offline = false, GeneratorDriver? previous = null, string[]? symbols = null,
-        LanguageVersion languageVersion = LanguageVersion.CSharp13)
+        LanguageVersion languageVersion = LanguageVersion.CSharp13, string? supportSource = null)
     {
         var parseOptions = ParseOptions.WithLanguageVersion(languageVersion).WithPreprocessorSymbols(symbols ?? []);
         var syntax = CSharpSyntaxTree.ParseText(Prelude + source, parseOptions, "Owner.cs");
+        var trees = offline ? Models.AsEnumerable() : Models.Append(syntax);
+        if (supportSource != null) trees = trees.Append(CSharpSyntaxTree.ParseText(supportSource, parseOptions, "Support.cs"));
         var compilation = CSharpCompilation.Create("GeneratedTest" + Guid.NewGuid().ToString("N"),
-            (offline ? Models : Models.Append(syntax)).Select(tree => tree.WithRootAndOptions(tree.GetRoot(), parseOptions)), References, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            trees.Select(tree => tree.WithRootAndOptions(tree.GetRoot(), parseOptions)), References, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         GeneratorDriver driver = previous ?? CSharpGeneratorDriver.Create([new ShaderDeclarationGenerator().AsSourceGenerator()],
             offline ? [new SourceFile("Owner.cs", Prelude + source)] : [], parseOptions, new Configuration(offline));
         if (previous != null && offline) driver = driver.ReplaceAdditionalTexts([new SourceFile("Owner.cs", Prelude + source)]);

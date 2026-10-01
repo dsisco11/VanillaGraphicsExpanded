@@ -15,6 +15,8 @@ internal sealed class OwnerDeclaration(INamedTypeSymbol symbol)
     public Dictionary<string, OptionDeclaration> Options { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, (ShaderOptionGroup Model, string Expression)> Groups { get; } = new(StringComparer.Ordinal);
     public List<ProgramDeclaration> Programs { get; } = [];
+    /// <summary>Tracks owners whose defining properties are compiled directly by the offline consumer.</summary>
+    public bool OfflineSourcePresent { get; set; }
 }
 
 /// <summary>A validated immutable program and its generated construction expression.</summary>

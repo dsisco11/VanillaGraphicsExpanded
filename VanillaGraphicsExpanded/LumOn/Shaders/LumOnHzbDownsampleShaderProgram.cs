@@ -15,11 +15,22 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_hzb_downsample", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_hzb_downsample.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_hzb_downsample.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 public sealed partial class LumOnHzbDownsampleShaderProgram : GpuProgram
 {
 
+    #region Private: GPU binding declarations
+    /// <summary>Declares the VgeLumOnHzbDownsampleParamsUBO UniformBlock slot.</summary>
+    [ShaderBinding("VgeLumOnHzbDownsampleParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer Parameters { set; }
+    /// <summary>Declares the hzbDepth Sampler slot.</summary>
+    [ShaderBinding("hzbDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture HzbDepthTexture { set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+    internal override GpuShaderContract ProgramContract => Contract;
 
     private LumOnHzbDownsampleParamsUbo? paramsUbo;
 

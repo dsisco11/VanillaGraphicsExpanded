@@ -18,11 +18,31 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_probe_atlas_filter", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_filter.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_filter.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 public partial class LumOnScreenProbeAtlasFilterShaderProgram : LumOnShaderProgram
 {
 
+    #region Private: GPU binding declarations
+    /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
+    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer LumOnFrame { set; }
+    /// <summary>Declares the VgeLumOnProbeParamsUBO UniformBlock slot.</summary>
+    [ShaderBinding("VgeLumOnProbeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer Parameters { set; }
+    /// <summary>Declares the octahedralAtlas Sampler slot.</summary>
+    [ShaderBinding("octahedralAtlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture OctahedralAtlas { set; }
+    /// <summary>Declares the probeAtlasMeta Sampler slot.</summary>
+    [ShaderBinding("probeAtlasMeta", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAtlasMeta { set; }
+    /// <summary>Declares the probeAnchorPosition Sampler slot.</summary>
+    [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture ProbeAnchorPositionTexture { set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+    internal override GpuShaderContract ProgramContract => Contract;
 
     private LumOnProbeParamsUbo? paramsUbo;
 

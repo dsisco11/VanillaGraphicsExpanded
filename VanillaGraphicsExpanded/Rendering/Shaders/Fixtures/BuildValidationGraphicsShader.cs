@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
@@ -6,4 +7,6 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderProgram("Contract", "fixture", 1, Scope = "build-validation")]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "fixture.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "fixture.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 internal static partial class BuildValidationGraphicsShader { }

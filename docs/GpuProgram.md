@@ -53,36 +53,116 @@ At runtime, use `SetDefine(name, value)` / `RemoveDefine(name)` on the shader pr
 
 Define changes trigger a recompile on the main thread (GL context safety). If you cache uniform locations or similar program-dependent state, override `OnAfterCompile()` to refresh it.
 
-## Uniform Blocks (UBOs)
+## Generated GPU binding contracts
 
-VGE targets GLSL `#version 330`, so uniform-block bindings cannot rely on `layout(binding=...)` without extensions.
-
-Preferred pattern:
-
-- Define a program layout contract by overriding `CreateLayout()` with a shader-specific `GpuProgramLayout` subclass.
-- Register expected UBO binding points (and optionally sampler/image units) inside that layout.
-- After `Use()` (per pass), bind a buffer to the block by name:
-  - `program.TryBindUniformBlock("MyBlockUBO", myUniformBuffer)`
-
-Example:
+Declare strongly typed partial properties in the owning shader's main class file.
+The marker attribute owns the GLSL name, resource kind, index and applicable stages.
+The generator implements resource setters through the owner's linked program layout:
 
 ```csharp
-internal sealed class MyShaderLayout : GpuProgramLayout
+[ShaderProgram("Contract", "my_shader", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "my_shader.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "my_shader.fsh")]
+public partial class MyShaderProgram : GpuProgram
 {
-    public MyShaderLayout()
-    {
-        RegisterUniformBlockBinding("MyBlockUBO", bindingIndex: 12, required: true);
-        RegisterSamplerUnit("albedoTex", unit: 0, required: true);
-    }
-}
+    #region Public API
+    /// <summary>Binds the parameter buffer used by both stages.</summary>
+    [ShaderBinding("MyBlockUBO", ShaderBindingKind.UniformBlock,
+        GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    public partial GpuUniformBuffer Parameters { set; }
 
-public sealed class MyShaderProgram : GpuProgram
-{
-    protected override GpuProgramLayout CreateLayout() => new MyShaderLayout();
+    /// <summary>Binds the fragment stage's albedo texture.</summary>
+    [ShaderBinding("albedoTex", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
+    public partial GpuTexture Albedo { set; }
+    #endregion
 }
 ```
 
-This keeps binding indices centralized in the program wrapper and avoids renderers hardcoding `glUniformBlockBinding` calls.
+Sampler setters accept `GpuTexture`, image setters accept `GpuTexture` or `GpuTextureBinding`,
+uniform-block setters accept `GpuUniformBuffer`, and storage-block setters accept
+`GpuShaderStorageBuffer`. Image assignments specify access, mip level, layering,
+layer and optional format, for example
+`shader.Output = new(texture, Access: TextureAccess.WriteOnly, Layered: true)`.
+An image property typed as `GpuTexture` uses the same defaults as `new GpuTextureBinding(texture)`:
+read-only access, mip zero, layer zero, non-layered binding and the texture's internal
+format. Use a `GpuTextureBinding` property when callers need write access or other view
+settings. This value describes a binding; it does not create an OpenGL texture-view object.
+Assignments require the owning program to be linked; bind the program before dispatch
+or drawing. The setters resolve linked resource activity and skip optimized-away
+resources. They do not upload data or retain resource ownership. Compute wrappers
+use their owning `GpuComputePipeline` field named `pipeline`.
+
+Shared layouts and contract-only owners use static get-only partial properties of
+`ShaderSamplerBinding`, `ShaderImageBinding`, `ShaderUniformBlockBinding`, or
+`ShaderStorageBlockBinding`. Location declarations use the corresponding
+`ShaderUniformLocationBinding`, `ShaderVaryingLocationBinding`, or
+`ShaderFragmentOutputLocationBinding` descriptor. These descriptors expose name,
+index and required-resource policy without referencing engine resource types.
+Unsupported types, accessors and non-partial declarations produce `VGEGEN001`.
+
+`UniformLocation`, `Sampler`, `Image`, `UniformBlock` and `StorageBlock` use
+independent index namespaces. A sampler's uniform location differs from its texture
+unit. Shared stage I/O also supports `VaryingLocation` and `FragmentOutputLocation`.
+Indices are nonnegative and must fit the target GPU's limits; compile-time validation
+does not query driver capabilities. GLSL arrays and matrices still need enough
+explicit location space in the shader interface.
+
+The generator emits immutable `ShaderStageContract.Bindings` for both the mod and
+`ShaderBuildTool`. Offline compilation reads C# declarations through Roslyn; runtime
+uses direct generated references and never scans source or reflects over attributes.
+`GpuProgramLayout.RegisterContract(Contract.Stages[1].Bindings)` consumes the same
+fragment contract. Compute layouts use `Stages[0]`. Keep resource uploads in the
+existing buffer methods; generated setters bind through the established layout
+methods. Do not redeclare their slots there.
+
+For a class declaring several programs, `Program = "Sky"` selects its generated
+contract member, while `Programs = new[] { "Sky", "Lighting" }` shares one property
+across a subset. Omission applies the property to every declared program using one of
+its stages. Shader options and availability conditions continue to select variants;
+a binding declaration describes their stable interface union. `Required = false`
+suppresses missing-resource diagnostics. Optimized-away resources remain legal even
+when required; an absent linked resource never causes a fallback slot assignment.
+
+### Shared layouts
+
+```csharp
+/// <summary>Owns the shared surface-cache lookup interface.</summary>
+internal static partial class CacheBindings
+{
+    #region Private
+    /// <summary>Declares the shared cache sampler.</summary>
+    [ShaderBinding("cache", ShaderBindingKind.Sampler, 18,
+        ShaderStageKind.Fragment, ShaderStageKind.Compute, Required = false)]
+    private static partial ShaderSamplerBinding Cache { get; }
+    #endregion
+}
+
+[ShaderBindingSet(typeof(CacheBindings), Stages = new[] { ShaderStageKind.Fragment })]
+public partial class MyShaderProgram { }
+```
+
+Sets can reference other sets; base-class declarations are inherited at compile time.
+Diamond references to the same property retain one declaration. Cycles, duplicated names
+from different properties, conflicting indices, unsupported properties, invalid names/stages,
+and incompatible complete layouts for a shared stage identity produce compiler errors.
+A set's `Program` selects the consumer member. Program restrictions on imported properties
+are evaluated against that consumer member too; use unrestricted properties for general
+shared layouts.
+
+`Defaults = true` supplies declarations only where an explicit declaration has not
+supplied that kind/name. `ShaderInterfaceLocations` owns the existing stable global
+locations and intentional interface aliases. `ShaderIncludeBindings` owns optional
+UBOs declared by common includes; several inactive block names can intentionally share
+a reserved slot. Import these as defaults when using those production includes.
+Ordinary resource sets should use the default strict mode. Different resource kinds
+cannot claim the same GLSL resource name.
+
+## Uniform Blocks (UBOs)
+
+Put runtime parameters into shared `std140` schemas and upload them through the
+existing ring-backed buffer methods, for example
+`program.Parameters = myUniformBuffer`. The generated declaration
+supplies the slot to offline SPIR-V layout emission and linked runtime diagnostics.
 
 ### UBO schemas (shared includes)
 

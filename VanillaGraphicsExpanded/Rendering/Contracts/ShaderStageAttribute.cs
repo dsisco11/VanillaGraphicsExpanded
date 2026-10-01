@@ -26,10 +26,6 @@ internal sealed class ShaderStageAttribute : Attribute
     /// <remarks>Equal identities within a scope require compatible complete stage definitions. Identity also supplies the default BinaryAsset value.</remarks>
     public string? Identity { get; set; }
 
-    /// <summary>Gets or sets the binding-layout key passed to GpuShaderContracts.DeclareBindings.</summary>
-    /// <remarks>When omitted, the source path with its final extension removed selects the existing resource/interface binding contract. This key does not declare option uses.</remarks>
-    public string? Layout { get; set; }
-
     /// <summary>Gets or sets the shader entry-point identifier; defaults to <c>main</c>.</summary>
     public string EntryPoint { get; set; } = "main";
 

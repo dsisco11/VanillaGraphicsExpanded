@@ -47,7 +47,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
                 if (declaration.AttributeLists.Count == 0 && !declaration.Members.Any(p => p.AttributeLists.Count != 0)) continue;
                 if (semantic.GetDeclaredSymbol(declaration, context.CancellationToken) is not { } symbol || owners.ContainsKey(symbol)) continue;
                 if (!symbol.GetAttributes().Any(IsDeclarationAttribute) && !symbol.GetMembers().Any(m => m.GetAttributes().Any(IsDeclarationAttribute))) continue;
-                owners.Add(symbol, new(symbol));
+                owners.Add(symbol, new(symbol) { OfflineSourcePresent = originalCompilation.GetTypeByMetadataName(symbol.ToDisplayString()) != null });
             }
         }
         bool failed = false;
@@ -70,6 +70,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
                     if (sameName.Any(o => o.TypeName != sameName.First().TypeName || !o.Model.Equivalent(sameName.First().Model)))
                         throw new ArgumentException($"Conflicting shared option '{sameName.Key}'.");
                 ProgramReader.ReadGroups(owner);
+                BindingReader.Validate(owner.Symbol);
             });
         var reader = new ProgramReader(owners);
         foreach (var owner in owners.Values.OrderBy(o => o.Name, StringComparer.Ordinal)) Try(owner, () => reader.Read(owner));
@@ -77,7 +78,6 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
         {
             var programs = new Dictionary<string, GpuShaderContract>(StringComparer.Ordinal);
             var stages = new Dictionary<string, ShaderStageContract>(StringComparer.Ordinal);
-            var layoutExpressions = new Dictionary<string, string>(StringComparer.Ordinal);
             var optionTypes = new Dictionary<string, string>(StringComparer.Ordinal);
             var outputPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var owner in owners.Values.OrderBy(o => o.Name, StringComparer.Ordinal)) Try(owner, () =>
@@ -105,15 +105,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
                         }
                     }
                 }
-                foreach (var stage in Attributes(owner.Symbol, "ShaderStage"))
-                {
-                    string source = Text(stage, 2), identity = Text(stage, "Identity", source)!;
-                    string layout = Text(stage, "Layout", source.Contains('.') ? source.Substring(0, source.LastIndexOf('.')) : source)!;
-                    string scope = owner.Programs.Single(p => p.Member == Text(stage, 0)).Scope;
-                    string key = scope + ":" + identity;
-                    if (layoutExpressions.TryGetValue(key, out string? prior) && prior != layout) throw new ArgumentException($"Shared stage '{identity}' has conflicting binding layouts.");
-                    layoutExpressions[key] = layout;
-                }
+
             });
         }
         if (failed) return;
@@ -153,6 +145,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
     private static bool IsDeclarationAttribute(AttributeData attribute) => attribute.AttributeClass?.ToDisplayString() is
         Prefix + "ShaderProgramAttribute" or Prefix + "ShaderStageAttribute" or Prefix + "ShaderOptionAttribute" or
         Prefix + "ShaderOptionReferenceAttribute" or Prefix + "ShaderUseAttribute" or Prefix + "ShaderFixedDefineAttribute" or
-        Prefix + "ShaderGroupAttribute" or Prefix + "ShaderAcceptGroupAttribute" or Prefix + "ShaderAssignmentAttribute";
+        Prefix + "ShaderGroupAttribute" or Prefix + "ShaderAcceptGroupAttribute" or Prefix + "ShaderAssignmentAttribute" or
+        Prefix + "ShaderBindingAttribute" or Prefix + "ShaderBindingSetAttribute";
     #endregion
 }

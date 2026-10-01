@@ -14,11 +14,19 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_hzb_copy", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_hzb_copy.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_hzb_copy.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 public sealed partial class LumOnHzbCopyShaderProgram : GpuProgram
 {
 
+    #region Private: GPU binding declarations
+    /// <summary>Declares the primaryDepth Sampler slot.</summary>
+    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuTexture PrimaryDepthTexture { set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+    internal override GpuShaderContract ProgramContract => Contract;
 
     public LumOnHzbCopyShaderProgram()
     {

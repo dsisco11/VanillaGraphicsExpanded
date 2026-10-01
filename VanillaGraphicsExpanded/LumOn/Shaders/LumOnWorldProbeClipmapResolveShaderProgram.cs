@@ -15,11 +15,19 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_worldprobe_clipmap_resolve", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_worldprobe_clipmap_resolve.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_worldprobe_clipmap_resolve.fsh")]
+[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
 public sealed partial class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram
 {
 
+    #region Private: GPU binding declarations
+    /// <summary>Declares the VgeLumOnWorldProbeResolveParamsUBO UniformBlock slot.</summary>
+    [ShaderBinding("VgeLumOnWorldProbeResolveParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    private partial GpuUniformBuffer Parameters { set; }
+    #endregion
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => Contract;
+    internal override GpuShaderContract ProgramContract => Contract;
 
     private LumOnWorldProbeResolveParamsUbo? paramsUbo;
 
