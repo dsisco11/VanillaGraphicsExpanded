@@ -34,6 +34,7 @@ Issues:
       - Add focused subagent-run tests for changed/unchanged scalar, integer, vector and matrix writes,
         dirty-range preservation, invalid writes and floating-point bit patterns. Measure comparison
         overhead separately from any claimed reduction in GPU uploads.
+    ☐ Establish persistent shader preparation with Prepare(lambda) and Use-driven Submit. See docs/Rendering.ShaderPreparation.todo.
     ☐ Audit each of the LumOn shaders for opportunities to reduce shader code instruction count.
     ☐ Profile the performance of the near-tracing geometry system to identify bottlenecks and optimize GPU memory usage.
     ☐ Investigate potential optimizations for memory layout and data transfer patterns to improve overall GPU efficiency.
