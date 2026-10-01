@@ -607,23 +607,6 @@ public sealed class DynamicTexture2D : GpuTexture
         return data;
     }
 
-    /// <summary>
-    /// Gets the number of channels for the current internal format.
-    /// </summary>
-    private new int GetChannelCount()
-    {
-        return internalFormat switch
-        {
-            PixelInternalFormat.R16f or PixelInternalFormat.R32f or
-            PixelInternalFormat.R16 or PixelInternalFormat.R8 => 1,
-            PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f or
-            PixelInternalFormat.Rg16 or PixelInternalFormat.Rg8 => 2,
-            PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f or
-            PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb => 3,
-            _ => 4 // RGBA formats and default
-        };
-    }
-
     #endregion
 
     #region Private Methods
