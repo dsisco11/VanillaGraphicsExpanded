@@ -43,7 +43,7 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         using var texture = Texture3D.Create(2, 2, 1, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
         using var layer = GpuFramebuffer.CreateEmpty("Tests.ReadbackLayer");
-        layer.AttachColorLayer(texture, 0);
+        layer.Attach(texture, 0);
         layer.BindAndClear(1, 2, 3, 1);
         using var sourceTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
         using var targetTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);

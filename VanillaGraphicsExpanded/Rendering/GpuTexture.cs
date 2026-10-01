@@ -956,7 +956,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
         tempFbo.Bind();
-        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
+        tempFbo.Attach(textureId, attachmentIndex: 0, mipLevel: 0);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(
@@ -998,7 +998,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
         tempFbo.Bind();
-        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
+        tempFbo.Attach(textureId, attachmentIndex: 0, mipLevel: 0);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(
@@ -1042,7 +1042,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
         tempFbo.Bind();
-        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: mipLevel);
+        tempFbo.Attach(textureId, attachmentIndex: 0, mipLevel: mipLevel);
 
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.ReadPixels(
@@ -1143,6 +1143,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         {
             PixelInternalFormat.R16f or PixelInternalFormat.R32f or PixelInternalFormat.R16 or PixelInternalFormat.R8 => 1,
             PixelInternalFormat.DepthComponent or PixelInternalFormat.DepthComponent16 or PixelInternalFormat.DepthComponent24 or PixelInternalFormat.DepthComponent32f => 1,
+            PixelInternalFormat.Depth24Stencil8 or PixelInternalFormat.Depth32fStencil8 => 1,
             PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui => 1,
             PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f or PixelInternalFormat.Rg16 or PixelInternalFormat.Rg8 => 2,
             PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui => 2,

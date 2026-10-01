@@ -874,7 +874,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Copy mip 0 from the primary depth texture.
         fbo.Bind();
-        fbo.AttachColorTextureId(hzb.TextureId, attachmentIndex: 0, mipLevel: 0);
+        fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: 0);
         GL.Viewport(0, 0, hzb.Width, hzb.Height);
 
         using (GlGpuProfiler.Instance.Scope(copy.PassName))
@@ -897,7 +897,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 int dstH = Math.Max(1, hzb.Height >> dstMip);
 
                 fbo.Bind();
-                fbo.AttachColorTextureId(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
+                fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
                 GL.Viewport(0, 0, dstW, dstH);
 
                 down.SrcMip = dstMip - 1;

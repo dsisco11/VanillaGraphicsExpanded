@@ -185,9 +185,9 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 1f]);
         // A depth-format texture is required by sampler2DShadow. The production resource setters
         // bind the comparison sampler; the test must not repair or replace that binding itself.
-        using var shadow = DynamicTexture2D.CreateDepth(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var shadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         GL.TextureSubImage2D(shadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { shadowDepth });
-        using var farShadow = DynamicTexture2D.CreateDepth(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var farShadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
         using var use = program.UseScope();
         program.PrimaryScene = albedo.TextureId;

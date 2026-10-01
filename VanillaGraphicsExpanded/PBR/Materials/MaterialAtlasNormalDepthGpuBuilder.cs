@@ -726,7 +726,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     {
         // Attach the atlas texture to the scratch FBO and read back a single pixel.
         // Note: framebuffer coordinates are bottom-left origin.
-        scratchFbo!.AttachColorTextureId(atlasTexId);
+        scratchFbo!.Attach(atlasTexId);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
 
         float[] px = new float[4];
@@ -736,7 +736,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private static float ReadTexturePixelR32f(DynamicTexture2D tex, int x, int y)
     {
-        scratchFbo!.AttachColor(tex);
+        scratchFbo!.Attach(tex);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
 
         float[] px = new float[1];
@@ -835,13 +835,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private static void BindTarget(DynamicTexture2D dst)
     {
-        scratchFbo!.AttachColor(dst);
+        scratchFbo!.Attach(dst);
         GL.Viewport(0, 0, dst.Width, dst.Height);
     }
 
     private static void BindAtlasTarget(int atlasTexId, int x, int y, int w, int h)
     {
-        scratchFbo!.AttachColorTextureId(atlasTexId);
+        scratchFbo!.Attach(atlasTexId);
         GL.Viewport(x, y, w, h);
     }
 

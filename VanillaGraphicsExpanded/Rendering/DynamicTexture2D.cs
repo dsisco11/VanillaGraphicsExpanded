@@ -5,7 +5,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// Encapsulates an OpenGL 2D texture with lifecycle management.
+/// Encapsulates a color OpenGL 2D texture with lifecycle management.
 /// Handles creation, binding, resizing, and disposal of GPU texture resources.
 /// </summary>
 /// <remarks>
@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// // ... use texture ...
 /// </code>
 /// </remarks>
-public sealed class DynamicTexture2D : GpuTexture
+public class DynamicTexture2D : GpuTexture
 {
     #region Fields
     private int mipLevels = 1;
@@ -35,6 +35,22 @@ public sealed class DynamicTexture2D : GpuTexture
     #region Constructor (private - use factory methods)
 
     private DynamicTexture2D() { }
+
+    /// <summary>Initializes storage for a specialized two-dimensional texture.</summary>
+    protected DynamicTexture2D(int width, int height, PixelInternalFormat format, TextureFilterMode filter, string? debugName)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        this.width = width;
+        this.height = height;
+        depth = 1;
+        internalFormat = format;
+        textureTarget = TextureTarget.Texture2D;
+        filterMode = filter;
+        this.debugName = debugName;
+        AllocateTexture();
+    }
 
     #endregion
 
@@ -55,6 +71,9 @@ public sealed class DynamicTexture2D : GpuTexture
         TextureFilterMode filter = TextureFilterMode.Nearest,
         string? debugName = null)
     {
+        if (TextureFormatHelper.IsDepthFormat(format) || TextureFormatHelper.IsStencilFormat(format))
+            throw new ArgumentException("Use a specialized texture type for depth or stencil formats.", nameof(format));
+
         if (width <= 0)
         {
             Debug.WriteLine($"[DynamicTexture] Invalid width {width}, defaulting to 1");
@@ -93,6 +112,9 @@ public sealed class DynamicTexture2D : GpuTexture
         int mipLevels,
         string? debugName = null)
     {
+        if (TextureFormatHelper.IsDepthFormat(format) || TextureFormatHelper.IsStencilFormat(format))
+            throw new ArgumentException("Use a specialized texture type for depth or stencil formats.", nameof(format));
+
         if (width <= 0)
         {
             Debug.WriteLine($"[DynamicTexture] Invalid width {width}, defaulting to 1");
@@ -121,28 +143,6 @@ public sealed class DynamicTexture2D : GpuTexture
 
         texture.AllocateTexture();
         return texture;
-    }
-
-    /// <summary>
-    /// Creates a depth texture with the specified parameters.
-    /// </summary>
-    /// <param name="width">Texture width in pixels.</param>
-    /// <param name="height">Texture height in pixels.</param>
-    /// <param name="format">Depth format (default: DepthComponent24).</param>
-    /// <returns>A new DynamicTexture instance configured for depth.</returns>
-    public static DynamicTexture2D CreateDepth(
-        int width,
-        int height,
-        PixelInternalFormat format = PixelInternalFormat.DepthComponent24,
-        string? debugName = null)
-    {
-        if (!TextureFormatHelper.IsDepthFormat(format))
-        {
-            Debug.WriteLine($"[DynamicTexture] Format {format} is not a depth format, defaulting to DepthComponent24");
-            format = PixelInternalFormat.DepthComponent24;
-        }
-
-        return Create(width, height, format, TextureFilterMode.Nearest, debugName);
     }
 
     /// <summary>
@@ -232,7 +232,7 @@ public sealed class DynamicTexture2D : GpuTexture
     /// Clears the texture to the specified color (requires binding to FBO first).
     /// This method should be called when the texture is attached to a bound framebuffer.
     /// </summary>
-    public void Clear()
+    public virtual void Clear()
     {
         if (!IsValid)
         {
@@ -516,16 +516,16 @@ public sealed class DynamicTexture2D : GpuTexture
         // Create temporary FBO for readback
         using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
         tempFbo.Bind();
-        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
+        AttachForReadback(tempFbo, 0);
 
         // Explicitly select the attachment as the read source.
         // Some drivers/context states may otherwise read from an undefined buffer.
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadBuffer(ReadbackBuffer);
 
         // Read pixels
         GL.ReadPixels(0, 0, width, height,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
+            ReadbackFormat,
+            ReadbackType,
             data);
 
         // Cleanup
@@ -557,16 +557,16 @@ public sealed class DynamicTexture2D : GpuTexture
 
         using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
         tempFbo.Bind();
-        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: 0);
+        AttachForReadback(tempFbo, 0);
 
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadBuffer(ReadbackBuffer);
         GL.ReadPixels(
             x,
             y,
             regionWidth,
             regionHeight,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
+            ReadbackFormat,
+            ReadbackType,
             data);
 
         GpuFramebuffer.Unbind();
@@ -594,18 +594,35 @@ public sealed class DynamicTexture2D : GpuTexture
 
         using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
         tempFbo.Bind();
-        tempFbo.AttachColorTextureId(textureId, attachmentIndex: 0, mipLevel: mipLevel);
+        AttachForReadback(tempFbo, mipLevel);
 
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.ReadBuffer(ReadbackBuffer);
         GL.ReadPixels(0, 0, mipWidth, mipHeight,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
+            ReadbackFormat,
+            ReadbackType,
             data);
 
         GpuFramebuffer.Unbind();
 
         return data;
     }
+
+    #endregion
+
+    #region Protected API
+
+    /// <summary>Attaches this texture to a temporary readback framebuffer.</summary>
+    protected virtual void AttachForReadback(GpuFramebuffer framebuffer, int mipLevel) =>
+        framebuffer.Attach(textureId, attachmentIndex: 0, mipLevel);
+
+    /// <summary>Gets the pixel format used for floating-point readback.</summary>
+    protected virtual PixelFormat ReadbackFormat => TextureFormatHelper.GetPixelFormat(internalFormat);
+
+    /// <summary>Gets the pixel type used for floating-point readback.</summary>
+    protected virtual PixelType ReadbackType => PixelType.Float;
+
+    /// <summary>Gets the read buffer selected for readback.</summary>
+    protected virtual ReadBufferMode ReadbackBuffer => ReadBufferMode.ColorAttachment0;
 
     #endregion
 

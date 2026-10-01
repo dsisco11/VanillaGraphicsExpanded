@@ -65,7 +65,7 @@ internal static class SurfaceCacheReadinessReadback
         {
             if (layer != region.Layer)
             {
-                framebuffer.AttachColorLayer(texture, region.Layer);
+                framebuffer.Attach(texture, region.Layer);
                 if (!framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
                 framebuffer.Bind();
                 layer = region.Layer;

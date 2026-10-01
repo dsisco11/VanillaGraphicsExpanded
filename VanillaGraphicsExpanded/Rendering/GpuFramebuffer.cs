@@ -401,7 +401,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// </summary>
     /// <remarks>
     /// Intended for temporary/scratch use (e.g. readback helpers) where attachments are set via
-    /// <see cref="AttachColor"/> / <see cref="AttachColorTextureId"/> / <see cref="AttachDepth"/> / <see cref="AttachDepthRenderbuffer"/>.
+    /// <see cref="Attach(DynamicTexture2D, int, int)"/> and its typed overloads.
     /// </remarks>
     public static GpuFramebuffer CreateEmpty(string? debugName = null)
     {
@@ -607,8 +607,12 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// <remarks>
     /// This updates the framebuffer attachment in OpenGL. It does not take ownership of the texture.
     /// </remarks>
-    public void AttachColor(DynamicTexture2D texture, int attachmentIndex = 0, int mipLevel = 0)
+    public void Attach(DynamicTexture2D texture, int attachmentIndex = 0, int mipLevel = 0)
     {
+        if (texture != null && (TextureFormatHelper.IsDepthFormat(texture.InternalFormat) ||
+            TextureFormatHelper.IsStencilFormat(texture.InternalFormat)))
+            throw new ArgumentException("Depth or stencil storage cannot be a color attachment.", nameof(texture));
+
         if (!IsValid)
         {
             Debug.WriteLine("[GBuffer] Attempted to attach color texture to disposed or invalid framebuffer");
@@ -653,7 +657,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// Attaches an existing OpenGL texture id as a color attachment.
     /// Intended for interop with engine-owned textures.
     /// </summary>
-    public void AttachColorTextureId(int textureId, int attachmentIndex = 0, int mipLevel = 0)
+    public void Attach(int textureId, int attachmentIndex = 0, int mipLevel = 0)
     {
         if (!IsValid)
         {
@@ -685,7 +689,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     }
 
     /// <summary>Attaches one base-level color layer without taking ownership of its texture.</summary>
-    public void AttachColorLayer(Texture3D texture, int layer, int attachmentIndex = 0)
+    public void Attach(Texture3D texture, int layer, int attachmentIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(texture);
         if (!IsValid || !texture.IsValid) throw new InvalidOperationException("Framebuffer and texture must be valid.");
@@ -706,38 +710,28 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// This updates the framebuffer attachment in OpenGL. It does not take ownership of the texture.
     /// Any previously attached depth renderbuffer reference is cleared.
     /// </remarks>
-    public void AttachDepth(DynamicTexture2D texture, int mipLevel = 0)
+    public void Attach(DepthTexture texture, int mipLevel = 0)
     {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GBuffer] Attempted to attach depth texture to disposed or invalid framebuffer");
-            return;
-        }
+        AttachDepthStorage(texture, FramebufferAttachment.DepthAttachment, mipLevel);
+    }
 
-        if (texture is null || !texture.IsValid)
-        {
-            Debug.WriteLine("[GBuffer] Attempted to attach null/invalid depth texture");
-            return;
-        }
+    /// <summary>Attaches packed depth-stencil texture storage without transferring ownership.</summary>
+    public void Attach(DepthStencilTexture texture, int mipLevel = 0)
+    {
+        AttachDepthStorage(texture, FramebufferAttachment.DepthStencilAttachment, mipLevel);
+    }
+
+    /// <summary>Attaches stencil-only texture storage without transferring ownership.</summary>
+    public void Attach(StencilTexture texture, int mipLevel = 0)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        if (!IsValid || !texture.IsValid)
+            throw new InvalidOperationException("Framebuffer and stencil texture must be valid.");
 
         Bind();
-
-        var attachment = TextureFormatHelper.IsDepthFormat(texture.InternalFormat)
-            && texture.InternalFormat is PixelInternalFormat.Depth24Stencil8
-                or PixelInternalFormat.Depth32fStencil8
-            ? FramebufferAttachment.DepthStencilAttachment
-            : FramebufferAttachment.DepthAttachment;
-
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            attachment,
-            TextureTarget.Texture2D,
-            texture.TextureId,
-            mipLevel);
-
-        depthAttachment = texture;
-        depthRenderbuffer = null;
-        depthRenderbufferAttachmentOverride = null;
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer,
+            FramebufferAttachment.StencilAttachment, TextureTarget.Texture2D,
+            texture.TextureId, mipLevel);
     }
 
     /// <summary>
@@ -748,7 +742,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     /// This updates the framebuffer attachment in OpenGL. It does not take ownership of the renderbuffer.
     /// Any previously attached depth texture reference is cleared.
     /// </remarks>
-    public void AttachDepthRenderbuffer(GpuRenderbuffer renderbuffer, bool isDepthStencil = false)
+    public void Attach(GpuRenderbuffer renderbuffer, bool isDepthStencil = false)
     {
         if (!IsValid)
         {
@@ -1137,6 +1131,30 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     #endregion
 
     #region Private Methods
+
+    /// <summary>Attaches depth-capable storage to its corresponding framebuffer attachment.</summary>
+    private void AttachDepthStorage(DynamicTexture2D texture, FramebufferAttachment attachment, int mipLevel)
+    {
+        if (!IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach depth texture to disposed or invalid framebuffer");
+            return;
+        }
+
+        if (texture is null || !texture.IsValid)
+        {
+            Debug.WriteLine("[GBuffer] Attempted to attach null/invalid depth texture");
+            return;
+        }
+
+        Bind();
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, attachment,
+            TextureTarget.Texture2D, texture.TextureId, mipLevel);
+
+        depthAttachment = texture;
+        depthRenderbuffer = null;
+        depthRenderbufferAttachmentOverride = null;
+    }
 
     private void CreateFramebuffer()
     {

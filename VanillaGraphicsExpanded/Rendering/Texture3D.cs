@@ -85,7 +85,7 @@ public sealed class Texture3D : GpuTexture
             // Preserve separate read/draw bindings, including when attachment or mapping fails.
             using var draw = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
             using var read = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
-            framebuffer.AttachColorLayer(this, layer);
+            framebuffer.Attach(this, layer);
             if (!framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
             // CheckStatus releases its diagnostic binding in debug builds.
             framebuffer.Bind();

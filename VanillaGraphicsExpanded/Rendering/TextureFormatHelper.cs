@@ -8,6 +8,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public static class TextureFormatHelper
 {
+    /// <summary>OpenGL's sized stencil-only texture format, absent from this OpenTK enum.</summary>
+    public const PixelInternalFormat StencilIndex8 = (PixelInternalFormat)0x8D48;
+
     /// <summary>
     /// Gets the appropriate PixelFormat for a given internal format.
     /// </summary>
@@ -43,6 +46,7 @@ public static class TextureFormatHelper
             PixelInternalFormat.DepthComponent32f => PixelFormat.DepthComponent,
             PixelInternalFormat.Depth24Stencil8 => PixelFormat.DepthStencil,
             PixelInternalFormat.Depth32fStencil8 => PixelFormat.DepthStencil,
+            StencilIndex8 => PixelFormat.StencilIndex,
             _ => PixelFormat.Rgba
         };
     }
@@ -82,6 +86,7 @@ public static class TextureFormatHelper
             PixelInternalFormat.DepthComponent32f => PixelType.Float,
             PixelInternalFormat.Depth24Stencil8 => PixelType.UnsignedInt248,
             PixelInternalFormat.Depth32fStencil8 => PixelType.Float32UnsignedInt248Rev,
+            StencilIndex8 => PixelType.UnsignedByte,
             _ => PixelType.UnsignedByte
         };
     }
@@ -102,6 +107,9 @@ public static class TextureFormatHelper
             _ => false
         };
     }
+
+    /// <summary>Checks whether a texture has stencil-only storage.</summary>
+    public static bool IsStencilFormat(PixelInternalFormat internalFormat) => internalFormat == StencilIndex8;
 
     /// <summary>
     /// Gets the OpenGL filter parameter value for a filter mode.
