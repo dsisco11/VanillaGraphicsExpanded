@@ -385,7 +385,7 @@ Tasks
     - Validate shallow/deep water, flowing liquids, submerged views, intersections, day/night and
       LumOn switching; measure pass and bandwidth costs separately from optional caustics.
 
-  ☐ Select and implement a modern liquid wave displacement model with a VGE-owned liquid-depth pass.
+  ✔ Select and implement a modern liquid wave displacement model with a VGE-owned liquid-depth pass. @done(26-10-01 02:55)
     - Selected a four-band Gerstner model; see PBR.Liquids.md for SI-unit parameters, depth-pass
       handoff, shared frame snapshot, source references and current validation limits. Keep this task
       open until color/depth visual agreement, liquid-type behavior and GPU cost are reviewed.
