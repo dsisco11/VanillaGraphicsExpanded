@@ -104,7 +104,7 @@ internal static class ShaderVariantBuild
         foreach (var stage in registry.Binaries.GroupBy(s => s.Stage.Identity))
             Console.WriteLine($"[SPIR-V] {stage.Key}: {stage.Count()} structural variants");
         Console.WriteLine($"[SPIR-V] Stages: {registry.Stages.Count} stages, {registry.Binaries.Count} variants");
-        Console.WriteLine($"[SPIR-V] Cache hits={hits}; misses={misses}; compilerInvocations={misses}");
+        Console.WriteLine($"[SPIR-V] Cache hits={hits}; misses={misses}; shadersRecompiled={misses}; compilerInvocations={misses}");
         Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Timing: concurrency={concurrency}; expansionMs={expansionMilliseconds:F1}; emissionWorkMs={emissionTicks * 1000.0 / Stopwatch.Frequency:F1}; compilerWorkMs={compilerTicks * 1000.0 / Stopwatch.Frequency:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}"));
     }
 

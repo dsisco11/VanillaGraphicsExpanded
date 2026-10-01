@@ -111,8 +111,8 @@
                 "build",
                 "-c",
                 "Debug",
-                "--tl:on",
-                "-v:n",
+                "--tl:off",
+                "-v:minimal",
                 "${workspaceFolder}/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj"
             ],
             "options": {

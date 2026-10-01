@@ -67,7 +67,8 @@ internal static class Program
             if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
             {
                 fileHashes.Save();
-                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current. Cache hits={registry.Binaries.Count}; misses=0; compilerInvocations=0; receiptCheckMs={checkTimer.Elapsed.TotalMilliseconds:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
+                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current; receiptCheckMs={checkTimer.Elapsed.TotalMilliseconds:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
+                Console.WriteLine($"[SPIR-V] Cache hits={registry.Binaries.Count}; misses=0; shadersRecompiled=0; compilerInvocations=0");
                 return 0;
             }
             Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Catalog rebuild required (receipt missing/stale, outputs invalid, or rebuild requested); checkMs={checkTimer.Elapsed.TotalMilliseconds:F1}. Per-variant cache reuse={options.Incremental && !options.Clean}."));

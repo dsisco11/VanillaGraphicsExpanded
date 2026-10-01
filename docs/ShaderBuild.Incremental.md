@@ -58,7 +58,13 @@ catalog build removes obsolete runtime outputs; the mod copy target also removes
 obsolete deployed SPIR-V files. Cache and temporary files are not packaged.
 
 Logs report cache hits, misses, compiler invocations and elapsed time.
-MSBuild exposes these messages at minimal verbosity. Startup messages identify
+The IDE build task uses `--tl:off -v:minimal` so successful tool output remains
+visible; the terminal logger (`--tl:on`) suppresses even high-importance success
+messages. Command-line builds should also use `--tl:off` to see these messages.
+Both successful paths print a dedicated `Cache hits=...; misses=...;
+shadersRecompiled=...; compilerInvocations=...` summary; an unchanged receipt
+reports zero recompilations. Counts refer to shader binary variants.
+Startup messages identify
 tool restoration, fingerprint checks and receipt/output verification before any
 variant work begins. Catalog rebuilds report source expansion and variant progress
 (at most once every five seconds as jobs finish, plus the final count), followed
