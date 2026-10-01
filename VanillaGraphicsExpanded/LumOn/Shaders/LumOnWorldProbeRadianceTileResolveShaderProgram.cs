@@ -17,6 +17,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_worldprobe_radiance_tile_resolve.fsh")]
 public sealed partial class LumOnWorldProbeRadianceTileResolveShaderProgram : GpuProgram, ILumOnWorldProbeRadianceTileResolveShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

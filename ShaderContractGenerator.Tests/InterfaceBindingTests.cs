@@ -26,7 +26,7 @@ public sealed class InterfaceBindingTests
             }
             """ + Header + "internal partial class Shader : " +
             (pipeline ? "IResources { private readonly VanillaGraphicsExpanded.Rendering.GpuComputePipeline pipeline = new(); }" :
-                "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IResources { }") + """
+                "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IResources { protected override void Submit() { } }") + """
             public static class Proof
             {
                 public static string Run()
@@ -112,7 +112,7 @@ public sealed class InterfaceBindingTests
                 VanillaGraphicsExpanded.Rendering.GpuTexture Source { ACCESSOR }
             }
             """.Replace("ACCESSOR", defaultBody ? "set { Observation.Calls++; }" : "set;") + Header +
-            "internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, ISource { " +
+            "internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, ISource { protected override void Submit() { } " +
             (defaultBody ? "" : explicitImplementation
                 ? "VanillaGraphicsExpanded.Rendering.GpuTexture ISource.Source { set { Observation.Calls++; } }"
                 : "public VanillaGraphicsExpanded.Rendering.GpuTexture Source { set { Observation.Calls++; } }") +
@@ -134,7 +134,7 @@ public sealed class InterfaceBindingTests
             }
             """ + Header + """
             internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, ISource
-            { public partial VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; } }
+            { protected override void Submit() { } public partial VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; } }
             """;
         var result = GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport);
         result.Compile();
@@ -343,7 +343,7 @@ public sealed class InterfaceBindingTests
                 [ShaderBinding("Work", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer Work { set; }
             }
             """ + Header + """
-            public partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
+            public partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { protected override void Submit() { } }
             public static class Proof
             {
                 public static string Run()

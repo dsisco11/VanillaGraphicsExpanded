@@ -293,6 +293,11 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
     /// <summary>Uses the existing deterministic fullscreen contract.</summary>
     private sealed class FixtureProgram : Rendering.Shaders.GpuProgram
     {
+        #region Submission
+        /// <summary>Retains this owner's explicit external input publication contract.</summary>
+        protected override void Submit() { }
+        #endregion
+
         /// <summary>Supplies engine wrappers for the production owner.</summary>
         public FixtureProgram(string name = Graphics)
         {

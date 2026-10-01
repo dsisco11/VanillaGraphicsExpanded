@@ -29,15 +29,32 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
 
     private LumOnUpsampleParamsUbo? paramsUbo;
 
+    /// <summary>Publishes inherited lighting inputs at the same boundary as this owner's parameters.</summary>
+    protected override bool UsesRetainedLightingInputs => true;
+
+    /// <summary>Registers the upsample resource contract while leaving retained inputs at their defaults.</summary>
     public LumOnUpsampleShaderProgram()
     {
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
-    private LumOnUpsampleParamsUbo Params => paramsUbo ??= new LumOnUpsampleParamsUbo();
+    /// <summary>Retains one packed parameter block with the shader's input-edit guard.</summary>
+    private LumOnUpsampleParamsUbo Params
+    {
+        get
+        {
+            if (paramsUbo is null)
+            {
+                paramsUbo = new LumOnUpsampleParamsUbo();
+                paramsUbo.SetWriteGuard(RequireInputMutation);
+            }
+            return paramsUbo;
+        }
+    }
 
     #region Static
 
+    /// <summary>Declares the persistent upsample owner with the shader registry.</summary>
     public static void Register(ICoreClientAPI api)
     {
         var instance = new LumOnUpsampleShaderProgram
@@ -57,17 +74,17 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
     /// <summary>
     /// Half-resolution indirect diffuse texture.
     /// </summary>
-    public GpuTexture? IndirectHalf { set => BindTexture2D("indirectHalf", value, 0); }
+    public partial GpuTexture? IndirectHalf { set; }
 
     /// <summary>
     /// Primary depth texture for edge-aware upsampling.
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 1, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
 
     /// <summary>
     /// G-buffer normals for edge-aware upsampling.
     /// </summary>
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 2, GpuSamplers.NearestClamp); }
+    public partial int GBufferNormal { set; }
 
     #endregion
 
@@ -91,7 +108,6 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
         set
         {
             Params.UpsampleDepthSigma = value;
-            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -105,7 +121,6 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
         set
         {
             Params.UpsampleNormalSigma = value;
-            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -119,7 +134,6 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
         set
         {
             Params.UpsampleSpatialSigma = value;
-            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -144,7 +158,6 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
         set
         {
             Params.HoleFillRadius = value;
-            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -156,9 +169,14 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
         set
         {
             Params.HoleFillMinConfidence = value;
-            Params.BindTo(this, LumOnUpsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies shared frame storage through the existing uniform-block contract.</summary>
+    GpuUniformBuffer? ILumOnUpsampleShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies packed parameters for one generated publication per use.</summary>
+    CpuUniformBuffer ILumOnUpsampleShaderProgramBindings.Parameters => Params;
     #endregion
 }

@@ -55,6 +55,8 @@ internal sealed class GpuShaderPrograms
     /// <summary>Batches only requested stale programs after the caller has supplied their intended settings.</summary>
     internal static bool Preload(ICoreClientAPI api, ImmutableArray<GpuProgram> selection)
     {
+        // Check every owner before the linking batch can read assets or issue driver commands.
+        foreach (var program in selection) program.RequireOutsideSubmission();
         bool success = true;
         foreach (var group in selection.Distinct().Where(program => !program.IsRetired && program.RequiresPreparation && program.CanSubmitPreparation).GroupBy(program =>
             string.IsNullOrWhiteSpace(program.AssetDomain) ? ShaderImportsSystem.DefaultDomain : program.AssetDomain))

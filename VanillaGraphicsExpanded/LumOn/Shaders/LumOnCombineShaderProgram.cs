@@ -28,6 +28,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
 public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombineShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

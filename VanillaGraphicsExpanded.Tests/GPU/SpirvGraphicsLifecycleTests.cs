@@ -152,6 +152,11 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     /// <summary>Installs engine stage objects while retaining production binary loading and reload behavior.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
+        #region Submission
+        /// <summary>Retains this owner's explicit external input publication contract.</summary>
+        protected override void Submit() { }
+        #endregion
+
         /// <summary>Exposes the engine lookup to verify inactive contract entries as well as live locations.</summary>
         public IReadOnlyDictionary<string, int> EngineUniformLocations => uniformLocations;
 

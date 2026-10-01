@@ -68,6 +68,11 @@ public sealed class EngineShaderDebugLabelsTests(HeadlessGLFixture fixture) : Re
     /// <summary>Loads existing SPIR-V assets through the production shader abstraction.</summary>
     private sealed class FixtureProgram : GpuProgram
     {
+        #region Submission
+        /// <summary>Retains this owner's explicit external input publication contract.</summary>
+        protected override void Submit() { }
+        #endregion
+
         /// <summary>Selects an existing binary contract and initializes engine stage holders.</summary>
         internal FixtureProgram(string name)
         {

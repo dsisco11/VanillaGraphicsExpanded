@@ -33,6 +33,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
 public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasGatherShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     #region Shader options
     /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>

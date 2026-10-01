@@ -14,6 +14,11 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(CaptureMode))]
 internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, ILiquidShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     /// <summary>Selects normal OIT output or a precompiled diagnostic output for GPU tests.</summary>
     [ShaderOption("VGE_LIQUID_CAPTURE_MODE", 0, Domain = new object[] { 0, 1, 2 })]

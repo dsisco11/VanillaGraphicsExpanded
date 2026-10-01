@@ -68,7 +68,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         int pmjUnit = 2,
         int pmjCycleLength = DefaultPmjCycleLength)
     {
-        using var use = programId.UseScope();
         programId.DepthDiscontinuityThreshold = DepthDiscontinuityThreshold;
         programId.PmjJitter = GetOrCreatePmjJitterTexture(pmjCycleLength);
         var projection = LumOnTestInputFactory.CreateInverseMatrix(invProjection);
@@ -112,8 +111,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
 
         var programId = CompileProbeAnchorShader();
-
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();
 
@@ -362,7 +359,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile shader and set uniforms - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
@@ -442,7 +438,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
@@ -516,7 +511,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
@@ -587,7 +581,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
@@ -668,7 +661,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
@@ -752,7 +744,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);
@@ -824,7 +815,6 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var invView = LumOnTestInputFactory.CreateIdentityView();  // Camera at origin, looking -Z
         SetupProbeAnchorUniforms(programId, invProjection, invView);

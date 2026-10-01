@@ -112,6 +112,11 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
     /// <summary>Uses the existing production fullscreen contract and engine stage owners.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
+        #region Submission
+        /// <summary>Retains this owner's explicit external input publication contract.</summary>
+        protected override void Submit() { }
+        #endregion
+
         /// <summary>Supplies the engine wrappers required by the binary graphics loader.</summary>
         internal FixtureProgram()
         {

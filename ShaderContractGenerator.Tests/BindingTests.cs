@@ -40,7 +40,7 @@ public sealed class BindingTests
                 }
             }
             namespace VanillaGraphicsExpanded.Rendering.Shaders
-            { public class GpuProgram { public object ProgramLayout = new(); public int ProgramId = 42; } }
+            { public class GpuProgram { public object ProgramLayout = new(); public int ProgramId = 42; protected virtual void Submit() { } } }
             """;
 
     #region Public API
@@ -96,6 +96,7 @@ public sealed class BindingTests
     [Theory]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, -1, ShaderStageKind.Compute)] ShaderSamplerBinding Source { get; }")]
     [InlineData("[ShaderBinding(\"source\", (ShaderBindingKind)99, 1, ShaderStageKind.Compute)] ShaderSamplerBinding Source { get; }")]
+    [InlineData("[ShaderBinding(\"source\", (ShaderBindingKind)(-1), 1, ShaderStageKind.Compute)] ShaderSamplerBinding Source { get; }")]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, (ShaderStageKind)99)] ShaderSamplerBinding Source { get; }")]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute, ShaderStageKind.Compute)] ShaderSamplerBinding Source { get; }")]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute, Programs = new string[0])] ShaderSamplerBinding Source { get; }")]

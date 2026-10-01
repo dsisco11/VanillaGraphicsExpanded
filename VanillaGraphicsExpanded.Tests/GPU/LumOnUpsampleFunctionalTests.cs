@@ -62,7 +62,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         int holeFillRadius = 2,
         float holeFillMinConfidence = 0.05f)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId);
         programId.UpsampleDepthSigma = depthSigma;
         programId.UpsampleNormalSigma = normalSigma;
@@ -218,8 +217,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-
-        using var programUse = programId.UseScope();
         SetupUpsampleUniforms(programId);
 
         // Bind inputs
@@ -297,7 +294,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         /// <summary>Executes one selected production variant against identical controlled inputs.</summary>
         float[] Render(LumOnUpsampleShaderProgram programId)
         {
-            using var use = programId.UseScope();
             SetupUpsampleUniforms(programId,
                 holeFillRadius: 2,
                 holeFillMinConfidence: 0.05f);
@@ -377,8 +373,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-
-        using var programUse = programId.UseScope();
         SetupUpsampleUniforms(programId);
 
         programId.IndirectHalf = halfResTex;
@@ -477,8 +471,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-
-        using var programUse = programId.UseScope();
         // Use standard sigma values for edge-aware filtering
         SetupUpsampleUniforms(programId, depthSigma: 0.1f);
 
@@ -549,7 +541,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile with denoising DISABLED (compile-time define)
         var programId = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
-        using var programUse = programId.UseScope();
         SetupUpsampleUniforms(programId);
 
         programId.IndirectHalf = halfResTex;
@@ -616,8 +607,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-
-        using var programUse = programId.UseScope();
         SetupUpsampleUniforms(programId);
 
         programId.IndirectHalf = halfResTex;
@@ -683,8 +672,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-
-            using var programUse = programId.UseScope();
             SetupUpsampleUniforms(programId);
 
             programId.IndirectHalf = halfResTex;
@@ -708,8 +695,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
-
-            using var programUse = programId.UseScope();
             SetupUpsampleUniforms(programId);
 
             programId.IndirectHalf = halfResTex;
@@ -766,8 +751,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-
-            using var programUse = programId.UseScope();
             SetupUpsampleUniforms(programId, spatialSigma: 0.5f);
 
             programId.IndirectHalf = halfResTex;
@@ -801,8 +784,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
                 PixelInternalFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
-
-            using var programUse = programId.UseScope();
             SetupUpsampleUniforms(programId, spatialSigma: 4.0f);
 
             programId.IndirectHalf = halfResTex;
@@ -876,8 +857,6 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
-
-        using var programUse = programId.UseScope();
         SetupUpsampleUniforms(programId, depthSigma: 0.05f);  // Strict depth filtering
 
         programId.IndirectHalf = halfResTex;

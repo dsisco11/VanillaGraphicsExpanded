@@ -12,6 +12,10 @@ public abstract partial class GpuProgram
     private ShaderLoadPlan? failedPreparation;
     private ShaderSettings? readySettings;
     private bool retired;
+    private bool activatingEngine;
+
+    /// <summary>Allows the engine's underlying activation only inside the owner's submission template.</summary>
+    internal bool IsActivatingEngine => activatingEngine;
 
     #region Preparation
     /// <summary>Reports whether an explicit preload must prepare a new generation.</summary>
@@ -27,6 +31,7 @@ public abstract partial class GpuProgram
     /// <summary>Prepares current settings synchronously without publishing an incomplete or incompatible program.</summary>
     public bool EnsureReady()
     {
+        RequireOutsideSubmission();
         if (capi == null) throw new InvalidOperationException("Initialize the shader before preparation.");
         if (retired) return false;
         if (Disposed && !registerWhenReady) return false;
@@ -77,8 +82,44 @@ public abstract partial class GpuProgram
     /// <summary>Ensures direct engine-compatible activation cannot bind an unprepared generation.</summary>
     public new void Use()
     {
-        if (!EnsureReady()) throw new InvalidOperationException($"Shader {PassName} could not be prepared.");
-        base.Use();
+        // A rejected recursive call must not tear down the outer call's active submission.
+        RequireOutsideSubmission();
+        try
+        {
+            if (!EnsureReady()) throw new InvalidOperationException($"Shader {PassName} could not be prepared.");
+            // Repeated activation still publishes inputs, without overlapping engine ownership.
+            if (!ReferenceEquals(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram, this))
+            {
+                activatingEngine = true;
+                try { base.Use(); }
+                finally { activatingEngine = false; }
+            }
+            else
+            {
+                // A reload can replace the executable while the engine still names this owner as current.
+                GlStateCache.Current.UseProgram(ProgramId);
+            }
+            GlStateCache.Current.NotifyProgramBound(ProgramId);
+            SubmitPreparedInputs();
+        }
+        catch
+        {
+            ClearFailedActivation();
+            throw;
+        }
+    }
+
+    /// <summary>Routes engine-interface activation through the same readiness and submission boundary.</summary>
+    void Vintagestory.API.Client.IShaderProgram.Use() => Use();
+
+    /// <summary>Stops a failed owner so a caller cannot accidentally draw with incomplete submitted resources.</summary>
+    private void ClearFailedActivation()
+    {
+        if (ReferenceEquals(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram, this))
+        {
+            try { Stop(); }
+            finally { GlStateCache.Current.UnbindProgram(); }
+        }
     }
 
     /// <summary>Releases linked resources safely, including declarations with no GL stage ownership.</summary>

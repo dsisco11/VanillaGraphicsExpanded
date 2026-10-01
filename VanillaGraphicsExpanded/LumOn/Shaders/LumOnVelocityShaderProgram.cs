@@ -18,6 +18,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_velocity.fsh")]
 public partial class LumOnVelocityShaderProgram : LumOnShaderProgram, ILumOnVelocityShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

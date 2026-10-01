@@ -23,6 +23,11 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_direct_lighting.fsh")]
 public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDirectLightingShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

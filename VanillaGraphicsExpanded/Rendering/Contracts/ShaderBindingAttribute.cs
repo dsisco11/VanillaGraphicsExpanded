@@ -2,9 +2,6 @@ using System;
 
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
-/// <summary>Names the independent GPU resource and interface index namespaces.</summary>
-internal enum ShaderBindingKind { UniformLocation, Sampler, Image, UniformBlock, StorageBlock, VaryingLocation, FragmentOutputLocation }
-
 /// <summary>Declares the layout index and stage applicability of a typed interface binding property.</summary>
 /// <remarks>The attribute owns the index; the generated property supplies typed resource access.</remarks>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
@@ -19,5 +16,9 @@ internal sealed class ShaderBindingAttribute : Attribute
     public string[]? Programs { get; set; }
     /// <summary>Controls missing-resource diagnostics; optimized-away resources remain legal.</summary>
     public bool Required { get; set; } = true;
+    /// <summary>Declares the texture target for raw IDs and unassigned optional samplers.</summary>
+    public ShaderTextureTarget TextureTarget { get; set; } = ShaderTextureTarget.Texture2D;
+    /// <summary>Selects a shared sampler policy: NearestClamp, LinearClamp or ShadowCompareLinearClamp.</summary>
+    public ShaderSamplerPolicy Sampler { get; set; }
     #endregion
 }

@@ -31,20 +31,42 @@ namespace VanillaGraphicsExpanded.LumOn;
 public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnProbeAnchorShaderProgramBindings
 {
 
+
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
 
     private LumOnProbeParamsUbo? paramsUbo;
 
+    /// <summary>Registers the probe anchor resource contract.</summary>
     public LumOnProbeAnchorShaderProgram()
     {
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
-    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
+    /// <summary>Retains packed parameters and rejects mutation during submission.</summary>
+    private LumOnProbeParamsUbo Params
+    {
+        get
+        {
+            if (paramsUbo is null)
+            {
+                paramsUbo = new LumOnProbeParamsUbo();
+                paramsUbo.SetWriteGuard(RequireInputMutation);
+            }
+            return paramsUbo;
+        }
+    }
+
+    /// <summary>Retains common lighting inputs until generated submission.</summary>
+    protected override bool UsesRetainedLightingInputs => true;
+    /// <summary>Supplies shared frame storage through the existing uniform-block contract.</summary>
+    GpuUniformBuffer? ILumOnProbeAnchorShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies packed parameters for one generated publication per use.</summary>
+    CpuUniformBuffer ILumOnProbeAnchorShaderProgramBindings.Parameters => Params;
 
     #region Static
 
+    /// <summary>Declares the persistent probe anchor owner.</summary>
     public static void Register(ICoreClientAPI api)
     {
         var instance = new LumOnProbeAnchorShaderProgram
@@ -62,17 +84,17 @@ public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnP
     /// <summary>
     /// Primary depth texture for position reconstruction.
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
 
     /// <summary>
     /// G-buffer world-space normals.
     /// </summary>
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 1, GpuSamplers.NearestClamp); }
+    public partial int GBufferNormal { set; }
 
     /// <summary>
     /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
     /// </summary>
-    public GpuTexture? PmjJitter { set => BindTexture2D("pmjJitter", value, 2); }
+    public partial GpuTexture? PmjJitter { set; }
 
     #endregion
 
@@ -91,7 +113,6 @@ public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnP
         set
         {
             Params.DepthDiscontinuityThreshold = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 

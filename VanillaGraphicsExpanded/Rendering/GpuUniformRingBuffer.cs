@@ -52,6 +52,9 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     public int PageSizeBytes => pageSizeBytes;
     public int PageCount => pageCount;
 
+    /// <summary>Counts successful copies into ring allocations independently of later resource binding.</summary>
+    internal long AllocationsWritten { get; private set; }
+
     public int UniformBufferOffsetAlignmentBytes
     {
         get
@@ -202,6 +205,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         }
 
         writeOffsetBytes = endExclusive;
+        AllocationsWritten++;
         return new Allocation(page, offset, data.Length);
     }
 

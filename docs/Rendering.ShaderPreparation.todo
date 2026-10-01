@@ -1,49 +1,40 @@
-Shader preparation and submission:
-  Source: Conversation agreement: Prepare(lambda) edits persistent shader inputs; Use() invokes Submit().
-  Goal: Stage input changes without GPU side effects, then publish the complete current state before drawing or dispatching.
-  Scope: Graphics and compute shaders, shared shader bases, resource bindings, and all application/engine callers.
-  Excludes: Same-frame allocation caching, cross-frame upload reuse, and a new benchmark project.
+Shader input submission:
+  Source: Conversation revision: ordinary assignments retain inputs; Use() invokes contract-generated Submit().
+  Goal: Publish the complete retained state once before drawing or dispatching, with no setter GPU effects.
+  Scope: Graphics and compute owners, resource contracts, shared inputs and application/engine callers.
+  Excludes: Prepare callbacks, same-frame allocation caching, cross-frame reuse and new benchmarks.
 
   ✔ Establish the lifecycle contract and inventory consumers.
     - Contract: Rendering.ShaderPreparation.md; migration sites: Rendering.ShaderPreparation.Inventory.md.
-    - Source review, second planning pass and independent completion audit passed; documentation only, no runtime changes.
-    - Define a strongly typed Prepare(lambda) API that exposes each concrete shader's parameters.
-    - Preserve defaults and all unassigned values/references across Prepare calls, Use calls, and program reloads.
-      Preparation is synchronous; multiple calls accumulate changes. Resource ownership remains with existing owners.
-    - Define protected Submit() and enforce an implementation for every concrete shader, including shared-base submission.
-      Resolve abstract versus virtual enforcement explicitly; do not silently permit omitted submission.
-    - Specify nested preparation, preparation exceptions, and Use during preparation; never submit an incomplete preparation.
-      Do not introduce transactional rollback without a separate requirement.
-    - Inventory immediate setter uploads/binds, raw uniform setters, texture/image/sampler/buffer inputs,
-      compile-time options, generated bindings, compute wrappers, and engine-owned draw callbacks.
-    - Identify permitted assignments outside Prepare and how development checks enforce the agreed boundary.
-    - Completion: Document the API and enumerate migration sites and justified engine adapter exceptions.
+    - Use is the publication boundary. Assignments persist without an editing scope or runtime rollback.
+    - Existing binding interfaces declare runtime sources as retained properties or authored resource getters.
+    - The generator emits Submit from those contracts; static/offline declarations remain metadata.
+    - Preserve explicit ConfigureOptions transactions and existing executable lifecycle rules.
 
-  ☐ Implement the shared lifecycle and migrate upsample as the reference consumer.
-    - Setters stage CPU values or resource references only; preserve existing CpuUniformBuffer packing/change tracking.
-    - Use ensures the requested generation is ready, activates it, updates cached program state, then calls Submit.
-      Submit uploads each owned parameter block once and binds the current resources through the installed contract.
-    - Propagate submission failure through Use/TryUse so callers cannot draw with incomplete required inputs;
-      retain contract handling for optional/optimized-out resources and define activation cleanup on failure.
-    - Handle repeated Use, same-program nested UseScope, scope restoration, and engine/interface dispatch explicitly.
-      Restoring a previous program must also restore the resources required by its prepared state.
-    - Stage LumOnUpsampleShaderProgram inputs first in LumOnRenderer, then Use and draw; retain previously set values.
-    - Completion: Focused subagent-run tests prove partial preparation, no setter uploads/binds, and one publication per block per Use.
+  ✔ Implement the shared lifecycle and generated reference consumers.
+    - Remove Prepare generation, editing scopes and preparation-failure poisoning.
+    - Generate staged resource setters and Submit; reject bindings without a runtime source.
+    - Reuse existing CPU packing, block identities and layout resolution; support CPU block source getters.
+    - Stage upsample and probe anchor assignments before Use in their renderer callers.
+    - Retain repeated Use, engine/interface routing, failure cleanup, reload and actual resource restoration.
+    - Completion: Subagent-run CPU/GPU and generator tests plus independent review confirm the revised design.
+    - Validation: Debug build, 97/97 distinct focused CPU/GPU tests and 140/140 generator tests passed; no skips.
+      Evidence: ../artifacts/submission-tests/submission-final.trx, ring-final.trx and generator-final.trx.
+      Second source review and independent audit passed. Headless checks only; no game launched.
 
   ☐ Migrate all shaders and callers to the contract.
-    - Move binding/upload behavior into concrete Submit implementations, composing shared frame/world-probe inputs.
-    - Convert graphics and compute call sites to prepare inputs before activation/submission and draw/dispatch.
-    - Give engine-driven liquid and other adapters a verified pre-draw submission boundary before removing setter publication.
-    - Preserve prepared state across recompilation while resolving bindings against the current program generation.
-      Keep ring lifetime rules: clean CPU state alone cannot suppress a required upload or binding.
-    - Remove obsolete immediate-submit helpers and unused UBO batch scopes; update remaining batch semantics and comments.
-    - Completion: Inventory reconciled; each remaining immediate-binding entry point is an explicit low-level operation or documented adapter.
+    - Convert authored resource setters to retained/generated properties and CPU blocks to source getters.
+    - Remove temporary authored compatibility Submit overrides once their owners and callers are migrated.
+    - Replace the temporary shared-lighting opt-in with contract source getters throughout shared bases.
+    - Convert graphics and compute callers to assign inputs before use and draw/dispatch.
+    - Give engine-driven liquid adapters a verified pre-draw boundary before removing setter publication.
+    - Preserve barriers, explicit clears, readbacks, upload ownership and current-generation layout resolution.
+    - Remove obsolete immediate-submit helpers and unused UBO batch scopes.
+    - Completion: Reconcile the inventory; any remaining immediate binding is an explicit low-level operation or adapter.
 
   ☐ Validate and document the completed contract.
-    - Run builds and focused CPU/GPU tests through subagents: retained/default values, repeated partial preparation,
-      preparation/submission failure, nested scopes/restoration, reloads, missing required/optional resources,
-      frame rollover, changed snapshots remaining valid for earlier draws, and persistent/fallback UBO uploads.
-    - Verify upload counts for several changed assignments followed by one Use; distinguish count reduction from frame-time performance.
-    - Update shader-authoring guidance with the reference usage and resource lifetime responsibilities.
-    - Perform a second review and independent audit against this checklist before marking complete.
-    - Record headless evidence separately from user-run rendering checks; do not launch the game for acceptance.
+    - Test retained/default values, partial assignments, generated binding coverage, submission failure/retry,
+      nested scopes/restoration, reload, required/optional resources, frame rollover and both ring paths.
+    - Verify several assignments followed by Use publish one active CPU block; do not claim frame-time savings.
+    - Update authoring guidance and resource lifetime responsibilities.
+    - Perform second review and independent audit before completion; no game launch for acceptance.

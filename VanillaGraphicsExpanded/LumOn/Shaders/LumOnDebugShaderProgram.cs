@@ -22,6 +22,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     #region Shader options
     /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>

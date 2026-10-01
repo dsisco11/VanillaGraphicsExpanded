@@ -202,6 +202,11 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
     /// <summary>Provides the engine stage wrappers while leaving binary loading and linking untouched.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
+        #region Submission
+        /// <summary>Retains this owner's explicit external input publication contract.</summary>
+        protected override void Submit() { }
+        #endregion
+
         /// <summary>Selects the existing deterministic fullscreen fixture.</summary>
         public FixtureProgram(string name = "tests/render_infrastructure")
         {

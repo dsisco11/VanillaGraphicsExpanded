@@ -30,7 +30,7 @@ internal static class InterfaceBindingReader
             var implementation = Implementation(owner, property);
             // Existing engine texture IDs carry target/sampler policy in their authored setter.
             // Keep that implementation boundary rather than guessing a texture target for an ID.
-            if (property.Type.SpecialType == SpecialType.System_Int32 && NeedsImplementation(implementation))
+            if (property.Type.SpecialType == SpecialType.System_Int32 && NeedsImplementation(implementation) && !RuntimeSubmissionEmitter.GeneratesSubmission(owner))
                 throw new ArgumentException($"Texture-ID binding '{property.Name}' requires an authored setter that selects its texture target and sampler policy.");
             if (implementation == null && owner.GetMembers(property.Name).Length != 0)
                 throw new ArgumentException($"Interface binding '{property.Name}' conflicts with an incompatible concrete member.");
@@ -58,6 +58,7 @@ internal static class InterfaceBindingReader
     /// <summary>Emits ordinary public members or completes authored partial properties without duplicating concrete/default bodies.</summary>
     public static string EmitProperties(INamedTypeSymbol owner)
     {
+        if (RuntimeSubmissionEmitter.GeneratesSubmission(owner)) return RuntimeSubmissionEmitter.EmitProperties(owner);
         var text = new StringBuilder();
         foreach (var property in Properties(owner))
         {
@@ -91,9 +92,9 @@ internal static class InterfaceBindingReader
                 string target = owner.GetMembers("pipeline").OfType<IFieldSymbol>().Any(f =>
                     f.Type.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuComputePipeline")
                     ? "pipeline.ProgramLayout, pipeline.ProgramId" : "ProgramLayout, ProgramId";
-                string[] kinds = { "UniformLocation", "Sampler", "Image", "UniformBlock", "StorageBlock", "VaryingLocation", "FragmentOutputLocation" };
+                var kind = BindingReader.ReadKind(attribute);
                 text.Append("set => global::VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.")
-                    .Append(kinds[(int)Argument(attribute, 1).Value!]).Append('(').Append(target).Append(", ")
+                    .Append(kind).Append('(').Append(target).Append(", ")
                     .Append(Quote(Text(attribute, 0))).Append(", value); ");
             }
             text.Append("}\n");
@@ -104,7 +105,7 @@ internal static class InterfaceBindingReader
 
     #region Private
     /// <summary>Collapses diamonds and explicit derived redeclarations while rejecting unrelated ownership of one API name.</summary>
-    private static IEnumerable<IPropertySymbol> Properties(INamedTypeSymbol owner)
+    internal static IEnumerable<IPropertySymbol> Properties(INamedTypeSymbol owner)
     {
         var contracts = owner.TypeKind == TypeKind.Interface ? owner.AllInterfaces.Concat(new[] { owner }) : owner.AllInterfaces;
         var selected = new List<IPropertySymbol>();
@@ -134,11 +135,11 @@ internal static class InterfaceBindingReader
     }
 
     /// <summary>Finds authored implementations; unresolved defining partial properties are handled by emission.</summary>
-    private static IPropertySymbol? Implementation(INamedTypeSymbol owner, IPropertySymbol property)
+    internal static IPropertySymbol? Implementation(INamedTypeSymbol owner, IPropertySymbol property)
         => owner.FindImplementationForInterfaceMember(property) as IPropertySymbol;
 
     /// <summary>Preserves concrete/default bodies and generates only missing or defining partial implementations.</summary>
-    private static bool NeedsImplementation(IPropertySymbol? property)
+    internal static bool NeedsImplementation(IPropertySymbol? property)
     {
         if (property == null || property.IsAbstract) return true;
         return property.DeclaringSyntaxReferences.Select(r => r.GetSyntax()).OfType<PropertyDeclarationSyntax>()

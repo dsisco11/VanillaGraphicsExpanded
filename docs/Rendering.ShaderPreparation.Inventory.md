@@ -1,6 +1,7 @@
 # Shader preparation migration inventory
 
 Snapshot: 2026-10-01. This is a source inventory, not a claim that these consumers are migrated.
+Implementation update: shared graphics activation and contract-generated submission are implemented for upsample and probe anchor. Other entries remain migration work, including remaining authored setters and compute/engine adapters. Explicit compatibility Submit implementations preserve their existing publication paths until that work is complete.
 Contract: [Rendering.ShaderPreparation.md](Rendering.ShaderPreparation.md).
 Bulleted file paths are relative to the repository root. Infrastructure table paths beginning Rendering/ or LumOn/ are inside VanillaGraphicsExpanded/. Partial declarations are grouped by their owning type during implementation; static declarations are not runtime shader instances.
 
@@ -8,13 +9,13 @@ Bulleted file paths are relative to the repository root. Infrastructure table pa
 
 | Owner | Required migration |
 | --- | --- |
-| Rendering/Shaders/GpuProgram.cs, GpuProgram.Preparation.cs | Prepare scope/state; mandatory Submit; Use/TryUse/UseScope and engine interface routing; activation failure and restoration semantics |
+| Rendering/Shaders/GpuProgram.cs, GpuProgram.Preparation.cs | Persistent inputs; generated Submit; Use/TryUse/UseScope and engine interface routing; activation failure and restoration semantics |
 | Rendering/Shaders/GpuProgram.Options.cs, GpuProgram.Spirv.cs | Preserve option transaction and executable installation; retain runtime inputs across reload |
-| LumOn/Shaders/LumOnShaderProgram.cs; Rendering/Shaders/VgeShaderProgram.cs | Shared submission hook and persistent common inputs; retain concrete Submit requirement |
-| Rendering/CpuUniformBuffer.cs, GpuUniformRingSystem.cs, GpuUniformRingBuffer.cs | Owner edit checks; explicit publication result; successful dirty consumption and unchanged ring lifetime rules |
+| LumOn/Shaders/LumOnShaderProgram.cs; Rendering/Shaders/VgeShaderProgram.cs | Shared runtime resource getters consumed by generated Submit; persistent common inputs |
+| Rendering/CpuUniformBuffer.cs, GpuUniformRingSystem.cs, GpuUniformRingBuffer.cs | Submission-time mutation checks; explicit publication result; successful dirty consumption and unchanged ring lifetime rules |
 | Rendering/GpuProgramLayout.cs, ShaderBindingAccess.cs, GlStateCache.Bindings.cs | Keep active-resource resolution and authored slot/target/sampler policy; submission uses existing binding owners |
 | Rendering/GpuComputePipeline.cs and .Preparation.cs | Retain executable ownership; wrap production consumers with the common runtime submission contract |
-| ShaderContractGenerator/ShaderDeclarationGenerator.cs, DeclarationEmitter.cs | Emit strongly typed Prepare facade for runtime owners, including unattributed fixtures; diagnose missing explicit concrete submission; exclude offline/static shells |
+| ShaderContractGenerator/ShaderDeclarationGenerator.cs, DeclarationEmitter.cs | Emit Submit for runtime owners from binding resource sources; diagnose unsubmitable resources; exclude offline/static shells |
 | ShaderContractGenerator/InterfaceBindingReader.cs, BindingReader.cs | Replace generated immediate resource setters with retained inputs and explicit submission helpers; preserve interfaces and texture-ID policy |
 | ShaderContractGenerator/OptionReader.cs; Rendering/Contracts/ShaderSettingsEditor.cs | Keep generated option assignments on the existing transaction path |
 
@@ -132,7 +133,7 @@ The following production files contain activation/dispatch entry points or param
 
 ## Fixtures, tests and documentation
 
-Migrate concrete fixture owners in Rendering/Shaders/Fixtures, including GeneratedResourceBindingShader and GeneratedTextureImageShader which have no ShaderProgram attribute. Static fixture declarations remain descriptors. Test-local subclasses also require explicit Submit implementations: GPU/DriverProgramCacheTests.cs, EngineShaderDebugLabelsTests.cs, ShaderDigestIndexCacheTests.cs, ShaderLinkBatchTests.cs, SpirvGraphicsLifecycleTests.cs, and Unit/Rendering/Contracts/ShaderOptionBatchTests.cs under VanillaGraphicsExpanded.Tests. Include engine-interface activation paths in their migration. Nested fixture classes must be partial if using generated Prepare; fixtures without preparation calls can supply an explicit empty Submit when their resource contract is empty.
+Migrate concrete fixture owners in Rendering/Shaders/Fixtures, including GeneratedResourceBindingShader and GeneratedTextureImageShader which have no ShaderProgram attribute. Static fixture declarations remain descriptors. Nested test-local subclasses retain explicit Submit implementations: GPU/DriverProgramCacheTests.cs, EngineShaderDebugLabelsTests.cs, ShaderDigestIndexCacheTests.cs, ShaderLinkBatchTests.cs, SpirvGraphicsLifecycleTests.cs, and Unit/Rendering/Contracts/ShaderOptionBatchTests.cs under VanillaGraphicsExpanded.Tests. Include engine-interface activation paths in their migration. Nested fixtures currently supply an explicit Submit because top-level generation does not own nested declarations. Top-level fixtures can use generated Submit after declaring their runtime resource sources.
 
 Relevant tests include CpuUniformBufferTests, UniformBufferCallerTests, UboPackingTests, shader declaration/generator suites, GPU/GpuUniformRingBufferIntegrationTests, GPU/TestUniformRingRetirementTests and existing program preparation/reload/layout/state-cache suites. Update the generated-resource fixtures to prove setters make no GL calls and Submit does the binding. Execute builds/tests through subagents only during implementation.
 

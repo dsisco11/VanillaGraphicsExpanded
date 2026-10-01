@@ -21,6 +21,11 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14)]
 public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram, IVgeWorldProbeOrbsPointsShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     #region Shader options
     /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>

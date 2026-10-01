@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 internal partial class GeneratedAccessorShader : GpuProgram
 {
+
     [ShaderOption("GENERATED_ENABLED", false, Aliases = new[] { "GENERATED_LEGACY" })]
     public partial bool Enabled { get; set; }
 

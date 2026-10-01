@@ -14,6 +14,11 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_liquid_depth.fsh")]
 internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProgram, ILiquidDepthShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     private readonly LiquidDepthFrameParamsUbo frame = new();
     private readonly LiquidWaveParamsUbo wave = new();

@@ -19,6 +19,9 @@ public sealed class VgeShaderProgramTests
         internal override GpuShaderContract ProgramContract => Contract;
         public int RecompileRequests { get; private set; }
 
+        /// <summary>Has no GPU inputs in this settings-only fixture.</summary>
+        protected override void Submit() { }
+
         /// <summary>Counts notifications through the existing scheduler boundary.</summary>
         protected override void RequestRecompile()
         {

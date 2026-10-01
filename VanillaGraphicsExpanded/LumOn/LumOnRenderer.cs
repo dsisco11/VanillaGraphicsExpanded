@@ -626,11 +626,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
@@ -642,6 +637,12 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Edge detection threshold for depth discontinuity
         shader.DepthDiscontinuityThreshold = config.LumOn.DepthDiscontinuityThreshold;
+
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);
@@ -1377,18 +1378,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         fullResFbo.BindWithViewport();
         fullResFbo.Clear();
         capi.Render.GlToggleBlend(false);
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
-        // Bind half-res indirect diffuse
+        // Retain half-res indirect diffuse for submission.
         shader.IndirectHalf = bufferManager.IndirectHalfTex!;
 
-        // Bind G-buffer for edge-aware upsampling
+        // Retain G-buffer guides for edge-aware upsampling.
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
@@ -1397,9 +1393,15 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.UpsampleNormalSigma = config.LumOn.UpsampleNormalSigma;
         shader.UpsampleSpatialSigma = config.LumOn.UpsampleSpatialSigma;
 
-        // Phase 14: bounded hole filling for low-confidence indirect values
+        // Bound hole filling for low-confidence indirect values.
         shader.HoleFillRadius = Math.Max(0, config.LumOn.UpsampleHoleFillRadius);
         shader.HoleFillMinConfidence = Math.Clamp(config.LumOn.UpsampleHoleFillMinConfidence, 0f, 1f);
+
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
 
         // Render
         capi.Render.RenderMesh(quadMeshRef);

@@ -47,7 +47,10 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
             {
                 if (semantic.GetDeclaredSymbol(declaration, context.CancellationToken) is not { } symbol || owners.ContainsKey(symbol)) continue;
                 if (!symbol.GetAttributes().Any(IsDeclarationAttribute) && !symbol.GetMembers().Any(m => m.GetAttributes().Any(IsDeclarationAttribute)) &&
-                    !InterfaceBindingReader.HasBindings(symbol)) continue;
+                    !InterfaceBindingReader.HasBindings(symbol) && !RuntimeSubmissionEmitter.IsRuntimeOwner(symbol)) continue;
+                // Nested test fixtures keep authored submission; declaration emission owns top-level partial types.
+                if (RuntimeSubmissionEmitter.IsRuntimeOwner(symbol) && symbol.ContainingType != null &&
+                    !symbol.GetAttributes().Any(IsDeclarationAttribute)) continue;
                 owners.Add(symbol, new(symbol) { OfflineSourcePresent = originalCompilation.GetTypeByMetadataName(symbol.ToDisplayString()) != null });
             }
         }
@@ -72,6 +75,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
                         throw new ArgumentException($"Conflicting shared option '{sameName.Key}'.");
                 ProgramReader.ReadGroups(owner);
                 BindingReader.Validate(owner.Symbol);
+                if (!offline) RuntimeSubmissionEmitter.Validate(owner.Symbol);
             });
         var reader = new ProgramReader(owners);
         foreach (var owner in owners.Values.OrderBy(o => o.Name, StringComparer.Ordinal)) Try(owner, () => reader.Read(owner));

@@ -345,19 +345,29 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     /// </summary>
     public ProgramUseScope UseScope()
     {
-        if (!EnsureReady()) throw new InvalidOperationException("Shader preparation failed.");
+        RequireOutsideSubmission();
+        try
+        {
+            if (!EnsureReady()) throw new InvalidOperationException("Shader preparation failed.");
+        }
+        catch
+        {
+            ClearFailedActivation();
+            throw;
+        }
         var previous = ShaderProgramBase.CurrentShaderProgram;
         int previousId = previous?.ProgramId ?? 0;
         if (previous is null)
             GlStateCache.Current.TryGetCachedCurrentProgram(out previousId);
-        if (ReferenceEquals(previous, this))
-            return default; // A nested use borrows the outer scope's activation.
 
         try
         {
             // The engine rejects overlapping shader owners, even when GL allows a bind.
-            previous?.Stop();
-            GlStateCache.Current.NotifyProgramBound(0);
+            if (!ReferenceEquals(previous, this))
+            {
+                previous?.Stop();
+                GlStateCache.Current.NotifyProgramBound(0);
+            }
             Use();
             GlStateCache.Current.NotifyProgramBound(ProgramId);
             return new ProgramUseScope(previous, previousId, this);
@@ -365,10 +375,8 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         catch
         {
             // Restore the caller's ownership if activation failed during shutdown/reload.
-            if (previous is not null) previous.Use();
-            else GlStateCache.Current.UseProgram(previousId);
-            GlStateCache.Current.NotifyProgramBound(previousId);
-            return default;
+            RestoreProgram(previous, previousId);
+            throw;
         }
     }
     /// <summary>
@@ -376,29 +384,32 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     /// </summary>
     public bool TryUse()
     {
-        if (!EnsureReady())
-        {
-            return false;
-        }
-
-        try
-        {
-            Use();
-            GlStateCache.Current.NotifyProgramBound(ProgramId);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        try { Use(); return true; }
+        catch { return false; }
     }
-
     /// <summary>
     /// Unbinds any program (binds program 0).
     /// </summary>
     public static void Unuse()
     {
         GlStateCache.Current.UnbindProgram();
+    }
+
+    /// <summary>Restores owned resources through submission and preserves foreign engine activation policy.</summary>
+    private static void RestoreProgram(ShaderProgramBase? previous, int previousId)
+    {
+        try
+        {
+            if (previous is GpuProgram owner) owner.Use();
+            else if (previous is not null) previous.Use();
+            else GlStateCache.Current.UseProgram(previousId);
+            GlStateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousId);
+        }
+        catch
+        {
+            GlStateCache.Current.UnbindProgram();
+            throw;
+        }
     }
 
     /// <summary>
@@ -422,11 +433,12 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         public void Dispose()
         {
             if (current is null) return;
-            current.Stop();
-            GlStateCache.Current.NotifyProgramBound(0);
-            if (previous is not null) previous.Use();
-            else GlStateCache.Current.UseProgram(previousProgramId);
-            GlStateCache.Current.NotifyProgramBound(previousProgramId);
+            if (!ReferenceEquals(current, previous))
+            {
+                current.Stop();
+                GlStateCache.Current.NotifyProgramBound(0);
+            }
+            RestoreProgram(previous, previousProgramId);
         }
     }
     #endregion
@@ -474,6 +486,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     /// </summary>
     public bool CompileAndLink()
     {
+        RequireOutsideSubmission();
         if (retired) return false;
         if (capi is null)
         {

@@ -44,6 +44,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
 public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasTraceShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>

@@ -261,7 +261,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Probe Anchor
             // -----------------------------------------------------------------
-            using var anchorProgUse = anchorProg.UseScope();
+
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -279,6 +279,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             anchorProg.PrimaryDepth = primaryDepth.TextureId;
             anchorProg.GBufferNormal = gBufferNormal.TextureId;
+            anchorProg.PmjJitter = GetOrCreatePmjJitterTexture(1);
+            using var anchorProgUse = anchorProg.UseScope();
 
             AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "primaryDepth", primaryDepth);
             AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "gBufferNormal", gBufferNormal);
@@ -471,7 +473,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Upsample (full-res)
             // -----------------------------------------------------------------
-            using var upsampleProgUse = upsampleProg.UseScope();
+
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(upsampleProg);
@@ -482,6 +484,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             upsampleProg.IndirectHalf = targets.IndirectHalf[0];
             upsampleProg.PrimaryDepth = primaryDepth.TextureId;
             upsampleProg.GBufferNormal = gBufferNormal.TextureId;
+            using var upsampleProgUse = upsampleProg.UseScope();
 
             AssertSampler2DBinding("Stage: Upsample", upsampleProg, "indirectHalf", targets.IndirectHalf[0]);
             AssertSampler2DBinding("Stage: Upsample", upsampleProg, "primaryDepth", primaryDepth);

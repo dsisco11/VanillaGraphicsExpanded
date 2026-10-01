@@ -23,6 +23,16 @@ internal static class AttributeValues
     }
     /// <summary>Reads an optional named attribute argument.</summary>
     public static TypedConstant Named(AttributeData attribute, string name) => attribute.NamedArguments.FirstOrDefault(p => p.Key == name).Value;
+    /// <summary>Reads an optional enum constant and verifies it names a member of its declared enum type.</summary>
+    public static TypedConstant? NamedEnum(AttributeData attribute, string name)
+    {
+        if (!attribute.NamedArguments.Any(p => p.Key == name)) return null;
+        var value = Named(attribute, name);
+        if (value.Kind != TypedConstantKind.Enum || value.Type is not INamedTypeSymbol type ||
+            !type.GetMembers().OfType<IFieldSymbol>().Any(f => f.HasConstantValue && Equals(f.ConstantValue, value.Value)))
+            throw new ArgumentException($"'{name}' requires a defined enum value.");
+        return value;
+    }
     /// <summary>Reads a string-valued required constructor argument.</summary>
     public static string Text(AttributeData attribute, int index) => Argument(attribute, index).Value as string ?? throw new ArgumentException("Expected a non-null string argument.");
     /// <summary>Reads a named string or its declaration default.</summary>

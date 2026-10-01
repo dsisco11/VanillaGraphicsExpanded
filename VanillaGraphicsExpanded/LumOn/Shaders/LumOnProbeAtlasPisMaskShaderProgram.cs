@@ -29,6 +29,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WeightEpsilon), SpecializationId = 10, When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
 public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderProgram, ILumOnProbeAtlasPisMaskShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>

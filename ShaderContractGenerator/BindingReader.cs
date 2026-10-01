@@ -10,6 +10,14 @@ namespace ShaderContractGenerator;
 internal static class BindingReader
 {
     #region Public API
+    /// <summary>Reads the shared binding kind and rejects undefined enum constants before classification.</summary>
+    internal static ShaderBindingKind ReadKind(AttributeData attribute)
+    {
+        var kind = (ShaderBindingKind)(int)Argument(attribute, 1).Value!;
+        if (!Enum.IsDefined(typeof(ShaderBindingKind), kind))
+            throw new ArgumentException($"Invalid binding kind '{kind}'.");
+        return kind;
+    }
     /// <summary>Implements typed descriptors or runtime resource setters while keeping game types out of offline shells.</summary>
     public static string EmitProperties(OwnerDeclaration owner, bool offline)
     {
@@ -47,7 +55,7 @@ internal static class BindingReader
     {
         var declarations = new List<(Slot Slot, bool Defaults)>();
         Collect(owner, false, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default));
-        var selected = new Dictionary<(string Kind, string Name), Slot>();
+        var selected = new Dictionary<(ShaderBindingKind Kind, string Name), Slot>();
         var explicitSlots = new List<Slot>();
         // Normalize explicit inherited overrides before dictionary insertion, so a composite
         // interface can resolve sibling declarations regardless of traversal or type-name order.
@@ -85,13 +93,13 @@ internal static class BindingReader
         foreach (var group in explicitSlots.GroupBy(s => (s.Kind, s.Index)))
             if (group.Count() > 1)
                 throw new ArgumentException($"Conflicting {group.Key.Kind} index {group.Key.Index} for '{program}'/{stage}.");
-        foreach (var group in selected.Values.Where(s => s.Kind is "Sampler" or "Image" or "UniformBlock" or "StorageBlock").GroupBy(s => s.Name, StringComparer.Ordinal))
+        foreach (var group in selected.Values.Where(s => s.Kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image or ShaderBindingKind.UniformBlock or ShaderBindingKind.StorageBlock).GroupBy(s => s.Name, StringComparer.Ordinal))
             if (group.Count() > 1) throw new ArgumentException($"Conflicting resource kinds for '{group.Key}' in '{program}'/{stage}.");
         var model = new GpuBindingContract();
         foreach (var slot in selected.Values) Apply(model, slot);
         string expression = "new GpuBindingContract { " + string.Join(", ", selected.Values.GroupBy(s => Map(s.Kind)).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => g.Key + " = { " + string.Join(", ", g.OrderBy(s => s.Name, StringComparer.Ordinal).Select(s =>
-                "{ " + Quote(s.Name) + ", " + (s.Kind.EndsWith("Location", StringComparison.Ordinal) ? s.Index.ToString() : $"new GpuBindingContract.Binding({s.Index}, {s.Required.ToString().ToLowerInvariant()})") + " }")) + " }")) + " }";
+                "{ " + Quote(s.Name) + ", " + (s.Kind is ShaderBindingKind.UniformLocation or ShaderBindingKind.VaryingLocation or ShaderBindingKind.FragmentOutputLocation ? s.Index.ToString() : $"new GpuBindingContract.Binding({s.Index}, {s.Required.ToString().ToLowerInvariant()})") + " }")) + " }")) + " }";
         return (model, expression);
 
         /// <summary>Follows declared sets and base classes, rejecting cycles and retaining each property's ownership.</summary>
@@ -132,23 +140,22 @@ internal static class BindingReader
             !contract || syntax.Modifiers.Any(SyntaxKind.PartialKeyword) || syntax.Initializer != null ||
             (syntax.AccessorList == null && syntax.ExpressionBody == null))
             throw new ArgumentException($"Binding property '{property.Name}' requires an ordinary interface property.");
-        int kind = (int)Argument(attribute, 1).Value!;
-        string[] names = { "UniformLocation", "Sampler", "Image", "UniformBlock", "StorageBlock", "VaryingLocation", "FragmentOutputLocation" };
-        if (kind < 0 || kind >= names.Length) throw new ArgumentException($"Invalid binding kind on '{property.Name}'.");
+        var kind = ReadKind(attribute);
         string type = property.Type.ToDisplayString();
-        bool descriptor = type == Prefix + "Shader" + names[kind] + "Binding";
-        string? resourceType = names[kind] switch
+        bool descriptor = type == Prefix + "Shader" + kind + "Binding";
+        string? resourceType = kind switch
         {
-            "Sampler" => "GpuTexture", "Image" => "GpuTextureBinding", "UniformBlock" => "GpuUniformBuffer", "StorageBlock" => "GpuShaderStorageBuffer", _ => null
+            ShaderBindingKind.Sampler => "GpuTexture", ShaderBindingKind.Image => "GpuTextureBinding", ShaderBindingKind.UniformBlock => "GpuUniformBuffer", ShaderBindingKind.StorageBlock => "GpuShaderStorageBuffer", _ => null
         };
         type = type.TrimEnd('?');
-        bool resource = (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
-            (contract && names[kind] == "Sampler" && property.Type.SpecialType == SpecialType.System_Int32) ||
-            (names[kind] == "Image" && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
+        bool cpuBuffer = kind == ShaderBindingKind.UniformBlock && RuntimeSubmissionEmitter.IsCpuBuffer(property.Type);
+        bool resource = cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
+            (contract && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32) ||
+            (kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
         if ((descriptor && (property.GetMethod == null || property.SetMethod != null)) ||
-            (resource && (property.IsStatic || property.GetMethod != null || property.SetMethod == null || property.SetMethod.IsInitOnly)) ||
+            (resource && (property.IsStatic || (property.GetMethod == null && property.SetMethod == null) || property.SetMethod?.IsInitOnly == true)) ||
             (!descriptor && !resource) || property.IsStatic || property.DeclaredAccessibility != Accessibility.Public)
-            throw new ArgumentException($"Binding property '{property.Name}' has unsupported type/accessors for {names[kind]}.");
+            throw new ArgumentException($"Binding property '{property.Name}' has unsupported type/accessors for {kind}.");
     }
 
     /// <summary>Finds the established runtime layout boundary without emitting engine types offline.</summary>
@@ -167,9 +174,9 @@ internal static class BindingReader
         if (index < 0) throw new ArgumentException($"Binding property '{property.Name}' has a negative index.");
         string name = Text(attribute, 0);
         ShaderContractNames.ValidateIdentifier(name);
-        int kind = (int)Argument(attribute, 1).Value!;
-        string[] kinds = { "UniformLocation", "Sampler", "Image", "UniformBlock", "StorageBlock", "VaryingLocation", "FragmentOutputLocation" };
-        if (kind < 0 || kind >= kinds.Length) throw new ArgumentException($"Invalid binding kind on '{property.Name}'.");
+        var kind = ReadKind(attribute);
+        _ = NamedEnum(attribute, "TextureTarget");
+        _ = NamedEnum(attribute, "Sampler");
         var stages = Argument(attribute, 3).Values.Select(v => (ShaderStageKind)(int)v.Value!).ToArray();
         if (stages.Length == 0 || stages.Distinct().Count() != stages.Length || stages.Any(s => !Enum.IsDefined(typeof(ShaderStageKind), s)))
             throw new ArgumentException($"Binding property '{property.Name}' requires distinct explicit stages.");
@@ -180,14 +187,20 @@ internal static class BindingReader
         if (!programs.IsNull && targets.Length == 0 || targets.Distinct(StringComparer.Ordinal).Count() != targets.Length)
             throw new ArgumentException($"Binding property '{property.Name}' requires distinct program members.");
         foreach (string target in targets) ShaderContractNames.ValidateIdentifier(target);
-        return new(property, name, kinds[kind], index, Named(attribute, "Required").Value is not false, targets, stages);
+        return new(property, name, kind, index, Named(attribute, "Required").Value is not false, targets, stages);
     }
 
     /// <summary>Maps declaration kinds to the shared model's independent dictionaries.</summary>
-    private static string Map(string kind) => kind switch
+    private static string Map(ShaderBindingKind kind) => kind switch
     {
-        "UniformLocation" => "UniformLocations", "Sampler" => "Samplers", "Image" => "Images",
-        "UniformBlock" => "UniformBlocks", "StorageBlock" => "StorageBlocks", "VaryingLocation" => "VaryingLocations", _ => "FragmentOutputLocations"
+        ShaderBindingKind.UniformLocation => nameof(GpuBindingContract.UniformLocations),
+        ShaderBindingKind.Sampler => nameof(GpuBindingContract.Samplers),
+        ShaderBindingKind.Image => nameof(GpuBindingContract.Images),
+        ShaderBindingKind.UniformBlock => nameof(GpuBindingContract.UniformBlocks),
+        ShaderBindingKind.StorageBlock => nameof(GpuBindingContract.StorageBlocks),
+        ShaderBindingKind.VaryingLocation => nameof(GpuBindingContract.VaryingLocations),
+        ShaderBindingKind.FragmentOutputLocation => nameof(GpuBindingContract.FragmentOutputLocations),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
     /// <summary>Populates the same pure model used for compile-time shared-stage equivalence.</summary>
@@ -195,17 +208,17 @@ internal static class BindingReader
     {
         switch (slot.Kind)
         {
-            case "UniformLocation": model.UniformLocations.Add(slot.Name, slot.Index); break;
-            case "VaryingLocation": model.VaryingLocations.Add(slot.Name, slot.Index); break;
-            case "FragmentOutputLocation": model.FragmentOutputLocations.Add(slot.Name, slot.Index); break;
-            case "Sampler": model.RegisterSamplerUnit(slot.Name, slot.Index, slot.Required); break;
-            case "Image": model.RegisterImageUnit(slot.Name, slot.Index, slot.Required); break;
-            case "UniformBlock": model.RegisterUniformBlockBinding(slot.Name, slot.Index, slot.Required); break;
-            case "StorageBlock": model.RegisterShaderStorageBlockBinding(slot.Name, slot.Index, slot.Required); break;
+            case ShaderBindingKind.UniformLocation: model.UniformLocations.Add(slot.Name, slot.Index); break;
+            case ShaderBindingKind.VaryingLocation: model.VaryingLocations.Add(slot.Name, slot.Index); break;
+            case ShaderBindingKind.FragmentOutputLocation: model.FragmentOutputLocations.Add(slot.Name, slot.Index); break;
+            case ShaderBindingKind.Sampler: model.RegisterSamplerUnit(slot.Name, slot.Index, slot.Required); break;
+            case ShaderBindingKind.Image: model.RegisterImageUnit(slot.Name, slot.Index, slot.Required); break;
+            case ShaderBindingKind.UniformBlock: model.RegisterUniformBlockBinding(slot.Name, slot.Index, slot.Required); break;
+            case ShaderBindingKind.StorageBlock: model.RegisterShaderStorageBlockBinding(slot.Name, slot.Index, slot.Required); break;
         }
     }
 
     /// <summary>Contains one validated slot and its explicit consumer applicability.</summary>
-    private sealed record Slot(IPropertySymbol Property, string Name, string Kind, int Index, bool Required, string[] Programs, ShaderStageKind[] Stages);
+    private sealed record Slot(IPropertySymbol Property, string Name, ShaderBindingKind Kind, int Index, bool Required, string[] Programs, ShaderStageKind[] Stages);
     #endregion
 }

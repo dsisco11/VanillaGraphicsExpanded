@@ -1,3 +1,5 @@
+using System.Reflection;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
@@ -16,7 +18,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
     /// <summary>Uses the shared headless GL context.</summary>
     public GeneratedResourceBindingTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    /// <summary>Typed setters bind the declared sampler/image and skip an absent sampler.</summary>
+    /// <summary>Typed setters retain resources until generated publication binds them and skips an absent sampler.</summary>
     [Fact]
     public void TypedAssignmentsDriveComputeAndSkipInactiveResources()
     {
@@ -45,7 +47,11 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             var direct = new GeneratedTextureImageShader { ProgramId = program };
             direct.ProgramLayout.BinaryInterface = shader.ProgramLayout.BinaryInterface;
             direct.ProgramLayout.RebuildCache(program);
+            GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int priorImage);
             direct.Image = output;
+            GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int stagedImage);
+            Assert.Equal(priorImage, stagedImage);
+            Publish(direct);
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int imageName);
             GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 0, out int imageAccess);
             GL.GetInteger((GetIndexedPName)All.ImageBindingFormat, 0, out int imageFormat);
@@ -61,9 +67,14 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             direct.ProgramId = 0;
             GL.ActiveTexture(TextureUnit.Texture7);
             GL.BindTexture(TextureTarget.Texture3D, 0);
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.GetInteger(GetPName.TextureBinding3D, out int priorInput);
             shader.Input = input;
             shader.Output = new(output, Access: TextureAccess.WriteOnly, Format: SizedInternalFormat.R32ui);
             shader.Unused = input;
+            GL.GetInteger(GetPName.TextureBinding3D, out int stagedInput);
+            Assert.Equal(priorInput, stagedInput);
+            Publish(shader);
             GL.ActiveTexture(TextureUnit.Texture7);
             GL.GetInteger(GetPName.TextureBinding3D, out int unusedBinding);
             Assert.Equal(0, unusedBinding);
@@ -75,6 +86,12 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GL.BindTexture(TextureTarget.Texture3D, output.TextureId);
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, result);
             Assert.Equal(123u, result[0]);
+            // Optional active absence explicitly clears a binding left by the preceding owner.
+            ShaderBindingSubmission.ValidateSampler(shader, "uOcc", false, (GpuTexture?)null);
+            ShaderBindingSubmission.Sampler(shader, "uOcc", (GpuTexture?)null, VanillaGraphicsExpanded.Rendering.Contracts.ShaderTextureTarget.Texture3D);
+            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.GetInteger(GetPName.TextureBinding3D, out int clearedInput);
+            Assert.Equal(0, clearedInput);
             shader.ProgramId = 0;
         }
         finally
@@ -85,5 +102,10 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             TestShaderInterfaces.DeleteShader(module);
         }
     }
+    #endregion
+
+    #region Private
+    /// <summary>Runs production publication for a fixture-owned executable without invoking asset readiness.</summary>
+    private static void Publish(GpuProgram shader) => typeof(GpuProgram).GetMethod("SubmitPreparedInputs", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(shader, null);
     #endregion
 }

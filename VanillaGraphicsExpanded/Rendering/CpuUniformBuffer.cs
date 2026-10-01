@@ -25,6 +25,10 @@ public abstract class CpuUniformBuffer : IDisposable
     private int dirtyStartBytes;
     private int dirtyEndExclusiveBytes;
     private int uploadScopeDepth;
+    private Action? writeGuard;
+
+    /// <summary>Attaches an owning shader's edit contract without affecting standalone packed buffers.</summary>
+    internal void SetWriteGuard(Action guard) => writeGuard = guard ?? throw new ArgumentNullException(nameof(guard));
 
     #region Public API
     /// <summary>Allocates zero-initialized packed bytes with no pending changes.</summary>
@@ -61,7 +65,7 @@ public abstract class CpuUniformBuffer : IDisposable
     /// Direct access to the underlying byte array for advanced packing scenarios.
     /// Callers must manually call <see cref="MarkDirty"/> after modifying the buffer.
     /// </summary>
-    protected byte[] Data => data;
+    protected byte[] Data { get { writeGuard?.Invoke(); return data; } }
 
     /// <summary>
     /// Read-only span view of the buffer data for reading values.
@@ -72,7 +76,7 @@ public abstract class CpuUniformBuffer : IDisposable
     /// Writable span view of the buffer data for writing values.
     /// Callers must call <see cref="MarkDirty"/> after modifying the span.
     /// </summary>
-    protected Span<byte> DataWritable => data;
+    protected Span<byte> DataWritable { get { writeGuard?.Invoke(); return data; } }
 
     #region Typed parameter writes
     // An unchanged write leaves every previously dirty byte pending.
@@ -160,6 +164,7 @@ public abstract class CpuUniformBuffer : IDisposable
     /// <param name="byteCount">Number of bytes modified.</param>
     protected void MarkDirty(int byteOffset, int byteCount)
     {
+        writeGuard?.Invoke();
         if (byteOffset < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(byteOffset), byteOffset, "Offset must be >= 0.");
@@ -195,6 +200,13 @@ public abstract class CpuUniformBuffer : IDisposable
     /// </remarks>
     public void BindTo(Shaders.GpuProgram program, string blockName, string debugName)
     {
+        // Preserve the convenience API's no-op behavior when no publication boundary is available.
+        _ = TryBindTo(program, blockName, debugName);
+    }
+
+    /// <summary>Publishes a complete block and reports whether the active ring bound it successfully.</summary>
+    public bool TryBindTo(Shaders.GpuProgram program, string blockName, string debugName)
+    {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentException.ThrowIfNullOrWhiteSpace(debugName);
@@ -202,12 +214,12 @@ public abstract class CpuUniformBuffer : IDisposable
         if (uploadScopeDepth != 0)
         {
             // If callers batch updates, they should bind after the scope exits.
-            return;
+            return false;
         }
 
         if (Bytes.Length == 0)
         {
-            return;
+            return false;
         }
 
         if (GpuUniformRingSystem.TryBind(program, blockName, Bytes, debugName, clearDirty: true))
@@ -215,7 +227,9 @@ public abstract class CpuUniformBuffer : IDisposable
             isDirty = false;
             dirtyStartBytes = int.MaxValue;
             dirtyEndExclusiveBytes = 0;
+            return true;
         }
+        return false;
     }
 
     /// <summary>

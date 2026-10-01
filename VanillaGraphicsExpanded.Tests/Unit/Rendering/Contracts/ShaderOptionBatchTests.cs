@@ -141,6 +141,11 @@ public sealed class ShaderOptionBatchTests
     /// <summary>Asset-free owner with only two jointly enabled or disabled structural assignments.</summary>
     private sealed class CoupledProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
+        #region Submission
+        /// <summary>Retains this owner's explicit external input publication contract.</summary>
+        protected override void Submit() { }
+        #endregion
+
         internal static readonly ShaderOption<bool> First = new("FIRST", false);
         internal static readonly ShaderOption<bool> Second = new("SECOND", false);
         private static readonly GpuShaderContract contract = ShaderContractFixture.Program(

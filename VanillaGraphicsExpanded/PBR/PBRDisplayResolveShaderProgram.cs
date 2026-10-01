@@ -10,6 +10,11 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_display_resolve.fsh")]
 public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDisplayResolveShaderProgramBindings
 {
+    #region Submission
+    /// <summary>Retains this owner's explicit external input publication contract.</summary>
+    protected override void Submit() { }
+    #endregion
+
 
     #region Contract and resources
 
