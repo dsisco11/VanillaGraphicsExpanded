@@ -44,7 +44,7 @@ internal static class DeclarationEmitter
                         .Append(accessor.IsKind(SyntaxKind.GetAccessorDeclaration) ? $"GetShaderOption({option.KeyName})" : $"SetShaderOptions(options => options.Set({option.KeyName}, value))").Append("; ");
                 text.Append("}\n");
             }
-        text.Append(BindingReader.EmitProperties(owner, offline));
+        text.Append(owner.BindingSource);
         text.Append("#endregion\n}\n");
         return text.ToString();
     }

@@ -123,7 +123,63 @@ a binding declaration describes their stable interface union. `Required = false`
 suppresses missing-resource diagnostics. Optimized-away resources remain legal even
 when required; an absent linked resource never causes a fallback slot assignment.
 
-### Shared layouts
+### Interface binding declarations
+
+Interfaces can own the binding API and its metadata. Implement the interface on a
+partial shader owner to generate its missing properties through the existing runtime
+layout. Interface properties are ordinary public instance properties; they do not
+need `partial`. For example:
+
+```csharp
+/// <summary>Declares the shared cache input.</summary>
+internal interface ICacheBindings
+{
+    /// <summary>Binds the cache texture.</summary>
+    [ShaderBinding("cache", ShaderBindingKind.Sampler, 18,
+        ShaderStageKind.Fragment, ShaderStageKind.Compute, Required = false)]
+    GpuTexture Cache { set; }
+}
+
+/// <summary>Consumes the generated cache API.</summary>
+[ShaderProgram("Contract", "my_shader", 1)]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "my_shader.fsh")]
+public partial class MyShaderProgram : GpuProgram, ICacheBindings { }
+```
+
+The generated setter is named `Cache` and is callable directly or through the
+interface. `GpuTextureBinding` image views and all existing resource setter types
+remain supported. Descriptor types such as `ShaderSamplerBinding` and
+`ShaderUniformLocationBinding` use get-only instance interface properties; their
+generated implementations return typed binding metadata without engine calls.
+
+Interface inheritance composes declarations, and diamonds retain each original
+property once. A derived interface can explicitly redeclare a property with `new`
+and its own `ShaderBinding` attribute to override its index, required policy or
+applicability. The C# property name/type and GLSL name/kind must remain the same.
+A composite redeclaration can resolve matching API names from multiple parents;
+otherwise unrelated interfaces claiming the same API name are diagnosed as ambiguous.
+Different properties claiming the same GLSL name or index remain conflicts.
+
+An existing concrete implementation, including an explicit interface implementation,
+keeps its authored body and accessibility. Default interface bodies are also preserved
+and are called through the interface when C# requires it. Neither receives a duplicate
+generated setter. Their code remains responsible for applying the binding behavior;
+the interface attribute still supplies the offline/runtime contract. An unannotated
+defining partial property is completed from interface metadata and must retain the
+interface accessor shape. An attributed defining partial implementation can override
+the inherited layout/policy while preserving resource identity. Concrete abstract
+properties require an authored body or a defining partial declaration instead.
+
+`ShaderBindingSet(typeof(ICacheBindings))` imports only metadata. This allows static
+contract owners and fixtures to consume resource interfaces without implementing
+instance members or accessing GPU resources. Interfaces themselves can import other
+sets. `Defaults`, `Stages`, `Program`, and property `Programs` filters follow the same
+rules as class-based imports. Interface properties are validated even when unused;
+runtime resource types and interface bodies never enter generated offline shells.
+Owners and binding interfaces must be top-level and nongeneric; runtime owners remain
+partial classes. Class-based declarations remain supported.
+
+### Class binding declarations
 
 ```csharp
 /// <summary>Owns the shared surface-cache lookup interface.</summary>
@@ -141,7 +197,7 @@ internal static partial class CacheBindings
 public partial class MyShaderProgram { }
 ```
 
-Sets can reference other sets; base-class declarations are inherited at compile time.
+Sets can reference other sets; base-class and interface declarations are inherited at compile time.
 Diamond references to the same property retain one declaration. Cycles, duplicated names
 from different properties, conflicting indices, unsupported properties, invalid names/stages,
 and incompatible complete layouts for a shared stage identity produce compiler errors.

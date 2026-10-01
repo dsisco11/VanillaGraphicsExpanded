@@ -12,14 +12,7 @@ public sealed class BindingTests
         }
         """;
 
-    #region Public API
-    /// <summary>Resource assignments invoke the owner's runtime boundary with the original value and GLSL name.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TypedSettersUseTheOwningLayout(bool computePipeline)
-    {
-        const string support = """
+    internal const string RuntimeBindingSupport = """
             namespace VanillaGraphicsExpanded.Rendering
             {
                 public class GpuTexture { }
@@ -49,6 +42,15 @@ public sealed class BindingTests
             namespace VanillaGraphicsExpanded.Rendering.Shaders
             { public class GpuProgram { public object ProgramLayout = new(); public int ProgramId = 42; } }
             """;
+
+    #region Public API
+    /// <summary>Resource assignments invoke the owner's runtime boundary with the original value and GLSL name.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TypedSettersUseTheOwningLayout(bool computePipeline)
+    {
+        string support = RuntimeBindingSupport;
         string source = """
             [ShaderProgram("Contract", "example", 1)]
             [ShaderStage("Contract", ShaderStageKind.Compute, "example.csh")]

@@ -1,7 +1,8 @@
 # Generated GPU binding contracts
 
 The shader declaration generator resolves `ShaderBinding` attributes on strongly
-typed partial properties into each generated `ShaderStageContract.Bindings`.
+typed interface properties and class partial properties into each generated
+`ShaderStageContract.Bindings`.
 The attribute owns the index. Runtime shader owners receive typed resource setters
 implemented through their existing linked program layout. Shared and contract-only
 owners receive typed descriptors. Names, resource kinds, stage applicability and
@@ -19,7 +20,31 @@ the existing image-binding call.
 Authoring examples and shared-layout rules are in [GpuProgram.md](GpuProgram.md#generated-gpu-binding-contracts).
 The schema lives in `Rendering/Contracts/ShaderBindingAttribute.cs` and
 `ShaderBindingSetAttribute.cs`; semantic validation and emission live in
-`ShaderContractGenerator/BindingReader.cs` and `ProgramReader.cs`.
+`ShaderContractGenerator/BindingReader.cs`, `InterfaceBindingReader.cs` and `ProgramReader.cs`.
+
+Interfaces declare ordinary public resource setters or typed descriptor getters. A
+partial shader class implementing the interface receives missing implementations
+through its existing GpuProgram or compute-pipeline layout. Existing authored setters,
+explicit implementations and default interface bodies retain their behavior. Defining
+partial properties can be completed from interface metadata without repeating attributes.
+Inherited class implementations are reused rather than generated again on derived owners.
+
+Interface diamonds retain one declaration. Explicit derived/composite redeclarations
+resolve inherited metadata before conflict checks, independent of traversal order.
+Property name/type and GLSL name/kind identify the same binding across overrides;
+unresolved sibling ownership, unsupported types/accessors and conflicting layouts
+produce compile-time diagnostics. Metadata-only `ShaderBindingSet` imports accept
+interfaces on static contract owners and can retain default, stage and program filters.
+Offline shells contain immutable contracts without runtime interface bodies or resource APIs.
+
+Interface support is validated by 141 generator tests and 154 focused contract/GPU
+tests, including interface-generated sampler/image dispatch, direct texture image
+binding, all 166 original stage layout fingerprints, capture and atmosphere checks.
+The Debug solution build passed with zero errors and verified 398 SPIR-V variants.
+Evidence is in `generator-interfaces.log`, `build-interfaces.log` and
+`focused-interfaces.log`, with corresponding TRX files under
+`artifacts/binding-contract-validation/`. The GPU fixtures now use interfaces;
+class-based production declarations remain supported.
 
 ## Ownership and migration
 

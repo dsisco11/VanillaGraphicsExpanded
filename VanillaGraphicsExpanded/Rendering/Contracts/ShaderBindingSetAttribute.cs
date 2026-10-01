@@ -3,11 +3,11 @@ using System;
 namespace VanillaGraphicsExpanded.Rendering.Contracts;
 
 /// <summary>Imports one compile-time shared property layout without runtime reflection.</summary>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = true, Inherited = false)]
 internal sealed class ShaderBindingSetAttribute : Attribute
 {
     #region Public API
-    /// <summary>References a class whose attributed properties supply shared bindings.</summary>
+    /// <summary>References a class or interface whose attributed properties supply shared bindings.</summary>
     public ShaderBindingSetAttribute(Type owner) { }
     /// <summary>Selects a generated program member, or all programs when omitted.</summary>
     public string? Program { get; set; }

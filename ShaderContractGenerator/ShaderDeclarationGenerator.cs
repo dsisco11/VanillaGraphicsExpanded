@@ -42,11 +42,12 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
         foreach (var tree in compilation.SyntaxTrees)
         {
             var semantic = compilation.GetSemanticModel(tree);
-            foreach (var declaration in tree.GetRoot(context.CancellationToken).DescendantNodes().OfType<ClassDeclarationSyntax>())
+            foreach (var declaration in tree.GetRoot(context.CancellationToken).DescendantNodes().OfType<TypeDeclarationSyntax>()
+                .Where(d => d is ClassDeclarationSyntax or InterfaceDeclarationSyntax))
             {
-                if (declaration.AttributeLists.Count == 0 && !declaration.Members.Any(p => p.AttributeLists.Count != 0)) continue;
                 if (semantic.GetDeclaredSymbol(declaration, context.CancellationToken) is not { } symbol || owners.ContainsKey(symbol)) continue;
-                if (!symbol.GetAttributes().Any(IsDeclarationAttribute) && !symbol.GetMembers().Any(m => m.GetAttributes().Any(IsDeclarationAttribute))) continue;
+                if (!symbol.GetAttributes().Any(IsDeclarationAttribute) && !symbol.GetMembers().Any(m => m.GetAttributes().Any(IsDeclarationAttribute)) &&
+                    !InterfaceBindingReader.HasBindings(symbol)) continue;
                 owners.Add(symbol, new(symbol) { OfflineSourcePresent = originalCompilation.GetTypeByMetadataName(symbol.ToDisplayString()) != null });
             }
         }
@@ -74,6 +75,10 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
             });
         var reader = new ProgramReader(owners);
         foreach (var owner in owners.Values.OrderBy(o => o.Name, StringComparer.Ordinal)) Try(owner, () => reader.Read(owner));
+        // Validate emission before publishing any source, including inherited interface APIs
+        // on owners that declare no shader programs of their own.
+        foreach (var owner in owners.Values.Where(o => o.Symbol.TypeKind == TypeKind.Class))
+            Try(owner, () => owner.BindingSource = BindingReader.EmitProperties(owner, offline));
         if (!failed)
         {
             var programs = new Dictionary<string, GpuShaderContract>(StringComparer.Ordinal);
@@ -109,7 +114,7 @@ public sealed class ShaderDeclarationGenerator : IIncrementalGenerator
             });
         }
         if (failed) return;
-        foreach (var owner in owners.Values.OrderBy(o => o.Name, StringComparer.Ordinal))
+        foreach (var owner in owners.Values.Where(o => o.Symbol.TypeKind == TypeKind.Class).OrderBy(o => o.Name, StringComparer.Ordinal))
             context.AddSource(owner.Name.Replace("global::", "").Replace('.', '_') + ".Shader.g.cs", SourceText.From(DeclarationEmitter.Owner(owner, offline), Encoding.UTF8));
         if (offline)
         {
