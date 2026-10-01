@@ -28,8 +28,8 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     mat3 toWorld = transpose(mat3(modelViewMatrix));
     vec3 V = normalize(toWorld * -vge_viewPosition);
     float emission = max(material.b, glowLevel);
-    // Only explicitly transmitting, non-emissive liquid materials select water optics.
-    bool water = material.a > 0.0 && !lava && !fullAlpha && emission <= 0.0;
+    // Transmission selects the water optical model; emission is an independent material property.
+    bool water = material.a > 0.0 && !lava && !fullAlpha;
     vec3 geometric = cross(dFdx(fWorldPos), dFdy(fWorldPos));
     float normSquared = dot(geometric, geometric);
     vec3 N = normSquared > 1e-16 ? geometric * inversesqrt(normSquared) : normalize(fragNormal);
