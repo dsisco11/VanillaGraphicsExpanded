@@ -1,4 +1,23 @@
 Issues:
+  Development:
+    
+  ☐ Extend the existing shader contract generator to produce generated GPU binding contracts from attributes on fields of GpuProgram subclasses.
+    - Extend the existing shader contract generator so annotated fields on the owning GpuProgram
+      subclass declare uniform locations, sampler/image units and uniform/storage-buffer bindings.
+      Specify shader names, resource kinds and stage applicability explicitly; support shared layouts
+      without duplicating binding declarations or introducing runtime source scanning/reflection.
+    - Generate binding contract objects consumed by both offline SPIR-V compilation and runtime
+      program layouts from the same declarations. Preserve explicit locations, binding indices,
+      variant behavior and optimized-away resource handling.
+    - Emit compile-time diagnostics for unsupported field types, invalid indices, duplicate or
+      conflicting declarations and incompatible shared-stage layouts.
+    - Migrate existing centralized GpuShaderContracts binding declarations to their owning shader
+      classes, including TerrainNeutralNormalShaderProgram and atmosphere programs; remove the
+      superseded lookup cases and prevent two competing sources of binding ownership.
+    - Add focused generator tests and compiled SPIR-V/GPU checks for generated contracts, shared
+      stages and enabled/disabled variants. Run builds/tests through subagents and document field
+      attribute authoring with examples before marking complete.
+
   Current:
     ✔ Add debug label scopes for the remaining unlabeled base-game rendering passes. See docs/GPU.EngineRenderScopes.md; Debug build and 16 focused tests passed. Live RenderDoc confirmation remains user-run.
     ☐ Normal maps not loading from material atlas baking system?
