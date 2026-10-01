@@ -64,6 +64,12 @@ variant work begins. Catalog rebuilds report source expansion and variant progre
 (at most once every five seconds as jobs finish, plus the final count), followed
 by output publication. Input-check and total timings help distinguish validation
 cost from compiler work; processing a variant can be a cache hit without compiling.
+Failed jobs emit recognized `SPIRV002` build errors with their stage, source and
+configuration. Compiler failures include decimal/hex exit codes and both captured
+diagnostic streams; worker exceptions retain their original stack and inner causes.
+Process launch/IO exceptions also retain the compiler command and working directory.
+The final `SPIRV001` exception retains all reported job failures, so the build
+summary remains useful even when earlier ordinary log lines are hidden.
 Explicit `--clean` overrides `--incremental`, discards outputs/cache and forces compilation.
 The cache retains historical successful variants to support reverting changes;
 explicit clean is currently the mechanism for reclaiming that storage.

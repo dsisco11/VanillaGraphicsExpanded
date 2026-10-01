@@ -27,6 +27,22 @@ public sealed class ShaderCompilerProcessTests
     #endregion
 
     #region Execution and cancellation
+    /// <summary>A launch failure retains its native cause, working directory and compiler arguments.</summary>
+    [Fact]
+    public async Task LaunchFailureIncludesCompilerInvocation()
+    {
+        string missingDirectory = Path.Combine(Path.GetTempPath(), "vge-missing-compiler-" + Guid.NewGuid().ToString("N"));
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ShaderCompilerProcess.CompileAsync(missingDirectory, "fixture.glsl", "fixture.spv", "compute",
+                "opengl4.5", false, "main", TestContext.Current.CancellationToken));
+        Assert.NotNull(failure.InnerException);
+        Assert.Contains(missingDirectory, failure.Message);
+        Assert.Contains("dotnet", failure.Message);
+        Assert.Contains("--shader-stage=compute", failure.Message);
+        Assert.Contains("fixture.glsl", failure.Message);
+        Assert.Contains("fixture.spv", failure.Message);
+    }
+
     /// <summary>Large simultaneous stdout/stderr streams cannot deadlock; a nonzero exit remains observable.</summary>
     [Fact]
     public async Task DrainsBothPipesAndPreservesExitCode()

@@ -19,9 +19,9 @@ internal static class ShaderCompilerProcess
     internal static bool GenerateDebugInfo => false;
 #endif
 
-    #region Process execution
+    #region Public API
     /// <summary>Runs the pinned shader compiler with configuration-specific optimization and debug information.</summary>
-    public static Task<ShaderCompilerResult> CompileAsync(string workingDirectory, string input, string output,
+    public static async Task<ShaderCompilerResult> CompileAsync(string workingDirectory, string input, string output,
         string stage, string target, bool warningsAsErrors, string entryPoint, CancellationToken cancellationToken)
     {
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = workingDirectory };
@@ -33,9 +33,22 @@ internal static class ShaderCompilerProcess
         start.ArgumentList.Add("-o");
         start.ArgumentList.Add(output);
         start.ArgumentList.Add(input);
-        return RunAsync(start, cancellationToken);
+        try
+        {
+            return await RunAsync(start, cancellationToken);
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException)
+        {
+            // Preserve process-launch/IO exceptions together with the exact compiler invocation.
+            string argumentsText = string.Join(" ", start.ArgumentList.Select(argument => "\"" + argument + "\""));
+            throw new InvalidOperationException(
+                $"Shader compiler process failed. Working directory: '{workingDirectory}'. Command: {start.FileName} {argumentsText}", failure);
+        }
     }
 
+    #endregion
+
+    #region Private
     /// <summary>Drains both pipes concurrently and kills/reaps the child tree before returning on cancellation.</summary>
     internal static async Task<ShaderCompilerResult> RunAsync(ProcessStartInfo start, CancellationToken cancellationToken)
     {

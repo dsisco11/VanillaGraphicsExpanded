@@ -6,7 +6,7 @@ internal sealed record ShaderCompilationJob(string Identity, Func<CancellationTo
 /// <summary>Schedules bounded compiler jobs and reports captured diagnostics in stable input order.</summary>
 internal static class ShaderCompilationBatch
 {
-    #region Scheduling
+    #region Public API
     /// <summary>Cancels outstanding work on the first failure and awaits every worker before reporting completion.</summary>
     public static async Task RunAsync(IReadOnlyList<ShaderCompilationJob> jobs, int concurrency,
         TextWriter output, TextWriter error, CancellationToken cancellationToken)
@@ -54,7 +54,7 @@ internal static class ShaderCompilationBatch
         })).ToArray();
         await Task.WhenAll(workers);
 
-        bool failed = false;
+        var reportedFailures = new List<Exception>();
         for (int index = 0; index < jobs.Count; index++)
         {
             var result = results[index];
@@ -67,11 +67,19 @@ internal static class ShaderCompilationBatch
             }
             if (failures[index] is not null || result?.ExitCode is not null and not 0)
             {
-                failed = true;
-                error.WriteLine($"[SPIR-V] Failed {jobs[index].Identity}: {failures[index]?.Message ?? $"compiler exit {result!.ExitCode}"}");
+                // Retain context in the thrown exception as well as recognized MSBuild errors:
+                // terminal summaries can omit ordinary stderr lines from the failed Exec task.
+                string detail = failures[index]?.ToString()
+                    ?? $"compiler exit {result!.ExitCode} (0x{unchecked((uint)result.ExitCode):X8})\nStandard output:\n{result.StandardOutput}\nStandard error:\n{result.StandardError}";
+                var failure = new InvalidOperationException($"Failed {jobs[index].Identity}: {detail}", failures[index]);
+                reportedFailures.Add(failure);
+                foreach (string line in failure.Message.Replace("\r\n", "\n").Split('\n'))
+                    if (!string.IsNullOrWhiteSpace(line)) error.WriteLine("error SPIRV002: " + line);
             }
         }
-        if (failed) throw new InvalidOperationException("Shader compilation failed; no build receipt was published.");
+        if (reportedFailures.Count != 0)
+            throw new InvalidOperationException("Shader compilation failed; no build receipt was published.",
+                new AggregateException("Shader job failures (in catalog order).", reportedFailures));
         cancellationToken.ThrowIfCancellationRequested();
     }
     #endregion

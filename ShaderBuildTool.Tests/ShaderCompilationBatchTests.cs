@@ -94,11 +94,34 @@ public sealed class ShaderCompilationBatchTests
         };
         using var error = new StringWriter();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => ShaderCompilationBatch.RunAsync(jobs, 2, TextWriter.Null, error, timeout.Token));
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => ShaderCompilationBatch.RunAsync(jobs, 2, TextWriter.Null, error, timeout.Token));
         Assert.True(peerFinished);
         Assert.False(queuedStarted);
         Assert.Contains("Failed broken", error.ToString());
         Assert.Contains(throwException ? "fixture failure" : "fixture compiler error", error.ToString());
+        Assert.Contains("error SPIRV002: Failed broken", error.ToString());
+        Assert.Contains("Failed broken", failure.ToString());
+        Assert.Contains(throwException ? "fixture failure" : "fixture compiler error", failure.ToString());
+        var aggregate = Assert.IsType<AggregateException>(failure.InnerException);
+        if (throwException) Assert.IsType<IOException>(Assert.Single(aggregate.InnerExceptions).InnerException);
+        else Assert.Contains("compiler exit 7 (0x00000007)", failure.ToString());
+    }
+
+    /// <summary>Retains both compiler streams and native crash exit codes in the final exception and build errors.</summary>
+    [Fact]
+    public async Task CompilerCrashRetainsDiagnosticsInBuildSummary()
+    {
+        var job = new ShaderCompilationJob("stage 'fixture', source 'fixture.csh', configuration 'variant'", token =>
+            Task.FromResult(new ShaderCompilerResult(unchecked((int)0xC0000005), "compiler startup", "native crash\ncrash detail")));
+        using var error = new StringWriter();
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ShaderCompilationBatch.RunAsync([job], 1, TextWriter.Null, error, TestContext.Current.CancellationToken));
+        Assert.Contains("source 'fixture.csh'", failure.ToString());
+        Assert.Contains("0xC0000005", failure.ToString());
+        Assert.Contains("compiler startup", failure.ToString());
+        Assert.Contains("crash detail", failure.ToString());
+        Assert.Contains("error SPIRV002: compiler startup", error.ToString());
+        Assert.Contains("error SPIRV002: crash detail", error.ToString());
     }
 
     /// <summary>Caller cancellation propagates only after active jobs finish their cleanup.</summary>
