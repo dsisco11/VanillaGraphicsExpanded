@@ -4,7 +4,9 @@ Shader preparation and submission:
   Scope: Graphics and compute shaders, shared shader bases, resource bindings, and all application/engine callers.
   Excludes: Same-frame allocation caching, cross-frame upload reuse, and a new benchmark project.
 
-  ☐ Establish the lifecycle contract and inventory consumers.
+  ✔ Establish the lifecycle contract and inventory consumers.
+    - Contract: Rendering.ShaderPreparation.md; migration sites: Rendering.ShaderPreparation.Inventory.md.
+    - Source review, second planning pass and independent completion audit passed; documentation only, no runtime changes.
     - Define a strongly typed Prepare(lambda) API that exposes each concrete shader's parameters.
     - Preserve defaults and all unassigned values/references across Prepare calls, Use calls, and program reloads.
       Preparation is synchronous; multiple calls accumulate changes. Resource ownership remains with existing owners.
