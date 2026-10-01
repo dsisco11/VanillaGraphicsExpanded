@@ -33,8 +33,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (_, tileSize, tilesPerAxis, tilesPerAtlas) = UboPacking.ReadIVec4(DataReadOnly, OffsetLumonSceneInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetLumonSceneInts0, value, tileSize, tilesPerAxis, tilesPerAtlas);
-            MarkDirty(OffsetLumonSceneInts0, 16);
+            WriteIntVector4(OffsetLumonSceneInts0, value, tileSize, tilesPerAxis, tilesPerAtlas);
         }
     }
 
@@ -44,8 +43,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (enabled, _, tilesPerAxis, tilesPerAtlas) = UboPacking.ReadIVec4(DataReadOnly, OffsetLumonSceneInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetLumonSceneInts0, enabled, value, tilesPerAxis, tilesPerAtlas);
-            MarkDirty(OffsetLumonSceneInts0, 16);
+            WriteIntVector4(OffsetLumonSceneInts0, enabled, value, tilesPerAxis, tilesPerAtlas);
         }
     }
 
@@ -55,8 +53,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (enabled, tileSize, _, tilesPerAtlas) = UboPacking.ReadIVec4(DataReadOnly, OffsetLumonSceneInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetLumonSceneInts0, enabled, tileSize, value, tilesPerAtlas);
-            MarkDirty(OffsetLumonSceneInts0, 16);
+            WriteIntVector4(OffsetLumonSceneInts0, enabled, tileSize, value, tilesPerAtlas);
         }
     }
 
@@ -66,13 +63,11 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (enabled, tileSize, tilesPerAxis, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetLumonSceneInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetLumonSceneInts0, enabled, tileSize, tilesPerAxis, value);
-            MarkDirty(OffsetLumonSceneInts0, 16);
+            WriteIntVector4(OffsetLumonSceneInts0, enabled, tileSize, tilesPerAxis, value);
         }
     }
 
     #endregion
-
 
     #region Temporal Config
 
@@ -82,8 +77,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (_, depthReject, normalReject, _) = UboPacking.ReadVec4(DataReadOnly, OffsetTemporalFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetTemporalFloats0, value, depthReject, normalReject, 0f);
-            MarkDirty(OffsetTemporalFloats0, 16);
+            WriteVector4(OffsetTemporalFloats0, new(value, depthReject, normalReject, 0f));
         }
     }
 
@@ -93,8 +87,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (temporalAlpha, _, normalReject, _) = UboPacking.ReadVec4(DataReadOnly, OffsetTemporalFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetTemporalFloats0, temporalAlpha, value, normalReject, 0f);
-            MarkDirty(OffsetTemporalFloats0, 16);
+            WriteVector4(OffsetTemporalFloats0, new(temporalAlpha, value, normalReject, 0f));
         }
     }
 
@@ -104,8 +97,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (temporalAlpha, depthReject, _, _) = UboPacking.ReadVec4(DataReadOnly, OffsetTemporalFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetTemporalFloats0, temporalAlpha, depthReject, value, 0f);
-            MarkDirty(OffsetTemporalFloats0, 16);
+            WriteVector4(OffsetTemporalFloats0, new(temporalAlpha, depthReject, value, 0f));
         }
     }
 
@@ -119,8 +111,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (_, gatherAtlasSource, _, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetDebugInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetDebugInts0, value, gatherAtlasSource, 0, 0);
-            MarkDirty(OffsetDebugInts0, 16);
+            WriteIntVector4(OffsetDebugInts0, value, gatherAtlasSource, 0, 0);
         }
     }
 
@@ -130,8 +121,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (debugMode, _, _, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetDebugInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetDebugInts0, debugMode, value, 0, 0);
-            MarkDirty(OffsetDebugInts0, 16);
+            WriteIntVector4(OffsetDebugInts0, debugMode, value, 0, 0);
         }
     }
 
@@ -149,8 +139,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (_, _, _, intensity) = UboPacking.ReadVec4(DataReadOnly, OffsetCompositeTintIntensity);
-            UboPacking.WriteVec4(DataWritable, OffsetCompositeTintIntensity, value.X, value.Y, value.Z, intensity);
-            MarkDirty(OffsetCompositeTintIntensity, 16);
+            WriteVector4(OffsetCompositeTintIntensity, new(value.X, value.Y, value.Z, intensity));
         }
     }
 
@@ -160,8 +149,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (r, g, b, _) = UboPacking.ReadVec4(DataReadOnly, OffsetCompositeTintIntensity);
-            UboPacking.WriteVec4(DataWritable, OffsetCompositeTintIntensity, r, g, b, value);
-            MarkDirty(OffsetCompositeTintIntensity, 16);
+            WriteVector4(OffsetCompositeTintIntensity, new(r, g, b, value));
         }
     }
 
@@ -171,8 +159,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (_, spec, _, _) = UboPacking.ReadVec4(DataReadOnly, OffsetAoStrengths);
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, value, spec, WorldProbeComparisonReady ? 1f : 0f, WorldProbeEffectGain);
-            MarkDirty(OffsetAoStrengths, 16);
+            WriteVector4(OffsetAoStrengths, new(value, spec, WorldProbeComparisonReady ? 1f : 0f, WorldProbeEffectGain));
         }
     }
 
@@ -182,8 +169,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         set
         {
             var (diff, _, _, _) = UboPacking.ReadVec4(DataReadOnly, OffsetAoStrengths);
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, diff, value, WorldProbeComparisonReady ? 1f : 0f, WorldProbeEffectGain);
-            MarkDirty(OffsetAoStrengths, 16);
+            WriteVector4(OffsetAoStrengths, new(diff, value, WorldProbeComparisonReady ? 1f : 0f, WorldProbeEffectGain));
         }
     }
 
@@ -193,9 +179,8 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadFloat(DataReadOnly, OffsetAoStrengths + 12);
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, DiffuseAOStrength,
-                SpecularAOStrength, WorldProbeComparisonReady ? 1f : 0f, value);
-            MarkDirty(OffsetAoStrengths, 16);
+            WriteVector4(OffsetAoStrengths, new(DiffuseAOStrength,
+                SpecularAOStrength, WorldProbeComparisonReady ? 1f : 0f, value));
         }
     }
 
@@ -205,8 +190,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadFloat(DataReadOnly, OffsetAoStrengths + 8) != 0f;
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, DiffuseAOStrength, SpecularAOStrength, value ? 1f : 0f, WorldProbeEffectGain);
-            MarkDirty(OffsetAoStrengths, 16);
+            WriteVector4(OffsetAoStrengths, new(DiffuseAOStrength, SpecularAOStrength, value ? 1f : 0f, WorldProbeEffectGain));
         }
     }
 

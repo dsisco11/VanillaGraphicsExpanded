@@ -48,8 +48,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetCommonSize, value.width, value.height, 0, 0);
-            MarkDirty(OffsetCommonSize, 16);
+            WriteIntVector4(OffsetCommonSize, value.width, value.height, 0, 0);
         }
     }
 
@@ -65,8 +64,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetGaussDir, value.x, value.y, 0, 0);
-            MarkDirty(OffsetGaussDir, 16);
+            WriteIntVector4(OffsetGaussDir, value.x, value.y, 0, 0);
         }
     }
 
@@ -78,8 +76,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetGaussParams, value.radius, value.relContrast, 0, 0);
-            MarkDirty(OffsetGaussParams, 16);
+            WriteIntVector4(OffsetGaussParams, value.radius, value.relContrast, 0, 0);
         }
     }
 
@@ -89,6 +86,10 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     /// </summary>
     public void SetKernelWeights(float[] weights, int count)
     {
+        // Validate the complete source and fixed destination capacity before writing the first slot.
+        System.ArgumentNullException.ThrowIfNull(weights);
+        if ((uint)count > 64) throw new System.ArgumentOutOfRangeException(nameof(count));
+        if (weights.Length < count) throw new System.ArgumentException("Source must contain the requested weights.", nameof(weights));
         int vec4Count = (count + 3) / 4;
         for (int i = 0; i < vec4Count; i++)
         {
@@ -97,9 +98,8 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
             float w1 = baseIdx + 1 < count ? weights[baseIdx + 1] : 0f;
             float w2 = baseIdx + 2 < count ? weights[baseIdx + 2] : 0f;
             float w3 = baseIdx + 3 < count ? weights[baseIdx + 3] : 0f;
-            UboPacking.WriteVec4(DataWritable, OffsetKernelWeights + (i * 16), w0, w1, w2, w3);
+            WriteVector4(OffsetKernelWeights + (i * 16), new(w0, w1, w2, w3));
         }
-        MarkDirty(OffsetKernelWeights, vec4Count * 16);
     }
 
     #endregion
@@ -114,8 +114,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetSubParams, value.eps, value.vMax, 0f, 0f);
-            MarkDirty(OffsetSubParams, 16);
+            WriteVector4(OffsetSubParams, new(value.eps, value.vMax, 0f, 0f));
         }
     }
 
@@ -131,8 +130,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetCombineWeights, value.w1, value.w2, value.w3, 0f);
-            MarkDirty(OffsetCombineWeights, 16);
+            WriteVector4(OffsetCombineWeights, new(value.w1, value.w2, value.w3, 0f));
         }
     }
 
@@ -148,8 +146,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetGradientParams, value.gain, value.maxSlope, value.edgeT0, value.edgeT1);
-            MarkDirty(OffsetGradientParams, 16);
+            WriteVector4(OffsetGradientParams, new(value.gain, value.maxSlope, value.edgeT0, value.edgeT1));
         }
     }
 
@@ -165,8 +162,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetLuminanceAtlasRect, value.x, value.y, value.w, value.h);
-            MarkDirty(OffsetLuminanceAtlasRect, 16);
+            WriteIntVector4(OffsetLuminanceAtlasRect, value.x, value.y, value.w, value.h);
         }
     }
 
@@ -178,8 +174,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetLuminanceDstSize, value.width, value.height, 0, 0);
-            MarkDirty(OffsetLuminanceDstSize, 16);
+            WriteIntVector4(OffsetLuminanceDstSize, value.width, value.height, 0, 0);
         }
     }
 
@@ -195,8 +190,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetSolverSize, value.width, value.height, 0, 0);
-            MarkDirty(OffsetSolverSize, 16);
+            WriteIntVector4(OffsetSolverSize, value.width, value.height, 0, 0);
         }
     }
 
@@ -208,8 +202,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetTileSize, value.width, value.height, 0, 0);
-            MarkDirty(OffsetTileSize, 16);
+            WriteIntVector4(OffsetTileSize, value.width, value.height, 0, 0);
         }
     }
 
@@ -221,8 +214,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetViewportOrigin, value.x, value.y, 0, 0);
-            MarkDirty(OffsetViewportOrigin, 16);
+            WriteIntVector4(OffsetViewportOrigin, value.x, value.y, 0, 0);
         }
     }
 
@@ -238,8 +230,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetNormalizeParams, value.mean, value.invNeg, value.invPos, value.heightStrength);
-            MarkDirty(OffsetNormalizeParams, 16);
+            WriteVector4(OffsetNormalizeParams, new(value.mean, value.invNeg, value.invPos, value.heightStrength));
         }
     }
 
@@ -251,8 +242,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetNormalizeGamma, value, 0f, 0f, 0f);
-            MarkDirty(OffsetNormalizeGamma, 16);
+            WriteVector4(OffsetNormalizeGamma, new(value, 0f, 0f, 0f));
         }
     }
 
@@ -268,8 +258,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetPackParams, value.normalStrength, value.normalScale, value.depthScale, value.eps);
-            MarkDirty(OffsetPackParams, 16);
+            WriteVector4(OffsetPackParams, new(value.normalStrength, value.normalScale, value.depthScale, value.eps));
         }
     }
 
@@ -285,8 +274,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetMultigridFineSize, value.width, value.height, 0, 0);
-            MarkDirty(OffsetMultigridFineSize, 16);
+            WriteIntVector4(OffsetMultigridFineSize, value.width, value.height, 0, 0);
         }
     }
 
@@ -298,8 +286,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetMultigridCoarseSize, value.width, value.height, 0, 0);
-            MarkDirty(OffsetMultigridCoarseSize, 16);
+            WriteIntVector4(OffsetMultigridCoarseSize, value.width, value.height, 0, 0);
         }
     }
 

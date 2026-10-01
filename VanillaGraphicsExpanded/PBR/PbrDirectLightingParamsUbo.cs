@@ -36,8 +36,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteMat4(DataWritable, OffsetInvProjection, value);
-            MarkDirty(OffsetInvProjection, 64);
+            WriteMatrix4(OffsetInvProjection, value);
         }
     }
 
@@ -45,8 +44,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteMat4(DataWritable, OffsetInvModelView, value);
-            MarkDirty(OffsetInvModelView, 64);
+            WriteMatrix4(OffsetInvModelView, value);
         }
     }
 
@@ -54,8 +52,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteMat4(DataWritable, OffsetToShadowNear, value);
-            MarkDirty(OffsetToShadowNear, 64);
+            WriteMatrix4(OffsetToShadowNear, value);
         }
     }
 
@@ -63,8 +60,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteMat4(DataWritable, OffsetToShadowFar, value);
-            MarkDirty(OffsetToShadowFar, 64);
+            WriteMatrix4(OffsetToShadowFar, value);
         }
     }
 
@@ -79,8 +75,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetZPlanes, value.zNear, value.zFar, value.shadowRangeNear, value.shadowRangeFar);
-            MarkDirty(OffsetZPlanes, 16);
+            WriteVector4(OffsetZPlanes, new(value.zNear, value.zFar, value.shadowRangeNear, value.shadowRangeFar));
         }
     }
 
@@ -91,8 +86,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetShadowExtend, value.shadowZExtendNear, value.shadowZExtendFar, value.dropShadowIntensity, 0f);
-            MarkDirty(OffsetShadowExtend, 16);
+            WriteVector4(OffsetShadowExtend, new(value.shadowZExtendNear, value.shadowZExtendFar, value.dropShadowIntensity, 0f));
         }
     }
 
@@ -104,8 +98,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetLightDirection, value.X, value.Y, value.Z, 0f);
-            MarkDirty(OffsetLightDirection, 16);
+            WriteVector4(OffsetLightDirection, new(value.X, value.Y, value.Z, 0f));
         }
     }
 
@@ -113,8 +106,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetRgbaAmbient, value.X, value.Y, value.Z, 0f);
-            MarkDirty(OffsetRgbaAmbient, 16);
+            WriteVector4(OffsetRgbaAmbient, new(value.X, value.Y, value.Z, 0f));
         }
     }
 
@@ -123,8 +115,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetRgbaLight, value.X, value.Y, value.Z, 0f);
-            MarkDirty(OffsetRgbaLight, 16);
+            WriteVector4(OffsetRgbaLight, new(value.X, value.Y, value.Z, 0f));
         }
     }
 
@@ -135,7 +126,7 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
     {
         int clampedCount = System.Math.Clamp(count, 0, 100);
 
-        UboPacking.WriteIVec4(DataWritable, OffsetPointLightsCount, clampedCount, 0, 0, 0);
+        WriteIntVector4(OffsetPointLightsCount, clampedCount, 0, 0, 0);
 
         // Positions (vec4[100])
         if (positions3 is not null)
@@ -145,19 +136,19 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
             {
                 int src = i * 3;
                 int dst = OffsetPointLightsPos + (i * 16);
-                UboPacking.WriteVec4(DataWritable, dst, positions3[src + 0], positions3[src + 1], positions3[src + 2], 0f);
+                WriteVector4(dst, new(positions3[src + 0], positions3[src + 1], positions3[src + 2], 0f));
             }
 
             for (int i = maxVec3; i < clampedCount; i++)
             {
-                UboPacking.WriteVec4(DataWritable, OffsetPointLightsPos + (i * 16), 0f, 0f, 0f, 0f);
+                WriteVector4(OffsetPointLightsPos + (i * 16), new(0f, 0f, 0f, 0f));
             }
         }
         else
         {
             for (int i = 0; i < clampedCount; i++)
             {
-                UboPacking.WriteVec4(DataWritable, OffsetPointLightsPos + (i * 16), 0f, 0f, 0f, 0f);
+                WriteVector4(OffsetPointLightsPos + (i * 16), new(0f, 0f, 0f, 0f));
             }
         }
 
@@ -169,27 +160,22 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
             {
                 int src = i * 3;
                 int dst = OffsetPointLightsColor + (i * 16);
-                UboPacking.WriteVec4(DataWritable, dst, colors3[src + 0], colors3[src + 1], colors3[src + 2], 0f);
+                WriteVector4(dst, new(colors3[src + 0], colors3[src + 1], colors3[src + 2], 0f));
             }
 
             for (int i = maxVec3; i < clampedCount; i++)
             {
-                UboPacking.WriteVec4(DataWritable, OffsetPointLightsColor + (i * 16), 0f, 0f, 0f, 0f);
+                WriteVector4(OffsetPointLightsColor + (i * 16), new(0f, 0f, 0f, 0f));
             }
         }
         else
         {
             for (int i = 0; i < clampedCount; i++)
             {
-                UboPacking.WriteVec4(DataWritable, OffsetPointLightsColor + (i * 16), 0f, 0f, 0f, 0f);
+                WriteVector4(OffsetPointLightsColor + (i * 16), new(0f, 0f, 0f, 0f));
             }
         }
 
-        // Dirty only what can affect rendering for the current count.
-        // The shader should only index up to pointLightsCount.
-        MarkDirty(OffsetPointLightsCount, 16);
-        MarkDirty(OffsetPointLightsPos, clampedCount * 16);
-        MarkDirty(OffsetPointLightsColor, clampedCount * 16);
     }
 
     #endregion

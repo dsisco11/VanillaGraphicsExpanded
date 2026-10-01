@@ -19,7 +19,7 @@ Issues:
     ☐ Split all of the Probe-view debug modes into nested categories for better organization. e.g. all "Probe-atlas" views should be under the "Probe atlas" category, etc.
 
   Performance:
-    ☐ Refactor uniform-buffer writes to report changes and avoid unnecessary dirty marking.
+    ✔ Refactor uniform-buffer writes to report changes and avoid unnecessary dirty marking. Debug build, 34 focused tests and independent review completed. GPU upload reduction is not claimed.
       - Make UboPacking write methods return bool: true only when the destination's stored data
         changes, false for an identical write. Cover scalar, vector and matrix writers consistently.
       - Have CpuUniformBuffer's typed writers consume that result and call MarkDirty only for changed

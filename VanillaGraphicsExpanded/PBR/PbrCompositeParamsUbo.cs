@@ -30,8 +30,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteMat4(DataWritable, OffsetInvProjection, value);
-            MarkDirty(OffsetInvProjection, 64);
+            WriteMatrix4(OffsetInvProjection, value);
         }
     }
 
@@ -39,8 +38,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteMat4(DataWritable, OffsetViewMatrix, value);
-            MarkDirty(OffsetViewMatrix, 64);
+            WriteMatrix4(OffsetViewMatrix, value);
         }
     }
 
@@ -51,25 +49,23 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     /// <summary>Publishes coordinates from the same generation as the bound finite-path volumes.</summary>
     public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
-        UboPacking.WriteVec4(DataWritable, 192, lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 0);
-        UboPacking.WriteVec4(DataWritable, 208, lighting?.Sun.X ?? 0, lighting?.Sun.Y ?? 1, lighting?.Sun.Z ?? 0, 0);
-        MarkDirty(192, 32);
+        WriteVector4(192, new(lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 0));
+        WriteVector4(208, new(lighting?.Sun.X ?? 0, lighting?.Sun.Y ?? 1, lighting?.Sun.Z ?? 0, 0));
     }
 
     /// <summary>Restricts legacy engine fog to the underwater medium, independently of atmospheric availability.</summary>
     internal void SetUnderwater(bool value)
     {
         underwater = value;
-        System.Runtime.InteropServices.MemoryMarshal.Write(DataWritable.Slice(OffsetFogFloats + 8, 4), value ? 1f : 0f);
-        MarkDirty(OffsetFogFloats + 8, 4);
+        WriteFloat(OffsetFogFloats + 8, value ? 1f : 0f);
+
     }
 
     public Vector4 RgbaFogIn
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetFogColor, value.X, value.Y, value.Z, value.W);
-            MarkDirty(OffsetFogColor, 16);
+            WriteVector4(OffsetFogColor, new(value.X, value.Y, value.Z, value.W));
         }
     }
 
@@ -77,8 +73,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetFogFloats, value.fogDensity, value.fogMin, underwater ? 1f : 0f, 0f);
-            MarkDirty(OffsetFogFloats, 16);
+            WriteVector4(OffsetFogFloats, new(value.fogDensity, value.fogMin, underwater ? 1f : 0f, 0f));
         }
     }
 
@@ -90,8 +85,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetIndirectTintIntensity, value.tint.X, value.tint.Y, value.tint.Z, value.intensity);
-            MarkDirty(OffsetIndirectTintIntensity, 16);
+            WriteVector4(OffsetIndirectTintIntensity, new(value.tint.X, value.tint.Y, value.tint.Z, value.intensity));
         }
     }
 
@@ -103,8 +97,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetAOStrengths, value.diffuse, value.specular, 0f, 0f);
-            MarkDirty(OffsetAOStrengths, 16);
+            WriteVector4(OffsetAOStrengths, new(value.diffuse, value.specular, 0f, 0f));
         }
     }
 

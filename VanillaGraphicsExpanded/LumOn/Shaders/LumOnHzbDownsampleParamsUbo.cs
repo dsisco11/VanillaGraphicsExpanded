@@ -19,8 +19,7 @@ public sealed class LumOnHzbDownsampleParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadInt32(DataReadOnly, 0);
         set
         {
-            UboPacking.WriteIVec4(DataWritable, 0, value, 0, 0, 0);
-            MarkDirty(0, UboSizeBytes);
+            WriteIntVector4(0, value, 0, 0, 0);
         }
     }
 }

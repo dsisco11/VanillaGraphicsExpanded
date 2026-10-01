@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using VanillaGraphicsExpanded.Rendering;
 using Xunit;
 
@@ -9,6 +10,37 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class CpuUniformBufferTests
 {
     #region Packing contracts
+    /// <summary>Zero-valued typed setters leave a newly allocated zero buffer clean.</summary>
+    [Fact]
+    public void IdenticalTypedWritesKeepBufferClean()
+    {
+        using var buffer = new TestBuffer();
+        buffer.ZeroValues();
+        Assert.False(buffer.IsDirty);
+    }
+
+    /// <summary>Identical writes cannot clear or widen a pending range, including inside nested batches.</summary>
+    [Fact]
+    public void UnchangedWritesPreservePendingDirtyRange()
+    {
+        using var buffer = new TestBuffer();
+        buffer.Scalar(12, 1);
+        using (buffer.BeginBatchUpdate())
+        using (buffer.BeginBatchUpdate())
+        {
+            buffer.Scalar(12, 1);
+            buffer.Scalar(0, 0);
+            buffer.Vector(32, Vector3.Zero);
+        }
+        Assert.True(buffer.IsDirty);
+        // Observe the existing private tracking contract without adding a production test-only API.
+        Assert.Equal(12, typeof(CpuUniformBuffer).GetField("dirtyStartBytes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(buffer));
+        Assert.Equal(16, typeof(CpuUniformBuffer).GetField("dirtyEndExclusiveBytes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(buffer));
+        Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Vector(60, Vector3.One));
+        Assert.True(buffer.IsDirty);
+        Assert.Equal(12, typeof(CpuUniformBuffer).GetField("dirtyStartBytes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(buffer));
+        Assert.Equal(16, typeof(CpuUniformBuffer).GetField("dirtyEndExclusiveBytes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(buffer));
+    }
     /// <summary>A vec3 write must preserve the scalar occupying the fourth component of its slot.</summary>
     [Fact]
     public void VectorWritePreservesAdjacentScalar()
@@ -63,6 +95,20 @@ public sealed class CpuUniformBufferTests
     {
         /// <summary>Allocates one matrix-sized block.</summary>
         internal TestBuffer() : base(64) { }
+        /// <summary>Exercises every typed writer against the initial stored zero representation.</summary>
+        internal void ZeroValues()
+        {
+            WriteFloat(0, 0);
+            WriteInt32(0, 0);
+            WriteUInt32(0, 0);
+            WriteVector2(0, Vector2.Zero);
+            WriteVector3(0, Vector3.Zero);
+            WriteVector4(0, Vector4.Zero);
+            WriteIntVector4(0, 0, 0, 0, 0);
+            WriteUIntVector4(0, 0, 0, 0, 0);
+            WriteMatrix4(0, new float[16]);
+            WriteMatrix4(0, default(Matrix4x4));
+        }
         /// <summary>Writes a floating scalar.</summary>
         internal void Scalar(int offset, float value) => WriteFloat(offset, value);
         /// <summary>Writes three floats.</summary>

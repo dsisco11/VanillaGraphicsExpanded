@@ -29,8 +29,7 @@ public sealed class LumOnUpsampleParamsUbo : CpuUniformBuffer
         set
         {
             var (_, n, s, minConf) = UboPacking.ReadVec4(DataReadOnly, OffsetUpsampleFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetUpsampleFloats0, value, n, s, minConf);
-            MarkDirty(OffsetUpsampleFloats0, 16);
+            WriteVector4(OffsetUpsampleFloats0, new(value, n, s, minConf));
         }
     }
 
@@ -43,8 +42,7 @@ public sealed class LumOnUpsampleParamsUbo : CpuUniformBuffer
         set
         {
             var (d, _, s, minConf) = UboPacking.ReadVec4(DataReadOnly, OffsetUpsampleFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetUpsampleFloats0, d, value, s, minConf);
-            MarkDirty(OffsetUpsampleFloats0, 16);
+            WriteVector4(OffsetUpsampleFloats0, new(d, value, s, minConf));
         }
     }
 
@@ -57,8 +55,7 @@ public sealed class LumOnUpsampleParamsUbo : CpuUniformBuffer
         set
         {
             var (d, n, _, minConf) = UboPacking.ReadVec4(DataReadOnly, OffsetUpsampleFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetUpsampleFloats0, d, n, value, minConf);
-            MarkDirty(OffsetUpsampleFloats0, 16);
+            WriteVector4(OffsetUpsampleFloats0, new(d, n, value, minConf));
         }
     }
 
@@ -71,8 +68,7 @@ public sealed class LumOnUpsampleParamsUbo : CpuUniformBuffer
         set
         {
             var (d, n, s, _) = UboPacking.ReadVec4(DataReadOnly, OffsetUpsampleFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetUpsampleFloats0, d, n, s, value);
-            MarkDirty(OffsetUpsampleFloats0, 16);
+            WriteVector4(OffsetUpsampleFloats0, new(d, n, s, value));
         }
     }
 
@@ -84,8 +80,7 @@ public sealed class LumOnUpsampleParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadInt32(DataReadOnly, OffsetUpsampleInts0 + 0);
         set
         {
-            UboPacking.WriteIVec4(DataWritable, OffsetUpsampleInts0, value, 0, 0, 0);
-            MarkDirty(OffsetUpsampleInts0, 16);
+            WriteIntVector4(OffsetUpsampleInts0, value, 0, 0, 0);
         }
     }
 }

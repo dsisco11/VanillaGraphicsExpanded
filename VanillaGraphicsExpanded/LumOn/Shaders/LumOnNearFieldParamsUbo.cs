@@ -11,6 +11,7 @@ internal sealed class LumOnNearFieldParamsUbo : CpuUniformBuffer
     public const string BlockName = "LumOnNearFieldUBO";
     public const int Binding = GpuBindingRegistry.Ubo.Material;
 
+    #region Public API
     /// <summary>Allocates parameters disabled until a published scene is bound.</summary>
     public LumOnNearFieldParamsUbo() : base(128) { }
 
@@ -18,15 +19,11 @@ internal sealed class LumOnNearFieldParamsUbo : CpuUniformBuffer
     public void Set(in VectorInt3 origin, int resolution, int maxSteps = 256, int cellSize = 16,
         PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0)
     {
-        UboPacking.WriteIVec4(DataWritable, 0, origin.X, origin.Y, origin.Z, resolution);
-        UboPacking.WriteIVec4(DataWritable, 16, maxSteps, cellSize, supportedOrigins.HasValue ? 1 : 0, 0);
-        PartitionBounds bounds = supportedOrigins ?? default;
-        UboPacking.WriteVec4(DataWritable, 32, (float)(bounds.Min.X - origin.X), (float)(bounds.Min.Y - origin.Y), (float)(bounds.Min.Z - origin.Z), maximumTraceReach);
-        UboPacking.WriteVec4(DataWritable, 48, (float)(bounds.Max.X - origin.X), (float)(bounds.Max.Y - origin.Y), (float)(bounds.Max.Z - origin.Z), 0);
+        WriteMapping(origin, resolution, maxSteps, cellSize, supportedOrigins, maximumTraceReach);
         var domain = new PartitionBounds(new(origin.X, origin.Y, origin.Z), new(origin.X + resolution, origin.Y + resolution, origin.Z + resolution));
         WriteDomain(64, resolution > 0 ? domain : null);
         WriteDomain(96, resolution > 0 ? domain : null);
-        MarkDirty(0, 128);
+
     }
 
     /// <summary>Writes shared allocation mapping while keeping each consumer's logical bounds independent.</summary>
@@ -34,19 +31,34 @@ internal sealed class LumOnNearFieldParamsUbo : CpuUniformBuffer
     {
         var plan = scene?.Coverage;
         var min = plan?.Window.Min ?? default;
-        Set(new((int)min.X, (int)min.Y, (int)min.Z), scene?.Resolution ?? 0, settings?.MaxSteps ?? 256,
+        WriteMapping(new((int)min.X, (int)min.Y, (int)min.Z), scene?.Resolution ?? 0, settings?.MaxSteps ?? 256, 16,
             supportedOrigins: settings is null ? plan?.NearField : settings.SupportedOrigins,
             maximumTraceReach: settings?.MaximumTraceReach ?? float.MaxValue);
         WriteDomain(64, plan?.NearField);
         WriteDomain(96, plan?.Surface);
-        MarkDirty(0, 128);
+
+    }
+
+    #endregion
+
+    #region Private
+    /// <summary>Updates physical mapping without temporarily overwriting independent consumer domains.</summary>
+    private void WriteMapping(in VectorInt3 origin, int resolution, int maxSteps, int cellSize,
+        PartitionBounds? supportedOrigins, float maximumTraceReach)
+    {
+        WriteIntVector4(0, origin.X, origin.Y, origin.Z, resolution);
+        WriteIntVector4(16, maxSteps, cellSize, supportedOrigins.HasValue ? 1 : 0, 0);
+        PartitionBounds bounds = supportedOrigins ?? default;
+        WriteVector4(32, new((float)(bounds.Min.X - origin.X), (float)(bounds.Min.Y - origin.Y), (float)(bounds.Min.Z - origin.Z), maximumTraceReach));
+        WriteVector4(48, new((float)(bounds.Max.X - origin.X), (float)(bounds.Max.Y - origin.Y), (float)(bounds.Max.Z - origin.Z), 0));
     }
 
     /// <summary>Encodes an optional half-open logical domain without floating-point world coordinates.</summary>
     private void WriteDomain(int offset, PartitionBounds? domain)
     {
         var bounds = domain ?? default;
-        UboPacking.WriteIVec4(DataWritable, offset, (int)bounds.Min.X, (int)bounds.Min.Y, (int)bounds.Min.Z, domain.HasValue ? 1 : 0);
-        UboPacking.WriteIVec4(DataWritable, offset + 16, (int)bounds.Max.X, (int)bounds.Max.Y, (int)bounds.Max.Z, 0);
+        WriteIntVector4(offset, (int)bounds.Min.X, (int)bounds.Min.Y, (int)bounds.Min.Z, domain.HasValue ? 1 : 0);
+        WriteIntVector4(offset + 16, (int)bounds.Max.X, (int)bounds.Max.Y, (int)bounds.Max.Z, 0);
     }
+    #endregion
 }

@@ -36,8 +36,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (_, _, _, intensity) = UboPacking.ReadVec4(DataReadOnly, OffsetIndirectTintIntensity);
-            UboPacking.WriteVec4(DataWritable, OffsetIndirectTintIntensity, value.X, value.Y, value.Z, intensity);
-            MarkDirty(OffsetIndirectTintIntensity, 16);
+            WriteVector4(OffsetIndirectTintIntensity, new(value.X, value.Y, value.Z, intensity));
         }
     }
 
@@ -50,8 +49,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (r, g, b, _) = UboPacking.ReadVec4(DataReadOnly, OffsetIndirectTintIntensity);
-            UboPacking.WriteVec4(DataWritable, OffsetIndirectTintIntensity, r, g, b, value);
-            MarkDirty(OffsetIndirectTintIntensity, 16);
+            WriteVector4(OffsetIndirectTintIntensity, new(r, g, b, value));
         }
     }
 
@@ -64,8 +62,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (_, hitReject, hitSigma, leakThreshold) = UboPacking.ReadVec4(DataReadOnly, OffsetProbeFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetProbeFloats0, value, hitReject, hitSigma, leakThreshold);
-            MarkDirty(OffsetProbeFloats0, 16);
+            WriteVector4(OffsetProbeFloats0, new(value, hitReject, hitSigma, leakThreshold));
         }
     }
 
@@ -78,8 +75,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (temporalAlpha, _, hitSigma, leakThreshold) = UboPacking.ReadVec4(DataReadOnly, OffsetProbeFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetProbeFloats0, temporalAlpha, value, hitSigma, leakThreshold);
-            MarkDirty(OffsetProbeFloats0, 16);
+            WriteVector4(OffsetProbeFloats0, new(temporalAlpha, value, hitSigma, leakThreshold));
         }
     }
 
@@ -92,8 +88,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (temporalAlpha, hitReject, _, leakThreshold) = UboPacking.ReadVec4(DataReadOnly, OffsetProbeFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetProbeFloats0, temporalAlpha, hitReject, value, leakThreshold);
-            MarkDirty(OffsetProbeFloats0, 16);
+            WriteVector4(OffsetProbeFloats0, new(temporalAlpha, hitReject, value, leakThreshold));
         }
     }
 
@@ -106,8 +101,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (temporalAlpha, hitReject, hitSigma, _) = UboPacking.ReadVec4(DataReadOnly, OffsetProbeFloats0);
-            UboPacking.WriteVec4(DataWritable, OffsetProbeFloats0, temporalAlpha, hitReject, hitSigma, value);
-            MarkDirty(OffsetProbeFloats0, 16);
+            WriteVector4(OffsetProbeFloats0, new(temporalAlpha, hitReject, hitSigma, value));
         }
     }
 
@@ -120,8 +114,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (_, sampleStride, _, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetProbeInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetProbeInts0, value, sampleStride, 0, 0);
-            MarkDirty(OffsetProbeInts0, 16);
+            WriteIntVector4(OffsetProbeInts0, value, sampleStride, 0, 0);
         }
     }
 
@@ -134,8 +127,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         set
         {
             var (filterRadius, _, _, _) = UboPacking.ReadIVec4(DataReadOnly, OffsetProbeInts0);
-            UboPacking.WriteIVec4(DataWritable, OffsetProbeInts0, filterRadius, value, 0, 0);
-            MarkDirty(OffsetProbeInts0, 16);
+            WriteIntVector4(OffsetProbeInts0, filterRadius, value, 0, 0);
         }
     }
 
@@ -147,8 +139,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadFloat(DataReadOnly, OffsetAnchorFloats0 + 0);
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetAnchorFloats0, value, SuppressWorldProbeRadiance ? 1f : 0f, 0f, 0f);
-            MarkDirty(OffsetAnchorFloats0, 16);
+            WriteVector4(OffsetAnchorFloats0, new(value, SuppressWorldProbeRadiance ? 1f : 0f, 0f, 0f));
         }
     }
     /// <summary>
@@ -159,8 +150,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         get => UboPacking.ReadFloat(DataReadOnly, OffsetAnchorFloats0 + 4) != 0f;
         set
         {
-            UboPacking.WriteVec4(DataWritable, OffsetAnchorFloats0, DepthDiscontinuityThreshold, value ? 1f : 0f, 0f, 0f);
-            MarkDirty(OffsetAnchorFloats0, 16);
+            WriteVector4(OffsetAnchorFloats0, new(DepthDiscontinuityThreshold, value ? 1f : 0f, 0f, 0f));
         }
     }
 

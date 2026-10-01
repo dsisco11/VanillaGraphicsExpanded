@@ -19,8 +19,7 @@ public sealed class VgeDebugLinesParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteMat4(DataWritable, 0, value);
-            MarkDirty(0, 64);
+            WriteMatrix4(0, value);
         }
     }
 
@@ -28,8 +27,7 @@ public sealed class VgeDebugLinesParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, 64, value.X, value.Y, value.Z, 0f);
-            MarkDirty(64, 16);
+            WriteVector4(64, new(value.X, value.Y, value.Z, 0f));
         }
     }
 }

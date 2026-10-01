@@ -20,8 +20,7 @@ public sealed class LumOnWorldProbeResolveParamsUbo : CpuUniformBuffer
     {
         set
         {
-            UboPacking.WriteVec4(DataWritable, 0, value.X, value.Y, 0f, 0f);
-            MarkDirty(0, UboSizeBytes);
+            WriteVector4(0, new(value.X, value.Y, 0f, 0f));
         }
     }
 }

@@ -34,8 +34,7 @@ public sealed class LumOnCombineParamsUbo : CpuUniformBuffer
         set
         {
             var (_, _, _, intensity) = UboPacking.ReadVec4(DataReadOnly, OffsetIndirectTintIntensity);
-            UboPacking.WriteVec4(DataWritable, OffsetIndirectTintIntensity, value.X, value.Y, value.Z, intensity);
-            MarkDirty(OffsetIndirectTintIntensity, 16);
+            WriteVector4(OffsetIndirectTintIntensity, new(value.X, value.Y, value.Z, intensity));
         }
     }
 
@@ -48,8 +47,7 @@ public sealed class LumOnCombineParamsUbo : CpuUniformBuffer
         set
         {
             var (r, g, b, _) = UboPacking.ReadVec4(DataReadOnly, OffsetIndirectTintIntensity);
-            UboPacking.WriteVec4(DataWritable, OffsetIndirectTintIntensity, r, g, b, value);
-            MarkDirty(OffsetIndirectTintIntensity, 16);
+            WriteVector4(OffsetIndirectTintIntensity, new(r, g, b, value));
         }
     }
 
@@ -62,8 +60,7 @@ public sealed class LumOnCombineParamsUbo : CpuUniformBuffer
         set
         {
             var (_, spec, _, _) = UboPacking.ReadVec4(DataReadOnly, OffsetAoStrengths);
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, value, spec, 0f, 0f);
-            MarkDirty(OffsetAoStrengths, 16);
+            WriteVector4(OffsetAoStrengths, new(value, spec, 0f, 0f));
         }
     }
 
@@ -76,8 +73,7 @@ public sealed class LumOnCombineParamsUbo : CpuUniformBuffer
         set
         {
             var (diff, _, _, _) = UboPacking.ReadVec4(DataReadOnly, OffsetAoStrengths);
-            UboPacking.WriteVec4(DataWritable, OffsetAoStrengths, diff, value, 0f, 0f);
-            MarkDirty(OffsetAoStrengths, 16);
+            WriteVector4(OffsetAoStrengths, new(diff, value, 0f, 0f));
         }
     }
 }
