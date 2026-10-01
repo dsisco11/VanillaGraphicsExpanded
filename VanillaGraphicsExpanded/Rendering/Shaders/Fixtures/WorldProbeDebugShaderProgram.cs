@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
-[ShaderBindingSet(typeof(LumOnDebugShaderProgram))]
+[ShaderBindingSet(typeof(ILumOnDebugShaderProgramBindings))]
 internal static partial class WorldProbeDebugShaderProgram
 {
     #region Shader options

@@ -14,8 +14,8 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(Enabled))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(PbrComposite))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ShortRangeAo))]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
+[ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 internal static partial class GlobalDefinesShaderProgram
 {
     #region Shader options

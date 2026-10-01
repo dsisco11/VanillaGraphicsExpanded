@@ -1,11 +1,11 @@
 # Generated GPU binding contracts
 
 The shader declaration generator resolves `ShaderBinding` attributes on strongly
-typed interface properties and class partial properties into each generated
+typed interface properties into each generated
 `ShaderStageContract.Bindings`.
 The attribute owns the index. Runtime shader owners receive typed resource setters
 implemented through their existing linked program layout. Shared and contract-only
-owners receive typed descriptors. Names, resource kinds, stage applicability and
+owners import descriptor interfaces as metadata. Names, resource kinds, stage applicability and
 optional program subsets remain explicit. Offline compilation emits the same immutable
 contract without runtime resource types. Runtime source scanning and attribute
 reflection do not participate in binding ownership.
@@ -37,32 +37,71 @@ produce compile-time diagnostics. Metadata-only `ShaderBindingSet` imports accep
 interfaces on static contract owners and can retain default, stage and program filters.
 Offline shells contain immutable contracts without runtime interface bodies or resource APIs.
 
-Interface support is validated by 141 generator tests and 154 focused contract/GPU
+Before the production migration, interface support passed 141 generator tests and 154 focused contract/GPU
 tests, including interface-generated sampler/image dispatch, direct texture image
 binding, all 166 original stage layout fingerprints, capture and atmosphere checks.
 The Debug solution build passed with zero errors and verified 398 SPIR-V variants.
 Evidence is in `generator-interfaces.log`, `build-interfaces.log` and
 `focused-interfaces.log`, with corresponding TRX files under
 `artifacts/binding-contract-validation/`. The GPU fixtures now use interfaces;
-class-based production declarations remain supported.
+all production binding declarations and imports now use interfaces.
+
+## Interface migration
+
+All 374 attributed properties are owned by 42 interfaces. The 40 former class-based
+owners have moved to adjacent interface files; the two generated-resource fixtures
+already used interfaces. Static owners import metadata, runtime owners implement their
+binding interfaces, and filtered cross-shader imports reuse the full interface graph
+including include defaults. The four shared layouts are now `IShaderInterfaceLocations`,
+`IShaderIncludeBindings`, `ISurfaceLightingBindingSet` and `ITraceGeometryBindingSet`.
+
+124 established public sampler setters retain their names, nullable-texture behavior,
+texture targets and sampler policy. Liquid's seven internal texture-ID setters retain
+their visibility through explicit interface implementations. Existing typed compute
+assignments use generated interface setters. `GpuUniformBuffer`, `GpuShaderStorageBuffer`
+and their shared `GpuBufferObject` base are public; generated buffer setters on public
+shader owners are directly callable. Internal descriptor types retain explicit
+implementations. Superseded private attributed declarations
+and class-only descriptor/setter emission are removed; class attributes and class
+binding imports now produce generator errors. Layout overrides belong on derived
+interfaces rather than attributed concrete implementations.
+
+Migration validation passed 137 generator tests, 162 focused contract/GPU tests and
+a Debug solution build. All 166 independent original fingerprints match; 134 production
+programs, 161 stages and 398 SPIR-V variants remain intact. The focused suite includes
+a reflection assertion that every binding attribute/import has an interface owner.
+Liquid GPU checks exercise both the internal engine setters and explicit interface
+setters against linked texture targets, sampler state and uniform units. Their depth
+fixtures use `DepthTexture`, matching the specialized resource factory contract.
+Evidence: `generator-interface-migration.log`, `build-interface-migration.log` and
+`focused-interface-migration.log`, with TRX files in
+`artifacts/binding-contract-validation/`.
+The independent `independent-interface-migration.log` and TRX record the original
+fingerprint and interface-ownership checks, plus an unchanged baseline and source
+inventory with no class imports or private partial resource declarations.
+
+Public buffer API validation passed 137 generator tests, 179 focused contract/GPU
+tests and the Debug build. Direct public shader buffer assignments execute the existing
+binding boundary; all 166 original layouts match and 398 shader binaries remain current.
+Evidence is in the `*public-buffers*` logs/TRX in the same validation directory.
 
 ## Ownership and migration
 
 The former `GpuShaderContracts.DeclareBindings` shader-name switch and its resource
-helper files have been removed. Shader owners declare slots and binding-set attributes
-in their main shader class files. `GpuShaderContracts` retains catalog access and two existing
+helper files have been removed. Binding interfaces beside the shader owners declare
+slots and shared import graphs. `GpuShaderContracts` retains catalog access and two existing
 identity aliases, which select generated program contracts rather than declaring slots.
 The debug runtime layout now consumes its shader owner's generated fragment contract.
 
 Shared geometry and surface-cache inputs have one declaring property set each. Fixtures
-reuse production shader owners, and PIS/display resolve programs import their shared
+reuse production binding interfaces, and PIS/display resolve programs import their shared
 vertex owners with explicit stage filters. Multiple debug views and height-bake passes
 share their owner properties without repeating declarations. Atmosphere's scattering, sky
 and lighting contracts share the common parameter slot and select their output-buffer
 subsets explicitly.
 
-`ShaderInterfaceLocations` preserves the existing stable location table and intentional
-I/O aliases. `ShaderIncludeBindings` supplies optional include-block defaults. Explicit
+`IShaderInterfaceLocations` preserves the existing stable location table and intentional
+I/O aliases. `IShaderIncludeBindings` supplies optional include-block defaults. Explicit
 declarations override defaults by kind/name; conflicting independently declared defaults
 are rejected. Resource namespaces remain independent, and the original required/optional
 policy survives even when a compiled variant optimizes a resource away.

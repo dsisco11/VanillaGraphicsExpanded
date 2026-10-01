@@ -6,6 +6,6 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 /// <summary>Owns the isolated build validator's Compute program.</summary>
 [ShaderProgram("Contract", "fixture_compute", 1, Scope = "build-validation")]
 [ShaderStage("Contract", ShaderStageKind.Compute, "fixture.csh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
+[ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 internal static partial class BuildValidationComputeShader { }

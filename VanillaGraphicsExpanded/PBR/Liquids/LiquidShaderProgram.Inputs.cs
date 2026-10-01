@@ -42,4 +42,23 @@ internal sealed partial class LiquidShaderProgram
     /// <summary>Binds the borrowed AerialAttenuationTexture with its declared target and sampler.</summary>
     internal int AerialAttenuationTexture { set => BindImage("vge_atmosphereAerialAttenuation", value, TextureTarget.Texture3D, 0); }
     #endregion
+
+    #region Private: Interface implementation
+    // The engine-facing setters retain internal visibility and their established sampler
+    // policy. Explicit implementations expose the same behavior through the binding contract.
+    /// <summary>Implements the terrain binding with its existing texture target.</summary>
+    int ILiquidShaderProgramBindings.TerrainTexture { set => TerrainTexture = value; }
+    /// <summary>Implements the depth binding without exposing the engine-facing setter.</summary>
+    int ILiquidShaderProgramBindings.DepthTexture { set => DepthTexture = value; }
+    /// <summary>Implements the material-parameter binding with its existing nearest sampler.</summary>
+    int ILiquidShaderProgramBindings.MaterialParamsTexture { set => MaterialParamsTexture = value; }
+    /// <summary>Implements the near-shadow binding with its comparison sampler.</summary>
+    int ILiquidShaderProgramBindings.ShadowMapNear { set => ShadowMapNear = value; }
+    /// <summary>Implements the far-shadow binding with its comparison sampler.</summary>
+    int ILiquidShaderProgramBindings.ShadowMapFar { set => ShadowMapFar = value; }
+    /// <summary>Implements the atmospheric radiance binding with its existing 3D target.</summary>
+    int ILiquidShaderProgramBindings.AerialRadianceTexture { set => AerialRadianceTexture = value; }
+    /// <summary>Implements the atmospheric attenuation binding with its existing 3D target.</summary>
+    int ILiquidShaderProgramBindings.AerialAttenuationTexture { set => AerialAttenuationTexture = value; }
+    #endregion
 }

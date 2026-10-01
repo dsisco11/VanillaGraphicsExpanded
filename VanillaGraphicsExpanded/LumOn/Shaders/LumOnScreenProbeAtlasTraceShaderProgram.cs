@@ -42,77 +42,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(SurfaceLightingBindingSet), Program = "Contract")]
-public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgram
+public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasTraceShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the traceSceneFaces Sampler slot.</summary>
-    [ShaderBinding("traceSceneFaces", ShaderBindingKind.Sampler, 19, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture TraceSceneFaces { set; }
-    /// <summary>Declares the probeAnchorPosition Sampler slot.</summary>
-    [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture ProbeAnchorPositionTexture { set; }
-    /// <summary>Declares the probeAnchorNormal Sampler slot.</summary>
-    [ShaderBinding("probeAnchorNormal", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture ProbeAnchorNormalTexture { set; }
-    /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimaryDepthTexture { set; }
-    /// <summary>Declares the surfaceAlbedo Sampler slot.</summary>
-    [ShaderBinding("surfaceAlbedo", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture SurfaceAlbedoTexture { set; }
-    /// <summary>Declares the gBufferMaterial Sampler slot.</summary>
-    [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferMaterialTexture { set; }
-    /// <summary>Declares the octahedralHistory Sampler slot.</summary>
-    [ShaderBinding("octahedralHistory", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture OctahedralHistory { set; }
-    /// <summary>Declares the hzbDepth Sampler slot.</summary>
-    [ShaderBinding("hzbDepth", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture HzbDepthTexture { set; }
-    /// <summary>Declares the probeAtlasMetaHistory Sampler slot.</summary>
-    [ShaderBinding("probeAtlasMetaHistory", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture ProbeAtlasMetaHistory { set; }
-    /// <summary>Declares the worldProbeRadianceAtlas Sampler slot.</summary>
-    [ShaderBinding("worldProbeRadianceAtlas", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture WorldProbeRadianceAtlasTexture { set; }
-    /// <summary>Declares the probeTraceMask Sampler slot.</summary>
-    [ShaderBinding("probeTraceMask", ShaderBindingKind.Sampler, 9, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture ProbeTraceMaskTexture { set; }
-    /// <summary>Declares the worldProbeVis0 Sampler slot.</summary>
-    [ShaderBinding("worldProbeVis0", ShaderBindingKind.Sampler, 11, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture WorldProbeVis0Texture { set; }
-    /// <summary>Declares the worldProbeMeta0 Sampler slot.</summary>
-    [ShaderBinding("worldProbeMeta0", ShaderBindingKind.Sampler, 12, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture WorldProbeMeta0Texture { set; }
-    /// <summary>Declares the nearFieldGeometry Sampler slot.</summary>
-    [ShaderBinding("nearFieldGeometry", ShaderBindingKind.Sampler, 10, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture NearFieldGeometry { set; }
-    /// <summary>Declares the nearFieldLight Sampler slot.</summary>
-    [ShaderBinding("nearFieldLight", ShaderBindingKind.Sampler, 13, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture NearFieldLight { set; }
-    /// <summary>Declares the nearFieldRegions Sampler slot.</summary>
-    [ShaderBinding("nearFieldRegions", ShaderBindingKind.Sampler, 14, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture NearFieldRegions { set; }
-    /// <summary>Declares the nearFieldMaterials Sampler slot.</summary>
-    [ShaderBinding("nearFieldMaterials", ShaderBindingKind.Sampler, 15, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuTexture NearFieldMaterials { set; }
-    /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer LumOnFrame { set; }
-    /// <summary>Declares the LumOnWorldProbeUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuUniformBuffer LumOnWorldProbe { set; }
-    /// <summary>Declares the LumOnNearFieldUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnNearFieldUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Material, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    private partial GpuUniformBuffer LumOnNearField { set; }
-    /// <summary>Declares the VgeLumOnProbeParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnProbeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer Parameters { set; }
-    #endregion
 
     #region Shader options
     /// <summary>Gets or sets the declared BatchSlicing shader selection.</summary>

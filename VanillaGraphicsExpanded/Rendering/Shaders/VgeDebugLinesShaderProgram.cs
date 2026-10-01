@@ -12,16 +12,8 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 [ShaderProgram("Contract", "vge_debug_lines", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "vge_debug_lines.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "vge_debug_lines.fsh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-public sealed partial class VgeDebugLinesShaderProgram : GpuProgram
+public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLinesShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgeDebugLinesParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeDebugLinesParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer Parameters { set; }
-    #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

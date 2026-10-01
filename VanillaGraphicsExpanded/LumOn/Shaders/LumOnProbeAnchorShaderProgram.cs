@@ -28,28 +28,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_probe_anchor", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_anchor.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_anchor.fsh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram
+public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnProbeAnchorShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer LumOnFrame { set; }
-    /// <summary>Declares the VgeLumOnProbeParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnProbeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimaryDepthTexture { set; }
-    /// <summary>Declares the gBufferNormal Sampler slot.</summary>
-    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferNormalTexture { set; }
-    /// <summary>Declares the pmjJitter Sampler slot.</summary>
-    [ShaderBinding("pmjJitter", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PmjJitterTexture { set; }
-    #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

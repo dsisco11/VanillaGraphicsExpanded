@@ -22,52 +22,8 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(LumOnEnabled))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-public sealed partial class PBRCompositeShaderProgram : GpuProgram
+public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRCompositeShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgePbrCompositeParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgePbrCompositeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the directDiffuse Sampler slot.</summary>
-    [ShaderBinding("directDiffuse", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture DirectDiffuseTexture { set; }
-    /// <summary>Declares the directSpecular Sampler slot.</summary>
-    [ShaderBinding("directSpecular", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture DirectSpecularTexture { set; }
-    /// <summary>Declares the emissive Sampler slot.</summary>
-    [ShaderBinding("emissive", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture EmissiveTexture { set; }
-    /// <summary>Declares the indirectDiffuse Sampler slot.</summary>
-    [ShaderBinding("indirectDiffuse", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture IndirectDiffuseTexture { set; }
-    /// <summary>Declares the gBufferAlbedo Sampler slot.</summary>
-    [ShaderBinding("gBufferAlbedo", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferAlbedoTexture { set; }
-    /// <summary>Declares the gBufferMaterial Sampler slot.</summary>
-    [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferMaterialTexture { set; }
-    /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimaryDepthTexture { set; }
-    /// <summary>Declares the gBufferPosition Sampler slot.</summary>
-    [ShaderBinding("gBufferPosition", ShaderBindingKind.Sampler, 11, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferPositionTexture { set; }
-    /// <summary>Declares the gBufferNormal Sampler slot.</summary>
-    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferNormalTexture { set; }
-    /// <summary>Declares the gBufferEnvironment Sampler slot.</summary>
-    [ShaderBinding("gBufferEnvironment", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferEnvironmentTexture { set; }
-    /// <summary>Declares the vge_atmosphereAerialRadiance Sampler slot.</summary>
-    [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 9, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture AtmosphereAerialRadiance { set; }
-    /// <summary>Declares the vge_atmosphereAerialAttenuation Sampler slot.</summary>
-    [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 10, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture AtmosphereAerialAttenuation { set; }
-    #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

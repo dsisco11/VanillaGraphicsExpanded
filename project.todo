@@ -46,7 +46,7 @@ Issues:
       Second review added complete-graph composite override and accessor-shape regressions.
       Evidence: docs/GPU.GeneratedBindingContracts.md and artifacts/binding-contract-validation/*interfaces*.
 
-  ☐ Migrate all existing GPU binding declarations and consumers to the interface-based generator approach.
+  ✔ Migrate all existing GPU binding declarations and consumers to the interface-based generator approach.
     - Depends on completing interface support above. Inventory and migrate all shader-local binding
       declarations, shared binding sets and consumers, including ShaderIncludeBindings,
       ShaderInterfaceLocations, surface-lighting/trace-geometry sets, atmosphere programs, compute
@@ -63,6 +63,14 @@ Issues:
     - Update documentation and fixtures to use interface examples. Run builds, generator tests,
       offline SPIR-V validation and focused GPU tests through subagents; verify no attributed class-based
       binding declarations or imports remain before marking complete.
+    - Verified: all 374 binding declarations now belong to 42 interfaces; class imports, private
+      attributed declarations and class-only generator emission are removed. Existing public setters
+      retain their names and behavior; liquid's internal setters use explicit interface implementations.
+      137 generator tests and 162 focused contract/GPU tests passed; Debug build passed with zero
+      errors and 398 SPIR-V variants verified. Independent validation matched all 166 original stage
+      fingerprints, verified interface-only ownership/imports and confirmed the baseline is unchanged.
+      Evidence: docs/GpuProgram.md, docs/GPU.GeneratedBindingContracts.md and
+      artifacts/binding-contract-validation/*interface-migration* logs/TRX.
 
   Current:
     ✔ Add debug label scopes for the remaining unlabeled base-game rendering passes. See docs/GPU.EngineRenderScopes.md; Debug build and 16 focused tests passed. Live RenderDoc confirmation remains user-run.

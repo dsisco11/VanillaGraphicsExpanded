@@ -141,19 +141,23 @@ public sealed class InterfaceBindingTests
         Assert.Contains(result.Generated, s => s.Contains("public partial global::VanillaGraphicsExpanded.Rendering.GpuTexture Source"));
     }
 
-    /// <summary>Concrete attributed descriptor overrides replace the inherited layout without duplicating API members.</summary>
+    /// <summary>Derived interface overrides replace inherited metadata while concrete partial properties implement the API.</summary>
     [Fact]
-    public void ConcretePartialOverridesInterfaceMetadata()
+    public void DerivedInterfaceOverridesMetadataForConcretePartial()
     {
         string source = """
             internal interface ISource
             {
                 [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute, Required = false)] ShaderSamplerBinding Source { get; }
             }
-            """ + Header + """
-            internal partial class Shader : ISource
+            interface IOverride : ISource
             {
-                [ShaderBinding("source", ShaderBindingKind.Sampler, 4, ShaderStageKind.Compute)] public partial ShaderSamplerBinding Source { get; }
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 4, ShaderStageKind.Compute)] new ShaderSamplerBinding Source { get; }
+            }
+            """ + Header + """
+            internal partial class Shader : IOverride
+            {
+                public partial ShaderSamplerBinding Source { get; }
             }
             public static class Proof { public static string Run() => new Shader().Source.Index + ":" + Shader.Contract.Stages[0].Bindings.Samplers["source"].Slot + ":" + Shader.Contract.Stages[0].Bindings.Samplers["source"].Required; }
             """;
@@ -237,7 +241,7 @@ public sealed class InterfaceBindingTests
 
     /// <summary>Malformed interfaces and ambiguous inherited API ownership fail before any catalog or implementations are published.</summary>
     [Theory]
-    [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] int Source { set; }")]
+    [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] float Source { set; }")]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, -1, ShaderStageKind.Compute)] ShaderSamplerBinding Source { get; }")]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] ShaderSamplerBinding Source { get; set; }")]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] ShaderSamplerBinding Source { get; } [ShaderBinding(\"other\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] ShaderSamplerBinding Other { get; }")]
@@ -295,6 +299,70 @@ public sealed class InterfaceBindingTests
             """;
         Assert.Equal("3", GeneratorFixture.Generate(source).Run());
         GeneratorFixture.Generate(source, true).Compile();
+    }
+    /// <summary>Existing engine texture IDs and nullable textures retain their authored sampler policy.</summary>
+    [Fact]
+    public void AuthoredTextureSettersPreserveNamesAndNullBehavior()
+    {
+        string source = """
+            interface IInputs
+            {
+                [ShaderBinding("depth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] int PrimaryDepth { set; }
+                [ShaderBinding("history", ShaderBindingKind.Sampler, 2, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuTexture? History { set; }
+            }
+            """ + Header + """
+            internal partial class Shader : IInputs
+            {
+                public string Calls = "";
+                public int PrimaryDepth { set => Calls += "nearest:" + value + ";"; }
+                public VanillaGraphicsExpanded.Rendering.GpuTexture? History { set => Calls += value == null ? "unbind;" : "history;"; }
+            }
+            public static class Proof { public static string Run() { var shader = new Shader(); shader.PrimaryDepth = 7; shader.History = null; return shader.Calls; } }
+            """;
+        Assert.Equal("nearest:7;unbind;", GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport).Run());
+        GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport).Compile();
+    }
+
+    /// <summary>A texture ID requires authored target/sampler selection instead of a guessed generated binding.</summary>
+    [Fact]
+    public void MissingTextureIdImplementationIsRejected()
+    {
+        string source = "interface IInputs { [ShaderBinding(\"depth\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] int PrimaryDepth { set; } }" +
+            Header + "internal partial class Shader : IInputs { }";
+        Assert.Contains(GeneratorFixture.Generate(source).Diagnostics, d => d.GetMessage().Contains("authored setter"));
+    }
+
+    /// <summary>Public GPU buffer types produce directly callable properties on public shader owners.</summary>
+    [Fact]
+    public void PublicBufferResourcesHaveDirectlyCallableShaderProperties()
+    {
+        string source = """
+            interface IInputs
+            {
+                [ShaderBinding("Params", ShaderBindingKind.UniformBlock, 1, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuUniformBuffer Parameters { set; }
+                [ShaderBinding("Work", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer Work { set; }
+            }
+            """ + Header + """
+            public partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader();
+                    var buffer = new VanillaGraphicsExpanded.Rendering.GpuUniformBuffer();
+                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedLayout = shader.ProgramLayout;
+                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedUniform = buffer;
+                    shader.Parameters = buffer;
+                    var storage = new VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer();
+                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedStorage = storage;
+                    shader.Work = storage;
+                    return VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.Calls;
+                }
+            }
+            """;
+        string support = BindingTests.RuntimeBindingSupport;
+        Assert.Equal("True:Params;True:Work;", GeneratorFixture.Generate(source, supportSource: support).Run());
+        GeneratorFixture.Generate(source, true, supportSource: support).Compile();
     }
     #endregion
 }

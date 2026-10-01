@@ -1,26 +1,26 @@
-using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 
-/// <summary>Owns a shared compile-time GPU interface.</summary>
-internal static partial class TraceGeometryBindingSet
+/// <summary>Declares the GPU binding contract for TraceGeometryBindingSet.</summary>
+internal interface ITraceGeometryBindingSet
 {
-    #region Private
+    #region Public API
     /// <summary>Declares the LumOnNearFieldUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnNearFieldUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Material, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
-    private static partial ShaderUniformBlockBinding LumOnNearField { get; }
+    ShaderUniformBlockBinding LumOnNearField { get; }
     /// <summary>Declares the nearFieldGeometry Sampler slot.</summary>
     [ShaderBinding("nearFieldGeometry", ShaderBindingKind.Sampler, 8, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
-    private static partial ShaderSamplerBinding NearFieldGeometry { get; }
+    ShaderSamplerBinding NearFieldGeometry { get; }
     /// <summary>Declares the nearFieldRegions Sampler slot.</summary>
     [ShaderBinding("nearFieldRegions", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
-    private static partial ShaderSamplerBinding NearFieldRegions { get; }
+    ShaderSamplerBinding NearFieldRegions { get; }
     /// <summary>Declares the traceSceneLegacy Sampler slot.</summary>
     [ShaderBinding("traceSceneLegacy", ShaderBindingKind.Sampler, 10, ShaderStageKind.Fragment, ShaderStageKind.Compute, Required = false)]
-    private static partial ShaderSamplerBinding TraceSceneLegacy { get; }
+    ShaderSamplerBinding TraceSceneLegacy { get; }
     /// <summary>Declares the traceSceneFaces Sampler slot.</summary>
     [ShaderBinding("traceSceneFaces", ShaderBindingKind.Sampler, 11, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
-    private static partial ShaderSamplerBinding TraceSceneFaces { get; }
+    ShaderSamplerBinding TraceSceneFaces { get; }
     #endregion
 }

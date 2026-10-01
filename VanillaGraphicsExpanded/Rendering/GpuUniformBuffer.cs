@@ -9,8 +9,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an OpenGL uniform buffer object (UBO).
 /// UBOs are bound to indexed binding points via <c>glBindBufferBase/Range(GL_UNIFORM_BUFFER, ...)</c>.
 /// </summary>
-internal sealed class GpuUniformBuffer : GpuBufferObject
+public sealed class GpuUniformBuffer : GpuBufferObject
 {
+    /// <summary>Wraps a newly allocated uniform-buffer object with its usage and debug identity.</summary>
     private GpuUniformBuffer(int bufferId, BufferUsageHint usage, string? debugName)
     {
         this.bufferId = bufferId;

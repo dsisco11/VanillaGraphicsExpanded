@@ -7,6 +7,6 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderProgram("Contract", "tests/render_infrastructure", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "tests/render_infrastructure.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "tests/render_infrastructure.fsh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
+[ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
+[ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 internal static partial class RenderInfrastructureShaderProgram { }

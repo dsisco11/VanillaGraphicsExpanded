@@ -13,25 +13,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_feedback_compact_pages", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_feedback_compact_pages.csh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : IDisposable
+internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : IDisposable, ILumonSceneFeedbackCompactPagesComputeShaderBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgeLumOnSceneFeedbackCompactParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnSceneFeedbackCompactParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the vge_pageUsageStamp Sampler slot.</summary>
-    [ShaderBinding("vge_pageUsageStamp", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute)]
-    private partial GpuTexture PageUsageStamp { set; }
-    /// <summary>Declares the vge_pageTableMip0 Sampler slot.</summary>
-    [ShaderBinding("vge_pageTableMip0", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)]
-    private partial GpuTexture PageTableMip0 { set; }
-    /// <summary>Declares the VgePageRequests StorageBlock slot.</summary>
-    [ShaderBinding("VgePageRequests", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
-    private partial GpuShaderStorageBuffer PageRequests { set; }
-    #endregion
 
     public static string ShaderName => Contract.Identity;
 

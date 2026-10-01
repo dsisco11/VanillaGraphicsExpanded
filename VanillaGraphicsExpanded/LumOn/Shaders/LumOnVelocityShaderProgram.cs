@@ -16,22 +16,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderProgram("Contract", "lumon_velocity", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_velocity.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_velocity.fsh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-public partial class LumOnVelocityShaderProgram : LumOnShaderProgram
+public partial class LumOnVelocityShaderProgram : LumOnShaderProgram, ILumOnVelocityShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer LumOnFrame { set; }
-    /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimaryDepthTexture { set; }
-    /// <summary>Declares the gBufferPatchId Sampler slot.</summary>
-    [ShaderBinding("gBufferPatchId", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferPatchId { set; }
-    #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

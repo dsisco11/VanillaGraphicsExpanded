@@ -8,20 +8,8 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderProgram("Contract", "pbr_display_resolve", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_display_resolve.fsh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(PBRCompositeShaderProgram), Stages = new[] { ShaderStageKind.Vertex })]
-public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram
+public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDisplayResolveShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the primaryScene Sampler slot.</summary>
-    [ShaderBinding("primaryScene", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimarySceneTexture { set; }
-    /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimaryDepthTexture { set; }
-    #endregion
 
     #region Contract and resources
 

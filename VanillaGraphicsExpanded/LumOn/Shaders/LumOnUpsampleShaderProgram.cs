@@ -21,28 +21,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Upsample")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DenoiseEnabled))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(HoleFillEnabled))]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram
+public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsampleShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer LumOnFrame { set; }
-    /// <summary>Declares the VgeLumOnUpsampleParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnUpsampleParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the indirectHalf Sampler slot.</summary>
-    [ShaderBinding("indirectHalf", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture IndirectHalfTexture { set; }
-    /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimaryDepthTexture { set; }
-    /// <summary>Declares the gBufferNormal Sampler slot.</summary>
-    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferNormalTexture { set; }
-    #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

@@ -15,44 +15,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_relight_voxel_dda", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_relight_voxel_dda.csh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(TraceGeometryBindingSet), Program = "Contract")]
-internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : IDisposable
+internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : IDisposable, ILumonSceneRelightVoxelDdaComputeShaderBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgeLumOnSceneRelightParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnSceneRelightParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the vge_depthAtlas Sampler slot.</summary>
-    [ShaderBinding("vge_depthAtlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute)]
-    private partial GpuTexture DepthAtlas { set; }
-    /// <summary>Declares the vge_materialAtlas Sampler slot.</summary>
-    [ShaderBinding("vge_materialAtlas", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)]
-    private partial GpuTexture MaterialAtlas { set; }
-    /// <summary>Declares the vge_lightColorLut Sampler slot.</summary>
-    [ShaderBinding("vge_lightColorLut", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
-    private partial GpuTexture LightColorLut { set; }
-    /// <summary>Declares the vge_blockLevelScalarLut Sampler slot.</summary>
-    [ShaderBinding("vge_blockLevelScalarLut", ShaderBindingKind.Sampler, 4, ShaderStageKind.Compute)]
-    private partial GpuTexture BlockLevelScalarLut { set; }
-    /// <summary>Declares the vge_sunLevelScalarLut Sampler slot.</summary>
-    [ShaderBinding("vge_sunLevelScalarLut", ShaderBindingKind.Sampler, 5, ShaderStageKind.Compute)]
-    private partial GpuTexture SunLevelScalarLut { set; }
-    /// <summary>Declares the vge_surfaceLut Sampler slot.</summary>
-    [ShaderBinding("vge_surfaceLut", ShaderBindingKind.Sampler, 7, ShaderStageKind.Compute)]
-    private partial GpuTexture SurfaceLut { set; }
-    /// <summary>Declares the vge_irradianceAtlas Image slot.</summary>
-    [ShaderBinding("vge_irradianceAtlas", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
-    private partial GpuTextureBinding IrradianceAtlas { set; }
-    /// <summary>Declares the VgeRelightWork StorageBlock slot.</summary>
-    [ShaderBinding("VgeRelightWork", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
-    private partial GpuShaderStorageBuffer RelightWork { set; }
-    /// <summary>Declares the VgePatchMetadata StorageBlock slot.</summary>
-    [ShaderBinding("VgePatchMetadata", ShaderBindingKind.StorageBlock, 1, ShaderStageKind.Compute)]
-    private partial GpuShaderStorageBuffer PatchMetadata { set; }
-    #endregion
 
     public static string ShaderName => Contract.Identity;
 

@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Base class for OpenGL buffer object wrappers.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal abstract class GpuBufferObject : GpuResource, IDisposable
+public abstract class GpuBufferObject : GpuResource, IDisposable
 {
     protected int bufferId;
     protected int sizeBytes;
@@ -1424,7 +1424,8 @@ internal abstract class GpuBufferObject : GpuResource, IDisposable
             previousVao = 0;
         }
 
-        public BindingScope(GlStateCache gl, BufferTarget target, int previous, int previousVao)
+        /// <summary>Restores an existing internal GL cache binding when the scope ends.</summary>
+        internal BindingScope(GlStateCache gl, BufferTarget target, int previous, int previousVao)
         {
             scope = default;
             useCacheScope = false;

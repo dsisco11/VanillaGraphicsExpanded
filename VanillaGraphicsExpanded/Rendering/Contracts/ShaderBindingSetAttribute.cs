@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering.Contracts;
 internal sealed class ShaderBindingSetAttribute : Attribute
 {
     #region Public API
-    /// <summary>References a class or interface whose attributed properties supply shared bindings.</summary>
+    /// <summary>References an interface whose attributed properties supply shared bindings.</summary>
     public ShaderBindingSetAttribute(Type owner) { }
     /// <summary>Selects a generated program member, or all programs when omitted.</summary>
     public string? Program { get; set; }

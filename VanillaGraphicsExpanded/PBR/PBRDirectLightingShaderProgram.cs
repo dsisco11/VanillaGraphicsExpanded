@@ -21,40 +21,8 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderProgram("Contract", "pbr_direct_lighting", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_direct_lighting.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_direct_lighting.fsh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-public sealed partial class PBRDirectLightingShaderProgram : GpuProgram
+public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDirectLightingShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgePbrDirectLightingParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgePbrDirectLightingParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the primaryScene Sampler slot.</summary>
-    [ShaderBinding("primaryScene", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimarySceneTexture { set; }
-    /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture PrimaryDepthTexture { set; }
-    /// <summary>Declares the gBufferPosition Sampler slot.</summary>
-    [ShaderBinding("gBufferPosition", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferPositionTexture { set; }
-    /// <summary>Declares the gBufferEnvironment Sampler slot.</summary>
-    [ShaderBinding("gBufferEnvironment", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferEnvironmentTexture { set; }
-    /// <summary>Declares the gBufferNormal Sampler slot.</summary>
-    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferNormalTexture { set; }
-    /// <summary>Declares the gBufferMaterial Sampler slot.</summary>
-    [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture GBufferMaterialTexture { set; }
-    /// <summary>Declares the shadowMapNear Sampler slot.</summary>
-    [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture ShadowMapNearTexture { set; }
-    /// <summary>Declares the shadowMapFar Sampler slot.</summary>
-    [ShaderBinding("shadowMapFar", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuTexture ShadowMapFarTexture { set; }
-    #endregion
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

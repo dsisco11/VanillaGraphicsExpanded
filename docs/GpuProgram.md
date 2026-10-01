@@ -55,29 +55,34 @@ Define changes trigger a recompile on the main thread (GL context safety). If yo
 
 ## Generated GPU binding contracts
 
-Declare strongly typed partial properties in the owning shader's main class file.
+Declare ordinary typed properties on binding interfaces beside their shader owners.
 The marker attribute owns the GLSL name, resource kind, index and applicable stages.
 The generator implements resource setters through the owner's linked program layout:
 
 ```csharp
-[ShaderProgram("Contract", "my_shader", 1)]
-[ShaderStage("Contract", ShaderStageKind.Vertex, "my_shader.vsh")]
-[ShaderStage("Contract", ShaderStageKind.Fragment, "my_shader.fsh")]
-public partial class MyShaderProgram : GpuProgram
+/// <summary>Declares the shader's parameter buffer and albedo input.</summary>
+internal interface IMyShaderBindings
 {
     #region Public API
     /// <summary>Binds the parameter buffer used by both stages.</summary>
     [ShaderBinding("MyBlockUBO", ShaderBindingKind.UniformBlock,
         GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    public partial GpuUniformBuffer Parameters { set; }
+    GpuUniformBuffer Parameters { set; }
 
     /// <summary>Binds the fragment stage's albedo texture.</summary>
     [ShaderBinding("albedoTex", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
-    public partial GpuTexture Albedo { set; }
+    GpuTexture Albedo { set; }
     #endregion
 }
+
+/// <summary>Consumes the generated binding API.</summary>
+[ShaderProgram("Contract", "my_shader", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "my_shader.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "my_shader.fsh")]
+internal partial class MyShaderProgram : GpuProgram, IMyShaderBindings { }
 ```
 
+Implement `IMyShaderBindings` on a partial `GpuProgram` subclass to generate its setters.
 Sampler setters accept `GpuTexture`, image setters accept `GpuTexture` or `GpuTextureBinding`,
 uniform-block setters accept `GpuUniformBuffer`, and storage-block setters accept
 `GpuShaderStorageBuffer`. Image assignments specify access, mip level, layering,
@@ -92,13 +97,13 @@ or drawing. The setters resolve linked resource activity and skip optimized-away
 resources. They do not upload data or retain resource ownership. Compute wrappers
 use their owning `GpuComputePipeline` field named `pipeline`.
 
-Shared layouts and contract-only owners use static get-only partial properties of
+Shared layouts and contract-only owners import interfaces with get-only properties of
 `ShaderSamplerBinding`, `ShaderImageBinding`, `ShaderUniformBlockBinding`, or
 `ShaderStorageBlockBinding`. Location declarations use the corresponding
 `ShaderUniformLocationBinding`, `ShaderVaryingLocationBinding`, or
 `ShaderFragmentOutputLocationBinding` descriptor. These descriptors expose name,
 index and required-resource policy without referencing engine resource types.
-Unsupported types, accessors and non-partial declarations produce `VGEGEN001`.
+Unsupported types/accessors and class-based binding declarations produce `VGEGEN001`.
 
 `UniformLocation`, `Sampler`, `Image`, `UniformBlock` and `StorageBlock` use
 independent index namespaces. A sampler's uniform location differs from its texture
@@ -166,35 +171,45 @@ and are called through the interface when C# requires it. Neither receives a dup
 generated setter. Their code remains responsible for applying the binding behavior;
 the interface attribute still supplies the offline/runtime contract. An unannotated
 defining partial property is completed from interface metadata and must retain the
-interface accessor shape. An attributed defining partial implementation can override
-the inherited layout/policy while preserving resource identity. Concrete abstract
+interface accessor shape. Layout overrides belong on derived interfaces, and concrete
+properties must not repeat binding attributes. Concrete abstract
 properties require an authored body or a defining partial declaration instead.
+
+Nullable `GpuTexture?` sampler properties preserve their authored null/unbind behavior.
+Existing engine texture-ID setters can declare `int` sampler properties on the interface;
+they require an authored setter selecting the texture target and sampler policy. New
+generated setters use GPU resource types. Liquid keeps its seven engine-facing setters
+internal through explicit interface implementations. `GpuUniformBuffer`,
+`GpuShaderStorageBuffer` and their shared `GpuBufferObject` base are public resource
+types, so generated buffer setters on public shaders are directly callable. Internal
+descriptor types still use explicit interface implementations on public shader owners.
 
 `ShaderBindingSet(typeof(ICacheBindings))` imports only metadata. This allows static
 contract owners and fixtures to consume resource interfaces without implementing
 instance members or accessing GPU resources. Interfaces themselves can import other
 sets. `Defaults`, `Stages`, `Program`, and property `Programs` filters follow the same
-rules as class-based imports. Interface properties are validated even when unused;
+consumer filtering rules. Interface properties are validated even when unused;
 runtime resource types and interface bodies never enter generated offline shells.
 Owners and binding interfaces must be top-level and nongeneric; runtime owners remain
-partial classes. Class-based declarations remain supported.
+partial classes. Class-based binding declarations and class imports are rejected.
 
-### Class binding declarations
+### Metadata-only binding imports
 
 ```csharp
 /// <summary>Owns the shared surface-cache lookup interface.</summary>
-internal static partial class CacheBindings
+internal interface ICacheMetadata
 {
-    #region Private
+    #region Public API
     /// <summary>Declares the shared cache sampler.</summary>
     [ShaderBinding("cache", ShaderBindingKind.Sampler, 18,
         ShaderStageKind.Fragment, ShaderStageKind.Compute, Required = false)]
-    private static partial ShaderSamplerBinding Cache { get; }
+    ShaderSamplerBinding Cache { get; }
     #endregion
 }
 
-[ShaderBindingSet(typeof(CacheBindings), Stages = new[] { ShaderStageKind.Fragment })]
-public partial class MyShaderProgram { }
+/// <summary>Consumes shared metadata without creating a resource API.</summary>
+[ShaderBindingSet(typeof(ICacheMetadata), Stages = new[] { ShaderStageKind.Fragment })]
+internal static partial class MyFixtureShader { }
 ```
 
 Sets can reference other sets; base-class and interface declarations are inherited at compile time.
@@ -206,8 +221,8 @@ are evaluated against that consumer member too; use unrestricted properties for 
 shared layouts.
 
 `Defaults = true` supplies declarations only where an explicit declaration has not
-supplied that kind/name. `ShaderInterfaceLocations` owns the existing stable global
-locations and intentional interface aliases. `ShaderIncludeBindings` owns optional
+supplied that kind/name. `IShaderInterfaceLocations` owns the existing stable global
+locations and intentional interface aliases. `IShaderIncludeBindings` owns optional
 UBOs declared by common includes; several inactive block names can intentionally share
 a reserved slot. Import these as defaults when using those production includes.
 Ordinary resource sets should use the default strict mode. Different resource kinds

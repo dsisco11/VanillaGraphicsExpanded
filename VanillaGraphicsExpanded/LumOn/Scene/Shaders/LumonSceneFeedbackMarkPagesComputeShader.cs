@@ -13,25 +13,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_feedback_mark_pages", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_feedback_mark_pages.csh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : IDisposable
+internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : IDisposable, ILumonSceneFeedbackMarkPagesComputeShaderBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgeLumOnSceneFeedbackMarkParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnSceneFeedbackMarkParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the vge_patchIdGBuffer Sampler slot.</summary>
-    [ShaderBinding("vge_patchIdGBuffer", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute)]
-    private partial GpuTexture PatchIdG { set; }
-    /// <summary>Declares the vge_chunkSlotGenerationTex Sampler slot.</summary>
-    [ShaderBinding("vge_chunkSlotGenerationTex", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute, Required = false)]
-    private partial GpuTexture ChunkSlotGenerationTex { set; }
-    /// <summary>Declares the vge_pageUsageStamp Image slot.</summary>
-    [ShaderBinding("vge_pageUsageStamp", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
-    private partial GpuTextureBinding PageUsageStamp { set; }
-    #endregion
 
     public static string ShaderName => Contract.Identity;
 

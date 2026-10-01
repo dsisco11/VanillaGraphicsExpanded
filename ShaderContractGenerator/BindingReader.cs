@@ -13,55 +13,27 @@ internal static class BindingReader
     /// <summary>Implements typed descriptors or runtime resource setters while keeping game types out of offline shells.</summary>
     public static string EmitProperties(OwnerDeclaration owner, bool offline)
     {
-        var text = new System.Text.StringBuilder();
-        foreach (var property in owner.Symbol.GetMembers().OfType<IPropertySymbol>().Where(p => Attributes(p, "ShaderBinding").Any()).OrderBy(p => p.Name, StringComparer.Ordinal))
-        {
-            var attribute = Attributes(property, "ShaderBinding").Single();
-            var slot = ReadProperty(property, attribute);
-            if (!property.IsStatic && offline) continue;
-            var syntax = (PropertyDeclarationSyntax)property.DeclaringSyntaxReferences[0].GetSyntax();
-            var modifiers = syntax.Modifiers.Where(m => !m.IsKind(SyntaxKind.PartialKeyword) || !offline || owner.OfflineSourcePresent).Select(m => m.Text);
-            string type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            text.Append("/// <summary>Generated typed access to the declared GPU resource.</summary>\n")
-                .Append(string.Join(" ", modifiers)).Append(' ').Append(type).Append(' ').Append(property.Name).Append(" { ");
-            if (property.GetMethod != null)
-                text.Append("get => new ").Append(type).Append('(').Append(Quote(slot.Name)).Append(", ").Append(slot.Index).Append(", ").Append(slot.Required ? "true" : "false").Append("); ");
-            else
-            {
-                string target = owner.Symbol.GetMembers("pipeline").OfType<IFieldSymbol>().Any(f => f.Type.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuComputePipeline") ? "pipeline.ProgramLayout, pipeline.ProgramId" : "ProgramLayout, ProgramId";
-                text.Append("set => global::VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.").Append(slot.Kind)
-                    .Append('(').Append(target).Append(", ").Append(Quote(slot.Name)).Append(", value); ");
-            }
-            text.Append("}\n");
-        }
-        if (!offline) text.Append(InterfaceBindingReader.EmitProperties(owner.Symbol));
-        return text.ToString();
+        return offline ? string.Empty : InterfaceBindingReader.EmitProperties(owner.Symbol);
     }
 
     /// <summary>Validates declarations even on unused shared layouts so authoring errors cannot remain dormant.</summary>
     public static void Validate(INamedTypeSymbol owner)
     {
         if (owner.GetMembers().Any(m => m is not IPropertySymbol && Attributes(m, "ShaderBinding").Any()))
-            throw new ArgumentException("Shader bindings require strongly typed partial properties; slot fields are unsupported.");
+            throw new ArgumentException("Shader bindings require attributed interface properties; slot fields are unsupported.");
+        if (owner.TypeKind != TypeKind.Interface && owner.GetMembers().Any(m => Attributes(m, "ShaderBinding").Any()))
+            throw new ArgumentException("ShaderBinding metadata belongs on interface properties; concrete properties implement that contract without repeating attributes.");
         var programs = Attributes(owner, "ShaderProgram").ToDictionary(a => Text(a, 0), a =>
             Attributes(owner, "ShaderStage").Where(s => Text(s, 0) == Text(a, 0)).Select(s => (ShaderStageKind)(int)Argument(s, 1).Value!).ToArray(), StringComparer.Ordinal);
         foreach (var property in owner.GetMembers().OfType<IPropertySymbol>())
             foreach (var attribute in Attributes(property, "ShaderBinding"))
-            {
-                var slot = ReadProperty(property, attribute);
-                foreach (string program in slot.Programs)
-                    if (programs.Count != 0 && !programs.ContainsKey(program)) throw new ArgumentException($"Binding property '{property.Name}' references unknown program '{program}'.");
-                if (programs.Count != 0)
-                    foreach (var stage in slot.Stages)
-                        if (!programs.Where(p => slot.Programs.Length == 0 || slot.Programs.Contains(p.Key)).Any(p => p.Value.Contains(stage)))
-                            throw new ArgumentException($"Binding property '{property.Name}' references undeclared stage '{stage}'.");
-            }
+                _ = ReadProperty(property, attribute);
         foreach (var reference in Attributes(owner, "ShaderBindingSet"))
         {
             string? program = Text(reference, "Program");
             if (programs.Count != 0 && program != null && !programs.ContainsKey(program)) throw new ArgumentException($"Binding set references unknown program '{program}'.");
-            if (Argument(reference, 0).Value is not INamedTypeSymbol shared || shared.TypeKind is not (TypeKind.Class or TypeKind.Interface))
-                throw new ArgumentException("Binding sets require a class or interface declaration.");
+            if (Argument(reference, 0).Value is not INamedTypeSymbol shared || shared.TypeKind != TypeKind.Interface)
+                throw new ArgumentException("Binding sets require an interface declaration.");
             var stages = Named(reference, "Stages");
             if (!stages.IsNull && (stages.Values.Length == 0 || stages.Values.Distinct().Count() != stages.Values.Length || stages.Values.Any(v => !Enum.IsDefined(typeof(ShaderStageKind), (int)v.Value!))))
                 throw new ArgumentException("Binding sets require distinct valid stage filters.");
@@ -87,8 +59,8 @@ internal static class BindingReader
             var key = (slot.Kind, slot.Name);
             if (selected.TryGetValue(key, out var prior))
             {
-                // A redeclared interface property or its attributed concrete implementation owns
-                // the explicit override. Unrelated declarations remain ambiguous even if equal.
+                // A redeclared interface property owns the explicit override. Unrelated
+                // declarations remain ambiguous even if equal.
                 if (!declaration.Defaults && InterfaceBindingReader.Overrides(slot.Property, prior.Property))
                 {
                     selected[key] = slot;
@@ -142,7 +114,7 @@ internal static class BindingReader
                 if (target != null && target != program) continue;
                 var stages = Named(reference, "Stages");
                 if (!stages.IsNull && !stages.Values.Any(v => (int)v.Value! == (int)stage)) continue;
-                if (Argument(reference, 0).Value is not INamedTypeSymbol shared) throw new ArgumentException("Binding sets require a declared class or interface.");
+                if (Argument(reference, 0).Value is not INamedTypeSymbol shared) throw new ArgumentException("Binding sets require a declared interface.");
                 Collect(shared, defaults || Named(reference, "Defaults").Value is true, stack);
             }
             stack.Remove(type);
@@ -151,16 +123,15 @@ internal static class BindingReader
     #endregion
 
     #region Private
-    /// <summary>Requires an unimplemented partial property whose type agrees with its resource kind.</summary>
+    /// <summary>Requires an ordinary interface property whose type agrees with its resource kind.</summary>
     private static void ValidateProperty(IPropertySymbol property, AttributeData attribute)
     {
         var syntax = property.DeclaringSyntaxReferences.Select(r => r.GetSyntax()).OfType<PropertyDeclarationSyntax>().FirstOrDefault();
         bool contract = property.ContainingType.TypeKind == TypeKind.Interface;
         if (syntax == null || property.IsIndexer || property.ReturnsByRef || property.ReturnsByRefReadonly ||
-            (!contract && !syntax.Modifiers.Any(SyntaxKind.PartialKeyword)) || syntax.Initializer != null ||
-            (syntax.AccessorList == null && (!contract || syntax.ExpressionBody == null)) ||
-            (!contract && syntax.AccessorList!.Accessors.Any(a => a.Body != null || a.ExpressionBody != null)))
-            throw new ArgumentException($"Binding property '{property.Name}' requires a defining partial property.");
+            !contract || syntax.Modifiers.Any(SyntaxKind.PartialKeyword) || syntax.Initializer != null ||
+            (syntax.AccessorList == null && syntax.ExpressionBody == null))
+            throw new ArgumentException($"Binding property '{property.Name}' requires an ordinary interface property.");
         int kind = (int)Argument(attribute, 1).Value!;
         string[] names = { "UniformLocation", "Sampler", "Image", "UniformBlock", "StorageBlock", "VaryingLocation", "FragmentOutputLocation" };
         if (kind < 0 || kind >= names.Length) throw new ArgumentException($"Invalid binding kind on '{property.Name}'.");
@@ -170,16 +141,14 @@ internal static class BindingReader
         {
             "Sampler" => "GpuTexture", "Image" => "GpuTextureBinding", "UniformBlock" => "GpuUniformBuffer", "StorageBlock" => "GpuShaderStorageBuffer", _ => null
         };
+        type = type.TrimEnd('?');
         bool resource = (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
+            (contract && names[kind] == "Sampler" && property.Type.SpecialType == SpecialType.System_Int32) ||
             (names[kind] == "Image" && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
-        bool implementsDescriptor = property.ContainingType.AllInterfaces.SelectMany(i => i.GetMembers().OfType<IPropertySymbol>())
-            .Any(p => p.Name == property.Name && Attributes(p, "ShaderBinding").Any() && SymbolEqualityComparer.Default.Equals(p.Type, property.Type));
-        if ((descriptor && ((!contract && !property.IsStatic && !implementsDescriptor) || property.GetMethod == null || property.SetMethod != null)) ||
+        if ((descriptor && (property.GetMethod == null || property.SetMethod != null)) ||
             (resource && (property.IsStatic || property.GetMethod != null || property.SetMethod == null || property.SetMethod.IsInitOnly)) ||
-            (!descriptor && !resource) || (contract && (property.IsStatic || property.DeclaredAccessibility != Accessibility.Public)))
+            (!descriptor && !resource) || property.IsStatic || property.DeclaredAccessibility != Accessibility.Public)
             throw new ArgumentException($"Binding property '{property.Name}' has unsupported type/accessors for {names[kind]}.");
-        if (resource && !contract && !HasRuntimeTarget(property.ContainingType))
-            throw new ArgumentException($"Binding property '{property.Name}' requires a GpuProgram owner or an owning GpuComputePipeline field named 'pipeline'.");
     }
 
     /// <summary>Finds the established runtime layout boundary without emitting engine types offline.</summary>

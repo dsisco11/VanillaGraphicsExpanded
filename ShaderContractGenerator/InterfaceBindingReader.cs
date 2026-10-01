@@ -14,10 +14,10 @@ internal static class InterfaceBindingReader
     public static bool HasBindings(INamedTypeSymbol owner) => owner.AllInterfaces.Any(i =>
         i.GetMembers().Any(p => Attributes(p, "ShaderBinding").Any()));
 
-    /// <summary>Allows only a derived interface or matching concrete property to override inherited metadata.</summary>
+    /// <summary>Allows only a derived interface to override inherited binding metadata.</summary>
     public static bool Overrides(IPropertySymbol property, IPropertySymbol prior)
     {
-        if (prior.ContainingType.TypeKind != TypeKind.Interface || property.Name != prior.Name ||
+        if (property.ContainingType.TypeKind != TypeKind.Interface || prior.ContainingType.TypeKind != TypeKind.Interface || property.Name != prior.Name ||
             !SymbolEqualityComparer.Default.Equals(property.Type, prior.Type)) return false;
         return property.ContainingType.AllInterfaces.Contains(prior.ContainingType, SymbolEqualityComparer.Default);
     }
@@ -28,6 +28,10 @@ internal static class InterfaceBindingReader
         foreach (var property in Properties(owner))
         {
             var implementation = Implementation(owner, property);
+            // Existing engine texture IDs carry target/sampler policy in their authored setter.
+            // Keep that implementation boundary rather than guessing a texture target for an ID.
+            if (property.Type.SpecialType == SpecialType.System_Int32 && NeedsImplementation(implementation))
+                throw new ArgumentException($"Texture-ID binding '{property.Name}' requires an authored setter that selects its texture target and sampler policy.");
             if (implementation == null && owner.GetMembers(property.Name).Length != 0)
                 throw new ArgumentException($"Interface binding '{property.Name}' conflicts with an incompatible concrete member.");
             if (implementation != null)
@@ -38,13 +42,6 @@ internal static class InterfaceBindingReader
                     ((implementation.GetMethod != null) != (property.GetMethod != null) ||
                      (implementation.SetMethod != null) != (property.SetMethod != null) || implementation.SetMethod?.IsInitOnly == true))
                     throw new ArgumentException($"Interface binding '{property.Name}' has incompatible defining partial accessors.");
-                // Concrete code owns behavior, while interface metadata owns the contract. An
-                // attributed implementation may override indices/policy, but cannot change identity.
-                var concrete = Attributes(implementation, "ShaderBinding").FirstOrDefault();
-                var inherited = Attributes(property, "ShaderBinding").Single();
-                if (concrete != null && (Text(concrete, 0) != Text(inherited, 0) ||
-                    !Equals(Argument(concrete, 1).Value, Argument(inherited, 1).Value)))
-                    throw new ArgumentException($"Interface binding '{property.Name}' changes its GLSL name or resource kind in the implementation.");
             }
             if (!property.Type.ToDisplayString().StartsWith(Prefix, StringComparison.Ordinal) &&
                 NeedsImplementation(implementation) && !BindingReader.HasRuntimeTarget(owner))
@@ -66,19 +63,26 @@ internal static class InterfaceBindingReader
         {
             var implementation = Implementation(owner, property);
             if (!NeedsImplementation(implementation) ||
-                (implementation != null && Attributes(implementation, "ShaderBinding").Any()) ||
                 (owner.GetMembers(property.Name).Length == 0 && owner.BaseType != null &&
                     owner.BaseType.AllInterfaces.Contains(property.ContainingType, SymbolEqualityComparer.Default))) continue;
             var attribute = Attributes(property, "ShaderBinding").Single();
             string type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             string modifiers = "public";
+            string memberName = property.Name;
+            // Public shader classes cannot expose internal descriptor types in their public API.
+            // Implement those contracts explicitly; public GPU resources use ordinary setters.
+            if (owner.DeclaredAccessibility == Accessibility.Public && property.Type.DeclaredAccessibility == Accessibility.Internal)
+            {
+                modifiers = "";
+                memberName = property.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + property.Name;
+            }
             if (implementation != null)
             {
                 var syntax = (PropertyDeclarationSyntax)implementation.DeclaringSyntaxReferences[0].GetSyntax();
                 modifiers = string.Join(" ", syntax.Modifiers.Select(m => m.Text));
             }
             text.Append("/// <summary>Implements the declared interface GPU binding.</summary>\n")
-                .Append(modifiers).Append(' ').Append(type).Append(' ').Append(property.Name).Append(" { ");
+                .Append(modifiers).Append(' ').Append(type).Append(' ').Append(memberName).Append(" { ");
             if (property.GetMethod != null)
                 text.Append("get => new ").Append(type).Append('(').Append(Quote(Text(attribute, 0))).Append(", ")
                     .Append(Argument(attribute, 2).Value).Append(", ").Append(Named(attribute, "Required").Value is false ? "false" : "true").Append("); ");

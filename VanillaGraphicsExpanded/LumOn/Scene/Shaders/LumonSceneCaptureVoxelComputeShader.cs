@@ -13,32 +13,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_capture_voxel", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_capture_voxel.csh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(TraceGeometryBindingSet), Program = "Contract")]
-internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable
+internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable, ILumonSceneCaptureVoxelComputeShaderBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgeLumOnSceneCaptureVoxelParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnSceneCaptureVoxelParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the vge_depthAtlas Image slot.</summary>
-    [ShaderBinding("vge_depthAtlas", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
-    private partial GpuTextureBinding DepthAtlas { set; }
-    /// <summary>Declares the vge_materialAtlas Image slot.</summary>
-    [ShaderBinding("vge_materialAtlas", ShaderBindingKind.Image, 1, ShaderStageKind.Compute)]
-    private partial GpuTextureBinding MaterialAtlas { set; }
-    /// <summary>Declares the VgeCaptureWork StorageBlock slot.</summary>
-    [ShaderBinding("VgeCaptureWork", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
-    private partial GpuShaderStorageBuffer CaptureWork { set; }
-    /// <summary>Declares the VgePatchMetadata StorageBlock slot.</summary>
-    [ShaderBinding("VgePatchMetadata", ShaderBindingKind.StorageBlock, 1, ShaderStageKind.Compute)]
-    private partial GpuShaderStorageBuffer PatchMetadata { set; }
-    /// <summary>Declares the VgeChunkSlotInfo StorageBlock slot.</summary>
-    [ShaderBinding("VgeChunkSlotInfo", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)]
-    private partial GpuShaderStorageBuffer ChunkSlotInfo { set; }
-    #endregion
 
     public static string ShaderName => Contract.Identity;
 

@@ -23,6 +23,32 @@ public sealed class ShaderBindingMigrationTests
             .Order(StringComparer.Ordinal).ToArray();
         Assert.Equal(expected, actual);
     }
+
+    /// <summary>All production binding metadata and imports are owned by interfaces after migration.</summary>
+    [Fact]
+    public void BindingDeclarationsAndImportsHaveOnlyInterfaceOwners()
+    {
+        var types = typeof(GpuBindingContract).Assembly.GetTypes();
+        int declarations = 0;
+        foreach (var type in types)
+        {
+            // Inspect declared properties only, so inherited API does not obscure the actual
+            // attribute owner. Reflection is test evidence, never a runtime discovery path.
+            foreach (var property in type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+                         System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly))
+            {
+                if (!property.CustomAttributes.Any(a => a.AttributeType == typeof(ShaderBindingAttribute))) continue;
+                Assert.True(type.IsInterface, $"Binding metadata remains on class property {type.FullName}.{property.Name}.");
+                declarations++;
+            }
+            foreach (var import in type.CustomAttributes.Where(a => a.AttributeType == typeof(ShaderBindingSetAttribute)))
+            {
+                var owner = Assert.IsAssignableFrom<Type>(import.ConstructorArguments[0].Value);
+                Assert.True(owner.IsInterface, $"Binding import on {type.FullName} still references class {owner.FullName}.");
+            }
+        }
+        Assert.True(declarations > 0);
+    }
     #endregion
 
     #region Private

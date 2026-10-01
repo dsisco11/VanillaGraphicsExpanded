@@ -27,8 +27,8 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
-[ShaderBindingSet(typeof(LumOnProbeAnchorShaderProgram), Stages = new[] { ShaderStageKind.Vertex })]
-[ShaderBindingSet(typeof(LumOnScreenProbeAtlasTraceShaderProgram), Stages = new[] { ShaderStageKind.Fragment })]
+[ShaderBindingSet(typeof(ILumOnProbeAnchorShaderProgramBindings), Stages = new[] { ShaderStageKind.Vertex })]
+[ShaderBindingSet(typeof(ILumOnScreenProbeAtlasTraceShaderProgramBindings), Stages = new[] { ShaderStageKind.Fragment })]
 internal static partial class TraceProbeAnchorShaderProgram
 {
     #region Shader options

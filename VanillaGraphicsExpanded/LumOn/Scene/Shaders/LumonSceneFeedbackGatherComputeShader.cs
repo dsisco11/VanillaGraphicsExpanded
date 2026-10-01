@@ -13,22 +13,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_feedback_gather", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_feedback_gather.csh")]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposable
+internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposable, ILumonSceneFeedbackGatherComputeShaderBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the VgeLumOnSceneFeedbackGatherParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeLumOnSceneFeedbackGatherParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    private partial GpuUniformBuffer Parameters { set; }
-    /// <summary>Declares the vge_patchIdGBuffer Sampler slot.</summary>
-    [ShaderBinding("vge_patchIdGBuffer", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute)]
-    private partial GpuTexture PatchIdG { set; }
-    /// <summary>Declares the VgePageRequests StorageBlock slot.</summary>
-    [ShaderBinding("VgePageRequests", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
-    private partial GpuShaderStorageBuffer PageRequests { set; }
-    #endregion
 
     public static string ShaderName => Contract.Identity;
 

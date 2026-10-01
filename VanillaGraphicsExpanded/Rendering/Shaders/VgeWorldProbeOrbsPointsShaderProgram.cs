@@ -19,22 +19,8 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(DirectVisibility))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13)]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14)]
-[ShaderBindingSet(typeof(ShaderInterfaceLocations), Defaults = true)]
-[ShaderBindingSet(typeof(ShaderIncludeBindings), Defaults = true)]
-public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram
+public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram, IVgeWorldProbeOrbsPointsShaderProgramBindings
 {
-
-    #region Private: GPU binding declarations
-    /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer LumOnFrame { set; }
-    /// <summary>Declares the LumOnWorldProbeUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer LumOnWorldProbe { set; }
-    /// <summary>Declares the VgeWorldProbeOrbsPointsParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgeWorldProbeOrbsPointsParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    private partial GpuUniformBuffer Parameters { set; }
-    #endregion
 
     #region Shader options
     /// <summary>Gets or sets the declared DirectVisibility shader selection.</summary>

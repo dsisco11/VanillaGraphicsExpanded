@@ -9,8 +9,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an OpenGL shader storage buffer object (SSBO).
 /// SSBOs are bound to indexed binding points via <c>glBindBufferBase/Range(GL_SHADER_STORAGE_BUFFER, ...)</c>.
 /// </summary>
-internal sealed class GpuShaderStorageBuffer : GpuBufferObject
+public sealed class GpuShaderStorageBuffer : GpuBufferObject
 {
+    /// <summary>Wraps a newly allocated storage-buffer object with its usage and debug identity.</summary>
     private GpuShaderStorageBuffer(int bufferId, BufferUsageHint usage, string? debugName)
     {
         this.bufferId = bufferId;

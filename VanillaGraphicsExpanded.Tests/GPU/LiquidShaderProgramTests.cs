@@ -63,8 +63,10 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
     }
 
     /// <summary>Typed texture inputs bind every declared unit with the intended target and sampling policy.</summary>
-    [Fact]
-    public void TypedImagesBindDeclaredTargetsAndSamplers()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TypedImagesBindDeclaredTargetsAndSamplers(bool useInterface)
     {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
@@ -73,19 +75,35 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         using var activation = program.UseScope();
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
-        using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         using var material = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
-        using var near = DynamicTexture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
-        using var far = DynamicTexture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var near = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var far = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         using var radiance = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba16f);
         using var attenuation = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba16f);
-        program.TerrainTexture = terrain.TextureId;
-        program.DepthTexture = depth.TextureId;
-        program.MaterialParamsTexture = material.TextureId;
-        program.ShadowMapNear = near.TextureId;
-        program.ShadowMapFar = far.TextureId;
-        program.AerialRadianceTexture = radiance.TextureId;
-        program.AerialAttenuationTexture = attenuation.TextureId;
+        // Exercise both the preserved engine API and the interface boundary against
+        // real linked resources; targets, samplers and uniform units must be identical.
+        if (useInterface)
+        {
+            var bindings = (ILiquidShaderProgramBindings)program;
+            bindings.TerrainTexture = terrain.TextureId;
+            bindings.DepthTexture = depth.TextureId;
+            bindings.MaterialParamsTexture = material.TextureId;
+            bindings.ShadowMapNear = near.TextureId;
+            bindings.ShadowMapFar = far.TextureId;
+            bindings.AerialRadianceTexture = radiance.TextureId;
+            bindings.AerialAttenuationTexture = attenuation.TextureId;
+        }
+        else
+        {
+            program.TerrainTexture = terrain.TextureId;
+            program.DepthTexture = depth.TextureId;
+            program.MaterialParamsTexture = material.TextureId;
+            program.ShadowMapNear = near.TextureId;
+            program.ShadowMapFar = far.TextureId;
+            program.AerialRadianceTexture = radiance.TextureId;
+            program.AerialAttenuationTexture = attenuation.TextureId;
+        }
         int[] images = [terrain.TextureId, depth.TextureId, material.TextureId, near.TextureId, far.TextureId, radiance.TextureId, attenuation.TextureId];
         int[] samplers = [0, GpuSamplers.NearestClamp.SamplerId, GpuSamplers.NearestClamp.SamplerId,
             GpuSamplers.ShadowCompareLinearClamp.SamplerId, GpuSamplers.ShadowCompareLinearClamp.SamplerId, 0, 0];
