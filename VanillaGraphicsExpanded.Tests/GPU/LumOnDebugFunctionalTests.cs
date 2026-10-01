@@ -71,7 +71,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         float depthRejectThreshold = 0.1f,
         float normalRejectThreshold = 0.9f)
     {
-        using var use = programId.UseScope();
         // Phase 23: UBO-backed frame state.
         UpdateAndBindLumOnFrameUbo(
             programId,
@@ -290,7 +289,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_PROBE_GRID);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
 
@@ -378,7 +376,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_SCENE_DEPTH);
 
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
@@ -471,7 +468,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_RADIANCE_OVERLAY);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
 
@@ -541,7 +537,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_SCENE_DEPTH);
 
-        using var programUse = programId.UseScope();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
@@ -622,7 +617,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_SCENE_NORMAL);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
 
@@ -691,7 +685,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_SH_COEFFICIENTS);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
 
@@ -767,7 +760,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_PROBE_DEPTH);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
 
@@ -847,7 +839,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_PROBE_NORMAL);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
 
@@ -921,7 +912,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_TEMPORAL_WEIGHT);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
 
@@ -995,7 +985,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_TEMPORAL_REJECTION);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
 
@@ -1069,7 +1058,6 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(MODE_INTERPOLATION_WEIGHTS);
 
-        using var programUse = programId.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
 

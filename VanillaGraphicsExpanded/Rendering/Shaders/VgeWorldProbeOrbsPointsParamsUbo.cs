@@ -55,8 +55,7 @@ public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
     {
         set
         {
-            var (_, fadeFar, _, _) = UboPacking.ReadVec4(DataReadOnly, 96);
-            WriteVector4(96, new(value, fadeFar, 0f, 0f));
+            WriteFloat(96, value);
         }
     }
 
@@ -64,8 +63,9 @@ public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
     {
         set
         {
-            var (fadeNear, _, _, _) = UboPacking.ReadVec4(DataReadOnly, 96);
-            WriteVector4(96, new(fadeNear, value, 0f, 0f));
+            WriteFloat(100, value);
         }
     }
+    /// <summary>Selects importance coloring in the retained draw parameters.</summary>
+    public bool ImportanceColorMode { set => WriteFloat(104, value ? 1f : 0f); }
 }

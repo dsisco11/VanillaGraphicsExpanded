@@ -129,12 +129,11 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
         // Pass A: mark pages.
         markShader.BindDebugCounters(markCounters.Buffer);
-        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
         markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        markShader.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke mark pass dispatch");
@@ -142,14 +141,13 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         // Pass B: compact stamps -> bounded request list.
         compactShader.BindRequestCounter(pageRequestCounter.Buffer);
         compactShader.BindRequestsSsbo(pageRequests.Buffer);
-        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = (uint)desiredPages;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.Dispatch((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke compact pass dispatch");
@@ -243,7 +241,6 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             using var relightSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_RelightWorkSSBO", relightOut.AsSpan(0, relightCount));
 
             // Capture voxel → depth/material.
-            using var captureComputeProgramScope = captureComputeProgram.UseScope();
             using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
         captureComputeProgram.BindSharedGeometry(sharedSurface.Scene);
             captureComputeProgram.BindCaptureWorkSsbo(captureSsbo);
@@ -253,13 +250,12 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             captureComputeProgram.BindDepthAtlasImage(depthAtlas);
             captureComputeProgram.BindMaterialAtlasImage(materialAtlas);
             captureComputeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
-            GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, captureCount);
+            captureComputeProgram.Dispatch((tileSize + 7) / 8, (tileSize + 7) / 8, captureCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke capture pass dispatch");
 
             // Relight → irradiance.
-            using var relightComputeProgramScope = relightComputeProgram.UseScope();
             using var sharedRelight = new SharedSurfaceInputFixture(occ, materialPalette);
         relightComputeProgram.BindSharedGeometry(sharedRelight.Scene);
             relightComputeProgram.BindRelightWorkSsbo(relightSsbo);
@@ -280,7 +276,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         relightComputeProgram.SetRelightParams(frameIndex++, (uint)(tileSize * tileSize), 1u, 16u, 0u != 0);
         relightComputeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
-            relightComputeProgram.DispatchBound((tileSize + 7) / 8, (tileSize + 7) / 8, relightCount);
+            relightComputeProgram.Dispatch((tileSize + 7) / 8, (tileSize + 7) / 8, relightCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke relight pass dispatch");

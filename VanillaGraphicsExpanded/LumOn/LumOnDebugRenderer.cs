@@ -921,9 +921,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
             GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
-            shader.Use();
-            shaderUsed = true;
-            if (usesNearFieldVisibility) shader.NearFieldVisibility.Bind(shader, nearFieldVisibilityScene);
+
+            if (usesNearFieldVisibility) shader.NearFieldVisibility.Stage(shader, nearFieldVisibilityScene);
             shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
             var worldProbeUbo = uniformBuffers.WorldProbeUboOrNull;
             if (worldProbeUbo is not null)
@@ -932,10 +931,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
 
             var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
-            if (terrainBridgeUbo is not null)
-            {
-                shader.TryBindUniformBlock(LumOnTerrainBridgeUboState.BlockName, terrainBridgeUbo);
-            }
+            shader.LumOnTerrainBridge = terrainBridgeUbo;
 
             // Bind textures
             shader.PrimaryDepth = primaryFb.DepthTextureId;
@@ -1108,6 +1104,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.SpecularAOStrength = Math.Clamp(lum.SpecularAOStrength, 0f, 1f);
             shader.WorldProbeEffectGain = float.IsFinite(lum.WorldProbeEffectGain)
                 ? Math.Clamp(lum.WorldProbeEffectGain, 1f, 1000f) : 10f;
+
+            shader.Use();
+            shaderUsed = true;
 
             // Render fullscreen quad
             using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");
@@ -1351,10 +1350,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GlStateCache.Current.InvalidateAll();
                 GlStateCache.Current.Apply(ClipmapBoundsLinesPso);
 
-                shader.Use();
-                shaderUsed = true;
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = GetClipmapDebugWorldOffset();
+                shader.Use();
+                shaderUsed = true;
 
                 int stride = Marshal.SizeOf<LineVertex>();
                 clipmapBoundsVbo.UploadData(clipmapBoundsVertices, vertexCount * stride);
@@ -1419,10 +1418,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GlStateCache.Current.InvalidateAll();
                 GlStateCache.Current.Apply(ClipmapBoundsLivePso);
 
-                shader.Use();
-                shaderUsed = true;
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = new Vec3f(0, 0, 0);
+                shader.Use();
+                shaderUsed = true;
 
                 clipmapBoundsVao.Bind();
 
@@ -1539,11 +1538,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             GlStateCache.Current.InvalidateAll();
             GlStateCache.Current.Apply(QueuedTraceRaysPso);
 
-            shader.Use();
-            shaderUsed = true;
+
             shader.ModelViewProjectionMatrix = currentViewProjMatrix;
             shader.WorldOffset = new Vec3f(0, 0, 0);
 
+            shader.Use();
+            shaderUsed = true;
             clipmapQueuedTraceRaysVao.Bind();
             GL.DrawArrays(PrimitiveType.Lines, 0, clipmapQueuedTraceRayVertexCount);
             GlStateCache.Current.SetLineWidth(1f);
@@ -2011,8 +2011,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GlStateCache.Current.Apply(WorldProbeOrbsPointsPso);
                 bool importanceColorMode = config.LumOn.DebugMode == LumOnDebugMode.WorldProbeImportance;
 
-                shader.Use();
-                shaderUsed = true;
+
 
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = new Vec3f(0, 0, 0);
@@ -2027,14 +2026,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 // Bind world-probe textures (binds both texture + sampler).
                 var res = worldProbeClipmapBufferManager.Resources;
 
-                res.ProbeRadianceAtlas.Bind(0);
-                shader.WorldProbeRadianceAtlas = 0;
+                shader.WorldProbeRadianceAtlas = res.ProbeRadianceAtlas;
 
-                res.ProbeVis0.Bind(1);
-                shader.WorldProbeVis0 = 1;
+                shader.WorldProbeVis0 = res.ProbeVis0;
 
-                res.ProbeDebugState0.Bind(2);
-                shader.WorldProbeDebugState0 = 2;
+                shader.WorldProbeDebugState0 = res.ProbeDebugState0;
 
                 // Publish + bind world-probe UBO (Phase 23). This debug pass only needs the sky tint.
                 System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
@@ -2047,6 +2043,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
                         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
+                shader.Use();
+                shaderUsed = true;
                 clipmapProbeOrbsVao.Bind();
 
                 GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbeOrbsCount);
@@ -2066,10 +2064,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     {
                         GlStateCache.Current.Apply(ClosestProbeMarkerPso);
 
-                        markerShader.Use();
                         markerShader.ModelViewProjectionMatrix = currentViewProjMatrix;
                         markerShader.WorldOffset = new Vec3f(0, 0, 0);
 
+                        markerShader.Use();
                         GL.PointSize(12.0f);
                         closestProbeMarkerVao.Bind();
                         GL.DrawArrays(PrimitiveType.Points, 0, 1);

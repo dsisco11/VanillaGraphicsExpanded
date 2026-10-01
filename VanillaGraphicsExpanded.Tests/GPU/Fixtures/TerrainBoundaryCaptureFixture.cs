@@ -53,11 +53,10 @@ internal static class TerrainBoundaryCaptureFixture
         using var work = Buffer<LumonSceneCaptureWorkGpu>([new(1, mapping[0], mapping[1], 0)]);
         using var metadata = Buffer<LumonScenePatchMetadataGpu>(new LumonScenePatchMetadataGpu[2]);
         using var slotInfo = Buffer<int>(slots);
-        using var use = shader.UseScope();
         shader.BindCaptureWorkSsbo(work); shader.BindPatchMetaSsbo(metadata); shader.BindChunkSlotInfoSsbo(slotInfo);
         shader.BindDepthAtlasImage(depth); shader.BindMaterialAtlasImage(material); shader.BindSharedGeometry(scene.Scene);
         shader.SetAtlasLayout(4, 1, 1, 0);
-        GL.DispatchCompute(1, 1, 1);
+        shader.Dispatch(1, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
         byte[] pixels = new byte[4 * 4 * 4];
         using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, material.TextureId))

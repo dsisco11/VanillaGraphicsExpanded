@@ -119,7 +119,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         capi.Render.GLDepthMask(false);
         capi.Render.GlToggleBlend(false);
 
-        shader.Use();
+
 
         // Bind input textures
         shader.PrimaryScene = primaryFb.ColorTextureIds[0];
@@ -167,6 +167,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
         {
+            shader.Use();
             capi.Render.RenderMesh(quadMeshRef);
         }
 

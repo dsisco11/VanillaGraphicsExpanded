@@ -8,6 +8,8 @@ internal sealed class WorldProbeResidentAnswers : IDisposable
 {
     private readonly GpuShaderStorageBuffer buffer;
     private int references = 1;
+    /// <summary>Exposes only initialized resident records for retained submission.</summary>
+    internal GpuStorageBufferBinding Binding => IsValid ? new(buffer, 0, Count * 80) : throw new ObjectDisposedException(nameof(WorldProbeResidentAnswers));
     public int Count { get; }
     public bool IsValid { get; private set; } = true;
 

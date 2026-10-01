@@ -11,6 +11,6 @@ internal interface IVgeDebugLinesShaderProgramBindings
     #region Public API
     /// <summary>Declares the VgeDebugLinesParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeDebugLinesParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     #endregion
 }

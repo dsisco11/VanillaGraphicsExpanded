@@ -14,10 +14,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_liquid_depth.fsh")]
 internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProgram, ILiquidDepthShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
+
 
 
     private readonly LiquidDepthFrameParamsUbo frame = new();
@@ -34,20 +31,12 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProg
     /// <summary>Stages the shared wave snapshot before the depth draw.</summary>
     internal LiquidWaveFrame WaveFrame { set { wave.Phases = value.Phases; wave.Wind = value.Wind; } }
 
-    /// <summary>Stages and publishes the engine's pool transform.</summary>
-    internal float[] ModelViewMatrix { set { draw.SetModelView(value); PublishDraw(); } }
+    /// <summary>Stages the engine's pool transform.</summary>
+    internal float[] ModelViewMatrix { set { draw.SetModelView(value); } }
 
-    /// <summary>Stages and publishes the engine's pool origin.</summary>
-    internal Vector3 Origin { set { draw.SetOrigin(value); PublishDraw(); } }
+    /// <summary>Stages the engine's pool origin.</summary>
+    internal Vector3 Origin { set { draw.SetOrigin(value); } }
 
-    /// <summary>Publishes frame and wave snapshots before any mesh-pool submission.</summary>
-    internal void ApplyInputs()
-    {
-        if (!GpuUniformRingSystem.TryBind(this, LiquidDepthFrameParamsUbo.BlockName, frame.Bytes, "VGE.LiquidDepth.Frame", true)
-            || !GpuUniformRingSystem.TryBind(this, LiquidWaveParamsUbo.BlockName, wave.Bytes, "VGE.LiquidDepth.Waves", true))
-            throw new InvalidOperationException("Liquid depth requires an active uniform ring and linked frame blocks.");
-        PublishDraw();
-    }
     #endregion
 
     #region Private
@@ -59,25 +48,19 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProg
         return layout;
     }
 
-    /// <summary>Publishes one immutable transform/origin snapshot for the following pool draw.</summary>
-    private void PublishDraw()
-    {
-        if (!GpuUniformRingSystem.TryBind(this, LiquidDrawParamsUbo.BlockName, draw.Bytes, "VGE.LiquidDepth.Draw", true))
-            throw new InvalidOperationException("Liquid depth requires an active uniform ring and linked draw block.");
-    }
 
     /// <summary>Advertises pool inputs whose backing storage is a UBO.</summary>
     bool IShaderProgram.HasUniform(string name)
         => name is "origin" or "modelViewMatrix" or "forcedTransparency" || HasUniform(name);
 
-    /// <summary>Publishes a pool-origin write through the shared draw block.</summary>
+    /// <summary>Retains a pool-origin write through the shared draw block.</summary>
     void IShaderProgram.Uniform(string name, Vec3f value)
     {
         if (name != "origin") { Uniform(name, value); return; }
         Origin = new(value.X, value.Y, value.Z);
     }
 
-    /// <summary>Publishes mini-dimension transforms and their restoration writes.</summary>
+    /// <summary>Retains mini-dimension transforms and their restoration writes.</summary>
     void IShaderProgram.UniformMatrix(string name, float[] value)
     {
         if (name != "modelViewMatrix") { UniformMatrix(name, value); return; }
@@ -89,7 +72,20 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProg
     {
         if (name != "forcedTransparency") { Uniform(name, value); return; }
         draw.SetTransparency(value);
-        PublishDraw();
+
     }
     #endregion
+    /// <summary>Attaches mutation guards to all retained blocks.</summary>
+    public LiquidDepthShaderProgram()
+    {
+        frame.SetWriteGuard(RequireInputMutation);
+        draw.SetWriteGuard(RequireInputMutation);
+        wave.SetWriteGuard(RequireInputMutation);
+    }
+    /// <summary>Supplies retained frame inputs.</summary>
+    CpuUniformBuffer ILiquidDepthShaderProgramBindings.FrameParameters => frame;
+    /// <summary>Supplies retained draw inputs.</summary>
+    CpuUniformBuffer ILiquidDepthShaderProgramBindings.DrawParameters => draw;
+    /// <summary>Supplies retained wave inputs.</summary>
+    CpuUniformBuffer ILiquidDepthShaderProgramBindings.WaveParameters => wave;
 }

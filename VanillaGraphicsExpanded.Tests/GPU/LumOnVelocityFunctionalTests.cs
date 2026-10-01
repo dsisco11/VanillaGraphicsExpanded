@@ -40,7 +40,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         int historyValid,
         int depthUnit = 0)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(
             programId,
             invCurrViewProjMatrix: invCurrViewProj,
@@ -101,7 +100,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
     public void DisplacedSurfaceRejectsVelocityHistory()
     {
         EnsureShaderTestAvailable();
-        var program=CompileVelocityShader();using var use=program.UseScope();
+        var program=CompileVelocityShader();
         using var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
         var ids=new uint[ScreenWidth*ScreenHeight*4];for(int i=3;i<ids.Length;i+=4)ids[i]=(1u<<16)|27u;
         identity.UploadDataImmediate(ids);
@@ -127,7 +126,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
         var program = CompileVelocityShader();
-        using var use = program.UseScope();
         using var depth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f,
             CreateUniformDepthData(ScreenWidth, ScreenHeight, .5f));
         using var target = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f);
@@ -166,7 +164,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileVelocityShader();
 
-        using var programUse = programId.UseScope();
 
         // Depth that is not sky and not zero.
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
@@ -209,7 +206,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileVelocityShader();
 
-        using var programUse = programId.UseScope();
 
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
         using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
@@ -256,7 +252,6 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileVelocityShader();
 
-        using var programUse = programId.UseScope();
 
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
         using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);

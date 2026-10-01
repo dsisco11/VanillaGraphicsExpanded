@@ -72,7 +72,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = tri1;
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
-        using var computeProgramScope = computeProgram.UseScope();
 
         // SSBO bindings match the shader:
         // binding=0 work, binding=1 patch metadata, binding=2 triangles
@@ -87,7 +86,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         computeProgram.SetAtlasLayout((uint)tileSize, 1u, 1u, 0u);
         computeProgram.CaptureDepthRange = 1f;
 
-        GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
+        computeProgram.Dispatch((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 1)");
@@ -165,7 +164,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = tri1;
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
-        using var computeProgramScope = computeProgram.UseScope();
         computeProgram.BindMeshCardCaptureWorkSsbo(workSsbo);
         computeProgram.BindPatchMetadataSsbo(metaSsbo);
         computeProgram.BindTrianglesSsbo(triSsbo);
@@ -176,7 +174,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         computeProgram.SetAtlasLayout((uint)tileSize, 1u, 1u, 0u);
         computeProgram.CaptureDepthRange = 1f;
 
-        GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
+        computeProgram.Dispatch((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 2)");
@@ -238,7 +236,6 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         twoTri[1] = new LumonSceneMeshCardTriangleGpu(new Vector4(p0, 0), new Vector4(p2, 0), new Vector4(p3, 0), new Vector4(n, 0));
         using var triSsbo = CreateSsbo<LumonSceneMeshCardTriangleGpu>("Test_TriSSBO", twoTri);
 
-        using var computeProgramScope = computeProgram.UseScope();
         computeProgram.BindMeshCardCaptureWorkSsbo(workSsbo);
         computeProgram.BindPatchMetadataSsbo(metaSsbo);
         computeProgram.BindTrianglesSsbo(triSsbo);
@@ -249,7 +246,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         computeProgram.SetAtlasLayout((uint)tileSize, 1u, 1u, 0u);
         computeProgram.CaptureDepthRange = 1f;
 
-        GL.DispatchCompute((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
+        computeProgram.Dispatch((tileSize + 7) / 8, (tileSize + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 3)");

@@ -29,8 +29,6 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
 
     private LumOnUpsampleParamsUbo? paramsUbo;
 
-    /// <summary>Publishes inherited lighting inputs at the same boundary as this owner's parameters.</summary>
-    protected override bool UsesRetainedLightingInputs => true;
 
     /// <summary>Registers the upsample resource contract while leaving retained inputs at their defaults.</summary>
     public LumOnUpsampleShaderProgram()

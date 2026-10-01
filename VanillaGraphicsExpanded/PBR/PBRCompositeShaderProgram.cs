@@ -24,10 +24,6 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
 public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRCompositeShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -57,36 +53,40 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
 
     #endregion
 
-    private PbrCompositeParamsUbo Params => Layout.Params;
-
-    private void UploadAndBindParamsUbo()
+    /// <summary>Exposes retained parameters with an owner mutation guard.</summary>
+    private PbrCompositeParamsUbo Params
     {
-        Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
+        get
+        {
+            var parameters = Layout.Params;
+            parameters.SetWriteGuard(RequireInputMutation);
+            return parameters;
+        }
     }
 
-    #region Texture Samplers
+#region Texture Samplers
 
-    public GpuTexture? DirectDiffuse { set => Layout.BindDirectDiffuse(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
+    public partial GpuTexture? DirectDiffuse { set; }
 
-    public GpuTexture? DirectSpecular { set => Layout.BindDirectSpecular(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
+    public partial GpuTexture? DirectSpecular { set; }
 
-    public GpuTexture? Emissive { set => Layout.BindEmissive(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
+    public partial GpuTexture? Emissive { set; }
 
-    public GpuTexture? IndirectDiffuse { set => Layout.BindIndirectDiffuse(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
+    public partial GpuTexture? IndirectDiffuse { set; }
 
-    public int GBufferAlbedo { set => Layout.BindGBufferAlbedo(ProgramId, value, LayoutWarn); }
+    public partial int GBufferAlbedo { set; }
 
-    public int GBufferMaterial { set => Layout.BindGBufferMaterial(ProgramId, value, LayoutWarn); }
+    public partial int GBufferMaterial { set; }
 
-    public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
+    public partial int PrimaryDepth { set; }
 
     /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
-    public int GBufferPosition { set => Layout.BindGBufferPosition(ProgramId, value, LayoutWarn); }
+    public partial int GBufferPosition { set; }
 
-    public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
+    public partial int GBufferNormal { set; }
 
     /// <summary>Supplies standalone environmental irradiance without any LumOn texture dependency.</summary>
-    public int GBufferEnvironment { set => Layout.BindEnvironment(ProgramId, value, LayoutWarn); }
+    public partial int GBufferEnvironment { set; }
 
     #endregion
 
@@ -96,24 +96,22 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     internal void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
         Params.SetAtmosphere(lighting);
-        Layout.BindAerial(ProgramId, ModSystems.AtmosphereModSystem.AerialRadianceTextureId,
-            ModSystems.AtmosphereModSystem.AerialAttenuationTextureId, LayoutWarn);
-        UploadAndBindParamsUbo();
+        AtmosphereAerialRadiance = ModSystems.AtmosphereModSystem.AerialRadianceTextureId;
+        AtmosphereAerialAttenuation = ModSystems.AtmosphereModSystem.AerialAttenuationTextureId;
     }
 
     /// <summary>Selects engine underwater fog without applying it again to atmospheric air.</summary>
     internal void SetUnderwater(bool underwater)
     {
         Params.SetUnderwater(underwater);
-        UploadAndBindParamsUbo();
     }
 
     public Vec4f RgbaFogIn
     {
         set
         {
+            RequireInputMutation();
             Params.RgbaFogIn = new System.Numerics.Vector4(value.X, value.Y, value.Z, value.W);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -121,9 +119,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             _fogDensity = value;
             Params.FogParams = (_fogDensity, _fogMin);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -131,9 +129,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             _fogMin = value;
             Params.FogParams = (_fogDensity, _fogMin);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -145,8 +143,8 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             Params.InvProjectionMatrix = value;
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -154,8 +152,8 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             Params.ViewMatrix = value;
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -167,9 +165,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             _indirectIntensity = value;
             Params.IndirectTintAndIntensity = (_indirectTint, _indirectIntensity);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -177,9 +175,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             _indirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
             Params.IndirectTintAndIntensity = (_indirectTint, _indirectIntensity);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -203,9 +201,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             _diffuseAO = value;
             Params.AOStrengths = (_diffuseAO, _specularAO);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -213,12 +211,16 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     {
         set
         {
+            RequireInputMutation();
             _specularAO = value;
             Params.AOStrengths = (_diffuseAO, _specularAO);
-            UploadAndBindParamsUbo();
         }
     }
 
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies packed parameters for one publication per use.</summary>
+    CpuUniformBuffer IPBRCompositeShaderProgramBindings.Parameters => Params;
     #endregion
 }

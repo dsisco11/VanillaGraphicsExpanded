@@ -17,7 +17,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
     public LumOnShaderBufferInterfaceTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region External buffer ownership
-    /// <summary>Interface setters bind independent declared slots and never take ownership of caller buffers.</summary>
+    /// <summary>Interface setters retain independent slots until use and never take ownership of caller buffers.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -31,17 +31,21 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         using var frame = GpuUniformBuffer.Create();
         using var world = GpuUniformBuffer.Create();
         using var replacement = GpuUniformBuffer.Create();
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        AssignRequiredTextures(program, texture);
         // Contents are irrelevant to this binding-only contract; no draw reads these buffers.
         frame.UploadOrResize(new byte[16]);
         world.UploadOrResize(new byte[16]);
         replacement.UploadOrResize(new byte[16]);
+        ((ILumOnFrameShader)program).FrameUniformBuffer = frame;
+        ((ILumOnWorldProbeShader)program).WorldProbeUniformBuffer = world;
         using (program.UseScope())
         {
-            ((ILumOnFrameShader)program).FrameUniformBuffer = frame;
-            ((ILumOnWorldProbeShader)program).WorldProbeUniformBuffer = world;
             Assert.Equal(frame.BufferId, BoundBuffer(LumOnUniformBuffers.FrameBinding));
             Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
             ((ILumOnFrameShader)program).FrameUniformBuffer = replacement;
+            Assert.Equal(frame.BufferId, BoundBuffer(LumOnUniformBuffers.FrameBinding));
+            program.Use();
             Assert.Equal(replacement.BufferId, BoundBuffer(LumOnUniformBuffers.FrameBinding));
             Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
         }
@@ -84,13 +88,18 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         var program = CreateConsumer(programs, consumer);
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var frame = GpuUniformBuffer.Create();
+        frame.Allocate(544);
+        program.FrameUniformBuffer = frame;
+        AssignRequiredTextures(program, texture);
         using var scene = new TraceGeometryGpuScene(32);
         var window = new PartitionBounds(new(0, 0, 0), new(32, 32, 32));
         var near = new PartitionBounds(new(0, 0, 0), new(16, 16, 16));
         var surface = new PartitionBounds(new(16, 0, 0), new(32, 32, 32));
         scene.SetWindow(new(near, surface, window, 32, 32));
-        using var active = program.UseScope();
         BindScene(program, scene);
+        using var active = program.UseScope();
         byte[] defaults = ReadNearFieldParameters();
         Assert.Equal(32, BitConverter.ToInt32(defaults, 12));
         Assert.Equal(256, BitConverter.ToInt32(defaults, 16));
@@ -100,6 +109,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         var origins = new PartitionBounds(new(2, 3, 4), new(8, 9, 10));
         var policy = new LumOnNearFieldTraceSettings(7, origins, 12);
         BindScene(program, scene, policy);
+        program.Use();
         byte[] configured = ReadNearFieldParameters();
         Assert.Equal(defaults[..16], configured[..16]);
         Assert.Equal(defaults[64..], configured[64..]);
@@ -109,13 +119,16 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         Assert.Equal(12f, BitConverter.ToSingle(configured, 44));
 
         BindScene(program, scene, new LumOnNearFieldTraceSettings(9));
+        program.Use();
         byte[] unrestricted = ReadNearFieldParameters();
         Assert.Equal(0, BitConverter.ToInt32(unrestricted, 24));
         Assert.Equal(defaults[64..], unrestricted[64..]);
 
         BindScene(program, scene);
+        program.Use();
         Assert.Equal(defaults, ReadNearFieldParameters());
         BindScene(program, null, policy);
+        program.Use();
         byte[] unavailable = ReadNearFieldParameters();
         Assert.Equal(0, BitConverter.ToInt32(unavailable, 12));
         Assert.Equal(0, BitConverter.ToInt32(unavailable, 76));
@@ -125,6 +138,36 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
     #endregion
 
     #region Production consumers and driver observations
+    /// <summary>Supplies valid required samplers for binding-only tests that issue no draw.</summary>
+    private static void AssignRequiredTextures(LumOnShaderProgram program, GpuTexture texture)
+    {
+        // These cases exercise the actual production declaration while buffer contents stay irrelevant.
+        switch (program)
+        {
+            case LumOnScreenProbeAtlasTraceShaderProgram trace:
+                trace.PrimaryDepth = texture.TextureId; trace.GBufferMaterial = texture.TextureId;
+                trace.ProbeAnchorPosition = texture; trace.ProbeAnchorNormal = texture;
+                trace.SurfaceAlbedo = texture; trace.ScreenProbeAtlasHistory = texture;
+                trace.HzbDepth = texture; trace.ScreenProbeAtlasMetaHistory = texture;
+                trace.ProbeTraceMask = texture;
+                break;
+            case LumOnScreenProbeAtlasGatherShaderProgram gather:
+                gather.PrimaryDepth = texture.TextureId; gather.GBufferNormal = texture.TextureId;
+                gather.ProbeAnchorPosition = texture; gather.ProbeAnchorNormal = texture;
+                gather.ScreenProbeAtlas = texture;
+                break;
+            case LumOnProbeSh9GatherShaderProgram sh9:
+                sh9.PrimaryDepth = texture.TextureId; sh9.GBufferNormal = texture.TextureId;
+                sh9.ProbeAnchorPosition = texture; sh9.ProbeAnchorNormal = texture;
+                sh9.ProbeSh0 = texture; sh9.ProbeSh1 = texture; sh9.ProbeSh2 = texture;
+                sh9.ProbeSh3 = texture; sh9.ProbeSh4 = texture; sh9.ProbeSh5 = texture; sh9.ProbeSh6 = texture;
+                break;
+            case LumOnDebugShaderProgram debug:
+                debug.PrimaryDepth = texture.TextureId; debug.GBufferNormal = texture.TextureId;
+                break;
+        }
+    }
+
     /// <summary>Loads the actual trace, atlas gather, SH9 gather or world-probe debug consumer.</summary>
     private static LumOnShaderProgram CreateConsumer(ComponentShaderPrograms programs, int consumer) => consumer switch
     {
@@ -142,9 +185,9 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         switch (program)
         {
             case LumOnScreenProbeAtlasTraceShaderProgram trace: trace.BindNearFieldScene(scene, settings); break;
-            case LumOnScreenProbeAtlasGatherShaderProgram gather: gather.NearFieldVisibility.Bind(gather, scene, settings); break;
-            case LumOnProbeSh9GatherShaderProgram sh9: sh9.NearFieldVisibility.Bind(sh9, scene, settings); break;
-            case LumOnDebugShaderProgram debug: debug.NearFieldVisibility.Bind(debug, scene, settings); break;
+            case LumOnScreenProbeAtlasGatherShaderProgram gather: gather.NearFieldVisibility.Stage(gather, scene, settings); break;
+            case LumOnProbeSh9GatherShaderProgram sh9: sh9.NearFieldVisibility.Stage(sh9, scene, settings); break;
+            case LumOnDebugShaderProgram debug: debug.NearFieldVisibility.Stage(debug, scene, settings); break;
             default: throw new ArgumentException("Consumer has no near-field scene binding.", nameof(program));
         }
     }

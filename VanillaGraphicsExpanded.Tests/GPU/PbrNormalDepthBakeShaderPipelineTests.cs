@@ -565,10 +565,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
 
         var cpu = new HeightBakeParamsUboCpu();
-        using (cpu.BeginBatchUpdate())
-        {
-            configure(cpu);
-        }
+        configure(cpu);
 
         paramsUbo.UploadAndBind(cpu.Bytes);
     }

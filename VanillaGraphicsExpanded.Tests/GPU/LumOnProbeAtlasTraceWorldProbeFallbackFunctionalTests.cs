@@ -156,7 +156,6 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
         using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
 
         var programId = CompileProbeAtlasTraceShaderWithWorldProbeFallback(wpLevels, wpResolution, wpBaseSpacing);
-        using var use = programId.UseScope();
         {
 
             // Bind textures to fixed units

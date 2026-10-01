@@ -18,10 +18,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_project_sh.fsh")]
 public partial class LumOnScreenProbeAtlasProjectSHShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasProjectSHShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -52,19 +48,25 @@ public partial class LumOnScreenProbeAtlasProjectSHShaderProgram : LumOnShaderPr
     /// Input stabilized screen-probe atlas radiance.
     /// Shader uniform name remains <c>octahedralAtlas</c> for compatibility.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
+    public partial GpuTexture? ScreenProbeAtlas { set; }
 
     /// <summary>
     /// Input stabilized probe-atlas meta (confidence + flags).
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasMeta { set => BindTexture2D("probeAtlasMeta", value, 1); }
+    public partial GpuTexture? ScreenProbeAtlasMeta { set; }
 
     /// <summary>
     /// Probe anchor positions for validity checks.
     /// </summary>
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
 
     #endregion
 
     // Per-frame state (viewMatrix, probeGridSize) is provided via LumOnFrameUBO.
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasProjectSHShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasProjectSHShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    #endregion
 }

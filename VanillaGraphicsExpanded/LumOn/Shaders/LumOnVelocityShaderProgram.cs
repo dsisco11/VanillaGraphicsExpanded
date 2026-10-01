@@ -18,10 +18,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_velocity.fsh")]
 public partial class LumOnVelocityShaderProgram : LumOnShaderProgram, ILumOnVelocityShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -51,11 +47,17 @@ public partial class LumOnVelocityShaderProgram : LumOnShaderProgram, ILumOnVelo
     /// <summary>
     /// Primary depth texture (current frame).
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
     /// <summary>Surface identity includes the local displacement-history rejection flag.</summary>
-    public int PatchIdentity { set => BindExternalTexture2D("gBufferPatchId", value, 1, GpuSamplers.NearestClamp); }
+    public partial int PatchIdentity { set; }
 
     #endregion
 
     // Per-frame state (screen size, invCurrViewProj, prevViewProj, historyValid) is provided via LumOnFrameUBO.
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnVelocityShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnVelocityShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    #endregion
 }

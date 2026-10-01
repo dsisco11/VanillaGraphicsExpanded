@@ -576,17 +576,17 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Render.GlToggleBlend(false);
 
 
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         shader.PrimaryDepth = primaryFb.DepthTextureId;
         shader.PatchIdentity = gBufferManager!.PatchIdTextureId;
 
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -694,7 +694,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 forceBatchSlicing: config.LumOn.ForceBatchSlicing);
         });
 
-        if (!shader.TryUse()) { lightingPassesComplete = false; return; }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
 
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
@@ -702,6 +701,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex;
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex;
 
+        if (!shader.TryUse()) { lightingPassesComplete = false; return; }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -790,15 +790,10 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 worldProbeDiffuseStride: 0);
         }
 
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.BindNearFieldScene(nearFieldScene);
-        (surfaceLightingBindings ??= new()).Bind(surfaceLighting);
+        shader.SetSurfaceLighting(surfaceLighting);
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind probe anchor textures
@@ -846,6 +841,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             config.LumOn.IndirectTint[2]);
 
         // Render
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -880,8 +880,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using (GlGpuProfiler.Instance.Scope(copy.PassName))
         {
-            if (!copy.TryUse()) { lightingPassesComplete = false; return; }
             copy.PrimaryDepth = primaryFb.DepthTextureId;
+            if (!copy.TryUse()) { lightingPassesComplete = false; return; }
             capi.Render.RenderMesh(quadMeshRef);
             copy.Stop();
         }
@@ -889,7 +889,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Downsample the mip chain using MIN depth.
         using (GlGpuProfiler.Instance.Scope(down.PassName))
         {
-            if (!down.TryUse()) { lightingPassesComplete = false; return; }
             down.HzbDepth = hzb;
 
             for (int dstMip = 1; dstMip < hzb.MipLevels; dstMip++)
@@ -902,6 +901,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 GL.Viewport(0, 0, dstW, dstH);
 
                 down.SrcMip = dstMip - 1;
+                if (!down.TryUse()) { lightingPassesComplete = false; return; }
                 capi.Render.RenderMesh(quadMeshRef);
             }
 
@@ -950,11 +950,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 forceBatchSlicing: config.LumOn.ForceBatchSlicing);
         });
 
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
@@ -995,6 +990,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.HitDistanceRejectThreshold = config.LumOn.ProbeAtlasHitDistanceRejectThreshold;
 
         // Render
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -1053,17 +1053,17 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         outFbo.Clear();
         capi.Render.GlToggleBlend(false);
 
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
 
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -1122,13 +1122,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
-        shader.NearFieldVisibility.Bind(shader, nearFieldScene);
+        shader.NearFieldVisibility.Stage(shader, nearFieldScene);
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Keep the paired diagnostic's gather replacement consistent with its trace branch.
@@ -1154,6 +1149,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
 
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -1217,14 +1217,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         fbo.Clear();
 
         capi.Render.GlToggleBlend(false);
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
-        shader.NearFieldVisibility.Bind(shader, nearFieldScene);
+        shader.NearFieldVisibility.Stage(shader, nearFieldScene);
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind screen-probe atlas radiance
@@ -1250,6 +1245,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.SampleStride = config.LumOn.ProbeAtlasSampleStride;
 
         // Render
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -1330,11 +1330,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         fbo.BindWithViewport();
 
         capi.Render.GlToggleBlend(false);
-        if (!shader.TryUse())
-        {
-            lightingPassesComplete = false;
-            return;
-        }
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
@@ -1346,6 +1341,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.FilterRadius = 1;
         shader.HitDistanceSigma = 1.0f;
 
+        if (!shader.TryUse())
+        {
+            lightingPassesComplete = false;
+            return;
+        }
         capi.Render.RenderMesh(quadMeshRef);
         shader.Stop();
     }
@@ -1463,7 +1463,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     public void Dispose()
     {
-        surfaceLightingBindings?.Dispose(); surfaceLightingBindings = null;
+
         comparisonBuffers?.Dispose();
         primaryBuffers.WorldProbeSuppressedLighting = null;
         pmjJitter.Dispose();

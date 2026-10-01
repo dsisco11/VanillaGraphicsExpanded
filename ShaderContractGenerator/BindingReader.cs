@@ -145,11 +145,11 @@ internal static class BindingReader
         bool descriptor = type == Prefix + "Shader" + kind + "Binding";
         string? resourceType = kind switch
         {
-            ShaderBindingKind.Sampler => "GpuTexture", ShaderBindingKind.Image => "GpuTextureBinding", ShaderBindingKind.UniformBlock => "GpuUniformBuffer", ShaderBindingKind.StorageBlock => "GpuShaderStorageBuffer", _ => null
+            ShaderBindingKind.Sampler => "GpuTexture", ShaderBindingKind.AtomicCounter => "GpuAtomicCounterBuffer", ShaderBindingKind.Image => "GpuTextureBinding", ShaderBindingKind.UniformBlock => "GpuUniformBuffer", ShaderBindingKind.StorageBlock => "GpuShaderStorageBuffer", _ => null
         };
         type = type.TrimEnd('?');
         bool cpuBuffer = kind == ShaderBindingKind.UniformBlock && RuntimeSubmissionEmitter.IsCpuBuffer(property.Type);
-        bool resource = cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
+        bool resource = (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
             (contract && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32) ||
             (kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
         if ((descriptor && (property.GetMethod == null || property.SetMethod != null)) ||
@@ -162,7 +162,7 @@ internal static class BindingReader
     internal static bool HasRuntimeTarget(INamedTypeSymbol type)
     {
         for (var owner = type; owner != null; owner = owner.BaseType)
-            if (owner.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram") return true;
+            if (owner.ToDisplayString() is "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram" or "VanillaGraphicsExpanded.Rendering.GpuComputeShader") return true;
         return type.GetMembers("pipeline").OfType<IFieldSymbol>().Any(f => f.Type.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuComputePipeline");
     }
 
@@ -198,6 +198,7 @@ internal static class BindingReader
         ShaderBindingKind.Image => nameof(GpuBindingContract.Images),
         ShaderBindingKind.UniformBlock => nameof(GpuBindingContract.UniformBlocks),
         ShaderBindingKind.StorageBlock => nameof(GpuBindingContract.StorageBlocks),
+        ShaderBindingKind.AtomicCounter => nameof(GpuBindingContract.AtomicCounters),
         ShaderBindingKind.VaryingLocation => nameof(GpuBindingContract.VaryingLocations),
         ShaderBindingKind.FragmentOutputLocation => nameof(GpuBindingContract.FragmentOutputLocations),
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
@@ -211,6 +212,7 @@ internal static class BindingReader
             case ShaderBindingKind.UniformLocation: model.UniformLocations.Add(slot.Name, slot.Index); break;
             case ShaderBindingKind.VaryingLocation: model.VaryingLocations.Add(slot.Name, slot.Index); break;
             case ShaderBindingKind.FragmentOutputLocation: model.FragmentOutputLocations.Add(slot.Name, slot.Index); break;
+            case ShaderBindingKind.AtomicCounter: model.AtomicCounters.Add(slot.Name, new(slot.Index, slot.Required)); break;
             case ShaderBindingKind.Sampler: model.RegisterSamplerUnit(slot.Name, slot.Index, slot.Required); break;
             case ShaderBindingKind.Image: model.RegisterImageUnit(slot.Name, slot.Index, slot.Required); break;
             case ShaderBindingKind.UniformBlock: model.RegisterUniformBlockBinding(slot.Name, slot.Index, slot.Required); break;

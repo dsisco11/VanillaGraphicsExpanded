@@ -86,7 +86,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         float temporalAlpha = DefaultTemporalAlpha,
         float hitDistanceRejectThreshold = DefaultHitDistanceRejectThreshold)
     {
-        using var use = programId.UseScope();
+        // Disabled runtime branches still have declared samplers in the executable.
+        programId.PmjJitter = GetOrCreatePmjJitterTexture(1);
+        programId.VelocityTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f, new float[ScreenWidth * ScreenHeight * 4]);
+        var validMetadata = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, CreateUniformMetaAtlas(1f, 0f));
+        programId.ScreenProbeAtlasMetaCurrent = validMetadata;
+        programId.ScreenProbeAtlasMetaHistory = validMetadata;
         UpdateAndBindLumOnFrameUbo(
             programId,
             probeSpacing: ProbeSpacing,
@@ -322,7 +327,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -408,7 +412,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -492,7 +495,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(programId);
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
@@ -572,7 +574,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -671,7 +672,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader();
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -763,7 +763,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader();
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -854,7 +853,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -892,7 +890,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -963,7 +960,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: budget);
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -1052,7 +1048,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -1087,7 +1082,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 1,
@@ -1177,7 +1171,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader();
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -1216,7 +1209,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader();
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -1286,7 +1278,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader();
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -1378,7 +1369,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader();
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -1420,7 +1410,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader();
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -1487,7 +1476,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader();
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -1547,7 +1535,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader();
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -1619,7 +1606,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader();
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -1675,7 +1661,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         var programId = CompileOctahedralTemporalShader();
 
-        using var programUse = programId.UseScope();
         SetupOctahedralTemporalUniforms(
             programId,
             frameIndex: 0,
@@ -1742,7 +1727,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader();
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,
@@ -1776,7 +1760,6 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             var programId = CompileOctahedralTemporalShader();
 
-            using var programUse = programId.UseScope();
             SetupOctahedralTemporalUniforms(
                 programId,
                 frameIndex: 0,

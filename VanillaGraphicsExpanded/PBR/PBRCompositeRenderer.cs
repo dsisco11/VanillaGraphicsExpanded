@@ -190,7 +190,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // Single target output.
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
-        if (!shader.TryUse()) return;
+
 
         // Direct lighting radiance buffers (linear, fog-free)
         shader.DirectDiffuse = directLightingBuffers.DirectDiffuseTex;
@@ -225,6 +225,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = viewMatrix;
 
+        if (!shader.TryUse()) return;
         using var cpuScope = Profiler.BeginScope("PBR.Composite", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.Composite"))
         {
@@ -238,9 +239,10 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         GL.Viewport(0, 0, screenW, screenH);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-        if (!display.TryUse()) return;
+
         display.PrimaryScene = compositeColorTex!.TextureId;
         display.PrimaryDepth = primaryFb.DepthTextureId;
+        if (!display.TryUse()) return;
         using (GlGpuProfiler.Instance.Scope("PBR.DisplayResolve"))
         {
             capi.Render.RenderMesh(quadMeshRef);

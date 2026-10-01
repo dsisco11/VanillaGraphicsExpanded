@@ -40,7 +40,7 @@ internal static class GpuUniformRingSystem
     #region Uniform binding
     /// <summary>Writes uniform bytes into the active ring and binds the resulting range to the program.</summary>
     public static bool TryBind(
-        GpuProgram program,
+        IShaderSubmissionTarget program,
         string blockName,
         ReadOnlySpan<byte> std140Bytes,
         string debugName,

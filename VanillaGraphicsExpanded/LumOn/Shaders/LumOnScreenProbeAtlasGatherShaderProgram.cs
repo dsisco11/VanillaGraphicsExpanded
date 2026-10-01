@@ -33,10 +33,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
 public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasGatherShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     #region Shader options
@@ -62,21 +58,21 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
 
     protected override GpuProgramLayout CreateLayout() => new LumOnScreenProbeAtlasGatherProgramLayout();
 
-    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
+    /// <summary>Owns packed parameters and rejects writes during publication.</summary>
+    private LumOnProbeParamsUbo Params
+    {
+        get
+        {
+            if (paramsUbo is null)
+            {
+                paramsUbo = new LumOnProbeParamsUbo();
+                paramsUbo.SetWriteGuard(RequireInputMutation);
+            }
+            return paramsUbo;
+        }
+    }
 
-    /// <summary>
-    /// Provides access to the underlying params UBO for advanced batched updates.
-    /// Example:
-    /// <code>
-    /// using (program.ParamsUbo.BeginBatchUpdate())
-    /// {
-    ///     program.Intensity = 1.5f;
-    ///     program.IndirectTint = new float[] { 1, 0.9f, 0.8f };
-    ///     program.SampleStride = 2;
-    ///     // Single GPU upload happens when scope exits
-    /// }
-    /// </code>
-    /// </summary>
+    /// <summary>Exposes retained parameters; the next Use publishes all assignments together.</summary>
     public LumOnProbeParamsUbo ParamsUbo => Params;
 
     #region Diagnostic Controls
@@ -89,7 +85,6 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
         set
         {
             Params.SuppressWorldProbeRadiance = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -117,28 +112,28 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     /// Layout: (probeCountX × 8, probeCountY × 8)
     /// Format: RGB = radiance, A = log-encoded hit distance
     /// </summary>
-    public GpuTexture? ScreenProbeAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
+    public partial GpuTexture? ScreenProbeAtlas { set; }
 
     /// <summary>
     /// Probe anchor positions (world-space).
     /// Format: xyz = posWS, w = validity
     /// </summary>
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 1); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
 
     /// <summary>
     /// Probe anchor normals (world-space, encoded).
     /// </summary>
-    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 2); }
+    public partial GpuTexture? ProbeAnchorNormal { set; }
 
     /// <summary>
     /// Primary depth texture (G-buffer).
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 3, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
 
     /// <summary>
     /// G-buffer normals (world-space, encoded).
     /// </summary>
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 4, GpuSamplers.NearestClamp); }
+    public partial int GBufferNormal { set; }
 
     #endregion
 
@@ -154,7 +149,6 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
         set
         {
             Params.Intensity = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -166,7 +160,6 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
         set
         {
             Params.IndirectTint = new System.Numerics.Vector3(value[0], value[1], value[2]);
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -181,7 +174,6 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
         set
         {
             Params.LeakThreshold = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -195,7 +187,6 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
         set
         {
             Params.SampleStride = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -238,9 +229,9 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
         return !changed;
     }
 
-    public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 5); }
-    public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 8); }
-    public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 9); }
+    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
+    public partial GpuTexture? WorldProbeVis0 { set; }
+    public partial GpuTexture? WorldProbeMeta0 { set; }
 
     /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
@@ -254,5 +245,19 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]
     public partial int WorldProbeResolution { get; set; }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasGatherShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasGatherShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    /// <summary>Supplies the retained CPU block for one publication per use.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasGatherShaderProgramBindings.Parameters => Params;
+    /// <summary>Supplies retained visibility parameters through the declared block.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasGatherShaderProgramBindings.LumOnNearField => NearFieldVisibility.Parameters;
+    /// <summary>Supplies the retained geometry texture.</summary>
+    GpuTexture? ILumOnScreenProbeAtlasGatherShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
+    /// <summary>Supplies the retained readiness texture.</summary>
+    GpuTexture? ILumOnScreenProbeAtlasGatherShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
     #endregion
 }

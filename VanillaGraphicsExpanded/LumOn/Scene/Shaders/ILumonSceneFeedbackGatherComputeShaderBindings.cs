@@ -11,12 +11,15 @@ internal interface ILumonSceneFeedbackGatherComputeShaderBindings
     #region Public API
     /// <summary>Declares the VgeLumOnSceneFeedbackGatherParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnSceneFeedbackGatherParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the vge_patchIdGBuffer Sampler slot.</summary>
-    [ShaderBinding("vge_patchIdGBuffer", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute)]
-    GpuTexture PatchIdG { set; }
+    [ShaderBinding("vge_patchIdGBuffer", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    int PatchIdG { set; }
     /// <summary>Declares the VgePageRequests StorageBlock slot.</summary>
     [ShaderBinding("VgePageRequests", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer PageRequests { set; }
+    /// <summary>Retains the counter buffer without clearing its execution-owned contents.</summary>
+    [ShaderBinding("vge_pageRequestCount", ShaderBindingKind.AtomicCounter, 0, ShaderStageKind.Compute)]
+    GpuAtomicCounterBuffer? RequestCounter { set; }
     #endregion
 }

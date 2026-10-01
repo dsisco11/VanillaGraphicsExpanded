@@ -6,13 +6,13 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Declares the GPU binding contract for LumonSceneCaptureVoxelComputeShader.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(ITraceGeometryBindingSet), Program = "Contract")]
+
 internal interface ILumonSceneCaptureVoxelComputeShaderBindings
 {
     #region Public API
     /// <summary>Declares the VgeLumOnSceneCaptureVoxelParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnSceneCaptureVoxelParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the vge_depthAtlas Image slot.</summary>
     [ShaderBinding("vge_depthAtlas", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
     GpuTextureBinding DepthAtlas { set; }
@@ -28,5 +28,8 @@ internal interface ILumonSceneCaptureVoxelComputeShaderBindings
     /// <summary>Declares the VgeChunkSlotInfo StorageBlock slot.</summary>
     [ShaderBinding("VgeChunkSlotInfo", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer ChunkSlotInfo { set; }
+    /// <summary>Retains only the diagnostics storage admitted for this dispatch.</summary>
+    [ShaderBinding("SurfaceDiagnostics", ShaderBindingKind.StorageBlock, 4, ShaderStageKind.Compute, Required = false)]
+    GpuShaderStorageBuffer? DiagnosticCounters { get; }
     #endregion
 }

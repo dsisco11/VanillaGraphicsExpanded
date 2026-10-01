@@ -54,7 +54,6 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                 : Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>(settings: defines);
             visibilityPrograms.Add(key, program);
         }
-        using var use = program.UseScope();
         resources ??= LightingResources;
         int guideSize = debug ? size : size * 2;
         resources.Scene.EnsureSize(guideSize, guideSize);
@@ -101,7 +100,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                     viewProgram.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas;
                     viewProgram.WorldProbeVis0 = world.ProbeVis0;
                     viewProgram.WorldProbeMeta0 = world.ProbeMeta0;
-                    viewProgram.NearFieldVisibility.Bind(viewProgram, geometry, traceSettings);
+                    viewProgram.NearFieldVisibility.Stage(viewProgram, geometry, traceSettings);
                     viewProgram.DebugMode = consumer;
                     break;
                 case LumOnProbeSh9GatherShaderProgram gather:
@@ -112,7 +111,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                     gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
                     gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
                     gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
-                    gather.NearFieldVisibility.Bind(gather, geometry, traceSettings);
+                    gather.NearFieldVisibility.Stage(gather, geometry, traceSettings);
                     gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SuppressWorldProbeRadiance = suppress;
                     break;
                 case LumOnScreenProbeAtlasGatherShaderProgram gather:
@@ -121,7 +120,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                     gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
                     gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
                     gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
-                    gather.NearFieldVisibility.Bind(gather, geometry, traceSettings);
+                    gather.NearFieldVisibility.Stage(gather, geometry, traceSettings);
                     gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SampleStride = 1; gather.SuppressWorldProbeRadiance = suppress;
                     break;
             }

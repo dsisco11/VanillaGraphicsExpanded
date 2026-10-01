@@ -19,6 +19,8 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
     private bool disposed;
     public bool Enabled { get; set; } = true;
     public int PendingCount { get; private set; }
+    /// <summary>Exposes the admitted counter storage for submission without clearing or reading it.</summary>
+    internal GpuShaderStorageBuffer? ActiveBuffer => active >= 0 ? slots[active]!.Buffer : null;
 
     #region Collection
     /// <summary>Initializes CPU aggregates; GPU objects are allocated only when an enabled sample is admitted.</summary>

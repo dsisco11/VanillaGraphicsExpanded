@@ -66,7 +66,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
-        using var computeProgramScope = computeProgram.UseScope();
         computeProgram.BindCaptureWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
@@ -82,7 +81,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (single)");
@@ -134,7 +133,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         // Slot 0 origin=(0,0,0); slot 1 origin=(32,0,0). Generation=0.
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new[] { 0, 0, 0, 0, 32, 0, 0, 0 });
 
-        using var computeProgramScope = computeProgram.UseScope();
         computeProgram.BindSharedGeometry(null); // This case checks metadata without a geometry publication.
         computeProgram.BindCaptureWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -147,7 +145,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 2);
+        computeProgram.Dispatch(gx, gy, 2);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (multi-slice)");
@@ -228,7 +226,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[6]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
-        using var computeProgramScope = computeProgram.UseScope();
         computeProgram.BindCaptureWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
@@ -243,7 +240,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 3);
+        computeProgram.Dispatch(gx, gy, 3);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (3D)");
@@ -317,7 +314,6 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
-        using var computeProgramScope = computeProgram.UseScope();
         computeProgram.BindCaptureWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
@@ -332,7 +328,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        GL.DispatchCompute(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (final)");

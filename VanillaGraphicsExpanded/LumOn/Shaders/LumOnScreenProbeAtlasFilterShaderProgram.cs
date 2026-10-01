@@ -20,10 +20,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_filter.fsh")]
 public partial class LumOnScreenProbeAtlasFilterShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasFilterShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -36,7 +32,19 @@ public partial class LumOnScreenProbeAtlasFilterShaderProgram : LumOnShaderProgr
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
-    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
+    /// <summary>Owns packed parameters and rejects writes during publication.</summary>
+    private LumOnProbeParamsUbo Params
+    {
+        get
+        {
+            if (paramsUbo is null)
+            {
+                paramsUbo = new LumOnProbeParamsUbo();
+                paramsUbo.SetWriteGuard(RequireInputMutation);
+            }
+            return paramsUbo;
+        }
+    }
 
     #region Static
 
@@ -58,17 +66,17 @@ public partial class LumOnScreenProbeAtlasFilterShaderProgram : LumOnShaderProgr
     /// Input stabilized screen-probe atlas radiance.
     /// Shader uniform name remains <c>octahedralAtlas</c> for compatibility.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
+    public partial GpuTexture? ScreenProbeAtlas { set; }
 
     /// <summary>
     /// Input stabilized probe-atlas meta (confidence + flags).
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasMeta { set => BindTexture2D("probeAtlasMeta", value, 1); }
+    public partial GpuTexture? ScreenProbeAtlasMeta { set; }
 
     /// <summary>
     /// Probe anchor positions for validity checks.
     /// </summary>
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
 
     #endregion
 
@@ -83,7 +91,6 @@ public partial class LumOnScreenProbeAtlasFilterShaderProgram : LumOnShaderProgr
         set
         {
             Params.FilterRadius = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -95,9 +102,16 @@ public partial class LumOnScreenProbeAtlasFilterShaderProgram : LumOnShaderProgr
         set
         {
             Params.HitDistanceSigma = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasFilterShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasFilterShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    /// <summary>Supplies the retained CPU block for one publication per use.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasFilterShaderProgramBindings.Parameters => Params;
     #endregion
 }

@@ -11,12 +11,12 @@ internal interface ILiquidDepthShaderProgramBindings
     #region Public API
     /// <summary>Declares the VgeLiquidDepthFrameParams UniformBlock slot.</summary>
     [ShaderBinding("VgeLiquidDepthFrameParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer FrameParameters { set; }
+    CpuUniformBuffer FrameParameters { get; }
     /// <summary>Declares the VgeLiquidDrawParams UniformBlock slot.</summary>
     [ShaderBinding("VgeLiquidDrawParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer DrawParameters { set; }
+    CpuUniformBuffer DrawParameters { get; }
     /// <summary>Declares the VgeLiquidWaveParams UniformBlock slot.</summary>
     [ShaderBinding("VgeLiquidWaveParams", ShaderBindingKind.UniformBlock, 15, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer WaveParameters { set; }
+    CpuUniformBuffer WaveParameters { get; }
     #endregion
 }

@@ -1,4 +1,3 @@
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -9,25 +8,24 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 internal sealed class LumOnNearFieldVisibilityBindings
 {
     public const string EnabledDefine = "VGE_LUMON_DIRECT_LOCAL_VISIBILITY";
-    private readonly GpuProgramLayout layout;
     private readonly LumOnNearFieldParamsUbo parameters = new();
 
     #region Shader Contract
-    /// <summary>Uses the owning program layout for the shared geometry sampler slots.</summary>
-    public LumOnNearFieldVisibilityBindings(GpuProgramLayout layout)
-    {
-        this.layout = layout;
-    }
+    /// <summary>Retains geometry for the next owner submission.</summary>
+    internal GpuTexture? Geometry { get; private set; }
+    /// <summary>Retains readiness metadata for the next owner submission.</summary>
+    internal GpuTexture? Regions { get; private set; }
+    /// <summary>Exposes packed traversal parameters through the owner's binding contract.</summary>
+    internal CpuUniformBuffer Parameters => parameters;
 
-    /// <summary>Binds a coherent snapshot and optional traversal policy; unavailable geometry never implies visibility.</summary>
-    public void Bind(GpuProgram program, TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)
+    /// <summary>Stages a coherent scene without issuing any graphics operations.</summary>
+    public void Stage(GpuProgram program, TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)
     {
+        program.RequireInputMutation();
+        parameters.SetWriteGuard(program.RequireInputMutation);
         parameters.SetShared(scene, settings);
-        parameters.BindTo(program, LumOnNearFieldParamsUbo.BlockName, "LumOn.DirectVisibility");
-        layout.TryBindSamplerTextureActive(program.ProgramId, "nearFieldGeometry", TextureTarget.Texture3D,
-            scene?.Geometry.TextureId ?? 0, GpuSamplers.NearestClamp.SamplerId, warn: null);
-        layout.TryBindSamplerTextureActive(program.ProgramId, "nearFieldRegions", TextureTarget.Texture3D,
-            scene?.Readiness.TextureId ?? 0, GpuSamplers.NearestClamp.SamplerId, warn: null);
+        Geometry = scene?.Geometry;
+        Regions = scene?.Readiness;
     }
     #endregion
 }

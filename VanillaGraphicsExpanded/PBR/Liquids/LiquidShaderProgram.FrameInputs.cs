@@ -10,35 +10,35 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed partial class LiquidShaderProgram
 {
     #region Frame inputs
-    /// <summary>Stages the column-major projection matrix; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages the column-major projection matrix; Use submits the completed frame.</summary>
     internal ReadOnlySpan<float> ProjectionMatrix { set => frame.ProjectionMatrix = value; }
-    /// <summary>Stages the column-major near-cascade transform; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages the column-major near-cascade transform; Use submits the completed frame.</summary>
     internal ReadOnlySpan<float> ShadowMatrixNear { set => frame.ShadowMatrixNear = value; }
-    /// <summary>Stages the column-major far-cascade transform; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages the column-major far-cascade transform; Use submits the completed frame.</summary>
     internal ReadOnlySpan<float> ShadowMatrixFar { set => frame.ShadowMatrixFar = value; }
-    /// <summary>Stages still-water time, flow time, reserved zero, and wind time; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages still-water time, flow time, reserved zero, and wind time; Use submits the completed frame.</summary>
     internal Vector4 Animation { set => frame.Animation = value; }
-    /// <summary>Stages near and far shadow ranges in XY; ZW are reserved; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages near and far shadow ranges in XY; ZW are reserved; Use submits the completed frame.</summary>
     internal Vector4 ShadowRanges { set => frame.ShadowRanges = value; }
-    /// <summary>Stages world player position in XYZ; W is reserved; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages world player position in XYZ; W is reserved; Use submits the completed frame.</summary>
     internal Vector4 PlayerPosition { set => frame.PlayerPosition = value; }
-    /// <summary>Stages tile UV dimensions in XY and atlas pixel dimensions in ZW; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages tile UV dimensions in XY and atlas pixel dimensions in ZW; Use submits the completed frame.</summary>
     internal Vector4 AtlasMetrics { set => frame.AtlasMetrics = value; }
-    /// <summary>Stages near/far depth planes in XY and viewport pixels in ZW; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages near/far depth planes in XY and viewport pixels in ZW; Use submits the completed frame.</summary>
     internal Vector4 DepthRangeAndFrameSize { set => frame.DepthRangeAndFrameSize = value; }
-    /// <summary>Stages season fraction, sea level, atlas height, and seasonal temperature; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages season fraction, sea level, atlas height, and seasonal temperature; Use submits the completed frame.</summary>
     internal Vector4 Season { set => frame.Season = value; }
-    /// <summary>Stages world sun direction in XYZ; W is reserved; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages world sun direction in XYZ; W is reserved; Use submits the completed frame.</summary>
     internal Vector4 SunDirection { set => frame.SunDirection = value; }
-    /// <summary>Stages solar irradiance in RGB; W is reserved; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages solar irradiance in RGB; W is reserved; Use submits the completed frame.</summary>
     internal Vector4 SolarIrradiance { set => frame.SolarIrradiance = value; }
-    /// <summary>Stages environment irradiance in RGB; W is reserved; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages environment irradiance in RGB; W is reserved; Use submits the completed frame.</summary>
     internal Vector4 EnvironmentIrradiance { set => frame.EnvironmentIrradiance = value; }
-    /// <summary>Stages altitude, horizon elevation, camera-underwater amount, and reserved zero; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages altitude, horizon elevation, camera-underwater amount, and reserved zero; Use submits the completed frame.</summary>
     internal Vector4 AerialParameters { set => frame.AerialParameters = value; }
-    /// <summary>Stages psychedelic strength in Y; other components are reserved; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages psychedelic strength in Y; other components are reserved; Use submits the completed frame.</summary>
     internal Vector4 Perception { set => frame.Perception = value; }
-    /// <summary>Stages perception world offset in XYZ; W is reserved; call ApplyInputs after frame updates.</summary>
+    /// <summary>Stages perception world offset in XYZ; W is reserved; Use submits the completed frame.</summary>
     internal Vector4 PerceptionPosition { set => frame.PerceptionPosition = value; }
     /// <summary>Stages the active point-light and fog-sphere counts.</summary>
     internal void SetCounts(int lights, int spheres)

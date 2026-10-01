@@ -52,18 +52,18 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 var output = buffers.IndirectHalfFbo!;
                 for (int frame = 0; frame < 2; frame++)
                 {
-                    using var use = temporal.UseScope();
                     UpdateAndBindLumOnFrameUbo(temporal, frameIndex: frame, historyValid: frame, enableVelocityReprojection: 0);
                     temporal.ScreenProbeAtlasCurrent = frame == 0 ? trace : first[0];
                     temporal.ScreenProbeAtlasHistory = frame == 0 ? trace : first[0];
                     temporal.ScreenProbeAtlasMetaCurrent = frame == 0 ? meta : first[1];
                     temporal.ScreenProbeAtlasMetaHistory = frame == 0 ? meta : first[1];
                     temporal.ProbeAnchorPosition = anchors;
+                    temporal.PmjJitter = GetOrCreatePmjJitterTexture(1);
+                    temporal.VelocityTex = buffers.VelocityTex;
                     temporal.TemporalAlpha = .9f;
                     temporal.HitDistanceRejectThreshold = .3f;
                     TestFramework.RenderQuadTo(temporal, frame == 0 ? first : second);
                 }
-                using (filter.UseScope())
                 {
                     UpdateAndBindLumOnFrameUbo(filter);
                     filter.ScreenProbeAtlas = second[0]; filter.ScreenProbeAtlasMeta = second[1]; filter.ProbeAnchorPosition = anchors;
@@ -72,12 +72,10 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 }
                 if (sh9)
                 {
-                    using var use = project.UseScope();
                     UpdateAndBindLumOnFrameUbo(project);
                     project.ScreenProbeAtlas = filtered[0]; project.ScreenProbeAtlasMeta = second[1]; project.ProbeAnchorPosition = anchors;
                     TestFramework.RenderQuadTo(project, projected);
                 }
-                using (gather.UseScope())
                 {
                     UpdateAndBindLumOnFrameUbo(gather, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection());
                     if (shGather != null)

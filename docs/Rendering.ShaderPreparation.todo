@@ -22,7 +22,7 @@ Shader input submission:
       Evidence: ../artifacts/submission-tests/submission-final.trx, ring-final.trx and generator-final.trx.
       Second source review and independent audit passed. Headless checks only; no game launched.
 
-  ☐ Migrate all shaders and callers to the contract.
+  ✔ Migrate all shaders and callers to the contract.
     - Convert authored resource setters to retained/generated properties and CPU blocks to source getters.
     - Remove temporary authored compatibility Submit overrides once their owners and callers are migrated.
     - Replace the temporary shared-lighting opt-in with contract source getters throughout shared bases.
@@ -31,6 +31,14 @@ Shader input submission:
     - Preserve barriers, explicit clears, readbacks, upload ownership and current-generation layout resolution.
     - Remove obsolete immediate-submit helpers and unused UBO batch scopes.
     - Completion: Reconcile the inventory; any remaining immediate binding is an explicit low-level operation or adapter.
+    - Validation: 398 shader variants rebuilt; focused CPU/GPU run passed 856 tests with 4 existing skips;
+      generator run passed 150/150. Fresh world-history/surface-lighting regression run passed 60/60.
+      Evidence: ../VanillaGraphicsExpanded.Tests/TestResults/migration-final-focused.trx,
+      ../VanillaGraphicsExpanded.Tests/TestResults/migration-metadata-runtime.trx,
+      and ../ShaderContractGenerator.Tests/TestResults/migration-generator-final.trx.
+    - Final atmosphere/scope recheck: 28/28 passed, including enclosing compute SSBO restoration;
+      ../VanillaGraphicsExpanded.Tests/TestResults/migration-atmosphere-final.trx. Latest Debug build passed.
+      Second source review and independent test/inventory review found no remaining migration gaps.
 
   ☐ Validate and document the completed contract.
     - Test retained/default values, partial assignments, generated binding coverage, submission failure/retry,
@@ -38,3 +46,6 @@ Shader input submission:
     - Verify several assignments followed by Use publish one active CPU block; do not claim frame-time savings.
     - Update authoring guidance and resource lifetime responsibilities.
     - Perform second review and independent audit before completion; no game launch for acceptance.
+    - Broader-suite follow-up: assess trace sun and debug/registration-count expectations, accessor reload queues,
+      PBR mode lifecycle, installed-engine GLSL/depth fixtures, terrain GLSL variables and the raw SPIR-V GL error.
+      The broad run was interrupted; these exclusions are not established baseline failures or a clean-suite result.

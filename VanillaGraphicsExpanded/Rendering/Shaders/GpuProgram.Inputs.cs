@@ -15,7 +15,7 @@ public abstract partial class GpuProgram
     }
 
     /// <summary>Rejects mutation during publication or after terminal owner retirement.</summary>
-    protected void RequireInputMutation()
+    protected internal void RequireInputMutation()
     {
         if (IsRetired) throw new ObjectDisposedException(GetType().Name);
         if (submittingInputs) throw new InvalidOperationException("Cannot change shader inputs during submission.");

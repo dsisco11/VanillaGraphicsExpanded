@@ -166,12 +166,11 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         {
             // Pass A: mark.
             markShader.BindDebugCounters(markCounters.Buffer);
-            using var markShaderScope = markShader.UseScope();
             markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
             markShader.BindChunkSlotGenerationTex(genTex.TextureId);
             markShader.FrameStamp = frameStamp;
             markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-            GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+            markShader.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("MultiSlotCapture mark pass dispatch");
@@ -180,14 +179,13 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             pageRequestCounter.UploadZeros(counterCount: 1);
             compactShader.BindRequestCounter(pageRequestCounter.Buffer);
             compactShader.BindRequestsSsbo(pageRequests);
-            using var compactShaderScope = compactShader.UseScope();
             compactShader.BindPageUsageStamp(usageStamp.TextureId);
             compactShader.BindPageTableMip0(pageTableMip0.TextureId);
             compactShader.MaxRequests = (uint)maxRequestsPerFrame;
             compactShader.FrameStamp = frameStamp;
             compactShader.ScanOffset = scanOffset;
             compactShader.CompactMode = 1u;
-            compactShader.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+            compactShader.Dispatch((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("MultiSlotCapture compact pass dispatch");
@@ -219,7 +217,6 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
 
             using var captureSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_CaptureWorkSSBO", (ReadOnlySpan<LumonSceneCaptureWorkGpu>)captureOut.AsSpan(0, captureCount));
 
-            using var captureComputeProgramScope = captureComputeProgram.UseScope();
             captureComputeProgram.BindCaptureWorkSsbo(captureSsbo);
             captureComputeProgram.BindPatchMetaSsbo(patchMetaSsbo);
             captureComputeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
@@ -234,7 +231,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
-            GL.DispatchCompute(gx, gy, captureCount);
+            captureComputeProgram.Dispatch(gx, gy, captureCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("MultiSlotCapture capture pass dispatch");

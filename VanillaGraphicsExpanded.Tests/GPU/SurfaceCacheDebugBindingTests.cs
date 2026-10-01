@@ -24,17 +24,21 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     {
         EnsureContextValid();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(resource == 2 ? LumOnDebugMode.LumonSceneMaterial : LumOnDebugMode.LumonSceneIrradiance));
-        using var active = program.UseScope();
         using var texture = Texture3D.Create(2, 2, 2, format, textureTarget: TextureTarget.Texture2DArray);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var sentinel = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
+        program.PrimaryDepth = sentinel.TextureId;
+        program.GBufferNormal = sentinel.TextureId;
+        UpdateAndBindLumOnFrameUbo(program);
         sentinel.Bind(unit);
         Set(texture);
+        using var active = program.UseScope();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         GlStateCache.Current.ActiveTexture(unit);
         Assert.Equal(texture.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
         Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
         Set(null);
+        program.Use();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         GlStateCache.Current.ActiveTexture(unit);
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
@@ -57,7 +61,6 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.LumonSceneIrradiance));
-        using var active = program.UseScope();
 
         {
             using var patch = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);

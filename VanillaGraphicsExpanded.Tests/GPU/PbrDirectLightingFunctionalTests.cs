@@ -452,11 +452,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.ClearColor(0f, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        using var use = programId.UseScope();
 
         // Samplers
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
         programId.GBufferEnvironment = environment.TextureId;
+        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
+        programId.GBufferPosition = position.TextureId;
         programId.PrimaryScene = primaryScene.TextureId;
         programId.PrimaryDepth = primaryDepth.TextureId;
         programId.GBufferNormal = gBufferNormal.TextureId;
@@ -531,9 +532,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.ClearColor(0f, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        using var use = programId.UseScope();
 
         programId.DirectDiffuse = directDiffuse;
+        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
+        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
+        programId.GBufferPosition = position.TextureId;
+        programId.GBufferEnvironment = environment.TextureId;
         programId.DirectSpecular = directSpecular;
         programId.Emissive = emissive;
         programId.IndirectDiffuse = indirectDiffuse;

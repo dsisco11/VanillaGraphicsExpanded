@@ -44,10 +44,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
 public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasTraceShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     #region Shader options
@@ -99,7 +95,16 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
 
     protected override GpuProgramLayout CreateLayout() => new LumOnScreenProbeAtlasTraceProgramLayout();
 
-    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
+    /// <summary>Exposes retained parameters with an owner mutation guard.</summary>
+    private LumOnProbeParamsUbo Params
+    {
+        get
+        {
+            var parameters = paramsUbo ??= new LumOnProbeParamsUbo();
+            parameters.SetWriteGuard(RequireInputMutation);
+            return parameters;
+        }
+    }
 
     #region Diagnostic Controls
 
@@ -111,7 +116,6 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
         set
         {
             Params.SuppressWorldProbeRadiance = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -131,7 +135,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
 
     #endregion
 
-    #region Product Importance Sampling Defines (Phase 10)
+    #region Product Importance Sampling Defines
 
     /// <summary>Updates the importance-sampling switches consumed by this pass.</summary>
     public bool EnsureProbePisDefines(
@@ -153,48 +157,48 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid) - stored in world-space.
     /// </summary>
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 0); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
 
     /// <summary>
     /// Probe anchor normals (normalWS.xyz, reserved) - stored in world-space.
     /// </summary>
-    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 1); }
+    public partial GpuTexture? ProbeAnchorNormal { set; }
 
     /// <summary>
     /// Primary depth texture for ray marching.
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 2, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
 
     /// <summary>
     /// LumOn-owned captured surface albedo.
     /// </summary>
-    public GpuTexture? SurfaceAlbedo { set => BindTexture2D("surfaceAlbedo", value, 3); }
+    public partial GpuTexture? SurfaceAlbedo { set; }
 
     /// <summary>
     /// VGE material properties used to derive emissive radiance at ray hits.
     /// </summary>
-    public int GBufferMaterial { set => BindExternalTexture2D("gBufferMaterial", value, 4, GpuSamplers.NearestClamp); }
+    public partial int GBufferMaterial { set; }
 
     /// <summary>
     /// History probe atlas (octahedral-mapped) for temporal preservation.
     /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 5); }
+    public partial GpuTexture? ScreenProbeAtlasHistory { set; }
 
     /// <summary>
     /// History probe-atlas meta (confidence + flags) for temporal preservation.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 7); }
+    public partial GpuTexture? ScreenProbeAtlasMetaHistory { set; }
 
     /// <summary>
     /// Probe-resolution trace mask (RG32F packed uint bits) selecting which atlas texels to trace.
     /// </summary>
-    public GpuTexture? ProbeTraceMask { set => BindTexture2D("probeTraceMask", value, 9); }
+    public partial GpuTexture? ProbeTraceMask { set; }
 
     /// <summary>
     /// Optional HZB depth pyramid (mipmapped R32F).
     /// </summary>
-    public GpuTexture? HzbDepth { set => BindTexture2D("hzbDepth", value, 6); }
+    public partial GpuTexture? HzbDepth { set; }
 
     #endregion
 
@@ -272,7 +276,6 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
         set
         {
             Params.IndirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -310,9 +313,17 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
         return !changed;
     }
 
-    public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 8); }
-    public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 11); }
-    public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 12); }
+    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
+    public partial GpuTexture? WorldProbeVis0 { set; }
+    public partial GpuTexture? WorldProbeMeta0 { set; }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies shared lighting storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasTraceShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies shared lighting storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasTraceShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    /// <summary>Supplies packed parameters for one publication per use.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasTraceShaderProgramBindings.Parameters => Params;
     #endregion
 }

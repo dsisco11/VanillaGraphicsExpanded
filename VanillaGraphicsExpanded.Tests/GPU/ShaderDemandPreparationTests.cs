@@ -32,6 +32,8 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         Assert.Empty(assets.RegisteredPrograms);
         var program = Assert.IsType<LumOnHzbCopyShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "lumon_hzb_copy"));
         Assert.Equal(0, program.ProgramId);
+        using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        program.PrimaryDepth = depth.TextureId;
         if (activation == 0)
         {
             Assert.True(program.TryUse());

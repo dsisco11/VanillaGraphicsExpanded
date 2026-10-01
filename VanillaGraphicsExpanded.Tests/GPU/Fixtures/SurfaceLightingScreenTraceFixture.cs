@@ -107,7 +107,6 @@ internal sealed class SurfaceLightingScreenTraceFixture : IDisposable
         work.UploadSubData<LumonSceneCaptureWorkGpu>(capture, 0, capture.Length << 4);
         Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api, out var shader, out string log), log);
         using (shader)
-        using (shader!.UseScope())
         {
             shader.BindSharedGeometry(geometry); shader.BindCaptureWorkSsbo(work);
             shader.BindPatchMetaSsbo(metadata); shader.BindChunkSlotInfoSsbo(slots);

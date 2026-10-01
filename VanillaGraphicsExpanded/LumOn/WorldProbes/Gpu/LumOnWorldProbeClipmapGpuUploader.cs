@@ -235,8 +235,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         {
             using (GlGpuProfiler.Instance.Scope(tileProg.PassName))
             {
-                tileProg.Use();
                 tileProg.AtlasSize = new Vec2f(resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
+                tileProg.Use();
 
                 using var vaoScope = tileVao.BindScope();
 
@@ -256,8 +256,8 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         // Pass 2: per-probe scalars -> vis/dist/meta atlases
         using (GlGpuProfiler.Instance.Scope(probeProg.PassName))
         {
-            probeProg.Use();
             probeProg.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
+            probeProg.Use();
 
             using (var vaoScope = probeVao.BindScope())
             {

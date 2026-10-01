@@ -716,10 +716,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
 
         var cpu = new HeightBakeParamsUboCpu();
-        using (cpu.BeginBatchUpdate())
-        {
-            configure(cpu);
-        }
+        configure(cpu);
 
         paramsUbo.UploadAndBind(cpu.Bytes);
     }
@@ -746,10 +743,11 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         GpuFramebuffer.Unbind();
     }
 
+    /// <summary>Executes one Gaussian axis using the production block's 64-weight capacity.</summary>
     private void RunGaussian1D(DynamicTexture2D src, DynamicTexture2D dst, int programId, float sigma, bool dirX)
     {
         int radius = (int)Math.Ceiling(3.0 * sigma);
-        radius = Math.Clamp(radius, 0, 64);
+        radius = Math.Clamp(radius, 0, 63);
 
         float[] weights = BuildGaussianWeights(sigma);
 
@@ -763,15 +761,16 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 cpu.CommonSize = (dst.Width, dst.Height);
                 cpu.GaussianDirection = (dirX ? 1 : 0, dirX ? 0 : 1);
                 cpu.GaussianParams = (radius: radius, relContrast: 0);
-                cpu.SetKernelWeights(weights, count: 65);
+                cpu.SetKernelWeights(weights, count: 64);
             });
         });
     }
 
+    /// <summary>Normalizes the symmetric kernel within the production uniform block's fixed capacity.</summary>
     private static float[] BuildGaussianWeights(float sigma)
     {
-        // weights[0..64]
-        float[] w = new float[65];
+        // The production block holds weights[0..63].
+        float[] w = new float[64];
 
         if (sigma <= 0f)
         {
@@ -782,7 +781,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         float twoSigma2 = 2f * sigma * sigma;
 
         double sum = 0;
-        for (int i = 0; i <= 64; i++)
+        for (int i = 0; i <= 63; i++)
         {
             double x = i;
             double v = Math.Exp(-(x * x) / twoSigma2);
@@ -791,7 +790,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         }
 
         float inv = sum > 0 ? (float)(1.0 / sum) : 1f;
-        for (int i = 0; i <= 64; i++)
+        for (int i = 0; i <= 63; i++)
         {
             w[i] *= inv;
         }

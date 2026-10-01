@@ -50,7 +50,6 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
         GL.Viewport(0, 0, w, h);
-        using var copyUse = copyProg.UseScope();
         copyProg.PrimaryDepth = primaryDepth.TextureId;
         TestFramework.RenderQuad(copyProg);
 
@@ -66,7 +65,6 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             GL.Viewport(0, 0, dstW, dstH);
 
-            using var downUse = downProg.UseScope();
             downProg.HzbDepth = hzb;
             downProg.SrcMip = srcMip;
 
@@ -129,6 +127,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var primaryDepth = TestFramework.CreateTexture(screenW, screenH, PixelInternalFormat.R32f, depthData);
         using var primaryColor = TestFramework.CreateTexture(screenW, screenH, PixelInternalFormat.Rgba16f, colorData);
+        using var material = TestFramework.CreateTexture(screenW, screenH, PixelInternalFormat.Rgba16f, new float[screenW * screenH * 4]);
 
         // Match existing test conventions: 2x2 probes, 16x16 atlas.
         var anchorPosData = CreateValidProbeAnchors();
@@ -138,6 +137,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         using var probePos = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
         using var probeNorm = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
         using var history = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
+        using var metaHistory = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, new float[AtlasWidth * AtlasHeight * 2]);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f);
 
@@ -169,7 +169,6 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
         GL.Viewport(0, 0, screenW, screenH);
-        using var copyUse = copyProg.UseScope();
         copyProg.PrimaryDepth = primaryDepth.TextureId;
         TestFramework.RenderQuad(copyProg);
 
@@ -179,11 +178,12 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] invView = LumOnTestInputFactory.CreateIdentityView();
 
         // Render with coarse mip 0
-        using var progMip0Use = progMip0.UseScope();
             progMip0.ProbeAnchorPosition = probePos;
             progMip0.ProbeAnchorNormal = probeNorm;
             progMip0.PrimaryDepth = primaryDepth.TextureId;
             progMip0.SurfaceAlbedo = primaryColor;
+            progMip0.GBufferMaterial = material.TextureId;
+            progMip0.ScreenProbeAtlasMetaHistory = metaHistory;
             progMip0.ScreenProbeAtlasHistory = history;
             progMip0.HzbDepth = hzb;
             progMip0.IndirectTint = new(1,1,1);
@@ -205,11 +205,12 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] outCoarse;
         if (hzb.MipLevels > 1)
         {
-            using var progMip1Use = progMip1.UseScope();
             progMip1.ProbeAnchorPosition = probePos;
             progMip1.ProbeAnchorNormal = probeNorm;
             progMip1.PrimaryDepth = primaryDepth.TextureId;
             progMip1.SurfaceAlbedo = primaryColor;
+            progMip1.GBufferMaterial = material.TextureId;
+            progMip1.ScreenProbeAtlasMetaHistory = metaHistory;
             progMip1.ScreenProbeAtlasHistory = history;
             progMip1.HzbDepth = hzb;
             progMip1.IndirectTint = new(1,1,1);

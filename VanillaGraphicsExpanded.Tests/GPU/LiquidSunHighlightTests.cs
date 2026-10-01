@@ -24,7 +24,7 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
-        using var active = program.UseScope();
+
         const int size = 512;
         using var target = CreateMRTRenderTarget(size, size,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
@@ -41,6 +41,8 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         program.TerrainTexture = terrain.TextureId;
         program.MaterialParamsTexture = material.TextureId;
         program.DepthTexture = depth.TextureId;
+        program.ShadowMapNear = depth.TextureId;
+        program.ShadowMapFar = depth.TextureId;
         program.AerialRadianceTexture = aerial.TextureId;
         program.AerialAttenuationTexture = aerial.TextureId;
         program.ShadowRanges = Vector4.Zero;
@@ -102,7 +104,8 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         float Draw(float pitch, out float sunY)
         {
             var view = Matrix4x4.CreateRotationX(-pitch*MathF.PI/180);
-            program.ModelViewMatrix = Flatten(view); program.ApplyInputs();
+            program.ModelViewMatrix = Flatten(view);
+            using var active = program.UseScope();
             var sun = Vector4.Transform(new Vector4(0,1,-5,0), view*projection); sunY=sun.Y/sun.W;
             var receiver = Vector4.Transform(new Vector4(0,-1,-5,1),view*projection);
             int x=(int)((receiver.X/receiver.W*.5f+.5f)*size), y=(int)((receiver.Y/receiver.W*.5f+.5f)*size);

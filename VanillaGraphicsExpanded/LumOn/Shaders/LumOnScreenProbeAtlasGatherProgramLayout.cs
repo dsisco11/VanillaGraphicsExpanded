@@ -9,6 +9,6 @@ internal sealed class LumOnScreenProbeAtlasGatherProgramLayout : GpuProgramLayou
     public LumOnScreenProbeAtlasGatherProgramLayout()
     {
         RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_atlas_gather"));
-        NearFieldVisibility = new LumOnNearFieldVisibilityBindings(this);
+        NearFieldVisibility = new LumOnNearFieldVisibilityBindings();
     }
 }

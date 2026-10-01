@@ -9,6 +9,8 @@ public sealed class RuntimeSubmissionTests
             public class GpuTexture { }
             public class CpuUniformBuffer { }
             public class GpuShaderStorageBuffer { }
+            public class GpuAtomicCounterBuffer { }
+            public struct GpuStorageBufferBinding { }
             public struct GpuTextureBinding { }
             public static class ShaderBindingSubmission
             {
@@ -24,6 +26,14 @@ public sealed class RuntimeSubmissionTests
                 public static void ValidateStorageBlock(params object[] args) { Calls += "validate-storage;"; }
                 public static void Image(params object[] args) { Calls += "image;"; }
                 public static void StorageBlock(params object[] args) { Calls += "storage;"; }
+                public static void ValidateAtomicCounter(params object[] args) { Calls += "validate-counter;"; }
+                public static void AtomicCounter(params object[] args) { Calls += "counter;"; }
+            }
+            public abstract class GpuComputeShader
+            {
+                protected abstract void Submit();
+                protected void RequireInputMutation() { }
+                public void Dispatch() { Submit(); }
             }
         }
         namespace VanillaGraphicsExpanded.Rendering.Shaders
@@ -43,6 +53,41 @@ public sealed class RuntimeSubmissionTests
         """;
 
     #region Public API
+    /// <summary>Compute owners retain storage ranges and atomic counters and publish them at every dispatch.</summary>
+    [Fact]
+    public void ComputeRangeAndCounterAssignmentsPublishOnlyAtDispatch()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("Work", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding Work { set; }
+                [ShaderBinding("Count", ShaderBindingKind.AtomicCounter, 0, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.GpuAtomicCounterBuffer Count { set; }
+            }
+            [ShaderProgram("Contract", "example", 1)]
+            [ShaderStage("Contract", ShaderStageKind.Compute, "example.csh")]
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.GpuComputeShader, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader();
+                    shader.Work = new(); shader.Count = new();
+                    string before = VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    shader.Dispatch(); shader.Dispatch();
+                    return before + "|" + VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                }
+            }
+            """;
+        var result = GeneratorFixture.Generate(source, supportSource: Support);
+        string calls = result.Run();
+        Assert.StartsWith("|", calls);
+        Assert.Equal(2, calls.Split(';').Count(call => call == "counter"));
+        Assert.Equal(2, calls.Split(';').Count(call => call == "storage"));
+        Assert.True(calls.IndexOf("validate-counter;", StringComparison.Ordinal) < calls.IndexOf(";storage;", StringComparison.Ordinal));
+    }
+
     /// <summary>Declared enum policies retain their actual values in generated runtime publication.</summary>
     [Theory]
     [InlineData("Texture1D")]

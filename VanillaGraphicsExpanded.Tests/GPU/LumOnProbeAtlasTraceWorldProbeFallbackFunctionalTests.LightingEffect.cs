@@ -16,7 +16,6 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
         float[] normal, float[] suppressed, bool expectLighting)
     {
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.WorldProbeLightingEffect));
-        using var use = program.UseScope();
         {
             // Borrow simultaneous gather outputs directly; no upload copies or duplicate lighting managers.
             program.DebugMode = 43;

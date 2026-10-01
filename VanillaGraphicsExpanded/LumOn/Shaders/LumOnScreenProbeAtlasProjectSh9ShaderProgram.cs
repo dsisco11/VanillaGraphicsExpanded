@@ -18,10 +18,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_project_sh9.fsh")]
 public partial class LumOnScreenProbeAtlasProjectSh9ShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasProjectSh9ShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -51,19 +47,25 @@ public partial class LumOnScreenProbeAtlasProjectSh9ShaderProgram : LumOnShaderP
     /// <summary>
     /// Input stabilized/filtered probe atlas (RGB radiance, A hit distance).
     /// </summary>
-    public GpuTexture? ScreenProbeAtlas { set => BindTexture2D("octahedralAtlas", value, 0); }
+    public partial GpuTexture? ScreenProbeAtlas { set; }
 
     /// <summary>
     /// Input stabilized/filtered probe-atlas meta (confidence + flags).
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasMeta { set => BindTexture2D("probeAtlasMeta", value, 1); }
+    public partial GpuTexture? ScreenProbeAtlasMeta { set; }
 
     /// <summary>
     /// Probe anchor positions for validity checks.
     /// </summary>
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
 
     #endregion
 
     // Per-frame state (probeGridSize) is provided via LumOnFrameUBO.
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasProjectSh9ShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasProjectSh9ShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    #endregion
 }

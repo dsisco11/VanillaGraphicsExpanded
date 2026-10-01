@@ -100,7 +100,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
     /// <summary>Uses the filter's production parameter setters and frame binding.</summary>
     private void SetupUniforms(LumOnScreenProbeAtlasFilterShaderProgram programId, int filterRadius, float hitDistanceSigma)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId);
         programId.FilterRadius = filterRadius;
         programId.HitDistanceSigma = hitDistanceSigma;
@@ -137,7 +136,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
         var programId = CompileProbeAtlasFilterShader();
 
-        using var programUse = programId.UseScope();
         SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1.0f);
 
         programId.ScreenProbeAtlas = atlasTex;
@@ -185,7 +183,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
         var programId = CompileProbeAtlasFilterShader();
 
-        using var programUse = programId.UseScope();
         // Large sigma so hit distance does not reject; this isolates confidence weighting.
         SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
 
@@ -238,7 +235,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
             var programId = CompileProbeAtlasFilterShader();
 
-            using var programUse = programId.UseScope();
             SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 1000.0f);
 
             programId.ScreenProbeAtlas = atlasTex;
@@ -272,7 +268,6 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
             var programId = CompileProbeAtlasFilterShader();
 
-            using var programUse = programId.UseScope();
             // Small sigma => strong edge stop on large hit-distance delta.
             SetupUniforms(programId, filterRadius: 1, hitDistanceSigma: 0.05f);
 

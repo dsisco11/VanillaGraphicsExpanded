@@ -26,7 +26,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.CaptureMode = 1;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
-        Assert.True(program.TryUse());
+
         const int size = 256;
         using var target = CreateRenderTarget(size, size, PixelInternalFormat.Rgba8);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -41,6 +41,8 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.TerrainTexture = terrain.TextureId;
         program.MaterialParamsTexture = material.TextureId;
         program.DepthTexture = depth.TextureId;
+        program.ShadowMapNear = depth.TextureId;
+        program.ShadowMapFar = depth.TextureId;
         program.AerialRadianceTexture = aerial.TextureId;
         program.AerialAttenuationTexture = aerial.TextureId;
         program.ShadowRanges = Vector4.Zero;
@@ -58,7 +60,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.ProjectionMatrix = Flatten(projection);
         var view = Matrix4x4.CreateRotationX(18 * MathF.PI / 180);
         program.ModelViewMatrix = Flatten(view);
-        program.ApplyInputs();
+
 
         var state = GlStateCache.Current;
         using var fixedFunction = state.CaptureLegacyFixedFunctionState();
@@ -131,11 +133,14 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         {
             program.CaptureMode = 1;
             Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
-            Assert.True(program.TryUse(), "Could not use the precompiled specular capture variant.");
+
             program.TerrainTexture = terrain.TextureId;
             program.MaterialParamsTexture = material.TextureId;
             program.DepthTexture = depth.TextureId;
-            program.ApplyInputs();
+            program.ShadowMapNear = depth.TextureId;
+            program.ShadowMapFar = depth.TextureId;
+
+            Assert.True(program.TryUse(), "Could not use the configured capture variant.");
             state.Apply(liquidPipeline);
             indices.UploadIndices(topology);
             target.BindWithViewport();
@@ -151,7 +156,6 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                 program.CaptureMode = 2;
                 Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
                 Assert.True(program.TryUse(), "Could not use the precompiled wire capture variant.");
-                program.ApplyInputs();
                 state.Apply(liquidPipeline);
                 target.BindWithViewport();
                 GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);

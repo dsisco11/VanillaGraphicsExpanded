@@ -98,8 +98,8 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var first = programs.Create<LumOnVelocityShaderProgram>();
-        var second = programs.Create<LumOnVelocityShaderProgram>();
+        var first = programs.Create<CountingShader>();
+        var second = programs.Create<CountingShader>();
         using (first.UseScope())
         {
             AssertActive(first);
@@ -122,8 +122,8 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var raw = programs.Create<LumOnVelocityShaderProgram>();
-        var nested = programs.Create<LumOnVelocityShaderProgram>();
+        var raw = programs.Create<CountingShader>();
+        var nested = programs.Create<CountingShader>();
         // Deliberate low-level precondition: external callers can own a GL-only binding.
         GlStateCache.Current.UseProgram(raw.ProgramId);
         using (nested.UseScope()) AssertActive(nested);

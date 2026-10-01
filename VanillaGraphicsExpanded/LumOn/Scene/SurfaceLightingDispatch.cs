@@ -13,9 +13,9 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// <summary>Executes one bounded lighting operation with disjoint previous and next radiance storage.</summary>
 internal sealed class SurfaceLightingDispatch : IDisposable
 {
-    private readonly GpuComputePipeline pipeline;
-    private readonly TraceGeometryComputeBindings geometry = new();
-    private readonly GpuUniformBuffer parameters = GpuUniformBuffer.Create(debugName: "SurfaceLighting.Parameters");
+    private readonly LumonSceneSurfaceLightingShader pipeline;
+
+    private readonly PackedUniformBuffer parameters = new(144);
     private readonly byte[] bytes = new byte[144];
     private readonly GpuShaderStorageBuffer disabledFallback = GpuShaderStorageBuffer.Create(debugName: "SurfaceLighting.DisabledFallback");
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
@@ -27,7 +27,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
         if (!GpuComputePipeline.TryCreateFromAssets(api, LumonSceneSurfaceLightingShader.Contract.Identity,
             out var created, out _, out string log, preferSpirv: true))
             throw new InvalidOperationException(log);
-        pipeline = created!;
+        pipeline = new(created!);
         disabledFallback.EnsureCapacity(SurfaceHitCaptureCodec.HeaderBytes, growExponentially:false);
         disabledFallback.UploadSubData<uint>(new uint[SurfaceHitCaptureCodec.HeaderBytes >> 2],0,SurfaceHitCaptureCodec.HeaderBytes);
     }
@@ -59,23 +59,23 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             UboPacking.WriteVec4(bytes, 96, environment.X, environment.Y, environment.Z, 0f);
             UboPacking.WriteVec4(bytes, 112, solar.X, solar.Y, solar.Z, 0f);
             UboPacking.WriteVec4(bytes, 128, sun.X, sun.Y, sun.Z, 0f);
-            using var program = pipeline.UseScope();
-            parameters.UploadOrResize(bytes, growExponentially: false);
-            parameters.BindBase(GpuBindingRegistry.Ubo.Lights);
-            geometry.Bind(scene);
-            work.BindBase(0); input.Patches.BindBase(1); input.Slots.BindBase(2); input.Readiness.BindBase(3);
-            (fallbackRequests ?? disabledFallback).BindBase(5);
-            (fallbackCommits ?? disabledFallback).BindBase(6);
-            (hitRetries ?? disabledFallback).BindBase(7);
-            input.Material.Bind(16); input.OutgoingRadiance.Bind(17);
-            scene.LightColors.Bind(3); scene.BlockLevels.Bind(4); scene.SunLevels.Bind(5);
-            input.PageTable.Bind(18); scene.Surfaces.Bind(7);
-            for (int unit = 16; unit <= 18; unit++) GpuSamplers.NearestClamp.Bind(unit);
-            for (int unit = 1; unit <= 7; unit++) GpuSamplers.NearestClamp.Bind(unit);
-            input.IndirectIrradiance.BindImageUnit(0, TextureAccess.ReadWrite, layered: true, format: SizedInternalFormat.Rgba16f);
-            input.DirectIrradiance.BindImageUnit(1, TextureAccess.ReadWrite, layered: true, format: SizedInternalFormat.Rgba16f);
-            destination.BindImageUnit(2, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
-            GL.DispatchCompute((input.TileSize + 7) / 8, (input.TileSize + 7) / 8, count);
+            parameters.SetBytes(bytes);
+            pipeline.SurfaceLightingParameters = parameters;
+            pipeline.BindSharedGeometry(scene);
+            pipeline.SurfaceWork = work;
+            pipeline.SurfacePatches = input.Patches; pipeline.SurfaceSlots = input.Slots; pipeline.SurfaceReady = input.Readiness;
+            pipeline.SurfaceFallbackRequests = fallbackRequests ?? disabledFallback;
+            pipeline.SurfaceFallbackCommits = fallbackCommits ?? disabledFallback;
+            pipeline.SurfaceHitRetries = hitRetries ?? disabledFallback;
+            pipeline.CapturedMaterial = input.Material; pipeline.PreviousOutgoing = input.OutgoingRadiance;
+            pipeline.SurfacePages = input.PageTable;
+            pipeline.LightColors = scene.LightColors; pipeline.BlockLevels = scene.BlockLevels;
+            pipeline.SunLevels = scene.SunLevels; pipeline.Surfaces = scene.Surfaces;
+            pipeline.IndirectIrradiance = new(input.IndirectIrradiance, TextureAccess.ReadWrite, Layered: true, Format: SizedInternalFormat.Rgba16f);
+            pipeline.DirectIrradiance = new(input.DirectIrradiance, TextureAccess.ReadWrite, Layered: true, Format: SizedInternalFormat.Rgba16f);
+            pipeline.NextOutgoing = new(destination, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
+            pipeline.DiagnosticCounters = Diagnostics.ActiveBuffer;
+            pipeline.Dispatch((input.TileSize + 7) / 8, (input.TileSize + 7) / 8, count);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit |
                 MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
         }
@@ -85,6 +85,6 @@ internal sealed class SurfaceLightingDispatch : IDisposable
 
     #region Lifetime
     /// <summary>Releases the program and per-dispatch parameters on the owning render context.</summary>
-    public void Dispose() { Diagnostics.Dispose(); pipeline.Dispose(); parameters.Dispose(); geometry.Dispose(); disabledFallback.Dispose(); }
+    public void Dispose() { Diagnostics.Dispose(); pipeline.Dispose(); parameters.Dispose(); disabledFallback.Dispose(); }
     #endregion
 }

@@ -12,21 +12,21 @@ internal sealed partial class LiquidShaderProgram
     bool IShaderProgram.HasUniform(string name)
         => name is "origin" or "modelViewMatrix" or "forcedTransparency" || HasUniform(name);
 
-    /// <summary>Copies the next pool's origin and binds its snapshot before submission.</summary>
+    /// <summary>Retains the next pool origin for pre-draw submission.</summary>
     void IShaderProgram.Uniform(string name, Vec3f value)
     {
         if (name != "origin") { Uniform(name, value); return; }
         Origin = new Vector3(value.X, value.Y, value.Z);
     }
 
-    /// <summary>Publishes mini-dimension transforms, including the engine's restoration write.</summary>
+    /// <summary>Retains mini-dimension transforms, including the engine's restoration write.</summary>
     void IShaderProgram.UniformMatrix(string name, float[] value)
     {
         if (name != "modelViewMatrix") { UniformMatrix(name, value); return; }
         ModelViewMatrix = value;
     }
 
-    /// <summary>Publishes preview transparency independently of origin and transform.</summary>
+    /// <summary>Retains preview transparency independently of origin and transform.</summary>
     void IShaderProgram.Uniform(string name, float value)
     {
         if (name != "forcedTransparency") { Uniform(name, value); return; }

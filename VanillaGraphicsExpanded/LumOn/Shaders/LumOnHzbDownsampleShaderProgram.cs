@@ -17,10 +17,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_hzb_downsample.fsh")]
 public sealed partial class LumOnHzbDownsampleShaderProgram : GpuProgram, ILumOnHzbDownsampleShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -33,7 +29,19 @@ public sealed partial class LumOnHzbDownsampleShaderProgram : GpuProgram, ILumOn
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
-    private LumOnHzbDownsampleParamsUbo Params => paramsUbo ??= new LumOnHzbDownsampleParamsUbo();
+    /// <summary>Owns packed parameters and rejects writes during publication.</summary>
+    private LumOnHzbDownsampleParamsUbo Params
+    {
+        get
+        {
+            if (paramsUbo is null)
+            {
+                paramsUbo = new LumOnHzbDownsampleParamsUbo();
+                paramsUbo.SetWriteGuard(RequireInputMutation);
+            }
+            return paramsUbo;
+        }
+    }
 
     public static void Register(ICoreClientAPI api)
     {
@@ -48,7 +56,7 @@ public sealed partial class LumOnHzbDownsampleShaderProgram : GpuProgram, ILumOn
     /// <summary>
     /// HZB depth texture (mipmapped R32F).
     /// </summary>
-    public GpuTexture? HzbDepth { set => BindTexture2D("hzbDepth", value, 0); }
+    public partial GpuTexture? HzbDepth { set; }
 
     /// <summary>
     /// Source mip level to read from.
@@ -58,7 +66,10 @@ public sealed partial class LumOnHzbDownsampleShaderProgram : GpuProgram, ILumOn
         set
         {
             Params.SrcMip = value;
-            Params.BindTo(this, LumOnHzbDownsampleParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
+    #region Binding sources
+    /// <summary>Supplies the retained CPU block for one publication per use.</summary>
+    CpuUniformBuffer ILumOnHzbDownsampleShaderProgramBindings.Parameters => Params;
+    #endregion
 }

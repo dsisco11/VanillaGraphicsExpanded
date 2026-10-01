@@ -13,21 +13,14 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_feedback_gather", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_feedback_gather.csh")]
-internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposable, ILumonSceneFeedbackGatherComputeShaderBindings
+internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuComputeShader, ILumonSceneFeedbackGatherComputeShaderBindings
 {
 
     public static string ShaderName => Contract.Identity;
-
-    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
     private const int ParamsUboSizeBytes = 32; // uvec4 + uvec4
 
-    private const int PatchIdGBufferSamplerUnit = 0; // layout(binding=0)
-
-    private const int PageRequestCountBindingIndex = 0; // layout(binding=0, offset=0)
-    private const int PageRequestsSsboBindingIndex = 0; // layout(std430, binding=0)
-
     private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private GpuUniformBuffer? paramsUbo;
+    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
     private uint maxRequests;
     private uint frameIndex;
@@ -35,28 +28,8 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposabl
     private uint screenWidth;
     private uint screenHeight;
 
-    private readonly GpuComputePipeline pipeline;
-
-    public int ProgramId => pipeline.ProgramId;
-
-    public bool IsValid => pipeline.IsValid;
-
-    private LumonSceneFeedbackGatherComputeShader(GpuComputePipeline pipeline)
-    {
-        this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-
-        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.FeedbackGather.ParamsUBO");
-    }
-
-    private void ApplyParamsUbo()
-    {
-        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.FeedbackGather.ParamsUBO");
-        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, frameIndex, sampleCount, 0u);
-        UboPacking.WriteUVec4(paramsBytes, 16, screenWidth, screenHeight, 0u, 0u);
-        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
-        paramsUbo.BindBase(ParamsUboBinding);
-    }
-
+    #region Public API
+    /// <summary>Creates the executable before adopting its retained input owner.</summary>
     public static bool TryCreate(
         ICoreAPI api,
         out LumonSceneFeedbackGatherComputeShader? shader,
@@ -92,34 +65,25 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposabl
         return true;
     }
 
-    public IDisposable UseScope() => pipeline.UseScope();
-
-    public void Use() => pipeline.Use();
-
+    /// <summary>Retains PatchIdGBuffer for the next dispatch submission.</summary>
     public void BindPatchIdGBuffer(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: PatchIdGBufferSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: PatchIdGBufferSamplerUnit);
-    }
+    { PatchIdG = textureId; }
 
+    /// <summary>Retains RequestCounter for the next dispatch submission.</summary>
     public void BindRequestCounter(GpuAtomicCounterBuffer counter)
-    {
-        if (counter is null) throw new ArgumentNullException(nameof(counter));
-        counter.BindBase(PageRequestCountBindingIndex);
-    }
+    { RequestCounter = counter; }
 
+    /// <summary>Retains RequestsSsbo for the next dispatch submission.</summary>
     public void BindRequestsSsbo(GpuShaderStorageBuffer ssbo)
-    {
-        if (ssbo is null) throw new ArgumentNullException(nameof(ssbo));
-        ssbo.BindBase(PageRequestsSsboBindingIndex);
-    }
+    { PageRequests = ssbo; }
 
     public uint MaxRequests
     {
         set
         {
+            RequireInputMutation();
             maxRequests = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
@@ -127,38 +91,48 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : IDisposabl
     {
         set
         {
+            RequireInputMutation();
             frameIndex = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
+    /// <summary>Stages ScreenSize without uploading partial parameters.</summary>
     public void SetScreenSize(uint width, uint height)
     {
+        RequireInputMutation();
         screenWidth = width;
         screenHeight = height;
-        ApplyParamsUbo();
+        StageParameters();
     }
 
     public uint SampleCount
     {
         set
         {
+            RequireInputMutation();
             sampleCount = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
-    public void Dispose()
+    /// <summary>Supplies retained packed dispatch parameters.</summary>
+    CpuUniformBuffer ILumonSceneFeedbackGatherComputeShaderBindings.Parameters => parameters;
+    #endregion
+
+    #region Private
+    /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
+    private LumonSceneFeedbackGatherComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        try
-        {
-            paramsUbo?.Dispose();
-            paramsUbo = null;
-            pipeline.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VGE] Exception disposing FeedbackGather compute shader: {ex}");
-        }
+        parameters.SetWriteGuard(RequireInputMutation);
     }
+
+    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
+    private void StageParameters()
+    {
+        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, frameIndex, sampleCount, 0u);
+        UboPacking.WriteUVec4(paramsBytes, 16, screenWidth, screenHeight, 0u, 0u);
+        parameters.SetBytes(paramsBytes);
+    }
+    #endregion
 }

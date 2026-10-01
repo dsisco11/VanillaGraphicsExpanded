@@ -11,7 +11,7 @@ internal interface ILumOnHzbDownsampleShaderProgramBindings
     #region Public API
     /// <summary>Declares the VgeLumOnHzbDownsampleParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnHzbDownsampleParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the hzbDepth Sampler slot.</summary>
     [ShaderBinding("hzbDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? HzbDepth { set; }

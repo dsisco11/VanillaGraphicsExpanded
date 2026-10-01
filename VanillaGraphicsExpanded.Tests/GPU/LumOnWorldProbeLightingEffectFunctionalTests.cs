@@ -33,7 +33,6 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.WorldProbeLightingEffect));
-        using var use = program.UseScope();
         {
             // Split signed differences into nonnegative HDR inputs.
             float[] positive = [Math.Max(red, 0), Math.Max(green, 0), Math.Max(blue, 0), 1];

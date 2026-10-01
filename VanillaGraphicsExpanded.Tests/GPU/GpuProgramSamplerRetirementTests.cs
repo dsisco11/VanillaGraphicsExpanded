@@ -24,16 +24,23 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         var program = programs.Create<PBRDirectLightingShaderProgram>();
-        using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var depth = Texture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var input = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var unrelated = GpuSampler.Create();
         unrelated.Bind(9);
         var harmony = new Harmony("VGE.Tests.SamplerRetirement");
         try
         {
             if (installHook) harmony.CreateClassProcessor(typeof(GpuProgramStopHook)).Patch();
-            program.Use();
+            program.PrimaryScene = input.TextureId;
+            program.PrimaryDepth = depth.TextureId;
+            program.GBufferPosition = input.TextureId;
+            program.GBufferEnvironment = input.TextureId;
+            program.GBufferNormal = input.TextureId;
+            program.GBufferMaterial = input.TextureId;
             program.ShadowMapNear = depth.TextureId;
             program.ShadowMapFar = depth.TextureId;
+            program.Use();
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 4, out int nearSampler);
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out int farSampler);
             Assert.NotEqual(0, nearSampler);

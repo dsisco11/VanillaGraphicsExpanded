@@ -75,7 +75,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var computeProgramScope = computeProgram.UseScope();
         using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
 
@@ -103,7 +102,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        computeProgram.DispatchBound(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 1)");
@@ -161,7 +160,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
-        using var computeProgramScope = computeProgram.UseScope();
         using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
@@ -187,7 +185,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        computeProgram.DispatchBound(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (atomic counter)");
@@ -241,7 +239,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var computeProgramScope = computeProgram.UseScope();
         using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
@@ -265,7 +262,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        computeProgram.DispatchBound(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 2)");
@@ -328,7 +325,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var computeProgramScope = computeProgram.UseScope();
         using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
@@ -357,7 +353,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
         computeProgram.SetRelightParams(0, commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
-        computeProgram.DispatchBound(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 3)");
@@ -366,7 +362,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
         computeProgram.SetRelightParams(1, commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
-        computeProgram.DispatchBound(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 4)");
@@ -433,7 +429,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
-        using var computeProgramScope = computeProgram.UseScope();
         using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
@@ -457,7 +452,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        computeProgram.DispatchBound(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 5)");
@@ -520,7 +515,6 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var computeProgramScope = computeProgram.UseScope();
         using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
@@ -543,7 +537,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         int gx = (tileSize + 7) / 8;
         int gy = (tileSize + 7) / 8;
-        computeProgram.DispatchBound(gx, gy, 1);
+        computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 6)");

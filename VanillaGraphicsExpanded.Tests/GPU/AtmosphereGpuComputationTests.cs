@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Collections.Immutable;
 using System.Reflection;
 using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
@@ -16,6 +17,32 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Numerical publication
+    /// <summary>Atmosphere's internal dispatches preserve the enclosing compute owner's storage binding.</summary>
+    [Fact]
+    public void CompletePublicationRestoresEnclosingComputeStorage()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
+        using var outer = loaded!;
+        using var texture = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
+        using var requests = GpuShaderStorageBuffer.Create();
+        requests.EnsureCapacity(64, growExponentially: false);
+        using var counter = new ComponentAtomicCounters(0, 1);
+        outer.BindPageUsageStamp(texture.TextureId);
+        outer.BindPageTableMip0(texture.TextureId);
+        outer.BindRequestsSsbo(requests);
+        outer.BindRequestCounter(counter.Buffer);
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        using var scope = outer.UseScope();
+        Complete(gpu, Vector3.UnitY, 0, 0);
+        // Observe the driver after the whole producer finishes, including its cleanup path.
+        Assert.Equal(outer.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+        GL.GetInteger(GetIndexedPName.ShaderStorageBufferBinding, 0, out int restored);
+        Assert.Equal(requests.BufferId, restored);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Every published sky sample and shared integral uses the same admitted physical inputs.</summary>
     [Theory]
     [InlineData(1f, 0f, 0f)]

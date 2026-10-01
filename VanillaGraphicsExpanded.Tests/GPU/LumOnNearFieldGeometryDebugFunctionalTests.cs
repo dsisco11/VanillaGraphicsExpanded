@@ -171,7 +171,6 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             }, identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.NearFieldGeometry));
             geometryProgram = program;
         }
-        using var use = program.UseScope();
         {
             // Perspective rays face -Z; a narrow frustum isolates the chosen voxel column.
             float[] inverseProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
@@ -183,7 +182,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverseProjection, invViewMatrix: inverseView,
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
             program.DebugMode = legacySelector;
-            program.NearFieldVisibility.Bind(program, scene?.Backend);
+            program.NearFieldVisibility.Stage(program, scene?.Backend);
             var output = geometryOutput ??= TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
             // RenderQuadTo clears every attachment before drawing, so reuse cannot retain old pixels.
             TestFramework.RenderQuadTo(program, output);

@@ -11,12 +11,12 @@ internal interface IAtmosphereComputeProgramsBindings
     #region Public API
     /// <summary>Declares the AtmosphereParameters StorageBlock slot.</summary>
     [ShaderBinding("AtmosphereParameters", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
-    ShaderStorageBlockBinding AtmosphereParameters { get; }
+    GpuShaderStorageBuffer? AtmosphereParameters { set; }
     /// <summary>Declares the AtmosphereScattering StorageBlock slot.</summary>
     [ShaderBinding("AtmosphereScattering", ShaderBindingKind.StorageBlock, 1, ShaderStageKind.Compute, Programs = new[] { "Scattering", "Sky" })]
-    ShaderStorageBlockBinding AtmosphereScattering { get; }
+    GpuShaderStorageBuffer? AtmosphereScattering { set; }
     /// <summary>Declares the AtmosphereOutput StorageBlock slot.</summary>
     [ShaderBinding("AtmosphereOutput", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute, Programs = new[] { "Sky", "Lighting" })]
-    ShaderStorageBlockBinding AtmosphereOutput { get; }
+    GpuShaderStorageBuffer? AtmosphereOutput { set; }
     #endregion
 }

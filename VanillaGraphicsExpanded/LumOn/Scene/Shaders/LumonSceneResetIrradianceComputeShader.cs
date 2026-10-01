@@ -8,6 +8,8 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_reset_irradiance.csh")]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal static partial class LumonSceneResetIrradianceComputeShader
+internal sealed partial class LumonSceneResetIrradianceComputeShader : GpuComputeShader, ILumonSceneResetIrradianceComputeShaderBindings
 {
+    /// <summary>Adopts the executable and its retained resource contract.</summary>
+    public LumonSceneResetIrradianceComputeShader(GpuComputePipeline pipeline) : base(pipeline) { }
 }

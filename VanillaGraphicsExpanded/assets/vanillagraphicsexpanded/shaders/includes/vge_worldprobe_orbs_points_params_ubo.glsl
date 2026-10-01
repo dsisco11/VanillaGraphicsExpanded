@@ -17,7 +17,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeWorldProbeOrbsPointsParamsUBO
     // worldOffset.xyz, pointSize.w
     vec4 worldOffset_pointSize;
 
-    // fadeNear.x, fadeFar.y, reserved.zw
+    // fadeNear.x, fadeFar.y, importanceColorMode.z, reserved.w
     vec4 fade0;
 } vgeWorldProbeOrbsPointsParams;
 
@@ -27,5 +27,6 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeWorldProbeOrbsPointsParamsUBO
 #define pointSize (vgeWorldProbeOrbsPointsParams.worldOffset_pointSize.w)
 #define fadeNear (vgeWorldProbeOrbsPointsParams.fade0.x)
 #define fadeFar (vgeWorldProbeOrbsPointsParams.fade0.y)
+#define importanceColorMode int(vgeWorldProbeOrbsPointsParams.fade0.z)
 
 #endif // VGE_WORLDPROBE_ORBS_POINTS_PARAMS_UBO_GLSL

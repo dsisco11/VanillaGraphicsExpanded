@@ -50,7 +50,6 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>loss)) };
         atmosphereOwner.Publish(snapshot);
         output.BindWithViewport();
-        using (program.UseScope())
         {
             program.DirectDiffuse = direct; program.DirectSpecular = specular; program.Emissive = emission;
             program.IndirectDiffuse = unused; program.GBufferAlbedo = unused.TextureId;

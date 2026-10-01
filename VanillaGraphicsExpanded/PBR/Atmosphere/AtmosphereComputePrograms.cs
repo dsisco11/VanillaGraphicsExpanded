@@ -10,7 +10,9 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 [ShaderStage("Sky", ShaderStageKind.Compute, "atmosphere_sky.csh")]
 [ShaderProgram("Lighting", "atmosphere_lighting", 1)]
 [ShaderStage("Lighting", ShaderStageKind.Compute, "atmosphere_lighting.csh")]
-[ShaderBindingSet(typeof(IAtmosphereComputeProgramsBindings))]
-internal static partial class AtmosphereComputePrograms
+
+internal sealed partial class AtmosphereComputePrograms : GpuComputeShader, IAtmosphereComputeProgramsBindings
 {
+    /// <summary>Adopts one linked atmosphere pass and its generated resource API.</summary>
+    public AtmosphereComputePrograms(GpuComputePipeline pipeline) : base(pipeline) { }
 }

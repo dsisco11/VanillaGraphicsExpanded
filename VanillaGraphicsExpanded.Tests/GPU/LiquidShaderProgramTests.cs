@@ -1,4 +1,5 @@
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -14,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Pool interface
-    /// <summary>Consecutive origin writes publish distinct GPU ranges and retain mini-dimension state.</summary>
+    /// <summary>Pool draw boundaries publish staged origin writes and retain prior mini-dimension snapshots.</summary>
     [Fact]
     public void PoolWritesPublishAndRestoreActualGpuParameters()
     {
@@ -24,6 +25,9 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var volume = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f);
+        AssignTextures(program, texture, volume);
         using var activation = program.UseScope();
         Assert.Same(program, Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
         IShaderProgram engine = (IShaderProgram)Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram;
@@ -38,9 +42,12 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         engine.UniformMatrix("modelViewMatrix", identity);
         engine.Uniform("forcedTransparency", .25f);
         engine.Uniform("origin", new Vec3f(1,2,3));
+        LiquidPoolSubmissionHook.Prefix();
         var first = ReadDraw(out int firstOffset, out int firstBuffer);
         Assert.Equal(new float[] {1,2,3,.25f}, first[16..]);
         engine.Uniform("origin", new Vec3f(-4,5,6));
+        Assert.Equal(first, ReadDraw(out _, out _));
+        LiquidPoolSubmissionHook.Prefix();
         var second = ReadDraw(out int secondOffset, out int secondBuffer);
         Assert.True(firstBuffer != secondBuffer || firstOffset != secondOffset);
         Assert.Equal(new float[] {-4,5,6,.25f}, second[16..]);
@@ -53,9 +60,11 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         }
         var moved = (float[])identity.Clone(); moved[12] = 7;
         engine.UniformMatrix("modelViewMatrix", moved);
+        LiquidPoolSubmissionHook.Prefix();
         Assert.Equal(7, ReadDraw(out _, out _)[12]);
         engine.UniformMatrix("modelViewMatrix", identity);
         engine.Uniform("forcedTransparency", 0f);
+        LiquidPoolSubmissionHook.Prefix();
         var restored = ReadDraw(out _, out _);
         Assert.Equal(identity, restored[..16]);
         Assert.Equal(0, restored[19]);
@@ -73,7 +82,6 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         using var assets = new BinaryShaderApiFixture();
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
-        using var activation = program.UseScope();
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         using var material = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
@@ -104,6 +112,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
             program.AerialRadianceTexture = radiance.TextureId;
             program.AerialAttenuationTexture = attenuation.TextureId;
         }
+        using var activation = program.UseScope();
         int[] images = [terrain.TextureId, depth.TextureId, material.TextureId, near.TextureId, far.TextureId, radiance.TextureId, attenuation.TextureId];
         int[] samplers = [0, GpuSamplers.NearestClamp.SamplerId, GpuSamplers.NearestClamp.SamplerId,
             GpuSamplers.ShadowCompareLinearClamp.SamplerId, GpuSamplers.ShadowCompareLinearClamp.SamplerId, 0, 0];
@@ -122,7 +131,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
 
     /// <summary>Staged typed frame fields reach GPU memory only at the explicit publication boundary.</summary>
     [Fact]
-    public void ApplyInputsPublishesTypedFrameFields()
+    public void UsePublishesTypedFrameFields()
     {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
@@ -130,12 +139,14 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
-        using var activation = program.UseScope();
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var volume = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f);
+        AssignTextures(program, texture, volume);
         program.Animation = new(1, 2, 3, 4);
         program.SetCounts(2, 1);
         program.SetPointLightPosition(1, new(5, 6, 7));
         program.SetFogSphereComponent(23, .75f);
-        program.ApplyInputs();
+        using var activation = program.UseScope();
         GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
         GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
         Assert.NotEqual(0, buffer);
@@ -159,8 +170,21 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
             harmony.CreateClassProcessor(typeof(VanillaGraphicsExpanded.HarmonyPatches.TerrainAtlasDrawBindingHook)).Patch();
             harmony.CreateClassProcessor(typeof(VanillaGraphicsExpanded.HarmonyPatches.LiquidRenderHooks)).Patch();
             harmony.CreateClassProcessor(typeof(VanillaGraphicsExpanded.HarmonyPatches.LiquidMeshSourceHook)).Patch();
+            harmony.CreateClassProcessor(typeof(LiquidPoolSubmissionHook)).Patch();
         }
         finally { harmony.UnpatchAll(harmony.Id); }
+    }
+
+    /// <summary>Supplies required borrowed textures for buffer-only tests that issue no draw.</summary>
+    private static void AssignTextures(LiquidShaderProgram program, GpuTexture texture, GpuTexture volume)
+    {
+        program.TerrainTexture = texture.TextureId;
+        program.DepthTexture = texture.TextureId;
+        program.MaterialParamsTexture = texture.TextureId;
+        program.ShadowMapNear = texture.TextureId;
+        program.ShadowMapFar = texture.TextureId;
+        program.AerialRadianceTexture = volume.TextureId;
+        program.AerialAttenuationTexture = volume.TextureId;
     }
 
     /// <summary>Reads the GPU-bound range rather than the program's CPU staging storage.</summary>

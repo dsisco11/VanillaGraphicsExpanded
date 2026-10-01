@@ -101,7 +101,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     /// <summary>Configures the production shader for controlled coefficient inputs.</summary>
     private void SetupProjectUniforms(LumOnScreenProbeAtlasProjectSHShaderProgram programId, float[] viewMatrix)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId, viewMatrix: viewMatrix);
     }
 
@@ -147,7 +146,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     /// <summary>Configures the production shader for controlled coefficient inputs.</summary>
     private void SetupAtlasGatherUniforms(LumOnScreenProbeAtlasGatherShaderProgram programId, float[] invProjection, float[] view)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: view);
         programId.Intensity = 1; programId.IndirectTint = [1,1,1]; programId.LeakThreshold = .5f; programId.SampleStride = 1;
     }
@@ -188,7 +186,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileProjectShader();
-        using var programIdUse = programId.UseScope();
         SetupProjectUniforms(programId, identity);
 
         programId.ScreenProbeAtlas = atlasTex;
@@ -249,7 +246,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
             PixelInternalFormat.Rgba16f);
 
         var projectId = CompileProjectShader();
-        using var projectIdUse = projectId.UseScope();
         SetupProjectUniforms(projectId, identity);
 
         projectId.ScreenProbeAtlas = atlasTex;
@@ -277,7 +273,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         using var outIndirectAtlas = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
 
         var atlasGatherId = CompileAtlasGatherShader();
-        using var atlasGatherIdUse = atlasGatherId.UseScope();
         SetupAtlasGatherUniforms(atlasGatherId, identity, identity);
 
         atlasGatherId.ScreenProbeAtlas = atlasTex;

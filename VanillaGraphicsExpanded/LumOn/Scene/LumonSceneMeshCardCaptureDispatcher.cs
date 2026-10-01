@@ -97,7 +97,7 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 
             meshCardCaptureWork.ResetAndUpload(workScratch.AsSpan(0, jobs.Length));
 
-            using (captureMeshCardShader!.UseScope())
+
             {
                 using var gpuScope = GlGpuProfiler.Instance.Scope("Capture.MeshCard");
 
@@ -119,7 +119,7 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 
                 int gx = (Math.Max(1, tileSizeTexels) + 7) / 8;
                 int gy = (Math.Max(1, tileSizeTexels) + 7) / 8;
-                GL.DispatchCompute(gx, gy, jobs.Length);
+                captureMeshCardShader!.Dispatch(gx, gy, jobs.Length);
             }
         }
         finally

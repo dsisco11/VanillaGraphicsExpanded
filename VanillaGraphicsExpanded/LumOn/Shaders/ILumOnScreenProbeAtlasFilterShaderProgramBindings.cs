@@ -11,10 +11,10 @@ internal interface ILumOnScreenProbeAtlasFilterShaderProgramBindings
     #region Public API
     /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer LumOnFrame { set; }
+    GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the VgeLumOnProbeParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnProbeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the octahedralAtlas Sampler slot.</summary>
     [ShaderBinding("octahedralAtlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? ScreenProbeAtlas { set; }
@@ -24,5 +24,8 @@ internal interface ILumOnScreenProbeAtlasFilterShaderProgramBindings
     /// <summary>Declares the probeAnchorPosition Sampler slot.</summary>
     [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? ProbeAnchorPosition { set; }
+    /// <summary>Supplies optional shared world-probe storage.</summary>
+    [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    GpuUniformBuffer? LumOnWorldProbe { get; }
     #endregion
 }

@@ -17,10 +17,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_worldprobe_clipmap_resolve.fsh")]
 public sealed partial class LumOnWorldProbeClipmapResolveShaderProgram : GpuProgram, ILumOnWorldProbeClipmapResolveShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -34,7 +30,16 @@ public sealed partial class LumOnWorldProbeClipmapResolveShaderProgram : GpuProg
 
     }
 
-    private LumOnWorldProbeResolveParamsUbo Params => paramsUbo ??= new LumOnWorldProbeResolveParamsUbo();
+    /// <summary>Exposes retained parameters with an owner mutation guard.</summary>
+    private LumOnWorldProbeResolveParamsUbo Params
+    {
+        get
+        {
+            var parameters = paramsUbo ??= new LumOnWorldProbeResolveParamsUbo();
+            parameters.SetWriteGuard(RequireInputMutation);
+            return parameters;
+        }
+    }
 
     #region Static
 
@@ -56,7 +61,10 @@ public sealed partial class LumOnWorldProbeClipmapResolveShaderProgram : GpuProg
         set
         {
             Params.AtlasSize = value;
-            Params.BindTo(this, LumOnWorldProbeResolveParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
+    #region Binding sources
+    /// <summary>Supplies packed parameters for one publication per use.</summary>
+    CpuUniformBuffer ILumOnWorldProbeClipmapResolveShaderProgramBindings.Parameters => Params;
+    #endregion
 }

@@ -90,16 +90,20 @@ internal sealed class LiquidRenderer : IRenderer
             var store = MaterialAtlasSystem.Instance.TextureStore;
             program.CaptureFrameInputs(api, source.TileSize);
             program.WaveFrame = waves;
-            using var scope = program.UseScope();
-            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return;
             program.ModelViewMatrix = render.CameraMatrixOriginf;
             program.ForcedTransparency = 0;
-            program.ApplyInputs();
             program.DepthTexture = buffers[(int)EnumFrameBuffer.Primary].DepthTextureId;
             program.ShadowMapNear = buffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;
             program.ShadowMapFar = buffers[(int)EnumFrameBuffer.ShadowmapFar]?.DepthTextureId ?? 0;
             program.AerialRadianceTexture = AtmosphereModSystem.AerialRadianceTextureId;
             program.AerialAttenuationTexture = AtmosphereModSystem.AerialAttenuationTextureId;
+            // Establish complete initial state before entering the engine pool loop.
+            if (atlases.Length == 0) return;
+            store.TryGetMaterialParamsTextureId(atlases[0], out int initialMaterial);
+            program.TerrainTexture = atlases[0];
+            program.MaterialParamsTexture = initialMaterial;
+            using var scope = program.UseScope();
+            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return;
             var engineRender = (Vintagestory.Client.RenderAPIBase)render;
             bool previousSsbo = LiquidMeshSource.UseSsbo(engineRender);
             try

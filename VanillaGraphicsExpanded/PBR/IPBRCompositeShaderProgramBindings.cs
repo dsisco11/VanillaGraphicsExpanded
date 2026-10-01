@@ -11,7 +11,7 @@ internal interface IPBRCompositeShaderProgramBindings
     #region Public API
     /// <summary>Declares the VgePbrCompositeParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgePbrCompositeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the directDiffuse Sampler slot.</summary>
     [ShaderBinding("directDiffuse", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? DirectDiffuse { set; }
@@ -25,28 +25,28 @@ internal interface IPBRCompositeShaderProgramBindings
     [ShaderBinding("indirectDiffuse", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? IndirectDiffuse { set; }
     /// <summary>Declares the gBufferAlbedo Sampler slot.</summary>
-    [ShaderBinding("gBufferAlbedo", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("gBufferAlbedo", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferAlbedo { set; }
     /// <summary>Declares the gBufferMaterial Sampler slot.</summary>
-    [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferMaterial { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int PrimaryDepth { set; }
     /// <summary>Declares the gBufferPosition Sampler slot.</summary>
-    [ShaderBinding("gBufferPosition", ShaderBindingKind.Sampler, 11, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("gBufferPosition", ShaderBindingKind.Sampler, 11, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferPosition { set; }
     /// <summary>Declares the gBufferNormal Sampler slot.</summary>
-    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferNormal { set; }
     /// <summary>Declares the gBufferEnvironment Sampler slot.</summary>
-    [ShaderBinding("gBufferEnvironment", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("gBufferEnvironment", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferEnvironment { set; }
     /// <summary>Declares the vge_atmosphereAerialRadiance Sampler slot.</summary>
-    [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 9, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture AtmosphereAerialRadiance { set; }
+    [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 9, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Required = false)]
+    int AtmosphereAerialRadiance { set; }
     /// <summary>Declares the vge_atmosphereAerialAttenuation Sampler slot.</summary>
-    [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 10, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture AtmosphereAerialAttenuation { set; }
+    [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 10, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Required = false)]
+    int AtmosphereAerialAttenuation { set; }
     #endregion
 }

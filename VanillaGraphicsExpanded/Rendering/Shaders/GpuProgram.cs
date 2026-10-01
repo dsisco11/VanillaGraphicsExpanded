@@ -25,7 +25,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// - Apply a GL debug label to the linked program
 ///
 /// </summary>
-public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDisposable
+public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDisposable, IShaderSubmissionTarget
 {
     #region Fields
 
@@ -52,6 +52,10 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     protected virtual GpuProgramLayout CreateLayout() => new();
 
     internal GpuProgramLayout ProgramLayout => programLayout ??= CreateLayout();
+    /// <summary>Exposes the installed layout at the shared submission boundary.</summary>
+    GpuProgramLayout IShaderSubmissionTarget.ProgramLayout => ProgramLayout;
+    /// <summary>Exposes the engine executable at the shared submission boundary.</summary>
+    int IShaderSubmissionTarget.ProgramId => ProgramId;
 
     #endregion
 
@@ -402,7 +406,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         {
             if (previous is GpuProgram owner) owner.Use();
             else if (previous is not null) previous.Use();
-            else GlStateCache.Current.UseProgram(previousId);
+            else if (!GpuComputeShader.TryRestore(previousId)) GlStateCache.Current.UseProgram(previousId);
             GlStateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousId);
         }
         catch

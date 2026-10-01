@@ -29,10 +29,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WeightEpsilon), SpecializationId = 10, When = "ImportanceSampling && !BatchSlicing && !UniformMask")]
 public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderProgram, ILumOnProbeAtlasPisMaskShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     #region Shader options
@@ -92,13 +88,13 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
 
     #region Texture Samplers
 
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 0); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
 
-    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 1); }
+    public partial GpuTexture? ProbeAnchorNormal { set; }
 
-    public GpuTexture? ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 2); }
+    public partial GpuTexture? ScreenProbeAtlasHistory { set; }
 
-    public GpuTexture? ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 3); }
+    public partial GpuTexture? ScreenProbeAtlasMetaHistory { set; }
 
     #endregion
 
@@ -134,5 +130,11 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
         return !changed;
     }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnProbeAtlasPisMaskShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnProbeAtlasPisMaskShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
     #endregion
 }

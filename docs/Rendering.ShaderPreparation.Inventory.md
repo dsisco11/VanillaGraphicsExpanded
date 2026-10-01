@@ -1,7 +1,7 @@
 # Shader preparation migration inventory
 
-Snapshot: 2026-10-01. This is a source inventory, not a claim that these consumers are migrated.
-Implementation update: shared graphics activation and contract-generated submission are implemented for upsample and probe anchor. Other entries remain migration work, including remaining authored setters and compute/engine adapters. Explicit compatibility Submit implementations preserve their existing publication paths until that work is complete.
+Snapshot: 2026-10-01. Migration and focused validation are complete; broader validation remains tracked in the checklist.
+Implementation update: graphics owners and production compute owners use retained contract inputs and generated Submit. Graphics activate through GpuProgram; compute wrappers adopt GpuComputeShader while GpuComputePipeline retains executable preparation. Liquid pool callbacks stage inputs for LiquidPoolSubmissionHook. No production compatibility Submit overrides remain.
 Contract: [Rendering.ShaderPreparation.md](Rendering.ShaderPreparation.md).
 Bulleted file paths are relative to the repository root. Infrastructure table paths beginning Rendering/ or LumOn/ are inside VanillaGraphicsExpanded/. Partial declarations are grouped by their owning type during implementation; static declarations are not runtime shader instances.
 
@@ -21,7 +21,7 @@ Bulleted file paths are relative to the repository root. Infrastructure table pa
 
 ## Runtime graphics owners
 
-All files in this list own runtime shader state or its inherited contract. Move parameter, raw uniform and resource setters to staging, and migrate associated layouts/partial files with their owner. Preserve conditional resource policy rather than binding every declared variant resource unconditionally.
+All files in this list own runtime shader state or its inherited contract. Parameter and resource setters retain inputs; associated layouts and partial files use generated submission. Conditional resource policies remain specific to each executable.
 - `VanillaGraphicsExpanded/LumOn/Shaders/LumOnCombineShaderProgram.cs`
 - `VanillaGraphicsExpanded/LumOn/Shaders/LumOnDebugShaderProgram.cs`
 - `VanillaGraphicsExpanded/LumOn/Shaders/LumOnHzbCopyShaderProgram.cs`
@@ -55,7 +55,7 @@ All files in this list own runtime shader state or its inherited contract. Move 
 
 ## Runtime compute consumers
 
-These files reference GpuComputePipeline directly. The six Scene/Shaders compute wrappers already provide natural runtime owners. SurfaceLightingDispatch, SurfaceLightingQueryBatch, LumonSceneIrradianceHistory, world-probe batch/commit/invalidation owners and AtmosphereGpuComputation combine execution with bindings and need explicit per-program submission ownership. Declaration-only compute classes remain descriptors. GpuComputePipeline itself is infrastructure, not a shader consumer.
+These files reference GpuComputePipeline directly. The six Scene/Shaders compute wrappers already provide natural runtime owners. SurfaceLightingDispatch, SurfaceLightingQueryBatch, LumonSceneIrradianceHistory, world-probe batch/commit/invalidation owners and AtmosphereGpuComputation now stage inputs on explicit per-program submission owners. The reset, surface lighting/query, world-probe clear/trace/setup/completion/commit and atmosphere declarations now also own runtime submission instances. Unconsumed static fixture declarations remain descriptors. GpuComputePipeline itself is infrastructure, not a shader consumer.
 - `VanillaGraphicsExpanded/LumOn/Scene/LumonSceneIrradianceHistory.cs`
 - `VanillaGraphicsExpanded/LumOn/Scene/Shaders/LumonSceneCaptureMeshCardComputeShader.cs`
 - `VanillaGraphicsExpanded/LumOn/Scene/Shaders/LumonSceneCaptureVoxelComputeShader.cs`
@@ -123,10 +123,10 @@ The following production files contain activation/dispatch entry points or param
 
 ## Engine adapters and resource families
 
-- PBR/Liquids/LiquidRenderer.cs, LiquidDepthRenderer.cs and LiquidShaderProgram.EngineInterface.cs: frame preparation followed by engine mesh-pool submission; origin/model-view/transparency callbacks need a pre-draw bridge. LiquidDepthShaderProgram contains its own interface adapter.
-- HarmonyPatches/TerrainDisplacementPoolHooks.cs: existing MeshDataPool.RenderMesh and manager hooks must retain ordering with the liquid bridge. vsapi/Client/MeshPool/MeshDataPool.cs:465 forwards the actual pool draw; manager and mini-dimension ordering still require migration-time verification.
+- PBR/Liquids/LiquidRenderer.cs, LiquidDepthRenderer.cs and LiquidShaderProgram.EngineInterface.cs: frame preparation followed by engine mesh-pool submission; origin/model-view/transparency callbacks retain values. HarmonyPatches/LiquidPoolSubmissionHook.cs invokes Use immediately before MeshDataPool.RenderMesh forwards the indexed draw, after MeshDataPoolManager has assigned pool inputs. LiquidDepthShaderProgram contains its own interface adapter.
+- HarmonyPatches/TerrainDisplacementPoolHooks.cs: existing MeshDataPool.RenderMesh and manager hooks must retain ordering with the liquid bridge. vsapi/Client/MeshPool/MeshDataPool.cs:465 forwards the actual pool draw; the installed MeshDataPoolManager assigns mini-dimension transforms, transparency and pool origin before that call and restores them afterwards.
 - HarmonyPatches/AtmosphereShaderBindingHook.cs, TerrainLumonSceneChunkSlotUniformBindingHook.cs and other engine binding hooks: vanilla shader adapters remain outside the owned-shader inheritance contract. Preserve their explicit engine publication boundaries.
-- LumOn/LumOnUniformBuffers.cs, near-field visibility bindings, scene SurfaceLightingBindings/geometry binding helpers, PBR material and atmosphere bindings: distinguish externally uploaded shared buffers from owned CPU parameter UBOs. Store references in prepared inputs; do not transfer ownership or duplicate shared uploads.
+- LumOn/LumOnUniformBuffers.cs, near-field retained inputs, SurfaceLightingParamsUbo, TraceGeometryComputeShader, PBR material and atmosphere bindings distinguish externally uploaded shared buffers from owned CPU parameter UBOs. Submission borrows resource references without transferring ownership or duplicating shared uploads.
 - Texture/sampler setters (including raw texture IDs), image bindings, SSBO ranges, UBO references, atomic counters and raw Uniform/UniformMatrix/UniformMatrixArray methods all need staging or an explicit low-level execution classification. Counter clears, barriers and readbacks stay execution operations.
 - PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs and PbrHeightBakeShaderProgram.cs: preserve family-selected contracts and pass-by-pass inputs; descriptors in PbrNormalDepthBakeShaderProgram.cs are static.
 - DebugView/Views and Rendering/Shaders/VgeDebugLinesShaderProgram.cs/VgeWorldProbeOrbsPointsShaderProgram.cs: preserve lazy program preparation and retained debug settings while moving publication to Use.
@@ -137,7 +137,7 @@ Migrate concrete fixture owners in Rendering/Shaders/Fixtures, including Generat
 
 Relevant tests include CpuUniformBufferTests, UniformBufferCallerTests, UboPackingTests, shader declaration/generator suites, GPU/GpuUniformRingBufferIntegrationTests, GPU/TestUniformRingRetirementTests and existing program preparation/reload/layout/state-cache suites. Update the generated-resource fixtures to prove setters make no GL calls and Submit does the binding. Execute builds/tests through subagents only during implementation.
 
-Update docs/ShaderAuthoring.md after API implementation; preserve the executable readiness rules in docs/GPU.ShaderDemandLoading.md. The first task adds this contract/inventory without changing those current-runtime descriptions.
+Update docs/ShaderAuthoring.md after API implementation; preserve the executable readiness rules in docs/GPU.ShaderDemandLoading.md. ShaderAuthoring.md describes retained input publication and the compute and liquid boundaries.
 
 ## Reconciliation searches
 
@@ -152,3 +152,7 @@ rg -n 'UniformMatrix|BindTexture|BindExternalTexture|BindImage|BindRange|BindBas
 ```
 
 The generated path lists were produced from source files excluding obj/bin; they include all identified direct GpuProgram/LumOnShaderProgram/VgeShaderProgram subclasses (including the qualified VgeWorldProbeOrbsPointsShaderProgram base) and direct GpuComputePipeline references found in the production tree. The caller list includes non-Rendering owners with the activation/publication patterns above; Rendering callers, generated code and engine callbacks are covered separately and must not be inferred absent from that list.
+
+## Remaining explicit operations
+
+Resource creation, shared frame/world UBO uploads, queue writes, clears, diagnostic counter admission, fences, barriers, readbacks and atlas transfers remain execution operations. Engine-owned terrain, atmospheric and blit adapters retain their engine publication hooks. Low-level GpuComputePipeline and ShaderBindingAccess operations remain infrastructure for explicit raw-program callers and fixtures; production shader owners use generated submission. CpuUniformBuffer batch scopes and the immediate SurfaceLightingBindings/TraceGeometryComputeBindings helpers were removed. Sampler-less raw texture operations in vanilla debug blits are engine adapters, not retained VGE owners.

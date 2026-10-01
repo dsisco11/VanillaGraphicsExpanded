@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_capture_meshcard", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_capture_meshcard.csh")]
-internal sealed partial class LumonSceneCaptureMeshCardComputeShader : IDisposable, ILumonSceneCaptureMeshCardComputeShaderBindings
+internal sealed partial class LumonSceneCaptureMeshCardComputeShader : GpuComputeShader, ILumonSceneCaptureMeshCardComputeShaderBindings
 {
 
     public static string ShaderName => Contract.Identity;
@@ -23,10 +23,8 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : IDisposab
     private const int AtlasLayoutOffsetBytes = 0;
     private const int CaptureFloats0OffsetBytes = 16;
 
-
-
     private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private GpuUniformBuffer? paramsUbo;
+    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
     private uint tileSizeTexels;
     private uint tilesPerAxis;
@@ -34,29 +32,8 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : IDisposab
     private uint borderTexels;
     private float captureDepthRange;
 
-    private readonly GpuComputePipeline pipeline;
-
-    public int ProgramId => pipeline.ProgramId;
-
-    public bool IsValid => pipeline.IsValid;
-
-    private LumonSceneCaptureMeshCardComputeShader(GpuComputePipeline pipeline)
-    {
-        this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-
-        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureMeshCard.ParamsUBO");
-    }
-
-    /// <summary>Uploads parameters and assigns the generated uniform-buffer binding.</summary>
-    private void ApplyParamsUbo()
-    {
-        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureMeshCard.ParamsUBO");
-        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
-        UboPacking.WriteVec4(paramsBytes, CaptureFloats0OffsetBytes, captureDepthRange, 0f, 0f, 0f);
-        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
-        Parameters = paramsUbo;
-    }
-
+    #region Public API
+    /// <summary>Creates the executable before adopting its retained input owner.</summary>
     public static bool TryCreate(
         ICoreAPI api,
         out LumonSceneCaptureMeshCardComputeShader? shader,
@@ -92,11 +69,7 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : IDisposab
         return true;
     }
 
-    public IDisposable UseScope() => pipeline.UseScope();
-
-    public void Use() => pipeline.Use();
-
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains DepthAtlasImage for the next dispatch submission.</summary>
     public void BindDepthAtlasImage(GpuTexture depthAtlas, TextureAccess access = TextureAccess.WriteOnly)
     {
         if (depthAtlas is null) throw new ArgumentNullException(nameof(depthAtlas));
@@ -109,7 +82,7 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : IDisposab
             Format: SizedInternalFormat.R16f);
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains MaterialAtlasImage for the next dispatch submission.</summary>
     public void BindMaterialAtlasImage(GpuTexture materialAtlas, TextureAccess access = TextureAccess.WriteOnly)
     {
         if (materialAtlas is null) throw new ArgumentNullException(nameof(materialAtlas));
@@ -122,56 +95,65 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : IDisposab
             Format: SizedInternalFormat.Rgba8);
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains MeshCardCaptureWorkSsbo for the next dispatch submission.</summary>
     public void BindMeshCardCaptureWorkSsbo(GpuShaderStorageBuffer ssbo)
     {
         if (ssbo is null) throw new ArgumentNullException(nameof(ssbo));
         MeshCardCaptureWork = ssbo;
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains PatchMetadataSsbo for the next dispatch submission.</summary>
     public void BindPatchMetadataSsbo(GpuShaderStorageBuffer ssbo)
     {
         if (ssbo is null) throw new ArgumentNullException(nameof(ssbo));
         PatchMetadata = ssbo;
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains TrianglesSsbo for the next dispatch submission.</summary>
     public void BindTrianglesSsbo(GpuShaderStorageBuffer ssbo)
     {
         if (ssbo is null) throw new ArgumentNullException(nameof(ssbo));
         Triangles = ssbo;
     }
 
+    /// <summary>Stages AtlasLayout without uploading partial parameters.</summary>
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
+        RequireInputMutation();
         this.tileSizeTexels = tileSizeTexels;
         this.tilesPerAxis = tilesPerAxis;
         this.tilesPerAtlas = tilesPerAtlas;
         this.borderTexels = borderTexels;
-        ApplyParamsUbo();
+        StageParameters();
     }
 
     public float CaptureDepthRange
     {
         set
         {
+            RequireInputMutation();
             captureDepthRange = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
-    public void Dispose()
+    /// <summary>Supplies retained packed dispatch parameters.</summary>
+    CpuUniformBuffer ILumonSceneCaptureMeshCardComputeShaderBindings.Parameters => parameters;
+    #endregion
+
+    #region Private
+    /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
+    private LumonSceneCaptureMeshCardComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        try
-        {
-            paramsUbo?.Dispose();
-            paramsUbo = null;
-            pipeline.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VGE] Exception disposing CaptureMeshCard compute shader: {ex}");
-        }
+        parameters.SetWriteGuard(RequireInputMutation);
     }
+
+    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
+    private void StageParameters()
+    {
+        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
+        UboPacking.WriteVec4(paramsBytes, CaptureFloats0OffsetBytes, captureDepthRange, 0f, 0f, 0f);
+        parameters.SetBytes(paramsBytes);
+    }
+    #endregion
 }

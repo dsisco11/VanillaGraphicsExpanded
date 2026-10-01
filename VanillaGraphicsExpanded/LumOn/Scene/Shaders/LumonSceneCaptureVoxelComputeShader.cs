@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_capture_voxel", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_capture_voxel.csh")]
-internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable, ILumonSceneCaptureVoxelComputeShaderBindings
+internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometryComputeShader, ILumonSceneCaptureVoxelComputeShaderBindings
 {
 
     public static string ShaderName => Contract.Identity;
@@ -22,53 +22,27 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable,
 
     private const int AtlasLayoutOffsetBytes = 0;
 
-
-
-
     private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private GpuUniformBuffer? paramsUbo;
+    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
-    private readonly GpuComputePipeline pipeline;
-    private readonly Geometry.TraceGeometryComputeBindings sharedGeometry = new();
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
 
-    #region Measured dispatch
+    #region Public API
     /// <summary>Dispatches capture with bounded asynchronous outcome and timing measurement.</summary>
-    public void Dispatch(int groupsX, int groupsY, int pages)
+    public override void Dispatch(int groupsX, int groupsY = 1, int pages = 1)
     {
+        RequireInputMutation();
         bool measured = Diagnostics.Begin(SurfaceWorkStage.Capture, pages);
         try
         {
             UboPacking.WriteUVec4(paramsBytes, 16, measured ? 1u : 0u, 0, 0, 0);
-            ApplyParamsUbo();
-            GL.DispatchCompute(groupsX, groupsY, pages);
+            StageParameters();
+            base.Dispatch(groupsX, groupsY, pages);
         }
         finally { Diagnostics.End(); }
     }
-    #endregion
 
-    /// <summary>Binds the shared geometry and independent logical domains.</summary>
-    public void BindSharedGeometry(Geometry.TraceGeometryGpuScene? scene) => sharedGeometry.Bind(scene);
-
-    public int ProgramId => pipeline.ProgramId;
-
-    public bool IsValid => pipeline.IsValid;
-
-    private LumonSceneCaptureVoxelComputeShader(GpuComputePipeline pipeline)
-    {
-        this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-
-        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureVoxel.ParamsUBO");
-    }
-
-    /// <summary>Uploads parameters and assigns the generated uniform-buffer binding.</summary>
-    private void ApplyParamsUbo()
-    {
-        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.CaptureVoxel.ParamsUBO");
-        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
-        Parameters = paramsUbo;
-    }
-
+    /// <summary>Creates the executable before adopting its retained input owner.</summary>
     public static bool TryCreate(
         ICoreAPI api,
         out LumonSceneCaptureVoxelComputeShader? shader,
@@ -104,11 +78,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable,
         return true;
     }
 
-    public IDisposable UseScope() => pipeline.UseScope();
-
-    public void Use() => pipeline.Use();
-
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains DepthAtlasImage for the next dispatch submission.</summary>
     public void BindDepthAtlasImage(GpuTexture depthAtlas, TextureAccess access = TextureAccess.WriteOnly)
     {
         if (depthAtlas is null) throw new ArgumentNullException(nameof(depthAtlas));
@@ -121,7 +91,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable,
             Format: SizedInternalFormat.R16f);
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains MaterialAtlasImage for the next dispatch submission.</summary>
     public void BindMaterialAtlasImage(GpuTexture materialAtlas, TextureAccess access = TextureAccess.WriteOnly)
     {
         if (materialAtlas is null) throw new ArgumentNullException(nameof(materialAtlas));
@@ -134,46 +104,60 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : IDisposable,
             Format: SizedInternalFormat.Rgba8);
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains CaptureWorkSsbo for the next dispatch submission.</summary>
     public void BindCaptureWorkSsbo(GpuShaderStorageBuffer captureWorkSsbo)
     {
         if (captureWorkSsbo is null) throw new ArgumentNullException(nameof(captureWorkSsbo));
         CaptureWork = captureWorkSsbo;
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains PatchMetaSsbo for the next dispatch submission.</summary>
     public void BindPatchMetaSsbo(GpuShaderStorageBuffer patchMetaSsbo)
     {
         if (patchMetaSsbo is null) throw new ArgumentNullException(nameof(patchMetaSsbo));
         PatchMetadata = patchMetaSsbo;
     }
 
-    /// <summary>Assigns the typed GPU resource through its generated binding property.</summary>
+    /// <summary>Retains ChunkSlotInfoSsbo for the next dispatch submission.</summary>
     public void BindChunkSlotInfoSsbo(GpuShaderStorageBuffer chunkSlotInfoSsbo)
     {
         if (chunkSlotInfoSsbo is null) throw new ArgumentNullException(nameof(chunkSlotInfoSsbo));
         ChunkSlotInfo = chunkSlotInfoSsbo;
     }
 
+    /// <summary>Stages AtlasLayout without uploading partial parameters.</summary>
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
+        RequireInputMutation();
         UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
-        ApplyParamsUbo();
+        StageParameters();
     }
 
-    public void Dispose()
+    /// <summary>Releases diagnostic storage and the owned executable.</summary>
+    public override void Dispose()
     {
-        try
-        {
-            Diagnostics.Dispose();
-            sharedGeometry.Dispose();
-            paramsUbo?.Dispose();
-            paramsUbo = null;
-            pipeline.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VGE] Exception disposing CaptureVoxel compute shader: {ex}");
-        }
+        if (IsDisposed) return;
+        RequireInputMutation();
+        Diagnostics.Dispose();
+        base.Dispose();
     }
+    /// <summary>Supplies retained packed dispatch parameters.</summary>
+    CpuUniformBuffer ILumonSceneCaptureVoxelComputeShaderBindings.Parameters => parameters;
+    /// <summary>Supplies counter storage admitted by the measured dispatch.</summary>
+    GpuShaderStorageBuffer? ILumonSceneCaptureVoxelComputeShaderBindings.DiagnosticCounters => Diagnostics.ActiveBuffer;
+    #endregion
+
+    #region Private
+    /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
+    private LumonSceneCaptureVoxelComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    {
+        parameters.SetWriteGuard(RequireInputMutation);
+    }
+
+    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
+    private void StageParameters()
+    {
+        parameters.SetBytes(paramsBytes);
+    }
+    #endregion
 }

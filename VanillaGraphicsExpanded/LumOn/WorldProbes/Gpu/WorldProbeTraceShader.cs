@@ -8,4 +8,8 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumon_worldprobe_trace.csh")]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal static partial class WorldProbeTraceShader { }
+internal sealed partial class WorldProbeTraceShader : VanillaGraphicsExpanded.LumOn.Scene.Shaders.TraceGeometryComputeShader, IWorldProbeTraceShaderBindings
+{
+    /// <summary>Adopts the executable and its retained resource contract.</summary>
+    public WorldProbeTraceShader(GpuComputePipeline pipeline) : base(pipeline) { }
+}

@@ -10,10 +10,6 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_display_resolve.fsh")]
 public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDisplayResolveShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     #region Contract and resources
@@ -28,10 +24,12 @@ public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDis
     }
 
     /// <summary>Scene-linear lighting, except for the legacy display-referred sky.</summary>
-    public int PrimaryScene { set => BindExternalTexture2D("primaryScene", value, 0, GpuSamplers.NearestClamp); }
+    public partial int PrimaryScene { set; }
 
     /// <summary>Depth distinguishes geometry from the unchanged legacy sky.</summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 1, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
 
+    #endregion
+    #region Binding sources
     #endregion
 }

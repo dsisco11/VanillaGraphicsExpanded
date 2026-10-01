@@ -11,7 +11,7 @@ internal interface ILumonSceneCaptureMeshCardComputeShaderBindings
     #region Public API
     /// <summary>Declares the VgeLumOnSceneCaptureMeshCardParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnSceneCaptureMeshCardParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the vge_depthAtlas Image slot.</summary>
     [ShaderBinding("vge_depthAtlas", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
     GpuTextureBinding DepthAtlas { set; }

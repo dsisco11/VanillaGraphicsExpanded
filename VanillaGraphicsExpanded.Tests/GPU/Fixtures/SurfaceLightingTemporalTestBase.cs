@@ -43,7 +43,6 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     private void Accumulate(GpuFramebuffer traced, SurfaceLightingHistoryFixture history)
     {
         var program = temporalProgram ??= Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = SurfaceLightingHistoryFixture.DirectionsPerFrame);
-        using var use = program.UseScope();
         var anchor = history.Buffers.ProbeAnchorPositionTex!;
         var mask = history.Buffers.ProbeTraceMaskTex!;
         var velocity = history.Buffers.VelocityTex!;

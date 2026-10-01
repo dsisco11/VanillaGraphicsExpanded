@@ -16,7 +16,7 @@ internal static class RuntimeSubmissionEmitter
     {
         if (symbol.IsStatic || symbol.IsAbstract) return false;
         for (var parent = symbol.BaseType; parent != null; parent = parent.BaseType)
-            if (parent.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram") return true;
+            if (parent.ToDisplayString() is "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram" or "VanillaGraphicsExpanded.Rendering.GpuComputeShader") return true;
         return false;
     }
 
@@ -39,7 +39,7 @@ internal static class RuntimeSubmissionEmitter
         foreach (var descriptor in InterfaceBindingReader.Properties(owner).Where(IsDescriptor))
         {
             var kind = BindingReader.ReadKind(Attributes(descriptor, "ShaderBinding").Single());
-            if (kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image or ShaderBindingKind.UniformBlock or ShaderBindingKind.StorageBlock)
+            if (kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image or ShaderBindingKind.UniformBlock or ShaderBindingKind.StorageBlock or ShaderBindingKind.AtomicCounter)
                 throw new ArgumentException($"Binding '{descriptor.Name}' supplies only a slot descriptor; automatic Submit requires a runtime resource property.");
         }
         foreach (var property in Resources(owner))
@@ -69,7 +69,7 @@ internal static class RuntimeSubmissionEmitter
         {
             var implementation = InterfaceBindingReader.Implementation(owner, property);
             if (!InterfaceBindingReader.NeedsImplementation(implementation)) continue;
-            string type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            string type = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier));
             string modifiers = "public";
             string member = property.Name;
             if (owner.DeclaredAccessibility == Accessibility.Public && property.Type.DeclaredAccessibility == Accessibility.Internal)
@@ -127,6 +127,7 @@ internal static class RuntimeSubmissionEmitter
                     if (NamedEnum(attr, "Sampler") is { } sampler)
                         text.Append(", sampler: ").Append(Literal(sampler));
                 }
+                if (kind == ShaderBindingKind.AtomicCounter) text.Append(", ").Append(Argument(attr, 2).Value);
                 text.Append(");\n");
             }
         return text.Append("}\n#endregion\n").ToString();

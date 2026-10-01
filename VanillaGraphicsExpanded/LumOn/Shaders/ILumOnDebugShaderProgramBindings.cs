@@ -11,21 +11,21 @@ internal interface ILumOnDebugShaderProgramBindings
     #region Public API
     /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer LumOnFrame { set; }
+    GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the LumOnWorldProbeUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuUniformBuffer LumOnWorldProbe { set; }
+    GpuUniformBuffer? LumOnWorldProbe { get; }
     /// <summary>Declares the LumOnTerrainBridgeUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnTerrainBridgeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.TerrainBridge, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuUniformBuffer LumOnTerrainBridge { set; }
+    GpuUniformBuffer? LumOnTerrainBridge { set; }
     /// <summary>Declares the VgeLumOnDebugParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnDebugParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int PrimaryDepth { set; }
     /// <summary>Declares the gBufferNormal Sampler slot.</summary>
-    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferNormal { set; }
     /// <summary>Declares the probeAnchorPosition Sampler slot.</summary>
     [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
@@ -64,7 +64,7 @@ internal interface ILumOnDebugShaderProgramBindings
     [ShaderBinding("gBufferAlbedo", ShaderBindingKind.Sampler, 13, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? GBufferAlbedo { set; }
     /// <summary>Declares the gBufferMaterial Sampler slot.</summary>
-    [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 14, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 14, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferMaterial { set; }
     /// <summary>Declares the directDiffuse Sampler slot.</summary>
     [ShaderBinding("directDiffuse", ShaderBindingKind.Sampler, 15, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
@@ -82,11 +82,11 @@ internal interface ILumOnDebugShaderProgramBindings
     [ShaderBinding("worldProbeRadianceAtlas", ShaderBindingKind.Sampler, 19, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? WorldProbeRadianceAtlas { set; }
     /// <summary>Declares the traceSceneLegacy Sampler slot.</summary>
-    [ShaderBinding("traceSceneLegacy", ShaderBindingKind.Sampler, 20, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    [ShaderBinding("traceSceneLegacy", ShaderBindingKind.Sampler, 20, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture3D)]
     GpuTexture? TraceSceneLegacy { set; }
     /// <summary>Declares the worldProbeSuppressedLighting Sampler slot.</summary>
     [ShaderBinding("worldProbeSuppressedLighting", ShaderBindingKind.Sampler, 21, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuTexture WorldProbeSuppressedLightingTexture { set; }
+    GpuTexture? WorldProbeSuppressedLightingTexture { set; }
     /// <summary>Declares the worldProbeVis0 Sampler slot.</summary>
     [ShaderBinding("worldProbeVis0", ShaderBindingKind.Sampler, 22, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? WorldProbeVis0 { set; }
@@ -109,28 +109,28 @@ internal interface ILumOnDebugShaderProgramBindings
     [ShaderBinding("probePisEnergy", ShaderBindingKind.Sampler, 28, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? ProbePisEnergy { set; }
     /// <summary>Declares the gBufferPatchId Sampler slot.</summary>
-    [ShaderBinding("gBufferPatchId", ShaderBindingKind.Sampler, 29, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    [ShaderBinding("gBufferPatchId", ShaderBindingKind.Sampler, 29, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int GBufferPatchId { set; }
     /// <summary>Declares the vge_lumonScenePageTableMip0 Sampler slot.</summary>
-    [ShaderBinding("vge_lumonScenePageTableMip0", ShaderBindingKind.Sampler, 30, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    [ShaderBinding("vge_lumonScenePageTableMip0", ShaderBindingKind.Sampler, 30, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture2DArray)]
     GpuTexture? LumonScenePageTableMip0 { set; }
     /// <summary>Declares the vge_lumonSceneIrradianceAtlas Sampler slot.</summary>
-    [ShaderBinding("vge_lumonSceneIrradianceAtlas", ShaderBindingKind.Sampler, 31, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    [ShaderBinding("vge_lumonSceneIrradianceAtlas", ShaderBindingKind.Sampler, 31, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture2DArray)]
     GpuTexture? LumonSceneIrradianceAtlas { set; }
     /// <summary>Declares the vge_lumonSceneMaterialAtlas Sampler slot.</summary>
-    [ShaderBinding("vge_lumonSceneMaterialAtlas", ShaderBindingKind.Sampler, 32, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    [ShaderBinding("vge_lumonSceneMaterialAtlas", ShaderBindingKind.Sampler, 32, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture2DArray)]
     GpuTexture? LumonSceneMaterialAtlas { set; }
     /// <summary>Declares the vge_lumonSceneSurfaceLut Sampler slot.</summary>
     [ShaderBinding("vge_lumonSceneSurfaceLut", ShaderBindingKind.Sampler, 33, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? LumonSceneSurfaceLut { set; }
     /// <summary>Declares the LumOnNearFieldUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnNearFieldUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Material, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuUniformBuffer LumOnNearField { set; }
+    CpuUniformBuffer LumOnNearField { get; }
     /// <summary>Declares the nearFieldGeometry Sampler slot.</summary>
-    [ShaderBinding("nearFieldGeometry", ShaderBindingKind.Sampler, 34, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuTexture NearFieldGeometry { set; }
+    [ShaderBinding("nearFieldGeometry", ShaderBindingKind.Sampler, 34, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? NearFieldGeometry { get; }
     /// <summary>Declares the nearFieldRegions Sampler slot.</summary>
-    [ShaderBinding("nearFieldRegions", ShaderBindingKind.Sampler, 35, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuTexture NearFieldRegions { set; }
+    [ShaderBinding("nearFieldRegions", ShaderBindingKind.Sampler, 35, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? NearFieldRegions { get; }
     #endregion
 }

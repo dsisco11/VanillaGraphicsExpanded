@@ -29,10 +29,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(ImportanceSampling))]
 public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderProgram, ILumOnScreenProbeAtlasTemporalShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     #region Shader options
@@ -55,7 +51,19 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
-    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
+    /// <summary>Owns packed parameters and rejects writes during publication.</summary>
+    private LumOnProbeParamsUbo Params
+    {
+        get
+        {
+            if (paramsUbo is null)
+            {
+                paramsUbo = new LumOnProbeParamsUbo();
+                paramsUbo.SetWriteGuard(RequireInputMutation);
+            }
+            return paramsUbo;
+        }
+    }
 
     #region Static
 
@@ -94,46 +102,46 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
     /// Current frame probe atlas trace output.
     /// Shader uniform name remains <c>octahedralCurrent</c> for compatibility.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasCurrent { set => BindTexture2D("octahedralCurrent", value, 0); }
+    public partial GpuTexture? ScreenProbeAtlasCurrent { set; }
 
     /// <summary>
     /// History probe atlas from previous frame.
     /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasHistory { set => BindTexture2D("octahedralHistory", value, 1); }
+    public partial GpuTexture? ScreenProbeAtlasHistory { set; }
 
     /// <summary>
     /// Probe anchor positions for validity check.
     /// </summary>
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 2); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
 
     /// <summary>
     /// Current frame probe-atlas meta trace output.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasMetaCurrent { set => BindTexture2D("probeAtlasMetaCurrent", value, 3); }
+    public partial GpuTexture? ScreenProbeAtlasMetaCurrent { set; }
 
         /// <summary>
         /// Probe-resolution trace mask (RG32F packed uint bits) selecting which atlas texels were traced.
         /// </summary>
-        public GpuTexture? ProbeTraceMask { set => BindTexture2D("probeTraceMask", value, 7); }
+        public partial GpuTexture? ProbeTraceMask { set; }
 
     /// <summary>
     /// Previous frame probe-atlas meta history (after last swap).
     /// Used for confidence-aware temporal blending.
     /// </summary>
-    public GpuTexture? ScreenProbeAtlasMetaHistory { set => BindTexture2D("probeAtlasMetaHistory", value, 4); }
+    public partial GpuTexture? ScreenProbeAtlasMetaHistory { set; }
 
     /// <summary>
     /// Phase 14 velocity buffer (RGBA32F): RG = currUv - prevUv, A = packed flags.
     /// Used for velocity-based reprojection.
     /// </summary>
-    public GpuTexture? VelocityTex { set => BindTexture2D("velocityTex", value, 5); }
+    public partial GpuTexture? VelocityTex { set; }
 
     /// <summary>
     /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
     /// Used to reconstruct the same jittered probe UV as the probe-anchor pass.
     /// </summary>
-    public GpuTexture? PmjJitter { set => BindTexture2D("pmjJitter", value, 6); }
+    public partial GpuTexture? PmjJitter { set; }
 
     #endregion
 
@@ -165,7 +173,6 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
         set
         {
             Params.TemporalAlpha = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -179,9 +186,16 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
         set
         {
             Params.HitDistanceRejectThreshold = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasTemporalShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnScreenProbeAtlasTemporalShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    /// <summary>Supplies the retained CPU block for one publication per use.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasTemporalShaderProgramBindings.Parameters => Params;
     #endregion
 }

@@ -63,7 +63,6 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         var seen = new bool[chunkSlotCount];
 
-        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
@@ -83,7 +82,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
             // Dispatch only a single workgroup so the outcome is deterministic (no cross-workgroup atomic ordering).
             // This validates the scanOffset mapping logic itself (slot rotation), which is the core fairness mechanism.
-            compactShader.DispatchBound(1, 1, 1);
+            compactShader.Dispatch(1, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip($"FeedbackCompact scanOffset frame={f}");
@@ -179,17 +178,17 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         using var requests = CreateSsbo<RequestGpu>("Test_PageRequests", capacityItems: (int)capacity, sentinel: Sentinel);
         using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
+        using var markCounters = new ComponentAtomicCounters(counterCount: 8);
+        markShader.BindDebugCounters(markCounters.Buffer);
         // Pass A: mark pages.
-        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchId.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
         markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        markShader.Dispatch((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         // Pass B: compact stamps -> unique requests list.
-        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
@@ -198,7 +197,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.Dispatch((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (dedup unique requests)");
@@ -293,24 +292,22 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
         markShader.BindDebugCounters(markCounters.Buffer);
-        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchId.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
         markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        markShader.Dispatch((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
-        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.Dispatch((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (generation mismatch)");
@@ -379,24 +376,22 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
         markShader.BindDebugCounters(markCounters.Buffer);
-        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchId.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
         markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-        GL.DispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        markShader.Dispatch((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
-        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.Dispatch((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("FeedbackGather compact pass (duplicate patchIds)");

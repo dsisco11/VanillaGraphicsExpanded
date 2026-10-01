@@ -17,6 +17,45 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     public ShaderInputSubmissionTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Public API
+    /// <summary>Each HZB draw publishes one source mip and retains resource edits until that draw.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HzbMipDrawsPublishOneBlockAndDeferResourceChanges(bool persistent)
+    {
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        using var first = DynamicTexture2D.CreateMipmapped(4, 4, PixelInternalFormat.R32f, 3);
+        using var second = DynamicTexture2D.CreateMipmapped(4, 4, PixelInternalFormat.R32f, 3);
+        using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
+        using var draws = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
+        using var ring = new GpuUniformRingBuffer(4096, 1, persistent);
+        ring.BeginFrame(0);
+        GpuUniformRingSystem.SetCurrent(ring);
+        try
+        {
+            var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+            int priorTexture = BoundTextures()[0];
+            for (int mip = 0; mip < 2; mip++)
+            {
+                // Repeated assignments remain CPU work even between consecutive draws.
+                shader.HzbDepth = first;
+                shader.HzbDepth = mip == 0 ? first : second;
+                shader.SrcMip = 2;
+                shader.SrcMip = mip;
+                Assert.Equal(mip, ring.AllocationsWritten);
+                Assert.Equal(priorTexture, BoundTextures()[0]);
+                draws.RenderQuadTo(shader, target);
+                Assert.Equal(mip + 1, ring.AllocationsWritten);
+                Assert.Equal(mip, BitConverter.SingleToInt32Bits(SubmittedDepthSigma()));
+                priorTexture = mip == 0 ? first.TextureId : second.TextureId;
+                Assert.Equal(priorTexture, BoundTextures()[0]);
+            }
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { GpuUniformRingSystem.ClearCurrent(); }
+    }
+
     /// <summary>Scope restoration binds the previous owner's actual retained textures and parameter bytes.</summary>
     [Fact]
     public void NestedScopeRestoresRetainedResources()

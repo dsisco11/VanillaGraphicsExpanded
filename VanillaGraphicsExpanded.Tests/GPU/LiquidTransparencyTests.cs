@@ -29,7 +29,7 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
-        using var active = program.UseScope();
+
         const int size = 32;
         using var target = CreateMRTRenderTarget(size, size,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
@@ -46,6 +46,8 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         program.TerrainTexture = terrain.TextureId;
         program.MaterialParamsTexture = material.TextureId;
         program.DepthTexture = depth.TextureId;
+        program.ShadowMapNear = depth.TextureId;
+        program.ShadowMapFar = depth.TextureId;
         program.AerialRadianceTexture = aerial.TextureId;
         program.AerialAttenuationTexture = aerial.TextureId;
         program.ShadowRanges = Vector4.Zero;
@@ -98,7 +100,7 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         Assert.True(target.CheckStatus(out var error), error);
         var view = Matrix4x4.CreateRotationX(19f*MathF.PI/180);
         program.ModelViewMatrix = Flatten(view);
-        program.ApplyInputs();
+
         var receiver = Vector4.Transform(new Vector4(0,-1,-5,1), view*projection);
         int x=(int)((receiver.X/receiver.W*.5f+.5f)*size), y=(int)((receiver.Y/receiver.W*.5f+.5f)*size);
         try
@@ -166,6 +168,7 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
                 // Distinct tints make the order test exercise color mixing rather than duplicate layers.
                 terrain.UploadDataImmediate(layer==.35f ? new float[] {.3f,.6f,.9f,1} : new float[] {1,1,1,1});
                 program.ForcedTransparency = 1-layer;
+                using var active = program.UseScope();
                 vao.DrawElements(PrimitiveType.Triangles, indices);
             }
             return Enumerable.Range(0,6).Select(i=>target[i].ReadPixelsRegion(x,y,1,1)).ToArray();

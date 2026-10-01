@@ -80,20 +80,18 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
         // Pass A: mark pages.
-        using var markComputeProgramScope = markComputeProgram.UseScope();
         markComputeProgram.BindDebugCounters(markCounters);
         markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
         markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
 
         markComputeProgram.FrameStamp = 1u;
         markComputeProgram.BindPageUsageStampImage(usageStamp);
-        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        markComputeProgram.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 1)");
 
         // Pass B: compact.
-        using var compactComputeProgramScope = compactComputeProgram.UseScope();
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
         compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
@@ -103,7 +101,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         compactComputeProgram.FrameStamp = 1u;
         compactComputeProgram.ScanOffset = 0u;
         compactComputeProgram.CompactMode = 1u;
-        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        compactComputeProgram.Dispatch((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 1)");
@@ -183,19 +181,17 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
-        using var markComputeProgramScope = markComputeProgram.UseScope();
         markComputeProgram.BindDebugCounters(markCounters);
         markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
         markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
 
         markComputeProgram.FrameStamp = 1u;
         markComputeProgram.BindPageUsageStampImage(usageStamp);
-        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        markComputeProgram.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 2)");
 
-        using var compactComputeProgramScope = compactComputeProgram.UseScope();
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
         compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
@@ -205,7 +201,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         compactComputeProgram.FrameStamp = 1u;
         compactComputeProgram.ScanOffset = 0u;
         compactComputeProgram.CompactMode = 1u;
-        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        compactComputeProgram.Dispatch((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 2)");
@@ -271,19 +267,17 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
-        using var markComputeProgramScope = markComputeProgram.UseScope();
         markComputeProgram.BindDebugCounters(markCounters);
         markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
         markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
 
         markComputeProgram.FrameStamp = 1u;
         markComputeProgram.BindPageUsageStampImage(usageStamp);
-        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        markComputeProgram.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits mark pass dispatch (case 3)");
 
-        using var compactComputeProgramScope = compactComputeProgram.UseScope();
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
         compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
@@ -293,7 +287,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         compactComputeProgram.FrameStamp = 1u;
         compactComputeProgram.ScanOffset = 0u;
         compactComputeProgram.CompactMode = 1u;
-        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        compactComputeProgram.Dispatch((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 3)");
@@ -343,7 +337,6 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var pageRequests = CreateSsbo<LumonScenePageRequestGpu>("Test_PageRequests", capacityItems: 8);
         using var pageRequestCounter = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 1);
 
-        using var compactComputeProgramScope = compactComputeProgram.UseScope();
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
         compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
@@ -353,7 +346,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         compactComputeProgram.FrameStamp = 2u;
         compactComputeProgram.ScanOffset = 0u;
         compactComputeProgram.CompactMode = 1u;
-        compactComputeProgram.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        compactComputeProgram.Dispatch((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("PatchIdFeedbackLimits compact pass dispatch (case 4)");

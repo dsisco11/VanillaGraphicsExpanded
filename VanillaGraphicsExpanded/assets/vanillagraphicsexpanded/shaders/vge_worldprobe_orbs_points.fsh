@@ -7,7 +7,7 @@ in vec4 vColor;
 in vec2 vAtlasCoord;
 
 uniform sampler2D worldProbeDebugState0;
-uniform int importanceColorMode;
+@import "./includes/vge_worldprobe_orbs_points_params_ubo.glsl"
 
 vec4 getImportanceOrbColor(vec4 debugState, bool disabled, bool unavailable)
 {

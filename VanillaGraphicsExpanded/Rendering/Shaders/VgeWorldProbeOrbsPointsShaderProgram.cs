@@ -11,6 +11,7 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
+/// <summary>Retains world-probe debug draw inputs for generated submission.</summary>
 [ShaderProgram("Contract", "vge_worldprobe_orbs_points", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "vge_worldprobe_orbs_points.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "vge_worldprobe_orbs_points.fsh")]
@@ -21,10 +22,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14)]
 public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphicsExpanded.LumOn.Shaders.LumOnShaderProgram, IVgeWorldProbeOrbsPointsShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
+
 
 
     #region Shader options
@@ -46,11 +44,14 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
 
     private readonly VgeWorldProbeOrbsPointsParamsUbo paramsUbo = new();
 
+    /// <summary>Registers the draw contract and guards retained parameter writes.</summary>
     public VgeWorldProbeOrbsPointsShaderProgram()
     {
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
+        paramsUbo.SetWriteGuard(RequireInputMutation);
     }
 
+    /// <summary>Declares the debug pass for demand preparation.</summary>
     public static void Register(ICoreClientAPI api)
     {
         var instance = new VgeWorldProbeOrbsPointsShaderProgram
@@ -67,7 +68,6 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         set
         {
             paramsUbo.ModelViewProjectionMatrix = value;
-            paramsUbo.BindTo(this, VgeWorldProbeOrbsPointsParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -76,7 +76,6 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         set
         {
             paramsUbo.CameraPos = value;
-            paramsUbo.BindTo(this, VgeWorldProbeOrbsPointsParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -85,7 +84,6 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         set
         {
             paramsUbo.WorldOffset = value;
-            paramsUbo.BindTo(this, VgeWorldProbeOrbsPointsParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -94,7 +92,6 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         set
         {
             paramsUbo.PointSize = value;
-            paramsUbo.BindTo(this, VgeWorldProbeOrbsPointsParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -103,7 +100,6 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         set
         {
             paramsUbo.FadeNear = value;
-            paramsUbo.BindTo(this, VgeWorldProbeOrbsPointsParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -112,11 +108,10 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         set
         {
             paramsUbo.FadeFar = value;
-            paramsUbo.BindTo(this, VgeWorldProbeOrbsPointsParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
-    public bool ImportanceColorMode { set => Uniform("importanceColorMode", value ? 1 : 0); }
+    public bool ImportanceColorMode { set => paramsUbo.ImportanceColorMode = value; }
 
     public bool EnsureWorldProbeClipmapDefines(
         bool enabled,
@@ -145,7 +140,13 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         return !changed;
     }
 
-    public int WorldProbeRadianceAtlas { set => Uniform("worldProbeRadianceAtlas", value); }
-    public int WorldProbeVis0 { set => Uniform("worldProbeVis0", value); }
-    public int WorldProbeDebugState0 { set => Uniform("worldProbeDebugState0", value); }
+    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
+    public partial GpuTexture? WorldProbeVis0 { set; }
+    public partial GpuTexture? WorldProbeDebugState0 { set; }
+    /// <summary>Supplies retained packed parameters for generated submission.</summary>
+    CpuUniformBuffer IVgeWorldProbeOrbsPointsShaderProgramBindings.Parameters => paramsUbo;
+    /// <summary>Supplies shared frame storage.</summary>
+    GpuUniformBuffer? IVgeWorldProbeOrbsPointsShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies shared world-probe storage.</summary>
+    GpuUniformBuffer? IVgeWorldProbeOrbsPointsShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
 }

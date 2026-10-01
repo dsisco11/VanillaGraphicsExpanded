@@ -15,27 +15,11 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_relight_voxel_dda", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_relight_voxel_dda.csh")]
-internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : IDisposable, ILumonSceneRelightVoxelDdaComputeShaderBindings
+internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeometryComputeShader, ILumonSceneRelightVoxelDdaComputeShaderBindings
 {
 
     public static string ShaderName => Contract.Identity;
-
-    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
     private const int ParamsUboSizeBytes = 80; // uvec4 + uvec4 + ivec4 + ivec4 + ivec4
-
-    private const int DepthAtlasSamplerUnit = 0;
-    private const int MaterialAtlasSamplerUnit = 1;
-    private const int LightColorLutSamplerUnit = 3;
-    private const int BlockLevelScalarLutSamplerUnit = 4;
-    private const int SunLevelScalarLutSamplerUnit = 5;
-    private const int SurfaceLutSamplerUnit = 7;
-
-    private const int IrradianceAtlasImageUnit = 0; // layout(binding=0, rgba16f)
-
-    private const int RelightWorkSsboBindingIndex = 0; // layout(std430, binding=0)
-    private const int PatchMetaSsboBindingIndex = 1;   // layout(std430, binding=1)
-
-    private const int DebugCountersBindingIndex = 0;   // layout(binding=0, offset=...)
 
     private const int AtlasLayoutOffsetBytes = 0;
     private const int RelightUints0OffsetBytes = 16;
@@ -44,35 +28,10 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : IDisposab
     private const int OccRing0OffsetBytes = 64;
 
     private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private GpuUniformBuffer? paramsUbo;
+    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
-    private readonly GpuComputePipeline pipeline;
-    private readonly Geometry.TraceGeometryComputeBindings sharedGeometry = new();
-
-    /// <summary>Binds the shared geometry and independent logical domains.</summary>
-    public void BindSharedGeometry(Geometry.TraceGeometryGpuScene? scene) => sharedGeometry.Bind(scene);
-
-    public int ProgramId => pipeline.ProgramId;
-
-    public bool IsValid => pipeline.IsValid;
-
-    private LumonSceneRelightVoxelDdaComputeShader(GpuComputePipeline pipeline)
-    {
-        this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-
-        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.Relight.ParamsUBO");
-    }
-
-    private void ApplyParamsUbo()
-    {
-        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.Relight.ParamsUBO");
-        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
-        paramsUbo.BindBase(ParamsUboBinding);
-    }
-
-    private uint ReadU32(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(paramsBytes.AsSpan(offset, 4));
-    private int ReadI32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(paramsBytes.AsSpan(offset, 4));
-
+    #region Public API
+    /// <summary>Creates the executable before adopting its retained input owner.</summary>
     public static bool TryCreate(
         ICoreAPI api,
         out LumonSceneRelightVoxelDdaComputeShader? shader,
@@ -108,90 +67,62 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : IDisposab
         return true;
     }
 
-    public IDisposable UseScope() => pipeline.UseScope();
-
-    public void Use() => pipeline.Use();
-
+    /// <summary>Retains TerrainBridgeUbo for the next dispatch submission.</summary>
     public void BindTerrainBridgeUbo(GpuUniformBuffer? ubo)
-    {
-        // Contract is defined in lumon_terrain_bridge_ubo.glsl: LUMON_UBO_TERRAIN_BRIDGE_BINDING=27
-        ubo?.BindBase(LumOnTerrainBridgeUboState.Binding);
-    }
+    { TerrainBridge = ubo; }
 
+    /// <summary>Retains RelightWorkSsbo for the next dispatch submission.</summary>
     public void BindRelightWorkSsbo(GpuShaderStorageBuffer ssbo)
-    {
-        if (ssbo is null) throw new ArgumentNullException(nameof(ssbo));
-        ssbo.BindBase(RelightWorkSsboBindingIndex);
-    }
+    { RelightWork = ssbo; }
 
+    /// <summary>Retains PatchMetaSsbo for the next dispatch submission.</summary>
     public void BindPatchMetaSsbo(GpuShaderStorageBuffer ssbo)
-    {
-        if (ssbo is null) throw new ArgumentNullException(nameof(ssbo));
-        ssbo.BindBase(PatchMetaSsboBindingIndex);
-    }
+    { PatchMetadata = ssbo; }
 
+    /// <summary>Retains DepthAtlas for the next dispatch submission.</summary>
     public void BindDepthAtlas(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2DArray, unit: DepthAtlasSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: DepthAtlasSamplerUnit);
-    }
+    { DepthAtlas = textureId; }
 
+    /// <summary>Retains MaterialAtlas for the next dispatch submission.</summary>
     public void BindMaterialAtlas(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2DArray, unit: MaterialAtlasSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: MaterialAtlasSamplerUnit);
-    }
+    { MaterialAtlas = textureId; }
 
-public void BindLightColorLut(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: LightColorLutSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: LightColorLutSamplerUnit);
-    }
+    /// <summary>Retains the light-color lookup texture until dispatch.</summary>
+    public void BindLightColorLut(int textureId)
+    { LightColorLut = textureId; }
 
+    /// <summary>Retains BlockLevelScalarLut for the next dispatch submission.</summary>
     public void BindBlockLevelScalarLut(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: BlockLevelScalarLutSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: BlockLevelScalarLutSamplerUnit);
-    }
+    { BlockLevelScalarLut = textureId; }
 
+    /// <summary>Retains SunLevelScalarLut for the next dispatch submission.</summary>
     public void BindSunLevelScalarLut(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: SunLevelScalarLutSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: SunLevelScalarLutSamplerUnit);
-    }
+    { SunLevelScalarLut = textureId; }
 
-public void BindSurfaceLut(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit: SurfaceLutSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: SurfaceLutSamplerUnit);
-    }
+    /// <summary>Retains the surface lookup texture until dispatch.</summary>
+    public void BindSurfaceLut(int textureId)
+    { SurfaceLut = textureId; }
 
+    /// <summary>Retains IrradianceAtlasImage for the next dispatch submission.</summary>
     public void BindIrradianceAtlasImage(GpuTexture irradianceAtlas, TextureAccess access = TextureAccess.ReadWrite)
-    {
-        if (irradianceAtlas is null) throw new ArgumentNullException(nameof(irradianceAtlas));
+    { IrradianceAtlas = new(irradianceAtlas, Access: access, Layered: true, Format: SizedInternalFormat.Rgba16f); }
 
-        irradianceAtlas.BindImageUnit(
-            unit: IrradianceAtlasImageUnit,
-            access: access,
-            level: 0,
-            layered: true,
-            layer: 0,
-            format: SizedInternalFormat.Rgba16f);
-    }
-
+    /// <summary>Retains DebugCounters for the next dispatch submission.</summary>
     public void BindDebugCounters(GpuAtomicCounterBuffer? debugCounters)
-    {
-        debugCounters?.BindBase(DebugCountersBindingIndex);
-    }
+    { DebugCounters = debugCounters; }
 
+    /// <summary>Stages AtlasLayout without uploading partial parameters.</summary>
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
+        RequireInputMutation();
         UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
-        ApplyParamsUbo();
+        StageParameters();
     }
 
+    /// <summary>Stages RelightParams without uploading partial parameters.</summary>
     public void SetRelightParams(int frameIndex, uint texelsPerPagePerFrame, uint raysPerTexel, uint maxDdaSteps, bool debugCountersEnabled)
     {
+        RequireInputMutation();
         UboPacking.WriteUVec4(
             paramsBytes,
             RelightUints0OffsetBytes,
@@ -202,33 +133,39 @@ public void BindSurfaceLut(int textureId)
 
         int occResolution = ReadI32(RelightInts0OffsetBytes + 4);
         UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, frameIndex, occResolution, 0, 0);
-        ApplyParamsUbo();
+        StageParameters();
     }
 
+    /// <summary>Stages OccupancyMapping without uploading partial parameters.</summary>
     public void SetOccupancyMapping(int originMinCellX, int originMinCellY, int originMinCellZ, int ringX, int ringY, int ringZ, int resolution)
     {
+        RequireInputMutation();
         UboPacking.WriteIVec4(paramsBytes, OccOriginMinCell0OffsetBytes, originMinCellX, originMinCellY, originMinCellZ, 0);
         UboPacking.WriteIVec4(paramsBytes, OccRing0OffsetBytes, ringX, ringY, ringZ, 0);
 
         int frameIndex = ReadI32(RelightInts0OffsetBytes);
         UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, frameIndex, resolution, 0, 0);
-        ApplyParamsUbo();
+        StageParameters();
     }
 
-    public void DispatchBound(int numGroupsX, int numGroupsY, int numGroupsZ) => pipeline.DispatchBound(numGroupsX, numGroupsY, numGroupsZ);
+    /// <summary>Supplies retained packed dispatch parameters.</summary>
+    CpuUniformBuffer ILumonSceneRelightVoxelDdaComputeShaderBindings.Parameters => parameters;
+    #endregion
 
-    public void Dispose()
+    #region Private
+    /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
+    private LumonSceneRelightVoxelDdaComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        try
-        {
-            sharedGeometry.Dispose();
-            paramsUbo?.Dispose();
-            paramsUbo = null;
-            pipeline.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VGE] Exception disposing RelightVoxelDda compute shader: {ex}");
-        }
+        parameters.SetWriteGuard(RequireInputMutation);
     }
+
+    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
+    private void StageParameters()
+    {
+        parameters.SetBytes(paramsBytes);
+    }
+
+    /// <summary>Preserves the other components of a packed integer vector.</summary>
+    private int ReadI32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(paramsBytes.AsSpan(offset, 4));
+    #endregion
 }

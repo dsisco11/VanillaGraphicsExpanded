@@ -290,8 +290,6 @@ public static partial class VgeBuiltInDebugViews
                 GlStateCache.Current.InvalidateAll();
                 GlStateCache.Current.Apply(WorldCellBoundsViewState.DepthTest ? BoundsLinesPso : BoundsLinesNoDepthPso);
 
-                shader.Use();
-                shaderUsed = true;
 
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = new Vec3f(0, 0, 0);
@@ -299,6 +297,8 @@ public static partial class VgeBuiltInDebugViews
                 int stride = Marshal.SizeOf<LineVertex>();
                 vbo!.UploadData(vertices, written * stride);
 
+                shader.Use();
+                shaderUsed = true;
                 vao!.Bind();
                 GL.DrawArrays(PrimitiveType.Lines, 0, written);
                 GlStateCache.Current.SetLineWidth(1f);

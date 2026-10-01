@@ -19,13 +19,16 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram
     /// <summary>Binds one coherent scene with optional traversal policy; null scenes remain unavailable regardless of policy.</summary>
     internal void BindNearFieldScene(TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)
     {
+        RequireInputMutation();
+        nearFieldParams.SetWriteGuard(RequireInputMutation);
         nearFieldParams.SetShared(scene, settings);
-        nearFieldParams.BindTo(this, LumOnNearFieldParamsUbo.BlockName, "LumOn.NearField.Parameters");
-        BindTexture3D("nearFieldGeometry", scene?.Geometry, 10);
-        BindTexture3D("nearFieldLight", scene?.Light, 13);
-        BindTexture3D("nearFieldRegions", scene?.Readiness, 14);
-        BindTexture2D("nearFieldMaterials", scene?.Materials, 15);
-        BindTexture2D("traceSceneFaces", scene?.Faces, 19);
+        NearFieldGeometry = scene?.Geometry;
+        NearFieldLight = scene?.Light;
+        NearFieldRegions = scene?.Readiness;
+        NearFieldMaterials = scene?.Materials;
+        TraceSceneFaces = scene?.Faces;
     }
+    /// <summary>Supplies retained near-field parameters for generated submission.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasTraceShaderProgramBindings.LumOnNearField => nearFieldParams;
     #endregion
 }

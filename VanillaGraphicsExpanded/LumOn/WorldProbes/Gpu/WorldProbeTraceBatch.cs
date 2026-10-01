@@ -15,12 +15,12 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed class WorldProbeTraceBatch : IDisposable
 {
     public const int MaximumRays = 8192;
-    private readonly GpuComputePipeline pipeline;
-    private readonly GpuComputePipeline? setup;
-    private readonly TraceGeometryComputeBindings geometry = new();
-    private readonly SurfaceLightingBindings lighting = new();
+    private readonly WorldProbeTraceShader pipeline;
+    private readonly WorldProbeTraceTilesShader? setup;
+
+    private readonly SurfaceLightingParamsUbo lighting = new();
     private GpuShaderStorageBuffer output = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
-    private GpuComputePipeline? completion;
+    private WorldProbeCompletionShader? completion;
     private readonly GpuShaderStorageBuffer metadata = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
     private readonly GpuShaderStorageBuffer descriptors = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
     private readonly GpuShaderStorageBuffer descriptorCount = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
@@ -41,9 +41,9 @@ internal sealed class WorldProbeTraceBatch : IDisposable
             using var links = new ShaderLinkBatch(api.Assets, PBR.ShaderImportsSystem.DefaultDomain,
                 [new ShaderSettings(WorldProbeTraceTilesShader.Contract), new ShaderSettings(WorldProbeTraceShader.Contract),
                  new ShaderSettings(WorldProbeCompletionShader.Contract)]);
-            setup = GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceTilesShader.Contract));
-            pipeline = GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceShader.Contract));
-            completion = GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeCompletionShader.Contract));
+            setup = new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceTilesShader.Contract)));
+            pipeline = new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceShader.Contract)));
+            completion = new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeCompletionShader.Contract)));
             // This tracing owner requires all three programs; explicitly preload them through the active batch.
             if (!setup.EnsureReady()) throw new InvalidOperationException(setup.PreparationLog);
             if (!pipeline.EnsureReady()) throw new InvalidOperationException(pipeline.PreparationLog);
@@ -53,7 +53,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         {
             pipeline?.Dispose(); completion?.Dispose(); metadata.Dispose(); descriptors.Dispose(); descriptorCount.Dispose();
             setup?.Dispose(); output.Dispose(); probes.Dispose(); directions.Dispose(); tiles.Dispose(); dispatch.Dispose();
-            geometry.Dispose(); lighting.Dispose();
+            lighting.Dispose();
             throw;
         }
     }
@@ -68,27 +68,39 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         int directionBytes = count << 2;
         int outputBytes = count * 80;
         probes.EnsureCapacity(probeBytes, growExponentially: false);
-        probes.UploadSubData(probeData, 0, probeBytes); probes.BindRange(4, 0, probeBytes);
+        probes.UploadSubData(probeData, 0, probeBytes);
         directions.EnsureCapacity(directionBytes, growExponentially: false);
-        directions.UploadSubData(selectedDirections, 0, directionBytes); directions.BindRange(6, 0, directionBytes);
+        directions.UploadSubData(selectedDirections, 0, directionBytes);
         // A probe can own as few as one direction; number of tiles never exceeds number of directions.
-        tiles.EnsureCapacity(count << 3, growExponentially: false); tiles.BindRange(5, 0, count << 3);
-        output.EnsureCapacity(outputBytes, growExponentially: false); output.BindRange(0, 0, outputBytes);
-        dispatch.UploadDispatchCommand(new(0, 1, 1)); dispatch.BindStorage(7);
-        using (setup!.UseScope()) GL.DispatchCompute((probeData.Length + 63) >> 6, 1, 1);
+        tiles.EnsureCapacity(count << 3, growExponentially: false);
+        output.EnsureCapacity(outputBytes, growExponentially: false);
+        dispatch.UploadDispatchCommand(new(0, 1, 1));
+        setup!.WorldProbeTraceProbes = new(probes, 0, probeBytes);
+        setup.WorldProbeTraceTiles = new(tiles, 0, count << 3);
+        setup.WorldProbeTraceDispatch = new(dispatch, 0, 12);
+        setup.Dispatch((probeData.Length + 63) >> 6);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.CommandBarrierBit);
-        using (pipeline.UseScope())
-        using (dispatch.BindDispatchScope())
-        {
-            geometry.Bind(scene); lighting.Bind(snapshot);
-            GL.DispatchComputeIndirect(IntPtr.Zero);
-        }
+        pipeline.BindSharedGeometry(scene);
+        lighting.Set(snapshot);
+        pipeline.SurfaceLightingParameters = lighting;
+        pipeline.CapturedMaterial = snapshot?.Material; pipeline.PreviousOutgoing = snapshot?.OutgoingRadiance;
+        pipeline.SurfacePages = snapshot?.PageTable; pipeline.SurfacePatches = snapshot?.Patches;
+        pipeline.SurfaceSlots = snapshot?.Slots; pipeline.SurfaceReady = snapshot?.Readiness;
+        pipeline.WorldProbeAnswers = new(output, 0, outputBytes);
+        pipeline.WorldProbeTraceProbes = new(probes, 0, probeBytes);
+        pipeline.WorldProbeTraceTiles = new(tiles, 0, count << 3);
+        pipeline.WorldProbeSelectedDirections = new(directions, 0, directionBytes);
+        pipeline.DispatchIndirect(dispatch);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
-        metadata.EnsureCapacity(count << 4, growExponentially: false); metadata.BindRange(1, 0, count << 4);
-        descriptors.EnsureCapacity(outputBytes, growExponentially: false); descriptors.BindRange(2, 0, outputBytes);
+        metadata.EnsureCapacity(count << 4, growExponentially: false);
+        descriptors.EnsureCapacity(outputBytes, growExponentially: false);
         descriptorCount.EnsureCapacity(4, growExponentially: false);
-        descriptorCount.UploadSubData<uint>(new uint[] { 0 }, 0, 4); descriptorCount.BindRange(3, 0, 4);
-        using (completion!.UseScope()) GL.DispatchCompute((count + 63) >> 6, 1, 1);
+        descriptorCount.UploadSubData<uint>(new uint[] { 0 }, 0, 4);
+        completion!.Answers = new(output, 0, outputBytes);
+        completion.Completions = new(metadata, 0, count << 4);
+        completion.Descriptors = new(descriptors, 0, outputBytes);
+        completion.Counter = new(descriptorCount, 0, 4);
+        completion.Dispatch((count + 63) >> 6);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
         fence = GpuFence.Insert();
         GL.Flush();
@@ -185,7 +197,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         fence?.Dispose(); fence = null;
         output.Dispose(); probes.Dispose(); directions.Dispose(); tiles.Dispose(); dispatch.Dispose();
         metadata.Dispose(); descriptors.Dispose(); descriptorCount.Dispose(); completion?.Dispose();
-        geometry.Dispose(); lighting.Dispose(); pipeline.Dispose(); setup?.Dispose();
+        lighting.Dispose(); pipeline.Dispose(); setup?.Dispose();
     }
     #endregion
 }

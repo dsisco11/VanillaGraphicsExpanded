@@ -9,35 +9,25 @@ public abstract class LumOnShaderProgram : GpuProgram, ILumOnFrameShader, ILumOn
     private GpuUniformBuffer? retainedFrame;
     private GpuUniformBuffer? retainedWorldProbe;
 
-    /// <summary>Identifies owners whose common lighting references are published by activation.</summary>
-    protected virtual bool UsesRetainedLightingInputs => false;
 
     #region Shared lighting buffers
-    /// <summary>Retains frame data for retained-input owners or binds it for compatibility consumers.</summary>
+    /// <summary>Retains frame data until generated submission.</summary>
     internal GpuUniformBuffer FrameUniformBuffer
     {
         set
         {
-            if (UsesRetainedLightingInputs)
-            {
-                RequireInputMutation();
-                retainedFrame = value;
-            }
-            else TryBindUniformBlock(LumOnUniformBuffers.FrameBlockName, value);
+            RequireInputMutation();
+            retainedFrame = value;
         }
     }
 
-    /// <summary>Retains world-probe data for retained-input owners or binds it for compatibility consumers.</summary>
+    /// <summary>Retains world-probe data until generated submission.</summary>
     internal GpuUniformBuffer WorldProbeUniformBuffer
     {
         set
         {
-            if (UsesRetainedLightingInputs)
-            {
-                RequireInputMutation();
-                retainedWorldProbe = value;
-            }
-            else TryBindUniformBlock(LumOnUniformBuffers.WorldProbeBlockName, value);
+            RequireInputMutation();
+            retainedWorldProbe = value;
         }
     }
     /// <summary>Exposes the same frame binding through the shared consumer interface.</summary>

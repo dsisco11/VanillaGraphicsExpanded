@@ -12,7 +12,7 @@ internal interface ILumOnProbeAtlasPisMaskShaderProgramBindings
     #region Public API
     /// <summary>Declares the fragment stage's frame parameter block.</summary>
     [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
-    GpuUniformBuffer LumOnFrame { set; }
+    GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the fragment stage's anchor position sampler.</summary>
     [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
     GpuTexture? ProbeAnchorPosition { set; }
@@ -25,5 +25,8 @@ internal interface ILumOnProbeAtlasPisMaskShaderProgramBindings
     /// <summary>Declares the fragment stage's history metadata sampler.</summary>
     [ShaderBinding("probeAtlasMetaHistory", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment)]
     GpuTexture? ScreenProbeAtlasMetaHistory { set; }
+    /// <summary>Supplies optional shared world-probe storage.</summary>
+    [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Fragment, Required = false)]
+    GpuUniformBuffer? LumOnWorldProbe { get; }
     #endregion
 }

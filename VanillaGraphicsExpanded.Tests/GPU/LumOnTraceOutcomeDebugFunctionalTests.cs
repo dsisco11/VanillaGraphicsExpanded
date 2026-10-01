@@ -31,7 +31,6 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.ProbeAtlasTraceOutcome));
-        using var use = program.UseScope();
         {
             uint flags = (outcome << 16) | (1u << 8) | (1u << 14) | 3u;
             using var metadata = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f,

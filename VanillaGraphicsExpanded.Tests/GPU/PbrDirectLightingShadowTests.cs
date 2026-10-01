@@ -189,7 +189,6 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         GL.TextureSubImage2D(shadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { shadowDepth });
         using var farShadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
-        using var use = program.UseScope();
         program.PrimaryScene = albedo.TextureId;
         program.PrimaryDepth = depth.TextureId;
         program.GBufferNormal = normal.TextureId;

@@ -4,13 +4,27 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 
-/// <summary>Compares every generated resource layout with fingerprints captured from the pre-migration owning switch.</summary>
+/// <summary>Protects the approved retained-submission resource layout with exact stage fingerprints.</summary>
 public sealed class ShaderBindingMigrationTests
 {
     #region Public API
-    /// <summary>Indices, explicit locations, optional-resource policy and shared-stage layouts retain their original values.</summary>
+    /// <summary>Binary submission can resolve every authored production texture resource without driver names.</summary>
     [Fact]
-    public void GeneratedBindingsPreserveAllOriginalStageLayouts()
+    public void ProductionTextureBindingsHaveExplicitUniformLocations()
+    {
+        // SPIR-V may omit names, so a binding slot alone cannot locate a sampler or image uniform.
+        var missing = GeneratedShaderCatalog.Programs("production")
+            .SelectMany(program => program.Stages).DistinctBy(stage => stage.Identity)
+            .SelectMany(stage => stage.Bindings.Samplers.Keys.Concat(stage.Bindings.Images.Keys)
+                .Where(name => !stage.Bindings.UniformLocations.ContainsKey(name))
+                .Select(name => $"{stage.Identity}: {name}"))
+            .Order(StringComparer.Ordinal).ToArray();
+        Assert.Empty(missing);
+    }
+
+    /// <summary>Indices, explicit locations, optional-resource policy and shared-stage layouts match the approved contract.</summary>
+    [Fact]
+    public void GeneratedBindingsMatchApprovedSubmissionLayouts()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory != null && !File.Exists(Path.Combine(directory.FullName, "project.todo"))) directory = directory.Parent;
@@ -56,6 +70,7 @@ public sealed class ShaderBindingMigrationTests
     private static string Fingerprint(GpuBindingContract bindings)
     {
         var rows = new List<string>();
+        AddBindings("AtomicCounters", bindings.AtomicCounters);
         AddBindings("UniformBlocks", bindings.UniformBlocks);
         AddBindings("StorageBlocks", bindings.StorageBlocks);
         AddBindings("Samplers", bindings.Samplers);

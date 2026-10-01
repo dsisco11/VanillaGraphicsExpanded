@@ -9,14 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// This type is intentionally CPU-only: it owns no GL resources and performs no GL calls.
 /// Upload/binding is handled by external systems (e.g., a per-frame UBO ring allocator).
 ///
-/// Usage example (batched updates):
-/// <code>
-/// using (shader.Params.BeginBatchUpdate())
-/// {
-///     shader.Intensity = 1.5f;
-///     shader.SampleStride = 2;
-/// }
-/// </code>
+/// Assignments remain CPU-only; the shader activation boundary publishes the complete block.
 /// </summary>
 public abstract class CpuUniformBuffer : IDisposable
 {
@@ -24,7 +17,6 @@ public abstract class CpuUniformBuffer : IDisposable
     private bool isDirty;
     private int dirtyStartBytes;
     private int dirtyEndExclusiveBytes;
-    private int uploadScopeDepth;
     private Action? writeGuard;
 
     /// <summary>Attaches an owning shader's edit contract without affecting standalone packed buffers.</summary>
@@ -43,7 +35,6 @@ public abstract class CpuUniformBuffer : IDisposable
         isDirty = false;
         dirtyStartBytes = int.MaxValue;
         dirtyEndExclusiveBytes = 0;
-        uploadScopeDepth = 0;
     }
 
     /// <summary>
@@ -206,16 +197,15 @@ public abstract class CpuUniformBuffer : IDisposable
 
     /// <summary>Publishes a complete block and reports whether the active ring bound it successfully.</summary>
     public bool TryBindTo(Shaders.GpuProgram program, string blockName, string debugName)
+        => TryBindTo((IShaderSubmissionTarget)program, blockName, debugName);
+
+    /// <summary>Publishes through the common graphics or compute executable boundary.</summary>
+    internal bool TryBindTo(IShaderSubmissionTarget program, string blockName, string debugName)
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentException.ThrowIfNullOrWhiteSpace(debugName);
 
-        if (uploadScopeDepth != 0)
-        {
-            // If callers batch updates, they should bind after the scope exits.
-            return false;
-        }
 
         if (Bytes.Length == 0)
         {
@@ -230,57 +220,6 @@ public abstract class CpuUniformBuffer : IDisposable
             return true;
         }
         return false;
-    }
-
-    /// <summary>
-    /// Begins a batched update scope. Property changes within this scope will not trigger uploads
-    /// until the scope is disposed or <see cref="EndBatchUpdate"/> is called.
-    /// </summary>
-    public UploadScope BeginBatchUpdate()
-    {
-        uploadScopeDepth++;
-        return new UploadScope(this);
-    }
-
-    /// <summary>
-    /// Ends the current batched update scope so a later bind can upload.
-    /// </summary>
-    private void EndBatchUpdate()
-    {
-        if (uploadScopeDepth > 0)
-        {
-            uploadScopeDepth--;
-        }
-    }
-
-    /// <summary>
-    /// RAII scope guard for batching multiple property updates.
-    /// Example:
-    /// <code>
-    /// using (ubo.BeginBatchUpdate())
-    /// {
-    ///     ubo.Intensity = 1.5f;
-    ///     ubo.IndirectTint = new Vec3f(1, 0.9f, 0.8f);
-    ///     // Bind after the scope exits to upload the completed block
-    /// }
-    /// </code>
-    /// </summary>
-    public readonly struct UploadScope : IDisposable
-    {
-        private readonly CpuUniformBuffer buffer;
-
-        /// <summary>Captures the owner of a nested batch scope.</summary>
-        internal UploadScope(CpuUniformBuffer buffer)
-        {
-            this.buffer = buffer;
-        }
-
-        /// <summary>Ends this batch scope without altering pending dirty ranges.</summary>
-        /// <summary>Releases the CPU-only buffer contract; no GPU resources are owned.</summary>
-    public void Dispose()
-        {
-            buffer?.EndBatchUpdate();
-        }
     }
 
     /// <summary>Releases the CPU-only buffer contract; no GPU resources are owned.</summary>

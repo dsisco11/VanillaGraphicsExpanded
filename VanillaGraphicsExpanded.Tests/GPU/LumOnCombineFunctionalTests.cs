@@ -84,7 +84,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         float[]? invProjection = null,
         float[]? view = null)
     {
-        using var use = programId.UseScope();
         var tint = indirectTint == default ? (1f,1f,1f) : indirectTint;
         programId.IndirectIntensity = indirectIntensity;
         programId.IndirectTint = new(tint.Item1,tint.Item2,tint.Item3);
@@ -114,7 +113,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         float specularAOStrength,
         float[] invProjection)
     {
-        using var use = programId.UseScope();
         var tint = indirectTint == default ? (1f,1f,1f) : indirectTint;
         programId.IndirectIntensity = indirectIntensity;
         programId.IndirectTint = new(tint.Item1,tint.Item2,tint.Item3);
@@ -175,7 +173,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 0);
 
-        using var programUse = programId.UseScope();
 
         // Diffuse debug view
         SetupDebugCompositeUniforms(programId,
@@ -209,7 +206,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Specular debug view uses a separate executable with the same explicit texture bindings.
         programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
-        using var specularUse = programId.UseScope();
         SetupDebugCompositeUniforms(programId,
             debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
             indirectIntensity: 1.0f,
@@ -219,6 +215,11 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             diffuseAOStrength: 1.0f,
             specularAOStrength: 1.0f,
             invProjection: invProj);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        programId.GBufferMaterial = materialTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var specOut = outputGBuffer[0].ReadPixels();
@@ -269,7 +270,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 0);
 
-        using var programUse = programId.UseScope();
 
         SetupDebugCompositeUniforms(programId,
             debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
@@ -301,7 +301,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         var diffuseOut = outputGBuffer[0].ReadPixels();
 
         programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
-        using var specularUse = programId.UseScope();
         SetupDebugCompositeUniforms(programId,
             debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
             indirectIntensity: 1.0f,
@@ -311,6 +310,11 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             diffuseAOStrength: 1.0f,
             specularAOStrength: 1.0f,
             invProjection: invProj);
+        programId.PrimaryDepth = depthTex.TextureId;
+        programId.GBufferNormal = normalTex.TextureId;
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        programId.GBufferMaterial = materialTex.TextureId;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var specOut = outputGBuffer[0].ReadPixels();
@@ -365,7 +369,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 1);
 
-        using var programUse = programId.UseScope();
 
         float RenderWithAoTexture(DynamicTexture2D materialTex)
         {
@@ -457,7 +460,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
 
-        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, indirectTint: (1f, 1f, 1f), lumOnEnabled: 1);
 
         // Bind inputs
@@ -535,7 +537,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
 
-        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
         programId.SceneDirect = sceneDirectTex;
@@ -614,7 +615,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
 
-        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: intensity, lumOnEnabled: 1);
 
         programId.SceneDirect = sceneDirectTex;
@@ -691,7 +691,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileCombineShader(lumOnEnabled: 0, enablePbrComposite: 0);
 
-        using var programUse = programId.UseScope();
         // DISABLE LumOn
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 0);
 
@@ -767,7 +766,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
 
-        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
         programId.SceneDirect = sceneDirectTex;
@@ -844,7 +842,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
 
-        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
         programId.SceneDirect = sceneDirectTex;
@@ -920,7 +917,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileCombineShader(enablePbrComposite: 0);
 
-        using var programUse = programId.UseScope();
         SetupCombineUniforms(programId, indirectIntensity: 1.0f, indirectTint: (1f, 0f, 0f), lumOnEnabled: 1);  // Red tint
 
         programId.SceneDirect = sceneDirectTex;
@@ -987,7 +983,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
 
-            using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
             programId.SceneDirect = sceneDirectTex;
@@ -1020,7 +1015,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
 
-            using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
             programId.SceneDirect = sceneDirectTex;
@@ -1053,7 +1047,6 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 ScreenWidth, ScreenHeight,
                 PixelInternalFormat.Rgba16f);
 
-            using var programUse = programId.UseScope();
             SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
 
             programId.SceneDirect = sceneDirectTex;

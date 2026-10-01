@@ -121,7 +121,6 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         using var metadata = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, meta);
         using var output = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight, Enumerable.Repeat(PixelInternalFormat.Rgba16f, 7).ToArray());
         var program = CompileProjectShader();
-        using var use = program.UseScope();
         SetupProjectUniforms(program);
         program.ScreenProbeAtlas = atlasTexture; program.ScreenProbeAtlasMeta = metadata; program.ProbeAnchorPosition = anchors;
         TestFramework.RenderQuadTo(program, output);
@@ -148,7 +147,6 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         using var guides = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, CreateUniformNormalData(ScreenWidth, ScreenHeight, normal.X, normal.Y, normal.Z));
         using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
         var program = CompileSh9GatherShader();
-        using var use = program.UseScope();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupSh9GatherUniforms(program, identity, identity);
         program.ProbeSh0 = packed[0]; program.ProbeSh1 = packed[1]; program.ProbeSh2 = packed[2]; program.ProbeSh3 = packed[3];

@@ -43,9 +43,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
             });
             tracePrograms.Add(key, program);
         }
-        using var use = program.UseScope();
-        using var cacheBinding=new VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingBindings();
-        cacheBinding.Bind(surfaceLighting);
+        program.SetSurfaceLighting(surfaceLighting);
         // A retained history supplies its own branch. Otherwise reuse this test's sequential component inputs.
         resources ??= LightingResources;
         var buffers = resources.EnsureScreen(4, 4, 2);

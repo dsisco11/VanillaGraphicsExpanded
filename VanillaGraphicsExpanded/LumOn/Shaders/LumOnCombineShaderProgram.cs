@@ -28,10 +28,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
 public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombineShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -41,7 +37,16 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
 
     private LumOnCombineProgramLayout Layout => (LumOnCombineProgramLayout)ProgramLayout;
 
-    private LumOnCombineParamsUbo Params => Layout.Params;
+    /// <summary>Exposes retained parameters with an owner mutation guard.</summary>
+    private LumOnCombineParamsUbo Params
+    {
+        get
+        {
+            var parameters = Layout.Params;
+            parameters.SetWriteGuard(RequireInputMutation);
+            return parameters;
+        }
+    }
 
     #region Static
 
@@ -62,32 +67,32 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     /// <summary>
     /// Scene with direct lighting only (captured before GI application).
     /// </summary>
-    public GpuTexture? SceneDirect { set => Layout.BindSceneDirect(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
+    public partial GpuTexture? SceneDirect { set; }
 
     /// <summary>
     /// LumOn indirect diffuse output (upsampled to full resolution).
     /// </summary>
-    public GpuTexture? IndirectDiffuse { set => Layout.BindIndirectDiffuse(ProgramId, value?.TextureId ?? 0, LayoutWarn); }
+    public partial GpuTexture? IndirectDiffuse { set; }
 
     /// <summary>
     /// G-Buffer albedo texture for material modulation.
     /// </summary>
-    public int GBufferAlbedo { set => Layout.BindGBufferAlbedo(ProgramId, value, LayoutWarn); }
+    public partial int GBufferAlbedo { set; }
 
     /// <summary>
     /// G-Buffer material properties (roughness, metallic, etc.).
     /// </summary>
-    public int GBufferMaterial { set => Layout.BindGBufferMaterial(ProgramId, value, LayoutWarn); }
+    public partial int GBufferMaterial { set; }
 
     /// <summary>
     /// G-Buffer world-space normals.
     /// </summary>
-    public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
+    public partial int GBufferNormal { set; }
 
     /// <summary>
     /// Primary depth texture for sky detection.
     /// </summary>
-    public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
+    public partial int PrimaryDepth { set; }
 
     #endregion
 
@@ -115,7 +120,6 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
         set
         {
             Params.DiffuseAOStrength = value;
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -124,7 +128,6 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
         set
         {
             Params.SpecularAOStrength = value;
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -141,7 +144,6 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
         set
         {
             Params.IndirectIntensity = value;
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -153,7 +155,6 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
         set
         {
             Params.IndirectTint = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -169,5 +170,11 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.Enabled))]
     public partial bool LumOnEnabled { get; set; }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies shared lighting storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnCombineShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies packed parameters for one publication per use.</summary>
+    CpuUniformBuffer ILumOnCombineShaderProgramBindings.Parameters => Params;
     #endregion
 }

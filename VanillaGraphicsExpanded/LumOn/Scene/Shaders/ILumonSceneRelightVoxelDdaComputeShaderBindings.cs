@@ -6,31 +6,31 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Declares the GPU binding contract for LumonSceneRelightVoxelDdaComputeShader.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(ITraceGeometryBindingSet), Program = "Contract")]
+
 internal interface ILumonSceneRelightVoxelDdaComputeShaderBindings
 {
     #region Public API
     /// <summary>Declares the VgeLumOnSceneRelightParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnSceneRelightParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the vge_depthAtlas Sampler slot.</summary>
-    [ShaderBinding("vge_depthAtlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute)]
-    GpuTexture DepthAtlas { set; }
+    [ShaderBinding("vge_depthAtlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    int DepthAtlas { set; }
     /// <summary>Declares the vge_materialAtlas Sampler slot.</summary>
-    [ShaderBinding("vge_materialAtlas", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)]
-    GpuTexture MaterialAtlas { set; }
+    [ShaderBinding("vge_materialAtlas", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    int MaterialAtlas { set; }
     /// <summary>Declares the vge_lightColorLut Sampler slot.</summary>
-    [ShaderBinding("vge_lightColorLut", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
-    GpuTexture LightColorLut { set; }
+    [ShaderBinding("vge_lightColorLut", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    int LightColorLut { set; }
     /// <summary>Declares the vge_blockLevelScalarLut Sampler slot.</summary>
-    [ShaderBinding("vge_blockLevelScalarLut", ShaderBindingKind.Sampler, 4, ShaderStageKind.Compute)]
-    GpuTexture BlockLevelScalarLut { set; }
+    [ShaderBinding("vge_blockLevelScalarLut", ShaderBindingKind.Sampler, 4, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    int BlockLevelScalarLut { set; }
     /// <summary>Declares the vge_sunLevelScalarLut Sampler slot.</summary>
-    [ShaderBinding("vge_sunLevelScalarLut", ShaderBindingKind.Sampler, 5, ShaderStageKind.Compute)]
-    GpuTexture SunLevelScalarLut { set; }
+    [ShaderBinding("vge_sunLevelScalarLut", ShaderBindingKind.Sampler, 5, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    int SunLevelScalarLut { set; }
     /// <summary>Declares the vge_surfaceLut Sampler slot.</summary>
-    [ShaderBinding("vge_surfaceLut", ShaderBindingKind.Sampler, 7, ShaderStageKind.Compute)]
-    GpuTexture SurfaceLut { set; }
+    [ShaderBinding("vge_surfaceLut", ShaderBindingKind.Sampler, 7, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    int SurfaceLut { set; }
     /// <summary>Declares the vge_irradianceAtlas Image slot.</summary>
     [ShaderBinding("vge_irradianceAtlas", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
     GpuTextureBinding IrradianceAtlas { set; }
@@ -40,5 +40,11 @@ internal interface ILumonSceneRelightVoxelDdaComputeShaderBindings
     /// <summary>Declares the VgePatchMetadata StorageBlock slot.</summary>
     [ShaderBinding("VgePatchMetadata", ShaderBindingKind.StorageBlock, 1, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer PatchMetadata { set; }
+    /// <summary>Retains external terrain lighting parameters.</summary>
+    [ShaderBinding("LumOnTerrainBridgeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.TerrainBridge, ShaderStageKind.Compute)]
+    GpuUniformBuffer? TerrainBridge { set; }
+    /// <summary>Retains diagnostic counters without clearing their contents.</summary>
+    [ShaderBinding("vge_dbgRays", ShaderBindingKind.AtomicCounter, 0, ShaderStageKind.Compute, Required = false)]
+    GpuAtomicCounterBuffer? DebugCounters { set; }
     #endregion
 }

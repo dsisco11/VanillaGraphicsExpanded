@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 /// <summary>Owns the render-thread compute commit for resident lighting and CPU-resolved fallback directions.</summary>
 internal sealed class WorldProbeHybridCommit : IDisposable
 {
-    private readonly GpuComputePipeline pipeline;
+    private readonly WorldProbeCommitShader pipeline;
     private readonly GpuShaderStorageBuffer staging = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamDraw);
 
     /// <summary>Describes one probe's target and geometry metadata in three aligned vectors.</summary>
@@ -32,7 +32,7 @@ internal sealed class WorldProbeHybridCommit : IDisposable
         if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeCommitShader.Contract.Identity,
             out var program, out _, out string log, preferSpirv: true))
         { staging.Dispose(); throw new InvalidOperationException(log); }
-        pipeline = program!;
+        pipeline = new(program!);
     }
 
     /// <summary>Releases owned staging and program resources.</summary>
@@ -69,15 +69,13 @@ internal sealed class WorldProbeHybridCommit : IDisposable
         staging.UploadSubData<Sample>(samples.Span, 48, samples.Length << 5);
         // Providers are render-thread-owned; recheck immediately before issuing the ordered commit.
         if (!lease.IsCurrent) return false;
-        using (pipeline.UseScope())
-        using (GpuImageUnitBinding.Bind(0, resources.ProbeRadianceAtlasTextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba16f))
-        using (GpuImageUnitBinding.Bind(1, resources.ProbeVis0TextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba16f))
-        using (GpuImageUnitBinding.Bind(2, resources.ProbeDist0TextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rg16f))
-        using (GpuImageUnitBinding.Bind(3, resources.ProbeMeta0TextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rg32f))
-        {
-            lease.Answers.Bind(0); staging.BindRange(1, 0, bytes);
-            GL.DispatchCompute(1, 1, 1);
-        }
+        pipeline.ResidentAnswers = lease.Answers.Binding;
+        pipeline.Commit = new(staging, 0, bytes);
+        pipeline.radianceAtlas = new(resources.ProbeRadianceAtlas, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
+        pipeline.visibilityAtlas = new(resources.ProbeVis0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
+        pipeline.distanceAtlas = new(resources.ProbeDist0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg16f);
+        pipeline.metadataAtlas = new(resources.ProbeMeta0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
+        pipeline.Dispatch(1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit |
             MemoryBarrierFlags.FramebufferBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
         return true;

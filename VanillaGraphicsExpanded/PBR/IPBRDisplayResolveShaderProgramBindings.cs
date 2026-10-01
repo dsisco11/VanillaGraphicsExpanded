@@ -11,10 +11,10 @@ internal interface IPBRDisplayResolveShaderProgramBindings
 {
     #region Public API
     /// <summary>Declares the primaryScene Sampler slot.</summary>
-    [ShaderBinding("primaryScene", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
+    [ShaderBinding("primaryScene", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int PrimaryScene { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
-    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment)]
+    [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int PrimaryDepth { set; }
     #endregion
 }

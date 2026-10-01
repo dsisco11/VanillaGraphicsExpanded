@@ -94,10 +94,6 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
     private static PbrHeightBakeParamsUbo Params => paramsUbo ??= new PbrHeightBakeParamsUbo();
 
-    private static void UploadAndBindParamsUbo(PbrHeightBakeShaderProgram prog)
-    {
-        Params.BindTo(prog, PbrHeightBakeParamsUbo.BlockName, "VGE.HeightBake.Params");
-    }
 
     // Intermediate textures are reused and resized per tile.
     private static TileResources? tile;
@@ -772,19 +768,19 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         progPackToAtlas = new PbrHeightBakeShaderProgram(FshPackToAtlas, Domain);
         progCopy = new PbrHeightBakeShaderProgram(FshCopy, Domain);
 
-        progLuminance.Initialize(capi);
-        progGauss1D.Initialize(capi);
-        progSub.Initialize(capi);
-        progCombine.Initialize(capi);
-        progGradient.Initialize(capi);
-        progDivergence.Initialize(capi);
-        progJacobi.Initialize(capi);
-        progResidual.Initialize(capi);
-        progRestrict.Initialize(capi);
-        progProlongateAdd.Initialize(capi);
-        progNormalize.Initialize(capi);
-        progPackToAtlas.Initialize(capi);
-        progCopy.Initialize(capi);
+        progLuminance!.Initialize(capi);
+        progGauss1D!.Initialize(capi);
+        progSub!.Initialize(capi);
+        progCombine!.Initialize(capi);
+        progGradient!.Initialize(capi);
+        progDivergence!.Initialize(capi);
+        progJacobi!.Initialize(capi);
+        progResidual!.Initialize(capi);
+        progRestrict!.Initialize(capi);
+        progProlongateAdd!.Initialize(capi);
+        progNormalize!.Initialize(capi);
+        progPackToAtlas!.Initialize(capi);
+        progCopy!.Initialize(capi);
 
         CompileOrThrow(progLuminance);
         CompileOrThrow(progGauss1D);
@@ -845,39 +841,28 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         GL.Viewport(x, y, w, h);
     }
 
-    private static void BindSampler2D(PbrHeightBakeShaderProgram prog, string uniformName, int unit, GpuTexture texture)
-    {
-        prog.Uniform(uniformName, unit);
-        texture.Bind(unit);
-    }
 
-    private static void BindSampler2D(PbrHeightBakeShaderProgram prog, string uniformName, int unit, int textureId, GpuSampler sampler)
-    {
-        prog.Uniform(uniformName, unit);
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, textureId, sampler);
-    }
 
     private static void RunLuminancePass(int atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture2D dst)
     {
         BindTarget(dst);
-
-        progLuminance!.Use();
         try
         {
-            BindSampler2D(progLuminance, "u_atlas", 0, atlasTexId, GpuSamplers.NearestClamp);
+            progLuminance!.atlas = atlasTexId;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.LuminanceAtlasRect = atlasRectPx;
                 Params.LuminanceDstSize = (dst.Width, dst.Height);
             }
 
-            UploadAndBindParamsUbo(progLuminance);
+            progLuminance!.Parameters = Params;
+            progLuminance!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progLuminance.Stop();
+            progLuminance!.Stop();
         }
     }
 
@@ -914,12 +899,11 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
 
         // Horizontal
         BindTarget(tmp);
-        progGauss1D!.Use();
         try
         {
-            BindSampler2D(progGauss1D, "u_src", 0, src);
+            progGauss1D!.src = src;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.CommonSize = (src.Width, src.Height);
                 Params.GaussianDirection = (1, 0);
@@ -927,22 +911,22 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
                 WritePackedWeights65(weights, radius);
             }
 
-            UploadAndBindParamsUbo(progGauss1D);
+            progGauss1D!.Parameters = Params;
+            progGauss1D!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progGauss1D.Stop();
+            progGauss1D!.Stop();
         }
 
         // Vertical
         BindTarget(dst);
-        progGauss1D!.Use();
         try
         {
-            BindSampler2D(progGauss1D, "u_src", 0, tmp);
+            progGauss1D!.src = tmp;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.CommonSize = (dst.Width, dst.Height);
                 Params.GaussianDirection = (0, 1);
@@ -950,141 +934,142 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
                 WritePackedWeights65(weights, radius);
             }
 
-            UploadAndBindParamsUbo(progGauss1D);
+            progGauss1D!.Parameters = Params;
+            progGauss1D!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progGauss1D.Stop();
+            progGauss1D!.Stop();
         }
     }
 
     private static void RunSub(DynamicTexture2D a, DynamicTexture2D b, DynamicTexture2D dst, bool relContrast)
     {
         BindTarget(dst);
-        progSub!.Use();
         try
         {
-            BindSampler2D(progSub, "u_a", 0, a);
-            BindSampler2D(progSub, "u_b", 1, b);
+            progSub!.a = a;
+            progSub!.b = b;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.CommonSize = (dst.Width, dst.Height);
                 Params.GaussianParams = (0, relContrast ? 1 : 0);
                 Params.SubParams = (1e-6f, 8f);
             }
 
-            UploadAndBindParamsUbo(progSub);
+            progSub!.Parameters = Params;
+            progSub!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progSub.Stop();
+            progSub!.Stop();
         }
     }
 
     private static void RunCopy(DynamicTexture2D src, DynamicTexture2D dst)
     {
         BindTarget(dst);
-        progCopy!.Use();
         try
         {
-            BindSampler2D(progCopy, "u_src", 0, src);
+            progCopy!.src = src;
             Params.CommonSize = (dst.Width, dst.Height);
-            UploadAndBindParamsUbo(progCopy);
+            progCopy!.Parameters = Params;
+            progCopy!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progCopy.Stop();
+            progCopy!.Stop();
         }
     }
 
     private static void RunCombine(DynamicTexture2D g1, DynamicTexture2D g2, DynamicTexture2D g3, DynamicTexture2D g4, DynamicTexture2D dst, float w1, float w2, float w3)
     {
         BindTarget(dst);
-        progCombine!.Use();
         try
         {
-            BindSampler2D(progCombine, "u_g1", 0, g1);
-            BindSampler2D(progCombine, "u_g2", 1, g2);
-            BindSampler2D(progCombine, "u_g3", 2, g3);
-            BindSampler2D(progCombine, "u_g4", 3, g4);
+            progCombine!.g1 = g1;
+            progCombine!.g2 = g2;
+            progCombine!.g3 = g3;
+            progCombine!.g4 = g4;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.CombineWeights = (w1, w2, w3);
                 Params.CommonSize = (dst.Width, dst.Height);
             }
-            UploadAndBindParamsUbo(progCombine);
+            progCombine!.Parameters = Params;
+            progCombine!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progCombine.Stop();
+            progCombine!.Stop();
         }
     }
 
     private static void RunGradient(DynamicTexture2D d, DynamicTexture2D dstG, float gain, float maxSlope, float edgeT0, float edgeT1)
     {
         BindTarget(dstG);
-        progGradient!.Use();
         try
         {
-            BindSampler2D(progGradient, "u_d", 0, d);
+            progGradient!.d = d;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.CommonSize = (d.Width, d.Height);
                 Params.GradientParams = (gain, maxSlope, edgeT0, edgeT1);
             }
-            UploadAndBindParamsUbo(progGradient);
+            progGradient!.Parameters = Params;
+            progGradient!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progGradient.Stop();
+            progGradient!.Stop();
         }
     }
 
     private static void RunDivergence(DynamicTexture2D g, DynamicTexture2D dstDiv)
     {
         BindTarget(dstDiv);
-        progDivergence!.Use();
         try
         {
-            BindSampler2D(progDivergence, "u_g", 0, g);
+            progDivergence!.g = g;
             Params.CommonSize = (dstDiv.Width, dstDiv.Height);
-            UploadAndBindParamsUbo(progDivergence);
+            progDivergence!.Parameters = Params;
+            progDivergence!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progDivergence.Stop();
+            progDivergence!.Stop();
         }
     }
 
     private static void RunNormalize(DynamicTexture2D h, DynamicTexture2D dst, float mean, float invNeg, float invPos, float heightStrength, float gamma)
     {
         BindTarget(dst);
-        progNormalize!.Use();
         try
         {
-            BindSampler2D(progNormalize, "u_h", 0, h);
+            progNormalize!.h = h;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.CommonSize = (dst.Width, dst.Height);
                 Params.NormalizeParams = (mean, invNeg, invPos, heightStrength);
                 Params.NormalizeGamma = gamma;
             }
-            UploadAndBindParamsUbo(progNormalize);
+            progNormalize!.Parameters = Params;
+            progNormalize!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progNormalize.Stop();
+            progNormalize!.Stop();
         }
     }
 
@@ -1101,25 +1086,25 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     {
         // Render into atlas sidecar, restricting to this tile rect via viewport.
         BindAtlasTarget(dstAtlasTexId, viewportOriginPx.x, viewportOriginPx.y, tileSizePx.w, tileSizePx.h);
-        progPackToAtlas!.Use();
         try
         {
-            BindSampler2D(progPackToAtlas, "u_height", 0, heightTex);
-            BindSampler2D(progPackToAtlas, "u_albedoAtlas", 1, baseAlbedoAtlasTexId, GpuSamplers.NearestClamp);
+            progPackToAtlas!.height = heightTex;
+            progPackToAtlas!.albedoAtlas = baseAlbedoAtlasTexId;
 
-            using (Params.BeginBatchUpdate())
+            // Pack all pass inputs before activation.
             {
                 Params.SolverSize = (solverSizePx.w, solverSizePx.h);
                 Params.TileSize = (tileSizePx.w, tileSizePx.h);
                 Params.ViewportOrigin = (viewportOriginPx.x, viewportOriginPx.y);
                 Params.PackParams = (normalStrength, normalScale, depthScale, 0.001f);
             }
-            UploadAndBindParamsUbo(progPackToAtlas);
+            progPackToAtlas!.Parameters = Params;
+            progPackToAtlas!.Use();
             DrawFullscreenTriangle();
         }
         finally
         {
-            progPackToAtlas.Stop();
+            progPackToAtlas!.Stop();
         }
     }
 
@@ -1430,79 +1415,79 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         private static void RunJacobi(DynamicTexture2D h, DynamicTexture2D b, DynamicTexture2D dst)
         {
             BindTarget(dst);
-            progJacobi!.Use();
             try
             {
-                BindSampler2D(progJacobi, "u_h", 0, h);
-                BindSampler2D(progJacobi, "u_b", 1, b);
+                progJacobi!.h = h;
+                progJacobi!.b = b;
                 Params.CommonSize = (dst.Width, dst.Height);
-                UploadAndBindParamsUbo(progJacobi);
+                progJacobi!.Parameters = Params;
+            progJacobi!.Use();
                 DrawFullscreenTriangle();
             }
             finally
             {
-                progJacobi.Stop();
+                progJacobi!.Stop();
             }
         }
 
         private static void RunResidual(DynamicTexture2D h, DynamicTexture2D b, DynamicTexture2D dst)
         {
             BindTarget(dst);
-            progResidual!.Use();
             try
             {
-                BindSampler2D(progResidual, "u_h", 0, h);
-                BindSampler2D(progResidual, "u_b", 1, b);
+                progResidual!.h = h;
+                progResidual!.b = b;
                 Params.CommonSize = (dst.Width, dst.Height);
-                UploadAndBindParamsUbo(progResidual);
+                progResidual!.Parameters = Params;
+            progResidual!.Use();
                 DrawFullscreenTriangle();
             }
             finally
             {
-                progResidual.Stop();
+                progResidual!.Stop();
             }
         }
 
         private static void RunRestrict(DynamicTexture2D fine, DynamicTexture2D coarse)
         {
             BindTarget(coarse);
-            progRestrict!.Use();
             try
             {
-                BindSampler2D(progRestrict, "u_fine", 0, fine);
-                using (Params.BeginBatchUpdate())
+                progRestrict!.fine = fine;
+                // Pack all pass inputs before activation.
                 {
                     Params.MultigridFineSize = (fine.Width, fine.Height);
                     Params.MultigridCoarseSize = (coarse.Width, coarse.Height);
                 }
-                UploadAndBindParamsUbo(progRestrict);
+                progRestrict!.Parameters = Params;
+            progRestrict!.Use();
                 DrawFullscreenTriangle();
             }
             finally
             {
-                progRestrict.Stop();
+                progRestrict!.Stop();
             }
         }
 
         private static void RunProlongateAdd(DynamicTexture2D fineH, DynamicTexture2D coarseE, DynamicTexture2D dst)
         {
             BindTarget(dst);
-            progProlongateAdd!.Use();
             try
             {
-                BindSampler2D(progProlongateAdd, "u_fineH", 0, fineH);
-                BindSampler2D(progProlongateAdd, "u_coarseE", 1, coarseE);
-                using (Params.BeginBatchUpdate())
+                progProlongateAdd!.fineH = fineH;
+                progProlongateAdd!.coarseE = coarseE;
+                // Pack all pass inputs before activation.
                 {
                     Params.MultigridFineSize = (fineH.Width, fineH.Height);
                     Params.MultigridCoarseSize = (coarseE.Width, coarseE.Height);
                 }
-                UploadAndBindParamsUbo(progProlongateAdd);
+                progProlongateAdd!.Parameters = Params;
+            progProlongateAdd!.Use();
                 DrawFullscreenTriangle();
             }
             finally
             {
-                progProlongateAdd.Stop();
+                progProlongateAdd!.Stop();
             }
         }
 

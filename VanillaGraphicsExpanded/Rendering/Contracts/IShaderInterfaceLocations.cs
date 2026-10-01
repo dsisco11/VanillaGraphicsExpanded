@@ -295,6 +295,49 @@ internal interface IShaderInterfaceLocations
     /// <summary>Declares the gBufferPosition UniformLocation slot.</summary>
     [ShaderBinding("gBufferPosition", ShaderBindingKind.UniformLocation, 95, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Geometry, ShaderStageKind.TessellationControl, ShaderStageKind.TessellationEvaluation, ShaderStageKind.Compute)]
     ShaderUniformLocationBinding GBufferPositionLocation { get; }
+    /// <summary>Declares the radianceAtlas uniform location for retained resource submission.</summary>
+    [ShaderBinding("radianceAtlas", ShaderBindingKind.UniformLocation, 96, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding RadianceAtlasLocation { get; }
+    /// <summary>Declares the visibilityAtlas uniform location for retained resource submission.</summary>
+    [ShaderBinding("visibilityAtlas", ShaderBindingKind.UniformLocation, 97, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding VisibilityAtlasLocation { get; }
+    /// <summary>Declares the distanceAtlas uniform location for retained resource submission.</summary>
+    [ShaderBinding("distanceAtlas", ShaderBindingKind.UniformLocation, 98, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding DistanceAtlasLocation { get; }
+    /// <summary>Declares the metadataAtlas uniform location for retained resource submission.</summary>
+    [ShaderBinding("metadataAtlas", ShaderBindingKind.UniformLocation, 99, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding MetadataAtlasLocation { get; }
+    /// <summary>Declares the capturedMaterial uniform location for retained resource submission.</summary>
+    [ShaderBinding("capturedMaterial", ShaderBindingKind.UniformLocation, 100, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding CapturedMaterialLocation { get; }
+    /// <summary>Declares the previousOutgoing uniform location for retained resource submission.</summary>
+    [ShaderBinding("previousOutgoing", ShaderBindingKind.UniformLocation, 101, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding PreviousOutgoingLocation { get; }
+    /// <summary>Declares the surfacePages uniform location for retained resource submission.</summary>
+    [ShaderBinding("surfacePages", ShaderBindingKind.UniformLocation, 102, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding SurfacePagesLocation { get; }
+    /// <summary>Declares the lightColors uniform location for retained resource submission.</summary>
+    [ShaderBinding("lightColors", ShaderBindingKind.UniformLocation, 103, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding LightColorsLocation { get; }
+    /// <summary>Declares the blockLevels uniform location for retained resource submission.</summary>
+    [ShaderBinding("blockLevels", ShaderBindingKind.UniformLocation, 104, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding BlockLevelsLocation { get; }
+    /// <summary>Declares the sunLevels uniform location for retained resource submission.</summary>
+    [ShaderBinding("sunLevels", ShaderBindingKind.UniformLocation, 105, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding SunLevelsLocation { get; }
+    /// <summary>Declares the surfaces uniform location for retained resource submission.</summary>
+    [ShaderBinding("surfaces", ShaderBindingKind.UniformLocation, 106, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding SurfacesLocation { get; }
+    /// <summary>Declares the indirectIrradiance uniform location for retained resource submission.</summary>
+    [ShaderBinding("indirectIrradiance", ShaderBindingKind.UniformLocation, 107, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding IndirectIrradianceLocation { get; }
+    /// <summary>Declares the directIrradiance uniform location for retained resource submission.</summary>
+    [ShaderBinding("directIrradiance", ShaderBindingKind.UniformLocation, 108, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding DirectIrradianceLocation { get; }
+    /// <summary>Declares the nextOutgoing uniform location for retained resource submission.</summary>
+    [ShaderBinding("nextOutgoing", ShaderBindingKind.UniformLocation, 109, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    ShaderUniformLocationBinding NextOutgoingLocation { get; }
+
     /// <summary>Declares the uv VaryingLocation slot.</summary>
     [ShaderBinding("uv", ShaderBindingKind.VaryingLocation, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.Geometry, ShaderStageKind.TessellationControl, ShaderStageKind.TessellationEvaluation, ShaderStageKind.Compute)]
     ShaderVaryingLocationBinding UvVarying { get; }

@@ -11,6 +11,6 @@ internal interface ILumOnWorldProbeRadianceTileResolveShaderProgramBindings
     #region Public API
     /// <summary>Declares the VgeLumOnWorldProbeResolveParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnWorldProbeResolveParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuUniformBuffer Parameters { set; }
+    CpuUniformBuffer Parameters { get; }
     #endregion
 }

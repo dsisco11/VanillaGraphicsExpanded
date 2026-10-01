@@ -70,9 +70,8 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
             GL.EnableVertexAttribArray(1);
             GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, 2 * sizeof(float));
 
-            using var use = program.UseScope();
             program.AtlasSize = new(width, height);
-
+            using var use = program.UseScope();
             GL.DrawArrays(PrimitiveType.Points, 0, 1);
 
             GL.BindVertexArray(0);

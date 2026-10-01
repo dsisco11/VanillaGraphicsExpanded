@@ -14,10 +14,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "vge_debug_lines.fsh")]
 public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLinesShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
+
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -25,12 +22,15 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLi
 
     private readonly VgeDebugLinesParamsUbo paramsUbo = new();
 
+    /// <summary>Registers the draw contract and guards retained parameter writes.</summary>
     public VgeDebugLinesShaderProgram()
     {
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
+        paramsUbo.SetWriteGuard(RequireInputMutation);
 
     }
 
+    /// <summary>Declares the debug pass for demand preparation.</summary>
     public static void Register(ICoreClientAPI api)
     {
         var instance = new VgeDebugLinesShaderProgram
@@ -47,7 +47,6 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLi
         set
         {
             paramsUbo.ModelViewProjectionMatrix = value;
-            paramsUbo.BindTo(this, VgeDebugLinesParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -56,7 +55,8 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLi
         set
         {
             paramsUbo.WorldOffset = value;
-            paramsUbo.BindTo(this, VgeDebugLinesParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
+    /// <summary>Supplies retained packed parameters for generated submission.</summary>
+    CpuUniformBuffer IVgeDebugLinesShaderProgramBindings.Parameters => paramsUbo;
 }

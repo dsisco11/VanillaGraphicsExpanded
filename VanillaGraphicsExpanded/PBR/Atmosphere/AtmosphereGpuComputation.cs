@@ -14,7 +14,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
 {
     internal const int CellsPerDispatch = 64;
     internal const int MaximumOutputBytes = (128 * 96 * (2 + 3 * AtmosphereAerialPerspective.Depth) + 4) * 16;
-    private readonly GpuComputePipeline scattering, sky, lighting;
+    private readonly AtmosphereComputePrograms scattering, sky, lighting;
     private readonly GpuShaderStorageBuffer parameters, source;
     private readonly GpuQueue<Vector4> output;
     private GpuFence? batch;
@@ -63,7 +63,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
     /// <summary>Allocates bounded persistent storage; table capacity covers all admitted quality levels.</summary>
     private AtmosphereGpuComputation(GpuComputePipeline scattering, GpuComputePipeline sky, GpuComputePipeline lighting)
     {
-        this.scattering = scattering; this.sky = sky; this.lighting = lighting;
+        this.scattering = new(scattering); this.sky = new(sky); this.lighting = new(lighting);
         GpuShaderStorageBuffer? parameters = null, source = null;
         GpuQueue<Vector4>? output = null;
         try
@@ -123,37 +123,34 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         values[2] = new(budget.Width, budget.Height, budget.DirectionSamples, budget.RaySamples);
         values[3] = new(budget.LightSamples, nextCell, AtmosphereSkyMapping.Horizon(request.Altitude), 0);
         parameters.UploadSubData<Vector4>(values, 0, 64);
-        parameters.BindBase(0); source.BindBase(1);
-        try
+        scattering.AtmosphereParameters = parameters; scattering.AtmosphereScattering = source;
+        sky.AtmosphereParameters = parameters; sky.AtmosphereScattering = source;
+        lighting.AtmosphereParameters = parameters;
+        // Each owned dispatch restores the enclosing shader and its resource bindings.
+        if (sourceKey != (request.Weather, request.Quality, request.Albedo) && nextCell < budget.Width * budget.Height)
         {
-            if (sourceKey != (request.Weather, request.Quality, request.Albedo) && nextCell < budget.Width * budget.Height)
-            {
-                int count = Math.Min(CellsPerDispatch, budget.Width * budget.Height - nextCell);
-                scattering.Dispatch(count);
-                GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
-                nextCell += count;
-                // A zero-time poll on the next frame gates further work; never drain an entire table in one frame.
-                batch = GpuFence.Insert();
-                // Flush through the existing fence API with a zero timeout to guarantee progress without waiting.
-                var status = batch.Wait(TimeSpan.Zero);
-                if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Atmosphere dispatch submission failed.");
-                return;
-            }
-            sourceKey = (request.Weather, request.Quality, request.Albedo);
-            int countOutput = request.Width * request.Height * (2 + 3 * AtmosphereAerialPerspective.Depth) + 4;
-            // GpuQueue owns allocation/submission; every output record is overwritten by the two producers.
-            output.PrepareGpuWrite(countOutput);
-            output.Buffer.BindBase(2);
-            sky.Dispatch((request.Width * request.Height + 63) >> 6);
+            int count = Math.Min(CellsPerDispatch, budget.Width * budget.Height - nextCell);
+            scattering.Dispatch(count);
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
-            lighting.Dispatch(1);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit);
-            output.Submit(countOutput);
+            nextCell += count;
+            // A zero-time poll on the next frame gates further work; never drain an entire table in one frame.
+            batch = GpuFence.Insert();
+            // Flush through the existing fence API with a zero timeout to guarantee progress without waiting.
+            var status = batch.Wait(TimeSpan.Zero);
+            if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Atmosphere dispatch submission failed.");
+            return;
         }
-        finally
-        {
-            GpuShaderStorageBuffer.UnbindBase(0); GpuShaderStorageBuffer.UnbindBase(1); GpuShaderStorageBuffer.UnbindBase(2);
-        }
+        sourceKey = (request.Weather, request.Quality, request.Albedo);
+        int countOutput = request.Width * request.Height * (2 + 3 * AtmosphereAerialPerspective.Depth) + 4;
+        // GpuQueue owns allocation/submission; every output record is overwritten by the two producers.
+        output.PrepareGpuWrite(countOutput);
+        sky.AtmosphereOutput = output.Buffer;
+        lighting.AtmosphereOutput = output.Buffer;
+        sky.Dispatch((request.Width * request.Height + 63) >> 6);
+        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+        lighting.Dispatch(1);
+        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit);
+        output.Submit(countOutput);
     }
 
     /// <summary>Copies a completed bounded mapping into the same immutable publication used by CPU consumers.</summary>

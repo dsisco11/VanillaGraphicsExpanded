@@ -481,7 +481,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         if (frameStamp == 0u) frameStamp = feedbackFrameStamp++; // avoid 0 as a valid stamp
 
         // Pass A: mark visible pages into a dedup stamp texture.
-        using (feedbackMarkShader!.UseScope())
+
         {
             using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.MarkPages");
 
@@ -492,17 +492,14 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 ? slotGenerationTex.TextureId
                 : 0;
 
-            if (genTexId != 0)
-            {
-                feedbackMarkShader.BindChunkSlotGenerationTex(genTexId);
-            }
+            feedbackMarkShader.BindChunkSlotGenerationTex(genTexId);
 
             feedbackMarkShader.BindPageUsageStampImage(pageUsageStamp!, access: TextureAccess.ReadWrite);
             feedbackMarkShader.FrameStamp = frameStamp;
 
             int gx = (capi.Render.FrameWidth + 7) / 8;
             int gy = (capi.Render.FrameHeight + 7) / 8;
-            GL.DispatchCompute(gx, gy, 1);
+            feedbackMarkShader!.Dispatch(gx, gy, 1);
         }
 
         // MarkPages writes vge_pageUsageStamp via imageAtomics; CompactPages reads it via sampler fetch.
@@ -511,7 +508,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
         // Pass B: compact stamps -> bounded request list.
         nearGpu.PageRequests.Reset();
-        using (feedbackCompactShader!.UseScope())
+
         {
             using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.CompactPages");
 
@@ -535,7 +532,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             // v2: only emit unmapped pages. We no longer rely on the bounded request list to "keep alive" resident pages;
             // residency is bound to the chunk-slot window (pages are released on slot reassignment/world leave).
             feedbackCompactShader.CompactMode = 1u;
-            GL.DispatchCompute(gx, 1, 1);
+            feedbackCompactShader!.Dispatch(gx, 1, 1);
         }
 
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
@@ -1969,7 +1966,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         int tilesPerAxis = physicalPools.Near.Plan.TilesPerAxis;
         int tilesPerAtlas = physicalPools.Near.Plan.TilesPerAtlas;
 
-        using (captureVoxelShader!.UseScope())
+
         {
             using var gpuScope = GlGpuProfiler.Instance.Scope("Capture.Voxel");
 

@@ -11,9 +11,9 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed class SurfaceLightingQueryBatch : IDisposable
 {
     public const int MaximumQueries = 4096;
-    private readonly GpuComputePipeline pipeline;
-    private readonly SurfaceLightingBindings lighting = new();
-    private readonly TraceGeometryComputeBindings geometry = new();
+    private readonly SurfaceLightingQueryShader pipeline;
+    private readonly SurfaceLightingParamsUbo lighting = new();
+
     private readonly GpuQueue<SurfaceLightingQuery> queue = new(MaximumQueries, debugName: "SurfaceLighting.Queries", usage: BufferUsageHint.StreamRead);
     public bool Pending => queue.Pending;
 
@@ -23,7 +23,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     {
         if (!GpuComputePipeline.TryCreateFromAssets(api, SurfaceLightingQueryShader.Contract.Identity,
             out var created, out _, out string log, preferSpirv:true)) throw new InvalidOperationException(log);
-        pipeline=created!;
+        pipeline=new(created!);
     }
 
     /// <summary>Copies a bounded descriptor batch and fences its GPU evaluation without waiting.</summary>
@@ -32,11 +32,16 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
         if (Pending || queries.Length <= 0 || queries.Length > MaximumQueries) throw new InvalidOperationException("Invalid cache query admission.");
         int count=queries.Length;
         queue.WriteRecords(queries);
-        using var program=pipeline.UseScope();
-        geometry.Bind(scene); lighting.Bind(snapshot);
+
+        pipeline.BindSharedGeometry(scene);
+        lighting.Set(snapshot);
+        pipeline.SurfaceLightingParameters = lighting;
+        pipeline.CapturedMaterial = snapshot.Material; pipeline.PreviousOutgoing = snapshot.OutgoingRadiance;
+        pipeline.SurfacePages = snapshot.PageTable; pipeline.SurfacePatches = snapshot.Patches;
+        pipeline.SurfaceSlots = snapshot.Slots; pipeline.SurfaceReady = snapshot.Readiness;
         // Bind the exact active range: retained buffer capacity must not become extra queries.
-        queue.Buffer.BindRange(0,0,count << 6);
-        GL.DispatchCompute((count+63)/64,1,1);
+        pipeline.SurfaceQueries = new(queue.Buffer, 0, count << 6);
+        pipeline.Dispatch((count+63)/64,1,1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
         queue.Submit(count);
     }
@@ -55,7 +60,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     /// <summary>Retires submitted work and consumer-owned objects on their render context.</summary>
     public void Dispose()
     {
-        queue.Dispose(); geometry.Dispose(); lighting.Dispose(); pipeline.Dispose();
+        queue.Dispose(); lighting.Dispose(); pipeline.Dispose();
     }
     #endregion
 }

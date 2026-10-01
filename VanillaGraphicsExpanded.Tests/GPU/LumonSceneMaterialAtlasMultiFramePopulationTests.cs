@@ -143,12 +143,11 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         {
             // Pass A: mark pages.
             markShader.BindDebugCounters(markCounters);
-            using var markShaderScope = markShader.UseScope();
             markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
             markShader.BindChunkSlotGenerationTex(genTex.TextureId);
             markShader.FrameStamp = frameStamp;
             markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-            GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+            markShader.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("MaterialAtlas multi-frame mark pass dispatch");
@@ -158,14 +157,13 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             // Pass B: compact stamps -> bounded request list.
             compactShader.BindRequestCounter(pageRequestCounter);
             compactShader.BindRequestsSsbo(pageRequests);
-            using var compactShaderScope = compactShader.UseScope();
             compactShader.BindPageUsageStamp(usageStamp.TextureId);
             compactShader.BindPageTableMip0(pageTableMip0.TextureId);
             compactShader.MaxRequests = (uint)desiredPages;
             compactShader.FrameStamp = frameStamp;
             compactShader.ScanOffset = 0u;
             compactShader.CompactMode = 1u;
-            compactShader.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+            compactShader.Dispatch((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("MaterialAtlas multi-frame compact pass dispatch");
@@ -197,7 +195,6 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
             using var captureSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_CaptureWorkSSBO", (ReadOnlySpan<LumonSceneCaptureWorkGpu>)captureOut.AsSpan(0, captureCount));
 
-            using var captureComputeProgramScope = captureComputeProgram.UseScope();
             captureComputeProgram.BindCaptureWorkSsbo(captureSsbo);
             captureComputeProgram.BindPatchMetaSsbo(patchMetaSsbo);
             captureComputeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
@@ -212,7 +209,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
-            GL.DispatchCompute(gx, gy, captureCount);
+            captureComputeProgram.Dispatch(gx, gy, captureCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
             GpuTestFence.WaitForGpuOrSkip("MaterialAtlas multi-frame capture pass dispatch");
@@ -301,26 +298,24 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         using var markCounters = CreateAtomicCounterBuffer(counterCount: 3);
 
         markShader.BindDebugCounters(markCounters);
-        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
         markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        markShader.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("MaterialAtlas mark pass dispatch");
 
         compactShader.BindRequestCounter(pageRequestCounter);
         compactShader.BindRequestsSsbo(pageRequests);
-        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = (uint)totalPixels;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        compactShader.DispatchBound((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.Dispatch((LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("MaterialAtlas compact pass dispatch");

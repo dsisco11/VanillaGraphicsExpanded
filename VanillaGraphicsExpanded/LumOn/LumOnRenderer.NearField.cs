@@ -11,7 +11,7 @@ public partial class LumOnRenderer
     private readonly ProbeLightingHistoryDependencies historyDependencies = new();
     private ISurfaceLightingProvider? surfaceLightingProvider;
     private SurfaceLightingSnapshot? surfaceLighting;
-    private SurfaceLightingBindings? surfaceLightingBindings;
+
 
     #region Published Scene
     /// <summary>Injects the owner of coherent outgoing radiance used at geometry hits.</summary>

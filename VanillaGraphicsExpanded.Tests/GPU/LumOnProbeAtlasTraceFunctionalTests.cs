@@ -96,7 +96,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         (float x, float y, float z)? sunPosition = null,
         (float r, float g, float b)? indirectTint = null)
     {
-        using var use = programId.UseScope();
+        // These scenes use nonmetallic receivers and no metadata history.
+        programId.GBufferMaterial = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, new float[ScreenWidth * ScreenHeight * 4]).TextureId;
+        programId.ScreenProbeAtlasMetaHistory = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, new float[AtlasWidth * AtlasHeight * 2]);
         // Use defaults if not specified (nullable check allows explicit zero values)
         var ambient = ambientColor ?? (0.3f, 0.4f, 0.5f);
         var sun = sunColor ?? (1.0f, 0.9f, 0.8f);
@@ -313,7 +315,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Compile and setup shader - use realistic perspective matrices
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -331,6 +332,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -407,8 +409,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             PixelInternalFormat.Rgba16f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
-        var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
-        using var programUse = programId.UseScope();
+        var programId = CompileOctahedralTraceShader(texelsPerFrame: 64, skyMissWeight: skyWeight);
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -427,6 +428,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -504,7 +506,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -520,6 +521,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -590,7 +592,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -606,6 +607,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -685,7 +687,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -702,6 +703,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -789,7 +791,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -807,6 +808,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -873,7 +875,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(raySteps: 4, texelsPerFrame: 64);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -889,6 +890,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -910,7 +912,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(raySteps: 32, texelsPerFrame: 64);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -926,6 +927,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -981,7 +983,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1000,6 +1001,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1076,7 +1078,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1093,6 +1094,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1152,7 +1154,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1169,6 +1170,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1223,7 +1225,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1242,6 +1243,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1268,7 +1270,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1287,6 +1288,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1345,7 +1347,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1364,6 +1365,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1389,7 +1391,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1408,6 +1409,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1465,7 +1467,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1483,6 +1484,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1510,7 +1512,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1528,6 +1529,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1590,7 +1592,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1606,6 +1607,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1627,7 +1629,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1643,6 +1644,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1707,7 +1709,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1722,6 +1723,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1750,7 +1752,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 32);
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1765,6 +1766,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1822,7 +1824,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         var programId = CompileOctahedralTraceShader();
 
-        using var programUse = programId.UseScope();
         var projection = LumOnTestInputFactory.CreateRealisticProjection();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1839,6 +1840,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ProbeAnchorPosition = anchorPosTex;
         programId.ProbeAnchorNormal = anchorNormalTex;
         programId.PrimaryDepth = depthTex.TextureId;
+        programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1909,7 +1911,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader();
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             var view = LumOnTestInputFactory.CreateIdentityView();
@@ -1925,6 +1926,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 
@@ -1950,7 +1952,6 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             var programId = CompileOctahedralTraceShader();
 
-            using var programUse = programId.UseScope();
             var projection = LumOnTestInputFactory.CreateRealisticProjection();
             var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
             // Create a rotated view matrix (90 degrees around Y axis)
@@ -1979,6 +1980,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ProbeAnchorPosition = anchorPosTex;
             programId.ProbeAnchorNormal = anchorNormalTex;
             programId.PrimaryDepth = depthTex.TextureId;
+            programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
 

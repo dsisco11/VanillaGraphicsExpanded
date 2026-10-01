@@ -101,7 +101,6 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         work.UploadSubData<LumonSceneCaptureWorkGpu>(captureItems,0,captureItems.Length*16);
         Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(assets.Api,out var captureShader,out string log),log);
         using (captureShader)
-        using (captureShader!.UseScope())
         {
             captureShader.BindSharedGeometry(Geometry.Scene); captureShader.BindCaptureWorkSsbo(work);
             captureShader.BindPatchMetaSsbo(metadata); captureShader.BindChunkSlotInfoSsbo(slots);
@@ -154,7 +153,6 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public void DispatchDiagnosticCapture(LumonSceneCaptureVoxelComputeShader shader)
     {
         work.UploadSubData<LumonSceneCaptureWorkGpu>(captureItems.AsSpan(0,4),0,64);
-        using var program=shader.UseScope();
         shader.BindSharedGeometry(Geometry.Scene);shader.BindCaptureWorkSsbo(work);
         shader.BindPatchMetaSsbo(metadata);shader.BindChunkSlotInfoSsbo(slots);
         shader.BindDepthAtlasImage(depth);shader.BindMaterialAtlasImage(captured);

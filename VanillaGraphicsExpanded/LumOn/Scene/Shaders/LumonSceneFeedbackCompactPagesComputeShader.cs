@@ -13,49 +13,22 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_feedback_compact_pages", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_feedback_compact_pages.csh")]
-internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : IDisposable, ILumonSceneFeedbackCompactPagesComputeShaderBindings
+internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuComputeShader, ILumonSceneFeedbackCompactPagesComputeShaderBindings
 {
 
     public static string ShaderName => Contract.Identity;
-
-    private const int ParamsUboBinding = GpuBindingRegistry.Ubo.Object; // VGE_UBO_OBJECT_BINDING
     private const int ParamsUboSizeBytes = 16; // uvec4
 
-    private const int PageUsageStampSamplerUnit = 0; // layout(binding=0)
-    private const int PageTableMip0SamplerUnit = 1; // layout(binding=1)
-
-    private const int PageRequestCountBindingIndex = 0; // layout(binding=0, offset=0)
-    private const int PageRequestsSsboBindingIndex = 0; // layout(std430, binding=0)
-
     private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private GpuUniformBuffer? paramsUbo;
+    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
     private uint maxRequests;
     private uint frameStamp;
     private uint scanOffset;
     private uint compactMode;
 
-    private readonly GpuComputePipeline pipeline;
-
-    public int ProgramId => pipeline.ProgramId;
-
-    public bool IsValid => pipeline.IsValid;
-
-    private LumonSceneFeedbackCompactPagesComputeShader(GpuComputePipeline pipeline)
-    {
-        this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-
-        paramsUbo = GpuUniformBuffer.Create(debugName: "LumOnScene.CompactPages.ParamsUBO");
-    }
-
-    private void ApplyParamsUbo()
-    {
-        paramsUbo ??= GpuUniformBuffer.Create(debugName: "LumOnScene.CompactPages.ParamsUBO");
-        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, frameStamp, scanOffset, compactMode);
-        paramsUbo.UploadOrResize(paramsBytes, ParamsUboSizeBytes, growExponentially: false);
-        paramsUbo.BindBase(ParamsUboBinding);
-    }
-
+    #region Public API
+    /// <summary>Creates the executable before adopting its retained input owner.</summary>
     public static bool TryCreate(
         ICoreAPI api,
         out LumonSceneFeedbackCompactPagesComputeShader? shader,
@@ -91,40 +64,29 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : IDis
         return true;
     }
 
-    public IDisposable UseScope() => pipeline.UseScope();
-
-    public void Use() => pipeline.Use();
-
+    /// <summary>Retains PageUsageStamp for the next dispatch submission.</summary>
     public void BindPageUsageStamp(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2DArray, unit: PageUsageStampSamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: PageUsageStampSamplerUnit);
-    }
+    { PageUsageStamp = textureId; }
 
+    /// <summary>Retains PageTableMip0 for the next dispatch submission.</summary>
     public void BindPageTableMip0(int textureId)
-    {
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2DArray, unit: PageTableMip0SamplerUnit, textureId: textureId);
-        GpuSamplers.NearestClamp.Bind(unit: PageTableMip0SamplerUnit);
-    }
+    { PageTableMip0 = textureId; }
 
+    /// <summary>Retains RequestCounter for the next dispatch submission.</summary>
     public void BindRequestCounter(GpuAtomicCounterBuffer counter)
-    {
-        if (counter is null) throw new ArgumentNullException(nameof(counter));
-        counter.BindBase(PageRequestCountBindingIndex);
-    }
+    { RequestCounter = counter; }
 
+    /// <summary>Retains RequestsSsbo for the next dispatch submission.</summary>
     public void BindRequestsSsbo(GpuShaderStorageBuffer ssbo)
-    {
-        if (ssbo is null) throw new ArgumentNullException(nameof(ssbo));
-        ssbo.BindBase(PageRequestsSsboBindingIndex);
-    }
+    { PageRequests = ssbo; }
 
     public uint MaxRequests
     {
         set
         {
+            RequireInputMutation();
             maxRequests = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
@@ -132,8 +94,9 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : IDis
     {
         set
         {
+            RequireInputMutation();
             frameStamp = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
@@ -141,8 +104,9 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : IDis
     {
         set
         {
+            RequireInputMutation();
             scanOffset = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
@@ -150,24 +114,28 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : IDis
     {
         set
         {
+            RequireInputMutation();
             compactMode = value;
-            ApplyParamsUbo();
+            StageParameters();
         }
     }
 
-    public void DispatchBound(int numGroupsX, int numGroupsY, int numGroupsZ) => pipeline.DispatchBound(numGroupsX, numGroupsY, numGroupsZ);
+    /// <summary>Supplies retained packed dispatch parameters.</summary>
+    CpuUniformBuffer ILumonSceneFeedbackCompactPagesComputeShaderBindings.Parameters => parameters;
+    #endregion
 
-    public void Dispose()
+    #region Private
+    /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
+    private LumonSceneFeedbackCompactPagesComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        try
-        {
-            paramsUbo?.Dispose();
-            paramsUbo = null;
-            pipeline.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VGE] Exception disposing CompactPages compute shader: {ex}");
-        }
+        parameters.SetWriteGuard(RequireInputMutation);
     }
+
+    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
+    private void StageParameters()
+    {
+        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, frameStamp, scanOffset, compactMode);
+        parameters.SetBytes(paramsBytes);
+    }
+    #endregion
 }

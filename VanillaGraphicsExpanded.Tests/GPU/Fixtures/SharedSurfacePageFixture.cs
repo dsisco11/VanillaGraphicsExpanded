@@ -43,13 +43,12 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public bool Capture(TraceGeometryGpuScene scene)
     {
         captureWork.UploadSubData<LumonSceneCaptureWorkGpu>([new(1, 0, 1, 0)], 0, 16);
-        using var active = capture.UseScope();
         capture.BindSharedGeometry(scene);
         capture.BindCaptureWorkSsbo(captureWork); capture.BindPatchMetaSsbo(metadata); capture.BindChunkSlotInfoSsbo(slots);
         capture.BindDepthAtlasImage(depth);
         capture.BindMaterialAtlasImage(material);
         capture.SetAtlasLayout(Size, 1, 1, 0);
-        Dispatch();
+        Dispatch(() => capture.Dispatch(1, 1, 1));
         using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
         Assert.True(read.IsMapped);
         return (read.Span[0].VirtualPageIndex & 0x80000000u) == 0;
@@ -62,7 +61,6 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         using (owner)
         {
             captureWork.UploadSubData<LumonSceneCaptureWorkGpu>([new(1, 0, 1, 0)], 0, 16);
-            using var program = owner!.UseScope();
             owner.BindSharedGeometry(scene);
             owner.BindCaptureWorkSsbo(captureWork);
             owner.BindPatchMetaSsbo(metadata);
@@ -70,7 +68,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
             owner.BindDepthAtlasImage(depth);
             owner.BindMaterialAtlasImage(material);
             owner.SetAtlasLayout(Size, 1, 1, 0);
-            Dispatch();
+            Dispatch(() => owner!.Dispatch(1, 1, 1));
         }
         using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
         Assert.True(read.IsMapped);
@@ -82,7 +80,6 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     {
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         relightWork.UploadSubData<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)], 0, 16);
-        using var active = relight.UseScope();
         relight.BindSharedGeometry(scene);
         relight.BindRelightWorkSsbo(relightWork); relight.BindPatchMetaSsbo(metadata);
         relight.BindDepthAtlas(depth.TextureId); relight.BindMaterialAtlas(material.TextureId);
@@ -94,7 +91,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         relight.SetAtlasLayout(Size, 1, 1, 0);
         relight.SetRelightParams(0, Size * Size, rays, steps, false);
         relight.SetOccupancyMapping(0, 0, 0, 0, 0, 0, scene.Resolution);
-        Dispatch();
+        Dispatch(() => relight.Dispatch(1, 1, 1));
         using var read = relightWork.MapRange<LumonSceneRelightWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
         Assert.True(read.IsMapped);
         return (read.Span[0].VirtualPageIndex & 0x80000000u) == 0;
@@ -104,15 +101,11 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public void ResetLighting()
     {
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        // This packaged reset operation has a contract but no instance shader class.
-        // Exercise the production compute pipeline and image owner directly.
         Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, "lumonscene_reset_irradiance",
             out var loaded, out _, out string log, preferSpirv: true), log);
-        using var reset = loaded!;
-        // Restore the prior live program before the temporary reset pipeline is disposed.
-        using var program = reset.UseScope();
-        irradiance.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
-        Dispatch();
+        using var reset = new LumonSceneResetIrradianceComputeShader(loaded!);
+        reset.irradianceAtlas = new(irradiance, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
+        Dispatch(() => reset.Dispatch(1, 1, 1));
     }
     #endregion
 
@@ -139,10 +132,10 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     }
 
     /// <summary>Dispatches one page and makes both image results and completion flags available for inspection.</summary>
-    private static void Dispatch()
+    private static void Dispatch(Action submit)
     {
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        GL.DispatchCompute(1, 1, 1);
+        submit();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
         GpuTestFence.WaitForGpuOrSkip("Shared surface page");

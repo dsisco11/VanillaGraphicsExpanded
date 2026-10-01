@@ -10,6 +10,8 @@ public sealed class GpuBindingContract
 {
     /// <summary>A resource slot and whether its absence should be reported by runtime diagnostics.</summary>
     public readonly record struct Binding(int Slot, bool Required);
+    /// <summary>Atomic-counter buffer slots named by one active counter uniform.</summary>
+    public IDictionary<string, Binding> AtomicCounters { get; private init; } = new Dictionary<string, Binding>(StringComparer.Ordinal);
     public IDictionary<string, Binding> UniformBlocks { get; private init; } = new Dictionary<string, Binding>(StringComparer.Ordinal);
     public IDictionary<string, Binding> StorageBlocks { get; private init; } = new Dictionary<string, Binding>(StringComparer.Ordinal);
     public IDictionary<string, Binding> Samplers { get; private init; } = new Dictionary<string, Binding>(StringComparer.Ordinal);
@@ -37,7 +39,7 @@ public sealed class GpuBindingContract
     /// <summary>Copies mutable declarations into a binding contract whose dictionaries reject mutation.</summary>
     internal GpuBindingContract Snapshot() => new()
     {
-        UniformBlocks = Freeze(UniformBlocks), StorageBlocks = Freeze(StorageBlocks),
+        AtomicCounters = Freeze(AtomicCounters), UniformBlocks = Freeze(UniformBlocks), StorageBlocks = Freeze(StorageBlocks),
         Samplers = Freeze(Samplers), Images = Freeze(Images), UniformLocations = Freeze(UniformLocations),
         VaryingLocations = Freeze(VaryingLocations), FragmentOutputLocations = Freeze(FragmentOutputLocations)
     };
@@ -47,7 +49,7 @@ public sealed class GpuBindingContract
         new ReadOnlyDictionary<string, T>(new Dictionary<string, T>(source, StringComparer.Ordinal));
 
     /// <summary>Compares all resource and interface declarations when a stage identity is shared.</summary>
-    internal bool Equivalent(GpuBindingContract other) => Same(UniformBlocks, other.UniformBlocks) &&
+    internal bool Equivalent(GpuBindingContract other) => Same(AtomicCounters, other.AtomicCounters) && Same(UniformBlocks, other.UniformBlocks) &&
         Same(StorageBlocks, other.StorageBlocks) && Same(Samplers, other.Samplers) && Same(Images, other.Images) &&
         Same(UniformLocations, other.UniformLocations) && Same(VaryingLocations, other.VaryingLocations) &&
         Same(FragmentOutputLocations, other.FragmentOutputLocations);

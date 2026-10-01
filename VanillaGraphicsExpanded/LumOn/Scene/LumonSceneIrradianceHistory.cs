@@ -12,7 +12,7 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
     private readonly ICoreClientAPI capi;
     private TraceGeometryGpuScene? previousScene;
     private GpuTexture? previousAtlas;
-    private GpuComputePipeline? reset;
+    private Shaders.LumonSceneResetIrradianceComputeShader? reset;
 
     /// <summary>Counts successful history resets for consumers with partial relight schedules.</summary>
     public long Revision { get; private set; }
@@ -29,19 +29,18 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
         if (scene == null) return false;
         if (ReferenceEquals(previousScene, scene) && ReferenceEquals(previousAtlas, atlas))
             return true;
-        if (reset == null && !GpuComputePipeline.TryCreateFromAssets(capi, Shaders.LumonSceneResetIrradianceComputeShader.Contract.Identity,
-            out reset, out _, out var log, preferSpirv: true))
+        if (reset == null)
         {
-            capi.Logger.Warning("[VGE] Cannot invalidate surface lighting: {0}", log);
-            return false;
+            if (!GpuComputePipeline.TryCreateFromAssets(capi, Shaders.LumonSceneResetIrradianceComputeShader.Contract.Identity,
+                out var created, out _, out var log, preferSpirv: true))
+            {
+                capi.Logger.Warning("[VGE] Cannot invalidate surface lighting: {0}", log);
+                return false;
+            }
+            reset = new(created!);
         }
-
-        // Scene replacement changes immutable material identities; atlas replacement is new storage.
-        using (reset!.UseScope())
-        {
-            atlas.BindImageUnit(0, TextureAccess.WriteOnly, layered: true, format: SizedInternalFormat.Rgba16f);
-            GL.DispatchCompute((atlas.Width + 7) / 8, (atlas.Height + 7) / 8, atlas.Depth);
-        }
+        reset.irradianceAtlas = new(atlas, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
+        reset.Dispatch((atlas.Width + 7) / 8, (atlas.Height + 7) / 8, atlas.Depth);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
         previousScene = scene;
         previousAtlas = atlas;

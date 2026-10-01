@@ -16,10 +16,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_hzb_copy.fsh")]
 public sealed partial class LumOnHzbCopyShaderProgram : GpuProgram, ILumOnHzbCopyShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -44,5 +40,7 @@ public sealed partial class LumOnHzbCopyShaderProgram : GpuProgram, ILumOnHzbCop
     /// <summary>
     /// Primary depth texture (VS depth buffer).
     /// </summary>
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 0, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
+    #region Binding sources
+    #endregion
 }

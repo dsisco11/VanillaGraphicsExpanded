@@ -49,10 +49,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 [ShaderStage("SubContract", ShaderStageKind.Fragment, "pbr_heightbake_sub.fsh")]
 internal sealed partial class PbrHeightBakeShaderProgram : GpuProgram, IPbrHeightBakeShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
+
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>

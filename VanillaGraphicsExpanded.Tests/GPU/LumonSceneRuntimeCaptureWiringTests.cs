@@ -88,12 +88,11 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
         // Pass A: mark.
         markShader.BindDebugCounters(markCounters.Buffer);
-        using var markShaderScope = markShader.UseScope();
         markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
         markShader.BindChunkSlotGenerationTex(genTex.TextureId);
         markShader.FrameStamp = 1u;
         markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
-        GL.DispatchCompute((gW + 7) / 8, (gH + 7) / 8, 1);
+        markShader.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring mark pass dispatch");
@@ -101,14 +100,13 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         // Pass B: compact.
         compactShader.BindRequestCounter(pageRequestCounter.Buffer);
         compactShader.BindRequestsSsbo(pageRequests.Buffer);
-        using var compactShaderScope = compactShader.UseScope();
         compactShader.BindPageUsageStamp(usageStamp.TextureId);
         compactShader.BindPageTableMip0(pageTableMip0.TextureId);
         compactShader.MaxRequests = (uint)desiredPages;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
         compactShader.CompactMode = 1u;
-        compactShader.DispatchBound((16384 * chunkSlotCount + 255) / 256, 1, 1);
+        compactShader.Dispatch((16384 * chunkSlotCount + 255) / 256, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring compact pass dispatch");
@@ -196,7 +194,6 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
 
-        using var captureComputeProgramScope = captureComputeProgram.UseScope();
         captureComputeProgram.BindCaptureWorkSsbo(captureWorkSsbo);
         captureComputeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         captureComputeProgram.BindChunkSlotInfoSsbo(slotInfoSsbo);
@@ -210,7 +207,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
         int gxCap = (tileSize + 7) / 8;
         int gyCap = (tileSize + 7) / 8;
-        GL.DispatchCompute(gxCap, gyCap, captureCount);
+        captureComputeProgram.Dispatch(gxCap, gyCap, captureCount);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring capture pass dispatch");

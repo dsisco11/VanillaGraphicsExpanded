@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 /// <summary>Batches changed regions into unique physical slots for compute-based history retirement.</summary>
 internal sealed partial class LumOnWorldProbeClipmapGpuResources
 {
-    private GpuComputePipeline? historyClear;
+    private WorldProbeHistoryClearShader? historyClear;
     private GpuShaderStorageBuffer? historyClearSlots;
     private bool[] queuedHistorySlots = Array.Empty<bool>();
     private readonly List<int> historySlots = new();
@@ -29,8 +29,9 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
     {
         queuedHistorySlots = new bool[checked(levels * resolution * resolution * resolution)];
         if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeHistoryClearShader.Contract.Identity,
-            out historyClear, out _, out string log, preferSpirv: true))
+            out var created, out _, out string log, preferSpirv: true))
             throw new InvalidOperationException("Cannot initialize world-probe history: " + log);
+        historyClear = new(created!);
         historyClearSlots = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamDraw);
     }
 
@@ -67,17 +68,14 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
         int bytes = checked(descriptors.Length << 2);
         historyClearSlots!.EnsureCapacity(bytes);
         historyClearSlots.UploadSubData<int>(descriptors, 0, bytes);
-        using (historyClear!.UseScope())
-        using (GpuImageUnitBinding.Bind(0, radianceAtlas.TextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba16f))
-        using (GpuImageUnitBinding.Bind(1, vis0.TextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba16f))
-        using (GpuImageUnitBinding.Bind(2, dist0.TextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rg16f))
-        using (GpuImageUnitBinding.Bind(3, meta0.TextureId, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rg32f))
-        {
-            historyClearSlots.BindRange(0, 0, bytes);
-            // Use a second dispatch dimension when the slot count exceeds GL's guaranteed X limit.
-            int groupsX = Math.Min(count, 65535);
-            GL.DispatchCompute(groupsX, (count + groupsX - 1) / groupsX, 1);
-        }
+        historyClear!.HistoryClearSlots = new(historyClearSlots, 0, bytes);
+        historyClear.radianceAtlas = new(radianceAtlas, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
+        historyClear.visibilityAtlas = new(vis0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
+        historyClear.distanceAtlas = new(dist0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg16f);
+        historyClear.metadataAtlas = new(meta0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
+        // Use a second dispatch dimension when the slot count exceeds GL's guaranteed X limit.
+        int groupsX = Math.Min(count, 65535);
+        historyClear.Dispatch(groupsX, (count + groupsX - 1) / groupsX, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit |
             MemoryBarrierFlags.FramebufferBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
         InvalidationDispatchCount++;

@@ -73,12 +73,11 @@ internal sealed class LiquidDepthRenderer : IDisposable
             GlStateCache.Current.InvalidateAll();
             if (!LiquidRenderer.CanTakeOwnership(api, atlases) || !program.EnsureReady()) return false;
             var waves = LiquidWaveFrame.Capture(api);
-            using var scope = program.UseScope();
-            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return false;
             program.ProjectionMatrix = render.CurrentProjectionMatrix;
             program.WaveFrame = waves;
             program.ModelViewMatrix = render.CameraMatrixOriginf;
-            program.ApplyInputs();
+            using var scope = program.UseScope();
+            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return false;
             var engineRender = (Vintagestory.Client.RenderAPIBase)render;
             bool previousSsbo = LiquidMeshSource.UseSsbo(engineRender);
             try

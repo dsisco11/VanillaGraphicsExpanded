@@ -19,19 +19,15 @@ public sealed class CpuUniformBufferTests
         Assert.False(buffer.IsDirty);
     }
 
-    /// <summary>Identical writes cannot clear or widen a pending range, including inside nested batches.</summary>
+    /// <summary>Identical writes cannot clear or widen the pending range before publication.</summary>
     [Fact]
     public void UnchangedWritesPreservePendingDirtyRange()
     {
         using var buffer = new TestBuffer();
         buffer.Scalar(12, 1);
-        using (buffer.BeginBatchUpdate())
-        using (buffer.BeginBatchUpdate())
-        {
-            buffer.Scalar(12, 1);
-            buffer.Scalar(0, 0);
-            buffer.Vector(32, Vector3.Zero);
-        }
+        buffer.Scalar(12, 1);
+        buffer.Scalar(0, 0);
+        buffer.Vector(32, Vector3.Zero);
         Assert.True(buffer.IsDirty);
         // Observe the existing private tracking contract without adding a production test-only API.
         Assert.Equal(12, typeof(CpuUniformBuffer).GetField("dirtyStartBytes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(buffer));

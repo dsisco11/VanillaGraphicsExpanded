@@ -9,6 +9,6 @@ internal sealed class LumOnProbeSh9GatherProgramLayout : GpuProgramLayout
     public LumOnProbeSh9GatherProgramLayout()
     {
         RegisterContract(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Create("lumon_probe_sh9_gather"));
-        NearFieldVisibility = new LumOnNearFieldVisibilityBindings(this);
+        NearFieldVisibility = new LumOnNearFieldVisibilityBindings();
     }
 }

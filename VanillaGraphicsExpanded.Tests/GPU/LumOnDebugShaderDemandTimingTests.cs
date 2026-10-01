@@ -52,7 +52,6 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
                     if (reads != 0) Assert.Equal(generation == 1, DriverProgramCache.LastLoadWasHit);
                     TestUniformRing.BeginFrame();
                     started = Stopwatch.GetTimestamp();
-                    using (program.UseScope())
                     {
                         UpdateAndBindLumOnFrameUbo(program);
                         program.DebugMode = 22;

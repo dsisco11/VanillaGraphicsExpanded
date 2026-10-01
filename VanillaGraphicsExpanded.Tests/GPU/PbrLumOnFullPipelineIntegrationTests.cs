@@ -111,7 +111,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: PBR Direct Lighting (MRT)
             // -----------------------------------------------------------------
-            using var pbrDirectProgUse = pbrDirectProg.UseScope();
 
             // Directional light aligned with the test normal.
 
@@ -146,6 +145,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // This synthetic outdoor scene has full propagated sunlight at every receiver.
             using var directEnvironment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
             pbrDirectProg.GBufferEnvironment = directEnvironment.TextureId;
+            pbrCompositeProg.GBufferEnvironment = directEnvironment.TextureId;
+            using var receiverPosition = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
+            pbrDirectProg.GBufferPosition = receiverPosition.TextureId;
+            pbrCompositeProg.GBufferPosition = receiverPosition.TextureId;
             pbrDirectProg.ShadowMapNear = shadowNear.TextureId;
             pbrDirectProg.ShadowMapFar = shadowFar.TextureId;
 
@@ -172,7 +175,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Velocity
             // -----------------------------------------------------------------
-            using var velocityProgUse = velocityProg.UseScope();
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -206,7 +208,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Copy mip0
             targets.Hzb.BindMipForWrite(0);
-            using var hzbCopyProgUse = hzbCopyProg.UseScope();
             hzbCopyProg.PrimaryDepth = primaryDepth.TextureId;
 
             AssertSampler2DBinding("Stage: HZB Copy", hzbCopyProg, "primaryDepth", primaryDepth);
@@ -229,7 +230,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 int srcMip = dstMip - 1;
 
                 targets.Hzb.BindMipForWrite(dstMip);
-                using var hzbDownProgUse = hzbDownProg.UseScope();
                 hzbDownProg.HzbDepth = targets.Hzb.Texture;
                 // The source mip belongs to the HZB parameter block, not a standalone uniform.
                 hzbDownProg.SrcMip = srcMip;
@@ -280,7 +280,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             anchorProg.PrimaryDepth = primaryDepth.TextureId;
             anchorProg.GBufferNormal = gBufferNormal.TextureId;
             anchorProg.PmjJitter = GetOrCreatePmjJitterTexture(1);
-            using var anchorProgUse = anchorProg.UseScope();
 
             AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "primaryDepth", primaryDepth);
             AssertSampler2DBinding("Stage: Probe Anchor", anchorProg, "gBufferNormal", gBufferNormal);
@@ -309,7 +308,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Stage: LumOn Atlas Trace
             // -----------------------------------------------------------------
 
-            using var traceProgUse = traceProg.UseScope();
 
             // Deterministic non-zero indirect: allow sky miss fallback to contribute.
             // This makes the one-frame integration test robust even if ray hits are rare.
@@ -367,7 +365,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Temporal
             // -----------------------------------------------------------------
-            using var temporalProgUse = temporalProg.UseScope();
 
             // Keep jitter off in this test (matches Probe Anchor stage).
 
@@ -393,6 +390,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             temporalProg.ScreenProbeAtlasMetaCurrent = targets.AtlasTrace[1];
             temporalProg.ScreenProbeAtlasMetaHistory = historyMeta;
             temporalProg.VelocityTex = targets.Velocity[0];
+            temporalProg.PmjJitter = GetOrCreatePmjJitterTexture(1);
 
             AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralCurrent", targets.AtlasTrace[0]);
             AssertSampler2DBinding("Stage: Atlas Temporal", temporalProg, "octahedralHistory", historyRadiance);
@@ -412,7 +410,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Filter
             // -----------------------------------------------------------------
-            using var filterProgUse = filterProg.UseScope();
 
             // Phase 23: UBO-backed frame state (probeGridSize).
             UpdateAndBindLumOnFrameUbo(filterProg);
@@ -438,7 +435,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Gather (half-res)
             // -----------------------------------------------------------------
-            using var gatherProgUse = gatherProg.UseScope();
 
             // Phase 23: UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
@@ -484,7 +480,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             upsampleProg.IndirectHalf = targets.IndirectHalf[0];
             upsampleProg.PrimaryDepth = primaryDepth.TextureId;
             upsampleProg.GBufferNormal = gBufferNormal.TextureId;
-            using var upsampleProgUse = upsampleProg.UseScope();
 
             AssertSampler2DBinding("Stage: Upsample", upsampleProg, "indirectHalf", targets.IndirectHalf[0]);
             AssertSampler2DBinding("Stage: Upsample", upsampleProg, "primaryDepth", primaryDepth);
@@ -501,7 +496,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: PBR Composite
             // -----------------------------------------------------------------
-            using var compositeUse = pbrCompositeProg.UseScope();
             // Full composite (indirect from pipeline)
             SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
@@ -710,8 +704,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         return count == 0 ? 0f : sum / count;
     }
 
+    /// <summary>Submits the retained inputs before observing the actual driver sampler binding.</summary>
     private static void AssertSampler2DBinding(string stage, GpuProgram program, string samplerUniform, DynamicTexture2D expectedTexture)
     {
+        using var use = program.UseScope();
         ArgumentNullException.ThrowIfNull(expectedTexture);
         Assert.True(expectedTexture.IsValid, $"{stage}: expected texture for '{samplerUniform}' is invalid/disposed");
         Assert.NotEqual(0, expectedTexture.TextureId);
@@ -845,7 +841,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
     /// <summary>Uses production setters for composition parameters, preserving the controlled lighting comparison.</summary>
     private static void SetupPbrCompositeUniforms(PBRCompositeShaderProgram program, float[] invProjection, float[] viewMatrix, int lumOnEnabled)
     {
-        using var use = program.UseScope();
         program.InvProjectionMatrix = invProjection;
         program.ViewMatrix = viewMatrix;
         program.RgbaFogIn = new(0,0,0,0);

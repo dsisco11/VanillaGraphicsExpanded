@@ -96,14 +96,12 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
     /// <summary>Initializes the production Project parameter and frame bindings.</summary>
     private void SetupProjectUniforms(LumOnScreenProbeAtlasProjectSh9ShaderProgram programId)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId);
     }
 
     /// <summary>Initializes the production Sh9Gather parameter and frame bindings.</summary>
     private void SetupSh9GatherUniforms(LumOnProbeSh9GatherShaderProgram programId, float[] invProjection, float[] view)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: view);
         programId.Intensity = 1; programId.IndirectTint = [1,1,1];
     }
@@ -111,7 +109,6 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
     /// <summary>Initializes the production AtlasGather parameter and frame bindings.</summary>
     private void SetupAtlasGatherUniforms(LumOnScreenProbeAtlasGatherShaderProgram programId, float[] invProjection, float[] view)
     {
-        using var use = programId.UseScope();
         UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: view);
         programId.Intensity = 1; programId.IndirectTint = [1,1,1];
         programId.LeakThreshold = .5f; programId.SampleStride = 1;
@@ -187,7 +184,6 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
             PixelInternalFormat.Rgba16f);
 
         var programId = CompileProjectShader();
-        using var programUse = programId.UseScope();
         SetupProjectUniforms(programId);
 
         programId.ScreenProbeAtlas = atlasTex;
@@ -274,7 +270,6 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
             PixelInternalFormat.Rgba16f);
 
         var projectId = CompileProjectShader();
-        using var projectIdUse = projectId.UseScope();
         SetupProjectUniforms(projectId);
 
         projectId.ScreenProbeAtlas = atlasTex;
@@ -286,7 +281,6 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         using var outIndirectSh9 = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
 
         var sh9GatherId = CompileSh9GatherShader();
-        using var sh9GatherIdUse = sh9GatherId.UseScope();
         SetupSh9GatherUniforms(sh9GatherId, identity, identity);
 
         sh9GatherId.ProbeSh0 = outSh9[0];
@@ -309,7 +303,6 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         using var outIndirectAtlas = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
 
         var atlasGatherId = CompileAtlasGatherShader();
-        using var atlasGatherIdUse = atlasGatherId.UseScope();
         SetupAtlasGatherUniforms(atlasGatherId, identity, identity);
 
         atlasGatherId.ScreenProbeAtlas = atlasTex;

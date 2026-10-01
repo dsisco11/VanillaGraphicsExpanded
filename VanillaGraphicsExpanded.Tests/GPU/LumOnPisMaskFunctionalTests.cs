@@ -58,7 +58,6 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
             shader.ImportanceSampling = enabled; shader.BatchSlicing = batch; shader.UniformMask = uniform;
             shader.TexelsPerFrame = 8; shader.ExploreCount = count; shader.ExploreFraction = fraction; shader.WeightEpsilon = epsilon;
         });
-        using var use = program.UseScope();
         var textures = new List<DynamicTexture2D>();
         try
         {

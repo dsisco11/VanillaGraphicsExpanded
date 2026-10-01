@@ -83,7 +83,6 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
         {
             shader.DirectVisibility = true;
         }, identity: LumOnDebugShaderProgramFamily.GetProgramName((LumOnDebugMode)mode));
-        using var use = program.UseScope();
         {
             // Surface queries land at y=32.5 after the frame bridge; rays face -Z from that same camera.
             float[] projection = [0,0,0,0, 0,0,0,0, 0,0,0,0, x,.5f-cameraY,-5,1];
@@ -92,7 +91,7 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: projection, invViewMatrix: view,
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
             program.DebugMode = mode;
-            program.NearFieldVisibility.Bind(program, scene);
+            program.NearFieldVisibility.Stage(program, scene);
             SceneInputs.EnsureSize(ScreenWidth,ScreenHeight);
             SceneInputs.Engine.Depth.UploadDataImmediate(CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
             SceneInputs.Terrain.Normal.UploadDataImmediate(CreateUniformNormalData(ScreenWidth,ScreenHeight,0,0,1));

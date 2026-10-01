@@ -36,13 +36,20 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { availability, availability, availability, 1f });
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { .25f });
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
+        program.GBufferPosition = position.TextureId;
         output.BindWithViewport();
-        using (program.UseScope())
         {
             program.DirectDiffuse = zero; program.DirectSpecular = zero; program.Emissive = emission;
             program.IndirectDiffuse = indirect; program.GBufferAlbedo = albedo.TextureId;
             program.GBufferNormal = normal.TextureId; program.GBufferMaterial = material.TextureId;
             program.GBufferEnvironment = environment.TextureId; program.PrimaryDepth = depth.TextureId;
+
+            program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+            program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+            program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
+            program.FogDensityIn = 0; program.FogMinIn = 0;
+            TestFramework.RenderQuad(program);
             if (!lumon)
             {
                 int active = GL.GetInteger(GetPName.ActiveTexture);
@@ -51,11 +58,6 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
                 GL.ActiveTexture((TextureUnit)active);
                 Assert.Equal(environment.TextureId, bound);
             }
-            program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-            program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-            program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
-            program.FogDensityIn = 0; program.FogMinIn = 0;
-            TestFramework.RenderQuad(program);
         }
         float f0 = metallic == 1 ? .5f : .04f;
         float response = lumon ? .75f * .5f : availability * ((1 - f0) * (1 - metallic) * .5f + f0 * (1 - roughness));

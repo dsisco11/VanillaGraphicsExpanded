@@ -32,10 +32,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeEnabled))]
 public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILumOnProbeSh9GatherShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     #region Shader options
@@ -61,7 +57,19 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
 
     protected override GpuProgramLayout CreateLayout() => new LumOnProbeSh9GatherProgramLayout();
 
-    private LumOnProbeParamsUbo Params => paramsUbo ??= new LumOnProbeParamsUbo();
+    /// <summary>Owns packed parameters and rejects writes during publication.</summary>
+    private LumOnProbeParamsUbo Params
+    {
+        get
+        {
+            if (paramsUbo is null)
+            {
+                paramsUbo = new LumOnProbeParamsUbo();
+                paramsUbo.SetWriteGuard(RequireInputMutation);
+            }
+            return paramsUbo;
+        }
+    }
 
     #region Diagnostic Controls
 
@@ -73,7 +81,6 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
         set
         {
             Params.SuppressWorldProbeRadiance = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -95,27 +102,27 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
 
     #region SH9 Textures
 
-    public GpuTexture? ProbeSh0 { set => BindTexture2D("probeSh0", value, 0); }
-    public GpuTexture? ProbeSh1 { set => BindTexture2D("probeSh1", value, 1); }
-    public GpuTexture? ProbeSh2 { set => BindTexture2D("probeSh2", value, 2); }
-    public GpuTexture? ProbeSh3 { set => BindTexture2D("probeSh3", value, 3); }
-    public GpuTexture? ProbeSh4 { set => BindTexture2D("probeSh4", value, 4); }
-    public GpuTexture? ProbeSh5 { set => BindTexture2D("probeSh5", value, 5); }
-    public GpuTexture? ProbeSh6 { set => BindTexture2D("probeSh6", value, 6); }
+    public partial GpuTexture? ProbeSh0 { set; }
+    public partial GpuTexture? ProbeSh1 { set; }
+    public partial GpuTexture? ProbeSh2 { set; }
+    public partial GpuTexture? ProbeSh3 { set; }
+    public partial GpuTexture? ProbeSh4 { set; }
+    public partial GpuTexture? ProbeSh5 { set; }
+    public partial GpuTexture? ProbeSh6 { set; }
 
     #endregion
 
     #region Probe Anchors
 
-    public GpuTexture? ProbeAnchorPosition { set => BindTexture2D("probeAnchorPosition", value, 7); }
-    public GpuTexture? ProbeAnchorNormal { set => BindTexture2D("probeAnchorNormal", value, 8); }
+    public partial GpuTexture? ProbeAnchorPosition { set; }
+    public partial GpuTexture? ProbeAnchorNormal { set; }
 
     #endregion
 
     #region GBuffer Inputs
 
-    public int PrimaryDepth { set => BindExternalTexture2D("primaryDepth", value, 9, GpuSamplers.NearestClamp); }
-    public int GBufferNormal { set => BindExternalTexture2D("gBufferNormal", value, 10, GpuSamplers.NearestClamp); }
+    public partial int PrimaryDepth { set; }
+    public partial int GBufferNormal { set; }
 
     #endregion
 
@@ -128,7 +135,6 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
         set
         {
             Params.Intensity = value;
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -137,7 +143,6 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
         set
         {
             Params.IndirectTint = new System.Numerics.Vector3(value[0], value[1], value[2]);
-            Params.BindTo(this, LumOnProbeParamsUbo.BlockName, $"VGE.{ShaderName}.Params");
         }
     }
 
@@ -180,9 +185,9 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
         return !changed;
     }
 
-    public GpuTexture? WorldProbeRadianceAtlas { set => BindTexture2D("worldProbeRadianceAtlas", value, 11); }
-    public GpuTexture? WorldProbeVis0 { set => BindTexture2D("worldProbeVis0", value, 14); }
-    public GpuTexture? WorldProbeMeta0 { set => BindTexture2D("worldProbeMeta0", value, 15); }
+    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
+    public partial GpuTexture? WorldProbeVis0 { set; }
+    public partial GpuTexture? WorldProbeMeta0 { set; }
 
     /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
@@ -196,5 +201,19 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]
     public partial int WorldProbeResolution { get; set; }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies current frame storage through the binding contract.</summary>
+    GpuUniformBuffer? ILumOnProbeSh9GatherShaderProgramBindings.LumOnFrame => RetainedFrame;
+    /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
+    GpuUniformBuffer? ILumOnProbeSh9GatherShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;
+    /// <summary>Supplies the retained CPU block for one publication per use.</summary>
+    CpuUniformBuffer ILumOnProbeSh9GatherShaderProgramBindings.Parameters => Params;
+    /// <summary>Supplies retained visibility parameters through the declared block.</summary>
+    CpuUniformBuffer ILumOnProbeSh9GatherShaderProgramBindings.LumOnNearField => NearFieldVisibility.Parameters;
+    /// <summary>Supplies the retained geometry texture.</summary>
+    GpuTexture? ILumOnProbeSh9GatherShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
+    /// <summary>Supplies the retained readiness texture.</summary>
+    GpuTexture? ILumOnProbeSh9GatherShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
     #endregion
 }

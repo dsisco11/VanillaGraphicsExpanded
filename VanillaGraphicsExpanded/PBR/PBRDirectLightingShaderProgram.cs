@@ -23,10 +23,6 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_direct_lighting.fsh")]
 public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDirectLightingShaderProgramBindings
 {
-    #region Submission
-    /// <summary>Retains this owner's explicit external input publication contract.</summary>
-    protected override void Submit() { }
-    #endregion
 
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
@@ -54,54 +50,58 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
 
     #endregion
 
-    private PbrDirectLightingParamsUbo Params => Layout.Params;
-
-    private void UploadAndBindParamsUbo()
+    /// <summary>Exposes retained parameters with an owner mutation guard.</summary>
+    private PbrDirectLightingParamsUbo Params
     {
-        Layout.BindParamsUbo(this, $"VGE.{ShaderName}.Params");
+        get
+        {
+            var parameters = Layout.Params;
+            parameters.SetWriteGuard(RequireInputMutation);
+            return parameters;
+        }
     }
 
-    #region Texture Samplers
+#region Texture Samplers
 
     /// <summary>
     /// Primary scene color (baseColor) texture (texture unit 0).
     /// </summary>
-    public int PrimaryScene { set => Layout.BindPrimaryScene(ProgramId, value, LayoutWarn); }
+    public partial int PrimaryScene { set; }
 
     /// <summary>
     /// Primary depth texture (texture unit 1).
     /// </summary>
-    public int PrimaryDepth { set => Layout.BindPrimaryDepth(ProgramId, value, LayoutWarn); }
+    public partial int PrimaryDepth { set; }
 
     /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
-    public int GBufferPosition { set => Layout.BindGBufferPosition(ProgramId, value, LayoutWarn); }
+    public partial int GBufferPosition { set; }
 
     /// <summary>Local environment attachment whose alpha stores propagated sunlight.</summary>
-    public int GBufferEnvironment { set => Layout.BindGBufferEnvironment(ProgramId, value, LayoutWarn); }
+    public partial int GBufferEnvironment { set; }
 
     /// <summary>
     /// G-buffer normal texture (Attachment4) (texture unit 2).
     /// Packed normalWS = n*0.5+0.5
     /// </summary>
-    public int GBufferNormal { set => Layout.BindGBufferNormal(ProgramId, value, LayoutWarn); }
+    public partial int GBufferNormal { set; }
 
     /// <summary>
     /// G-buffer material texture (Attachment5) (texture unit 3).
     /// Contains: Roughness (R), Metallic (G), Emissive (B), Reflectivity (A).
     /// </summary>
-    public int GBufferMaterial { set => Layout.BindGBufferMaterial(ProgramId, value, LayoutWarn); }
+    public partial int GBufferMaterial { set; }
 
     /// <summary>
     /// Near shadow map (texture unit 4).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapNear.
     /// </summary>
-    public int ShadowMapNear { set => Layout.BindShadowMapNear(ProgramId, value, LayoutWarn); }
+    public partial int ShadowMapNear { set; }
 
     /// <summary>
     /// Far shadow map (texture unit 5).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapFar.
     /// </summary>
-    public int ShadowMapFar { set => Layout.BindShadowMapFar(ProgramId, value, LayoutWarn); }
+    public partial int ShadowMapFar { set; }
 
     #endregion
 
@@ -111,8 +111,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.InvProjectionMatrix = value;
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -120,8 +120,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.InvModelViewMatrix = value;
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -129,8 +129,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.ToShadowMapSpaceMatrixNear = value;
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -138,8 +138,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.ToShadowMapSpaceMatrixFar = value;
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -154,12 +154,12 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _zNear = value.zNear;
             _zFar = value.zFar;
             _shadowRangeNear = value.shadowRangeNear;
             _shadowRangeFar = value.shadowRangeFar;
             Params.ZPlanesAndShadowRanges = value;
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -167,9 +167,9 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _zNear = value;
             Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -177,9 +177,9 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _zFar = value;
             Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -187,9 +187,9 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _shadowRangeNear = value;
             Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -197,9 +197,9 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _shadowRangeFar = value;
             Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -211,8 +211,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.LightDirection = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -220,8 +220,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.RgbaAmbientIn = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -229,7 +229,6 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     internal void SetSolarIrradiance(System.Numerics.Vector3 value)
     {
         Params.RgbaLightIn = value;
-        UploadAndBindParamsUbo();
     }
 
     /// <summary>Publishes direction and irradiance together from the same atmospheric generation.</summary>
@@ -237,7 +236,6 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         Params.LightDirection = direction;
         Params.RgbaLightIn = irradiance;
-        UploadAndBindParamsUbo();
     }
 
     /// <summary>Sets physical solar irradiance using the engine vector API.</summary>
@@ -245,8 +243,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.RgbaLightIn = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -254,8 +252,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             Params.SetPointLights(value, null, null);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -269,7 +267,6 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     public void SetPointLights(int count, float[]? pointLights3, float[]? pointLightColors3)
     {
         Params.SetPointLights(count, pointLights3, pointLightColors3);
-        UploadAndBindParamsUbo();
     }
 
     #endregion
@@ -280,9 +277,9 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _shadowZExtendNear = value;
             Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -290,9 +287,9 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _shadowZExtendFar = value;
             Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
-            UploadAndBindParamsUbo();
         }
     }
 
@@ -300,11 +297,15 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     {
         set
         {
+            RequireInputMutation();
             _dropShadowIntensity = value;
             Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
-            UploadAndBindParamsUbo();
         }
     }
 
+    #endregion
+    #region Binding sources
+    /// <summary>Supplies packed parameters for one publication per use.</summary>
+    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.Parameters => Params;
     #endregion
 }
