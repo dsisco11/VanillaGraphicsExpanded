@@ -57,7 +57,13 @@ Failure removes the old success receipt and cannot claim a complete build. A suc
 catalog build removes obsolete runtime outputs; the mod copy target also removes
 obsolete deployed SPIR-V files. Cache and temporary files are not packaged.
 
-Logs report cache hits, misses, compiler invocations and elapsed time. Explicit
-`--clean` overrides `--incremental`, discards outputs/cache and forces compilation.
+Logs report cache hits, misses, compiler invocations and elapsed time.
+MSBuild exposes these messages at minimal verbosity. Startup messages identify
+tool restoration, fingerprint checks and receipt/output verification before any
+variant work begins. Catalog rebuilds report source expansion and variant progress
+(at most once every five seconds as jobs finish, plus the final count), followed
+by output publication. Input-check and total timings help distinguish validation
+cost from compiler work; processing a variant can be a cache hit without compiling.
+Explicit `--clean` overrides `--incremental`, discards outputs/cache and forces compilation.
 The cache retains historical successful variants to support reverting changes;
 explicit clean is currently the mechanism for reclaiming that storage.

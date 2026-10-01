@@ -26,6 +26,7 @@ internal static class ShaderVariantBuild
         var expanded = new Dictionary<string, string>(StringComparer.Ordinal);
         Console.WriteLine($"[SPIR-V] Programs: {registry.Programs.Count} programs, {registry.Programs.Values.Sum(p => p.Assignments.Count)} combinations");
         // Expand each source once; workers share only immutable text, never editable syntax trees.
+        Console.WriteLine("[SPIR-V] Expanding shader sources...");
         foreach (string source in registry.Binaries.Select(selection => selection.Stage.Source).Distinct(StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -91,7 +92,9 @@ internal static class ShaderVariantBuild
                 finally { File.Delete(pending); }
             }
         }
+        Console.WriteLine($"[SPIR-V] Processing {jobs.Count} variants (emission, cache verification, compilation on cache misses); concurrency={concurrency}...");
         await ShaderCompilationBatch.RunAsync(jobs, concurrency, Console.Out, Console.Error, cancellationToken);
+        Console.WriteLine("[SPIR-V] Pruning obsolete outputs and publishing binary digests...");
         // Catalog changes remove obsolete runtime files only after every required variant succeeds.
         string publishedRoot = Path.Combine(outputRoot, domain, "shaders");
         foreach (string path in Directory.EnumerateFiles(publishedRoot, "*", SearchOption.AllDirectories))

@@ -18,6 +18,9 @@ internal static class ShaderCompilationBatch
         var results = new ShaderCompilerResult?[jobs.Count];
         var failures = new Exception?[jobs.Count];
         int next = -1;
+        int completed = 0;
+        var progressTimer = System.Diagnostics.Stopwatch.StartNew();
+        var progressLock = new object();
         // Fixed workers bound both AST emission and external processes, rather than starting one task per variant.
         var workers = Enumerable.Range(0, Math.Min(concurrency, jobs.Count)).Select(_ => Task.Run(async () =>
         {
@@ -29,6 +32,16 @@ internal static class ShaderCompilationBatch
                 {
                     stop.Token.ThrowIfCancellationRequested();
                     results[index] = await jobs[index].Execute(stop.Token);
+                    // Serialize sparse progress messages so parallel workers cannot interleave counts.
+                    lock (progressLock)
+                    {
+                        completed++;
+                        if (progressTimer.Elapsed.TotalSeconds >= 5 || completed == jobs.Count)
+                        {
+                            output.WriteLine($"[SPIR-V] Variant progress: {completed}/{jobs.Count} processed.");
+                            progressTimer.Restart();
+                        }
+                    }
                     if (results[index]!.ExitCode != 0) stop.Cancel();
                 }
                 catch (OperationCanceledException) when (stop.IsCancellationRequested) { }

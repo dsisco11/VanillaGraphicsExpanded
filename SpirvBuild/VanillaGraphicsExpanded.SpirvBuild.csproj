@@ -36,7 +36,8 @@
   <Target Name="RestoreDotnetShadercTool"
           Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'"
           BeforeTargets="CompileSpirvShaders">
-    <Exec WorkingDirectory="$(VgeSolutionRoot)" Command="dotnet tool restore" />
+    <Message Importance="high" Text="[SPIR-V] Restoring shader compiler tool..." />
+    <Exec WorkingDirectory="$(VgeSolutionRoot)" Command="dotnet tool restore" StandardOutputImportance="High" />
   </Target>
 
   <Target Name="CompileSpirvShaders"
@@ -48,6 +49,7 @@
     </MSBuild>
     <Exec
       WorkingDirectory="$(VgeSolutionRoot)"
+      StandardOutputImportance="High"
       Command="dotnet &quot;@(_BuiltShaderTool)&quot; --incremental $(SpirvConcurrencyArg) $(SpirvVerifyContentsArg) --assetsRoot &quot;$(VgeModProjectDir)\assets&quot; --outputRoot &quot;$(SpirvArtifactsDir)&quot; --domain $(SpirvDomain) --targetEnv $(SpirvTargetEnv) $(SpirvWarningsAsErrorsArg) --workingDir &quot;$(VgeSolutionRoot)&quot;" />
   </Target>
 

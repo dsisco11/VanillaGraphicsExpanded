@@ -45,6 +45,7 @@ internal static class Program
                 throw new DirectoryNotFoundException("Shader input directory is missing: " + domainShadersRoot);
             }
 
+            Console.WriteLine($"[SPIR-V] Starting shader build: incremental={options.Incremental}; clean={options.Clean}; verifyContents={options.VerifyContents}; output='{outputRoot}'.");
             ShaderVariantResolver registry = options.RegistryScope switch
             {
                 "production" => GpuShaderContracts.Registry,
@@ -53,18 +54,23 @@ internal static class Program
                 _ => throw new OptionsException("Unknown registry scope: " + options.RegistryScope)
             };
             using var outputLease = ShaderOutputLease.Acquire(outputRoot);
+            Console.WriteLine("[SPIR-V] Generating shared shader constants and checking input/compiler fingerprints...");
+            var checkTimer = System.Diagnostics.Stopwatch.StartNew();
             LumonOctahedralShWeights.Generate(domainShadersRoot);
             var fileHashes = new ShaderFileHashIndex(outputRoot, options.VerifyContents || options.Clean);
             string compilerIdentity = ShaderBuildReceipt.CompilerFingerprint(
                 options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes);
             string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, compilerIdentity, fileHashes) + "|" + options.RegistryScope;
-            Console.WriteLine($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}");
+            Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}; elapsedMs={checkTimer.Elapsed.TotalMilliseconds:F1}"));
+            Console.WriteLine("[SPIR-V] Checking incremental receipt and verifying published binary contents...");
+            checkTimer.Restart();
             if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
             {
                 fileHashes.Save();
-                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current. Cache hits={registry.Binaries.Count}; misses=0; compilerInvocations=0; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
+                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current. Cache hits={registry.Binaries.Count}; misses=0; compilerInvocations=0; receiptCheckMs={checkTimer.Elapsed.TotalMilliseconds:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
                 return 0;
             }
+            Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Catalog rebuild required (receipt missing/stale, outputs invalid, or rebuild requested); checkMs={checkTimer.Elapsed.TotalMilliseconds:F1}. Per-variant cache reuse={options.Incremental && !options.Clean}."));
             if (options.Clean && Directory.Exists(outputRoot))
             {
                 Directory.Delete(outputRoot, recursive: true);
@@ -86,7 +92,9 @@ internal static class Program
             }
             finally { Console.CancelKeyPress -= cancel; }
             fileHashes.Save();
+            Console.WriteLine("[SPIR-V] Publishing verified build receipt...");
             ShaderBuildReceipt.Publish(outputRoot, fingerprint);
+            Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Build complete; totalElapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
             return 0;
         }
         catch (OptionsException ex)
