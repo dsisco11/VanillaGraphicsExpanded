@@ -58,13 +58,17 @@ internal static class Program
             var checkTimer = System.Diagnostics.Stopwatch.StartNew();
             LumonOctahedralShWeights.Generate(domainShadersRoot);
             var fileHashes = new ShaderFileHashIndex(outputRoot, options.VerifyContents || options.Clean);
+            var inputDetails = new Dictionary<string, string>(StringComparer.Ordinal) { ["registry scope"] = options.RegistryScope };
             string compilerIdentity = ShaderBuildReceipt.CompilerFingerprint(
-                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes);
-            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, compilerIdentity, fileHashes) + "|" + options.RegistryScope;
+                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes, inputDetails);
+            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, compilerIdentity, fileHashes, inputDetails) + "|" + options.RegistryScope;
             Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}; elapsedMs={checkTimer.Elapsed.TotalMilliseconds:F1}"));
             Console.WriteLine("[SPIR-V] Checking incremental receipt and verifying published binary contents...");
             checkTimer.Restart();
-            if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint))
+            if (options.Clean) Console.WriteLine("[SPIR-V] Rebuild reason: --clean explicitly discards outputs and cache.");
+            else if (!options.Incremental) Console.WriteLine("[SPIR-V] Rebuild reason: --incremental was not enabled.");
+            if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint, inputDetails,
+                reason => Console.WriteLine("[SPIR-V] Rebuild reason: " + reason)))
             {
                 fileHashes.Save();
                 Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current; receiptCheckMs={checkTimer.Elapsed.TotalMilliseconds:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
@@ -94,7 +98,7 @@ internal static class Program
             finally { Console.CancelKeyPress -= cancel; }
             fileHashes.Save();
             Console.WriteLine("[SPIR-V] Publishing verified build receipt...");
-            ShaderBuildReceipt.Publish(outputRoot, fingerprint);
+            ShaderBuildReceipt.Publish(outputRoot, fingerprint, inputDetails);
             Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Build complete; totalElapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
             return 0;
         }

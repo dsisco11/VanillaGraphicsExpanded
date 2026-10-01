@@ -23,6 +23,7 @@ internal static class ShaderVariantBuild
         var cache = new ShaderVariantCache(outputRoot, compilerIdentity
             ?? ShaderBuildReceipt.CompilerFingerprint(workingDirectory, target, warningsAsErrors));
         int hits = 0, misses = 0;
+        var missReasons = new System.Collections.Concurrent.ConcurrentDictionary<string, int>(StringComparer.Ordinal);
         var expanded = new Dictionary<string, string>(StringComparer.Ordinal);
         Console.WriteLine($"[SPIR-V] Programs: {registry.Programs.Count} programs, {registry.Programs.Values.Sum(p => p.Assignments.Count)} combinations");
         // Expand each source once; workers share only immutable text, never editable syntax trees.
@@ -60,7 +61,8 @@ internal static class ShaderVariantBuild
                     var emitter = new ShaderVariantSource(assetsRoot, domain);
                     string source = ShaderSourceLayout.Apply(emitter.Emit(expanded[stage.Source], selection), extension, stage.Bindings);
                     string key = cache.Key(source, Program.StageFromExtension(extension), stage.EntryPoint);
-                    if (incremental && cache.TryRead(key, out var cachedBytes, out var cachedDigest))
+                    if (incremental && cache.TryRead(key, out var cachedBytes, out var cachedDigest,
+                        reason => missReasons.AddOrUpdate(reason, 1, (_, count) => count + 1)))
                     {
                         ShaderVariantCache.Publish(binary, cachedBytes);
                         digests[selection.BinaryPath] = cachedDigest;
@@ -69,6 +71,7 @@ internal static class ShaderVariantBuild
                         return new ShaderCompilerResult(0, "", "");
                     }
                     Interlocked.Increment(ref misses);
+                    if (!incremental) missReasons.AddOrUpdate("incremental cache reuse disabled", 1, (_, count) => count + 1);
                     File.Delete(binary);
                     File.WriteAllText(input, source);
                     Interlocked.Add(ref emissionTicks, timer.ElapsedTicks);
@@ -105,6 +108,8 @@ internal static class ShaderVariantBuild
             Console.WriteLine($"[SPIR-V] {stage.Key}: {stage.Count()} structural variants");
         Console.WriteLine($"[SPIR-V] Stages: {registry.Stages.Count} stages, {registry.Binaries.Count} variants");
         Console.WriteLine($"[SPIR-V] Cache hits={hits}; misses={misses}; shadersRecompiled={misses}; compilerInvocations={misses}");
+        foreach (var reason in missReasons.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            Console.WriteLine($"[SPIR-V] Cache miss reason: {reason.Key}; variants={reason.Value}");
         Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Timing: concurrency={concurrency}; expansionMs={expansionMilliseconds:F1}; emissionWorkMs={emissionTicks * 1000.0 / Stopwatch.Frequency:F1}; compilerWorkMs={compilerTicks * 1000.0 / Stopwatch.Frequency:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}"));
     }
 

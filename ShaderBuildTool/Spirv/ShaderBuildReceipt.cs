@@ -8,11 +8,12 @@ namespace ShaderBuildTool.Spirv;
 internal static class ShaderBuildReceipt
 {
     /// <summary>Content hashes of all published files; temporary compiler inputs are excluded.</summary>
-    private sealed record Receipt(string Inputs, Dictionary<string, string> Outputs);
+    private sealed record Receipt(string Inputs, Dictionary<string, string> Outputs, Dictionary<string, string>? InputDetails = null);
 
-    #region Input and output validation
+    #region Public API
     /// <summary>Hashes source paths and contents against the invocation's compiler identity, including removed inputs.</summary>
-    public static string Fingerprint(string assetsRoot, string domain, string compilerIdentity, ShaderFileHashIndex? index = null)
+    public static string Fingerprint(string assetsRoot, string domain, string compilerIdentity, ShaderFileHashIndex? index = null,
+        Dictionary<string, string>? details = null)
     {
         var inputs = Directory.EnumerateFiles(Path.Combine(assetsRoot, domain), "*", SearchOption.AllDirectories)
             .Where(p => p.Contains(Path.DirectorySeparatorChar + "shaders" + Path.DirectorySeparatorChar)
@@ -23,18 +24,16 @@ internal static class ShaderBuildReceipt
         foreach (string path in inputs)
         {
             hash.AppendData(Encoding.UTF8.GetBytes(path));
-            if (index is not null) hash.AppendData(index.GetHash(path));
-            else
-            {
-                using var stream = File.OpenRead(path);
-                hash.AppendData(SHA256.HashData(stream));
-            }
+            byte[] digest = HashInput(path, index);
+            hash.AppendData(digest);
+            if (details is not null) details["shader: " + path] = Convert.ToHexString(digest);
         }
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 
     /// <summary>Computes compiler and build-tool identity once for receipt checking and every variant in an invocation.</summary>
-    public static string CompilerFingerprint(string workingDirectory, string target, bool warnings, ShaderFileHashIndex? index = null)
+    public static string CompilerFingerprint(string workingDirectory, string target, bool warnings, ShaderFileHashIndex? index = null,
+        Dictionary<string, string>? details = null)
     {
         string toolManifest = Path.Combine(workingDirectory, ".config", "dotnet-tools.json");
         using var configuration = JsonDocument.Parse(File.ReadAllText(toolManifest));
@@ -48,41 +47,71 @@ internal static class ShaderBuildReceipt
             .Concat(Directory.EnumerateFiles(compilerRoot, "*", SearchOption.AllDirectories))
             .Append(toolManifest).Select(Path.GetFullPath).Order(StringComparer.Ordinal);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        hash.AppendData(Encoding.UTF8.GetBytes(target + "|" + warnings + "|" + ShaderCompilerProcess.OptimizationArgument
-            + "|debug=" + ShaderCompilerProcess.GenerateDebugInfo));
+        string policy = target + "|" + warnings + "|" + ShaderCompilerProcess.OptimizationArgument
+            + "|debug=" + ShaderCompilerProcess.GenerateDebugInfo;
+        hash.AppendData(Encoding.UTF8.GetBytes(policy));
+        if (details is not null) details["compiler policy"] = policy;
         foreach (string path in inputs)
         {
             hash.AppendData(Encoding.UTF8.GetBytes(Path.GetFullPath(path)));
-            if (index is not null) hash.AppendData(index.GetHash(path));
-            else
-            {
-                using var stream = File.OpenRead(path);
-                hash.AppendData(SHA256.HashData(stream));
-            }
+            byte[] digest = HashInput(path, index);
+            hash.AppendData(digest);
+            if (details is not null) details["compiler/tool: " + path] = Convert.ToHexString(digest);
         }
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 
     /// <summary>Accepts only a complete previous success whose binaries and sidecars still match their recorded content.</summary>
-    public static bool IsCurrent(string outputRoot, string fingerprint)
+    public static bool IsCurrent(string outputRoot, string fingerprint, Dictionary<string, string>? details = null,
+        Action<string>? report = null)
     {
         string path = Path.Combine(outputRoot, "build-receipt.json");
-        if (!File.Exists(path)) return false;
+        if (!File.Exists(path)) { report?.Invoke("No successful build receipt exists: " + path); return false; }
         try
         {
             var receipt = JsonSerializer.Deserialize<Receipt>(File.ReadAllText(path));
-            return receipt?.Inputs == fingerprint && receipt.Outputs is { Count: > 0 } && receipt.Outputs.All(pair =>
+            if (receipt is null || receipt.Outputs is not { Count: > 0 })
+            {
+                report?.Invoke("Build receipt is empty or incomplete: " + path);
+                return false;
+            }
+            if (receipt.Inputs != fingerprint)
+            {
+                report?.Invoke($"Input fingerprint changed: {receipt.Inputs} -> {fingerprint}");
+                if (receipt.InputDetails is not null && details is not null)
+                {
+                    // Compare content identities rather than timestamps, including added and removed paths.
+                    foreach (string key in receipt.InputDetails.Keys.Union(details.Keys).Order(StringComparer.Ordinal))
+                    {
+                        receipt.InputDetails.TryGetValue(key, out string? before);
+                        details.TryGetValue(key, out string? after);
+                        if (before != after) report?.Invoke($"Input {(before is null ? "added" : after is null ? "removed" : "changed")}: {key}; {before ?? "<absent>"} -> {after ?? "<absent>"}");
+                    }
+                }
+                else report?.Invoke("Previous receipt has no per-input diagnostics; the next successful build will record them.");
+                return false;
+            }
+            foreach (var pair in receipt.Outputs)
             {
                 string file = Path.Combine(outputRoot, pair.Key);
-                return File.Exists(file) && Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))) == pair.Value;
-            }) && PublishedFiles(outputRoot).Where(p => p != path)
-                .Select(p => Path.GetRelativePath(outputRoot, p)).ToHashSet(StringComparer.Ordinal).SetEquals(receipt.Outputs.Keys);
+                if (!File.Exists(file)) { report?.Invoke("Published output missing: " + file); return false; }
+                if (Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))) != pair.Value)
+                { report?.Invoke("Published output content changed: " + file); return false; }
+            }
+            var published = PublishedFiles(outputRoot).Where(p => p != path)
+                .Select(p => Path.GetRelativePath(outputRoot, p)).ToHashSet(StringComparer.Ordinal);
+            if (!published.SetEquals(receipt.Outputs.Keys))
+            {
+                foreach (string added in published.Except(receipt.Outputs.Keys)) report?.Invoke("Unexpected published output: " + added);
+                return false;
+            }
+            return true;
         }
-        catch (JsonException) { return false; }
+        catch (JsonException error) { report?.Invoke("Malformed build receipt: " + error.Message); return false; }
     }
 
     /// <summary>Publishes the receipt last; failed compilations can never become a successful incremental build.</summary>
-    public static void Publish(string outputRoot, string fingerprint)
+    public static void Publish(string outputRoot, string fingerprint, Dictionary<string, string>? details = null)
     {
         var outputs = PublishedFiles(outputRoot)
             .Where(p => Path.GetFileName(p) != "build-receipt.json")
@@ -92,10 +121,21 @@ internal static class ShaderBuildReceipt
         Directory.CreateDirectory(Path.GetDirectoryName(pending)!);
         try
         {
-            File.WriteAllText(pending, JsonSerializer.Serialize(new Receipt(fingerprint, outputs)));
+            File.WriteAllText(pending, JsonSerializer.Serialize(new Receipt(fingerprint, outputs, details)));
             File.Move(pending, Path.Combine(outputRoot, "build-receipt.json"), overwrite: true);
         }
         finally { File.Delete(pending); }
+    }
+
+    #endregion
+
+    #region Private
+    /// <summary>Uses the shared metadata index when available and otherwise streams input bytes without buffering entire tools.</summary>
+    private static byte[] HashInput(string path, ShaderFileHashIndex? index)
+    {
+        if (index is not null) return index.GetHash(path);
+        using var stream = File.OpenRead(path);
+        return SHA256.HashData(stream);
     }
 
     /// <summary>Prunes private trees before traversal so historical cache size does not increase receipt enumeration work.</summary>

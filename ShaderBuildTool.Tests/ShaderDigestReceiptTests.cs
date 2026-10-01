@@ -28,7 +28,10 @@ public sealed class ShaderDigestReceiptTests
             Assert.True(ShaderBuildReceipt.IsCurrent(directory, "fixture"));
             if (remove) File.Delete(manifest);
             else File.WriteAllBytes(manifest, [0]);
-            Assert.False(ShaderBuildReceipt.IsCurrent(directory, "fixture"));
+            var reasons = new List<string>();
+            Assert.False(ShaderBuildReceipt.IsCurrent(directory, "fixture", report: reasons.Add));
+            Assert.Contains(reasons, reason => reason.Contains(remove ? "Published output missing" : "Published output content changed", StringComparison.Ordinal)
+                && reason.Contains(ShaderBinaryDigest.FileName, StringComparison.Ordinal));
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -75,6 +78,48 @@ public sealed class ShaderDigestReceiptTests
         Directory.CreateDirectory(fixture.Output);
         File.WriteAllText(Path.Combine(fixture.Output, "build-receipt.json"), receipt);
         Assert.False(ShaderBuildReceipt.IsCurrent(fixture.Output, "fixture"));
+    }
+    #endregion
+
+    #region Invalidation diagnostics
+    /// <summary>Reports exact changed compiler inputs and added/removed sources, preserving unchanged receipt reuse.</summary>
+    [Fact]
+    public void InputChangesIdentifyFilesAndPolicies()
+    {
+        using var fixture = new ShaderBuildFixture();
+        Directory.CreateDirectory(fixture.Output);
+        File.WriteAllBytes(Path.Combine(fixture.Output, "fixture.spv"), [1]);
+        var before = new Dictionary<string, string> { ["compiler/tool: builder.dll"] = "old", ["shader: removed.csh"] = "source", ["compiler policy"] = "Debug" };
+        ShaderBuildReceipt.Publish(fixture.Output, "before", before);
+        var reasons = new List<string>();
+        Assert.True(ShaderBuildReceipt.IsCurrent(fixture.Output, "before", before, reasons.Add));
+        Assert.Empty(reasons);
+        var after = new Dictionary<string, string> { ["compiler/tool: builder.dll"] = "new", ["shader: added.csh"] = "source", ["compiler policy"] = "Release" };
+        Assert.False(ShaderBuildReceipt.IsCurrent(fixture.Output, "after", after, reasons.Add));
+        Assert.Contains(reasons, reason => reason.Contains("Input changed: compiler/tool: builder.dll; old -> new", StringComparison.Ordinal));
+        Assert.Contains(reasons, reason => reason.Contains("Input changed: compiler policy; Debug -> Release", StringComparison.Ordinal));
+        Assert.Contains(reasons, reason => reason.Contains("Input added: shader: added.csh", StringComparison.Ordinal));
+        Assert.Contains(reasons, reason => reason.Contains("Input removed: shader: removed.csh", StringComparison.Ordinal));
+    }
+
+    /// <summary>Distinguishes an absent cache key from a corrupt existing binary without invoking the compiler.</summary>
+    [Fact]
+    public void CacheMissReportsMissingKeyAndCorruptBinary()
+    {
+        using var fixture = new ShaderBuildFixture();
+        var cache = new ShaderVariantCache(fixture.Output, "compiler");
+        string key = cache.Key("source", "compute", "main");
+        var reasons = new List<string>();
+        Assert.False(cache.TryRead(key, out _, out _, reasons.Add));
+        Assert.Equal("cache key has no metadata", Assert.Single(reasons));
+        byte[] binary = [1, 2, 3];
+        cache.Store(key, binary, ShaderVariantCache.Digest(binary));
+        reasons.Clear();
+        Assert.True(cache.TryRead(key, out _, out _, reasons.Add));
+        Assert.Empty(reasons);
+        File.WriteAllBytes(Path.Combine(fixture.Output, "_cache", key + ".bin"), [0]);
+        Assert.False(cache.TryRead(key, out _, out _, reasons.Add));
+        Assert.Equal("cached binary digest/length invalid", Assert.Single(reasons));
     }
     #endregion
 }

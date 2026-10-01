@@ -64,6 +64,15 @@ messages. Command-line builds should also use `--tl:off` to see these messages.
 Both successful paths print a dedicated `Cache hits=...; misses=...;
 shadersRecompiled=...; compilerInvocations=...` summary; an unchanged receipt
 reports zero recompilations. Counts refer to shader binary variants.
+Receipt invalidation reports missing/malformed receipts, exact missing or modified
+outputs, and unexpected published files. Successful receipts retain per-input
+content identities; fingerprint changes report added, removed or changed shader,
+compiler/tool and policy inputs with their old/new values. Older receipts remain
+valid but cannot identify individual changed inputs until a successful rebuild
+records this information. Variant builds also report cache-miss categories and
+counts (missing metadata/binary, invalid digest, malformed metadata or unreadable
+entries), separately from the receipt reason. Builder/contract assembly changes
+conservatively change every variant's compiler identity even when GLSL is unchanged.
 Startup messages identify
 tool restoration, fingerprint checks and receipt/output verification before any
 variant work begins. Catalog rebuilds report source expansion and variant progress

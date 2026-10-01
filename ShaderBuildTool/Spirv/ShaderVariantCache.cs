@@ -15,7 +15,7 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
         SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { "variant-cache-v1", compilerIdentity, stage, entryPoint, source })));
 
     /// <summary>Accepts only complete entries whose bytes still match the recorded digest.</summary>
-    internal bool TryRead(string key, out byte[] bytes, out ShaderBinaryDigest.Entry digest)
+    internal bool TryRead(string key, out byte[] bytes, out ShaderBinaryDigest.Entry digest, Action<string>? reportMiss = null)
     {
         bytes = [];
         digest = null!;
@@ -23,16 +23,17 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
         {
             string metadata = Path.Combine(root, key + ".json");
             string binary = Path.Combine(root, key + ".bin");
-            if (!File.Exists(metadata) || !File.Exists(binary)) return false;
+            if (!File.Exists(metadata)) { reportMiss?.Invoke("cache key has no metadata"); return false; }
+            if (!File.Exists(binary)) { reportMiss?.Invoke("cached binary missing"); return false; }
             var expected = JsonSerializer.Deserialize<ShaderBinaryDigest.Entry>(File.ReadAllBytes(metadata));
             bytes = File.ReadAllBytes(binary);
             var actual = Digest(bytes);
-            if (expected != actual || bytes.Length == 0) return false;
+            if (expected != actual || bytes.Length == 0) { reportMiss?.Invoke("cached binary digest/length invalid"); return false; }
             digest = actual;
             return true;
         }
-        catch (JsonException) { return false; }
-        catch (IOException) { return false; }
+        catch (JsonException) { reportMiss?.Invoke("cache metadata malformed"); return false; }
+        catch (IOException) { reportMiss?.Invoke("cache entry unreadable"); return false; }
     }
     #endregion
 
