@@ -124,11 +124,54 @@ Receipts: [generator](../artifacts/ShaderBindingState/phase3/generator-final-cor
 The second source review and independent completion audit passed, covering the linked proposal, activity policy,
 format/view validation, direct publication, context/lifetime boundaries and generated-owner retry.
 
+## Generated desired state and ordinary value publication
+
+`RuntimeSubmissionEmitter` emits a nested `<ShaderName>State` and active instance for every
+participating concrete graphics/compute owner, including empty states for UBO-only owners.
+`ShaderInputSubmissionStateTests.EveryConcreteOwnerHasCompleteGeneratedState` checks every
+main-assembly concrete owner and its complete inherited non-UBO contract field names/types.
+Descriptors and UBO contents are excluded. Generated accessors preserve mutation guards;
+reference-valued resources compare identity, image/range records compare their full payload,
+and ordinary numeric values compare exact upload bits. The shader-local input revision changes
+only on an actual desired-value change; it never suppresses context-wide resource checks.
+
+Authored getters are sampled once per submission and compared into the same retained state.
+Ordinary arrays are copied on retention and on generated getter exposure, so caller edits cannot
+mutate generated state. Authored arrays are compared by content and captured when changed.
+Existing liquid/lighting matrix and array facades continue to copy into their existing UBO owners.
+
+`ShaderUniformPublication<T>` retains the last successful value and immutable executable identity.
+First use uploads even a default value; unchanged values on that executable skip. Selecting another
+executable forces an upload, including returning to the first executable after a switch. Failed
+validation publishes no uniform values; a throwing upload does not commit successful history.
+Typed ordinary values use actual `UniformLocation` contracts and retained linked type/array extent.
+The offline `tests/uniform_state` fixture reads those float/array/vector/matrix values to produce
+an image. Its locations are shader value addresses, never storage for CPU texture IDs or history.
+Its specialization option is compiled by the existing specialization owner, independently of
+ordinary uniform publication.
+
+The inventoried production assembly has no authored `Submit` override. All its concrete shader
+owners use generated state/submission. Static catalogs have no instance state; their supported
+pipeline/fixture consumers retain the existing immediate-publication contract and are covered by
+the catalog and binding regressions. Test-only `Submit` overrides deliberately instrument guards,
+restoration or lifecycle and keep that explicit contract. `InterfaceBindingTests` retains coverage
+for the alternate authored-submission emitter; its compatibility cleanup remains separately tracked.
+This does not promise automatic retained publication for a future custom override.
+
+Executed verification: 173 generator tests and 122 focused state/runtime/contract tests passed.
+Another 1,239 affected GPU lifecycle, binding, cache and buffer tests passed; both runtime selections
+had no failures or skips. Production/offline build succeeded with all 406 artifacts current.
+The migration baselines add only the uniform fixture's value interface and specialization metadata.
+Receipts: [generator](../artifacts/ShaderBindingState/phase4/final-generator-fixed.log),
+[focused state](../artifacts/ShaderBindingState/phase4/final-reviewed.log), and
+[affected GPU paths](../artifacts/ShaderBindingState/phase4/final-affected.log).
+The second source review and independent completion audit passed with no remaining findings.
+
 ## Variant applicability references
 
 The owner table lists program identities. This table separately records every source containing
 ShaderOption, ShaderOptionReference, ShaderUse, ShaderAcceptGroup, ShaderGroup or ShaderConstraint
-metadata (18 source files). Direct options retain their domain/default declaration; referenced options
+metadata (18 original source files plus the uniform-state fixture below). Direct options retain their domain/default declaration; referenced options
 resolve to the shared LumOnShaderOptions definitions and accepted constraints/groups in
 LumOnShaderGroups. Each ShaderUse entry below retains its program, stage, specialization identity
 and When condition. An owner with no such declaration has no locally declared variant axis; inherited
@@ -143,6 +186,7 @@ variant applicability without claiming the optimizer's linked activity before pr
 
 | Declaration source | Option definitions/references and accepted groups | Uses: program, stage, option, specialization/condition |
 | --- | --- | --- |
+| [UniformStateComputeShader.cs](../VanillaGraphicsExpanded/Rendering/Shaders/Fixtures/UniformStateComputeShader.cs) | `[ShaderOption("UNIFORM_ALTERNATE", false)]`, shared typed key | `"Contract", Compute, nameof(Alternate), SpecializationId = 42` |
 | [VgeWorldProbeOrbsPointsShaderProgram.cs](../VanillaGraphicsExpanded/Rendering/Shaders/VgeWorldProbeOrbsPointsShaderProgram.cs) | `[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]`<br>`[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Orbs")]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.DirectVisibility))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeOctahedralSize))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]` | `"Contract", Fragment, nameof(DirectVisibility)`<br>`"Contract", Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13`<br>`"Contract", Fragment, nameof(WorldProbeResolution), SpecializationId = 14` |
 | [WorldProbeDebugShaderProgram.cs](../VanillaGraphicsExpanded/Rendering/Shaders/Fixtures/WorldProbeDebugShaderProgram.cs) | `[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]`<br>`[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "World")]`<br>`[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "WorldGather")]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.DirectVisibility))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeDiffuseStride))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeLevels))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeOctahedralSize))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbes))]` | `"Contract", Fragment, nameof(DirectVisibility)`<br>`"Contract", Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbeDiffuseStride), SpecializationId = 15, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbes)` |
 | [TraceProbeAnchorShaderProgram.cs](../VanillaGraphicsExpanded/Rendering/Shaders/Fixtures/TraceProbeAnchorShaderProgram.cs) | `[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]`<br>`[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Tracing")]`<br>`[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Pis")]`<br>`[ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "World")]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.AtlasTexelsPerFrame))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.BatchSlicing))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.DirectVisibility))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.EmissiveBoost))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.HzbCoarseMip))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.ImportanceSampling))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.NearField))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.RayMaxDistance))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.RaySteps))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.RayThickness))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.SkyMissWeight))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeLevels))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeOctahedralSize))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeResolution))]`<br>`[ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbes))]` | `"Contract", Fragment, nameof(AtlasTexelsPerFrame), SpecializationId = 1`<br>`"Contract", Fragment, nameof(BatchSlicing)`<br>`"Contract", Fragment, nameof(DirectVisibility)`<br>`"Contract", Fragment, nameof(EmissiveBoost), SpecializationId = 0`<br>`"Contract", Fragment, nameof(HzbCoarseMip), SpecializationId = 2`<br>`"Contract", Fragment, nameof(ImportanceSampling)`<br>`"Contract", Fragment, nameof(NearField)`<br>`"Contract", Fragment, nameof(RayMaxDistance), SpecializationId = 3`<br>`"Contract", Fragment, nameof(RaySteps), SpecializationId = 4`<br>`"Contract", Fragment, nameof(RayThickness), SpecializationId = 5`<br>`"Contract", Fragment, nameof(SkyMissWeight), SpecializationId = 6, When = "!NearField"`<br>`"Contract", Fragment, nameof(WorldProbeBaseSpacing), SpecializationId = 11, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbeLevels), SpecializationId = 12, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes"`<br>`"Contract", Fragment, nameof(WorldProbes)` |
@@ -237,7 +281,7 @@ the generator escape path, rather than unlisted production shader implementation
 
 Buffer deletion in GpuResource uses GL.DeleteBuffer; texture-specific invalidation is not a buffer-lifetime solution. Extend the established deletion boundary for any new indexed-buffer cache. A raw engine ID can be recycled externally, so the adapter boundary must invalidate affected cached state on external mutation/retirement. General InvalidateAll/PurgeCache must invalidate new image/indexed-buffer state too. Do not infer correctness solely from the presence of a numerically equal ID.
 
-Existing InvalidateAll boundaries include LiquidRenderer, LiquidDepthRenderer, WaterVolumeRenderer, PBRCompositeRenderer, material atlas rendering and debug renderers. Engine material hooks can write GL state directly. Retain their ownership boundaries and audit targeted invalidation when extending cache coverage. Uniform publication history needs an explicit invalidation route for external engine Uniform calls; texture cache invalidation alone does not restore program-local uniform values.
+Existing InvalidateAll boundaries include LiquidRenderer, LiquidDepthRenderer, WaterVolumeRenderer, PBRCompositeRenderer, material atlas rendering and debug renderers. Engine material hooks can write GL state directly. Retain their ownership boundaries and audit targeted invalidation when extending cache coverage. Generated VGE value history belongs to its accessor/publication path; existing engine Uniform calls remain outside that tracking.
 
 ## Bounded design decisions
 
@@ -257,15 +301,31 @@ PbrHeightBakeShaderProgram deliberately reuses units across distinct contracts: 
 
 ### Uniform history and state transitions
 
-Decision: retain desired values per shader instance, with successful-upload history scoped to the currently installed executable generation. Conservatively invalidate that history on executable/variant replacement and on external uniform-write invalidation. Do not maintain a cross-variant history cache initially.
+VGE-owned ordinary values now retain desired inputs through generated accessors and compare them
+against the last successful upload for the selected executable. Equal assignments retain history;
+changed values remain pending until publication succeeds. Mutable values use owned snapshots.
+Executable identity changes force a fresh upload. Engine `ShaderProgramBase` setters are not patched,
+and there is no global external-write revision on `GpuProgramLayout`. Existing engine-owned uniform
+APIs keep their existing behavior; they are outside generated VGE property publication. This ownership
+boundary supersedes the earlier suggestion to observe all engine uniform writers.
+The ownership correction passed the production/offline build, 165 generator tests and 118 focused
+runtime/contract tests with no failures or skips. The uniform fixture orders repeated image writes
+through the existing memory-barrier abstraction. Receipts:
+[generator](../artifacts/ShaderBindingState/phase4/accessor-correction/generator.log) and
+[focused checks](../artifacts/ShaderBindingState/phase4/accessor-correction/focused-assertions.log).
+The final image-barrier edit passed a rebuilt
+[uniform fixture rerun](../artifacts/ShaderBindingState/phase4/accessor-correction/uniform-state-barrier.log).
+The complete generated-state task passed its subsequent completion audit; final evidence is recorded above.
 
-The transition contract is: an empty history forces the first successful upload even for default values; equal values with a valid history skip upload; a changed value remains pending until success; installing another executable clears history; external writes clear affected history. Resource bindings still consult context-wide state on each use. This proves the selected design covers first use, replacement, switching and external mutation without conflating desired state and published values. Executed implementation proof remains required by the later state-generation tests; current code does not implement this history.
+Decision: retain desired values per shader instance, with successful-upload history scoped to the currently installed executable generation. Executable/variant replacement invalidates the applicable history. Do not maintain a cross-variant history cache initially or observe engine setters through hooks.
+
+The transition contract is: an empty history forces the first successful upload even for default values; equal values with a valid history skip upload; a changed value remains pending until success; installing another executable forces a fresh upload. Resource bindings still consult context-wide state on each use. Desired state and successful publication remain separate. Generated VGE value inputs must be changed through their accessors; existing engine uniform writes remain a separate ownership boundary. Completion evidence for generated state and ordinary values is recorded above.
 
 ### Mutable inputs
 
-Decision: use owned value snapshots for future non-UBO mutable arrays/matrices; use exact value equality for scalar/vector/matrix values. No existing binding-contract property is a standalone scalar, vector, matrix, span or array: the current kind/type validation only admits resource properties and descriptors.
+Decision: use owned value snapshots for non-UBO mutable arrays; use exact upload-bit equality for scalar/vector/matrix values. The original production inventory had no standalone value or array contract properties. Typed ordinary value contracts are now supported and exercised by the offline uniform-state fixture; production UBO facades retain their existing ownership.
 
-Existing float[]/ReadOnlySpan matrix setters in LiquidShaderProgram.Inputs/FrameInputs immediately copy into LiquidDrawParamsUbo/LiquidFrameParamsUbo through their writers. Preserve those owners and their write guards rather than create duplicate non-UBO snapshots. The same distinction applies to other CpuUniformBuffer parameter facades. Engine forward-light arrays remain external uniform data; preserve their engine upload semantics and invalidate future history at adapter writes.
+Existing float[]/ReadOnlySpan matrix setters in LiquidShaderProgram.Inputs/FrameInputs immediately copy into LiquidDrawParamsUbo/LiquidFrameParamsUbo through their writers. Preserve those owners and their write guards rather than create duplicate non-UBO snapshots. The same distinction applies to other CpuUniformBuffer parameter facades. Engine forward-light arrays remain external uniform data; preserve their engine upload semantics independently of generated VGE value history.
 
 GpuTextureBinding already captures resource, access, level, layered/layer and format; GpuStorageBufferBinding captures resource, offset and size. Retain these value keys and compare their complete payload, then resolve current resource lifetime/handle during publication. Authored scene/diagnostic getters above supply current wrappers once per submission. No generic revision infrastructure is needed for those reference-valued inputs; missing cache deletion/external-write notifications are identified in the lifetime section.
 
@@ -278,6 +338,7 @@ GpuTextureBinding already captures resource, access, level, layered/layer and fo
 | Bounded decisions | Proposal: Contract and prepared executable; equality table; submission rules | Executed offline compiler probes; program-filter alias analysis; explicit history transition contract; mutable-input ownership choices. |
 | Compatibility gate | Proposal: Source responsibilities and migration | Consumer list above identifies paths requiring independent review before removal. No compatibility path is removed by this audit. |
 | Prepared resource publication | Proposal: Activity and missing-resource rules; Submission and GPU state ownership; Validation and completion criteria | RuntimeSubmissionEmitter snapshots once and validates before ShaderPreparedSubmission publishes numeric entries. PreparedSubmissionTests proves fixed array sampling/image writes, format/view validation, optional clearing, retirement, image restoration and cache bind counts. ShaderInputSubmissionTests proves actual generated-owner failure/retry retains CPU dirty work; existing nested graphics/compute tests cover owner restoration. |
+| Generated state and ordinary values | Proposal: Generated per-shader state; Submission and GPU state ownership; Validation and completion criteria, with the user-corrected engine ownership boundary | Assembly-wide state/field inventory; generator assignment revisions, authored getters and mutable snapshots; exact numeric equality and transactional retry tests; offline uniform readback and actual specialized/replacement executable history. Existing resource lifetime/context restoration tests continue to apply. |
 
 The governing task list and approved proposal were consulted together with the PBR scheduling entry.
 The occurrence inventory below records the initial migration baseline; implemented behavior and executed

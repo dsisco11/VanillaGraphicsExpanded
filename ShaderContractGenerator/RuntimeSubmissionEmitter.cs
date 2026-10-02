@@ -52,7 +52,7 @@ internal static class RuntimeSubmissionEmitter
                 throw new ArgumentException($"Binding '{property.Name}' requires an authored getter supplying its runtime resource.");
             var attribute = Attributes(property, "ShaderBinding").Single();
             var target = NamedEnum(attribute, "TextureTarget");
-            if (property.Type.SpecialType == SpecialType.System_Int32 && target == null)
+            if (BindingReader.ReadKind(attribute) == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32 && target == null)
                 throw new ArgumentException($"Texture-ID binding '{property.Name}' requires TextureTarget in its binding contract.");
             _ = NamedEnum(attribute, "Sampler");
         }
@@ -66,16 +66,19 @@ internal static class RuntimeSubmissionEmitter
     {
         var text = new StringBuilder();
         foreach (var property in Resources(owner))
-            text.Append("private global::VanillaGraphicsExpanded.Rendering.ShaderInputValidation __validation_").Append(property.Name).Append(";\n");
+            text.Append("private global::VanillaGraphicsExpanded.Rendering.")
+                .Append(UniformValueReader.IsValue(property) ? "ShaderUniformPublication<" + TypeName(property) + ">" : "ShaderInputValidation")
+                .Append(" __validation_").Append(property.Name).Append(";\n");
         var stateful = Resources(owner).Where(IsStateful).ToArray();
-        if (stateful.Length != 0)
+        if (IsRuntimeOwner(owner))
         {
             text.Append("/// <summary>Retains non-UBO binding inputs for this shader instance.</summary>\n")
                 .Append("private struct ").Append(StateName(owner)).Append("\n{\n");
             foreach (var property in stateful)
                 text.Append("internal ").Append(TypeName(property)).Append(' ').Append(property.Name).Append(" = default!;\n");
-            text.Append("public ").Append(StateName(owner)).Append("() { }\n}\nprivate ")
-                .Append(StateName(owner)).Append(" __activeState;\n");
+            text.Append("/// <summary>Initializes retained inputs.</summary>\npublic ").Append(StateName(owner)).Append("() { }\n}\nprivate ")
+                .Append(StateName(owner)).Append(" __activeState = new();\n");
+            if (stateful.Length != 0) text.Append("private ulong __inputRevision;\n");
         }
         foreach (var property in InterfaceBindingReader.Properties(owner))
         {
@@ -105,12 +108,17 @@ internal static class RuntimeSubmissionEmitter
             text.Append("/// <summary>Retains the declared input until the next shader use.</summary>\n")
                 .Append(modifiers).Append(' ').Append(type).Append(' ').Append(member).Append(" { ");
             string storage = statefulProperty ? "__activeState." + property.Name : Field(property);
-            if (property.GetMethod != null) text.Append("get => ").Append(storage).Append("; ");
+            if (property.GetMethod != null) text.Append("get => ").Append(property.Type is IArrayTypeSymbol ? "global::VanillaGraphicsExpanded.Rendering.ShaderUniformValue.Snapshot(" + storage + ")" : storage).Append("; ");
             if (property.SetMethod != null)
             {
-                text.Append("set { RequireInputMutation(); if (global::System.Collections.Generic.EqualityComparer<")
-                    .Append(type).Append(">.Default.Equals(").Append(storage).Append(", value)) return; ")
-                    .Append(storage).Append(" = value; } ");
+                text.Append("set { RequireInputMutation(); if (");
+                if (UniformValueReader.IsValue(property)) text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderUniformValue.Equal(");
+                else if (property.Type.IsReferenceType) text.Append("global::System.Object.ReferenceEquals(");
+                else text.Append("global::System.Collections.Generic.EqualityComparer<").Append(type).Append(">.Default.Equals(");
+                text.Append(storage).Append(", value)) return; ").Append(storage).Append(" = ")
+                    .Append(property.Type is IArrayTypeSymbol ? "global::VanillaGraphicsExpanded.Rendering.ShaderUniformValue.Snapshot(value)" : "value").Append("; ");
+                if (statefulProperty) text.Append("__inputRevision++; ");
+                text.Append("} ");
             }
             text.Append("}\n");
         }
@@ -123,6 +131,7 @@ internal static class RuntimeSubmissionEmitter
         if (!GeneratesSubmission(owner)) return string.Empty;
         var resources = Resources(owner).ToArray();
         var text = new StringBuilder("#region Submission\n/// <summary>Publishes retained inputs through the installed binding contract.</summary>\nprotected override void Submit()\n{\n");
+        if (!resources.Any(IsStateful)) text.Append("_ = __activeState;\n");
         for (int i = 0; i < resources.Length; i++)
         {
             var property = resources[i];
@@ -130,7 +139,21 @@ internal static class RuntimeSubmissionEmitter
                 ? (IsStateful(property) ? "__activeState." + property.Name : Field(property))
                 : "((" + property.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")this)." + property.Name;
             text.Append("var input").Append(i).Append(" = ").Append(source).Append(";\n");
+            if (IsStateful(property) && !InterfaceBindingReader.NeedsImplementation(InterfaceBindingReader.Implementation(owner, property)))
+            {
+                text.Append("if (!");
+                if (UniformValueReader.IsValue(property)) text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderUniformValue.Equal(");
+                else if (property.Type.IsReferenceType) text.Append("global::System.Object.ReferenceEquals(");
+                else text.Append("global::System.Collections.Generic.EqualityComparer<").Append(TypeName(property)).Append(">.Default.Equals(");
+                text.Append("__activeState.").Append(property.Name).Append(", input").Append(i).Append(")) { __activeState.").Append(property.Name).Append(" = ");
+                if (property.Type is IArrayTypeSymbol) text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderUniformValue.Snapshot(input").Append(i).Append(')');
+                else text.Append("input").Append(i);
+                // Keep publication/lifetime checks independent of desired-input change tracking.
+                // The conditional revision records only an actual authored input change.
+                text.Append("; __inputRevision++; }\ninput").Append(i).Append(" = __activeState.").Append(property.Name).Append(";\n");
+            }
             var declaration = Attributes(property, "ShaderBinding").Single();
+            if (UniformValueReader.IsValue(property)) continue;
             ulong identity = GpuBindingEntry.Identity(BindingReader.ReadKind(declaration), Text(declaration, 0));
             text.Append("var binding").Append(i).Append(" = __validation_").Append(property.Name).Append(".Resolve(this, ").Append(identity).Append("UL);\n");
         }
@@ -140,6 +163,12 @@ internal static class RuntimeSubmissionEmitter
                 var property = resources[i];
                 var attr = Attributes(property, "ShaderBinding").Single();
                 var kind = BindingReader.ReadKind(attr);
+                if (UniformValueReader.IsValue(property))
+                {
+                    text.Append("__validation_").Append(property.Name).Append(validate ? ".Validate(this, " : ".Publish(this, ")
+                        .Append(Argument(attr, 2).Value).Append(", input").Append(i).Append(");\n");
+                    continue;
+                }
                 if (validate && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32)
                     text.Append("input").Append(i).Append(" = ");
                 text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderPreparedSubmission.").Append(validate ? "Validate" : "").Append(kind)

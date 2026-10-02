@@ -167,6 +167,7 @@ internal static class BindingReader
         bool resource = textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
             (contract && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32) ||
             (kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
+        resource |= kind == ShaderBindingKind.UniformLocation && UniformValueReader.Supports(property.Type);
         if ((descriptor && (property.GetMethod == null || property.SetMethod != null)) ||
             (resource && (property.IsStatic || (property.GetMethod == null && property.SetMethod == null) || property.SetMethod?.IsInitOnly == true)) ||
             (!descriptor && !resource) || property.IsStatic || property.DeclaredAccessibility != Accessibility.Public)

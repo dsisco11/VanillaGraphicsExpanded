@@ -6,12 +6,24 @@ public sealed class RuntimeSubmissionTests
     private const string Support = """
         namespace VanillaGraphicsExpanded.Rendering
         {
+            public static class ShaderUniformValue
+            {
+                public static bool Equal<T>(T left, T right) => left is System.Array a && right is System.Array b
+                    ? System.Linq.Enumerable.SequenceEqual(System.Linq.Enumerable.Cast<object>(a), System.Linq.Enumerable.Cast<object>(b))
+                    : System.Collections.Generic.EqualityComparer<T>.Default.Equals(left, right);
+                public static T Snapshot<T>(T value) => value is System.Array array ? (T)(object)array.Clone() : value;
+            }
+            public struct ShaderUniformPublication<T>
+            {
+                public void Validate(object owner, int location, T value) { ShaderBindingSubmission.Calls += "validate-value;"; }
+                public void Publish(object owner, int location, T value) { ShaderBindingSubmission.Calls += "value;"; }
+            }
             public class GpuTexture { }
             public class CpuUniformBuffer { }
             public class GpuShaderStorageBuffer { }
             public class GpuAtomicCounterBuffer { }
-            public struct GpuStorageBufferBinding { }
-            public struct GpuTextureBinding { }
+            public readonly record struct GpuStorageBufferBinding(GpuShaderStorageBuffer Buffer, int Offset = 0, int Size = 0);
+            public readonly record struct GpuTextureBinding(GpuTexture Texture, int Level = 0, int Layer = 0, bool Layered = false, int Access = 0, int Format = 0);
             public struct ShaderInputValidation
             {
                 public ulong Resolve(object owner, ulong identity) => identity;
@@ -76,6 +88,158 @@ public sealed class RuntimeSubmissionTests
         """;
 
     #region Public API
+    /// <summary>Mutable authored sources are sampled once and compared by owned content rather than reference identity.</summary>
+    [Fact]
+    public void AuthoredMutableValuesRetainSnapshotsAndSkipEqualContent()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("values", ShaderBindingKind.UniformLocation, 120, ShaderStageKind.Fragment)]
+                float[] Values { get; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs
+            {
+                public int Reads;
+                public float[] Current = new float[] { 1, 2 };
+                public float[] Values { get { Reads++; return Current; } }
+                public string Observe() => __inputRevision + ":" + __activeState.Values[1] + ":" + Reads;
+            }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.Use(); shader.Use();
+                    shader.Current[1] = 4;
+                    string before = shader.Observe(); shader.Use();
+                    return before + "|" + shader.Observe();
+                }
+            }
+            """;
+        Assert.Equal("1:2:2|2:4:3", GeneratorFixture.Generate(source, supportSource: Support).Run());
+    }
+    /// <summary>Complete view/range payloads participate in generated change tracking while equal assignments skip.</summary>
+    [Fact]
+    public void GeneratedViewAndRangeStateRecordsOnlyActualChanges()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("image", ShaderBindingKind.Image, 1, ShaderStageKind.Fragment)]
+                VanillaGraphicsExpanded.Rendering.GpuTextureBinding Image { get; set; }
+                [ShaderBinding("storage", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Fragment)]
+                VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding Storage { get; set; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs
+            {
+                public ulong Changes => __inputRevision;
+            }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader();
+                    var view = new VanillaGraphicsExpanded.Rendering.GpuTextureBinding(new());
+                    shader.Image = view; shader.Image = view;
+                    shader.Image = view = view with { Level = 1 };
+                    shader.Image = view = view with { Layer = 1 };
+                    shader.Image = view = view with { Layered = true };
+                    shader.Image = view = view with { Access = 1 };
+                    shader.Image = view = view with { Format = 1 };
+                    shader.Image = view; shader.Image = view with { Texture = new() };
+                    var range = new VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding(new(), 0, 4);
+                    shader.Storage = range; shader.Storage = range;
+                    shader.Storage = range = range with { Offset = 4 };
+                    shader.Storage = range = range with { Size = 8 };
+                    shader.Storage = range; shader.Storage = range with { Buffer = new() };
+                    return shader.Changes.ToString();
+                }
+            }
+            """;
+        Assert.Equal("11", GeneratorFixture.Generate(source, supportSource: Support).Run());
+    }
+
+    /// <summary>Ordinary integer values are not confused with raw engine texture IDs.</summary>
+    [Theory]
+    [InlineData("int", "3")]
+    [InlineData("bool", "true")]
+    [InlineData("System.Numerics.Vector2", "new(1, 2)")]
+    [InlineData("System.Numerics.Vector3", "new(1, 2, 3)")]
+    [InlineData("System.Numerics.Vector4", "new(1, 2, 3, 4)")]
+    [InlineData("System.Numerics.Matrix4x4", "System.Numerics.Matrix4x4.Identity")]
+    public void OrdinaryUploadTypesCompileWithoutTexturePolicy(string type, string value)
+    {
+        string source = "internal interface IInputs { [ShaderBinding(\"value\", ShaderBindingKind.UniformLocation, 120, ShaderStageKind.Fragment)] " +
+            type + " Value { get; set; } }" + Header +
+            "internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { } " +
+            "public static class Proof { public static string Run() { var shader = new Shader(); shader.Value = " + value +
+            "; shader.Use(); return VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls; } }";
+        Assert.Equal("validate-value;value;", GeneratorFixture.Generate(source, supportSource: Support).Run());
+    }
+    /// <summary>Authored getters are sampled once and retained even when the scene source changes.</summary>
+    [Fact]
+    public void AuthoredSourcesUpdateTheGeneratedStateOncePerUse()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment)]
+                VanillaGraphicsExpanded.Rendering.GpuTexture Source { get; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs
+            {
+                public int Reads;
+                public VanillaGraphicsExpanded.Rendering.GpuTexture Current;
+                public VanillaGraphicsExpanded.Rendering.GpuTexture Source { get { Reads++; return Current; } }
+                public bool Retained() => object.ReferenceEquals(__activeState.Source, Current);
+            }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader { Current = new() };
+                    shader.Use(); bool first = shader.Retained();
+                    shader.Current = new(); shader.Use();
+                    return first + ":" + shader.Retained() + ":" + shader.Reads;
+                }
+            }
+            """;
+        Assert.Equal("True:True:2", GeneratorFixture.Generate(source, supportSource: Support).Run());
+    }
+
+    /// <summary>Ordinary mutable values use owned state and validation-before-publication ordering.</summary>
+    [Fact]
+    public void OrdinaryValuesRetainOwnedSnapshotsAndUseSuccessfulPublication()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("value", ShaderBindingKind.UniformLocation, 120, ShaderStageKind.Fragment)]
+                float Value { get; set; }
+                [ShaderBinding("values", ShaderBindingKind.UniformLocation, 121, ShaderStageKind.Fragment)]
+                float[] Values { get; set; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); var source = new float[] { 2, 3 };
+                    shader.Values = source; source[0] = 9;
+                    var copy = shader.Values; copy[0] = 8;
+                    shader.Use();
+                    return shader.Values[0] + ":" + VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                }
+            }
+            """;
+        var result = GeneratorFixture.Generate(source, supportSource: Support);
+        Assert.Equal("2:validate-value;validate-value;value;value;", result.Run());
+        Assert.Contains(result.Generated, text => text.Contains("ShaderUniformPublication<float>", StringComparison.Ordinal));
+    }
     /// <summary>Concrete texture owners are accepted and retain deferred sampler publication.</summary>
     [Theory]
     [InlineData("Texture2D")]
@@ -298,7 +462,7 @@ public sealed class RuntimeSubmissionTests
         Assert.Contains("GpuTexture Source = default!;", generated, StringComparison.Ordinal);
         Assert.Contains("GpuTexture Output = default!;", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("CpuUniformBuffer Params;", generated, StringComparison.Ordinal);
-        Assert.Contains("EqualityComparer<global::VanillaGraphicsExpanded.Rendering.GpuTexture>.Default.Equals", generated, StringComparison.Ordinal);
+        Assert.Contains("global::System.Object.ReferenceEquals", generated, StringComparison.Ordinal);
     }
 
     /// <summary>An authored write-only resource cannot supply retained state to generated publication.</summary>

@@ -16,7 +16,7 @@ public sealed class ShaderBindingMigrationTests
         // fixture deliberately has no such adapter and exercises the fixed-slot replacement.
         var missing = GeneratedShaderCatalog.Programs("production")
             .SelectMany(program => program.Stages).DistinctBy(stage => stage.Identity)
-            .Where(stage => stage.Identity != "tests/prepared_binding.csh")
+            .Where(stage => stage.Identity is not ("tests/prepared_binding.csh" or "tests/uniform_state.csh"))
             .SelectMany(stage => stage.Bindings.Samplers.Keys.Concat(stage.Bindings.Images.Keys)
                 .Where(name => !stage.Bindings.UniformLocations.ContainsKey(name))
                 .Select(name => $"{stage.Identity}: {name}"))

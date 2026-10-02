@@ -9,6 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering.Spirv;
 internal sealed class GpuPreparedBindings
 {
     private readonly Dictionary<int, int> uniformArrays = new();
+    private readonly Dictionary<int, ActiveUniformType> uniformTypes = new();
     private readonly Dictionary<ulong, Entry> entriesByIdentity = new();
     private readonly Dictionary<int, int> uniformResourceLocations = new();
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> blockIndices = new();
@@ -35,7 +36,11 @@ internal sealed class GpuPreparedBindings
                 uniformProperties, values.Length, out _, values);
             uniformResourceLocations.Add(resource, values[0]);
             var type = (ActiveUniformType)values[1];
-            if (values[0] >= 0) uniformArrays.Add(values[0], Math.Max(1, values[2]));
+            if (values[0] >= 0)
+            {
+                uniformArrays.Add(values[0], Math.Max(1, values[2]));
+                uniformTypes.Add(values[0], type);
+            }
             ShaderBindingKind kind;
             if (GpuProgramLayout.IsSamplerType(type)) kind = ShaderBindingKind.Sampler;
             else if (GpuProgramLayout.IsImageType(type)) kind = ShaderBindingKind.Image;
@@ -113,6 +118,9 @@ internal sealed class GpuPreparedBindings
 
     /// <summary>Returns ordinary uniform extent for existing element-aware value upload compatibility.</summary>
     internal int UniformArrayLength(int location) => uniformArrays.GetValueOrDefault(location);
+
+    /// <summary>Returns retained ordinary-value type metadata without another driver query.</summary>
+    internal ActiveUniformType UniformType(int location) => uniformTypes.GetValueOrDefault(location);
 
     /// <summary>Reads the retained inspection location for the existing diagnostic resource adapter.</summary>
     internal int UniformResourceLocation(int index) => uniformResourceLocations.GetValueOrDefault(index, -1);

@@ -105,7 +105,7 @@ Track ordinary uniform publication per executable generation, or conservatively 
 
 Resource recreation, retirement and context invalidation must remain observable when a retained reference is unchanged. Reuse existing resource generations and cache invalidation mechanisms where available; identify any missing lifecycle notification before introducing new tracking. Updating texture contents without replacing its allocation remains the texture owner's responsibility and does not inherently require a texture rebind.
 
-Engine callbacks and external GL writes must respect the existing cache invalidation boundary. Route supported external uniform writes through publication tracking or invalidate the affected uniform history. Do not introduce a second independent global binding cache.
+Engine callbacks and external GL resource writes must respect the existing context-cache invalidation boundary. Generated VGE value inputs change through their owned accessors and publication path; existing engine uniform APIs retain their own behavior. Do not hook engine setters or add global external-write revisions to track generated VGE values. Do not introduce a second independent global binding cache.
 
 ## Source responsibilities and migration
 

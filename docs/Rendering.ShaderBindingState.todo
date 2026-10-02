@@ -135,32 +135,39 @@ Phase 3: Submit resources through prepared slots
 Phase 4: Complete generated state and successful uniform publication tracking
   Depends on Phase 3. Outcome: all shader owners retain correct inputs and skip redundant value work.
 
-  ☐ Emit a <ShaderName>State struct and active instance for each participating concrete shader class.
+  ☑ Emit a <ShaderName>State struct and active instance for each participating concrete shader class.
     - Include every non-UBO value/resource contract property with its proper type; exclude descriptors
       and UBO contents. C# structs are inherently non-inheritable; do not emit a final modifier.
     - Generate getters and mutation-checked setters that compare retained values and record only
       actual changes. Preserve nullable resources and existing input-mutation lifecycle checks.
     - Sample authored getters once and compare them into the same model. Bring specialized Submit
       implementations onto the shared mechanism or document and verify an equivalent contract.
-  ☐ Implement equality and change tracking for every audited property category.
+  ☑ Implement equality and change tracking for every audited property category.
     - Scalars/vectors/matrices use exact upload-appropriate comparison, never approximate suppression.
     - Managed resources compare desired identity but still validate current lifetime/allocation.
     - Image views include resource, level, layer, layered flag, access and format; buffer ranges include
       resource, offset and size. Mutable inputs use the selected snapshot or revision mechanism.
     - Raw IDs retain ownership-boundary semantics; unchanged integers do not prove unchanged lifetime.
-  ☐ Track successful ordinary uniform uploads for the selected executable generation.
+  ☑ Track successful ordinary uniform uploads for the selected executable generation.
     - Upload on first use even when the desired value equals default state, and after actual changes.
     - Apply the selected variant-switch/replacement invalidation strategy; clearing one executable's
       dirty state must not suppress another executable's required upload.
     - Commit upload history only for successful uploads; failure and retry must not lose pending work.
-    - Route supported external uniform writes through tracking or invalidate affected history.
-  ☐ Preserve context-wide binding checks for retained resources regardless of local dirty state.
+    - Keep generated VGE values behind their owned accessors/publication path. Preserve existing
+      engine uniform APIs without hooking engine setters or adding global write-revision tracking.
+  ☑ Preserve context-wide binding checks for retained resources regardless of local dirty state.
     - Test recreation/retirement with unchanged wrappers, engine callbacks, cache invalidation and
       content updates that need uploads but do not inherently require a resource rebind.
-  ☐ Verify complete generated state, authored sources, mutable inputs, equal/changed assignments,
+  ☑ Verify complete generated state, authored sources, mutable inputs, equal/changed assignments,
     first-use/default-value uploads, variant switches, replacement and failed-submission retry.
-  ☐ Gate: all inventoried graphics/compute owners participate; unchanged values suppress redundant
+  ☑ Gate: all inventoried graphics/compute owners participate; unchanged values suppress redundant
     assignments/uploads while context switches and lifetime changes still restore valid GPU state.
+
+  Verification: production/offline build succeeded; 173 generator, 122 focused state/runtime/contract
+  and 1,239 affected GPU lifecycle/binding/cache/buffer tests passed with no runtime failures or skips.
+  Second source review and independent audit-stage-completion passed. Engine setters remain untouched.
+  Evidence: docs/Rendering.ShaderBindingState.md and artifacts/ShaderBindingState/phase4/
+  final-generator-fixed.log, final-reviewed.log and final-affected.log.
 
 Phase 5: Migrate declarations and remove reviewed compatibility dependencies
   Depends on Phases 3 and 4 and their focused validation. Outcome: authored resource contracts no
