@@ -454,6 +454,8 @@ Tasks
       and bandwidth; keep caustics separate.
 
   ☐ Refactor generated shader binding state and eliminate redundant sampler uniform locations.
+    - Design proposal: docs/Rendering.ShaderBindingState.Proposal.md. Prepare fixed-slot resource activity
+      per executable; separate desired shader state from context-wide GPU bindings and uniform upload history.
     - For every generated shader class, emit a final `<ShaderName>State` struct containing one field for
       each non-UBO binding-contract property. Keep one active instance in the shader class. Generate
       property accessors that compare the incoming value with active state and skip unchanged assignments.

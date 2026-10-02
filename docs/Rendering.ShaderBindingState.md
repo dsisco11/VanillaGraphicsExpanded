@@ -1,5 +1,9 @@
 # Generated shader binding state
 
+The [prepared bindings and generated state proposal](Rendering.ShaderBindingState.Proposal.md) describes
+the intended replacement for the location-dependent submission path. This audit records the existing
+declarations and partial migration; moving locations onto sampler attributes does not complete that design.
+
 ## Uniform-location audit
 
 The initial audit found 117 `ShaderBindingKind.UniformLocation` declarations. Seven local sampler
