@@ -127,6 +127,7 @@ internal sealed partial class GlStateCache
 
     public bool TryGetCachedBoundTexture(TextureTarget target, int unit, out int textureId)
     {
+        TextureCacheChecks++;
         textureId = 0;
 
         if (unit < 0)
@@ -150,6 +151,7 @@ internal sealed partial class GlStateCache
 
     public bool TryGetCachedBoundSampler(int unit, out int samplerId)
     {
+        SamplerCacheChecks++;
         samplerId = 0;
 
         if (unit < 0)
@@ -642,6 +644,7 @@ internal sealed partial class GlStateCache
         {
             ActiveTexture(unit);
             GL.BindTexture(target, textureId);
+            TextureBindCount++;
             dict[target] = textureId;
         }
         catch
@@ -736,6 +739,7 @@ internal sealed partial class GlStateCache
         try
         {
             GL.BindSampler(unit, samplerId);
+            SamplerBindCount++;
             samplerBindingByUnit![unit] = samplerId;
         }
         catch
@@ -750,6 +754,7 @@ internal sealed partial class GlStateCache
         try
         {
             GL.BindSampler(unit, sampler.SamplerId);
+            SamplerBindCount++;
             samplerBindingByUnit![unit] = sampler.SamplerId;
         }
         catch
@@ -894,6 +899,7 @@ internal sealed partial class GlStateCache
     public void BindBufferBase(BufferRangeTarget target, int index, int bufferId)
     {
         var binding = new IndexedBufferBinding(bufferId, 0, 0, false);
+        IndexedBufferCacheChecks++;
         if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
             bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
         try
@@ -916,6 +922,7 @@ internal sealed partial class GlStateCache
     public void BindBufferRange(BufferRangeTarget target, int index, int bufferId, nint offsetBytes, nint sizeBytes)
     {
         var binding = new IndexedBufferBinding(bufferId, offsetBytes, sizeBytes, true);
+        IndexedBufferCacheChecks++;
         if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
             bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
         try

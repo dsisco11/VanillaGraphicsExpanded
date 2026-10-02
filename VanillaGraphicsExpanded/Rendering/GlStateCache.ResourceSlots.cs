@@ -14,6 +14,18 @@ internal sealed partial class GlStateCache
     internal int StorageBufferOffsetAlignment => storageBufferOffsetAlignment ??= System.Math.Max(1, GL.GetInteger(GetPName.ShaderStorageBufferOffsetAlignment));
     /// <summary>Counts actual image and indexed-buffer binds, independently of cache comparisons.</summary>
     internal long ResourceSlotBindCount { get; private set; }
+    /// <summary>Counts texture cache observations separately from actual driver texture binds.</summary>
+    internal long TextureCacheChecks { get; private set; }
+    /// <summary>Counts sampler cache observations separately from actual driver sampler binds.</summary>
+    internal long SamplerCacheChecks { get; private set; }
+    /// <summary>Counts image publication comparisons, including unchanged views.</summary>
+    internal long ImageCacheChecks { get; private set; }
+    /// <summary>Counts indexed buffer publication comparisons, including unchanged ranges.</summary>
+    internal long IndexedBufferCacheChecks { get; private set; }
+    /// <summary>Counts successful driver texture binds through this context cache.</summary>
+    internal long TextureBindCount { get; private set; }
+    /// <summary>Counts successful driver sampler binds through this context cache.</summary>
+    internal long SamplerBindCount { get; private set; }
     /// <summary>Includes all parameters that select an image view.</summary>
     private readonly record struct ImageBinding(int Texture, int Level, bool Layered, int Layer, TextureAccess Access, SizedInternalFormat Format);
     /// <summary>Distinguishes whole-buffer bindings from ranges even when their offsets match.</summary>
@@ -24,6 +36,7 @@ internal sealed partial class GlStateCache
     internal void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format)
     {
         var binding = new ImageBinding(texture, level, layered, layer, access, format);
+        ImageCacheChecks++;
         if (imageBindings.TryGetValue(unit, out var previous) && previous == binding) return;
         GL.BindImageTexture(unit, texture, level, layered, layer, access, format);
         ResourceSlotBindCount++;

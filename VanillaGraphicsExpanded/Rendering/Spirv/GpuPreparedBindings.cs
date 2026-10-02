@@ -20,6 +20,8 @@ internal sealed class GpuPreparedBindings
 
     /// <summary>Provides deterministic contract indices independent of GPU binding slots.</summary>
     internal IReadOnlyList<Entry> Entries { get; }
+    /// <summary>Counts linked-interface queries during preparation, excluding context limit queries.</summary>
+    internal int ReflectionQueries { get; private set; }
 
     #region Public API
     /// <summary>Validates fixed resource assignments once before the candidate executable is published.</summary>
@@ -29,12 +31,14 @@ internal sealed class GpuPreparedBindings
         GL.GetInteger((GetPName)All.MaxImageUnits, out int imageUnits);
         var linked = new Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)>();
         GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
+        ReflectionQueries++;
         ProgramProperty[] uniformProperties = [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize];
         int[] values = new int[uniformProperties.Length];
         for (int resource = 0; resource < count; resource++)
         {
             GL.GetProgramResource(program, ProgramInterface.Uniform, resource, uniformProperties.Length,
                 uniformProperties, values.Length, out _, values);
+            ReflectionQueries++;
             uniformResourceLocations.Add(resource, values[0]);
             var type = (ActiveUniformType)values[1];
             if (values[0] >= 0)
@@ -52,6 +56,7 @@ internal sealed class GpuPreparedBindings
             for (int element = 0; element < values[2]; element++)
             {
                 GL.GetUniform(program, values[0] + element, out int slot);
+                ReflectionQueries++;
                 if (element == 0) baseSlot = slot;
                 if (slot < 0 || slot != baseSlot + element || !linked.TryAdd((kind, slot), (type, values[2], baseSlot)))
                     throw new InvalidOperationException($"Ambiguous or invalid linked {kind} unit {slot}.");
@@ -61,9 +66,11 @@ internal sealed class GpuPreparedBindings
         ReadBlocks(program, ProgramInterface.UniformBlock, ShaderBindingKind.UniformBlock, linked);
         ReadBlocks(program, ProgramInterface.ShaderStorageBlock, ShaderBindingKind.StorageBlock, linked);
         GL.GetProgram(program, GetProgramParameterName.ActiveAtomicCounterBuffers, out int counters);
+        ReflectionQueries++;
         for (int counter = 0; counter < counters; counter++)
         {
             GL.GetActiveAtomicCounterBuffer(program, counter, AtomicCounterBufferParameter.AtomicCounterBufferBinding, out int slot);
+            ReflectionQueries++;
             if (!linked.TryAdd((ShaderBindingKind.AtomicCounter, slot), (default, 1, slot)))
                 throw new InvalidOperationException($"Ambiguous linked atomic counter binding {slot}.");
         }
@@ -186,11 +193,13 @@ internal sealed class GpuPreparedBindings
         Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)> linked)
     {
         GL.GetProgramInterface(program, resourceInterface, ProgramInterfaceParameter.ActiveResources, out int count);
+        ReflectionQueries++;
         ProgramProperty[] properties = [ProgramProperty.BufferBinding];
         int[] slot = new int[1];
         for (int resource = 0; resource < count; resource++)
         {
             GL.GetProgramResource(program, resourceInterface, resource, properties.Length, properties, slot.Length, out _, slot);
+            ReflectionQueries++;
             if (!linked.TryAdd((kind, slot[0]), (default, 1, slot[0])))
                 throw new InvalidOperationException($"Ambiguous linked {kind} binding {slot[0]}.");
             blockIndices.Add((kind, slot[0]), resource);

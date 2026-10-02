@@ -233,7 +233,78 @@ fingerprints were updated only after that comparison. Evidence:
 [full policy before](../artifacts/ShaderBindingState/phase5/pre-removal-full-binding-semantics.txt)/
 [after](../artifacts/ShaderBindingState/phase5/post-removal-full-binding-semantics.txt).
 Second source review and independent completion audit passed with no remaining findings. Final
-integration and user-run live acceptance remain open in the task list.
+integration and user-run live acceptance were still open at that checkpoint; their final evidence
+is recorded in the following section.
+
+## Integration evidence and visual acceptance
+
+The final architecture is described in the prepared executable, resource submission, generated
+desired state and declaration migration sections above. Their source links and the occurrence
+inventory reconcile the approved proposal with the implemented owners; no additional texture,
+GLSL-derived contract, engine setter hook or independent global binding cache was introduced.
+
+Final verification passed [173 generator tests](../artifacts/ShaderBindingState/phase6/generator.log)
+and [1,432 affected runtime/GPU tests](../artifacts/ShaderBindingState/phase6/affected-final.log).
+The latter includes the two operation-count tests and one existing skip,
+`LumOnProbeAtlasProjectSHFunctionalTests.Gather_SHFromProjected_StableVsIntegration`, an obsolete
+L1 comparison replaced by SH9 projection/gather. The configured production/offline build verified
+all 406 artifacts current through its digest/cache checks (406 cache hits, no compiler invocations);
+production and test assemblies rebuilt with the final instrumentation. Exact executed commands
+are in [the command receipt](../artifacts/ShaderBindingState/phase6/commands.txt).
+The second source review and final independent implementation audit passed. This final review
+includes instrumentation, coverage and acceptance, separately from the earlier pre-removal review.
+
+`ShaderBindingOperationTests` measures publication intervals separately from allocation, readback
+and preparation. It exercises existing packaged SPIR-V through production compute and texture
+abstractions. The generated-owner interval compares actual input revision and successful uniform
+upload histories; managed array publication compares cache observations with actual texture,
+sampler and image calls; an isolated indexed-buffer interval measures unchanged range publication.
+The raw-ID interval deliberately validates and rebinds each borrowed handle, then rejects the same
+retained integer after retirement. An equal raw engine ID does not establish allocation identity.
+
+`GpuPreparedBindings.ReflectionQueries` counts its linked-interface inspection calls, excluding
+context-limit queries. Stable preparation counters and the layout/interface named-resolution
+counters supplement source review: generated submission resolves numeric identities through
+retained `ShaderInputValidation`, and `ShaderPreparedSubmission` performs no executable reflection
+or uniform-name/location lookup. This is not instrumentation of every GL query in the process.
+Lifetime checks, compatibility reuse, exact array comparisons, validation and context-cache
+comparisons still perform CPU work. No frame-time improvement was measured or is claimed.
+
+The operation tests passed both cases with semantic image readback and retained buffer-range
+assertions. Counts refer to eight warmed repetitions, not a live frame:
+
+| Interval | Assignment/state work | Preparation and lookup work | Submission/cache work | Actual repeated driver work |
+| --- | --- | --- | --- | --- |
+| Generated values and image | 24 assignment attempts skipped; zero input revision changes | 10 initial preparation queries; zero repeated queries or named address resolutions | Eight submissions/image checks; one initial entry resolution and compatibility check | Four initial ordinary value uploads; zero repeated uploads or image binds |
+| Managed sampler array and image | Retained two-texture array | Nine initial preparation queries; zero repeated queries or named address resolutions | Eight validations/publications; 16 texture, 16 sampler and eight image cache checks | Zero texture, sampler or image binds |
+| Indexed buffer range | Retained allocation, offset and size verified | No executable lookup required | Eight range cache checks | Zero buffer binds |
+| Borrowed engine ID | Same retained integer on three uses | No executable reflection; three lifetime validations | Texture unit invalidated for each publication | Three intentional texture binds; retirement rejected before publication |
+
+Receipts and exact commands: [operation counts](../artifacts/ShaderBindingState/phase6/operations-final.log)
+and [commands](../artifacts/ShaderBindingState/phase6/commands.txt). Resource-bind counters count
+calls through the existing context cache; they do not count draw/dispatch, barriers, program
+activation or every GL operation. Separate mutation, lifetime and context restoration regressions
+remain part of the affected suite rather than being inferred from these warmed intervals.
+
+The user confirmed on October 2, 2026: "yes, everything seems to render correctly from what I can
+see." This supplies the requested user-run visual acceptance for the affected rendering/engine
+boundaries. It is observational acceptance, separate from automated tests; Codex did not launch
+the game or measure live frame time.
+
+The broad integration run passed 3,042 tests, failed one and skipped eight. The unresolved failure
+is `SurfaceLightingSpatialRuntimeTests.MixedConsumersFollowReplacementPolicy(sh9: True)`: yaw 1
+produces dark channel 0. The same failure was executed in the isolated pre-migration baseline
+([baseline receipt](../artifacts/ShaderBindingState/phase3/baseline-mixed-consumers-retry.log)).
+It remains an open SH9 rendering issue outside this binding migration, rather than being silently
+treated as a passing test or assigned a fix here. The current result is recorded in the
+[broad integration receipt](../artifacts/ShaderBindingState/phase6/gpu-runtime.log).
+
+Traceability: final regression coverage -> proposal Validation and completion criteria -> fresh
+configured offline build, generator/runtime/GPU receipts; operation instrumentation -> proposal
+Submission and GPU state ownership -> counters, unchanged-input semantic readback and raw-ID
+retirement; final architecture -> proposal Source responsibilities and migration -> retained
+compatibility table and independent review; visual acceptance -> task-list acceptance gate ->
+the user's explicit rendering confirmation above.
 
 ## Variant applicability references
 
@@ -277,7 +348,10 @@ variant applicability without claiming the optimizer's linked activity before pr
 
 ## Initial runtime consumers and migration boundaries
 
-| Component | Current behavior and required migration |
+The following table describes the pre-migration implementation. The final architecture and retained
+consumers are recorded in the sections above; deleted source names are historical identifiers.
+
+| Component | Initial behavior and required migration |
 | --- | --- |
 | [BindingReader](../ShaderContractGenerator/BindingReader.cs) | Resolves inherited/default interface metadata and per-program/stage filters. Rejects explicit duplicate kind/start-slot pairs, not occupied array ranges. Inline locations are appended as synthetic map entries after selection; migrate these away rather than preserve a second location schema. Validate complete prepared ranges after program filtering. |
 | [ShaderBindingAttribute](../VanillaGraphicsExpanded/Rendering/Contracts/ShaderBindingAttribute.cs) and [ShaderBindingKind](../VanillaGraphicsExpanded/Rendering/Contracts/ShaderBindingKind.cs) | Resource metadata and descriptor kinds exist; ordinary scalar/vector/matrix value properties are not currently a supported binding kind. BindingReader rejects such value types. Implement the approved value-state contract deliberately; do not mistake layout descriptors or shader options for runtime values. |
@@ -287,7 +361,7 @@ variant applicability without claiming the optimizer's linked activity before pr
 | [ShaderVariantBuild](../ShaderBuildTool/Spirv/ShaderVariantBuild.cs) | Expands imports and variant selections before layout injection; keys incremental compilation from emitted source and compiler identity, publishes binaries/digests only after success. New prepared metadata must remain coherent with generated contracts and these receipts/digests. |
 | [GpuProgramInterface](../VanillaGraphicsExpanded/Rendering/Spirv/GpuProgramInterface.cs) | Enumerates active numeric locations and maps shared/inline names; array offsets use recorded ArraySize. Blocks match binding points. Replace opaque identity resolution with type/unit/extent inspection during preparation, retaining ordinary uniform and engine-adapter lookup where justified. |
 | [GpuProgramLayout](../VanillaGraphicsExpanded/Rendering/GpuProgramLayout.cs) | Applies sampler/image unit assignments, resolves active resources, validates diagnostics and binds images directly. Candidate installation clears caches. Prepared entries replace name/location lookup on fixed-slot submission; diagnostics and public methods must migrate too. |
-| [ShaderBindingSubmission](../VanillaGraphicsExpanded/Rendering/ShaderBindingSubmission.cs) | Validates all generated inputs before publication; repeats active checks and texture-validity queries. Atomic-counter activity enumerates buffers during submission. Prepared activity must cover counters and blocks as well as textures. Preserve optional clearing and required-input failure semantics. |
+| `ShaderBindingSubmission` (removed) | Validated all generated inputs before publication; repeated active checks and texture-validity queries. Atomic-counter activity enumerated buffers during submission. ShaderPreparedSubmission now uses prepared activity for counters, blocks and textures, preserving optional clearing and required-input failure semantics. |
 | [GpuProgram.Spirv](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.Spirv.cs) | Builds a candidate interface, applies contracts, fills inherited engine uniformLocations, then atomically installs executable/layout under the settings lock. Keep replacement transactional, including adapter maps and publication history. |
 | [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs), [GpuComputeShader](../VanillaGraphicsExpanded/Rendering/GpuComputeShader.cs) and [GpuComputePipeline](../VanillaGraphicsExpanded/Rendering/GpuComputePipeline.cs) | Graphics derives from engine ShaderProgram; compute owns a pipeline. Compute scopes restore enclosing owners by resubmitting. Both activation paths need prepared entries and generation-aware history; restoring only a program ID is insufficient. |
 
@@ -410,16 +484,20 @@ GpuTextureBinding already captures resource, access, level, layered/layer and fo
 
 The governing task list and approved proposal were consulted together with the PBR scheduling entry.
 The occurrence inventory below records the initial migration baseline; implemented behavior and executed
-evidence are recorded above. Remaining state and compatibility work stays in the task list. No measured
-frame-time improvement or live visual acceptance is claimed.
+evidence are recorded above. Final integration evidence and acceptance are recorded below. No measured
+frame-time improvement is claimed.
 
 
 The [prepared bindings and generated state proposal](Rendering.ShaderBindingState.Proposal.md) describes
-the intended replacement for the location-dependent submission path. This audit records the existing
-declarations and partial migration; moving locations onto sampler attributes does not complete that design.
+the approved replacement for the location-dependent submission path. This audit retains the original
+declarations as historical inventory and records the resulting architecture and verification above.
 Implementation and acceptance are tracked in the dedicated [task list](Rendering.ShaderBindingState.todo).
 
 ## Initial uniform-location audit
+
+This section preserves the pre-migration snapshot, including the intermediate inline-attribute
+design. Statements about locations and consumers here describe that snapshot; the final disposition
+column below and the declaration migration section record their completed removal or replacement.
 
 The occurrence inventory below supersedes the initial aggregate classification: 109 shared names
 have opaque resource declarations, while `importanceColorMode` is a stale standalone descriptor
@@ -442,10 +520,10 @@ preserved debug name.
 
 The redundant pattern was separate C# descriptor properties for sampler locations, not extra
 shader uniforms and not prior-value storage. Generated shader state now owns prior assigned values.
-The seven local sampler locations now live on their sampler declarations, preserving the SPIR-V
-logical-name map without descriptor properties. The shared 110-entry interface needs separate
-migration evidence before any removal because it currently covers uniforms beyond a single shader's
-resource contract.
+At that intermediate point the seven local sampler locations lived on their sampler declarations,
+preserving the SPIR-V logical-name map without descriptor properties. The shared 110-entry interface
+needed separate migration evidence because it covered uniforms beyond a single shader's resource
+contract. The completed migration removed both sets after independent compatibility review.
 
 
 ## Original occurrence inventory and final disposition

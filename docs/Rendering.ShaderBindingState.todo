@@ -1,6 +1,10 @@
 Prepared shader bindings and generated shader state
 ==================================================
 
+Status: complete. All implementation, verification, independent review and user-run visual
+acceptance requirements are satisfied. The unrelated pre-existing SH9 rendering failure remains
+open and is documented separately in the audit.
+
 Source and ownership
   Approved proposal: docs/Rendering.ShaderBindingState.Proposal.md.
   Audit and implementation evidence: docs/Rendering.ShaderBindingState.md.
@@ -203,24 +207,33 @@ Phase 5: Migrate declarations and remove reviewed compatibility dependencies
 Phase 6: Integration evidence and final acceptance
   Depends on Phase 5. Outcome: the approved proposal is demonstrably satisfied and traceable.
 
-  ☐ Run the required build and affected generator/runtime/GPU suites through subagents, using fresh
+  ☑ Run the required build and affected generator/runtime/GPU suites through subagents, using fresh
     offline SPIR-V artifacts. Record commands, results, skips and any unresolved failures in the audit.
     - Include fixed-slot sampling/image writes, arrays/aliases/namespaces, variant inactivity, required
       and optional semantics, uniform first-use/changes, shader switching and generation replacement.
     - Include mutable inputs, engine IDs, wrapper recreation/retirement, external writes/invalidation,
       validation-before-publication and retry. Use semantic assertions and meaningful operation counts.
-  ☐ Instrument steady-state behavior and report assignment skips, preparation/reflection work,
+  ☑ Instrument steady-state behavior and report assignment skips, preparation/reflection work,
     submission/cache checks, uniform uploads and actual GL binds separately.
     - Demonstrate no executable reflection or uniform-name/location resolution for steady-state
       fixed-slot submission, and no redundant GL operations for repeated identical bindings.
     - Do not claim zero CPU work or measured frame-time gains from setter or call-count reductions.
-  ☐ Update the audit with final architecture, source references, coverage and retained compatibility.
+  ☑ Update the audit with final architecture, source references, coverage and retained compatibility.
     Reconcile this list against every approved proposal requirement and resolve coverage gaps.
-  ☐ Obtain a final independent implementation review; resolve findings and record evidence separately
+  ☑ Obtain a final independent implementation review; resolve findings and record evidence separately
     from the pre-removal compatibility review. Do not treat passing builds as full completion.
-  ☐ Obtain user-run live visual acceptance for affected rendering/engine boundaries. Do not launch
+  ☑ Obtain user-run live visual acceptance for affected rendering/engine boundaries. Do not launch
     the game; distinguish pending user validation from successful build/headless-test evidence.
-  ☐ Gate: all proposal requirements, audit work, focused validation, independent review and live
+  ☑ Gate: all proposal requirements, audit work, focused validation, independent review and live
     acceptance are satisfied. Record any unresolved work as open rather than silently deferring scope.
-  ☐ Only then mark this list and the linked PBR scheduling task complete. Relocating numeric metadata
+  ☑ Only then mark this list and the linked PBR scheduling task complete. Relocating numeric metadata
     or skipping equal field assignments alone never satisfies completion.
+
+  Completion evidence: 173 generator and 1,432 affected runtime/GPU tests passed with one existing
+  retired comparison skip. Both operation-count tests passed; unchanged managed publication has
+  no reflection/name lookup, redundant resource binds or ordinary uniform uploads, while raw-ID
+  lifetime/rebinding work remains explicit. All 406 offline artifacts were verified current.
+  The broad run passed 3,042, skipped eight and reproduced the separately documented pre-existing
+  SH9 yaw-1 failure; it remains open outside this scope. Second review and final independent audit
+  passed. User-run visual acceptance was supplied October 2, 2026. Receipts and exact commands:
+  docs/Rendering.ShaderBindingState.md and artifacts/ShaderBindingState/phase6/.

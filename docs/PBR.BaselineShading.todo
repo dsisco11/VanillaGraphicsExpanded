@@ -453,7 +453,7 @@ Tasks
       through focused subagent tests. Obtain user-run visual acceptance and measure GPU time, sampling
       and bandwidth; keep caustics separate.
 
-  ☐ Refactor generated shader binding state and eliminate redundant sampler uniform locations.
+  ☑ Refactor generated shader binding state and eliminate redundant sampler uniform locations.
     - Approved design: docs/Rendering.ShaderBindingState.Proposal.md.
     - Detailed implementation and acceptance are owned by docs/Rendering.ShaderBindingState.todo.
       Keep this scheduling entry immediately after water volume absorption and in-scattering.
