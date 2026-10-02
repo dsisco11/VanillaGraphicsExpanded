@@ -541,7 +541,17 @@ Tasks
     - Record prototype results and an adoption decision before production implementation. If adopted,
       provide an independent toggle, strength/quality bounds and targeted visual/performance checks.
 
-  ☐ Refactor PBR systems which currently directly use base-game renderbuffer attachments, to instead create a TextureView instance for those attachments and use the texture-view instead.
+  ✘ Refactor PBR systems which currently directly use base-game renderbuffer attachments, to instead create a TextureView instance for those attachments and use the texture-view instead. @cancelled(26-10-02 12:33)
+    - Verified prerequisite: installed engine primary/shadow attachments are texture-backed but use
+      mutable TexImage2D storage. Real glTextureView objects require immutable storage; a headless
+      diagnostic reproduced InvalidOperation with no view object created. Evidence:
+      artifacts/EngineAttachmentViews/SetupDefaultFrameBuffers.il.txt and mutable-view-diagnostic.log.
+    - Resolve whether to preserve engine allocation using non-owning GpuTexture wrappers or change
+      engine attachment allocation to immutable storage for real OpenGL texture views.
+    - Correct GpuTextureView creation validation: the diagnostic found IsValid reports true after
+      rejected creation because it only checks a generated nonzero name.
+    - Preserve engine storage ownership, sampling policy and attachment replacement/retirement;
+      migrate direct lighting, composite/display resolve, liquids and water-volume inputs together.
 
   ☐ Implement physically motivated volumetric clouds integrated with the sky.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
