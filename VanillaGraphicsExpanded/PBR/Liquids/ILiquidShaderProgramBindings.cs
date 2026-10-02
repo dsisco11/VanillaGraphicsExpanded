@@ -26,7 +26,19 @@ internal interface ILiquidShaderProgramBindings
     int DepthTexture { set; }
     /// <summary>Declares the vge_materialParamsTex Sampler slot.</summary>
     [ShaderBinding("vge_materialParamsTex", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int MaterialParamsTexture { set; }
+    Texture2D? MaterialParamsTexture { set; }
+    /// <summary>Declares the optional current-generation medium index image.</summary>
+    [ShaderBinding("vge_waterMediumIndices", ShaderBindingKind.Sampler, 7, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    Texture2D? WaterMediumIndicesTexture { set; }
+    /// <summary>Declares the optional current-generation coefficient table.</summary>
+    [ShaderBinding("vge_waterMediumRecords", ShaderBindingKind.Sampler, 8, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    Texture2D? WaterMediumRecordsTexture { set; }
+    /// <summary>Declares the medium index sampler uniform location.</summary>
+    [ShaderBinding("vge_waterMediumIndices", ShaderBindingKind.UniformLocation, 103, ShaderStageKind.Fragment)]
+    ShaderUniformLocationBinding WaterMediumIndicesLocation { get; }
+    /// <summary>Declares the medium table sampler uniform location.</summary>
+    [ShaderBinding("vge_waterMediumRecords", ShaderBindingKind.UniformLocation, 104, ShaderStageKind.Fragment)]
+    ShaderUniformLocationBinding WaterMediumRecordsLocation { get; }
     /// <summary>Declares the shadowMapNear Sampler slot.</summary>
     [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
     int ShadowMapNear { set; }
@@ -35,10 +47,10 @@ internal interface ILiquidShaderProgramBindings
     int ShadowMapFar { set; }
     /// <summary>Declares the vge_atmosphereAerialRadiance Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.Default)]
-    int AerialRadianceTexture { set; }
+    DynamicTexture3D? AerialRadianceTexture { set; }
     /// <summary>Declares the vge_atmosphereAerialAttenuation Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.Default)]
-    int AerialAttenuationTexture { set; }
+    DynamicTexture3D? AerialAttenuationTexture { set; }
     /// <summary>Declares the terrainTex UniformLocation slot.</summary>
     [ShaderBinding("terrainTex", ShaderBindingKind.UniformLocation, 100, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     ShaderUniformLocationBinding TerrainTexLocation { get; }

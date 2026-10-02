@@ -119,6 +119,9 @@ internal static class RuntimeSubmissionEmitter
                 text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.").Append(validate ? "Validate" : "").Append(kind)
                     .Append("(this, ").Append(Quote(Text(attr, 0))).Append(", ");
                 if (validate) text.Append(Named(attr, "Required").Value is false ? "false, " : "true, ");
+                // Select the managed-resource overload even when a concrete texture also converts to an engine ID.
+                if (kind == ShaderBindingKind.Sampler && property.Type.SpecialType != SpecialType.System_Int32)
+                    text.Append("(global::VanillaGraphicsExpanded.Rendering.GpuTexture?)");
                 text.Append("input").Append(i);
                 if (!validate && kind == ShaderBindingKind.Sampler)
                 {

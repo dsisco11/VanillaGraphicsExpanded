@@ -95,6 +95,7 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
                 pagesByAtlasTexId[existingId].Textures.Dispose();
                 pagesByAtlasTexId.Remove(existingId);
                 if (displacementByAtlas.Remove(existingId, out var removedDisplacement)) removedDisplacement.Dispose();
+                if (waterMediumByAtlas.Remove(existingId, out var removedWater)) removedWater.Dispose();
             }
         }
 
@@ -121,6 +122,7 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
                 existing.Textures.Dispose();
                 pagesByAtlasTexId.Remove(atlasTexId);
                 if (displacementByAtlas.Remove(atlasTexId, out var resizedDisplacement)) resizedDisplacement.Dispose();
+                if (waterMediumByAtlas.Remove(atlasTexId, out var resizedWater)) resizedWater.Dispose();
             }
 
             pagesByAtlasTexId[atlasTexId] = new PageEntry(width, height, CreatePageTextures(atlasTexId, width, height, enableNormalDepth));
@@ -227,5 +229,7 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
         pagesByAtlasTexId.Clear();
         foreach (var texture in displacementByAtlas.Values) texture.Dispose();
         displacementByAtlas.Clear();
+        foreach (var texture in waterMediumByAtlas.Values) texture.Dispose();
+        waterMediumByAtlas.Clear();
     }
 }

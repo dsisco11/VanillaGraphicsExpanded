@@ -25,6 +25,9 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
     vec4 aoStrengths;
     vec4 atmosphereAerial; // admitted altitude (km), horizon elevation, reserved.zw
     vec4 atmosphereSun; // admitted solar direction, reserved.w
+    vec4 waterAbsorption; // camera absorption (m^-1), capture enabled
+    vec4 waterScattering; // camera scattering (m^-1), starts in water
+    vec4 waterCameraSource; // camera block/environment source times scattering coefficient, reserved.w
 } vgePbrCompositeParams;
 
 // Matrices

@@ -30,21 +30,21 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         const int size = 256;
         using var target = CreateRenderTarget(size, size, PixelInternalFormat.Rgba8);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var material = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f);
-        using var aerial = Texture3D.Create(1, 2, 1, PixelInternalFormat.Rgba32f);
+        using var aerial = DynamicTexture3D.Create(1, 2, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         terrain.UploadDataImmediate(new float[] { 1, 1, 1, 1 });
         // Broaden the diagnostic sun glint so the fold can be inspected at this capture resolution.
         material.UploadDataImmediate([.2f, 0, 0, 1]);
         depth.UploadDataImmediate(new float[] { 1 });
         aerial.UploadDataImmediate(new float[8], 0, 0, 0, 1, 2, 1, 0);
         program.TerrainTexture = terrain.TextureId;
-        program.MaterialParamsTexture = material.TextureId;
+        program.MaterialParamsTexture = material;
         program.DepthTexture = depth.TextureId;
         program.ShadowMapNear = depth.TextureId;
         program.ShadowMapFar = depth.TextureId;
-        program.AerialRadianceTexture = aerial.TextureId;
-        program.AerialAttenuationTexture = aerial.TextureId;
+        program.AerialRadianceTexture = aerial;
+        program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
         // A low solar elevation stretches the water highlight across the folded faces.
         program.SunDirection = new(Vector3.Normalize(new(0, .4f, -5)), 0);
@@ -135,7 +135,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
             Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
 
             program.TerrainTexture = terrain.TextureId;
-            program.MaterialParamsTexture = material.TextureId;
+            program.MaterialParamsTexture = material;
             program.DepthTexture = depth.TextureId;
             program.ShadowMapNear = depth.TextureId;
             program.ShadowMapFar = depth.TextureId;

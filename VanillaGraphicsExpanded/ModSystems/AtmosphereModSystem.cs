@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
@@ -18,6 +19,10 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     internal static int SkyTextureId { get; private set; }
     internal static int AerialRadianceTextureId { get; private set; }
     internal static int AerialAttenuationTextureId { get; private set; }
+    /// <summary>Returns the borrowed radiance volume from the published atmosphere generation.</summary>
+    internal static DynamicTexture3D? AerialRadianceTexture { get; private set; }
+    /// <summary>Returns the borrowed attenuation volume from the published atmosphere generation.</summary>
+    internal static DynamicTexture3D? AerialAttenuationTexture { get; private set; }
     public double RenderOrder => -.5;
     public int RenderRange => 1;
 
@@ -38,6 +43,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>Releases the last world's snapshot and owned GPU texture.</summary>
     private void Reset()
     {
+        AerialRadianceTexture = null; AerialAttenuationTexture = null;
         Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
         seasonInputs = new();
         computation?.Dispose(); computation = api is null ? null : new(api);
@@ -95,6 +101,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         // A failed upload leaves every published texture and its lighting unchanged.
         // Reuse two complete sets rather than allocating textures on every sun update.
         (textures, stagingTextures) = (stagingTextures, textures);
+        AerialRadianceTexture = textures.Radiance;
+        AerialAttenuationTexture = textures.Attenuation;
         SkyTextureId = textures.Sky.TextureId;
         AerialRadianceTextureId = textures.Radiance.TextureId;
         AerialAttenuationTextureId = textures.Attenuation.TextureId;

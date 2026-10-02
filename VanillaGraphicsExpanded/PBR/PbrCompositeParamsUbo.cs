@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>
 /// CPU-side UBO for PBR composite shader parameters.
-/// Layout matches VgePbrCompositeParamsUBO in GLSL (224 bytes).
+/// Layout matches VgePbrCompositeParamsUBO in GLSL (272 bytes).
 /// </summary>
 internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 {
@@ -20,7 +20,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     private bool underwater;
     // Total: 192 bytes
 
-    public PbrCompositeParamsUbo() : base(224)
+    public PbrCompositeParamsUbo() : base(272)
     {
     }
 
@@ -45,6 +45,14 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     #endregion
 
     #region Fog
+    /// <summary>Publishes valid boundary capture and the camera's starting medium in SI units.</summary>
+    internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
+    {
+        var medium = frame?.CameraMedium;
+        WriteVector4(224, new(medium?.AbsorptionPerMetre ?? Vector3.Zero, frame.HasValue ? 1 : 0));
+        WriteVector4(240, new(medium?.EffectiveScatteringPerMetre ?? Vector3.Zero, medium.HasValue ? 1 : 0));
+        WriteVector4(256, new(frame?.CameraScatteringSource ?? Vector3.Zero, 0));
+    }
 
     /// <summary>Publishes coordinates from the same generation as the bound finite-path volumes.</summary>
     public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)

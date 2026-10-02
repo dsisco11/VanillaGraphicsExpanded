@@ -271,6 +271,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
         textureStore.UpdateDisplacement(materialPlan);
+        textureStore.UpdateWaterMedium(materialPlan);
         Interlocked.Increment(ref surfaceDetailRevision);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
@@ -712,6 +713,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
         textureStore.UpdateDisplacement(materialPlan);
+        textureStore.UpdateWaterMedium(materialPlan);
         Interlocked.Increment(ref surfaceDetailRevision);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;
@@ -1112,6 +1114,7 @@ internal sealed class MaterialAtlasSystem : IDisposable
             blockTextureAssets: Array.Empty<AssetLocation>(),
             enableNormalDepth: false);
         textureStore.UpdateDisplacement(plan);
+        textureStore.UpdateWaterMedium(plan);
         Interlocked.Increment(ref surfaceDetailRevision);
 
         MaterialAtlasNormalDepthBuildPlan? normalDepthPlan = null;

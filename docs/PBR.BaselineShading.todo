@@ -412,6 +412,19 @@ Tasks
       camera crossings through focused subagent tests and user-run visual checks. Measure GPU cost.
 
   ☐ Implement water volume absorption and in-scattering (depth fog).
+    - Implemented medium authoring, measured clear-water absorption, bounded directional phase
+      evaluation, analytic Beer-Lambert/single-scattering transport and current-plan GPU metadata.
+      Evidence and explicit remaining requirements: docs/PBR.WaterMedium.md.
+      Added oriented boundary capture for opaque receivers, recognized underwater camera media and
+      per-channel scene-linear opaque composition before the existing display resolve. Interface OIT
+      skips repeated bulk transport only after successful composition. Camera classification reuses the
+      engine underwater flag; exact animated contact remains in the waterline task. Finite sky paths
+      are supported. Transparent/late-consumer coverage, ordered heterogeneous scattering and volume-wide light
+      occlusion remain open. Earlier medium validation passed 59/59 tests; current volume validation
+      passed 264 tests with five explicit measurement skips and zero failures; named water-gate
+      predicates resolve the disabled-capture fog regression. Receipts:
+      artifacts/PbrColor/water-volume-named-condition-build.log and
+      artifacts/PbrColor/water-volume-named-condition-focused.log. No game launch or GPU performance claim.
     - Extend the initial liquid path documented in PBR.Liquids.md; replace its albedo-derived
       extinction and local-light scattering approximation with explicit medium parameters.
       Define RGB absorption/scattering coefficients in inverse metres and a bounded directional
@@ -439,6 +452,30 @@ Tasks
       underwater transitions, measured-reference transmittance and colored background transmission
       through focused subagent tests. Obtain user-run visual acceptance and measure GPU time, sampling
       and bandwidth; keep caustics separate.
+
+  ☐ Refactor generated shader binding state and eliminate redundant sampler uniform locations.
+    - For every generated shader class, emit a final `<ShaderName>State` struct containing one field for
+      each non-UBO binding-contract property. Keep one active instance in the shader class. Generate
+      property accessors that compare the incoming value with active state and skip unchanged assignments.
+      Preserve nullable resource, raw engine texture-ID, image, storage-buffer and atomic-counter semantics;
+      do not place UBO contents in this state because their owners already control their staging and upload.
+    - Make submission consume the active state, so unchanged sampler, image, buffer and scalar properties
+      avoid redundant CPU-side binding, uniform and shader-property work each frame. Define equality and
+      retirement behavior for borrowed `GpuTexture` subclasses, raw IDs, ranges and mutable binding views;
+      invalid or retired resources must not retain a usable prior binding.
+    - Analyze every current `ShaderBindingKind.UniformLocation` declaration and other extra uniform used
+      solely to remember or rediscover previous CPU binding data. List each occurrence with its shader,
+      resource contract, current runtime consumer and reason it exists. Distinguish locations genuinely
+      required by shader data from redundant sampler-location bookkeeping introduced for CPU state checks.
+    - Replace redundant sampler uniform-location declarations with contract-derived resource state and
+      fixed sampler-unit metadata. Retain explicit locations only where the shader genuinely needs CPU
+      uniform writes or a supported fallback requires them; update SPIR-V contracts and runtime lookup so
+      resource publication never depends on an artificial location property.
+    - Update generated-contract, runtime-submission and GPU regression tests. Verify unchanged assignments
+      produce no redundant binding/publication work, changed and retired resources publish correctly, fixed
+      sampler bindings work without artificial location declarations, and engine-owned raw IDs retain their
+      target/sampler policy. Build offline SPIR-V only; obtain an independent review before removing any
+      compatibility path.
 
   ☐ Implement water refraction integrated with PBR liquids and OIT.
     - Gate refraction behind a user-facing Water Refraction option in VGE graphics settings, persisted
@@ -518,6 +555,8 @@ Tasks
       with existing lighting. Clearly label the effect as an approximation, not traced light transport.
     - Record prototype results and an adoption decision before production implementation. If adopted,
       provide an independent toggle, strength/quality bounds and targeted visual/performance checks.
+
+  ☐ Refactor PBR systems which currently directly use base-game renderbuffer attachments, to instead create a TextureView instance for those attachments and use the texture-view instead.
 
   ☐ Implement physically motivated volumetric clouds integrated with the sky.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
@@ -609,3 +648,13 @@ Tasks
     - Validate mixed cache hits/misses, multiple pages, cancellation, reload and resource retirement
       through subagent-run focused tests. Adopt the measured improvement and document the result;
       distinguish material-atlas savings from the separate unexplained startup delay.
+
+  ☐ Review and approve the unified material-property UBO and material-ID atlas proposal.
+    - Review docs/PBR.MaterialPropertyTable.Proposal.md against the current material registry,
+      atlas pipeline and all production property consumers, including liquids, water, displacement
+      and LumOn. Confirm one shared UBO and the R32UI lookup contract across multiple atlas pages.
+    - Resolve record layout and capacity, production-shader noise evaluation, authored spatial
+      override representation, filtering, cache migration and coherent publication/retirement.
+      Noise must be evaluated in production shaders rather than baked into property textures.
+    - Record decisions and required validation/performance comparisons. Obtain explicit user
+      approval of the proposal before deriving implementation tasks or beginning the refactor.

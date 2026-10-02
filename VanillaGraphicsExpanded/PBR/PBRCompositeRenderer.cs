@@ -198,12 +198,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.Emissive = directLightingBuffers.EmissiveTex;
 
         if (lumOnEnabled) shader.IndirectDiffuse = indirectTex;
-        shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;
+        shader.GBufferEnvironment = gBufferManager.EnvironmentTexture;
 
         // GBuffer inputs
         shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];
-        shader.GBufferMaterial = gBufferManager.MaterialTextureId;
-        shader.GBufferNormal = gBufferManager.NormalTextureId;
+        shader.GBufferMaterial = gBufferManager.MaterialTexture;
+        shader.GBufferNormal = gBufferManager.NormalTexture;
         shader.GBufferPosition = gBufferManager.PositionTextureId;
         shader.PrimaryDepth = primaryFb.DepthTextureId;
 
@@ -213,6 +213,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.FogMinIn = capi.Render.FogMin;
         shader.SetAtmosphere(AtmosphereModSystem.Lighting);
         shader.SetUnderwater(capi.Render.ShaderUniforms.CameraUnderwater > .7f);
+        shader.SetWaterVolume(Liquids.WaterVolumeRenderer.TryGetFrame(capi, out var waterFrame) ? waterFrame : null);
 
         // The published LumOn gather output already includes intensity and tint.
         // Composition applies receiver material response without scaling that signal twice.
@@ -248,6 +249,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             capi.Render.RenderMesh(quadMeshRef);
         }
         display.Stop();
+        Liquids.WaterVolumeRenderer.MarkComposed(capi);
     }
 
     /// <summary>Releases owned fullscreen resources and unregisters the renderer.</summary>

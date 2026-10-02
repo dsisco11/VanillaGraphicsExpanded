@@ -42,8 +42,8 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         {
             program.DirectDiffuse = zero; program.DirectSpecular = zero; program.Emissive = emission;
             program.IndirectDiffuse = indirect; program.GBufferAlbedo = albedo.TextureId;
-            program.GBufferNormal = normal.TextureId; program.GBufferMaterial = material.TextureId;
-            program.GBufferEnvironment = environment.TextureId; program.PrimaryDepth = depth.TextureId;
+            program.GBufferNormal = normal; program.GBufferMaterial = material;
+            program.GBufferEnvironment = environment; program.PrimaryDepth = depth.TextureId;
 
             program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];

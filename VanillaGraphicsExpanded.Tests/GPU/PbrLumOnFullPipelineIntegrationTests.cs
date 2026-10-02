@@ -145,7 +145,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // This synthetic outdoor scene has full propagated sunlight at every receiver.
             using var directEnvironment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
             pbrDirectProg.GBufferEnvironment = directEnvironment.TextureId;
-            pbrCompositeProg.GBufferEnvironment = directEnvironment.TextureId;
+            pbrCompositeProg.GBufferEnvironment = directEnvironment;
             using var receiverPosition = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
             pbrDirectProg.GBufferPosition = receiverPosition.TextureId;
             pbrCompositeProg.GBufferPosition = receiverPosition.TextureId;
@@ -504,8 +504,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             pbrCompositeProg.Emissive = targets.DirectLightingMrt[2];
             pbrCompositeProg.IndirectDiffuse = targets.IndirectFull[0];
             pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
-            pbrCompositeProg.GBufferMaterial = gBufferMaterial.TextureId;
-            pbrCompositeProg.GBufferNormal = gBufferNormal.TextureId;
+            pbrCompositeProg.GBufferMaterial = gBufferMaterial;
+            pbrCompositeProg.GBufferNormal = gBufferNormal;
             pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
 
             AssertSampler2DBinding("Stage: Composite (full)", pbrCompositeProg, "directDiffuse", targets.DirectLightingMrt[0]);
@@ -532,8 +532,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             pbrCompositeProg.Emissive = targets.DirectLightingMrt[2];
             pbrCompositeProg.IndirectDiffuse = zeroIndirectFull;
             pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
-            pbrCompositeProg.GBufferMaterial = gBufferMaterial.TextureId;
-            pbrCompositeProg.GBufferNormal = gBufferNormal.TextureId;
+            pbrCompositeProg.GBufferMaterial = gBufferMaterial;
+            pbrCompositeProg.GBufferNormal = gBufferNormal;
             pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
 
             AssertSampler2DBinding("Stage: Composite (baseline)", pbrCompositeProg, "directDiffuse", targets.DirectLightingMrt[0]);
@@ -570,8 +570,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             pbrCompositeProg.Emissive = targets.DirectLightingMrt[2];
             pbrCompositeProg.IndirectDiffuse = injectedIndirectFull;
             pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
-            pbrCompositeProg.GBufferMaterial = gBufferMaterial.TextureId;
-            pbrCompositeProg.GBufferNormal = gBufferNormal.TextureId;
+            pbrCompositeProg.GBufferMaterial = gBufferMaterial;
+            pbrCompositeProg.GBufferNormal = gBufferNormal;
             pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
 
             AssertSampler2DBinding("Stage: Composite (injected)", pbrCompositeProg, "directDiffuse", targets.DirectLightingMrt[0]);

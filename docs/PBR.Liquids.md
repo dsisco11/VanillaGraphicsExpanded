@@ -43,7 +43,7 @@ Bucket setup precedes VGE's order 0.369 callback and the engine terrain callback
 
 The RGBA material atlas supplies roughness, metallic, emission and transmission. Positive transmission selects water-like optics only for non-emissive, non-lava, non-full-alpha liquids. Other liquids retain their material/emissive response rather than inheriting water optics indiscriminately.
 
-Water uses IOR 1.333, dielectric Fresnel including underwater total internal reflection, GGX direct reflection, geometric surface normals, atmosphere solar/environment inputs, shadow cascades and view-space dynamic lights. One opaque-depth sample supplies bounded background thickness for artistic albedo-derived exponential extinction and local in-scattering. Sky depth uses a finite fallback; foreground intersections clamp to zero. This is not a measured per-fluid medium model.
+Water uses IOR 1.333, dielectric Fresnel including underwater total internal reflection, GGX direct reflection, geometric surface normals, atmosphere solar/environment inputs, shadow cascades and view-space dynamic lights. Explicit material-owned absorption/scattering replaces albedo-derived extinction and tint-based scattering; see [water medium units, measured reference and transport](PBR.WaterMedium.md). An oriented boundary capture supplies RGB transport to opaque composition. After successful composition, OIT supplies the interface response without repeating bulk extinction. The bounded opaque-depth proxy remains a fallback when capture is unavailable; finite sky paths are supported when captured boundaries establish an exit; transparent-receiver coverage remains unresolved.
 
 Transmission remains straight-through weighted OIT. There is no screen-space refraction or scene reflection. Scalar revealage and display-space engine composition remain approximations; their improvements have separate tasks.
 
@@ -63,7 +63,7 @@ The selection follows the direct Gerstner evaluation and geometric-versus-normal
 
 The owned shaders do not preserve vanilla murkiness discard or water fog and do not sample the engine liquid-depth texture. Material textures and authored colormaps still animate; local fog spheres and perception tint remain independent compatibility effects.
 
-Above-water aerial perspective uses VGE atmosphere resources. This pass adds no camera-to-interface underwater fog while the water-volume task is pending. Other engine scene consumers still use their existing underwater behavior.
+Above-water aerial perspective uses VGE atmosphere resources. Water-aware opaque composition restricts aerial perspective to aggregate air length and replaces opaque underwater fog for a recognized water camera. Camera classification reuses the engine underwater flag without an additional contact texture or probe pass. It does not track animated surface contact. Other engine scene consumers still use their existing underwater behavior; consumer coverage remains open, and exact animated contact belongs to the waterline work.
 
 The depth target remains an engine resource for existing consumers. Color has a small clip-space depth bias for shoreline layering, so exact rasterized depth values are intentionally not identical to the unbiased liquid-depth pass even when geometry matches.
 

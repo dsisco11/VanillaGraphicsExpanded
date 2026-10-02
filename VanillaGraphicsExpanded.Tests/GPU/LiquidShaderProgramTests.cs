@@ -26,7 +26,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var volume = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f);
+        using var volume = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         AssignTextures(program, texture, volume);
         using var activation = program.UseScope();
         Assert.Same(program, Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
@@ -84,11 +84,11 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
-        using var material = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var near = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         using var far = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
-        using var radiance = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba16f);
-        using var attenuation = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba16f);
+        using var radiance = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture3D);
+        using var attenuation = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture3D);
         // Exercise both the preserved engine API and the interface boundary against
         // real linked resources; targets, samplers and uniform units must be identical.
         if (useInterface)
@@ -96,21 +96,21 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
             var bindings = (ILiquidShaderProgramBindings)program;
             bindings.TerrainTexture = terrain.TextureId;
             bindings.DepthTexture = depth.TextureId;
-            bindings.MaterialParamsTexture = material.TextureId;
+            bindings.MaterialParamsTexture = material;
             bindings.ShadowMapNear = near.TextureId;
             bindings.ShadowMapFar = far.TextureId;
-            bindings.AerialRadianceTexture = radiance.TextureId;
-            bindings.AerialAttenuationTexture = attenuation.TextureId;
+            bindings.AerialRadianceTexture = radiance;
+            bindings.AerialAttenuationTexture = attenuation;
         }
         else
         {
             program.TerrainTexture = terrain.TextureId;
             program.DepthTexture = depth.TextureId;
-            program.MaterialParamsTexture = material.TextureId;
+            program.MaterialParamsTexture = material;
             program.ShadowMapNear = near.TextureId;
             program.ShadowMapFar = far.TextureId;
-            program.AerialRadianceTexture = radiance.TextureId;
-            program.AerialAttenuationTexture = attenuation.TextureId;
+            program.AerialRadianceTexture = radiance;
+            program.AerialAttenuationTexture = attenuation;
         }
         using var activation = program.UseScope();
         int[] images = [terrain.TextureId, depth.TextureId, material.TextureId, near.TextureId, far.TextureId, radiance.TextureId, attenuation.TextureId];
@@ -140,7 +140,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var volume = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f);
+        using var volume = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         AssignTextures(program, texture, volume);
         program.Animation = new(1, 2, 3, 4);
         program.SetCounts(2, 1);
@@ -176,15 +176,15 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
     }
 
     /// <summary>Supplies required borrowed textures for buffer-only tests that issue no draw.</summary>
-    private static void AssignTextures(LiquidShaderProgram program, GpuTexture texture, GpuTexture volume)
+    private static void AssignTextures(LiquidShaderProgram program, Texture2D texture, DynamicTexture3D volume)
     {
         program.TerrainTexture = texture.TextureId;
         program.DepthTexture = texture.TextureId;
-        program.MaterialParamsTexture = texture.TextureId;
+        program.MaterialParamsTexture = texture;
         program.ShadowMapNear = texture.TextureId;
         program.ShadowMapFar = texture.TextureId;
-        program.AerialRadianceTexture = volume.TextureId;
-        program.AerialAttenuationTexture = volume.TextureId;
+        program.AerialRadianceTexture = volume;
+        program.AerialAttenuationTexture = volume;
     }
 
     /// <summary>Reads the GPU-bound range rather than the program's CPU staging storage.</summary>

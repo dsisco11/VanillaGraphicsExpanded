@@ -76,17 +76,28 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
 
     public partial int GBufferAlbedo { set; }
 
-    public partial int GBufferMaterial { set; }
+    public partial DynamicTexture2D? GBufferMaterial { set; }
 
     public partial int PrimaryDepth { set; }
 
     /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
     public partial int GBufferPosition { set; }
 
-    public partial int GBufferNormal { set; }
+    public partial DynamicTexture2D? GBufferNormal { set; }
 
     /// <summary>Supplies standalone environmental irradiance without any LumOn texture dependency.</summary>
-    public partial int GBufferEnvironment { set; }
+    public partial DynamicTexture2D? GBufferEnvironment { set; }
+    /// <summary>Supplies completed water boundary optical depth.</summary>
+    public partial DynamicTexture2D? WaterOpticalDepth { set; }
+    /// <summary>Supplies completed water scattering-source accumulation.</summary>
+    public partial DynamicTexture2D? WaterSource { set; }
+    /// <summary>Publishes water resources and invalidates the optional path when capture is unavailable.</summary>
+    internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
+    {
+        Params.SetWaterVolume(frame);
+        WaterOpticalDepth = frame?.OpticalDepth;
+        WaterSource = frame?.Source;
+    }
 
     #endregion
 
@@ -96,8 +107,8 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     internal void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
         Params.SetAtmosphere(lighting);
-        AtmosphereAerialRadiance = ModSystems.AtmosphereModSystem.AerialRadianceTextureId;
-        AtmosphereAerialAttenuation = ModSystems.AtmosphereModSystem.AerialAttenuationTextureId;
+        AtmosphereAerialRadiance = ModSystems.AtmosphereModSystem.AerialRadianceTexture;
+        AtmosphereAerialAttenuation = ModSystems.AtmosphereModSystem.AerialAttenuationTexture;
     }
 
     /// <summary>Selects engine underwater fog without applying it again to atmospheric air.</summary>

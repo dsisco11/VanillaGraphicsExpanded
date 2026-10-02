@@ -149,7 +149,8 @@ internal static class BindingReader
         };
         type = type.TrimEnd('?');
         bool cpuBuffer = kind == ShaderBindingKind.UniformBlock && RuntimeSubmissionEmitter.IsCpuBuffer(property.Type);
-        bool resource = (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
+        bool textureResource = kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image && IsTextureResource(property.Type);
+        bool resource = textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
             (contract && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32) ||
             (kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
         if ((descriptor && (property.GetMethod == null || property.SetMethod != null)) ||
@@ -158,6 +159,14 @@ internal static class BindingReader
             throw new ArgumentException($"Binding property '{property.Name}' has unsupported type/accessors for {kind}.");
     }
 
+    /// <summary>Recognizes texture owners through their declared inheritance rather than requiring the base type.</summary>
+    private static bool IsTextureResource(ITypeSymbol type)
+    {
+        // Concrete texture classes retain the same borrowed-resource submission contract.
+        for (var candidate = type as INamedTypeSymbol; candidate != null; candidate = candidate.BaseType)
+            if (candidate.ToDisplayString().TrimEnd('?') == "VanillaGraphicsExpanded.Rendering.GpuTexture") return true;
+        return false;
+    }
     /// <summary>Finds the established runtime layout boundary without emitting engine types offline.</summary>
     internal static bool HasRuntimeTarget(INamedTypeSymbol type)
     {

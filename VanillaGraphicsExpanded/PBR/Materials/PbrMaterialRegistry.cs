@@ -931,7 +931,7 @@ internal sealed class PbrMaterialRegistry
 
         foreach (PbrMaterialDefinitionsSource source in sources)
         {
-            PbrMaterialDefaults defaults = BuildDefaults(source.File);
+            PbrMaterialDefaults defaults = BuildDefaults(source.File, logger, source.Location);
 
             if (source.File.Materials == null) continue;
 
@@ -1304,7 +1304,8 @@ internal sealed class PbrMaterialRegistry
         }
     }
 
-    private static PbrMaterialDefaults BuildDefaults(PbrMaterialDefinitionsJsonFile file)
+    /// <summary>Resolves shared authoring defaults and reports invalid water parameters at their source.</summary>
+    private static PbrMaterialDefaults BuildDefaults(PbrMaterialDefinitionsJsonFile file, ILogger logger, AssetLocation source)
     {
         float roughness = file.Defaults?.Roughness ?? 0.85f;
         float metallic = file.Defaults?.Metallic ?? 0.0f;
@@ -1339,9 +1340,12 @@ internal sealed class PbrMaterialRegistry
                 Reflectivity: noise?.Reflectivity ?? 0.0f,
                 Normals: noise?.Normals ?? 0.0f),
             Scale: scale,
-            Transmission: MaterialTransmission.Clamp(file.Defaults?.Transmission ?? 0));
+            Transmission: MaterialTransmission.Clamp(file.Defaults?.Transmission ?? 0),
+            WaterMedium: WaterMedium.Resolve(file.Defaults?.WaterMedium, WaterMedium.Clear,
+                message => logger.Warning("[VGE] Material defaults source={0}: {1}", source, message)));
     }
 
+    /// <summary>Combines material overrides with resolved defaults, keeping physical medium values independent of BRDF baking.</summary>
     private static PbrMaterialDefinition BuildDefinition(
         ILogger logger,
         AssetLocation source,
@@ -1373,7 +1377,9 @@ internal sealed class PbrMaterialRegistry
             Notes: json.Notes,
             DisplacementAmplitudeMetres: MaterialDisplacement.ResolveAmplitude(json.Displacement?.AmplitudeMetres ?? 0,
                 message => logger.Warning("[VGE] Material '{0}' source={1}: {2}", materialId, source, message)),
-            Transmission: MaterialTransmission.Clamp(json.Transmission ?? defaults.Transmission));
+            Transmission: MaterialTransmission.Clamp(json.Transmission ?? defaults.Transmission),
+            WaterMedium: WaterMedium.Resolve(json.WaterMedium, defaults.WaterMedium ?? WaterMedium.Clear,
+                message => logger.Warning("[VGE] Material '{0}' source={1}: {2}", materialId, source, message)));
         return definition;
     }
 
@@ -1567,7 +1573,7 @@ internal sealed class PbrMaterialRegistry
 
 internal readonly record struct PbrMaterialDefinitionsSource(string Domain, AssetLocation Location, PbrMaterialDefinitionsJsonFile File);
 
-internal readonly record struct PbrMaterialDefaults(float Roughness, float Metallic, float Emissive, PbrMaterialNoise Noise, PbrOverrideScale Scale, float Transmission = 0);
+internal readonly record struct PbrMaterialDefaults(float Roughness, float Metallic, float Emissive, PbrMaterialNoise Noise, PbrOverrideScale Scale, float Transmission = 0, WaterMedium? WaterMedium = null);
 
 internal readonly record struct PbrMaterialMappingRule(
     int OrderIndex,

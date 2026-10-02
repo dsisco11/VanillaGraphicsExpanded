@@ -36,8 +36,9 @@ public sealed class ShaderTestFramework : IDisposable
 {
     #region Fields
 
-    private int _quadVao;
-    private int _quadVbo;
+    private GpuVao? _quadVao;
+    private GpuVbo? _quadVbo;
+    private GpuEbo? _quadEbo;
     private bool _quadInitialized;
     private bool _isDisposed;
     private readonly List<IDisposable> _managedResources = [];
@@ -45,6 +46,7 @@ public sealed class ShaderTestFramework : IDisposable
 
     #endregion
 
+    /// <summary>Defines deterministic fixed-function state for fullscreen component passes.</summary>
     private static GlPipelineDesc CreateFullscreenPassPso()
     {
         // Match typical runtime fullscreen compute/post-process defaults (no depth, no blend, no cull, no scissor).
@@ -198,9 +200,8 @@ public sealed class ShaderTestFramework : IDisposable
 
         GlStateCache.Current.Apply(FullscreenPassPso);
         GlStateCache.Current.UseProgram(programId);
-        GlStateCache.Current.BindVertexArray(_quadVao);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-        GlStateCache.Current.UnbindVertexArray();
+        using var geometry = _quadVao!.BindScope();
+        _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
         GlStateCache.Current.UnbindProgram();
     }
 
@@ -210,9 +211,8 @@ public sealed class ShaderTestFramework : IDisposable
         EnsureQuadInitialized();
         GlStateCache.Current.Apply(FullscreenPassPso);
         using var use = program.UseScope();
-        GlStateCache.Current.BindVertexArray(_quadVao);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-        GlStateCache.Current.UnbindVertexArray();
+        using var geometry = _quadVao!.BindScope();
+        _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
     }
 
     /// <summary>Executes a production shader against an explicitly supplied component target.</summary>
@@ -221,8 +221,7 @@ public sealed class ShaderTestFramework : IDisposable
         target.BindWithViewport();
         GlStateCache.Current.Apply(FullscreenPassPso);
         var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
-        GL.ClearColor(r, g, b, a);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        target.Clear(r, g, b, a);
         RenderQuad(program);
         GpuFramebuffer.Unbind();
     }
@@ -241,8 +240,7 @@ public sealed class ShaderTestFramework : IDisposable
         GlStateCache.Current.Apply(FullscreenPassPso);
 
         var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
-        GL.ClearColor(r, g, b, a);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        target.Clear(r, g, b, a);
 
         RenderQuad(programId);
 
@@ -267,22 +265,16 @@ public sealed class ShaderTestFramework : IDisposable
             -1f,  3f, 0f, 2f  // Top-left (extends past viewport)
         ];
 
-        _quadVao = GL.GenVertexArray();
-        _quadVbo = GL.GenBuffer();
-
-        GlStateCache.Current.BindVertexArray(_quadVao);
-        GlStateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, _quadVbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
-
-        // Position attribute at location 0
-        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
-        GL.EnableVertexAttribArray(0);
+        _quadVao = GpuVao.Create("Tests.FullscreenTriangle");
+        _quadVbo = GpuVbo.Create(debugName: "Tests.FullscreenTriangle.Vertices");
+        _quadEbo = GpuEbo.Create(debugName: "Tests.FullscreenTriangle.Indices");
+        using var geometry = _quadVao.BindScope();
+        using var vertexBinding = _quadVbo.BindScope();
+        _quadVbo.UploadData(vertices);
+        _quadVao.AttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
         // Production direct lighting consumes the engine mesh UV attribute.
-        GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
-        GL.EnableVertexAttribArray(1);
-
-        GlStateCache.Current.UnbindVertexArray();
-        GlStateCache.Current.UnbindBuffer(BufferTarget.ArrayBuffer);
+        _quadVao.AttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
+        _quadEbo.UploadIndices(new uint[] { 0, 1, 2 });
 
         _quadInitialized = true;
     }
@@ -367,10 +359,12 @@ public sealed class ShaderTestFramework : IDisposable
         // Dispose quad geometry
         if (_quadInitialized)
         {
-            GL.DeleteVertexArray(_quadVao);
-            GL.DeleteBuffer(_quadVbo);
-            _quadVao = 0;
-            _quadVbo = 0;
+            _quadEbo?.Dispose();
+            _quadVao?.Dispose();
+            _quadVbo?.Dispose();
+            _quadEbo = null;
+            _quadVao = null;
+            _quadVbo = null;
             _quadInitialized = false;
         }
 

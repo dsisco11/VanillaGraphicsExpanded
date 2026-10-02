@@ -20,6 +20,9 @@ out vec4 outColor;
 @import "./includes/vge_global_defines.glsl"
 
 @import "./includes/pbr_composite_params_ubo.glsl"
+@import "./includes/liquids/boundary_transport.glsl"
+layout(location = 100, binding = 12) uniform sampler2D vge_waterOpticalDepth;
+layout(location = 101, binding = 13) uniform sampler2D vge_waterSource;
 
 // Direct buffers (linear, fog-free)
 uniform sampler2D directDiffuse;
@@ -40,6 +43,27 @@ uniform sampler2D primaryDepth;
 uniform sampler2D gBufferPosition;
 
 // Fog (VS convention)
+
+/** Integrates captured segments, requiring a known return outside water for sky backgrounds. */
+bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission,
+    out vec3 inScattering, out float waterLength)
+{
+    bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
+    vec4 source = texelFetch(vge_waterSource, ivec2(gl_FragCoord.xy), 0);
+    transmission = vec3(1);
+    inScattering = vec3(0);
+    waterLength = 0.0;
+    float terminal = source.w + (startsInWater ? 1.0 : 0.0);
+    // An absent exit is unknown coverage, not an arbitrarily deep water volume.
+    if (sky)
+    {
+        if (abs(terminal) > .01) return false;
+    }
+    source.rgb += vgePbrCompositeParams.waterCameraSource.rgb * length(receiverVS);
+    return VgeWaterBoundaryTransport(texelFetch(vge_waterOpticalDepth, ivec2(gl_FragCoord.xy), 0),
+        source, vgePbrCompositeParams.waterAbsorption.rgb + vgePbrCompositeParams.waterScattering.rgb,
+        startsInWater, length(receiverVS), transmission, inScattering, waterLength);
+}
 
 void main(void)
 {
@@ -62,6 +86,18 @@ void main(void)
         // Direct lighting pass outputs 0 for sky/background by design.
         // Preserve the base scene color here (sky shader output lives in gBufferAlbedo).
         vec3 skyColor = texture(gBufferAlbedo, uv).rgb;
+        bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;
+        bool cameraAboveWater = vgePbrCompositeParams.fogFloats0.z < .5;
+        bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
+        bool cameraMediumSupported = cameraAboveWater || startsInWater;
+        if (waterCaptureEnabled && cameraMediumSupported)
+        {
+            vec3 transmission;
+            vec3 inScattering;
+            float waterLength;
+            bool resolved = VgeCompositeWaterTransport(receiverVS, true, transmission, inScattering, waterLength);
+            if (resolved) skyColor = skyColor * transmission + inScattering;
+        }
         outColor = vec4(max(skyColor, vec3(0.0)), 1.0);
         return;
     }
@@ -130,12 +166,34 @@ void main(void)
 
     finalColor = max(finalColor, vec3(0.0));
 
-    if (vgePbrCompositeParams.fogFloats0.z > .5)
+    bool waterResolved = false;
+    bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;
+    bool hasPhysicalReceiver = texture(gBufferNormal, uv).a >= 0.0;
+    bool cameraAboveWater = vgePbrCompositeParams.fogFloats0.z < .5;
+    bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
+    bool cameraMediumSupported = cameraAboveWater || startsInWater;
+    if (waterCaptureEnabled && hasPhysicalReceiver && cameraMediumSupported)
+    {
+        vec3 transmission;
+        vec3 inScattering;
+        float waterLength;
+        waterResolved = VgeCompositeWaterTransport(receiverVS, false, transmission, inScattering, waterLength);
+        if (waterResolved)
+        {
+            // Apply aerial perspective only to the aggregate air portion of the ray.
+            vec3 airReceiver = transpose(mat3(viewMatrix)) * receiverVS
+                * max(0.0, 1.0 - waterLength / max(length(receiverVS), .001));
+            finalColor = VgeApplyAerial(finalColor, airReceiver, texture(gBufferEnvironment, uv).a,
+                vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
+            finalColor = finalColor * transmission + inScattering;
+        }
+    }
+    if (!waterResolved && vgePbrCompositeParams.fogFloats0.z > .5)
     {
         float fogAmount = clamp(fogMinIn + 1.0 - exp(-length(receiverVS) * fogDensityIn), 0.0, 1.0);
         finalColor = mix(finalColor, VgeSrgbToLinear(rgbaFogIn.rgb), fogAmount);
     }
-    else
+    else if (!waterResolved)
         finalColor = VgeApplyAerial(finalColor, transpose(mat3(viewMatrix)) * receiverVS,
             texture(gBufferEnvironment, uv).a, vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
 

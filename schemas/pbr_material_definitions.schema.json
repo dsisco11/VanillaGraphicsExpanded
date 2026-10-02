@@ -41,6 +41,7 @@
         "metallic": { "$ref": "#/$defs/unitFloat" },
         "emissive": { "$ref": "#/$defs/emissiveFloat" },
         "transmission": { "$ref": "#/$defs/unitFloat", "description": "Thin-surface transmission strength; liquid shaders interpret positive values as water-like medium transmission." },
+        "waterMedium": { "$ref": "#/$defs/waterMedium" },
         "noise": { "$ref": "#/$defs/noise" },
         "scale": { "$ref": "#/$defs/scale" }
       }
@@ -58,6 +59,24 @@
         "displacement": { "$ref": "#/$defs/displacement" },
         "priority": { "$ref": "#/$defs/priority" }
       }
+    },
+    "waterMedium": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Homogeneous water coefficients in inverse metres; density and anisotropy are dimensionless. Omitted members inherit.",
+      "properties": {
+        "additionalAbsorptionPerMetre": { "$ref": "#/$defs/mediumRgb" },
+        "scatteringPerMetre": { "$ref": "#/$defs/mediumRgb" },
+        "density": { "type": "number", "minimum": 0, "maximum": 100, "default": 1 },
+        "anisotropy": { "type": "number", "minimum": -0.95, "maximum": 0.95, "default": 0 }
+      }
+    },
+    "mediumRgb": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "R/G/B inverse-metre coefficients, ordered at effective wavelengths 650/550/450 nm.",
+      "items": { "type": "number", "minimum": 0, "maximum": 100 }
     },
     "displacement": {
       "type": "object",

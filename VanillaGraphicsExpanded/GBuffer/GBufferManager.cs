@@ -76,6 +76,13 @@ public sealed partial class GBufferManager : IDisposable
 
     #region Properties
 
+    /// <summary>Returns the borrowed normal attachment owned by this manager.</summary>
+    public DynamicTexture2D? NormalTexture => normalTex;
+    /// <summary>Returns the borrowed material attachment owned by this manager.</summary>
+    public DynamicTexture2D? MaterialTexture => materialTex;
+    /// <summary>Returns the borrowed environmental-light attachment owned by this manager.</summary>
+    public DynamicTexture2D? EnvironmentTexture => environmentTex;
+
     /// <summary>
     /// The OpenGL texture ID for the normal G-buffer (ColorAttachment4).
     /// Format: RGBA16F - packed world normals in XYZ; negative W selects an explicit receiver position.

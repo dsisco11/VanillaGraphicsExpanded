@@ -29,7 +29,7 @@ internal interface IPBRCompositeShaderProgramBindings
     int GBufferAlbedo { set; }
     /// <summary>Declares the gBufferMaterial Sampler slot.</summary>
     [ShaderBinding("gBufferMaterial", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferMaterial { set; }
+    DynamicTexture2D? GBufferMaterial { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int PrimaryDepth { set; }
@@ -38,15 +38,27 @@ internal interface IPBRCompositeShaderProgramBindings
     int GBufferPosition { set; }
     /// <summary>Declares the gBufferNormal Sampler slot.</summary>
     [ShaderBinding("gBufferNormal", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferNormal { set; }
+    DynamicTexture2D? GBufferNormal { set; }
     /// <summary>Declares the gBufferEnvironment Sampler slot.</summary>
     [ShaderBinding("gBufferEnvironment", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferEnvironment { set; }
+    DynamicTexture2D? GBufferEnvironment { set; }
+    /// <summary>Declares signed optical-depth and length accumulation for opaque receivers.</summary>
+    [ShaderBinding("vge_waterOpticalDepth", ShaderBindingKind.Sampler, 12, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    DynamicTexture2D? WaterOpticalDepth { set; }
+    /// <summary>Declares signed scattering-source and boundary-count accumulation.</summary>
+    [ShaderBinding("vge_waterSource", ShaderBindingKind.Sampler, 13, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    DynamicTexture2D? WaterSource { set; }
+    /// <summary>Declares a stable baked uniform location for the optical-depth sampler without relying on SPIR-V names.</summary>
+    [ShaderBinding("vge_waterOpticalDepth", ShaderBindingKind.UniformLocation, 100, ShaderStageKind.Fragment)]
+    ShaderUniformLocationBinding WaterOpticalDepthLocation { get; }
+    /// <summary>Declares a stable baked uniform location for the scattering-source sampler.</summary>
+    [ShaderBinding("vge_waterSource", ShaderBindingKind.UniformLocation, 101, ShaderStageKind.Fragment)]
+    ShaderUniformLocationBinding WaterSourceLocation { get; }
     /// <summary>Declares the vge_atmosphereAerialRadiance Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 9, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Required = false)]
-    int AtmosphereAerialRadiance { set; }
+    DynamicTexture3D? AtmosphereAerialRadiance { set; }
     /// <summary>Declares the vge_atmosphereAerialAttenuation Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 10, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Required = false)]
-    int AtmosphereAerialAttenuation { set; }
+    DynamicTexture3D? AtmosphereAerialAttenuation { set; }
     #endregion
 }

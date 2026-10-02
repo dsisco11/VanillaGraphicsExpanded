@@ -53,6 +53,37 @@ public sealed class RuntimeSubmissionTests
         """;
 
     #region Public API
+    /// <summary>Concrete texture owners are accepted and retain deferred sampler publication.</summary>
+    [Theory]
+    [InlineData("Texture2D")]
+    [InlineData("DynamicTexture2D")]
+    [InlineData("DynamicTexture3D")]
+    public void ConcreteTextureSamplerPublishesAtActivation(string textureType)
+    {
+        // Use inheritance in the semantic compilation so validation cannot rely on a class-name whitelist.
+        string support = Support + "namespace VanillaGraphicsExpanded.Rendering { public class " + textureType + " : GpuTexture { public static implicit operator int(" + textureType + " value) => 1; } }";
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment)]
+                VanillaGraphicsExpanded.Rendering.TEXTURE Source { set; }
+            }
+            """.Replace("TEXTURE", textureType) + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.Source = new();
+                    string before = VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    shader.Use();
+                    return before + "|" + VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                }
+            }
+            """;
+        Assert.Equal("|validate-sampler;sampler;", GeneratorFixture.Generate(source, supportSource: support).Run());
+    }
+
     /// <summary>Compute owners retain storage ranges and atomic counters and publish them at every dispatch.</summary>
     [Fact]
     public void ComputeRangeAndCounterAssignmentsPublishOnlyAtDispatch()

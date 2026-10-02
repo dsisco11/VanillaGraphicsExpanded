@@ -18,6 +18,8 @@ layout(location = 22) in vec2 vge_waveWeights;
 layout(location = 100, binding = 0) uniform sampler2D terrainTex;
 layout(location = 101, binding = 1) uniform sampler2D depthTex;
 layout(location = 102, binding = 2) uniform sampler2D vge_materialParamsTex;
+layout(location = 103, binding = 7) uniform sampler2D vge_waterMediumIndices;
+layout(location = 104, binding = 8) uniform sampler2D vge_waterMediumRecords;
 layout(location = 49, binding = 3) uniform sampler2DShadow shadowMapNear;
 layout(location = 48, binding = 4) uniform sampler2DShadow shadowMapFar;
 @import "./includes/vertex_flags.glsl"
@@ -25,7 +27,10 @@ layout(location = 48, binding = 4) uniform sampler2DShadow shadowMapFar;
 @import "./includes/texture_animation.glsl"
 @import "./includes/fog_spheres.glsl"
 @import "./includes/perception_fragment.glsl"
-#if VGE_LIQUID_CAPTURE_MODE > 0
+#if VGE_LIQUID_CAPTURE_MODE == 3
+layout(location = 0) out vec4 outWaterOpticalDepth;
+layout(location = 1) out vec4 outWaterSource;
+#elif VGE_LIQUID_CAPTURE_MODE > 0
 layout(location = 0) out vec4 outSpecularCapture;
 #else
 @import "./includes/oit.glsl"
@@ -80,6 +85,32 @@ void main()
 	if (psychedelicStrength > 0.00001) texColor = applyPsychedelicEffect(texColor, fragWorldPos, 0);
 
     vec4 material = texture(vge_materialParamsTex, uv);
+#if VGE_LIQUID_CAPTURE_MODE == 3
+    // Sum signed boundary antiderivatives. An entry adds the distance to the opaque
+    // receiver; an exit subtracts it. Air gaps cancel without depth-difference assumptions.
+    if (material.a <= 0.0 || isLava || fullAlpha) discard;
+    float opaqueDepth = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0).r;
+    float rayScale = length(vge_viewPosition) / max(abs(vge_viewPosition.z), .001);
+    // For sky, the far plane is only the boundary-capture extent. Composition
+    // accepts a finite water segment only when the captured winding returns to air.
+    float receiverDistance = (opaqueDepth >= .999999 ? zFar : VgeLiquidViewDepth(opaqueDepth)) * rayScale;
+    float remaining = max(receiverDistance - length(vge_viewPosition), 0.0);
+    if (remaining <= 0.0) discard;
+    vec3 geometric = cross(dFdx(fWorldPos), dFdy(fWorldPos));
+    float normalSquared = dot(geometric, geometric);
+    vec3 outward = normalSquared > 1e-16 ? geometric * inversesqrt(normalSquared) : normalize(fragNormal);
+    if (dot(outward, fragNormal) < 0.0) outward = -outward;
+    vec3 toEye = normalize(-vge_viewPosition);
+    float orientation = dot(mat3(modelViewMatrix) * outward, toEye) >= 0.0 ? 1.0 : -1.0;
+    VgeWaterMedium medium = VgeWaterMaterial(uv);
+    vec3 eyeWorld = transpose(mat3(modelViewMatrix)) * toEye;
+    vec3 source = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility()
+        * VgeWaterPhase(dot(-normalize(vge_atmosphereSunDirection), eyeWorld), medium.anisotropy)
+        + max(vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility, vec3(0)) / 12.56637061436;
+    outWaterOpticalDepth = vec4((medium.absorption + medium.scattering) * remaining, remaining) * orientation;
+    outWaterSource = vec4(medium.scattering * source * remaining, 1.0) * orientation;
+    return;
+#else
     vec4 liquid = VgeLiquidSurface(texColor, material, isLava, fullAlpha);
 #if VGE_LIQUID_CAPTURE_MODE > 0
     outSpecularCapture = liquid;
@@ -87,5 +118,6 @@ void main()
     liquid = applySpheresFog(liquid, 0.0, fWorldPos);
     liquid.a *= 1.0 - forcedTransparency;
     writeOit(liquid, max(glowLevel, clamp(material.b, 0, 1)));
+#endif
 #endif
 }

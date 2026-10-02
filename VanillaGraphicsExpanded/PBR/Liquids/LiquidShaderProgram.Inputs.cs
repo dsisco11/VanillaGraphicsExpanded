@@ -16,6 +16,10 @@ internal sealed partial class LiquidShaderProgram
     internal float ForcedTransparency { set { draw.SetTransparency(value); } }
     /// <summary>Stages the depth pass's coherent wave snapshot before publishing frame inputs.</summary>
     internal LiquidWaveFrame WaveFrame { set { wave.Phases = value.Phases; wave.Wind = value.Wind; } }
+    /// <summary>Stages material-medium availability before frame publication.</summary>
+    internal bool MediumLookupEnabled { set => frame.MediumLookupEnabled = value; }
+    /// <summary>Selects interface-only OIT when bulk medium transport has already affected the opaque background.</summary>
+    internal bool VolumeTransportEnabled { set => frame.VolumeTransportEnabled = value; }
     #endregion
 
     #region Texture inputs
@@ -24,15 +28,19 @@ internal sealed partial class LiquidShaderProgram
     /// <summary>Retains the borrowed DepthTexture with its declared target and sampler.</summary>
     public partial int DepthTexture { set; }
     /// <summary>Retains the borrowed MaterialParamsTexture with its declared target and sampler.</summary>
-    public partial int MaterialParamsTexture { set; }
+    public partial Texture2D? MaterialParamsTexture { set; }
+    /// <summary>Binds the current material-medium index image.</summary>
+    public partial Texture2D? WaterMediumIndicesTexture { set; }
+    /// <summary>Binds the current material-medium coefficient table.</summary>
+    public partial Texture2D? WaterMediumRecordsTexture { set; }
     /// <summary>Retains the borrowed ShadowMapNear with its declared target and sampler.</summary>
     public partial int ShadowMapNear { set; }
     /// <summary>Retains the borrowed ShadowMapFar with its declared target and sampler.</summary>
     public partial int ShadowMapFar { set; }
     /// <summary>Retains the borrowed AerialRadianceTexture with its declared target and sampler.</summary>
-    public partial int AerialRadianceTexture { set; }
+    public partial DynamicTexture3D? AerialRadianceTexture { set; }
     /// <summary>Retains the borrowed AerialAttenuationTexture with its declared target and sampler.</summary>
-    public partial int AerialAttenuationTexture { set; }
+    public partial DynamicTexture3D? AerialAttenuationTexture { set; }
     #endregion
 
 

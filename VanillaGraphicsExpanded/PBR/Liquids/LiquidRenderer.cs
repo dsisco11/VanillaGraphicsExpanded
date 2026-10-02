@@ -89,19 +89,21 @@ internal sealed class LiquidRenderer : IRenderer
             if (!source.TryGetAtlasPools(out var atlases, out var pools) || !CanTakeOwnership(api, atlases)) return;
             var store = MaterialAtlasSystem.Instance.TextureStore;
             program.CaptureFrameInputs(api, source.TileSize);
+            program.VolumeTransportEnabled = WaterVolumeRenderer.WasComposed(api);
             program.WaveFrame = waves;
             program.ModelViewMatrix = render.CameraMatrixOriginf;
             program.ForcedTransparency = 0;
             program.DepthTexture = buffers[(int)EnumFrameBuffer.Primary].DepthTextureId;
             program.ShadowMapNear = buffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;
             program.ShadowMapFar = buffers[(int)EnumFrameBuffer.ShadowmapFar]?.DepthTextureId ?? 0;
-            program.AerialRadianceTexture = AtmosphereModSystem.AerialRadianceTextureId;
-            program.AerialAttenuationTexture = AtmosphereModSystem.AerialAttenuationTextureId;
+            program.AerialRadianceTexture = AtmosphereModSystem.AerialRadianceTexture;
+            program.AerialAttenuationTexture = AtmosphereModSystem.AerialAttenuationTexture;
             // Establish complete initial state before entering the engine pool loop.
             if (atlases.Length == 0) return;
-            store.TryGetMaterialParamsTextureId(atlases[0], out int initialMaterial);
+            store.TryGetPageTextures(atlases[0], out var initialMaterial);
             program.TerrainTexture = atlases[0];
-            program.MaterialParamsTexture = initialMaterial;
+            program.MaterialParamsTexture = initialMaterial.MaterialParamsTexture;
+            BindWaterMedium(program, store, atlases[0]);
             using var scope = program.UseScope();
             if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return;
             var engineRender = (Vintagestory.Client.RenderAPIBase)render;
@@ -113,9 +115,10 @@ internal sealed class LiquidRenderer : IRenderer
                 source.SuppressNextEngineDraw = true;
                 for (int i = 0; i < atlases.Length; i++)
                 {
-                    store.TryGetMaterialParamsTextureId(atlases[i], out int material);
+                    store.TryGetPageTextures(atlases[i], out var material);
                     program.TerrainTexture = atlases[i];
-                    program.MaterialParamsTexture = material;
+                    program.MaterialParamsTexture = material.MaterialParamsTexture;
+                    BindWaterMedium(program, store, atlases[i]);
                     pools[i].Render(api.World.Player.Entity.CameraPos, "origin", EnumFrustumCullMode.CullNormal);
                 }
             }
@@ -127,6 +130,17 @@ internal sealed class LiquidRenderer : IRenderer
             api.Logger.Error("[VGE] Liquid renderer disabled; vanilla submission resumes next invocation. {0}", error.ToString());
         }
         finally { GlStateCache.Current.InvalidateAll(); }
+    }
+    #endregion
+
+    #region Internal API
+    /// <summary>Stages a dimension-matched medium generation before the pool hook publishes the complete draw inputs.</summary>
+    internal static void BindWaterMedium(LiquidShaderProgram program, MaterialAtlasTextureStore store, int atlas)
+    {
+        bool available = store.TryGetWaterMediumTextures(atlas, out var medium);
+        program.MediumLookupEnabled = available;
+        program.WaterMediumIndicesTexture = available ? medium!.Indices : null;
+        program.WaterMediumRecordsTexture = available ? medium!.Records : null;
     }
     #endregion
 }

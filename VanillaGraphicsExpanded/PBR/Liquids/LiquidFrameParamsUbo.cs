@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
 {
     internal const string BlockName = "VgeLiquidFrameParams";
-    internal const int BlockSize = 4624;
+    internal const int BlockSize = 4640;
     #region Frame parameters
     /// <summary>Allocates the block declared by liquids/params.glsl.</summary>
     internal LiquidFrameParamsUbo() : base(BlockSize) { }
@@ -42,6 +42,10 @@ internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
     internal Vector4 Perception { set => WriteVector4(368, value); }
     /// <summary>Stages the PerceptionPosition field.</summary>
     internal Vector4 PerceptionPosition { set => WriteVector4(384, value); }
+    /// <summary>Enables the current material-medium lookup; zero selects the measured clear-water default.</summary>
+    internal bool MediumLookupEnabled { set => WriteFloat(4624, value ? 1 : 0); }
+    /// <summary>Moves bulk attenuation to scene-linear composition when the boundary capture is valid.</summary>
+    internal bool VolumeTransportEnabled { set => WriteFloat(4628, value ? 1 : 0); }
     /// <summary>Sets the bounded numbers of active point lights and fog spheres.</summary>
     internal void SetCounts(int lights, int spheres) => WriteIntVector4(352, lights, spheres, 0, 0);
     /// <summary>Stages one ColorMapRect array element with std140 stride.</summary>

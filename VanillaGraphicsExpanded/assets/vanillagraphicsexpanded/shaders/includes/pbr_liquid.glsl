@@ -4,6 +4,7 @@
 
 
 @import "./pbr_liquid_optics.glsl"
+@import "./liquids/medium_material.glsl"
 
 /** Uses the same engine cascade coordinates as liquid geometry, with no ambient brightness floor. */
 float VgeLiquidVisibility()
@@ -55,6 +56,11 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     return vec4(VgeDitherDisplay(VgeResolveDisplay(max(reflected, vec3(0))), gl_FragCoord.xy), 1.0);
 #endif
     vec3 bodyLight = vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility;
+    VgeWaterMedium medium = water ? VgeWaterMaterial(uv) : VgeWaterMedium(vec3(0), vec3(0), 0.0);
+    // Incoming sunlight travels along -L, outgoing photons toward V. Receiver shadow/sky
+    // visibility bounds this local source; it is not a volumetric shadow march.
+    vec3 mediumSource = solar * VgeWaterPhase(dot(-L, V), medium.anisotropy)
+        + max(bodyLight, vec3(0)) / 12.56637061436;
     vec3 diffuse = tint * solar * max(dot(N,L), 0.0) / 3.14159265359;
 #if DYNLIGHTS > 0
     for (int i = 0; i < min(pointLightQuantity, DYNLIGHTS); ++i)
@@ -63,6 +69,8 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
         float d2 = max(dot(delta, delta), .0001);
         vec3 direction = normalize(toWorld * delta);
         vec3 light = pointLightColors[i] * min(1.0 / d2, 1.0);
+        // Local lights retain the existing unshadowed engine approximation.
+        mediumSource += max(light, vec3(0)) * VgeWaterPhase(dot(-direction, V), medium.anisotropy);
         reflected += cookTorranceBRDF(N,V,direction,F0,roughness) * light * max(dot(N,direction),0.0);
         diffuse += tint * light * max(dot(N,direction),0.0);
     }
@@ -74,13 +82,12 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     if (water)
     {
         vec2 screenUv = clamp(gl_FragCoord.xy / frameSize, vec2(0), vec2(1));
-        float thickness = VgeLiquidThickness(texture(depthTex, screenUv).r, gl_FragCoord.z, vge_viewPosition, underwater);
-        // Albedo tint supplies an art-directed extinction spectrum; this is not measured water chemistry.
-        vec3 extinction = mix(vec3(.08), vec3(.8), vec3(1) - tint);
-        vec3 transmittance = exp(-extinction * thickness);
+        float thickness = liquidMediumControl.y > .5 ? 0.0
+            : VgeLiquidThickness(texture(depthTex, screenUv).r, gl_FragCoord.z, vge_viewPosition, underwater);
+        vec3 transmittance = VgeWaterTransmittance(medium, thickness);
         float transmitted = dot(transmittance, vec3(.2126,.7152,.0722)) * clamp(material.a,0.0,1.0);
         alpha = clamp(1.0 - (1.0 - fresnel) * transmitted, .001, 1.0);
-        vec3 scattering = tint * bodyLight * (vec3(1) - transmittance) * (1.0 - fresnel);
+        vec3 scattering = VgeWaterInScattering(medium, thickness, mediumSource) * (1.0 - fresnel);
         // OIT multiplies by alpha. Normalize only our surface source, not the background transmission.
         radiance = (reflected + scattering) / alpha;
     }

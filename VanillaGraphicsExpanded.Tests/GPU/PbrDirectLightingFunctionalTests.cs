@@ -537,13 +537,13 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
         programId.GBufferPosition = position.TextureId;
-        programId.GBufferEnvironment = environment.TextureId;
+        programId.GBufferEnvironment = environment;
         programId.DirectSpecular = directSpecular;
         programId.Emissive = emissive;
         programId.IndirectDiffuse = indirectDiffuse;
         programId.GBufferAlbedo = gBufferAlbedo.TextureId;
-        programId.GBufferMaterial = gBufferMaterial.TextureId;
-        programId.GBufferNormal = gBufferNormal.TextureId;
+        programId.GBufferMaterial = gBufferMaterial;
+        programId.GBufferNormal = gBufferNormal;
         programId.PrimaryDepth = primaryDepth.TextureId;
 
         // Disable LumOn + fog

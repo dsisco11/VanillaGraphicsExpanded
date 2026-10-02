@@ -31,20 +31,20 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var material = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f);
-        using var aerial = Texture3D.Create(1, 2, 1, PixelInternalFormat.Rgba32f);
+        using var aerial = DynamicTexture3D.Create(1, 2, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         terrain.UploadDataImmediate(new float[] {1,1,1,1});
         material.UploadDataImmediate([.25f,0,0,1]);
         depth.UploadDataImmediate(new float[] {1});
         aerial.UploadDataImmediate(new float[8], 0, 0, 0, 1, 2, 1, 0);
         program.TerrainTexture = terrain.TextureId;
-        program.MaterialParamsTexture = material.TextureId;
+        program.MaterialParamsTexture = material;
         program.DepthTexture = depth.TextureId;
         program.ShadowMapNear = depth.TextureId;
         program.ShadowMapFar = depth.TextureId;
-        program.AerialRadianceTexture = aerial.TextureId;
-        program.AerialAttenuationTexture = aerial.TextureId;
+        program.AerialRadianceTexture = aerial;
+        program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
         program.SunDirection = new(Vector3.Normalize(new(0,1,-5)), 0);
         program.SolarIrradiance = new(.1f,.1f,.1f,0);
