@@ -411,7 +411,7 @@ Tasks
     - Validate color/depth agreement, silhouettes, shorelines, flowing surfaces, mini-dimensions and
       camera crossings through focused subagent tests and user-run visual checks. Measure GPU cost.
 
-  ☐ Implement water volume absorption and in-scattering (depth fog).
+  ✔ Implement water volume absorption and in-scattering (depth fog). @done(26-10-02 04:45)
     - Implemented medium authoring, measured clear-water absorption, bounded directional phase
       evaluation, analytic Beer-Lambert/single-scattering transport and current-plan GPU metadata.
       Evidence and explicit remaining requirements: docs/PBR.WaterMedium.md.
