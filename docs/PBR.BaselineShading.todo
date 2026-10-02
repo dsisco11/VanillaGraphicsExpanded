@@ -454,31 +454,13 @@ Tasks
       and bandwidth; keep caustics separate.
 
   ☐ Refactor generated shader binding state and eliminate redundant sampler uniform locations.
-    - Design proposal: docs/Rendering.ShaderBindingState.Proposal.md. Prepare fixed-slot resource activity
-      per executable; separate desired shader state from context-wide GPU bindings and uniform upload history.
-    - For every generated shader class, emit a final `<ShaderName>State` struct containing one field for
-      each non-UBO binding-contract property. Keep one active instance in the shader class. Generate
-      property accessors that compare the incoming value with active state and skip unchanged assignments.
-      Preserve nullable resource, raw engine texture-ID, image, storage-buffer and atomic-counter semantics;
-      do not place UBO contents in this state because their owners already control their staging and upload.
-    - Make submission consume the active state, so unchanged sampler, image, buffer and scalar properties
-      avoid redundant CPU-side binding, uniform and shader-property work each frame. Define equality and
-      retirement behavior for borrowed `GpuTexture` subclasses, raw IDs, ranges and mutable binding views;
-      invalid or retired resources must not retain a usable prior binding.
-    - Analyze every current `ShaderBindingKind.UniformLocation` declaration and other extra uniform used
-      solely to remember or rediscover previous CPU binding data. List each occurrence with its shader,
-      resource contract, current runtime consumer and reason it exists. Distinguish locations genuinely
-      required by shader data from redundant sampler-location bookkeeping introduced for CPU state checks.
-      Record the audit in `docs/Rendering.ShaderBindingState.md` before removing declarations.
-    - Replace redundant sampler uniform-location declarations with contract-derived resource state and
-      fixed sampler-unit metadata. Retain explicit locations only where the shader genuinely needs CPU
-      uniform writes or a supported fallback requires them; update SPIR-V contracts and runtime lookup so
-      resource publication never depends on an artificial location property.
-    - Update generated-contract, runtime-submission and GPU regression tests. Verify unchanged assignments
-      produce no redundant binding/publication work, changed and retired resources publish correctly, fixed
-      sampler bindings work without artificial location declarations, and engine-owned raw IDs retain their
-      target/sampler policy. Build offline SPIR-V only; obtain an independent review before removing any
-      compatibility path.
+    - Approved design: docs/Rendering.ShaderBindingState.Proposal.md.
+    - Detailed implementation and acceptance are owned by docs/Rendering.ShaderBindingState.todo.
+      Keep this scheduling entry immediately after water volume absorption and in-scattering.
+    - Prepare fixed-slot resource activity per executable; generate non-UBO shader state and preserve
+      context-wide binding correctness, resource lifetime and per-executable uniform upload history.
+    - Record the complete declaration/consumer audit and validation in docs/Rendering.ShaderBindingState.md.
+      Complete this entry only when the dedicated task list's acceptance criteria are satisfied.
 
   ☐ Implement water refraction integrated with PBR liquids and OIT.
     - Gate refraction behind a user-facing Water Refraction option in VGE graphics settings, persisted

@@ -1,8 +1,8 @@
 # Prepared shader bindings and generated shader state
 
-Status: proposed. The existing implementation contains partial state generation; this document describes the intended design, not completed behavior.
+Status: approved. The existing implementation contains partial state generation; this document describes the intended design, not completed behavior.
 
-Tracked by [PBR baseline shading](PBR.BaselineShading.todo), under “Refactor generated shader binding state and eliminate redundant sampler uniform locations.” The declaration inventory and migration evidence belong in the [binding-state audit](Rendering.ShaderBindingState.md).
+Implementation is tracked by the dedicated [shader binding state task list](Rendering.ShaderBindingState.todo), scheduled in [PBR baseline shading](PBR.BaselineShading.todo) immediately after water volume absorption and in-scattering. The declaration inventory and migration evidence belong in the [binding-state audit](Rendering.ShaderBindingState.md).
 
 ## Problem and intended behavior
 

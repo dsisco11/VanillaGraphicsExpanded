@@ -3,6 +3,7 @@
 The [prepared bindings and generated state proposal](Rendering.ShaderBindingState.Proposal.md) describes
 the intended replacement for the location-dependent submission path. This audit records the existing
 declarations and partial migration; moving locations onto sampler attributes does not complete that design.
+Implementation and acceptance are tracked in the dedicated [task list](Rendering.ShaderBindingState.todo).
 
 ## Uniform-location audit
 
