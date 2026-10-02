@@ -12,9 +12,11 @@ public sealed class ShaderBindingMigrationTests
     [Fact]
     public void ProductionTextureBindingsHaveExplicitUniformLocations()
     {
-        // SPIR-V may omit names, so a binding slot alone cannot locate a sampler or image uniform.
+        // Existing submission owners still use the location adapter. The dedicated preparation
+        // fixture deliberately has no such adapter and exercises the fixed-slot replacement.
         var missing = GeneratedShaderCatalog.Programs("production")
             .SelectMany(program => program.Stages).DistinctBy(stage => stage.Identity)
+            .Where(stage => stage.Identity != "tests/prepared_binding.csh")
             .SelectMany(stage => stage.Bindings.Samplers.Keys.Concat(stage.Bindings.Images.Keys)
                 .Where(name => !stage.Bindings.UniformLocations.ContainsKey(name))
                 .Select(name => $"{stage.Identity}: {name}"))

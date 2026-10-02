@@ -7,6 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderProgram("Contract", "tests/PbrMaterialParamsTextureSmokeTests_2", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "tests/PbrMaterialParamsTextureSmokeTests_1.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "tests/PbrMaterialParamsTextureSmokeTests_2.fsh")]
+[ShaderBindingSet(typeof(IMaterialParamsSmokeBindings))]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 internal static partial class PbrMaterialParamsShaderProgram

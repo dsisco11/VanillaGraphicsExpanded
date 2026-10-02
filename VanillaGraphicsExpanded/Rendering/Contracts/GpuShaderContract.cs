@@ -14,6 +14,8 @@ internal sealed class GpuShaderContract
     public IReadOnlyList<ShaderOption> Structural { get; }
     public IReadOnlyList<IReadOnlyDictionary<string, ShaderScalar>> Assignments { get; }
     public int VariantBudget { get; }
+    /// <summary>Provides program-wide resource indices and validates agreement between its stage contracts.</summary>
+    public GpuBindingContract Bindings { get; }
     private readonly Dictionary<string, ShaderOption> names = new(StringComparer.Ordinal);
 
     #region Declaration
@@ -26,6 +28,7 @@ internal sealed class GpuShaderContract
         if (variantBudget < 1) throw new ArgumentException($"Program '{identity}' has invalid variant budget '{variantBudget}'.");
         Stages = Array.AsReadOnly(stages.OrderBy(s => s.Kind).ToArray());
         ValidateStages();
+        Bindings = GpuBindingContract.Merge(Stages.Select(stage => stage.Bindings));
         Groups = Array.AsReadOnly((groups ?? []).ToArray());
         if (Groups.Select(g => g.Identity).Distinct(StringComparer.Ordinal).Count() != Groups.Count)
             throw new ArgumentException($"Program '{identity}' repeats an option group.");

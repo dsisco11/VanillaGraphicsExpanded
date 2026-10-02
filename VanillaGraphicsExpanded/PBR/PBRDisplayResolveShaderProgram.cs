@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>Resolves scene-linear opaque lighting into the engine's display-referred primary target.</summary>
 [ShaderProgram("Contract", "pbr_display_resolve", 2)]
-[ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh", Identity = "pbr_display_resolve.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_display_resolve.fsh")]
 public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDisplayResolveShaderProgramBindings
 {

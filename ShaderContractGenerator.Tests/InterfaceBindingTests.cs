@@ -53,7 +53,7 @@ public sealed class InterfaceBindingTests
         var offline = GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport);
         offline.Compile();
         Assert.All(offline.Generated, s => Assert.DoesNotContain("ShaderBindingAccess", s));
-        Assert.Contains(offline.Generated, s => s.Contains("\"direct\", new GpuBindingContract.Binding(5, true)"));
+        Assert.Contains(offline.Generated, s => s.Contains("\"direct\", new GpuBindingContract.Binding(5, true, 1, null, 0, 0)"));
     }
 
     /// <summary>Diamonds retain one owner and derived redeclarations explicitly replace the inherited index.</summary>

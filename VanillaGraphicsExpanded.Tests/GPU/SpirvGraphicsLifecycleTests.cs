@@ -100,14 +100,18 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         {
             Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
             int first = program.ProgramId;
+            var firstTable = program.ResourceBindings.BinaryInterface!.PreparedBindings;
             Assert.True(program.Compile());
+            Assert.NotSame(firstTable, program.ResourceBindings.BinaryInterface!.PreparedBindings);
             Assert.NotEqual(first, program.ProgramId);
             Assert.False(GL.IsProgram(first));
             int current = program.ProgramId;
+            var currentTable = program.ResourceBindings.BinaryInterface!.PreparedBindings;
             const string source = "shaders/tests/render_infrastructure.fsh.spv";
             assets.Overrides[source] = new byte[20];
             Assert.False(program.Compile());
             Assert.Equal(current, program.ProgramId);
+            Assert.Same(currentTable, program.ResourceBindings.BinaryInterface!.PreparedBindings);
             Assert.True(GL.IsProgram(current));
             assets.Overrides.Clear();
             Assert.True(program.Compile());
@@ -125,6 +129,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     [InlineData("tests/render_infrastructure.fsh.spv", "", "controlled asset read failure")]
     [InlineData("tests/render_infrastructure.fsh.spv", "vge_worldprobe_orbs_points.vsh.spv", "specialization")]
     [InlineData("tests/render_infrastructure.vsh.spv", "vge_worldprobe_orbs_points.vsh.spv", "link")]
+    [InlineData("tests/render_infrastructure.fsh.spv", "pbr_display_resolve.fsh.spv", "binding contract")]
     public void RuntimeFailurePreservesInstalledGeneration(string replaced, string substitute, string failure)
     {
         EnsureContextValid();
@@ -135,6 +140,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         int installed = program.ProgramId;
         var settings = program.InstalledSettings;
         var layout = program.ResourceBindings;
+        var table = layout.BinaryInterface!.PreparedBindings;
         if (substitute.Length == 0)
             assets.BeforeRead = path => { if (path == "shaders/" + replaced) throw new IOException("controlled asset read failure"); };
         else
@@ -144,6 +150,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         Assert.Equal(installed, program.ProgramId);
         Assert.Same(settings, program.InstalledSettings);
         Assert.Same(layout, program.ResourceBindings);
+        Assert.Same(table, program.ResourceBindings.BinaryInterface!.PreparedBindings);
         Assert.True(GL.IsProgram(installed));
         assets.Overrides.Clear();
         assets.BeforeRead = null;

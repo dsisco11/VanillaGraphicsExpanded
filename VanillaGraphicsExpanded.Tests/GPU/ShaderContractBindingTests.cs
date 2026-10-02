@@ -37,7 +37,7 @@ public sealed class ShaderContractBindingTests : RenderTestBase
         try
         {
             string vertexIdentity = name.StartsWith("lumon_debug_view_", StringComparison.Ordinal) ? "lumon_debug.vsh"
-                : name == "lumon_probe_atlas_pis_mask" ? "lumon_probe_atlas_trace.vsh" : name + ".vsh";
+                : name + ".vsh";
             vertex = BuiltShaderFixture.Load(vertexIdentity, ShaderType.VertexShader);
             // World-disabled views intentionally omit the world samplers. Exercise their enabled interface.
             Dictionary<string, string?>? defines = name == "lumon_debug_view_world_probe_irradiance_combined"

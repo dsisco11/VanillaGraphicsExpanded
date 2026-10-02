@@ -8,4 +8,5 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderStage("Contract", ShaderStageKind.Compute, "tests/GpuProgramLayoutBindingTests_1.csh")]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
+[ShaderBindingSet(typeof(ILayoutBindingComputeBindings))]
 internal static partial class LayoutBindingComputeShader { }

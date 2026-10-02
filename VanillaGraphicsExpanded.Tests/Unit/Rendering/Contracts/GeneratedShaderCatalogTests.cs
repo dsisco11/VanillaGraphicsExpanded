@@ -11,12 +11,12 @@ public sealed class GeneratedShaderCatalogTests
     public void GeneratedCatalogContainsEveryPackagedProgram()
     {
         var generated = GeneratedShaderCatalog.Programs();
-        Assert.Equal(134, generated.Count);
+        Assert.Equal(137, generated.Count);
         Assert.Equal(GpuShaderContracts.Registry.Programs.Keys.Order(StringComparer.Ordinal), generated.Select(p => p.Identity).Order(StringComparer.Ordinal));
         Assert.All(generated, program => Assert.Same(program, GpuShaderContracts.Registry.FindProgram(program.Identity)));
-        Assert.Equal(161, generated.SelectMany(p => p.Stages).Select(s => s.Identity).Distinct().Count());
-        Assert.Equal(405, generated.Sum(p => p.Assignments.Count));
-        Assert.Equal(398, new ShaderVariantResolver(generated).Binaries.Count);
+        Assert.Equal(167, generated.SelectMany(p => p.Stages).Select(s => s.Identity).Distinct().Count());
+        Assert.Equal(409, generated.Sum(p => p.Assignments.Count));
+        Assert.Equal(405, new ShaderVariantResolver(generated).Binaries.Count);
     }
 
     /// <summary>Isolated fixtures stay explicit and cannot silently enter the packaged program set.</summary>

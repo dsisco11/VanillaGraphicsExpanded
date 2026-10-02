@@ -7,6 +7,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 [ShaderProgram("Contract", "pbr_normaldepth_bake", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_normaldepth_bake.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_normaldepth_bake.fsh")]
+[ShaderBindingSet(typeof(INormalDepthBakeBindings))]
 [ShaderBindingSet(typeof(IPbrNormalDepthBakeShaderProgramBindings))]
 internal static partial class PbrNormalDepthBakeShaderProgram
 {

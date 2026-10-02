@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 
 /// <summary>Owns shader declarations for this packaged source or fixture.</summary>
 [ShaderProgram("Contract", "tests/trace_probe_anchor", 32)]
-[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_anchor.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_anchor.vsh", Identity = "tests/trace_probe_anchor.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_trace.fsh")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Visibility")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Tracing")]
@@ -27,7 +27,6 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeOctahedralSize), SpecializationId = 13, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbeResolution), SpecializationId = 14, When = "WorldProbes")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(WorldProbes))]
-[ShaderBindingSet(typeof(ILumOnProbeAnchorShaderProgramBindings), Stages = new[] { ShaderStageKind.Vertex })]
 [ShaderBindingSet(typeof(ILumOnScreenProbeAtlasTraceShaderProgramBindings), Stages = new[] { ShaderStageKind.Fragment })]
 internal static partial class TraceProbeAnchorShaderProgram
 {

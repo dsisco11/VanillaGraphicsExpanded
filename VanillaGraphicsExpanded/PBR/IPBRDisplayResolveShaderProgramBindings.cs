@@ -6,7 +6,6 @@ namespace VanillaGraphicsExpanded.PBR;
 /// <summary>Declares the GPU binding contract for PBRDisplayResolveShaderProgram.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(IPBRCompositeShaderProgramBindings), Stages = new[] { ShaderStageKind.Vertex })]
 internal interface IPBRDisplayResolveShaderProgramBindings
 {
     #region Public API

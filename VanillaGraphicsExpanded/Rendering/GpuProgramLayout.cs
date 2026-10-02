@@ -527,6 +527,17 @@ public class GpuProgramLayout
             return;
         }
 
+        if (BinaryInterface is { } prepared)
+        {
+            // The interface was inspected before publication. Reuse that generation's immutable
+            // projections rather than enumerating the linked program again for compatibility caches.
+            SetActiveSnapshot(prepared.ActiveBindings(Contracts.ShaderBindingKind.UniformBlock),
+                prepared.ActiveBindings(Contracts.ShaderBindingKind.StorageBlock),
+                prepared.ActiveBindings(Contracts.ShaderBindingKind.Sampler),
+                prepared.ActiveBindings(Contracts.ShaderBindingKind.Image));
+            return;
+        }
+
         if (!SupportsProgramInterfaceQueries())
         {
             // Reflection snapshot relies on program interface queries; keep the cache empty
@@ -828,6 +839,9 @@ public class GpuProgramLayout
 
     private IReadOnlyDictionary<string, int> TryBuildBufferBindingByName(int programId, ProgramInterface programInterface)
     {
+        if (BinaryInterface is { } prepared)
+            return prepared.ActiveBindings(programInterface == ProgramInterface.UniformBlock
+                ? Contracts.ShaderBindingKind.UniformBlock : Contracts.ShaderBindingKind.StorageBlock);
         try
         {
             GL.GetProgramInterface(programId, programInterface, ProgramInterfaceParameter.ActiveResources, out int count);
@@ -868,6 +882,8 @@ public class GpuProgramLayout
 
     private (IReadOnlyDictionary<string, int> Samplers, IReadOnlyDictionary<string, int> Images) TryBuildTextureUnitBindings(int programId)
     {
+        if (BinaryInterface is { } prepared)
+            return (prepared.ActiveBindings(Contracts.ShaderBindingKind.Sampler), prepared.ActiveBindings(Contracts.ShaderBindingKind.Image));
         try
         {
             GL.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
@@ -952,7 +968,8 @@ public class GpuProgramLayout
         return name;
     }
 
-    private static bool IsSamplerType(ActiveUniformType type)
+    /// <summary>Classifies linked sampler types for preparation and diagnostic cache enumeration.</summary>
+    internal static bool IsSamplerType(ActiveUniformType type)
     {
         // Keep this allocation-free; the set is stable across GL versions.
         return type is
@@ -998,7 +1015,8 @@ public class GpuProgramLayout
             or ActiveUniformType.UnsignedIntSamplerCubeMapArray;
     }
 
-    private static bool IsImageType(ActiveUniformType type)
+    /// <summary>Classifies linked image types independently of the sampler unit namespace.</summary>
+    internal static bool IsImageType(ActiveUniformType type)
     {
         return type is
             ActiveUniformType.Image1D

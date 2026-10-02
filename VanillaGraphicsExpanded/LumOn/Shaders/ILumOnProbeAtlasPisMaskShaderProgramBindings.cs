@@ -6,7 +6,6 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>Declares the GPU binding contract for LumOnProbeAtlasPisMaskShaderProgram.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-[ShaderBindingSet(typeof(ILumOnScreenProbeAtlasTraceShaderProgramBindings), Stages = new[] { ShaderStageKind.Vertex })]
 internal interface ILumOnProbeAtlasPisMaskShaderProgramBindings
 {
     #region Public API

@@ -10,6 +10,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../VanillaGraphicsExpanded/Rendering/Contracts/ShaderBindingKind.cs" Link="Validation/%(Filename)%(Extension)" />
+    <Compile Include="../VanillaGraphicsExpanded/Rendering/Contracts/ShaderTextureTarget.cs" Link="Validation/%(Filename)%(Extension)" />
+    <Compile Include="../VanillaGraphicsExpanded/Rendering/Contracts/ShaderResourceType.cs" Link="Validation/%(Filename)%(Extension)" />
+    <Compile Include="../VanillaGraphicsExpanded/Rendering/Contracts/GpuBindingEntry.cs" Link="Validation/%(Filename)%(Extension)" />
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md;AnalyzerReleases.Unshipped.md" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
     <!-- Run the same pure declaration validation at compile time as at runtime. -->

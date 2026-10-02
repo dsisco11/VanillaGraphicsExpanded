@@ -25,13 +25,18 @@ An already linked program does not spontaneously lose a sampler. Different compi
 
 Keep one authoritative authored binding contract. For each resource, it declares its kind, binding slot, compatible type, shader-stage and variant applicability, required-input policy, and relevant texture target or sampler policy. Names remain useful for diagnostics and offline source matching.
 
+Exact sampler/image constraints use the engine-independent `ShaderResourceType` enum. Texture
+targets come from explicit contract attributes rather than wrapper class names. Preparation compares
+standardized numeric type identifiers and maps targets through enum cases, without interpreting
+the spelling of reflected type names.
+
 Generate stable contract-entry indices so runtime submission can address prepared entries directly. These indices are internal table indices, not GPU uniform locations or additional authored binding numbers.
 
 Each linked executable owns an immutable prepared binding table. An entry contains its contract identity, activity, binding slot or ordinary uniform location, validated type and array extent, and applicable publication policy. The table belongs to that executable's generation. Switching variants selects the corresponding table; replacement publishes the executable and table together.
 
 Prepare the table before exposing the executable for use:
 
-1. Use the selected variant's offline contract metadata to establish declarations, applicability, types and fixed binding assignments. Reject conflicting declarations and missing applicable declarations during shader preparation/build validation.
+1. Use the selected variant's contract generated from C# attributes to establish applicability, compatible types and fixed binding assignments. Reject conflicting C# declarations during generation. Do not parse GLSL to extract a second contract or emit source-derived metadata sidecars; existing layout injection continues to consume the C# contract.
 2. Inspect the linked executable once. For samplers and images, enumerate active uniform resources, inspect their types and array extents, and read their initial unit assignments. Match these assignments against the contract's binding slots within the appropriate resource namespace. Numeric uniform locations used by this inspection remain internal to preparation.
 3. Match uniform blocks, storage blocks and atomic-counter buffers through their binding metadata. Preserve ordinary standalone uniform locations for actual value uploads.
 4. Validate types, slot ranges, stage agreement and array elements. Reject ambiguous overlapping assignments unless a supported alias is explicitly represented and validated. Never choose an arbitrary declaration sharing a slot.
@@ -49,7 +54,7 @@ Separate executable activity from the caller's obligation to supply a resource:
 
 - A declaration excluded by the selected variant is inactive.
 - A declared resource removed by legal optimization can be inactive. Preserve the existing allowance for optimized-away resources; absence alone is not evidence of a compiler or contract defect.
-- A missing applicable declaration, incompatible active type, invalid binding assignment or ambiguous mapping is a preparation error.
+- An incompatible active type, invalid binding assignment or ambiguous mapping is a preparation error. Linked inactivity does not distinguish an absent GLSL declaration from an optimized-away declaration and must not be treated as proof of a source error.
 - An active entry with `Required = true` requires a valid assigned resource before submission publishes any bindings.
 - An active optional entry with no valid assigned resource clears its binding through the established abstraction. It must not inherit another shader's resource.
 - An inactive entry requires no resource validation or binding operation.

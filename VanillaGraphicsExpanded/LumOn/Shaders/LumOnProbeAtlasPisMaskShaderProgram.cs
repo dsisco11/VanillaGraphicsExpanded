@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// Writes a per-probe 64-bit mask (packed into RG32F) selecting which atlas texels to trace.
 /// </summary>
 [ShaderProgram("Contract", "lumon_probe_atlas_pis_mask", 8)]
-[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_trace.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "lumon_probe_atlas_trace.vsh", Identity = "lumon_probe_atlas_pis_mask.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "lumon_probe_atlas_pis_mask.fsh")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Pis")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "PisMask")]

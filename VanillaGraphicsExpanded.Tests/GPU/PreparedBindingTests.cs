@@ -1,0 +1,122 @@
+using VanillaGraphicsExpanded.PBR.Liquids;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
+using VanillaGraphicsExpanded.Rendering.Spirv;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+
+namespace VanillaGraphicsExpanded.Tests.GPU;
+
+/// <summary>Validates prepared resource activity against packaged production SPIR-V.</summary>
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    /// <summary>Linked resource assignments and array extents must agree with the authoritative contract.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WrongLinkedRangeRejectsPreparation(bool wrongSlot)
+    {
+        EnsureContextValid();
+        string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "prepared_binding.csh.spv");
+        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
+            out var pipeline, out string log), log);
+        using (pipeline)
+        {
+            var contract = CopyResources(PreparedBindingComputeShader.Contract.Bindings);
+            var inputs = contract.Samplers["inputs"];
+            contract.Samplers["inputs"] = wrongSlot ? inputs with { Slot = 4 } : inputs with { ArrayLength = 1 };
+            var installed = pipeline!.ProgramLayout.BinaryInterface!.PreparedBindings;
+            Assert.Throws<InvalidOperationException>(() => new GpuProgramInterface(pipeline.ProgramId, [contract]));
+            Assert.Same(installed, pipeline.ProgramLayout.BinaryInterface.PreparedBindings);
+        }
+    }
+
+    /// <summary>Offline array samplers and images may share unit numbers while preserving element activity.</summary>
+    [Fact]
+    public void ArraysAndImagesUseIndependentUnits()
+    {
+        EnsureContextValid();
+        string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "prepared_binding.csh.spv");
+        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
+            out var pipeline, out string log), log);
+        using (pipeline)
+        {
+            var entries = pipeline!.ProgramLayout.BinaryInterface!.PreparedBindings.Entries;
+            var array = entries.Single(entry => entry.Contract.Name == "inputs");
+            Assert.True(array.Active);
+            Assert.Equal([true, true], array.ActiveElements);
+            Assert.True(entries.Single(entry => entry.Contract.Name == "outputImage").Active);
+            Assert.False(entries.Single(entry => entry.Contract.Name == "unused").Active);
+            // Rebuilding compatibility caches retains the already validated immutable projections.
+            var layout = pipeline.ProgramLayout;
+            var preparedInterface = layout.BinaryInterface!;
+            for (int rebuild = 0; rebuild < 3; rebuild++)
+            {
+                layout.RebuildCache(pipeline.ProgramId);
+                Assert.Same(preparedInterface.ActiveBindings(ShaderBindingKind.Sampler), layout.SamplerBindings);
+                Assert.Same(preparedInterface.ActiveBindings(ShaderBindingKind.Image), layout.ImageBindings);
+                Assert.Same(preparedInterface.ActiveBindings(ShaderBindingKind.UniformBlock), layout.UniformBlockBindings);
+                Assert.Same(preparedInterface.ActiveBindings(ShaderBindingKind.StorageBlock), layout.ShaderStorageBlockBindings);
+                Assert.Equal(7, layout.SamplerBindings["inputs"]);
+                Assert.Equal(7, layout.ImageBindings["outputImage"]);
+                Assert.DoesNotContain("unused", layout.SamplerBindings.Keys);
+            }
+        }
+    }
+
+    /// <summary>Prepared indices and inactive required resources do not depend on sampler locations or names.</summary>
+    [Fact]
+    public void PreparationUsesSlotsAndRecordsInactiveResources()
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var assets = new BinaryShaderApiFixture();
+        using var shader = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram { CaptureMode = 3 });
+        Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
+        var contract = CopyResources(LiquidShaderProgram.Contract.Bindings);
+        var original = contract.Samplers["terrainTex"];
+        contract.Samplers.Remove("terrainTex");
+        contract.Samplers.Add("diagnostic-only-name", original);
+        contract.Samplers.Add("inactive-required", new(31, true));
+        var prepared = new GpuProgramInterface(shader.ProgramId, [contract]).PreparedBindings;
+        Assert.Equal(Enumerable.Range(0, prepared.Entries.Count), prepared.Entries.Select(entry => entry.Contract.Index));
+        Assert.False(prepared.Entries.Single(entry => entry.Contract.Name == "inactive-required").Active);
+        Assert.Empty(contract.UniformLocations);
+    }
+
+    /// <summary>A incompatible active type fails inspection without replacing the owning executable.</summary>
+    [Fact]
+    public void IncompatibleActiveTypeRejectsPreparation()
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var assets = new BinaryShaderApiFixture();
+        using var shader = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
+        int executable = shader.ProgramId;
+        var wrong = CopyResources(LiquidShaderProgram.Contract.Bindings);
+        wrong.Samplers["terrainTex"] = wrong.Samplers["terrainTex"] with { ShaderType = ShaderResourceType.SamplerCube };
+        Assert.Throws<InvalidOperationException>(() => new GpuProgramInterface(executable, [wrong]));
+        Assert.Equal(executable, shader.ProgramId);
+        Assert.True(shader.EnsureReady());
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Copies resource declarations while intentionally omitting every legacy uniform-location entry.</summary>
+    private static GpuBindingContract CopyResources(GpuBindingContract source)
+    {
+        var result = new GpuBindingContract();
+        foreach (var pair in source.Samplers) result.Samplers.Add(pair);
+        foreach (var pair in source.Images) result.Images.Add(pair);
+        foreach (var pair in source.UniformBlocks) result.UniformBlocks.Add(pair);
+        foreach (var pair in source.StorageBlocks) result.StorageBlocks.Add(pair);
+        foreach (var pair in source.AtomicCounters) result.AtomicCounters.Add(pair);
+        return result;
+    }
+    #endregion
+}

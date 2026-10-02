@@ -195,5 +195,94 @@ public sealed class BindingTests
         Assert.Equal("2:True", GeneratorFixture.Generate(source).Run());
         GeneratorFixture.Generate(source, true).Compile();
     }
+    /// <summary>Resource arrays reject occupied ranges without conflating image and sampler namespaces.</summary>
+    [Theory]
+    [InlineData("Sampler", true)]
+    [InlineData("Image", false)]
+    public void ArrayRangesUseIndependentResourceNamespaces(string secondKind, bool conflicts)
+    {
+        string source = """
+            interface IResources
+            {
+                [ShaderBinding("first", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute, ArrayLength = 2, ShaderType = ShaderResourceType.Sampler2D)]
+                ShaderSamplerBinding First { get; }
+                [ShaderBinding("second", ShaderBindingKind.KIND, 4, ShaderStageKind.Compute)]
+                ShaderKINDBinding Second { get; }
+            }
+            [ShaderBindingSet(typeof(IResources))]
+            """.Replace("KIND", secondKind) + Compute.Replace("FIELDS", "");
+        foreach (bool offline in new[] { false, true })
+        {
+            var result = GeneratorFixture.Generate(source, offline);
+            if (conflicts) Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "VGEGEN001");
+            else result.Compile();
+        }
+    }
+
+    /// <summary>Authoritative metadata survives generation and internal indices are independent of unit numbers.</summary>
+    [Fact]
+    public void ResourceMetadataAndStableIndicesAreGenerated()
+    {
+        string source = """
+            interface IResources
+            {
+                [ShaderBinding("z", ShaderBindingKind.Sampler, 7, ShaderStageKind.Compute, ArrayLength = 2, ShaderType = ShaderResourceType.Sampler2D, Required = false)]
+                ShaderSamplerBinding Last { get; }
+                [ShaderBinding("a", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
+                ShaderSamplerBinding First { get; }
+            }
+            [ShaderBindingSet(typeof(IResources))]
+            """ + Compute.Replace("FIELDS", "") + """
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var entries = Shader.Contract.Bindings.Entries;
+                    return entries[0].Index + ":" + entries[0].Name + ":" + entries[1].Index + ":" +
+                        entries[1].Binding.Slot + ":" + entries[1].Binding.ArrayLength + ":" + entries[1].Binding.ShaderType;
+                }
+            }
+            """;
+        Assert.Equal("0:a:1:7:2:Sampler2D", GeneratorFixture.Generate(source).Run());
+        GeneratorFixture.Generate(source, true).Compile();
+    }
+    /// <summary>Explicit target metadata is independent of texture wrapper names.</summary>
+    [Theory]
+    [InlineData("Texture2D", 3553)]
+    [InlineData("DynamicTexture2D", 3553)]
+    [InlineData("RenamedTexture", 3553)]
+    [InlineData("Texture3D", 0)]
+    [InlineData("GpuTexture", 0)]
+    public void ExplicitTextureTargetsReachPreparedContract(string textureType, int target)
+    {
+        string source = """
+            interface IResources
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute TARGET)]
+                VanillaGraphicsExpanded.Rendering.TEXTURE Source { set; }
+            }
+            [ShaderBindingSet(typeof(IResources))]
+            """.Replace("TEXTURE", textureType).Replace("TARGET", target == 0 ? "" : ", TextureTarget = ShaderTextureTarget.Texture2D") + Compute.Replace("FIELDS", "") + """
+            public static class Proof
+            {
+                public static string Run() => Shader.Contract.Bindings.Samplers["source"].TextureTarget.ToString();
+            }
+            """;
+        string support = RuntimeBindingSupport + """
+            namespace VanillaGraphicsExpanded.Rendering
+            {
+                /// <summary>Models fixed two-dimensional texture storage.</summary>
+                public class Texture2D : GpuTexture { }
+                /// <summary>Models fixed two-dimensional dynamic texture storage.</summary>
+                public class DynamicTexture2D : GpuTexture { }
+                /// <summary>Models a wrapper whose name conveys no storage dimension.</summary>
+                public class RenamedTexture : GpuTexture { }
+                /// <summary>Models runtime-selectable three-dimensional or array texture storage.</summary>
+                public class Texture3D : GpuTexture { }
+            }
+            """;
+        Assert.Equal(target.ToString(), GeneratorFixture.Generate(source, supportSource: support).Run());
+        GeneratorFixture.Generate(source, true, supportSource: support).Compile();
+    }
     #endregion
 }

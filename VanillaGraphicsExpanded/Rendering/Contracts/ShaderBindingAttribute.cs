@@ -22,5 +22,9 @@ internal sealed class ShaderBindingAttribute : Attribute
     public ShaderSamplerPolicy Sampler { get; set; }
     /// <summary>Maps a sampler or image name to its explicit SPIR-V uniform location when names are unavailable at runtime.</summary>
     public int UniformLocation { get; set; } = -1;
+    /// <summary>Declares the occupied binding range for a resource array.</summary>
+    public int ArrayLength { get; set; } = 1;
+    /// <summary>Constrains the linked sampler or image type; Unspecified permits any type of the declared resource kind.</summary>
+    public ShaderResourceType ShaderType { get; set; }
     #endregion
 }

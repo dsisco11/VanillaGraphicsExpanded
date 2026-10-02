@@ -23,7 +23,7 @@ public sealed class ShaderRegistryTests
             .Where(p => extensions.Contains(Path.GetExtension(p)))
             .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/'))
             .Where(p => !p.StartsWith("includes/", StringComparison.Ordinal)).Order(StringComparer.Ordinal);
-        Assert.Equal(sources, Registry.Stages.Values.Select(s => s.Source).Order(StringComparer.Ordinal));
+        Assert.Equal(sources, Registry.Stages.Values.Select(s => s.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
         Assert.Equal(Registry.Binaries.Count, Registry.Binaries.Select(b => b.BinaryPath).Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
@@ -47,11 +47,11 @@ public sealed class ShaderRegistryTests
 
     /// <summary>Shared vertices and alternate fixture pairs reuse the exact registered stage instances.</summary>
     [Theory]
-    [InlineData("lumon_probe_atlas_pis_mask", "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_pis_mask.fsh", 8)]
+    [InlineData("lumon_probe_atlas_pis_mask", "lumon_probe_atlas_pis_mask.vsh", "lumon_probe_atlas_pis_mask.fsh", 8)]
     [InlineData("pbr_heightbake_copy", "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_copy.fsh", 1)]
     [InlineData("tests/framebuffer_blend", "tests/GpuFramebufferBlendStateIntegrationTests_1.vsh", "tests/framebuffer_blend.fsh", 1)]
     [InlineData("tests/pbr_direct_fullscreen", "tests/fullscreen_uv.vsh", "pbr_direct_lighting.fsh", 1)]
-    [InlineData("tests/trace_probe_anchor", "lumon_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh", 32)]
+    [InlineData("tests/trace_probe_anchor", "tests/trace_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh", 32)]
     [InlineData("tests/worldprobe_debug", "lumon_debug.vsh", "lumon_debug_view_world_probe_irradiance_combined.fsh", 4)]
     public void PairingsAreDeclared(string program, string vertex, string fragment, int budget)
     {

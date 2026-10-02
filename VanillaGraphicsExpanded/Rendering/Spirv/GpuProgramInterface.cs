@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -9,8 +10,12 @@ namespace VanillaGraphicsExpanded.Rendering.Spirv;
 /// <summary>Owns the active numeric interface of one linked program; slots are fixed by its compiled contract.</summary>
 internal sealed class GpuProgramInterface
 {
-    private readonly int program;
     private readonly Resources resources;
+    private readonly IReadOnlyDictionary<ShaderBindingKind, IReadOnlyDictionary<string, int>> activeBindings;
+    private readonly Dictionary<(ProgramInterface Kind, int Index), string> resourceNames = new();
+    private readonly Dictionary<int, string> uniformNames = new();
+    /// <summary>Validated resource entries owned by this executable's interface generation.</summary>
+    internal GpuPreparedBindings PreparedBindings { get; }
     /// <summary>Active locations and diagnostic resource indices belonging to this program.</summary>
     private sealed record Resources(Dictionary<string, int> Uniforms, Dictionary<string, int> Blocks, Dictionary<string, int> Storage, Dictionary<int, int> ArraySizes);
 
@@ -18,44 +23,47 @@ internal sealed class GpuProgramInterface
     /// <summary>Matches active locations and initial block bindings without querying any SPIR-V debug name.</summary>
     public GpuProgramInterface(int program, IEnumerable<GpuBindingContract> contracts)
     {
-        this.program = program;
         var array = contracts.ToArray();
-        var active = new HashSet<int>();
+        PreparedBindings = new GpuPreparedBindings(program, GpuBindingContract.Merge(array));
         var arraySizes = new Dictionary<int, int>();
-        GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
-        for (int i = 0; i < count; i++)
-        {
-            int[] values = new int[2];
-            GL.GetProgramResource(program, ProgramInterface.Uniform, i, 2, [ProgramProperty.Location, ProgramProperty.ArraySize], 2, out _, values);
-            if (values[0] >= 0)
-            {
-                arraySizes[values[0]] = Math.Max(1, values[1]);
-                for (int j = 0; j < arraySizes[values[0]]; j++) active.Add(values[0] + j);
-            }
-        }
         var uniforms = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var pair in array.SelectMany(v => v.UniformLocations))
-            uniforms[pair.Key] = active.Contains(pair.Value) ? pair.Value : -1;
-        resources = new(uniforms, Blocks(program, ProgramInterface.UniformBlock, array.SelectMany(v => v.UniformBlocks).Select(p => new KeyValuePair<string, int>(p.Key, p.Value.Slot))),
-            Blocks(program, ProgramInterface.ShaderStorageBlock, array.SelectMany(v => v.StorageBlocks).Select(p => new KeyValuePair<string, int>(p.Key, p.Value.Slot))), arraySizes);
+        {
+            uniforms[pair.Key] = PreparedBindings.ContainsUniformLocation(pair.Value) ? pair.Value : -1;
+            arraySizes[pair.Value] = PreparedBindings.UniformArrayLength(pair.Value);
+        }
+        resources = new(uniforms, Blocks(ShaderBindingKind.UniformBlock, array.SelectMany(v => v.UniformBlocks)),
+            Blocks(ShaderBindingKind.StorageBlock, array.SelectMany(v => v.StorageBlocks)), arraySizes);
+        foreach (var uniform in uniforms)
+            if (uniform.Value >= 0) uniformNames.TryAdd(uniform.Value, uniform.Key);
+        // Compatibility caches are projections of validated activity, never a second driver inspection.
+        activeBindings = new ReadOnlyDictionary<ShaderBindingKind, IReadOnlyDictionary<string, int>>(
+            PreparedBindings.Entries.GroupBy(entry => entry.Contract.Kind).ToDictionary(group => group.Key,
+                group => (IReadOnlyDictionary<string, int>)new ReadOnlyDictionary<string, int>(group.Where(entry => entry.Active)
+                    .ToDictionary(entry => entry.Contract.Name, entry => entry.Contract.Binding.Slot, StringComparer.Ordinal))));
+        foreach (var block in resources.Blocks)
+            if (block.Value >= 0) resourceNames.TryAdd((ProgramInterface.UniformBlock, block.Value), block.Key);
+        foreach (var block in resources.Storage)
+            if (block.Value >= 0) resourceNames.TryAdd((ProgramInterface.ShaderStorageBlock, block.Value), block.Key);
     }
 
     /// <summary>Matches compiled binding slots to active resource indices for diagnostics.</summary>
-    private static Dictionary<string, int> Blocks(int program, ProgramInterface type, IEnumerable<KeyValuePair<string, int>> metadata)
+    private Dictionary<string, int> Blocks(ShaderBindingKind kind, IEnumerable<KeyValuePair<string, GpuBindingContract.Binding>> metadata)
     {
-        var byBinding = new Dictionary<int, int>();
-        GL.GetProgramInterface(program, type, ProgramInterfaceParameter.ActiveResources, out int count);
-        for (int i = 0; i < count; i++)
-        {
-            int[] value = new int[1]; GL.GetProgramResource(program, type, i, 1, [ProgramProperty.BufferBinding], 1, out _, value);
-            if (!byBinding.TryAdd(value[0], i)) throw new InvalidOperationException("Ambiguous SPIR-V block binding: " + value[0]);
-        }
-        return metadata.GroupBy(p => p.Key).ToDictionary(g => g.Key, g => byBinding.GetValueOrDefault(g.First().Value, -1), StringComparer.Ordinal);
+        return metadata.GroupBy(p => p.Key).ToDictionary(g => g.Key,
+            g => PreparedBindings.BlockResourceIndex(kind, g.First().Value.Slot), StringComparer.Ordinal);
     }
 
     #endregion
 
     #region Lookup
+    /// <summary>Projects validated active bindings for existing layout caches without driver queries.</summary>
+    internal IReadOnlyDictionary<string, int> ActiveBindings(ShaderBindingKind kind) =>
+        activeBindings.TryGetValue(kind, out var bindings) ? bindings : EmptyBindings;
+
+    private static readonly IReadOnlyDictionary<string, int> EmptyBindings =
+        new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());
+
     /// <summary>Returns active standalone locations from the compiled interface.</summary>
     public int GetUniformLocation(string name)
     {
@@ -74,13 +82,12 @@ internal sealed class GpuProgramInterface
     /// <summary>Resolves resource names from the generated contract for diagnostic cache enumeration.</summary>
     public void GetProgramResourceName(ProgramInterface kind, int index, int capacity, out int length, out string name)
     {
-        var r = resources;
         if (kind == ProgramInterface.Uniform)
         {
-            int[] location = new int[1]; GL.GetProgramResource(program, kind, index, 1, [ProgramProperty.Location], 1, out _, location);
-            name = location[0] < 0 ? "" : r.Uniforms.FirstOrDefault(p => p.Value == location[0]).Key ?? "";
+            int location = PreparedBindings.UniformResourceLocation(index);
+            name = location < 0 ? "" : uniformNames.GetValueOrDefault(location, "");
         }
-        else name = (kind == ProgramInterface.UniformBlock ? r.Blocks : r.Storage).FirstOrDefault(p => p.Value == index).Key ?? "";
+        else name = resourceNames.GetValueOrDefault((kind, index), "");
         length = name.Length;
     }
     /// <summary>Provides the inactive entries required by the engine's indexed uniform dictionary.</summary>

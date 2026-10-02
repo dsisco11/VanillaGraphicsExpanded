@@ -1,5 +1,68 @@
 # Generated shader binding state
 
+## Prepared executable bindings
+
+The C# attributes remain the authoritative contract. `ArrayLength` and optional `ShaderType`
+constraints, texture targets and sampler policies are carried by generated resource declarations.
+Texture dimensions come from explicit `TextureTarget` contract metadata, independently of wrapper
+class names. Exact types use the engine-independent `ShaderResourceType` enum and compare numeric
+identifiers with the linked interface; target compatibility uses explicit enum cases. Unconstrained
+dimensions remain flexible, and actual storage formats are resource inputs validated during
+submission rather than invented shader-type constraints.
+`GpuBindingContract.Merge` rejects cross-stage disagreement and overlapping ranges within each
+resource namespace. Resource entries receive deterministic indices ordered by kind and name;
+these indices are independent of GPU binding numbers.
+
+[GpuPreparedBindings](../VanillaGraphicsExpanded/Rendering/Spirv/GpuPreparedBindings.cs) inspects
+each candidate's linked interface once, reads the initial sampler/image unit assignments, validates
+contiguous array assignments and compatible types/targets, and records immutable element activity.
+It also records UBO, storage-block and atomic-counter activity by binding. Sampler and image units
+use separate namespaces. Uncontracted active slots and ambiguous mappings reject preparation;
+inactive required entries remain legal. No sampler/image uniform writes repair a fixed assignment.
+
+[GpuProgramInterface](../VanillaGraphicsExpanded/Rendering/Spirv/GpuProgramInterface.cs) owns this
+table and retains the existing ordinary-uniform and diagnostic adapters. Graphics and compute
+candidate layouts already transfer their interface together with the executable after validation;
+failure retains the installed generation. Existing binary digests, source/layout cache keys and
+fresh interface validation protect replacement without a new sidecar format or GLSL-derived
+binding contract. GLSL parsing remains solely in the existing layout-injection operation.
+
+Layout cache rebuilding and binding validation reuse immutable active-binding maps derived from
+the prepared table. Diagnostic resource-name adapters reuse recorded locations and indices.
+Neither path repeats linked-interface enumeration. Initial inspection reuses query buffers within
+each resource family; UBO and storage-block interfaces still require separate inspections.
+
+Three fullscreen vertex declarations formerly imported unrelated fragment resource contracts.
+Display resolve, PIS mask and the trace-anchor fixture now have distinct vertex layout identities.
+The layout-binding and ring-buffer compute fixtures now explicitly declare their image resources.
+
+Validation includes generator contract/range/index tests and packaged SPIR-V preparation tests:
+arrays sharing numeric sampler/image units, unused required resources, location-free and renamed
+diagnostic metadata, incompatible type rejection, and executable/table replacement preservation.
+Preparation does not yet change normal resource submission or remove authored location adapters;
+those remain assigned to subsequent tasks in the implementation list.
+The migration baselines retain their original settings and layouts except the reviewed vertex
+identity/default corrections, newly explicit resources, and test executable. They also incorporate
+the preceding water work's capture mode 3, optical/source inputs and two water fixtures, which had
+not yet been recorded in those baselines.
+
+Executed verification: the production/offline build and 162 generator tests passed. Broad
+GPU/contracts coverage passed 1,317 cases, followed by a clean 99-case rerun covering the final
+target-compatibility, preparation and migration-baseline fixes. The second source review and
+independent completion audit passed. Receipts: [generator](../artifacts/ShaderBindingState/phase2/generator-reviewed-final.log),
+[broad GPU/contracts](../artifacts/ShaderBindingState/phase2/prepared-reviewed-final.log), and
+[final affected checks](../artifacts/ShaderBindingState/phase2/prepared-audit-fixes.log).
+
+The explicit enum/target correction passed 163 generator tests and 99 focused contract/GPU tests,
+along with the production and offline shader build. Receipts:
+[generator type contracts](../artifacts/ShaderBindingState/phase2/type-contract-fix-generator.log) and
+[focused type contracts](../artifacts/ShaderBindingState/phase2/type-contract-fix-focused.log).
+
+The reflection reuse correction passed the production/offline shader build and 512 focused
+GPU/contract tests with no failures or skips. Repeated layout-cache rebuilds verify retained
+snapshot identity and sampler/image namespace assignments. Receipt:
+[reflection reuse checks](../artifacts/ShaderBindingState/phase2/reflection-reuse.log).
+
 ## Variant applicability references
 
 The owner table lists program identities. This table separately records every source containing

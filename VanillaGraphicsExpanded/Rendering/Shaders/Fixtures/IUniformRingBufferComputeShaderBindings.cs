@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 /// <summary>Declares the GPU binding contract for UniformRingBufferComputeShader.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal interface IUniformRingBufferComputeShaderBindings
+internal interface IUniformRingBufferComputeShaderBindings : IOutputImageComputeBindings
 {
     #region Public API
     /// <summary>Declares the TestParams UniformBlock slot.</summary>

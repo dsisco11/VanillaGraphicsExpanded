@@ -59,8 +59,13 @@ internal static class BindingReader
         var explicitSlots = new List<Slot>();
         // Normalize explicit inherited overrides before dictionary insertion, so a composite
         // interface can resolve sibling declarations regardless of traversal or type-name order.
-        var effective = declarations.Where(d => d.Defaults || !declarations.Any(other => !other.Defaults &&
-            InterfaceBindingReader.Overrides(other.Slot.Property, d.Slot.Property)));
+        // Include defaults are broad layout catalogs. Explicit program ownership removes their
+        // fallback entries in every stage, including entries occupying the explicitly owned slot.
+        var effective = declarations.Where(d => d.Slot.Stages.Contains(stage) && (d.Defaults
+            ? !declarations.Any(other => !other.Defaults && other.Slot.Kind == d.Slot.Kind &&
+                (other.Slot.Name == d.Slot.Name || other.Slot.Index == d.Slot.Index))
+            : !declarations.Any(other => !other.Defaults &&
+                InterfaceBindingReader.Overrides(other.Slot.Property, d.Slot.Property))));
         foreach (var declaration in effective.OrderBy(d => d.Defaults))
         {
             var slot = declaration.Slot;
@@ -81,7 +86,7 @@ internal static class BindingReader
                 {
                     // Explicit ownership overrides include defaults. Two independently authored
                     // defaults must still agree; traversal order must never select a GPU slot.
-                    if (!explicitSlots.Any(s => s.Kind == slot.Kind && s.Name == slot.Name) && (prior.Index != slot.Index || prior.Required != slot.Required))
+                    if (!explicitSlots.Any(s => s.Kind == slot.Kind && s.Name == slot.Name) && BindingValue(prior) != BindingValue(slot))
                         throw new ArgumentException($"Conflicting default binding '{slot.Name}' in {slot.Kind}.");
                     continue;
                 }
@@ -93,6 +98,13 @@ internal static class BindingReader
         foreach (var group in explicitSlots.GroupBy(s => (s.Kind, s.Index)))
             if (group.Count() > 1)
                 throw new ArgumentException($"Conflicting {group.Key.Kind} index {group.Key.Index} for '{program}'/{stage}.");
+        foreach (var group in explicitSlots.Where(s => s.Kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image).GroupBy(s => s.Kind))
+        {
+            var ranges = group.OrderBy(s => s.Index).ToArray();
+            for (int i = 1; i < ranges.Length; i++)
+                if (ranges[i].Index < ranges[i - 1].Index + ranges[i - 1].ArrayLength)
+                    throw new ArgumentException($"Overlapping {group.Key} array bindings for '{program}'/{stage}.");
+        }
         foreach (var group in selected.Values.Where(s => s.Kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image or ShaderBindingKind.UniformBlock or ShaderBindingKind.StorageBlock).GroupBy(s => s.Name, StringComparer.Ordinal))
             if (group.Count() > 1) throw new ArgumentException($"Conflicting resource kinds for '{group.Key}' in '{program}'/{stage}.");
         var model = new GpuBindingContract();
@@ -101,7 +113,7 @@ internal static class BindingReader
             .Select(s => s with { Kind = ShaderBindingKind.UniformLocation, Index = s.UniformLocation }));
         string expression = "new GpuBindingContract { " + string.Join(", ", emitted.GroupBy(s => Map(s.Kind)).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => g.Key + " = { " + string.Join(", ", g.OrderBy(s => s.Name, StringComparer.Ordinal).Select(s =>
-                "{ " + Quote(s.Name) + ", " + (s.Kind is ShaderBindingKind.UniformLocation or ShaderBindingKind.VaryingLocation or ShaderBindingKind.FragmentOutputLocation ? s.Index.ToString() : $"new GpuBindingContract.Binding({s.Index}, {s.Required.ToString().ToLowerInvariant()})") + " }")) + " }")) + " }";
+                "{ " + Quote(s.Name) + ", " + (s.Kind is ShaderBindingKind.UniformLocation or ShaderBindingKind.VaryingLocation or ShaderBindingKind.FragmentOutputLocation ? s.Index.ToString() : BindingExpression(s)) + " }")) + " }")) + " }";
         return (model, expression);
 
         /// <summary>Follows declared sets and base classes, rejecting cycles and retaining each property's ownership.</summary>
@@ -114,7 +126,7 @@ internal static class BindingReader
                 foreach (var attribute in Attributes(property, "ShaderBinding"))
                 {
                     var slot = ReadProperty(property, attribute);
-                    if ((slot.Programs.Length == 0 || slot.Programs.Contains(program)) && slot.Stages.Contains(stage) &&
+                    if ((slot.Programs.Length == 0 || slot.Programs.Contains(program)) &&
                         !declarations.Any(d => SymbolEqualityComparer.Default.Equals(d.Slot.Property, property) && d.Defaults == defaults))
                         declarations.Add((slot, defaults));
                 }
@@ -186,6 +198,15 @@ internal static class BindingReader
         string name = Text(attribute, 0);
         ShaderContractNames.ValidateIdentifier(name);
         var kind = ReadKind(attribute);
+        int arrayLength = Named(attribute, "ArrayLength").Value is int length ? length : 1;
+        if (arrayLength < 1 || index > int.MaxValue - arrayLength || (arrayLength != 1 && kind is not (ShaderBindingKind.Sampler or ShaderBindingKind.Image)))
+            throw new ArgumentException($"Binding property '{property.Name}' has an invalid ArrayLength.");
+        ShaderResourceType? shaderType = Named(attribute, "ShaderType").Value is int resourceType && resourceType != 0
+            ? (ShaderResourceType)resourceType : null;
+        if (shaderType is { } declaredType && !Enum.IsDefined(typeof(ShaderResourceType), declaredType))
+            throw new ArgumentException($"Binding property '{property.Name}' has an invalid ShaderType.");
+        int textureTarget = Named(attribute, "TextureTarget").Value is int declaredTarget ? declaredTarget : 0;
+        int samplerPolicy = Named(attribute, "Sampler").Value is int sampler ? sampler : 0;
         _ = NamedEnum(attribute, "TextureTarget");
         _ = NamedEnum(attribute, "Sampler");
         var declaredLocation = Named(attribute, "UniformLocation");
@@ -202,7 +223,8 @@ internal static class BindingReader
         if (!programs.IsNull && targets.Length == 0 || targets.Distinct(StringComparer.Ordinal).Count() != targets.Length)
             throw new ArgumentException($"Binding property '{property.Name}' requires distinct program members.");
         foreach (string target in targets) ShaderContractNames.ValidateIdentifier(target);
-        return new(property, name, kind, index, uniformLocation, Named(attribute, "Required").Value is not false, targets, stages);
+        return new(property, name, kind, index, uniformLocation, Named(attribute, "Required").Value is not false, targets, stages,
+            arrayLength, shaderType, textureTarget, samplerPolicy);
     }
 
     /// <summary>Maps declaration kinds to the shared model's independent dictionaries.</summary>
@@ -227,21 +249,30 @@ internal static class BindingReader
             case ShaderBindingKind.UniformLocation: model.UniformLocations.Add(slot.Name, slot.Index); break;
             case ShaderBindingKind.VaryingLocation: model.VaryingLocations.Add(slot.Name, slot.Index); break;
             case ShaderBindingKind.FragmentOutputLocation: model.FragmentOutputLocations.Add(slot.Name, slot.Index); break;
-            case ShaderBindingKind.AtomicCounter: model.AtomicCounters.Add(slot.Name, new(slot.Index, slot.Required)); break;
+            case ShaderBindingKind.AtomicCounter: model.AtomicCounters.Add(slot.Name, BindingValue(slot)); break;
             case ShaderBindingKind.Sampler:
-                model.RegisterSamplerUnit(slot.Name, slot.Index, slot.Required);
+                model.Samplers.Add(slot.Name, BindingValue(slot));
                 if (slot.UniformLocation >= 0) model.UniformLocations.Add(slot.Name, slot.UniformLocation);
                 break;
             case ShaderBindingKind.Image:
-                model.RegisterImageUnit(slot.Name, slot.Index, slot.Required);
+                model.Images.Add(slot.Name, BindingValue(slot));
                 if (slot.UniformLocation >= 0) model.UniformLocations.Add(slot.Name, slot.UniformLocation);
                 break;
-            case ShaderBindingKind.UniformBlock: model.RegisterUniformBlockBinding(slot.Name, slot.Index, slot.Required); break;
-            case ShaderBindingKind.StorageBlock: model.RegisterShaderStorageBlockBinding(slot.Name, slot.Index, slot.Required); break;
+            case ShaderBindingKind.UniformBlock: model.UniformBlocks.Add(slot.Name, BindingValue(slot)); break;
+            case ShaderBindingKind.StorageBlock: model.StorageBlocks.Add(slot.Name, BindingValue(slot)); break;
         }
     }
 
     /// <summary>Contains one validated slot and its explicit consumer applicability.</summary>
-    private sealed record Slot(IPropertySymbol Property, string Name, ShaderBindingKind Kind, int Index, int UniformLocation, bool Required, string[] Programs, ShaderStageKind[] Stages);
+    private sealed record Slot(IPropertySymbol Property, string Name, ShaderBindingKind Kind, int Index, int UniformLocation, bool Required, string[] Programs, ShaderStageKind[] Stages,
+        int ArrayLength, ShaderResourceType? ShaderType, int TextureTarget, int Sampler);
+
+    /// <summary>Uses the same resource metadata for semantic validation and emitted contracts.</summary>
+    private static GpuBindingContract.Binding BindingValue(Slot slot) => new(slot.Index, slot.Required, slot.ArrayLength,
+        slot.ShaderType, slot.TextureTarget, slot.Sampler);
+
+    /// <summary>Serializes resource policy without introducing a second declaration source.</summary>
+    private static string BindingExpression(Slot slot) => $"new GpuBindingContract.Binding({slot.Index}, {slot.Required.ToString().ToLowerInvariant()}, {slot.ArrayLength}, " +
+        (slot.ShaderType == null ? "null" : "ShaderResourceType." + slot.ShaderType.Value) + $", {slot.TextureTarget}, {slot.Sampler})";
     #endregion
 }
