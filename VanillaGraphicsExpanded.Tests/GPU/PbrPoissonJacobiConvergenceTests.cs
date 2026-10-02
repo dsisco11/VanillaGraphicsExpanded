@@ -87,8 +87,6 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
             hTex.Bind(0);
             bTex.Bind(1);
-            GL.Uniform1(Uniform(programId, "u_h"), 0);
-            GL.Uniform1(Uniform(programId, "u_b"), 1);
 
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
@@ -176,9 +174,6 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
             src.Bind(0);
             bTex.Bind(1);
 
-            GL.Uniform1(Uniform(programId, "u_h"), 0);
-            GL.Uniform1(Uniform(programId, "u_b"), 1);
-
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
             GL.UseProgram(0);
@@ -213,12 +208,6 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         }
     }
 
-    private static int Uniform(int programId, string name)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        Assert.True(loc >= 0, $"Missing uniform '{name}'");
-        return loc;
-    }
 
     private void ClearR32f(DynamicTexture2D tex, float value)
     {

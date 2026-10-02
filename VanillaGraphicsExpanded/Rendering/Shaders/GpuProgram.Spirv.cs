@@ -39,8 +39,6 @@ public abstract partial class GpuProgram
             ProgramLayout.BinaryInterface = null;
             ProgramLayout.RebuildCache(0);
             uniformLocations.Clear();
-            uniformLocationCache.Clear();
-            uniformLocationCacheProgramId = 0;
             lock (settingsLock) installedPlan = null;
         }
         string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
@@ -117,8 +115,6 @@ public abstract partial class GpuProgram
                 stages.Clear();
                 uniformLocations.Clear();
                 foreach (var pair in locations) uniformLocations[pair.Key] = pair.Value;
-                uniformLocationCache.Clear();
-                uniformLocationCacheProgramId = 0;
                 EngineDisposed(this) = false;
                 installedPlan = plan;
                 if (oldProgram != 0) GL.DeleteProgram(oldProgram);

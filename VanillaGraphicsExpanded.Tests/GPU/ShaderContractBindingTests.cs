@@ -68,15 +68,8 @@ public sealed class ShaderContractBindingTests : RenderTestBase
                 samplerCount++;
             }
             Assert.True(samplerCount >= (enabled ? 2 : 1));
-            GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int uniformCount);
-            int[] locationValue = new int[1];
-            for (int index = 0; index < uniformCount; index++)
-            {
-                GL.GetProgramResource(program, ProgramInterface.Uniform, index, 1,
-                    [ProgramProperty.Location], 1, out _, locationValue);
-                if (locationValue[0] >= 0)
-                    Assert.Contains(locationValue[0], contract.UniformLocations.Values);
-            }
+            Assert.Empty(contract.Samplers.Keys.Intersect(contract.UniformLocations.Keys));
+            Assert.Empty(contract.Images.Keys.Intersect(contract.UniformLocations.Keys));
             // Enumerate the actual driver resources as well: iterating only resolved contract
             // names could silently skip a block whose binary binding moved to an undeclared slot.
             GL.GetProgram(program, GetProgramParameterName.ActiveUniformBlocks, out int blockCount);

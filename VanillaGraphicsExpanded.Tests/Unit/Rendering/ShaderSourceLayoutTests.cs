@@ -24,11 +24,10 @@ public sealed class ShaderSourceLayoutTests
     {
         var contract = new GpuBindingContract();
         contract.RegisterImageUnit("target", 3);
-        contract.UniformLocations.Add("target", 9);
         string source = ShaderSourceLayout.Apply("#version 450 core\nlayout(binding = OLD_SLOT, rgba16f) writeonly uniform image2D target;", "csh", contract);
         Assert.Contains("rgba16f", source);
         Assert.Contains("binding = 3", source);
-        Assert.Contains("location = 9", source);
+        Assert.DoesNotContain("location", source);
         Assert.Contains("writeonly", source);
         Assert.DoesNotContain("OLD_SLOT", source);
     }
@@ -54,12 +53,11 @@ public sealed class ShaderSourceLayoutTests
     public void MultipleLayoutClausesAreConsolidated()
     {
         var contract = new GpuBindingContract();
-        contract.RegisterSamplerUnit("surface", 2);
         contract.UniformLocations.Add("surface", 7);
-        string source = ShaderSourceLayout.Apply("layout(location=1) layout(binding=5) uniform sampler2D surface;", "fsh", contract);
+        string source = ShaderSourceLayout.Apply("layout(location=1) layout(location=5) uniform float surface;", "fsh", contract);
         var layout = Assert.Single(SyntaxTree.Parse(source, GlslSchema.Instance).Root.Children.OfType<GlLayoutNode>());
         Assert.Contains("location = 7", layout.ToText());
-        Assert.Contains("binding = 2", layout.ToText());
+        Assert.DoesNotContain("binding", layout.ToText());
     }
 
     /// <summary>Atomic counters retain their own binding and offset syntax even if a regular uniform shares the name.</summary>

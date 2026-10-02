@@ -15,8 +15,8 @@ public sealed class RuntimeSubmissionTests
             }
             public struct ShaderUniformPublication<T>
             {
-                public void Validate(object owner, int location, T value) { ShaderBindingSubmission.Calls += "validate-value;"; }
-                public void Publish(object owner, int location, T value) { ShaderBindingSubmission.Calls += "value;"; }
+                public void Validate(object owner, int location, T value) { SubmissionRecorder.Calls += "validate-value;"; }
+                public void Publish(object owner, int location, T value) { SubmissionRecorder.Calls += "value;"; }
             }
             public class GpuTexture { }
             public class CpuUniformBuffer { }
@@ -28,7 +28,7 @@ public sealed class RuntimeSubmissionTests
             {
                 public ulong Resolve(object owner, ulong identity) => identity;
             }
-            public static class ShaderBindingSubmission
+            public static class SubmissionRecorder
             {
                 public static string Calls = "";
                 public static void ValidateSampler(params object[] args) { Calls += "validate-sampler;"; }
@@ -47,22 +47,22 @@ public sealed class RuntimeSubmissionTests
             }
             public static class ShaderPreparedSubmission
             {
-                public static void ValidateSampler(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-sampler;"; }
-                public static void ValidateImage(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-image;"; }
-                public static void ValidateImage(ulong binding, GpuTextureBinding image, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-image;"; }
-                public static void ValidateStorageBlock(ulong binding, GpuStorageBufferBinding range, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-storage;"; }
+                public static void ValidateSampler(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-sampler;"; }
+                public static void ValidateImage(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-image;"; }
+                public static void ValidateImage(ulong binding, GpuTextureBinding image, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-image;"; }
+                public static void ValidateStorageBlock(ulong binding, GpuStorageBufferBinding range, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-storage;"; }
                 public static ulong Resolve(object owner, ulong identity) => identity;
-                public static int ValidateSampler(ulong binding, int texture) { ShaderBindingSubmission.Calls += "validate-sampler;"; return texture; }
-                public static void ValidateSampler(params object[] args) { ShaderBindingSubmission.Calls += "validate-sampler;"; }
-                public static void ValidateUniformBlock(params object[] args) { ShaderBindingSubmission.Calls += "validate-block;"; }
-                public static void Sampler(params object[] args) { ShaderBindingSubmission.Calls += "sampler;"; }
-                public static void UniformBlock(params object[] args) { ShaderBindingSubmission.Calls += "block;"; }
-                public static void ValidateImage(params object[] args) { ShaderBindingSubmission.Calls += "validate-image;"; }
-                public static void ValidateStorageBlock(params object[] args) { ShaderBindingSubmission.Calls += "validate-storage;"; }
-                public static void Image(params object[] args) { ShaderBindingSubmission.Calls += "image;"; }
-                public static void StorageBlock(params object[] args) { ShaderBindingSubmission.Calls += "storage;"; }
-                public static void ValidateAtomicCounter(params object[] args) { ShaderBindingSubmission.Calls += "validate-counter;"; }
-                public static void AtomicCounter(params object[] args) { ShaderBindingSubmission.Calls += "counter;"; }
+                public static int ValidateSampler(ulong binding, int texture) { SubmissionRecorder.Calls += "validate-sampler;"; return texture; }
+                public static void ValidateSampler(params object[] args) { SubmissionRecorder.Calls += "validate-sampler;"; }
+                public static void ValidateUniformBlock(params object[] args) { SubmissionRecorder.Calls += "validate-block;"; }
+                public static void Sampler(params object[] args) { SubmissionRecorder.Calls += "sampler;"; }
+                public static void UniformBlock(params object[] args) { SubmissionRecorder.Calls += "block;"; }
+                public static void ValidateImage(params object[] args) { SubmissionRecorder.Calls += "validate-image;"; }
+                public static void ValidateStorageBlock(params object[] args) { SubmissionRecorder.Calls += "validate-storage;"; }
+                public static void Image(params object[] args) { SubmissionRecorder.Calls += "image;"; }
+                public static void StorageBlock(params object[] args) { SubmissionRecorder.Calls += "storage;"; }
+                public static void ValidateAtomicCounter(params object[] args) { SubmissionRecorder.Calls += "validate-counter;"; }
+                public static void AtomicCounter(params object[] args) { SubmissionRecorder.Calls += "counter;"; }
             }
             public abstract class GpuComputeShader
             {
@@ -175,7 +175,7 @@ public sealed class RuntimeSubmissionTests
             type + " Value { get; set; } }" + Header +
             "internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { } " +
             "public static class Proof { public static string Run() { var shader = new Shader(); shader.Value = " + value +
-            "; shader.Use(); return VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls; } }";
+            "; shader.Use(); return VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls; } }";
         Assert.Equal("validate-value;value;", GeneratorFixture.Generate(source, supportSource: Support).Run());
     }
     /// <summary>Authored getters are sampled once and retained even when the scene source changes.</summary>
@@ -232,7 +232,7 @@ public sealed class RuntimeSubmissionTests
                     shader.Values = source; source[0] = 9;
                     var copy = shader.Values; copy[0] = 8;
                     shader.Use();
-                    return shader.Values[0] + ":" + VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    return shader.Values[0] + ":" + VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
                 }
             }
             """;
@@ -262,9 +262,9 @@ public sealed class RuntimeSubmissionTests
                 public static string Run()
                 {
                     var shader = new Shader(); shader.Source = new();
-                    string before = VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    string before = VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
                     shader.Use();
-                    return before + "|" + VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    return before + "|" + VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
                 }
             }
             """;
@@ -292,9 +292,9 @@ public sealed class RuntimeSubmissionTests
                 {
                     var shader = new Shader();
                     shader.Work = new(); shader.Count = new();
-                    string before = VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    string before = VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
                     shader.Dispatch(); shader.Dispatch();
-                    return before + "|" + VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    return before + "|" + VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
                 }
             }
             """;
@@ -332,7 +332,7 @@ public sealed class RuntimeSubmissionTests
                 {
                     var shader = new Shader(); shader.Source = 12; shader.Use();
                     var binding = Shader.Contract.Bindings.Samplers["source"];
-                    return VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls + "|" +
+                    return VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls + "|" +
                         (ShaderTextureTarget)binding.TextureTarget + ":" + (ShaderSamplerPolicy)binding.Sampler;
                 }
             }
@@ -409,9 +409,9 @@ public sealed class RuntimeSubmissionTests
                 {
                     var shader = new Shader();
                     shader.Source = new(); shader.Output = new(); shader.Work = new();
-                    string before = VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    string before = VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
                     shader.Use(); shader.Use();
-                    return before + "|" + VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls;
+                    return before + "|" + VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
                 }
             }
             """;

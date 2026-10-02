@@ -13,6 +13,7 @@ internal sealed class GpuPreparedBindings
     private readonly Dictionary<ulong, Entry> entriesByIdentity = new();
     private readonly Dictionary<int, int> uniformResourceLocations = new();
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> blockIndices = new();
+    private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> textureLocations = new();
     /// <summary>Describes one contract entry without exposing reflection uniform locations.</summary>
     internal readonly record struct Entry(GpuBindingEntry Contract, bool Active, ActiveUniformType Type,
         IReadOnlyList<bool> ActiveElements);
@@ -54,6 +55,7 @@ internal sealed class GpuPreparedBindings
                 if (element == 0) baseSlot = slot;
                 if (slot < 0 || slot != baseSlot + element || !linked.TryAdd((kind, slot), (type, values[2], baseSlot)))
                     throw new InvalidOperationException($"Ambiguous or invalid linked {kind} unit {slot}.");
+                textureLocations.Add((kind, slot), values[0] + element);
             }
         }
         ReadBlocks(program, ProgramInterface.UniformBlock, ShaderBindingKind.UniformBlock, linked);
@@ -124,6 +126,9 @@ internal sealed class GpuPreparedBindings
 
     /// <summary>Reads the retained inspection location for the existing diagnostic resource adapter.</summary>
     internal int UniformResourceLocation(int index) => uniformResourceLocations.GetValueOrDefault(index, -1);
+
+    /// <summary>Projects private inspection addresses for engine APIs without changing fixed-slot submission.</summary>
+    internal int TextureUniformLocation(ShaderBindingKind kind, int slot) => textureLocations.GetValueOrDefault((kind, slot), -1);
 
     /// <summary>Returns a block's private reflected index for existing diagnostic adapters.</summary>
     internal int BlockResourceIndex(ShaderBindingKind kind, int slot) => blockIndices.GetValueOrDefault((kind, slot), -1);

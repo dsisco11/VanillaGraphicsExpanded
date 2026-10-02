@@ -54,6 +54,14 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
             // Rebuilding compatibility caches retains the already validated immutable projections.
             var layout = pipeline.ProgramLayout;
             var preparedInterface = layout.BinaryInterface!;
+            // Engine APIs receive private inspection addresses even with no authored locations.
+            int samplerLocation = preparedInterface.GetUniformLocation("inputs");
+            Assert.True(samplerLocation >= 0);
+            Assert.Equal(samplerLocation, preparedInterface.GetUniformLocation("inputs[0]"));
+            Assert.Equal(samplerLocation + 1, preparedInterface.GetUniformLocation("inputs[1]"));
+            Assert.Equal(-1, preparedInterface.GetUniformLocation("inputs[2]"));
+            Assert.True(preparedInterface.GetUniformLocation("outputImage") >= 0);
+            Assert.Equal(-1, preparedInterface.Uniforms["unused"]);
             for (int rebuild = 0; rebuild < 3; rebuild++)
             {
                 layout.RebuildCache(pipeline.ProgramId);

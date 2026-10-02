@@ -128,15 +128,17 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         int alignment = GL.GetInteger(GetPName.ShaderStorageBufferOffsetAlignment);
         storage.EnsureCapacity(alignment + 64, growExponentially: false);
         var range = new GpuStorageBufferBinding(storage, alignment, 32);
-        ShaderBindingSubmission.ValidateStorageBlock(shader, "VgePageRequests", true, range);
-        ShaderBindingSubmission.StorageBlock(shader, "VgePageRequests", range);
+        var binding = ShaderPreparedSubmission.Resolve(shader, VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(
+            VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.StorageBlock, "VgePageRequests"));
+        ShaderPreparedSubmission.ValidateStorageBlock(binding, range);
+        ShaderPreparedSubmission.StorageBlock(binding, range);
         GL.GetInteger(GetIndexedPName.ShaderStorageBufferBinding, 0, out int buffer);
         GL.GetInteger(GetIndexedPName.ShaderStorageBufferStart, 0, out int offset);
         GL.GetInteger(GetIndexedPName.ShaderStorageBufferSize, 0, out int length);
         Assert.Equal(storage.BufferId, buffer);
         Assert.Equal(alignment, offset);
         Assert.Equal(32, length);
-        Assert.Throws<InvalidOperationException>(() => ShaderBindingSubmission.ValidateStorageBlock(shader, "VgePageRequests", true,
+        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateStorageBlock(binding,
             new GpuStorageBufferBinding(storage, alignment, 128)));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

@@ -69,21 +69,21 @@ public sealed class BindingTests
         GeneratorFixture.Generate(source, true).Compile();
     }
 
-    /// <summary>A sampler can own its SPIR-V location without requiring a duplicate descriptor property.</summary>
+    /// <summary>A fixed sampler contract carries its unit without an authored uniform address.</summary>
     [Fact]
-    public void SamplerUniformLocationIsPartOfItsResourceContract()
+    public void SamplerContractDoesNotEmitUniformLocations()
     {
         string source = """
             interface IBindings
             {
-                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute, UniformLocation = 29)]
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
                 ShaderSamplerBinding Source { get; }
             }
             """ + Compute.Replace("FIELDS", "").Replace("[ShaderProgram", "[ShaderBindingSet(typeof(IBindings))]\n[ShaderProgram") + """
             public static class Proof { public static string Run() => Shader.Contract.Stages[0].Bindings.Samplers["source"].Slot + ":"
-                + Shader.Contract.Stages[0].Bindings.UniformLocations["source"]; }
+                + Shader.Contract.Stages[0].Bindings.UniformLocations.Count; }
             """;
-        Assert.Equal("3:29", GeneratorFixture.Generate(source).Run());
+        Assert.Equal("3:0", GeneratorFixture.Generate(source).Run());
         GeneratorFixture.Generate(source, true).Compile();
     }
 

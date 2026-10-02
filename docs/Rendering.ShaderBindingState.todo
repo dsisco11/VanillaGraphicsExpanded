@@ -173,12 +173,12 @@ Phase 5: Migrate declarations and remove reviewed compatibility dependencies
   Depends on Phases 3 and 4 and their focused validation. Outcome: authored resource contracts no
   longer carry redundant sampler/image locations, and supported engine behavior is preserved.
 
-  ☐ Implement any required engine dictionary/API adapters using preparation-owned metadata.
+  ☑ Implement any required engine dictionary/API adapters using preparation-owned metadata.
     - Preserve public engine interfaces without feeding name/location lookup back into VGE submission.
     - Record every justified ordinary-uniform or compatibility location retained by the audit.
-  ☐ Obtain independent review of compatibility consumers and replacement evidence before removing
+  ☑ Obtain independent review of compatibility consumers and replacement evidence before removing
     each compatibility path. Address review findings and verify affected engine-facing contracts.
-  ☐ Remove audited redundant descriptors, inline locations and GLSL qualifiers as toolchain evidence
+  ☑ Remove audited redundant descriptors, inline locations and GLSL qualifiers as toolchain evidence
     permits. Remove ShaderBindingAttribute.UniformLocation after all its consumers migrate.
     - Remove obsolete parser/emitter/schema tests and lookup branches, replacing them with the new
       contract tests; retain required ordinary uniform support and private compiler metadata.
@@ -186,10 +186,19 @@ Phase 5: Migrate declarations and remove reviewed compatibility dependencies
       local descriptor properties. Record an explicit justification for every retained entry.
     - Remove transitional scaffolding after dependent consumers migrate. Any surviving compatibility
       adapter must have a supported consumer and documented responsibility, not an indefinite fallback.
-  ☐ Regenerate affected offline artifacts through the actual configured build target and verify no
+  ☑ Regenerate affected offline artifacts through the actual configured build target and verify no
     stale bindings survive. Run affected generator, runtime-submission and GPU regressions.
-  ☐ Gate: the occurrence-level audit matches the final declarations and consumers; no authored
+  ☑ Gate: the occurrence-level audit matches the final declarations and consumers; no authored
     sampler/image location remains solely to enable normal fixed-slot resource submission.
+
+  Verification: independent pre-removal compatibility review and 422 adapter tests passed before
+  location removal. The final configured production/offline build succeeded with 406 binaries
+  current; 173 generator, 510 focused and 1,239 affected GPU tests passed. One existing retired
+  comparison remains skipped. The 173-stage semantic comparison proves no non-location policy or
+  layout changes. Second source review and independent completion audit passed with no findings.
+  Retained engine/named adapters have supported consumers documented in the audit. Evidence:
+  docs/Rendering.ShaderBindingState.md and artifacts/ShaderBindingState/phase5/generator-final.log,
+  focused-final.log, affected-final.log and the pre/post-removal full binding semantic exports.
 
 Phase 6: Integration evidence and final acceptance
   Depends on Phase 5. Outcome: the approved proposal is demonstrably satisfied and traceable.

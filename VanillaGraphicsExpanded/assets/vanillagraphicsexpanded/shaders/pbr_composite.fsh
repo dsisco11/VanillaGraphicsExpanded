@@ -21,8 +21,8 @@ out vec4 outColor;
 
 @import "./includes/pbr_composite_params_ubo.glsl"
 @import "./includes/liquids/boundary_transport.glsl"
-layout(location = 100, binding = 12) uniform sampler2D vge_waterOpticalDepth;
-layout(location = 101, binding = 13) uniform sampler2D vge_waterSource;
+layout(binding = 12) uniform sampler2D vge_waterOpticalDepth;
+layout(binding = 13) uniform sampler2D vge_waterSource;
 
 // Direct buffers (linear, fog-free)
 uniform sampler2D directDiffuse;

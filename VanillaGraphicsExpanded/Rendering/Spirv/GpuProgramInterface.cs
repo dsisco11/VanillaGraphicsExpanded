@@ -32,6 +32,15 @@ internal sealed class GpuProgramInterface
             uniforms[pair.Key] = PreparedBindings.ContainsUniformLocation(pair.Value) ? pair.Value : -1;
             arraySizes[pair.Value] = PreparedBindings.UniformArrayLength(pair.Value);
         }
+        // Engine Uniform/HasUniform consumers retain addresses reconstructed from validated units.
+        // These projections never participate in generated resource submission.
+        foreach (var entry in PreparedBindings.Entries)
+        {
+            if (entry.Contract.Kind is not (ShaderBindingKind.Sampler or ShaderBindingKind.Image)) continue;
+            int location = entry.Active ? PreparedBindings.TextureUniformLocation(entry.Contract.Kind, entry.Contract.Binding.Slot) : -1;
+            uniforms[entry.Contract.Name] = location;
+            if (location >= 0) arraySizes[location] = PreparedBindings.UniformArrayLength(location);
+        }
         resources = new(uniforms, Blocks(ShaderBindingKind.UniformBlock, array.SelectMany(v => v.UniformBlocks)),
             Blocks(ShaderBindingKind.StorageBlock, array.SelectMany(v => v.StorageBlocks)), arraySizes);
         foreach (var uniform in uniforms)

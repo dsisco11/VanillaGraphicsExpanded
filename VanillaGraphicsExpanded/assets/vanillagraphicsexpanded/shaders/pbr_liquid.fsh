@@ -15,13 +15,13 @@ layout(location = 11) in float vge_skyVisibility;
 layout(location = 12) in float glowLevel;
 layout(location = 21) in vec2 vge_wavePosition;
 layout(location = 22) in vec2 vge_waveWeights;
-layout(location = 100, binding = 0) uniform sampler2D terrainTex;
-layout(location = 101, binding = 1) uniform sampler2D depthTex;
-layout(location = 102, binding = 2) uniform sampler2D vge_materialParamsTex;
-layout(location = 103, binding = 7) uniform sampler2D vge_waterMediumIndices;
-layout(location = 104, binding = 8) uniform sampler2D vge_waterMediumRecords;
-layout(location = 49, binding = 3) uniform sampler2DShadow shadowMapNear;
-layout(location = 48, binding = 4) uniform sampler2DShadow shadowMapFar;
+layout(binding = 0) uniform sampler2D terrainTex;
+layout(binding = 1) uniform sampler2D depthTex;
+layout(binding = 2) uniform sampler2D vge_materialParamsTex;
+layout(binding = 7) uniform sampler2D vge_waterMediumIndices;
+layout(binding = 8) uniform sampler2D vge_waterMediumRecords;
+layout(binding = 3) uniform sampler2DShadow shadowMapNear;
+layout(binding = 4) uniform sampler2DShadow shadowMapFar;
 @import "./includes/vertex_flags.glsl"
 @import "./includes/colormap_fragment.glsl"
 @import "./includes/texture_animation.glsl"

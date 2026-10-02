@@ -1283,8 +1283,10 @@ public class GpuProgramLayout
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(samplerUniformName);
 
-        var loc = ResolveUniformLocation(programId, samplerUniformName);
-        if (loc.State == ResolutionState.Missing)
+        bool active = BinaryInterface is { } prepared
+            ? prepared.PreparedBindings.Resolve(Contracts.GpuBindingEntry.Identity(Contracts.ShaderBindingKind.Sampler, samplerUniformName)).Active
+            : ResolveUniformLocation(programId, samplerUniformName).State != ResolutionState.Missing;
+        if (!active)
         {
             if (samplerContract.TryGetValue(samplerUniformName, out var spec) && spec.Required)
             {
@@ -1375,8 +1377,10 @@ public class GpuProgramLayout
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(imageUniformName);
 
-        var loc = ResolveUniformLocation(programId, imageUniformName);
-        if (loc.State == ResolutionState.Missing)
+        bool active = BinaryInterface is { } prepared
+            ? prepared.PreparedBindings.Resolve(Contracts.GpuBindingEntry.Identity(Contracts.ShaderBindingKind.Image, imageUniformName)).Active
+            : ResolveUniformLocation(programId, imageUniformName).State != ResolutionState.Missing;
+        if (!active)
         {
             if (imageContract.TryGetValue(imageUniformName, out var spec) && spec.Required)
             {

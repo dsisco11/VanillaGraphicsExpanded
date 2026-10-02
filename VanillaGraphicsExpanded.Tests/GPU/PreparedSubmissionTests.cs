@@ -69,7 +69,8 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         ShaderPreparedSubmission.ValidateSamplerArray(inputs, desired);
         ShaderPreparedSubmission.ValidateImage(outputBinding, view);
         ShaderPreparedSubmission.SamplerArray(inputs, desired);
-        ShaderPreparedSubmission.Image(outputBinding, view);
+        ShaderBindingAccess.Image(pipeline.ProgramLayout, pipeline.ProgramId, "outputImage", view);
+        ShaderBindingAccess.Sampler(pipeline.ProgramLayout, pipeline.ProgramId, "unused", null!);
         pipeline.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 11, 22, 33, 44 }, output.ReadPixels());
@@ -79,7 +80,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         ShaderPreparedSubmission.Image(outputBinding, new GpuTextureBinding(other, TextureAccess.WriteOnly));
         output.UploadDataImmediate(new float[4]);
         ShaderPreparedSubmission.SamplerArray(inputs, desired);
-        ShaderPreparedSubmission.Image(outputBinding, view);
+        ShaderBindingAccess.Image(pipeline.ProgramLayout, pipeline.ProgramId, "outputImage", output);
         pipeline.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 11, 22, 33, 44 }, output.ReadPixels());

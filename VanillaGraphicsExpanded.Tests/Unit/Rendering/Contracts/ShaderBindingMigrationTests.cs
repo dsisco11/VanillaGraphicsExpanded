@@ -8,20 +8,17 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 public sealed class ShaderBindingMigrationTests
 {
     #region Public API
-    /// <summary>Binary submission can resolve every authored production texture resource without driver names.</summary>
+    /// <summary>Opaque resources have fixed units and no authored uniform-location metadata.</summary>
     [Fact]
-    public void ProductionTextureBindingsHaveExplicitUniformLocations()
+    public void ProductionTextureBindingsDoNotCarryUniformLocations()
     {
-        // Existing submission owners still use the location adapter. The dedicated preparation
-        // fixture deliberately has no such adapter and exercises the fixed-slot replacement.
-        var missing = GeneratedShaderCatalog.Programs("production")
+        var redundant = GeneratedShaderCatalog.Programs("production")
             .SelectMany(program => program.Stages).DistinctBy(stage => stage.Identity)
-            .Where(stage => stage.Identity is not ("tests/prepared_binding.csh" or "tests/uniform_state.csh"))
             .SelectMany(stage => stage.Bindings.Samplers.Keys.Concat(stage.Bindings.Images.Keys)
-                .Where(name => !stage.Bindings.UniformLocations.ContainsKey(name))
+                .Where(name => stage.Bindings.UniformLocations.ContainsKey(name))
                 .Select(name => $"{stage.Identity}: {name}"))
             .Order(StringComparer.Ordinal).ToArray();
-        Assert.Empty(missing);
+        Assert.Empty(redundant);
     }
 
     /// <summary>Indices, explicit locations, optional-resource policy and shared-stage layouts match the approved contract.</summary>
@@ -84,7 +81,7 @@ public sealed class ShaderBindingMigrationTests
 
         // Slot presence and Required are both observable runtime contracts, including resources
         // optimized out of a particular binary. Preserve them independently of linked reflection.
-        /// <summary>Adds the complete resource policy to canonical fingerprint rows.</summary>
+        /// <summary>Adds resource slots and required-input policy to the existing canonical fingerprint.</summary>
         void AddBindings(string kind, IDictionary<string, GpuBindingContract.Binding> values)
         {
             rows.AddRange(values.Select(p => kind + "|" + p.Key + "|" + p.Value.Slot + "|" + (p.Value.Required ? "true" : "false")));

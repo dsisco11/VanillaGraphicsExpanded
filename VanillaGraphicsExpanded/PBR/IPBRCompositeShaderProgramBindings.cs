@@ -43,10 +43,10 @@ internal interface IPBRCompositeShaderProgramBindings
     [ShaderBinding("gBufferEnvironment", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     DynamicTexture2D? GBufferEnvironment { set; }
     /// <summary>Declares signed optical-depth and length accumulation for opaque receivers.</summary>
-    [ShaderBinding("vge_waterOpticalDepth", ShaderBindingKind.Sampler, 12, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, UniformLocation = 100, Required = false)]
+    [ShaderBinding("vge_waterOpticalDepth", ShaderBindingKind.Sampler, 12, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
     DynamicTexture2D? WaterOpticalDepth { set; }
     /// <summary>Declares signed scattering-source and boundary-count accumulation.</summary>
-    [ShaderBinding("vge_waterSource", ShaderBindingKind.Sampler, 13, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, UniformLocation = 101, Required = false)]
+    [ShaderBinding("vge_waterSource", ShaderBindingKind.Sampler, 13, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
     DynamicTexture2D? WaterSource { set; }
     /// <summary>Declares the vge_atmosphereAerialRadiance Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 9, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Required = false)]

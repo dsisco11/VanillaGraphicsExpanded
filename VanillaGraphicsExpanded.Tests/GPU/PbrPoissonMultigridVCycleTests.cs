@@ -49,8 +49,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             hTex.Bind(0);
             bTex.Bind(1);
-            GL.Uniform1(Uniform(progResidual, "u_h"), 0);
-            GL.Uniform1(Uniform(progResidual, "u_b"), 1);
             PbrHeightBakeParamsUbo.BindSize(paramsUbo, w, h);
         });
 
@@ -92,7 +90,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         RenderTo(coarseTex, progRestrict, () =>
         {
             fineTex.Bind(0);
-            GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
@@ -137,8 +134,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             fineTex.Bind(0);
             coarseTex.Bind(1);
-            GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
-            GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
@@ -217,7 +212,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         RenderTo(bCoarse, progRestrict, () =>
         {
             resFine.Bind(0);
-            GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -231,8 +225,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             hFine.Bind(0);
             eCoarse.Bind(1);
-            GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
-            GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -333,7 +325,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             RenderTo(bCoarse2, progRestrict, () =>
             {
                 resFine.Bind(0);
-                GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
                 PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
             });
 
@@ -346,8 +337,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             {
                 hFine.Bind(0);
                 eCoarse2.Bind(1);
-                GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
-                GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
                 PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
             });
 
@@ -369,7 +358,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         RenderTo(bMid, progRestrict, () =>
         {
             resFine.Bind(0);
-            GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
         });
 
@@ -384,7 +372,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         RenderTo(bCoarse, progRestrict, () =>
         {
             resMid.Bind(0);
-            GL.Uniform1(Uniform(progRestrict, "u_fine"), 0);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: mw, fineH: mh, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -397,8 +384,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             eMid.Bind(0);
             eCoarse.Bind(1);
-            GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
-            GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: mw, fineH: mh, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -417,8 +402,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             hFine.Bind(0);
             eMidPost.Bind(1);
-            GL.Uniform1(Uniform(progProlongate, "u_fineH"), 0);
-            GL.Uniform1(Uniform(progProlongate, "u_coarseE"), 1);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
         });
 
@@ -466,12 +449,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         return res.ProgramId;
     }
 
-    private static int Uniform(int programId, string name)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        Assert.True(loc >= 0, $"Missing uniform '{name}'");
-        return loc;
-    }
 
     private void RenderTo(DynamicTexture2D dst, int programId, Action setup)
     {
@@ -524,8 +501,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             {
                 src.Bind(0);
                 b.Bind(1);
-                GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
-                GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
                 PbrHeightBakeParamsUbo.BindSize(paramsUbo, dst.Width, dst.Height);
             });
 
@@ -541,8 +516,6 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             h.Bind(0);
             b.Bind(1);
-            GL.Uniform1(Uniform(progResidual, "u_h"), 0);
-            GL.Uniform1(Uniform(progResidual, "u_b"), 1);
             PbrHeightBakeParamsUbo.BindSize(paramsUbo, outResidual.Width, outResidual.Height);
         });
     }

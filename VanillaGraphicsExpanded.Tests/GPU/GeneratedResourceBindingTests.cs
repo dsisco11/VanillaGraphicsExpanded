@@ -87,8 +87,11 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, result);
             Assert.Equal(123u, result[0]);
             // Optional active absence explicitly clears a binding left by the preceding owner.
-            ShaderBindingSubmission.ValidateSampler(shader, "uOcc", false, (GpuTexture?)null);
-            ShaderBindingSubmission.Sampler(shader, "uOcc", (GpuTexture?)null, VanillaGraphicsExpanded.Rendering.Contracts.ShaderTextureTarget.Texture3D);
+            var optional = shader.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
+                VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler, "uOcc"));
+            optional = optional with { Contract = optional.Contract with { Binding = optional.Contract.Binding with { Required = false } } };
+            ShaderPreparedSubmission.ValidateSampler(optional, (GpuTexture?)null);
+            ShaderPreparedSubmission.Sampler(optional, (GpuTexture?)null);
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.GetInteger(GetPName.TextureBinding3D, out int clearedInput);
             Assert.Equal(0, clearedInput);

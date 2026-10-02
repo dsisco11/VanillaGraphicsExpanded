@@ -116,15 +116,18 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         int[] images = [terrain.TextureId, depth.TextureId, material.TextureId, near.TextureId, far.TextureId, radiance.TextureId, attenuation.TextureId];
         int[] samplers = [0, GpuSamplers.NearestClamp.SamplerId, GpuSamplers.NearestClamp.SamplerId,
             GpuSamplers.ShadowCompareLinearClamp.SamplerId, GpuSamplers.ShadowCompareLinearClamp.SamplerId, 0, 0];
-        int[] locations = [100, 101, 102, 49, 48, 93, 94];
+        string[] names = ["terrainTex", "depthTex", "vge_materialParamsTex", "shadowMapNear", "shadowMapFar", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation"];
         for (int unit = 0; unit < images.Length; unit++)
         {
             GlStateCache.Current.ActiveTexture(unit);
             Assert.Equal(images[unit], GL.GetInteger(unit < 5 ? GetPName.TextureBinding2D : GetPName.TextureBinding3D));
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, unit, out int sampler);
             Assert.Equal(samplers[unit], sampler);
-            GL.GetUniform(program.ProgramId, locations[unit], out int linkedUnit);
-            Assert.Equal(unit, linkedUnit);
+            var binding = program.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
+                VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler, names[unit]));
+            Assert.True(binding.Active);
+            Assert.Equal(unit, binding.Contract.Binding.Slot);
+            Assert.DoesNotContain(names[unit], LiquidShaderProgram.Contract.Bindings.UniformLocations.Keys);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

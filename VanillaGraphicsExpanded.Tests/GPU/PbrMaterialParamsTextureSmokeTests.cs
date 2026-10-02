@@ -82,9 +82,7 @@ public sealed class PbrMaterialParamsTextureSmokeTests
         {
             GL.UseProgram(programId);
 
-            int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "materialParams");
-            Assert.True(loc >= 0);
-            GL.Uniform1(loc, 0);
+            // The compiled sampler contract already selects texture unit zero.
 
             output.BindWithViewport();
             GL.ClearColor(0, 0, 0, 0);

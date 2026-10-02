@@ -109,8 +109,7 @@ internal static class BindingReader
             if (group.Count() > 1) throw new ArgumentException($"Conflicting resource kinds for '{group.Key}' in '{program}'/{stage}.");
         var model = new GpuBindingContract();
         foreach (var slot in selected.Values) Apply(model, slot);
-        var emitted = selected.Values.Concat(selected.Values.Where(s => s.UniformLocation >= 0)
-            .Select(s => s with { Kind = ShaderBindingKind.UniformLocation, Index = s.UniformLocation }));
+        var emitted = selected.Values;
         string expression = "new GpuBindingContract { " + string.Join(", ", emitted.GroupBy(s => Map(s.Kind)).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => g.Key + " = { " + string.Join(", ", g.OrderBy(s => s.Name, StringComparer.Ordinal).Select(s =>
                 "{ " + Quote(s.Name) + ", " + (s.Kind is ShaderBindingKind.UniformLocation or ShaderBindingKind.VaryingLocation or ShaderBindingKind.FragmentOutputLocation ? s.Index.ToString() : BindingExpression(s)) + " }")) + " }")) + " }";
@@ -210,10 +209,6 @@ internal static class BindingReader
         int samplerPolicy = Named(attribute, "Sampler").Value is int sampler ? sampler : 0;
         _ = NamedEnum(attribute, "TextureTarget");
         _ = NamedEnum(attribute, "Sampler");
-        var declaredLocation = Named(attribute, "UniformLocation");
-        int uniformLocation = declaredLocation.IsNull ? -1 : (int)declaredLocation.Value!;
-        if (uniformLocation < -1 || (uniformLocation >= 0 && kind is not (ShaderBindingKind.Sampler or ShaderBindingKind.Image)))
-            throw new ArgumentException($"Binding property '{property.Name}' has an invalid UniformLocation.");
         var stages = Argument(attribute, 3).Values.Select(v => (ShaderStageKind)(int)v.Value!).ToArray();
         if (stages.Length == 0 || stages.Distinct().Count() != stages.Length || stages.Any(s => !Enum.IsDefined(typeof(ShaderStageKind), s)))
             throw new ArgumentException($"Binding property '{property.Name}' requires distinct explicit stages.");
@@ -224,7 +219,7 @@ internal static class BindingReader
         if (!programs.IsNull && targets.Length == 0 || targets.Distinct(StringComparer.Ordinal).Count() != targets.Length)
             throw new ArgumentException($"Binding property '{property.Name}' requires distinct program members.");
         foreach (string target in targets) ShaderContractNames.ValidateIdentifier(target);
-        return new(property, name, kind, index, uniformLocation, Named(attribute, "Required").Value is not false, targets, stages,
+        return new(property, name, kind, index, Named(attribute, "Required").Value is not false, targets, stages,
             arrayLength, shaderType, textureTarget, samplerPolicy);
     }
 
@@ -253,11 +248,9 @@ internal static class BindingReader
             case ShaderBindingKind.AtomicCounter: model.AtomicCounters.Add(slot.Name, BindingValue(slot)); break;
             case ShaderBindingKind.Sampler:
                 model.Samplers.Add(slot.Name, BindingValue(slot));
-                if (slot.UniformLocation >= 0) model.UniformLocations.Add(slot.Name, slot.UniformLocation);
                 break;
             case ShaderBindingKind.Image:
                 model.Images.Add(slot.Name, BindingValue(slot));
-                if (slot.UniformLocation >= 0) model.UniformLocations.Add(slot.Name, slot.UniformLocation);
                 break;
             case ShaderBindingKind.UniformBlock: model.UniformBlocks.Add(slot.Name, BindingValue(slot)); break;
             case ShaderBindingKind.StorageBlock: model.StorageBlocks.Add(slot.Name, BindingValue(slot)); break;
@@ -265,7 +258,7 @@ internal static class BindingReader
     }
 
     /// <summary>Contains one validated slot and its explicit consumer applicability.</summary>
-    private sealed record Slot(IPropertySymbol Property, string Name, ShaderBindingKind Kind, int Index, int UniformLocation, bool Required, string[] Programs, ShaderStageKind[] Stages,
+    private sealed record Slot(IPropertySymbol Property, string Name, ShaderBindingKind Kind, int Index, bool Required, string[] Programs, ShaderStageKind[] Stages,
         int ArrayLength, ShaderResourceType? ShaderType, int TextureTarget, int Sampler);
 
     /// <summary>Uses the same resource metadata for semantic validation and emitted contracts.</summary>

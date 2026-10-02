@@ -29,15 +29,6 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
 {
     #region Fields
 
-    private readonly Dictionary<string, int> uniformLocationCache = new(StringComparer.Ordinal);
-    private int uniformLocationCacheProgramId;
-
-    private readonly HashSet<string> warnedMissingUniforms = new(StringComparer.Ordinal);
-    private int warnedMissingUniformsProgramId;
-
-    private readonly HashSet<string> warnedNotBound = new(StringComparer.Ordinal);
-    private int warnedNotBoundProgramId;
-
     private GpuProgramLayout? programLayout;
 
     private ICoreClientAPI? capi;
@@ -100,140 +91,9 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         return ProgramLayout.TryBindUniformBlock(ProgramId, blockName, buffer, msg => log?.Warning($"[VGE][{ShaderName}] {msg}"));
     }
 
-    private bool IsUniformActive(string uniformName, bool warnIfMissing)
-    {
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc >= 0)
-        {
-            return true;
-        }
-
-        if (!warnIfMissing || log is null)
-        {
-            return false;
-        }
-
-        if (warnedMissingUniformsProgramId != ProgramId)
-        {
-            warnedMissingUniformsProgramId = ProgramId;
-            warnedMissingUniforms.Clear();
-        }
-
-        if (warnedMissingUniforms.Add(uniformName))
-        {
-            log.Warning($"[VGE][{ShaderName}] Uniform '{uniformName}' is inactive/optimized-away; skipping GL bind.");
-        }
-
-        return false;
-    }
 
     #endregion
 
-    #region Texture Binding (Sampler-Aware)
-
-    protected void BindTexture2D(string uniformName, GpuTexture? texture, int unit)
-    {
-        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
-        if (!hasContract)
-        {
-            // Legacy behavior: bind unit is caller-driven, set uniform every time.
-            if (!IsUniformActive(uniformName, warnIfMissing: false))
-            {
-                return;
-            }
-
-            SetSamplerUnitLegacy(uniformName, unit);
-            contractUnit = unit;
-        }
-
-        // Contract path: don't bind/unbind if the sampler uniform is optimized away.
-        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
-        {
-            return;
-        }
-
-        if (texture is null)
-        {
-            GlStateCache.Current.BindTexture(TextureTarget.Texture2D, contractUnit, 0, sampler: null);
-            return;
-        }
-
-        texture.Bind(contractUnit);
-    }
-
-    protected void BindTexture3D(string uniformName, GpuTexture? texture, int unit)
-    {
-        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
-        if (!hasContract)
-        {
-            if (!IsUniformActive(uniformName, warnIfMissing: false))
-            {
-                return;
-            }
-
-            SetSamplerUnitLegacy(uniformName, unit);
-            contractUnit = unit;
-        }
-
-        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
-        {
-            return;
-        }
-
-        if (texture is null)
-        {
-            GlStateCache.Current.BindTexture(TextureTarget.Texture3D, contractUnit, 0, sampler: null);
-            return;
-        }
-
-        texture.Bind(contractUnit);
-    }
-
-    protected void BindExternalTexture2D(string uniformName, int textureId, int unit, GpuSampler sampler)
-    {
-        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
-        if (!hasContract)
-        {
-            if (!IsUniformActive(uniformName, warnIfMissing: false))
-            {
-                return;
-            }
-
-            SetSamplerUnitLegacy(uniformName, unit);
-            contractUnit = unit;
-        }
-
-        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
-        {
-            return;
-        }
-
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, contractUnit, textureId, sampler);
-    }
-
-    protected void BindExternalTexture3D(string uniformName, int textureId, int unit, GpuSampler sampler)
-    {
-        bool hasContract = ProgramLayout.TryGetContractSamplerSpec(uniformName, out int contractUnit, out bool contractRequired);
-        if (!hasContract)
-        {
-            if (!IsUniformActive(uniformName, warnIfMissing: false))
-            {
-                return;
-            }
-
-            SetSamplerUnitLegacy(uniformName, unit);
-            contractUnit = unit;
-        }
-
-        if (hasContract && !IsUniformActive(uniformName, warnIfMissing: contractRequired))
-        {
-            return;
-        }
-
-        GlStateCache.Current.BindTexture(TextureTarget.Texture3D, contractUnit, textureId, sampler);
-    }
-
-    #endregion
 
     #region Program Layout
 
@@ -270,76 +130,6 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
 
     #endregion
 
-    #region Legacy Sampler Unit Assignment
-
-    private void SetSamplerUnitLegacy(string uniformName, int unit)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(uniformName);
-
-        if (!EnsureProgramIsBound(operationKey: $"samplerunit:{uniformName}"))
-        {
-            return;
-        }
-
-        int loc = GetUniformLocationOrArray0(uniformName);
-        if (loc < 0)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.Uniform1(loc, unit);
-        }
-        catch (Exception ex)
-        {
-            log?.Warning($"[VGE][{ShaderName}] Failed to set sampler uniform '{uniformName}' to unit {unit}: {ex.Message}");
-        }
-    }
-
-    private bool EnsureProgramIsBound(string operationKey)
-    {
-        if (ProgramId == 0)
-        {
-            return false;
-        }
-
-        int currentProgram;
-        bool hasCachedProgram = GlStateCache.Current.TryGetCachedCurrentProgram(out currentProgram);
-
-        if (currentProgram == ProgramId)
-        {
-            return true;
-        }
-
-        var logger = log;
-        if (logger is null)
-        {
-            return false;
-        }
-
-        if (warnedNotBoundProgramId != ProgramId)
-        {
-            warnedNotBoundProgramId = ProgramId;
-            warnedNotBound.Clear();
-        }
-
-        if (warnedNotBound.Add(operationKey))
-        {
-            if (!hasCachedProgram)
-            {
-                logger.Error($"[VGE][{ShaderName}] Attempted to set program state, but current program is unknown (state cache not primed). Ensure binds go through the PSO/state-cache and call Use()/UseScope() before setting program state.");
-            }
-            else
-            {
-                logger.Error($"[VGE][{ShaderName}] Attempted to set program state while it is not bound (expected {ProgramId}, current {currentProgram}). Call Use()/UseScope() first.");
-            }
-        }
-
-        return false;
-    }
-
-    #endregion
 
     #region Program Binding
 
@@ -452,40 +242,6 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     }
     #endregion
 
-    /// <summary>
-    /// Returns the cached uniform location for <paramref name="uniformName"/>.
-    /// When <paramref name="uniformName"/> refers to an array, this method also tries <c>name[0]</c>,
-    /// since different compilers expose either the base name or the explicit element name.
-    /// </summary>
-    protected int GetUniformLocationOrArray0(string uniformName)
-    {
-        if (ProgramId == 0)
-        {
-            return -1;
-        }
-
-        if (uniformLocationCacheProgramId != ProgramId)
-        {
-            uniformLocationCache.Clear();
-            uniformLocationCacheProgramId = ProgramId;
-        }
-
-        if (uniformLocationCache.TryGetValue(uniformName, out int cached))
-        {
-            return cached;
-        }
-
-        // Spec allows querying the base name OR the [0] name.
-        // Some compilers only expose one of these names.
-        int loc = ProgramLayout.GetUniformLocation(ProgramId, uniformName);
-        if (loc < 0)
-        {
-            loc = ProgramLayout.GetUniformLocation(ProgramId, $"{uniformName}[0]");
-        }
-
-        uniformLocationCache[uniformName] = loc;
-        return loc;
-    }
 
     #region Compilation
 

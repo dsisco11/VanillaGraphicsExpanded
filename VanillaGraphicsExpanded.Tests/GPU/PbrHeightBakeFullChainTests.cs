@@ -71,7 +71,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
-                GL.Uniform1(Uniform(progL, "u_atlas"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -93,8 +92,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             {
                 texL.Bind(0);
                 texBase.Bind(1);
-                GL.Uniform1(Uniform(progSub, "u_a"), 0);
-                GL.Uniform1(Uniform(progSub, "u_b"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
                 {
@@ -109,7 +106,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
                 texD0.Bind(0);
-                GL.Uniform1(Uniform(progGrad, "u_d"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
                 {
@@ -123,7 +119,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
                 texGxy.Bind(0);
-                GL.Uniform1(Uniform(progDiv, "u_g"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
                 {
@@ -143,8 +138,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 {
                     src.Bind(0);
                     texDiv.Bind(1);
-                    GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
-                    GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
 
                     UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
                     {
@@ -161,7 +154,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texH.Bind(0);
-                GL.Uniform1(Uniform(progNorm, "u_h"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -176,10 +168,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(outAtlas, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
-                GL.Uniform1(Uniform(progPack, "u_height"), 0);
 
                 atlas.Bind(1);
-                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -240,7 +230,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
-                GL.Uniform1(Uniform(progL, "u_atlas"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -255,7 +244,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texL.Bind(0);
-                GL.Uniform1(Uniform(progNorm, "u_h"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -268,10 +256,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(outAtlas, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
-                GL.Uniform1(Uniform(progPack, "u_height"), 0);
 
                 atlas.Bind(1);
-                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -338,7 +324,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
-                GL.Uniform1(Uniform(progL, "u_atlas"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -356,8 +341,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             {
                 texL.Bind(0);
                 texBase.Bind(1);
-                GL.Uniform1(Uniform(progSub, "u_a"), 0);
-                GL.Uniform1(Uniform(progSub, "u_b"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
                 {
@@ -371,7 +354,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
                 texD0.Bind(0);
-                GL.Uniform1(Uniform(progGrad, "u_d"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
                 {
@@ -384,7 +366,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
                 texGxy.Bind(0);
-                GL.Uniform1(Uniform(progDiv, "u_g"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
                 {
@@ -403,8 +384,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 {
                     src.Bind(0);
                     texDiv.Bind(1);
-                    GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
-                    GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
 
                     UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
                     {
@@ -419,7 +398,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texH.Bind(0);
-                GL.Uniform1(Uniform(progNorm, "u_h"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -433,10 +411,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(outAtlas1, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
-                GL.Uniform1(Uniform(progPack, "u_height"), 0);
 
                 atlas.Bind(1);
-                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -450,10 +426,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(outAtlas2, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
-                GL.Uniform1(Uniform(progPack, "u_height"), 0);
 
                 atlas.Bind(1);
-                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -533,7 +507,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texL, progL, (paramsUbo) =>
             {
                 atlas.Bind(0);
-                GL.Uniform1(Uniform(progL, "u_atlas"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -551,8 +524,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             {
                 texL.Bind(0);
                 texBase.Bind(1);
-                GL.Uniform1(Uniform(progSub, "u_a"), 0);
-                GL.Uniform1(Uniform(progSub, "u_b"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
                 {
@@ -566,7 +537,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
                 texD0.Bind(0);
-                GL.Uniform1(Uniform(progGrad, "u_d"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
                 {
@@ -579,7 +549,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
                 texGxy.Bind(0);
-                GL.Uniform1(Uniform(progDiv, "u_g"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
                 {
@@ -598,8 +567,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 {
                     src.Bind(0);
                     texDiv.Bind(1);
-                    GL.Uniform1(Uniform(progJacobi, "u_h"), 0);
-                    GL.Uniform1(Uniform(progJacobi, "u_b"), 1);
 
                     UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
                     {
@@ -614,7 +581,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
                 texH.Bind(0);
-                GL.Uniform1(Uniform(progNorm, "u_h"), 0);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -628,10 +594,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(outAtlasFlat, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
-                GL.Uniform1(Uniform(progPack, "u_height"), 0);
 
                 atlas.Bind(1);
-                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -645,10 +609,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             RenderTo(outAtlasScaled, progPack, (paramsUbo) =>
             {
                 texHn.Bind(0);
-                GL.Uniform1(Uniform(progPack, "u_height"), 0);
 
                 atlas.Bind(1);
-                GL.Uniform1(Uniform(progPack, "u_albedoAtlas"), 1);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -704,12 +666,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return res.ProgramId;
     }
 
-    private static int Uniform(int programId, string name)
-    {
-        int loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        Assert.True(loc >= 0, $"Missing uniform '{name}'");
-        return loc;
-    }
 
     private static void UploadHeightBakeParams(ObjectParamsUbo paramsUbo, int programId, Action<HeightBakeParamsUboCpu> configure)
     {
@@ -754,7 +710,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         RenderTo(dst, programId, (paramsUbo) =>
         {
             src.Bind(0);
-            GL.Uniform1(Uniform(programId, "u_src"), 0);
 
             UploadHeightBakeParams(paramsUbo, programId, (cpu) =>
             {
