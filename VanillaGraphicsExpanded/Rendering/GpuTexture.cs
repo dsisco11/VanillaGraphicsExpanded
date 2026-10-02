@@ -27,6 +27,8 @@ public abstract class GpuTexture : GpuResource, IDisposable
     public int Depth => depth;
     public PixelInternalFormat InternalFormat => internalFormat;
     public TextureTarget TextureTarget => textureTarget;
+    /// <summary>Reports the mip levels allocated by this texture owner without querying driver storage.</summary>
+    internal int StorageMipLevels { get; private set; } = 1;
     public TextureFilterMode FilterMode => filterMode;
     public string? DebugName => debugName;
 
@@ -87,7 +89,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
 
         var sizedFormat = format ?? (SizedInternalFormat)internalFormat;
-        GL.BindImageTexture(unit, textureId, level, layered, layer, access, sizedFormat);
+        GlStateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, sizedFormat);
     }
 
     public BindingScope BindScope(int unit)
@@ -127,6 +129,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
 
         Allocate2DStorageBound(mipLevels);
+        StorageMipLevels = mipLevels;
 
     #if DEBUG
         // Label only after storage exists; some drivers reject labeling of "generated" names.
@@ -159,6 +162,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         Allocate2DStorageBound(mipLevels);
+        StorageMipLevels = mipLevels;
         Apply2DTextureObjectParamsBound(mipLevels);
     }
 

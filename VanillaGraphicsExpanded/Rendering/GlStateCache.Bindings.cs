@@ -56,6 +56,8 @@ internal sealed partial class GlStateCache
         samplerBindingByUnit = null;
         bufferBindingByTarget.Clear();
         elementArrayBufferByVao.Clear();
+        imageBindings.Clear();
+        indexedBufferBindings.Clear();
     }
 
     public int GetCurrentProgram()
@@ -891,9 +893,15 @@ internal sealed partial class GlStateCache
 
     public void BindBufferBase(BufferRangeTarget target, int index, int bufferId)
     {
+        var binding = new IndexedBufferBinding(bufferId, 0, 0, false);
+        if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
+            bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
         try
         {
             GL.BindBufferBase(target, index, bufferId);
+            ResourceSlotBindCount++;
+            indexedBufferBindings[(target, index)] = binding;
+            bufferBindingByTarget[(BufferTarget)target] = bufferId;
         }
         catch
         {
@@ -907,9 +915,15 @@ internal sealed partial class GlStateCache
 
     public void BindBufferRange(BufferRangeTarget target, int index, int bufferId, nint offsetBytes, nint sizeBytes)
     {
+        var binding = new IndexedBufferBinding(bufferId, offsetBytes, sizeBytes, true);
+        if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
+            bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
         try
         {
             GL.BindBufferRange(target, index, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
+            ResourceSlotBindCount++;
+            indexedBufferBindings[(target, index)] = binding;
+            bufferBindingByTarget[(BufferTarget)target] = bufferId;
         }
         catch
         {

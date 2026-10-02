@@ -12,6 +12,10 @@ public sealed class RuntimeSubmissionTests
             public class GpuAtomicCounterBuffer { }
             public struct GpuStorageBufferBinding { }
             public struct GpuTextureBinding { }
+            public struct ShaderInputValidation
+            {
+                public ulong Resolve(object owner, ulong identity) => identity;
+            }
             public static class ShaderBindingSubmission
             {
                 public static string Calls = "";
@@ -28,6 +32,25 @@ public sealed class RuntimeSubmissionTests
                 public static void StorageBlock(params object[] args) { Calls += "storage;"; }
                 public static void ValidateAtomicCounter(params object[] args) { Calls += "validate-counter;"; }
                 public static void AtomicCounter(params object[] args) { Calls += "counter;"; }
+            }
+            public static class ShaderPreparedSubmission
+            {
+                public static void ValidateSampler(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-sampler;"; }
+                public static void ValidateImage(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-image;"; }
+                public static void ValidateImage(ulong binding, GpuTextureBinding image, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-image;"; }
+                public static void ValidateStorageBlock(ulong binding, GpuStorageBufferBinding range, ref ShaderInputValidation history) { ShaderBindingSubmission.Calls += "validate-storage;"; }
+                public static ulong Resolve(object owner, ulong identity) => identity;
+                public static int ValidateSampler(ulong binding, int texture) { ShaderBindingSubmission.Calls += "validate-sampler;"; return texture; }
+                public static void ValidateSampler(params object[] args) { ShaderBindingSubmission.Calls += "validate-sampler;"; }
+                public static void ValidateUniformBlock(params object[] args) { ShaderBindingSubmission.Calls += "validate-block;"; }
+                public static void Sampler(params object[] args) { ShaderBindingSubmission.Calls += "sampler;"; }
+                public static void UniformBlock(params object[] args) { ShaderBindingSubmission.Calls += "block;"; }
+                public static void ValidateImage(params object[] args) { ShaderBindingSubmission.Calls += "validate-image;"; }
+                public static void ValidateStorageBlock(params object[] args) { ShaderBindingSubmission.Calls += "validate-storage;"; }
+                public static void Image(params object[] args) { ShaderBindingSubmission.Calls += "image;"; }
+                public static void StorageBlock(params object[] args) { ShaderBindingSubmission.Calls += "storage;"; }
+                public static void ValidateAtomicCounter(params object[] args) { ShaderBindingSubmission.Calls += "validate-counter;"; }
+                public static void AtomicCounter(params object[] args) { ShaderBindingSubmission.Calls += "counter;"; }
             }
             public abstract class GpuComputeShader
             {
@@ -141,12 +164,21 @@ public sealed class RuntimeSubmissionTests
             internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
             public static class Proof
             {
-                public static string Run() { var shader = new Shader(); shader.Source = 12; shader.Use(); return VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls; }
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.Source = 12; shader.Use();
+                    var binding = Shader.Contract.Bindings.Samplers["source"];
+                    return VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.Calls + "|" +
+                        (ShaderTextureTarget)binding.TextureTarget + ":" + (ShaderSamplerPolicy)binding.Sampler;
+                }
             }
             """;
         var result = GeneratorFixture.Generate(source, supportSource: Support);
         Assert.All(result.Generated, text => Assert.DoesNotContain("OpenTK", text));
-        Assert.Equal($"validate-sampler;12:{target}:ShadowCompareLinearClamp;", result.Run());
+        Assert.Equal($"validate-sampler;sampler;|{target}:ShadowCompareLinearClamp", result.Run());
+        string submission = Assert.Single(result.Generated, text => text.Contains("#region Submission", StringComparison.Ordinal)).Split("#region Submission")[1];
+        Assert.DoesNotContain("ResolveUniformLocation", submission);
+        Assert.DoesNotContain("\"source\"", submission);
     }
 
     /// <summary>Undefined enum casts fail generation instead of creating invalid runtime policy expressions.</summary>

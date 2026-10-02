@@ -216,6 +216,6 @@ public class GpuBufferView : GpuResource, IDisposable
             throw new ArgumentOutOfRangeException(nameof(unit), unit, "Image unit must be >= 0.");
         }
 
-        GL.BindImageTexture(unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
+        GlStateCache.Current.BindImageTexture(unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
     }
 }

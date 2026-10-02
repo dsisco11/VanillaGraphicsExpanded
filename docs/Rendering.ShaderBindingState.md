@@ -63,6 +63,67 @@ GPU/contract tests with no failures or skips. Repeated layout-cache rebuilds ver
 snapshot identity and sampler/image namespace assignments. Receipt:
 [reflection reuse checks](../artifacts/ShaderBindingState/phase2/reflection-reuse.log).
 
+## Prepared resource submission
+
+Generated `Submit` snapshots each source once, selects entries from the installed prepared table,
+validates the complete active input set, then publishes resources directly to fixed slots through
+[ShaderPreparedSubmission](../VanillaGraphicsExpanded/Rendering/ShaderPreparedSubmission.cs).
+Activity and required/optional policy come from the executable's entries. Inactive inputs are skipped;
+missing required allocations fail before publication; optional absence clears the corresponding slot.
+Ordinary uniform and engine-facing location adapters remain available for their inventoried consumers.
+Validation checks texture targets and signed/unsigned/floating interpretation, image format compatibility,
+selected mip/layer bounds and storage-range alignment. An explicit single-layer view of layered storage
+uses the layer's dimensionality. Texture-only image properties select the whole allocation when the
+linked shader expects a layered image; optional absent images clear with canonical valid view parameters.
+
+The generator emits deterministic numeric resource identities from the authoritative kind/name pair.
+Preparation maps those identities to its immutable entries and rejects collisions. This handles owners
+with multiple program contracts without assuming that an entry's table index or fixed slot identifies
+the same desired property across programs. Names serve preparation and diagnostics; submission does
+not reflect the executable or perform name/location lookup. Array publication respects element activity.
+
+Generated inputs retain a shader-local `ShaderInputValidation` value. Prepared-entry resolution runs
+only when the installed table changes. Successful texture/image/range compatibility checks are reused
+while the resource reference, allocation metadata and desired view/range remain equal. Owner metadata
+is sampled without driver queries; current lifetime is still checked before publication. Resize,
+capacity changes and executable replacement invalidate the applicable result. Failed checks never
+replace a successful result. Context-wide binding comparisons and UBO content uploads remain independent
+of this compatibility history.
+Validation reuse passed the production/offline build, 163 generator tests and 120 focused tests.
+Coverage proves one entry resolution/compatibility check across repeated generated-owner uses,
+revalidation after resize or executable replacement, failed-validation retry and retirement rejection.
+Receipts: [generator](../artifacts/ShaderBindingState/validation-reuse/generator-initial.log) and
+[focused validation reuse](../artifacts/ShaderBindingState/validation-reuse/focused-final.log).
+
+Managed resources resolve their current allocation and validity on each use. Raw engine IDs are checked
+once during validation, and their texture slot cache is invalidated before binding because equal IDs
+cannot establish external allocation identity. CPU uniform-block uploads and dirty-state commitment
+remain with `CpuUniformBuffer` and the existing ring allocator, using the prepared binding slot.
+
+[GlStateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/GlStateCache.ResourceSlots.cs)
+adds complete image-view and indexed buffer-range keys to the existing context cache. Cache invalidation,
+immediate and queued deletion, image scopes, buffer texture views and engine terrain buffer binds use
+the same owner. Image/buffer slot bind counts distinguish actual driver calls from cache comparisons.
+No second global cache or texture attachment is introduced.
+
+The former `ShaderBindingSubmission`, `ShaderBindingAccess` and named layout APIs remain compatibility
+adapters for generic catalogs, authored alternate emitters and existing test/engine consumers listed
+below. Generated production resource submission does not call them. Their removal remains subject to
+the planned compatibility review; standalone uniform uploads remain supported.
+
+Executed verification passed the production/offline build, 163 generator tests and 119 focused
+runtime/contract tests with no focused failures or skips. The broader GPU/contracts run passed
+3,031 cases, skipped eight and reproduced one SH9 spatial-lighting failure at yaw 1. An isolated
+export of the pre-change staged sources, supplemented only with existing ignored debug GLSL includes,
+reproduced the same failure without the prepared-submission changes. It remains a pre-existing
+rendering issue rather than evidence of a binding migration regression.
+Receipts: [generator](../artifacts/ShaderBindingState/phase3/generator-final-corrections.log),
+[focused submission](../artifacts/ShaderBindingState/phase3/submission-final-corrections.log),
+[broad GPU/contracts](../artifacts/ShaderBindingState/phase3/gpu-final-corrections.log), and
+[isolated baseline comparison](../artifacts/ShaderBindingState/phase3/baseline-mixed-consumers-retry.log).
+The second source review and independent completion audit passed, covering the linked proposal, activity policy,
+format/view validation, direct publication, context/lifetime boundaries and generated-owner retry.
+
 ## Variant applicability references
 
 The owner table lists program identities. This table separately records every source containing
@@ -216,8 +277,12 @@ GpuTextureBinding already captures resource, access, level, layered/layer and fo
 | Owners and lifetime | Proposal: Generated per-shader state, Submission and GPU state ownership | Runtime/static owner tables, authored getter exceptions, generator/runtime trace and cache/lifetime gaps. These are source findings, not claims of completed runtime changes. |
 | Bounded decisions | Proposal: Contract and prepared executable; equality table; submission rules | Executed offline compiler probes; program-filter alias analysis; explicit history transition contract; mutable-input ownership choices. |
 | Compatibility gate | Proposal: Source responsibilities and migration | Consumer list above identifies paths requiring independent review before removal. No compatibility path is removed by this audit. |
+| Prepared resource publication | Proposal: Activity and missing-resource rules; Submission and GPU state ownership; Validation and completion criteria | RuntimeSubmissionEmitter snapshots once and validates before ShaderPreparedSubmission publishes numeric entries. PreparedSubmissionTests proves fixed array sampling/image writes, format/view validation, optional clearing, retirement, image restoration and cache bind counts. ShaderInputSubmissionTests proves actual generated-owner failure/retry retains CPU dirty work; existing nested graphics/compute tests cover owner restoration. |
 
-The governing task list and approved proposal were consulted together with the PBR scheduling entry. Implementation remains in later tasks; this audit does not claim reduced frame time, linked GPU correctness, or live visual acceptance.
+The governing task list and approved proposal were consulted together with the PBR scheduling entry.
+The occurrence inventory below records the initial migration baseline; implemented behavior and executed
+evidence are recorded above. Remaining state and compatibility work stays in the task list. No measured
+frame-time improvement or live visual acceptance is claimed.
 
 
 The [prepared bindings and generated state proposal](Rendering.ShaderBindingState.Proposal.md) describes

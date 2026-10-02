@@ -62,7 +62,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             Assert.Equal((int)TextureAccess.ReadOnly, imageAccess);
             Assert.Equal((int)SizedInternalFormat.R32ui, imageFormat);
             Assert.Equal(0, imageLevel);
-            Assert.Equal(0, imageLayered);
+            Assert.Equal(1, imageLayered);
             Assert.Equal(0, imageLayer);
             direct.ProgramId = 0;
             GL.ActiveTexture(TextureUnit.Texture7);
@@ -70,7 +70,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.GetInteger(GetPName.TextureBinding3D, out int priorInput);
             shader.Input = input;
-            shader.Output = new(output, Access: TextureAccess.WriteOnly, Format: SizedInternalFormat.R32ui);
+            shader.Output = new(output, Access: TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.R32ui);
             shader.Unused = input;
             GL.GetInteger(GetPName.TextureBinding3D, out int stagedInput);
             Assert.Equal(priorInput, stagedInput);

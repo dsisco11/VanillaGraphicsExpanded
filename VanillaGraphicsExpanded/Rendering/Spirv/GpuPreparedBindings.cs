@@ -9,6 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering.Spirv;
 internal sealed class GpuPreparedBindings
 {
     private readonly Dictionary<int, int> uniformArrays = new();
+    private readonly Dictionary<ulong, Entry> entriesByIdentity = new();
     private readonly Dictionary<int, int> uniformResourceLocations = new();
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> blockIndices = new();
     /// <summary>Describes one contract entry without exposing reflection uniform locations.</summary>
@@ -94,7 +95,13 @@ internal sealed class GpuPreparedBindings
             if (!matched.Contains(resource))
                 throw new InvalidOperationException($"Linked {resource.Kind} slot {resource.Slot} has no binding contract entry.");
         Entries = Array.AsReadOnly(entries.ToArray());
+        foreach (var entry in entries)
+            if (!entriesByIdentity.TryAdd(GpuBindingEntry.Identity(entry.Contract.Kind, entry.Contract.Name), entry))
+                throw new InvalidOperationException("Conflicting generated resource identities.");
     }
+
+    /// <summary>Selects prepared activity by generated numeric identity; excluded variant inputs remain inactive.</summary>
+    internal Entry Resolve(ulong identity) => entriesByIdentity.GetValueOrDefault(identity);
 
     /// <summary>Checks legacy numeric uniform metadata without exposing reflection locations in resource entries.</summary>
     internal bool ContainsUniformLocation(int location)

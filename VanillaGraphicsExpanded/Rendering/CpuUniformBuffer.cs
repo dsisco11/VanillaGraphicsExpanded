@@ -222,6 +222,18 @@ public abstract class CpuUniformBuffer : IDisposable
         return false;
     }
 
+    /// <summary>Uploads through the existing ring to a preparation-validated slot, committing dirty work only on success.</summary>
+    internal bool TryBindToSlot(int slot)
+    {
+        if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) return false;
+        var allocation = ring.AllocateAndWrite(Bytes);
+        allocation.Buffer.BindRange(slot, allocation.OffsetBytes, allocation.SizeBytes);
+        isDirty = false;
+        dirtyStartBytes = int.MaxValue;
+        dirtyEndExclusiveBytes = 0;
+        return true;
+    }
+
     /// <summary>Releases the CPU-only buffer contract; no GPU resources are owned.</summary>
     public void Dispose()
     {

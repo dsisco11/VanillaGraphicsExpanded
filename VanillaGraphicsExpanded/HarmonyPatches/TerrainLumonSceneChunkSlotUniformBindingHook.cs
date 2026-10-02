@@ -3,6 +3,7 @@ using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 
 using System;
+using VanillaGraphicsExpanded.Rendering;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -116,7 +117,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                 int bufferId = LumOnTerrainBridgeUboState.BufferId;
                 if (bufferId != 0)
                 {
-                    GL.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
+                    GlStateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
                 }
             }
             // Compute passes reuse the Object binding; a version check alone cannot restore it.

@@ -105,7 +105,7 @@ Phase 2: Prepare immutable bindings for each executable
 Phase 3: Submit resources through prepared slots
   Depends on Phase 2. Outcome: normal fixed-slot publication no longer resolves uniform locations.
 
-  ☐ Change generated submission and rendering APIs to consume prepared entries directly.
+  ☑ Change generated submission and rendering APIs to consume prepared entries directly.
     - Snapshot each source once and validate the complete active set before publishing any bindings.
     - Skip inactive entries. Reject missing/retired required active resources. Clear invalid or absent
       optional active resources through established abstractions, including buffer bindings.
@@ -114,17 +114,24 @@ Phase 3: Submit resources through prepared slots
     - Remove the normal fixed-slot path's dependence on ActiveUniform, name/location resolution,
       TryBindSamplerTextureActive and ApplyUniformUnitContract. Keep only justified adapter consumers
       until their replacement is reviewed; do not remove ordinary uniform upload support.
-  ☐ Resolve current resource validity and allocation identity even when wrapper references match.
+  ☑ Resolve current resource validity and allocation identity even when wrapper references match.
     - Reuse owner generations/notifications and cache invalidation; cover raw ID retirement/reuse.
     - Preserve UBO owner-controlled uploads and content-only texture updates independently of binding
       reference changes. Do not add a second global binding cache or unconditional redundant queries.
-  ☐ Verify offline fixtures read/write expected data at sampler/image slots without authored location
+  ☑ Verify offline fixtures read/write expected data at sampler/image slots without authored location
     descriptors/attributes, and verify required failure, optional clearing and inactive-resource skips.
     - Prove a failed validation publishes no partial input set; retry retains pending upload work.
     - Prove A-to-B-to-A restores shared texture/image/buffer slots and retirement cannot reuse stale data.
-  ☐ Gate: fixed-slot submission performs no executable reflection or name/location lookup; a context
+  ☑ Gate: fixed-slot submission performs no executable reflection or name/location lookup; a context
     cache comparison remains permitted and necessary when unchanged local state must restore a binding.
 
+  Verification: production/offline build passed; 163 generator and 119 focused runtime/contract
+  tests passed with no focused failures or skips. Broad GPU/contracts passed 3,031 cases with
+  eight skips and one SH9 spatial-lighting failure reproduced in an isolated pre-change baseline.
+  Second source review and independent audit-stage-completion passed; the baseline rendering
+  failure remains documented separately from this binding migration. Evidence:
+  artifacts/ShaderBindingState/phase3/generator-final-corrections.log,
+  submission-final-corrections.log, gpu-final-corrections.log and baseline-mixed-consumers-retry.log.
 Phase 4: Complete generated state and successful uniform publication tracking
   Depends on Phase 3. Outcome: all shader owners retain correct inputs and skip redundant value work.
 

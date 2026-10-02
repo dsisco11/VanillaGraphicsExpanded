@@ -10,6 +10,7 @@ internal sealed partial class GlStateCache
     public void DeleteTexture(int textureId)
     {
         GL.DeleteTexture(textureId);
+        InvalidateImageTexture(textureId);
         if (textureId == 0 || textureBindingsByUnit == null) return;
 
         // Upload scopes restore cached bindings. A deleted name must become zero before

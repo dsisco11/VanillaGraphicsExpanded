@@ -1358,7 +1358,7 @@ public class GpuProgramLayout
             return false;
         }
 
-        GL.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        GlStateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
         return true;
     }
 
@@ -1394,7 +1394,7 @@ public class GpuProgramLayout
             return false;
         }
 
-        GL.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        GlStateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
         return true;
     }
 

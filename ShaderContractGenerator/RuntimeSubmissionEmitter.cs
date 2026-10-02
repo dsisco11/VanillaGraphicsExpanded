@@ -65,6 +65,8 @@ internal static class RuntimeSubmissionEmitter
     public static string EmitProperties(INamedTypeSymbol owner)
     {
         var text = new StringBuilder();
+        foreach (var property in Resources(owner))
+            text.Append("private global::VanillaGraphicsExpanded.Rendering.ShaderInputValidation __validation_").Append(property.Name).Append(";\n");
         var stateful = Resources(owner).Where(IsStateful).ToArray();
         if (stateful.Length != 0)
         {
@@ -128,6 +130,9 @@ internal static class RuntimeSubmissionEmitter
                 ? (IsStateful(property) ? "__activeState." + property.Name : Field(property))
                 : "((" + property.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")this)." + property.Name;
             text.Append("var input").Append(i).Append(" = ").Append(source).Append(";\n");
+            var declaration = Attributes(property, "ShaderBinding").Single();
+            ulong identity = GpuBindingEntry.Identity(BindingReader.ReadKind(declaration), Text(declaration, 0));
+            text.Append("var binding").Append(i).Append(" = __validation_").Append(property.Name).Append(".Resolve(this, ").Append(identity).Append("UL);\n");
         }
         foreach (bool validate in new[] { true, false })
             for (int i = 0; i < resources.Length; i++)
@@ -135,21 +140,18 @@ internal static class RuntimeSubmissionEmitter
                 var property = resources[i];
                 var attr = Attributes(property, "ShaderBinding").Single();
                 var kind = BindingReader.ReadKind(attr);
-                text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderBindingSubmission.").Append(validate ? "Validate" : "").Append(kind)
-                    .Append("(this, ").Append(Quote(Text(attr, 0))).Append(", ");
-                if (validate) text.Append(Named(attr, "Required").Value is false ? "false, " : "true, ");
+                if (validate && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32)
+                    text.Append("input").Append(i).Append(" = ");
+                text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderPreparedSubmission.").Append(validate ? "Validate" : "").Append(kind)
+                    .Append("(binding").Append(i).Append(", ");
                 // Select the managed-resource overload even when a concrete texture also converts to an engine ID.
                 if (kind == ShaderBindingKind.Sampler && property.Type.SpecialType != SpecialType.System_Int32)
                     text.Append("(global::VanillaGraphicsExpanded.Rendering.GpuTexture?)");
                 text.Append("input").Append(i);
-                if (!validate && kind == ShaderBindingKind.Sampler)
-                {
-                    if (NamedEnum(attr, "TextureTarget") is { } target)
-                        text.Append(", target: ").Append(Literal(target));
-                    if (NamedEnum(attr, "Sampler") is { } sampler)
-                        text.Append(", sampler: ").Append(Literal(sampler));
-                }
-                if (kind == ShaderBindingKind.AtomicCounter) text.Append(", ").Append(Argument(attr, 2).Value);
+                if (validate && (kind == ShaderBindingKind.Image ||
+                    (kind == ShaderBindingKind.Sampler && property.Type.SpecialType != SpecialType.System_Int32) ||
+                    (kind == ShaderBindingKind.StorageBlock && property.Type.IsValueType)))
+                    text.Append(", ref __validation_").Append(property.Name);
                 text.Append(");\n");
             }
         return text.Append("}\n#endregion\n").ToString();

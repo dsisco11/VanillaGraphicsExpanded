@@ -17,6 +17,45 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     public ShaderInputSubmissionTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Public API
+    /// <summary>Generated validation leaves all bindings and CPU dirty work untouched until a missing required input is corrected.</summary>
+    [Fact]
+    public void RequiredInputFailureRetainsPendingBlockForRetry()
+    {
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        using var previous = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var desired = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var ring = new GpuUniformRingBuffer(4096, 1, false);
+        ring.BeginFrame(0);
+        GpuUniformRingSystem.SetCurrent(ring);
+        try
+        {
+            var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+            shader.SrcMip = 1;
+            var parameters = (CpuUniformBuffer)typeof(LumOnHzbDownsampleShaderProgram)
+                .GetField("paramsUbo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
+            GlStateCache.Current.BindTexture(TextureTarget.Texture2D, 0, previous.TextureId);
+            Assert.False(shader.TryUse());
+            Assert.True(parameters.IsDirty);
+            Assert.Equal(0, ring.AllocationsWritten);
+            Assert.True(GlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int retained));
+            Assert.Equal(previous.TextureId, retained);
+            shader.HzbDepth = desired;
+            using (shader.UseScope())
+            {
+                Assert.False(parameters.IsDirty);
+                Assert.Equal(1, ring.AllocationsWritten);
+                Assert.True(GlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int published));
+                Assert.Equal(desired.TextureId, published);
+            }
+            using (shader.UseScope()) { }
+            var validation = (ShaderInputValidation)typeof(LumOnHzbDownsampleShaderProgram)
+                .GetField("__validation_HzbDepth", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
+            Assert.Equal(1, validation.EntryResolutions);
+            Assert.Equal(1, validation.CompatibilityChecks);
+        }
+        finally { GpuUniformRingSystem.ClearCurrent(); }
+    }
     /// <summary>Each HZB draw publishes one source mip and retains resource edits until that draw.</summary>
     [Theory]
     [InlineData(false)]
