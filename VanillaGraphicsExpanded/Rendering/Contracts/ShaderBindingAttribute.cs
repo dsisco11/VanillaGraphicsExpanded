@@ -20,5 +20,7 @@ internal sealed class ShaderBindingAttribute : Attribute
     public ShaderTextureTarget TextureTarget { get; set; } = ShaderTextureTarget.Texture2D;
     /// <summary>Selects a shared sampler policy: NearestClamp, LinearClamp or ShadowCompareLinearClamp.</summary>
     public ShaderSamplerPolicy Sampler { get; set; }
+    /// <summary>Maps a sampler or image name to its explicit SPIR-V uniform location when names are unavailable at runtime.</summary>
+    public int UniformLocation { get; set; } = -1;
     #endregion
 }

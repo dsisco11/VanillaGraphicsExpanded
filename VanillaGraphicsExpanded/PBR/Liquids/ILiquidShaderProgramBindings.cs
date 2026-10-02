@@ -19,26 +19,20 @@ internal interface ILiquidShaderProgramBindings
     [ShaderBinding("VgeLiquidWaveParams", ShaderBindingKind.UniformBlock, 15, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer WaveParameters { get; }
     /// <summary>Declares the terrainTex Sampler slot.</summary>
-    [ShaderBinding("terrainTex", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.Default)]
+    [ShaderBinding("terrainTex", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.Default, UniformLocation = 100)]
     int TerrainTexture { set; }
     /// <summary>Declares the depthTex Sampler slot.</summary>
-    [ShaderBinding("depthTex", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    [ShaderBinding("depthTex", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, UniformLocation = 101)]
     int DepthTexture { set; }
     /// <summary>Declares the vge_materialParamsTex Sampler slot.</summary>
-    [ShaderBinding("vge_materialParamsTex", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    [ShaderBinding("vge_materialParamsTex", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, UniformLocation = 102)]
     Texture2D? MaterialParamsTexture { set; }
     /// <summary>Declares the optional current-generation medium index image.</summary>
-    [ShaderBinding("vge_waterMediumIndices", ShaderBindingKind.Sampler, 7, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    [ShaderBinding("vge_waterMediumIndices", ShaderBindingKind.Sampler, 7, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, UniformLocation = 103, Required = false)]
     Texture2D? WaterMediumIndicesTexture { set; }
     /// <summary>Declares the optional current-generation coefficient table.</summary>
-    [ShaderBinding("vge_waterMediumRecords", ShaderBindingKind.Sampler, 8, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    [ShaderBinding("vge_waterMediumRecords", ShaderBindingKind.Sampler, 8, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, UniformLocation = 104, Required = false)]
     Texture2D? WaterMediumRecordsTexture { set; }
-    /// <summary>Declares the medium index sampler uniform location.</summary>
-    [ShaderBinding("vge_waterMediumIndices", ShaderBindingKind.UniformLocation, 103, ShaderStageKind.Fragment)]
-    ShaderUniformLocationBinding WaterMediumIndicesLocation { get; }
-    /// <summary>Declares the medium table sampler uniform location.</summary>
-    [ShaderBinding("vge_waterMediumRecords", ShaderBindingKind.UniformLocation, 104, ShaderStageKind.Fragment)]
-    ShaderUniformLocationBinding WaterMediumRecordsLocation { get; }
     /// <summary>Declares the shadowMapNear Sampler slot.</summary>
     [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
     int ShadowMapNear { set; }
@@ -51,14 +45,5 @@ internal interface ILiquidShaderProgramBindings
     /// <summary>Declares the vge_atmosphereAerialAttenuation Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.Default)]
     DynamicTexture3D? AerialAttenuationTexture { set; }
-    /// <summary>Declares the terrainTex UniformLocation slot.</summary>
-    [ShaderBinding("terrainTex", ShaderBindingKind.UniformLocation, 100, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    ShaderUniformLocationBinding TerrainTexLocation { get; }
-    /// <summary>Declares the depthTex UniformLocation slot.</summary>
-    [ShaderBinding("depthTex", ShaderBindingKind.UniformLocation, 101, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    ShaderUniformLocationBinding DepthTexLocation { get; }
-    /// <summary>Declares the vge_materialParamsTex UniformLocation slot.</summary>
-    [ShaderBinding("vge_materialParamsTex", ShaderBindingKind.UniformLocation, 102, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    ShaderUniformLocationBinding MaterialParamsTexLocation { get; }
     #endregion
 }

@@ -467,6 +467,7 @@ Tasks
       solely to remember or rediscover previous CPU binding data. List each occurrence with its shader,
       resource contract, current runtime consumer and reason it exists. Distinguish locations genuinely
       required by shader data from redundant sampler-location bookkeeping introduced for CPU state checks.
+      Record the audit in `docs/Rendering.ShaderBindingState.md` before removing declarations.
     - Replace redundant sampler uniform-location declarations with contract-derived resource state and
       fixed sampler-unit metadata. Retain explicit locations only where the shader genuinely needs CPU
       uniform writes or a supported fallback requires them; update SPIR-V contracts and runtime lookup so

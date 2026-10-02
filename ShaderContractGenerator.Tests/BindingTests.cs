@@ -69,6 +69,24 @@ public sealed class BindingTests
         GeneratorFixture.Generate(source, true).Compile();
     }
 
+    /// <summary>A sampler can own its SPIR-V location without requiring a duplicate descriptor property.</summary>
+    [Fact]
+    public void SamplerUniformLocationIsPartOfItsResourceContract()
+    {
+        string source = """
+            interface IBindings
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute, UniformLocation = 29)]
+                ShaderSamplerBinding Source { get; }
+            }
+            """ + Compute.Replace("FIELDS", "").Replace("[ShaderProgram", "[ShaderBindingSet(typeof(IBindings))]\n[ShaderProgram") + """
+            public static class Proof { public static string Run() => Shader.Contract.Stages[0].Bindings.Samplers["source"].Slot + ":"
+                + Shader.Contract.Stages[0].Bindings.UniformLocations["source"]; }
+            """;
+        Assert.Equal("3:29", GeneratorFixture.Generate(source).Run());
+        GeneratorFixture.Generate(source, true).Compile();
+    }
+
     /// <summary>Legacy class attributes and class imports cannot reintroduce competing binding ownership.</summary>
     [Theory]
     [InlineData("[ShaderBinding(\"source\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] private static partial ShaderSamplerBinding Source { get; }")]

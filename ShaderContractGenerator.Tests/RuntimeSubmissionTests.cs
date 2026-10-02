@@ -229,6 +229,46 @@ public sealed class RuntimeSubmissionTests
         Assert.True(calls.IndexOf("validate-storage;", StringComparison.Ordinal) < calls.IndexOf(";sampler;", StringComparison.Ordinal));
     }
 
+    /// <summary>Generated shader state owns every non-UBO resource and ignores equal reassignment.</summary>
+    [Fact]
+    public void GeneratedStateRetainsNonUboBindingsAndSkipsEqualAssignments()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment)]
+                VanillaGraphicsExpanded.Rendering.GpuTexture Source { get; set; }
+                [ShaderBinding("Output", ShaderBindingKind.Image, 1, ShaderStageKind.Fragment)]
+                VanillaGraphicsExpanded.Rendering.GpuTexture Output { get; set; }
+                [ShaderBinding("Params", ShaderBindingKind.UniformBlock, 6, ShaderStageKind.Fragment)]
+                VanillaGraphicsExpanded.Rendering.CpuUniformBuffer Params { get; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs
+            {
+                public VanillaGraphicsExpanded.Rendering.CpuUniformBuffer Params { get; } = new();
+            }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader();
+                    var source = new VanillaGraphicsExpanded.Rendering.GpuTexture();
+                    shader.Source = source; shader.Source = source;
+                    shader.Output = source; shader.Output = source;
+                    return object.ReferenceEquals(shader.Source, source) + ":" + object.ReferenceEquals(shader.Output, source);
+                }
+            }
+            """;
+        var result = GeneratorFixture.Generate(source, supportSource: Support);
+        Assert.Equal("True:True", result.Run());
+        string generated = Assert.Single(result.Generated, text => text.Contains("private struct ShaderState", StringComparison.Ordinal));
+        Assert.Contains("GpuTexture Source = default!;", generated, StringComparison.Ordinal);
+        Assert.Contains("GpuTexture Output = default!;", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("CpuUniformBuffer Params;", generated, StringComparison.Ordinal);
+        Assert.Contains("EqualityComparer<global::VanillaGraphicsExpanded.Rendering.GpuTexture>.Default.Equals", generated, StringComparison.Ordinal);
+    }
+
     /// <summary>An authored write-only resource cannot supply retained state to generated publication.</summary>
     [Fact]
     public void AuthoredWriteOnlyBindingIsRejected()

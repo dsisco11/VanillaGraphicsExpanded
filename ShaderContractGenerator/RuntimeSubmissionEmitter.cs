@@ -61,10 +61,20 @@ internal static class RuntimeSubmissionEmitter
     #endregion
 
     #region Emission
-    /// <summary>Emits storage only for generated resource accessors, preserving authored source getters.</summary>
+    /// <summary>Emits the shader-owned retained state and generated resource accessors.</summary>
     public static string EmitProperties(INamedTypeSymbol owner)
     {
         var text = new StringBuilder();
+        var stateful = Resources(owner).Where(IsStateful).ToArray();
+        if (stateful.Length != 0)
+        {
+            text.Append("/// <summary>Retains non-UBO binding inputs for this shader instance.</summary>\n")
+                .Append("private struct ").Append(StateName(owner)).Append("\n{\n");
+            foreach (var property in stateful)
+                text.Append("internal ").Append(TypeName(property)).Append(' ').Append(property.Name).Append(" = default!;\n");
+            text.Append("public ").Append(StateName(owner)).Append("() { }\n}\nprivate ")
+                .Append(StateName(owner)).Append(" __activeState;\n");
+        }
         foreach (var property in InterfaceBindingReader.Properties(owner))
         {
             var implementation = InterfaceBindingReader.Implementation(owner, property);
@@ -87,11 +97,19 @@ internal static class RuntimeSubmissionEmitter
                     .Append(", ").Append(Named(attr, "Required").Value is false ? "false" : "true").Append(");\n");
                 continue;
             }
-            text.Append("private ").Append(type).Append(' ').Append(Field(property)).Append(" = default!;\n")
-                .Append("/// <summary>Retains the declared input until the next shader use.</summary>\n")
+            bool statefulProperty = IsStateful(property);
+            if (!statefulProperty)
+                text.Append("private ").Append(type).Append(' ').Append(Field(property)).Append(" = default!;\n");
+            text.Append("/// <summary>Retains the declared input until the next shader use.</summary>\n")
                 .Append(modifiers).Append(' ').Append(type).Append(' ').Append(member).Append(" { ");
-            if (property.GetMethod != null) text.Append("get => ").Append(Field(property)).Append("; ");
-            if (property.SetMethod != null) text.Append("set { RequireInputMutation(); ").Append(Field(property)).Append(" = value; } ");
+            string storage = statefulProperty ? "__activeState." + property.Name : Field(property);
+            if (property.GetMethod != null) text.Append("get => ").Append(storage).Append("; ");
+            if (property.SetMethod != null)
+            {
+                text.Append("set { RequireInputMutation(); if (global::System.Collections.Generic.EqualityComparer<")
+                    .Append(type).Append(">.Default.Equals(").Append(storage).Append(", value)) return; ")
+                    .Append(storage).Append(" = value; } ");
+            }
             text.Append("}\n");
         }
         return text.ToString();
@@ -107,7 +125,8 @@ internal static class RuntimeSubmissionEmitter
         {
             var property = resources[i];
             string source = InterfaceBindingReader.NeedsImplementation(InterfaceBindingReader.Implementation(owner, property))
-                ? Field(property) : "((" + property.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")this)." + property.Name;
+                ? (IsStateful(property) ? "__activeState." + property.Name : Field(property))
+                : "((" + property.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")this)." + property.Name;
             text.Append("var input").Append(i).Append(" = ").Append(source).Append(";\n");
         }
         foreach (bool validate in new[] { true, false })
@@ -143,6 +162,13 @@ internal static class RuntimeSubmissionEmitter
     private static IEnumerable<IPropertySymbol> Resources(INamedTypeSymbol owner) => InterfaceBindingReader.Properties(owner).Where(p => !IsDescriptor(p));
     /// <summary>Recognizes descriptor properties by their contract namespace.</summary>
     private static bool IsDescriptor(IPropertySymbol property) => property.Type.ToDisplayString().StartsWith(Prefix, StringComparison.Ordinal);
+    /// <summary>Excludes UBO sources because their owners already retain mutable upload state.</summary>
+    private static bool IsStateful(IPropertySymbol property) => !IsDescriptor(property) &&
+        BindingReader.ReadKind(Attributes(property, "ShaderBinding").Single()) != ShaderBindingKind.UniformBlock;
+    /// <summary>Builds a stable nested state type name from the concrete shader owner.</summary>
+    private static string StateName(INamedTypeSymbol owner) => owner.Name + "State";
+    /// <summary>Formats nullable resource types consistently for generated state fields.</summary>
+    private static string TypeName(IPropertySymbol property) => property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier));
     /// <summary>Uses a reserved generated prefix to keep storage independent of public member names.</summary>
     private static string Field(IPropertySymbol property) => "__submitted_" + property.Name;
     #endregion

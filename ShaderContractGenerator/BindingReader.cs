@@ -97,7 +97,9 @@ internal static class BindingReader
             if (group.Count() > 1) throw new ArgumentException($"Conflicting resource kinds for '{group.Key}' in '{program}'/{stage}.");
         var model = new GpuBindingContract();
         foreach (var slot in selected.Values) Apply(model, slot);
-        string expression = "new GpuBindingContract { " + string.Join(", ", selected.Values.GroupBy(s => Map(s.Kind)).OrderBy(g => g.Key, StringComparer.Ordinal)
+        var emitted = selected.Values.Concat(selected.Values.Where(s => s.UniformLocation >= 0)
+            .Select(s => s with { Kind = ShaderBindingKind.UniformLocation, Index = s.UniformLocation }));
+        string expression = "new GpuBindingContract { " + string.Join(", ", emitted.GroupBy(s => Map(s.Kind)).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => g.Key + " = { " + string.Join(", ", g.OrderBy(s => s.Name, StringComparer.Ordinal).Select(s =>
                 "{ " + Quote(s.Name) + ", " + (s.Kind is ShaderBindingKind.UniformLocation or ShaderBindingKind.VaryingLocation or ShaderBindingKind.FragmentOutputLocation ? s.Index.ToString() : $"new GpuBindingContract.Binding({s.Index}, {s.Required.ToString().ToLowerInvariant()})") + " }")) + " }")) + " }";
         return (model, expression);
@@ -186,6 +188,10 @@ internal static class BindingReader
         var kind = ReadKind(attribute);
         _ = NamedEnum(attribute, "TextureTarget");
         _ = NamedEnum(attribute, "Sampler");
+        var declaredLocation = Named(attribute, "UniformLocation");
+        int uniformLocation = declaredLocation.IsNull ? -1 : (int)declaredLocation.Value!;
+        if (uniformLocation < -1 || (uniformLocation >= 0 && kind is not (ShaderBindingKind.Sampler or ShaderBindingKind.Image)))
+            throw new ArgumentException($"Binding property '{property.Name}' has an invalid UniformLocation.");
         var stages = Argument(attribute, 3).Values.Select(v => (ShaderStageKind)(int)v.Value!).ToArray();
         if (stages.Length == 0 || stages.Distinct().Count() != stages.Length || stages.Any(s => !Enum.IsDefined(typeof(ShaderStageKind), s)))
             throw new ArgumentException($"Binding property '{property.Name}' requires distinct explicit stages.");
@@ -196,7 +202,7 @@ internal static class BindingReader
         if (!programs.IsNull && targets.Length == 0 || targets.Distinct(StringComparer.Ordinal).Count() != targets.Length)
             throw new ArgumentException($"Binding property '{property.Name}' requires distinct program members.");
         foreach (string target in targets) ShaderContractNames.ValidateIdentifier(target);
-        return new(property, name, kind, index, Named(attribute, "Required").Value is not false, targets, stages);
+        return new(property, name, kind, index, uniformLocation, Named(attribute, "Required").Value is not false, targets, stages);
     }
 
     /// <summary>Maps declaration kinds to the shared model's independent dictionaries.</summary>
@@ -222,14 +228,20 @@ internal static class BindingReader
             case ShaderBindingKind.VaryingLocation: model.VaryingLocations.Add(slot.Name, slot.Index); break;
             case ShaderBindingKind.FragmentOutputLocation: model.FragmentOutputLocations.Add(slot.Name, slot.Index); break;
             case ShaderBindingKind.AtomicCounter: model.AtomicCounters.Add(slot.Name, new(slot.Index, slot.Required)); break;
-            case ShaderBindingKind.Sampler: model.RegisterSamplerUnit(slot.Name, slot.Index, slot.Required); break;
-            case ShaderBindingKind.Image: model.RegisterImageUnit(slot.Name, slot.Index, slot.Required); break;
+            case ShaderBindingKind.Sampler:
+                model.RegisterSamplerUnit(slot.Name, slot.Index, slot.Required);
+                if (slot.UniformLocation >= 0) model.UniformLocations.Add(slot.Name, slot.UniformLocation);
+                break;
+            case ShaderBindingKind.Image:
+                model.RegisterImageUnit(slot.Name, slot.Index, slot.Required);
+                if (slot.UniformLocation >= 0) model.UniformLocations.Add(slot.Name, slot.UniformLocation);
+                break;
             case ShaderBindingKind.UniformBlock: model.RegisterUniformBlockBinding(slot.Name, slot.Index, slot.Required); break;
             case ShaderBindingKind.StorageBlock: model.RegisterShaderStorageBlockBinding(slot.Name, slot.Index, slot.Required); break;
         }
     }
 
     /// <summary>Contains one validated slot and its explicit consumer applicability.</summary>
-    private sealed record Slot(IPropertySymbol Property, string Name, ShaderBindingKind Kind, int Index, bool Required, string[] Programs, ShaderStageKind[] Stages);
+    private sealed record Slot(IPropertySymbol Property, string Name, ShaderBindingKind Kind, int Index, int UniformLocation, bool Required, string[] Programs, ShaderStageKind[] Stages);
     #endregion
 }
