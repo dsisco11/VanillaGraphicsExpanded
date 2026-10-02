@@ -26,20 +26,20 @@ Goal and shared constraints
 
 Implementation decisions to resolve with evidence
   These are bounded choices within the approved design, not requests to reopen its architecture.
-  ☐ Determine whether the offline compiler requires sampler/image numeric locations. If required,
+  ☑ Determine whether the offline compiler requires sampler/image numeric locations. If required,
     allocate them deterministically as private compiler metadata with collision checks; otherwise
     remove unnecessary qualifiers. Neither result permits authored location properties for submission.
-  ☐ Identify whether existing consumers require binding aliases. Reject ambiguous overlaps unless
+  ☑ Identify whether existing consumers require binding aliases. Reject ambiguous overlaps unless
     an existing supported alias is explicitly represented and validated; do not add speculative aliases.
-  ☐ Choose per-executable successful uniform history or conservative invalidation on variant switches.
+  ☑ Choose per-executable successful uniform history or conservative invalidation on variant switches.
     Record the choice and prove first-use, switching, replacement and external-write behavior.
-  ☐ Inventory mutable inputs and select owned snapshots or explicit content revisions for each.
+  ☑ Inventory mutable inputs and select owned snapshots or explicit content revisions for each.
     Identify missing resource/cache lifecycle notifications before adding new tracking mechanisms.
 
 Phase 1: Complete the contract and consumer inventory
   Outcome: every affected declaration and runtime consumer has a justified migration path.
 
-  ☐ Expand docs/Rendering.ShaderBindingState.md into an occurrence-level audit.
+  ☑ Expand docs/Rendering.ShaderBindingState.md into an occurrence-level audit.
     - List every UniformLocation descriptor, inline sampler/image location, and suspected extra
       uniform used for CPU bookkeeping, including shared declarations and affected shader variants.
     - Record each resource contract, current runtime consumer, actual purpose and removal/retention
@@ -47,15 +47,21 @@ Phase 1: Complete the contract and consumer inventory
       characterize all shared locations as redundant or invent extra shader uniforms.
     - Include ordinary standalone uniform writes, arrays, indexed engine uniform dictionaries,
       external shader APIs and any compatibility dependence on sampler/image locations.
-  ☐ Inventory generated and authored properties, specialized Submit overrides and concrete graphics
+  ☑ Inventory generated and authored properties, specialized Submit overrides and concrete graphics
     and compute owners. Identify gaps in the existing partial state generator and submission path.
     - Trace GpuProgramInterface, GpuProgramLayout, ShaderBindingSubmission, RuntimeSubmissionEmitter,
       BindingReader, ShaderBindingAttribute and ShaderBuildTool source layout/artifact consumers.
     - Record resource recreation/retirement, external engine writes and GlStateCache invalidation
       boundaries; include buffer ranges, image views, raw IDs and mutable scalar/vector/matrix inputs.
-  ☐ Resolve the bounded implementation decisions above and record evidence before dependent edits.
-  ☐ Gate: the audit accounts for every affected owner and declaration, and identifies compatibility
+  ☑ Resolve the bounded implementation decisions above and record evidence before dependent edits.
+  ☑ Gate: the audit accounts for every affected owner and declaration, and identifies compatibility
     paths needing independent review before removal. No location removal relies on blanket counts.
+
+  Completion evidence: docs/Rendering.ShaderBindingState.md contains the occurrence/owner/variant
+  inventory, compatibility boundaries and bounded design decisions. Second review and independent
+  audit-stage-completion passed after correcting inherited compute labels and variant traceability.
+  Offline compiler probes: six sampler/image/array successes and two expected ordinary-uniform
+  failures across Debug/Release. Runtime implementation and its executable validation remain below.
 
 Phase 2: Prepare immutable bindings for each executable
   Depends on Phase 1. Outcome: validated executable metadata can drive direct slot submission.
