@@ -6,10 +6,15 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
+/// <summary>Owns pipeline attachment instances and the framebuffers that borrow their images.</summary>
 internal sealed class PbrLumOnPipelineTargets : IDisposable
 {
     private bool _isDisposed;
+    private readonly GpuResourceCollection _resources = new();
 
+    #region Public API
+    #region Construction
+    /// <summary>Allocates owning attachments and framebuffer bindings for the complete lighting pipeline.</summary>
     public PbrLumOnPipelineTargets()
     {
         int screenW = LumOnTestInputFactory.ScreenWidth;
@@ -24,104 +29,108 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         int atlasW = LumOnTestInputFactory.OctahedralAtlasWidth;
         int atlasH = LumOnTestInputFactory.OctahedralAtlasHeight;
 
-        // PBR Direct MRT outputs
-        DirectLightingMrt = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectDiffuse"),
-                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectSpecular"),
-                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Emissive"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.PbrDirectMrt"));
+        // Reclaim every completed allocation if later target creation fails.
+        try
+        {
+            // PBR Direct MRT outputs
+            DirectLightingMrt = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectDiffuse")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectSpecular")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Emissive")),
+                },
+                depth: null,
+                debugName: "Test.PbrDirectMrt"));
 
-        // Velocity (RGBA32F)
-        Velocity = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba32f, debugName: "Test.Velocity"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.VelocityFbo"));
+            // Velocity (RGBA32F)
+            Velocity = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba32f, debugName: "Test.Velocity")),
+                },
+                depth: null,
+                debugName: "Test.VelocityFbo"));
 
-        // HZB depth pyramid: 4x4 -> 2x2 -> 1x1
-        Hzb = new HzbTestPyramid(screenW, screenH, mipLevels: 3);
+            // HZB depth pyramid: 4x4 -> 2x2 -> 1x1
+            Hzb = new HzbTestPyramid(screenW, screenH, mipLevels: 3);
 
-        // Probe anchors (2x2)
-        ProbeAnchor = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition"),
-                DynamicTexture2D.Create(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorNormal"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.ProbeAnchorMrt"));
+            // Probe anchors (2x2)
+            ProbeAnchor = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition")),
+                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorNormal")),
+                },
+                depth: null,
+                debugName: "Test.ProbeAnchorMrt"));
 
-        // Atlas MRTs (16x16): radiance RGBA16F + meta RG32F
-        AtlasTrace = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance"),
-                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTraceMeta"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.AtlasTraceMrt"));
+            // Atlas MRTs (16x16): radiance RGBA16F + meta RG32F
+            AtlasTrace = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTraceMeta")),
+                },
+                depth: null,
+                debugName: "Test.AtlasTraceMrt"));
 
-        AtlasTemporal = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance"),
-                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTemporalMeta"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.AtlasTemporalMrt"));
+            AtlasTemporal = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTemporalMeta")),
+                },
+                depth: null,
+                debugName: "Test.AtlasTemporalMrt"));
 
-        AtlasFiltered = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance"),
-                DynamicTexture2D.Create(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasFilteredMeta"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.AtlasFilteredMrt"));
+            AtlasFiltered = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasFilteredMeta")),
+                },
+                depth: null,
+                debugName: "Test.AtlasFilteredMrt"));
 
-        // Gather output (half-res)
-        IndirectHalf = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(halfW, halfH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectHalf"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.IndirectHalfFbo"));
+            // Gather output (half-res)
+            IndirectHalf = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(halfW, halfH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectHalf")),
+                },
+                depth: null,
+                debugName: "Test.IndirectHalfFbo"));
 
-        // Upsample output (full-res)
-        IndirectFull = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectFull"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.IndirectFullFbo"));
+            // Upsample output (full-res)
+            IndirectFull = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectFull")),
+                },
+                depth: null,
+                debugName: "Test.IndirectFullFbo"));
 
-        // Final composite output
-        Composite = RequireGBuffer(GpuFramebuffer.CreateMRT(
-            new[]
-            {
-                DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Composite"),
-            },
-            depthTexture: null,
-            ownsTextures: true,
-            debugName: "Test.CompositeFbo"));
+            // Final composite output
+            Composite = _resources.Own(GpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Composite")),
+                },
+                depth: null,
+                debugName: "Test.CompositeFbo"));
+        }
+        catch
+        {
+            try { Hzb?.Dispose(); }
+            finally { _resources.Dispose(); }
+            throw;
+        }
     }
 
+    #endregion
+
+    #region Targets
     public GpuFramebuffer DirectLightingMrt { get; }
 
     public GpuFramebuffer Velocity { get; }
@@ -142,6 +151,10 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
 
     public GpuFramebuffer Composite { get; }
 
+    #endregion
+
+    #region Cleanup
+    /// <summary>Retires framebuffers and queues owned attachment storage for fixture cleanup.</summary>
     public void Dispose()
     {
         if (_isDisposed)
@@ -151,25 +164,11 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
 
         _isDisposed = true;
 
-        DirectLightingMrt.Dispose();
-        Velocity.Dispose();
-        Hzb.Dispose();
-        ProbeAnchor.Dispose();
-        AtlasTrace.Dispose();
-        AtlasTemporal.Dispose();
-        AtlasFiltered.Dispose();
-        IndirectHalf.Dispose();
-        IndirectFull.Dispose();
-        Composite.Dispose();
+        // The collection retires FBOs first, then queues their owned attachment storage.
+        try { Hzb.Dispose(); }
+        finally { _resources.Dispose(); }
     }
 
-    private static GpuFramebuffer RequireGBuffer(GpuFramebuffer? gBuffer)
-    {
-        if (gBuffer == null)
-        {
-            throw new InvalidOperationException("Failed to allocate required test GBuffer");
-        }
-
-        return gBuffer;
-    }
+    #endregion
+    #endregion
 }

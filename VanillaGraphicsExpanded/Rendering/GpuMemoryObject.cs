@@ -12,10 +12,11 @@ internal sealed class GpuMemoryObject : GpuResource, IDisposable
 {
     private int memoryObjectId;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => memoryObjectId;
-        set => memoryObjectId = (int)value;
+        protected set => memoryObjectId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.MemoryObject;

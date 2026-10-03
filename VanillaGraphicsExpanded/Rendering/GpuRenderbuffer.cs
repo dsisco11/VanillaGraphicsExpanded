@@ -51,10 +51,11 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public string? DebugName => debugName;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => renderbufferId;
-        set => renderbufferId = (int)value;
+        protected set => renderbufferId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Renderbuffer;

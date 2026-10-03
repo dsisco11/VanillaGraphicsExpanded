@@ -79,7 +79,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         using var scope = GlStateCache.Current.BindFramebufferScope();
         using var first = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var replacement = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
-        using var source = GpuFramebuffer.CreateSingle(first, ownsTextures: false)!;
+        using var source = GpuFramebuffer.CreateSingle(first)!;
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var wrapped = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         first.UploadDataImmediate(Enumerable.Repeat(3f, 16).ToArray());

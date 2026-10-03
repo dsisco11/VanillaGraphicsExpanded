@@ -376,7 +376,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         using var hTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
         using var hnTex = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var hnFbo = GpuFramebuffer.CreateSingle(hnTex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create Hn FBO");
+        using var hnFbo = GpuFramebuffer.CreateSingle(hnTex) ?? throw new InvalidOperationException("Failed to create Hn FBO");
 
         // Pass 1: normalize into hnTex
         hnFbo.Bind();

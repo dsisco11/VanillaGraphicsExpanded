@@ -20,10 +20,11 @@ public sealed class GpuTextureView : GpuResource, IDisposable
     private readonly int baseLayer;
     private readonly int layerCount;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => textureId;
-        set => textureId = (int)value;
+        protected set => textureId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;

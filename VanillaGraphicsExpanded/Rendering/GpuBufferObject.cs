@@ -31,10 +31,11 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
     public BufferUsageHint Usage => usage;
     public string? DebugName => debugName;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => bufferId;
-        set => bufferId = (int)value;
+        protected set => bufferId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;

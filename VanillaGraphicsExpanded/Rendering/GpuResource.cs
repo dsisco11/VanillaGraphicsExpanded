@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Defines native resource identity and the shared disposal and handle-transfer lifecycle.</summary>
 public abstract class GpuResource : IDisposable
 {
     private int disposed;
@@ -18,7 +19,9 @@ public abstract class GpuResource : IDisposable
     /// </summary>
     public abstract void SetDebugName(string? debugName);
 
-    protected abstract nint ResourceId { get; set; }
+    /// <summary>Gets the current native resource ID, or zero when the ID has been retired.</summary>
+    /// <remarks>Reading the ID does not transfer ownership. Only resource implementations can replace it.</remarks>
+    public abstract nint ResourceId { get; protected set; }
 
     protected abstract GpuResourceKind ResourceKind { get; }
 

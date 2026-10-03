@@ -452,7 +452,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
     private void RenderTo(DynamicTexture2D dst, int programId, Action setup)
     {
-        using var fbo = GpuFramebuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(dst) ?? throw new InvalidOperationException("Failed to create FBO");
 
         int vao = GL.GenVertexArray();
         GL.BindVertexArray(vao);
@@ -480,7 +480,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
     private void ClearR32f(DynamicTexture2D tex, float value)
     {
-        using var fbo = GpuFramebuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(tex) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();
         GL.Viewport(0, 0, tex.Width, tex.Height);
         GL.Disable(EnableCap.Blend);

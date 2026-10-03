@@ -8,6 +8,7 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Drives resource uploads and deferred disposal on the engine render thread.</summary>
 internal sealed class GpuResourceManager : IRenderer, IDisposable
 {
     internal const EnumRenderStage Stage = EnumRenderStage.AfterFinalComposition;
@@ -17,6 +18,8 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     private readonly ConcurrentQueue<GpuDeletionCommand> deletionQueue = new();
     private int renderThreadId;
     private int isDisposed;
+    /// <summary>Owns deferred managed-resource cleanup for this manager's context lifetime.</summary>
+    internal GpuResourceDisposalQueue? ResourceDisposals { get; set; }
 
     public double RenderOrder => RenderOrderValue;
     public int RenderRange => 0;
@@ -33,6 +36,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         }
     }
 
+    /// <summary>Processes uploads and drains managed resources before queued GL handle deletions.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != Stage || IsDisposed)
@@ -42,12 +46,13 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
 
         EnsureRenderThreadId();
 
-        // Phase 2: drive texture streaming uploads from the GPU manager tick.
+        // Drive texture streaming uploads from the GPU manager tick.
         TextureStreamingSystem.TickOnRenderThread();
 
-        // Phase 3: drain pending CPU-staged buffer uploads (glNamedBufferData/SubData + fallback binds).
+        // Drain pending CPU-staged buffer uploads before retiring queued resources.
         DrainBufferUploads();
 
+        ResourceDisposals?.DrainPending();
         DrainDeletionQueue();
     }
 
@@ -103,6 +108,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
     public void EnqueueDeleteMemoryObject(int memoryObjectId)
         => EnqueueDeletion(new GpuDeletionCommand(GpuDeletionKind.MemoryObject, memoryObjectId));
 
+    /// <summary>Closes deferred resource admission and drains cleanup when the render context is available.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref isDisposed, 1) != 0)
@@ -112,6 +118,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
 
         // Best-effort: if we're disposing on the render thread, drain immediately.
         // If we aren't on the render thread (or the context is gone), leave the queue.
+        ResourceDisposals?.Close(IsRenderThread);
         if (IsRenderThread)
         {
             DrainDeletionQueue();

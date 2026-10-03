@@ -21,7 +21,7 @@ public sealed class GpuResourceCollectionTests(HeadlessGLFixture fixture) : Rend
         var owned = resources.Own(DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f));
         GpuFramebuffer? framebuffer = null;
         var observation = resources.Own(new DisposalObservation(() => Assert.True(framebuffer!.IsDisposed)));
-        framebuffer = resources.Own(GpuFramebuffer.CreateMRT([owned, borrowed], ownsTextures: false)!);
+        framebuffer = resources.Own(GpuFramebuffer.CreateMRT([owned, borrowed])!);
         int framebufferId = framebuffer.FboId;
         int textureId = owned.TextureId;
 
@@ -91,7 +91,8 @@ public sealed class GpuResourceCollectionTests(HeadlessGLFixture fixture) : Rend
     private sealed class DisposalObservation(Action onDispose) : GpuResource
     {
         public int DisposalCount { get; private set; }
-        protected override nint ResourceId { get; set; }
+        /// <summary>Gets the current synthetic resource identifier.</summary>
+        public override nint ResourceId { get; protected set; }
         protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
 
         /// <summary>No handle exists to label.</summary>

@@ -14,10 +14,11 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
 {
     private int transformFeedbackId;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => transformFeedbackId;
-        set => transformFeedbackId = (int)value;
+        protected set => transformFeedbackId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.TransformFeedback;

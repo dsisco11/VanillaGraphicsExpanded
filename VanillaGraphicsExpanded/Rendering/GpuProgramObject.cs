@@ -15,10 +15,11 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
     private string? debugName;
     private GpuProgramLayout bindingCache = GpuProgramLayout.Empty;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => programId;
-        set => programId = (int)value;
+        protected set => programId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Program;

@@ -3,9 +3,14 @@ using System.Threading;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Publishes the active render-thread resource manager and its deferred cleanup lifetime.</summary>
 internal static class GpuResourceManagerSystem
 {
     private static GpuResourceManager? manager;
+    private static GpuResourceDisposalQueue resourceDisposals = new();
+
+    /// <summary>Captures the disposal service for the resource's original context lifetime.</summary>
+    internal static GpuResourceDisposalQueue CaptureDisposalQueue() => Volatile.Read(ref resourceDisposals);
 
     public static bool IsInitialized => Volatile.Read(ref manager) is not null;
 
@@ -29,15 +34,24 @@ internal static class GpuResourceManagerSystem
         }
     }
 
+    /// <summary>Initializes one manager lifetime, retaining pre-initialization cleanup and rejecting live replacement.</summary>
     public static void Initialize(GpuResourceManager instance)
     {
         ArgumentNullException.ThrowIfNull(instance);
+        var previous = Volatile.Read(ref manager);
+        if (previous is not null && !ReferenceEquals(previous, instance))
+            throw new InvalidOperationException("Shut down the previous GPU resource manager before initializing another.");
+        if (instance.IsDisposed) throw new ObjectDisposedException(nameof(instance));
+        if (resourceDisposals.IsClosed) resourceDisposals = new GpuResourceDisposalQueue();
+        instance.ResourceDisposals = resourceDisposals;
         Interlocked.Exchange(ref manager, instance);
     }
 
+    /// <summary>Closes admission for this lifetime so late finalizers cannot enter a later manager's queue.</summary>
     public static void Shutdown()
     {
-        Interlocked.Exchange(ref manager, null);
+        var previous = Interlocked.Exchange(ref manager, null);
+        resourceDisposals.Close(previous?.IsRenderThread == true);
     }
 
     public static void EnqueueDeleteBuffer(int bufferId)

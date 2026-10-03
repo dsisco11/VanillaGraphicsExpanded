@@ -32,10 +32,11 @@ public abstract class GpuTexture : GpuResource, IDisposable
     public TextureFilterMode FilterMode => filterMode;
     public string? DebugName => debugName;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => textureId;
-        set => textureId = (int)value;
+        protected set => textureId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;

@@ -156,8 +156,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var output = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         first.UploadDataImmediate(Enumerable.Repeat(3f, 16).ToArray());
         replacement.UploadDataImmediate(Enumerable.Repeat(9f, 16).ToArray());
-        using (var source = GpuFramebuffer.CreateSingle(first, ownsTextures: false)!)
-        using (var destination = GpuFramebuffer.CreateSingle(output, ownsTextures: false)!)
+        using (var source = GpuFramebuffer.CreateSingle(first)!)
+        using (var destination = GpuFramebuffer.CreateSingle(output)!)
         {
             using var blitter = new GpuFramebufferBlitter(source, destination);
             blitter.Blit();

@@ -19,10 +19,11 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     private int shaderId;
     private readonly ShaderType shaderType;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => shaderId;
-        set => shaderId = (int)value;
+        protected set => shaderId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Shader;

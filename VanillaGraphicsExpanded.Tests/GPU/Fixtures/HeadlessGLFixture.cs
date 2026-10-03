@@ -6,6 +6,7 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Xunit;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -36,6 +37,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     private bool _contextValid;
     private string? _initializationError;
     private int _bindingsLoadedThreadId = -1;
+    private GpuResourceManager? _resourceManager;
 
 #if DEBUG
     private DebugProc? _debugCallback;
@@ -102,6 +104,36 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             GLFW.MakeContextCurrent(_glfwWindow);
         }
     }
+
+    #region Public API - Resource Cleanup
+
+    /// <summary>Starts deferred resource disposal for tests that create owning attachments.</summary>
+    public void InitializeResourceDisposal()
+    {
+        EnsureContextValid();
+        if (_resourceManager is not null) return;
+
+        // Opt in per test lifetime, leaving manager lifecycle tests free to install their own manager.
+        var manager = new GpuResourceManager();
+        GpuResourceManagerSystem.Initialize(manager);
+        _resourceManager = manager;
+    }
+
+    /// <summary>Drains queued resources on this context and retires the fixture-owned disposal lifetime.</summary>
+    public void CleanupGpuResources()
+    {
+        if (!_contextValid || _resourceManager is null) return;
+        EnsureContextValid();
+
+        // The fixture manager is intentionally unticked: disposal uses the current context without
+        // registering an engine renderer or capturing a thread that xUnit may subsequently change.
+        _resourceManager.ResourceDisposals?.DrainPending();
+        GpuResourceManagerSystem.Shutdown();
+        _resourceManager.Dispose();
+        _resourceManager = null;
+    }
+
+    #endregion
 
     /// <inheritdoc />
     public unsafe ValueTask InitializeAsync()
@@ -183,6 +215,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             GL.LoadBindings(new GLFWBindingsContext());
             TestUniformRing.Dispose();
             VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();
+            CleanupGpuResources();
             GLFW.DestroyWindow(_glfwWindow);
             _glfwWindow = null;
         }

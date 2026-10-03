@@ -73,7 +73,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         int vao = GL.GenVertexArray();
         GL.BindVertexArray(vao);
 
-        using (var fbo = GpuFramebuffer.CreateSingle(outTex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO"))
+        using (var fbo = GpuFramebuffer.CreateSingle(outTex) ?? throw new InvalidOperationException("Failed to create FBO"))
         {
             fbo.Bind();
             GL.Viewport(0, 0, input.Width, input.Height);
@@ -161,7 +161,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
             DynamicTexture2D src = (i % 2 == 0) ? h0 : h1;
             DynamicTexture2D dst = (i % 2 == 0) ? h1 : h0;
 
-            using var fbo = GpuFramebuffer.CreateSingle(dst, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+            using var fbo = GpuFramebuffer.CreateSingle(dst) ?? throw new InvalidOperationException("Failed to create FBO");
 
             fbo.Bind();
             GL.Viewport(0, 0, rhs.Width, rhs.Height);
@@ -211,7 +211,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
     private void ClearR32f(DynamicTexture2D tex, float value)
     {
-        using var fbo = GpuFramebuffer.CreateSingle(tex, ownsTextures: false) ?? throw new InvalidOperationException("Failed to create FBO");
+        using var fbo = GpuFramebuffer.CreateSingle(tex) ?? throw new InvalidOperationException("Failed to create FBO");
         fbo.Bind();
         GL.Viewport(0, 0, tex.Width, tex.Height);
         GL.Disable(EnableCap.Blend);

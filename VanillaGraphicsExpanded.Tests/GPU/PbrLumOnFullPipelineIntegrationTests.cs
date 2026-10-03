@@ -18,16 +18,32 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Exercises the complete lighting pipeline with deterministic inputs and owned target storage.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctionalTestBase
 {
-    public PbrLumOnFullPipelineIntegrationTests(HeadlessGLFixture fixture) : base(fixture) { }
+    private readonly HeadlessGLFixture fixture;
 
+    /// <summary>Uses the shared GL context and its deferred resource cleanup service.</summary>
+    public PbrLumOnFullPipelineIntegrationTests(HeadlessGLFixture fixture) : base(fixture)
+    {
+        this.fixture = fixture;
+    }
+
+    /// <summary>Drains owned target storage after all per-test rendering resources have retired.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        try { base.Dispose(disposing); }
+        finally { if (disposing) fixture.CleanupGpuResources(); }
+    }
+
+    /// <summary>Verifies that one frame carries indirect lighting through the final composite.</summary>
     [Fact]
     public void Integration_OneFrame_FullPipeline_PropagatesIndirectIntoComposite()
     {
         EnsureShaderTestAvailable();
+        fixture.InitializeResourceDisposal();
 
         // Binding audit: these tests are intended to verify correct program sampler wiring.
         // If a uniform gets optimized out, that's usually a sign the shader changed and the

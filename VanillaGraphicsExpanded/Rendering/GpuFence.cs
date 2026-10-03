@@ -13,10 +13,11 @@ internal sealed class GpuFence : GpuResource, IDisposable
     private nint handle;
     private string? debugName;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => handle;
-        set => handle = value;
+        protected set => handle = value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Sync;

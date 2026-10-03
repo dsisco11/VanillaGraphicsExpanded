@@ -17,10 +17,11 @@ internal sealed class GpuVao : GpuResource, IDisposable
     public int VertexArrayId => vertexArrayId;
     public string? DebugName => debugName;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => vertexArrayId;
-        set => vertexArrayId = (int)value;
+        protected set => vertexArrayId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.VertexArray;

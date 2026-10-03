@@ -4,7 +4,8 @@ using System.Collections.Generic;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Owns a set of GPU resources without imposing allocation, resize, or publication policy.</summary>
-/// <remarks>Register only owned resources. Registered framebuffers must borrow their attachments; engine-owned handles stay outside the collection.</remarks>
+/// <remarks>Register only owned resources. Framebuffers borrow attachment instances. Register an owning
+/// attachment or its backing resource, never both; engine-owned handles stay outside the collection.</remarks>
 internal sealed class GpuResourceCollection : IDisposable
 {
     private readonly HashSet<GpuFramebuffer> framebuffers = new(ReferenceEqualityComparer.Instance);

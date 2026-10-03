@@ -39,6 +39,7 @@ public abstract class RenderTestBase : IDisposable
     private int _quadVbo;
     private bool _quadInitialized;
     private bool _disposed;
+    private readonly GpuResourceCollection _targetResources = new();
 
     /// <summary>
     /// Creates a new RenderTestBase instance.
@@ -79,12 +80,12 @@ public abstract class RenderTestBase : IDisposable
     /// <param name="width">Width in pixels.</param>
     /// <param name="height">Height in pixels.</param>
     /// <param name="format">Internal format (e.g., PixelInternalFormat.Rgba16f).</param>
-    /// <returns>A disposable GBuffer instance that owns its texture.</returns>
+    /// <returns>A framebuffer borrowing a texture owned by this test fixture.</returns>
     protected GpuFramebuffer CreateRenderTarget(int width, int height, PixelInternalFormat format)
     {
         EnsureContextValid(beginUniformFrame: false);
-        var texture = DynamicTexture2D.Create(width, height, format);
-        var gBuffer = GpuFramebuffer.CreateSingle(texture, ownsTextures: true);
+        var texture = _targetResources.Own(DynamicTexture2D.Create(width, height, format));
+        var gBuffer = GpuFramebuffer.CreateSingle(texture);
         return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
     }
 
@@ -94,16 +95,16 @@ public abstract class RenderTestBase : IDisposable
     /// <param name="width">Width in pixels.</param>
     /// <param name="height">Height in pixels.</param>
     /// <param name="formats">Internal formats for each color attachment.</param>
-    /// <returns>A disposable GBuffer instance that owns its textures.</returns>
+    /// <returns>A framebuffer borrowing textures owned by this test fixture.</returns>
     protected GpuFramebuffer CreateMRTRenderTarget(int width, int height, params PixelInternalFormat[] formats)
     {
         EnsureContextValid(beginUniformFrame: false);
         var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
-            textures[i] = DynamicTexture2D.Create(width, height, formats[i]);
+            textures[i] = _targetResources.Own(DynamicTexture2D.Create(width, height, formats[i]));
         }
-        var gBuffer = GpuFramebuffer.CreateMRT(textures, ownsTextures: true);
+        var gBuffer = GpuFramebuffer.CreateMRT(textures);
         return gBuffer ?? throw new InvalidOperationException("Failed to create MRT GBuffer");
     }
 
@@ -409,6 +410,7 @@ public abstract class RenderTestBase : IDisposable
             _quadInitialized = false;
         }
 
+        if (disposing) _targetResources.Dispose();
         _disposed = true;
     }
 

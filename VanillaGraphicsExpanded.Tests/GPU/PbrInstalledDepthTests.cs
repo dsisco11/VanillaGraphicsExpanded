@@ -37,7 +37,7 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         using var position = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var gbuffer = new GBufferTextures(1, 1);
         using var target = GpuFramebuffer.CreateMRT([color, glow, engineNormal, position,
-            gbuffer.Normal, gbuffer.Material, gbuffer.PatchId, gbuffer.Environment], depth, ownsTextures: false)!;
+            gbuffer.Normal, gbuffer.Material, gbuffer.PatchId, gbuffer.Environment], depth)!;
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         GlStateCache.Current.UseProgram(program.ProgramId);
         GlStateCache.Current.BindVertexArray(vao.VertexArrayId);

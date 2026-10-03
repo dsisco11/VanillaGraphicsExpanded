@@ -78,6 +78,8 @@ public sealed class GpuFramebufferBlitter : IDisposable
     /// <summary>Rejects retired targets or absent viewport dimensions before touching driver bindings.</summary>
     private void ValidateTargets()
     {
+        source.ValidateAttachments();
+        destination.ValidateAttachments();
         if (source.IsDisposed || destination.IsDisposed)
             throw new ObjectDisposedException(nameof(GpuFramebuffer), "Blit target has been retired.");
         if (source.Width <= 0 || source.Height <= 0 || destination.Width <= 0 || destination.Height <= 0)
@@ -93,8 +95,8 @@ public sealed class GpuFramebufferBlitter : IDisposable
         {
             if ((mask & ClearBufferMask.ColorBufferBit) != 0)
             {
-                BorrowBlitColor(source.FboId, ref blitRead);
-                BorrowBlitColor(destination.FboId, ref blitDraw);
+                BorrowBlitColor(source, ref blitRead);
+                BorrowBlitColor(destination, ref blitDraw);
             }
             dirty = false;
         }
@@ -110,38 +112,19 @@ public sealed class GpuFramebufferBlitter : IDisposable
     }
 
     /// <summary>Configures a scratch target from the current color image during initialization or notification-driven refresh.</summary>
-    private static void BorrowBlitColor(int source, ref GpuFramebuffer? scratch)
+    private static void BorrowBlitColor(GpuFramebuffer source, ref GpuFramebuffer? scratch)
     {
         // Default framebuffer images cannot be attached elsewhere; retain their existing buffer selection.
-        if (source == 0) return;
-        var gl = GlStateCache.Current;
-        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, source);
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
-            FramebufferParameterName.FramebufferAttachmentObjectType, out int type);
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
-            FramebufferParameterName.FramebufferAttachmentObjectName, out int name);
-        if (name == 0) throw new InvalidOperationException("Color blit requires attachment zero.");
-        int level = 0, face = 0, layer = 0;
-        if (type == (int)All.Texture)
+        if (source.FboId == 0)
         {
-            GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
-                FramebufferParameterName.FramebufferAttachmentTextureLevel, out level);
-            GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
-                FramebufferParameterName.FramebufferAttachmentTextureCubeMapFace, out face);
-            GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
-                FramebufferParameterName.FramebufferAttachmentTextureLayer, out layer);
+            scratch?.Dispose();
+            scratch = null;
+            return;
         }
+        var image = GpuFramebufferAttachmentDiscovery.Read(source, FramebufferAttachment.ColorAttachment0);
         scratch ??= GpuFramebuffer.CreateEmpty("Framebuffer.BlitScratch");
+        scratch.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
         scratch.Bind();
-        if (type == (int)All.Renderbuffer)
-            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, name);
-        else if (face != 0)
-            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, (TextureTarget)face, name, level);
-        else if (layer != 0)
-            GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, name, level, layer);
-        else
-            // Whole layered attachments and selected layer zero both blit from layer zero.
-            GL.FramebufferTexture(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, name, level);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
     }

@@ -158,7 +158,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
                 return;
             }
 
-            compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, ownsTextures: false, debugName: "PBRCompositeFBO");
+            compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, debugName: "PBRCompositeFBO");
             if (compositeFbo is null || !compositeFbo.IsValid)
             {
                 ReleaseScreenResources();

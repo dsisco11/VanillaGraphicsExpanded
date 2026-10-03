@@ -37,8 +37,7 @@ internal sealed class WaterRefractionScene : IDisposable
                     debugName: "WaterRefraction.Radiance");
                 Depth = DynamicTexture2D.Create(compositeColor.Width, compositeColor.Height, PixelInternalFormat.R32f,
                     debugName: "WaterRefraction.Depth");
-                target = GpuFramebuffer.CreateMRT([compositeColor, Color, Depth], ownsTextures: false,
-                    debugName: "WaterRefraction.Publication") ?? throw new InvalidOperationException("Water refraction framebuffer unavailable.");
+                target = GpuFramebuffer.CreateMRT([compositeColor, Color, Depth], debugName: "WaterRefraction.Publication") ?? throw new InvalidOperationException("Water refraction framebuffer unavailable.");
                 if (!target.IsValid) throw new InvalidOperationException("Water refraction framebuffer invalid.");
             }
             catch { Dispose(); failed = true; throw; }

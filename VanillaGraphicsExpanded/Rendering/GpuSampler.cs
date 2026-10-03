@@ -14,10 +14,11 @@ public sealed class GpuSampler : GpuResource, IDisposable
 {
     private int samplerId;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => samplerId;
-        set => samplerId = (int)value;
+        protected set => samplerId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Sampler;

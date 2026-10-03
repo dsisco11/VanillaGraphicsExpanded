@@ -12,10 +12,11 @@ internal sealed class GpuSemaphore : GpuResource, IDisposable
 {
     private int semaphoreId;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => semaphoreId;
-        set => semaphoreId = (int)value;
+        protected set => semaphoreId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Semaphore;

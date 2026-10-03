@@ -12,10 +12,11 @@ internal sealed class GpuQuery : GpuResource, IDisposable
 {
     private int queryId;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => queryId;
-        set => queryId = (int)value;
+        protected set => queryId = (nint)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Query;

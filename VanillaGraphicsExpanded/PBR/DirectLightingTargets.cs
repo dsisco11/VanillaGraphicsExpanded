@@ -28,7 +28,7 @@ internal sealed class DirectLightingTargets : IDisposable
             Emissive = resources.Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "Emissive"));
             if (!DirectDiffuse.IsValid || !DirectSpecular.IsValid || !Emissive.IsValid) return;
             var framebuffer = GpuFramebuffer.CreateMRT([DirectDiffuse, DirectSpecular, Emissive],
-                depthTexture: null, ownsTextures: false, debugName: "DirectLightingFBO");
+                depthTexture: null, debugName: "DirectLightingFBO");
             if (framebuffer is null) return;
             Framebuffer = resources.Own(framebuffer);
             // The factory logs incomplete targets; this owner also rejects them for publication.

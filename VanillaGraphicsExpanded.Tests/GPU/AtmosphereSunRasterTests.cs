@@ -104,7 +104,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var color = DynamicTexture2D.Create(64, 64, PixelInternalFormat.Rgba32f);
         using var depth = new DepthTexture(64, 64, PixelInternalFormat.DepthComponent32f);
         using var glow = DynamicTexture2D.Create(64, 64, PixelInternalFormat.Rgba32f);
-        using var target = GpuFramebuffer.CreateMRT([color, glow], depth, ownsTextures: false)!;
+        using var target = GpuFramebuffer.CreateMRT([color, glow], depth)!;
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         GlStateCache.Current.UseProgram(program.ProgramId);
         GlStateCache.Current.BindVertexArray(vao.VertexArrayId);

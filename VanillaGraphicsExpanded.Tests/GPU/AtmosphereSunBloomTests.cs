@@ -52,7 +52,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
         using var vao = GpuVao.Create();
         using var color = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var glow = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var source = GpuFramebuffer.CreateMRT([color, glow], ownsTextures: false)!;
+        using var source = GpuFramebuffer.CreateMRT([color, glow])!;
         using var framework = new ShaderTestFramework();
         using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         var sunLayout = GpuProgramLayout.TryBuild(sun.ProgramId);

@@ -85,7 +85,6 @@ internal sealed class LumOnTargets : IDisposable
             ProbeTraceMaskFbo = resources.Own(GpuFramebuffer.CreateMRT(
                 [ProbeTraceMaskTex, ProbePisEnergyTex],
                 depthTexture: null,
-                ownsTextures: false,
                 debugName: "LumOn.ProbeTraceMaskFBO")!);
 
             // ═══════════════════════════════════════════════════════════════
@@ -99,20 +98,20 @@ internal sealed class LumOnTargets : IDisposable
             int atlasHeight = probeCountY * 8;
             ScreenProbeAtlasTraceTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasTrace")!);
             ScreenProbeAtlasMetaTraceTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaTrace")!);
-            ScreenProbeAtlasTraceFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasTraceTex, ScreenProbeAtlasMetaTraceTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasTraceFBO")!);
+            ScreenProbeAtlasTraceFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasTraceTex, ScreenProbeAtlasMetaTraceTex], depthTexture: null, debugName: "ScreenProbeAtlasTraceFBO")!);
 
             ScreenProbeAtlasCurrentTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasCurrent")!);
             ScreenProbeAtlasMetaCurrentTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaCurrent")!);
-            ScreenProbeAtlasCurrentFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasCurrentTex, ScreenProbeAtlasMetaCurrentTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasCurrentFBO")!);
+            ScreenProbeAtlasCurrentFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasCurrentTex, ScreenProbeAtlasMetaCurrentTex], depthTexture: null, debugName: "ScreenProbeAtlasCurrentFBO")!);
 
             ScreenProbeAtlasHistoryTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasHistory")!);
             ScreenProbeAtlasMetaHistoryTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaHistory")!);
-            ScreenProbeAtlasHistoryFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasHistoryTex, ScreenProbeAtlasMetaHistoryTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasHistoryFBO")!);
+            ScreenProbeAtlasHistoryFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasHistoryTex, ScreenProbeAtlasMetaHistoryTex], depthTexture: null, debugName: "ScreenProbeAtlasHistoryFBO")!);
 
             // Filtered atlas output (Pass 3.5): derived from temporal output each frame
             ScreenProbeAtlasFilteredTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasFiltered")!);
             ScreenProbeAtlasMetaFilteredTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaFiltered")!);
-            ScreenProbeAtlasFilteredFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasFilteredTex, ScreenProbeAtlasMetaFilteredTex], depthTexture: null, ownsTextures: false, debugName: "ScreenProbeAtlasFilteredFBO")!);
+            ScreenProbeAtlasFilteredFbo = resources.Own(GpuFramebuffer.CreateMRT([ScreenProbeAtlasFilteredTex, ScreenProbeAtlasMetaFilteredTex], depthTexture: null, debugName: "ScreenProbeAtlasFilteredFBO")!);
 
             // Probe-atlas → SH9 projection output (Option B)
             // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)
@@ -125,8 +124,7 @@ internal sealed class LumOnTargets : IDisposable
             ProbeSh9Tex6 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_6")!);
             ProbeSh9Fbo = resources.Own(GpuFramebuffer.CreateMRT(
                 [ProbeSh9Tex0, ProbeSh9Tex1, ProbeSh9Tex2, ProbeSh9Tex3, ProbeSh9Tex4, ProbeSh9Tex5, ProbeSh9Tex6],
-                null,
-                ownsTextures: false,
+                depthTexture: null,
                 debugName: "ProbeSH9FBO")!);
 
             // ═══════════════════════════════════════════════════════════════

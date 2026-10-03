@@ -18,10 +18,11 @@ public class GpuBufferView : GpuResource, IDisposable
     private readonly nint offsetBytes;
     private readonly nint sizeBytes;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => textureId;
-        set => textureId = (int)value;
+        protected set => textureId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;

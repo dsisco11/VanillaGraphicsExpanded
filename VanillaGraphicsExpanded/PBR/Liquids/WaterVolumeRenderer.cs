@@ -19,6 +19,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
     private readonly Action unregisterResize;
     private static WaterVolumeRenderer? active;
     private GpuFramebuffer? target;
+    private GpuResourceCollection? targetResources;
     private WaterVolumeFrame? completed;
     private bool composed;
     private bool failed;
@@ -77,15 +78,15 @@ internal sealed class WaterVolumeRenderer : IRenderer
             GlStateCache.Current.InvalidateAll();
             if (target is null)
             {
-                var optical = DynamicTexture2D.Create(primary.Width, primary.Height, PixelInternalFormat.Rgba32f);
+                var resources = new GpuResourceCollection();
                 try
                 {
-                    var illumination = DynamicTexture2D.Create(primary.Width, primary.Height, PixelInternalFormat.Rgba32f);
-                    try { target = GpuFramebuffer.CreateMRT([optical, illumination], ownsTextures: true)
-                        ?? throw new InvalidOperationException("Unable to create water boundary target."); }
-                    catch { illumination.Dispose(); throw; }
+                    var optical = resources.Own(new GpuFramebufferAttachment(primary.Width, primary.Height, PixelInternalFormat.Rgba32f));
+                    var illumination = resources.Own(new GpuFramebufferAttachment(primary.Width, primary.Height, PixelInternalFormat.Rgba32f));
+                    target = resources.Own(GpuFramebuffer.Create([optical, illumination]));
+                    targetResources = resources;
                 }
-                catch { optical.Dispose(); throw; }
+                catch { resources.Dispose(); throw; }
             }
             if (target.Width != primary.Width || target.Height != primary.Height) target.Resize(primary.Width, primary.Height);
             program.CaptureMode = 3;
@@ -186,7 +187,8 @@ internal sealed class WaterVolumeRenderer : IRenderer
     {
         completed = null;
         composed = false;
-        target?.Dispose();
+        targetResources?.Dispose();
+        targetResources = null;
         target = null;
     }
     #endregion

@@ -14,10 +14,11 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
 {
     private int pipelineId;
 
-    protected override nint ResourceId
+    /// <inheritdoc />
+    public override nint ResourceId
     {
         get => pipelineId;
-        set => pipelineId = (int)value;
+        protected set => pipelineId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.ProgramPipeline;
