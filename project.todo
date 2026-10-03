@@ -22,6 +22,7 @@ Issues:
 
   Performance:
     PipelineState:
+      ☐ Evolve graphics pipeline state into an authoritative submission system. Proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md.
       ☐ Add support for expected Renderbuffer binding to the PipelineState system.
       ☐ Add support for expected Framebuffer binding to the PipelineState system.
       ☐ Add support for expected Shader binding to the PipelineState system.
