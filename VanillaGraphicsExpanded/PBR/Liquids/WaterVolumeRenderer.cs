@@ -92,6 +92,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             if (!program.EnsureReady()) return;
             program.CaptureFrameInputs(api, source.TileSize);
             program.VolumeTransportEnabled = false;
+            program.RefractionEnabled = false;
             program.WaveFrame = waves;
             program.ModelViewMatrix = api.Render.CameraMatrixOriginf;
             program.ForcedTransparency = 0;

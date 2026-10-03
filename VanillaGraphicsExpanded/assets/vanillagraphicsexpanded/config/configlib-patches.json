@@ -3,6 +3,15 @@
   "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
+      "WATER_REFRACTION": {
+        "code": "WaterRefractionEnabled",
+        "clientSide": true,
+        "name": "WaterRefractionEnabled",
+        "ingui": "vanillagraphicsexpanded:config-water-refraction",
+        "comment": "vanillagraphicsexpanded:config-water-refraction-tooltip",
+        "default": false,
+        "weight": 0.5
+      },
       "ENABLED": {
         "code": "LumOn.Enabled",
         "clientSide": true,

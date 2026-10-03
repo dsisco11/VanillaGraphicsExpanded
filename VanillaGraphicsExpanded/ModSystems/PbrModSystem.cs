@@ -22,6 +22,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.Liquids.LiquidRenderer? liquidRenderer;
     private PBR.Liquids.LiquidDepthRenderer? liquidDepthRenderer;
     private PBR.Liquids.WaterVolumeRenderer? waterVolumeRenderer;
+    private PBR.Liquids.WaterRefractionCapture? waterRefractionCapture;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -53,6 +54,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         HarmonyPatches.PbrDrawRouteHook.Api = null;
 
         liquidRenderer?.Dispose();
+        waterRefractionCapture?.Dispose();
+        waterRefractionCapture = null;
         waterVolumeRenderer?.Dispose();
         waterVolumeRenderer = null;
         liquidRenderer = null;
@@ -82,7 +85,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         directLightingRenderer ??= new DirectLightingRenderer(capi, gBufferManager, directLightingBufferManager);
 
         liquidDepthRenderer ??= new PBR.Liquids.LiquidDepthRenderer(capi);
-        liquidRenderer ??= new PBR.Liquids.LiquidRenderer(capi);
+        liquidRenderer ??= new PBR.Liquids.LiquidRenderer(capi, () => pbrCompositeRenderer?.RefractionScene);
         waterVolumeRenderer ??= new PBR.Liquids.WaterVolumeRenderer(capi);
 
         var lumOnSystem = capi.ModLoader.GetModSystem<LumOnModSystem>();
@@ -96,6 +99,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             ConfigModSystem.Config,
             lumOnSystem.GetLumOnBufferManagerOrNull,
             () => PbrShaderLightingMode.LumOnEnabled);
+        waterRefractionCapture ??= new PBR.Liquids.WaterRefractionCapture(capi, directLightingRenderer, pbrCompositeRenderer);
 
         capi.Logger.Debug("[VGE] PbrModSystem ensured ({0})", reason);
     }

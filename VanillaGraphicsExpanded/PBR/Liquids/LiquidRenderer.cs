@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidRenderer : IRenderer
 {
     private readonly ICoreClientAPI api;
+    private readonly Func<WaterRefractionScene?> getRefractionScene;
     private static LiquidRenderer? active;
     private bool failed;
     public double RenderOrder => .369;
@@ -19,9 +20,10 @@ internal sealed class LiquidRenderer : IRenderer
 
     #region Lifetime
     /// <summary>Registers immediately before the engine terrain OIT callback.</summary>
-    internal LiquidRenderer(ICoreClientAPI api)
+    internal LiquidRenderer(ICoreClientAPI api, Func<WaterRefractionScene?>? getRefractionScene = null)
     {
         this.api = api;
+        this.getRefractionScene = getRefractionScene ?? (() => null);
         active = this;
         api.Event.RegisterRenderer(this, EnumRenderStage.OIT, "vge_liquids");
         api.Event.LeaveWorld += LeaveWorld;
@@ -90,6 +92,10 @@ internal sealed class LiquidRenderer : IRenderer
             var store = MaterialAtlasSystem.Instance.TextureStore;
             program.CaptureFrameInputs(api, source.TileSize);
             program.VolumeTransportEnabled = WaterVolumeRenderer.WasComposed(api);
+            var refraction = ConfigModSystem.Config.WaterRefractionEnabled ? getRefractionScene() : null;
+            program.RefractionEnabled = refraction?.Published == true;
+            program.RefractionColorTexture = refraction?.Published == true ? refraction.Color : null;
+            program.RefractionDepthTexture = refraction?.Published == true ? refraction.Depth : null;
             program.WaveFrame = waves;
             program.ModelViewMatrix = render.CameraMatrixOriginf;
             program.ForcedTransparency = 0;

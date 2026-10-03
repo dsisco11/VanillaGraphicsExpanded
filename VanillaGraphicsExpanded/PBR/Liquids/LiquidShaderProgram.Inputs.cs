@@ -20,9 +20,15 @@ internal sealed partial class LiquidShaderProgram
     internal bool MediumLookupEnabled { set => frame.MediumLookupEnabled = value; }
     /// <summary>Selects interface-only OIT when bulk medium transport has already affected the opaque background.</summary>
     internal bool VolumeTransportEnabled { set => frame.VolumeTransportEnabled = value; }
+    /// <summary>Stages availability of immutable opaque radiance and depth.</summary>
+    internal bool RefractionEnabled { set => frame.RefractionEnabled = value; }
     #endregion
 
     #region Texture inputs
+    /// <summary>Retains immutable unattenuated opaque scene-linear radiance.</summary>
+    public partial DynamicTexture2D? RefractionColorTexture { set; }
+    /// <summary>Retains the hardware-depth image from the same opaque invocation.</summary>
+    public partial DynamicTexture2D? RefractionDepthTexture { set; }
     /// <summary>Retains the borrowed TerrainTexture with its declared target and sampler.</summary>
     public partial int TerrainTexture { set; }
     /// <summary>Retains the borrowed DepthTexture with its declared target and sampler.</summary>

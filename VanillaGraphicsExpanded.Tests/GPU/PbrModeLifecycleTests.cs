@@ -64,6 +64,30 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
 
         Assert.InRange(Compose(), .249f, .251f);
         Assert.Equal(0, providerReads);
+        // Repeated production draws retain the borrowed resolve FBO until its source changes.
+        var resolveField = HarmonyLib.AccessTools.Field(typeof(PBRCompositeRenderer), "primaryResolveFbo");
+        var firstResolve = Assert.IsType<GpuFramebuffer>(resolveField.GetValue(composite));
+        Assert.InRange(Compose(), .249f, .251f);
+        Assert.Same(firstResolve, resolveField.GetValue(composite));
+        using (var replacement = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f))
+        {
+            replacement.UploadDataImmediate(new float[] { .5f, .5f, .5f, 1f });
+            terrain.Primary.ColorTextureIds[0] = replacement.TextureId;
+            Assert.InRange(Compose(), .249f, .251f);
+            var replacedResolve = Assert.IsType<GpuFramebuffer>(resolveField.GetValue(composite));
+            Assert.NotSame(firstResolve, replacedResolve);
+            Assert.False(firstResolve.IsValid);
+            Assert.True(replacement.ReadPixels()[0] > 0f);
+            terrain.Primary.ColorTextureIds[0] = terrain.Color.TextureId;
+            Assert.InRange(Compose(), .249f, .251f);
+            Assert.False(replacedResolve.IsValid);
+            Assert.True(replacement.IsValid);
+        }
+        var beforeResize = Assert.IsType<GpuFramebuffer>(resolveField.GetValue(composite));
+        HarmonyLib.AccessTools.Method(typeof(PBRCompositeRenderer), "OnScreenResized").Invoke(composite, null);
+        Assert.False(beforeResize.IsValid);
+        Assert.Null(resolveField.GetValue(composite));
+        Assert.InRange(Compose(), .249f, .251f);
         var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
         Assert.Equal("0", shader.InstalledSettings!.Values["VGE_LUMON_ENABLED"].Canonical);
         config.LumOn.Enabled = true;

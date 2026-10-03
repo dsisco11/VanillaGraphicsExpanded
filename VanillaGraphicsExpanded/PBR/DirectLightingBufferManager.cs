@@ -1,5 +1,4 @@
 using System;
-using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -16,12 +15,6 @@ namespace VanillaGraphicsExpanded.PBR;
 /// </summary>
 public sealed class DirectLightingBufferManager : IDisposable
 {
-    private static readonly DrawBuffersEnum[] DirectLightingDrawBuffers =
-    [
-        DrawBuffersEnum.ColorAttachment0,
-        DrawBuffersEnum.ColorAttachment1,
-        DrawBuffersEnum.ColorAttachment2
-    ];
 
     #region Static Instance
 
@@ -155,21 +148,6 @@ public sealed class DirectLightingBufferManager : IDisposable
     }
 
     /// <summary>
-    /// Binds the direct lighting FBO for MRT rendering.
-    /// </summary>
-    public void BindForRendering()
-    {
-        if (targets?.Framebuffer is not { IsValid: true } framebuffer)
-        {
-            capi.Logger.Warning("[VGE] DirectLightingBufferManager: FBO not valid for binding");
-            return;
-        }
-
-        framebuffer.Bind();
-        GL.DrawBuffers(DirectLightingDrawBuffers.Length, DirectLightingDrawBuffers);
-    }
-
-    /// <summary>
     /// Unbinds the direct lighting FBO.
     /// </summary>
     public void Unbind()
@@ -185,17 +163,9 @@ public sealed class DirectLightingBufferManager : IDisposable
         if (targets?.Framebuffer is not { IsValid: true } framebuffer)
             return;
 
-        int prevFbo = GpuFramebuffer.SaveBinding();
-
+        using var bindings = GlStateCache.Current.BindFramebufferScope();
         framebuffer.Bind();
-
-        // Clear all color attachments to black
-        float[] clearColor = [0f, 0f, 0f, 0f];
-        GL.ClearBuffer(ClearBuffer.Color, 0, clearColor); // DirectDiffuse
-        GL.ClearBuffer(ClearBuffer.Color, 1, clearColor); // DirectSpecular
-        GL.ClearBuffer(ClearBuffer.Color, 2, clearColor); // Emissive
-
-        GpuFramebuffer.RestoreBinding(prevFbo);
+        framebuffer.Clear(0, 0, 0, 0);
     }
 
     #endregion

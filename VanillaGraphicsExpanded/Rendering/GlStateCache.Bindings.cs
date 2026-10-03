@@ -328,46 +328,45 @@ internal sealed partial class GlStateCache
         BindFramebuffer(target, 0);
     }
 
-    public FramebufferScope BindFramebufferScope(FramebufferTarget target, int fboId)
+    /// <summary>Preserves actual bindings, optionally binding a temporary target; combined scopes preserve read and draw independently.</summary>
+    public FramebufferScope BindFramebufferScope(FramebufferTarget target = FramebufferTarget.Framebuffer, int? fboId = null)
     {
-        int previous = 0;
-        try
-        {
-            previous = target switch
-            {
-                FramebufferTarget.ReadFramebuffer => GL.GetInteger(GetPName.ReadFramebufferBinding),
-                FramebufferTarget.DrawFramebuffer => GL.GetInteger(GetPName.DrawFramebufferBinding),
-                _ => GL.GetInteger(GetPName.FramebufferBinding)
-            };
-        }
-        catch
-        {
-            previous = 0;
-        }
-
-        BindFramebuffer(target, fboId);
-        return new FramebufferScope(this, target, previous);
+        int previousRead = GL.GetInteger(GetPName.ReadFramebufferBinding);
+        int previousDraw = GL.GetInteger(GetPName.DrawFramebufferBinding);
+        SetFramebufferCache(FramebufferTarget.ReadFramebuffer, previousRead);
+        SetFramebufferCache(FramebufferTarget.DrawFramebuffer, previousDraw);
+        if (fboId.HasValue) BindFramebuffer(target, fboId.Value);
+        return new FramebufferScope(this, target, previousRead, previousDraw);
     }
 
+    /// <summary>Restores framebuffer bindings only; attachment routing and viewport are unchanged by binding.</summary>
     public readonly struct FramebufferScope : IDisposable
     {
         private readonly GlStateCache cache;
         private readonly FramebufferTarget target;
-        private readonly int previous;
+        private readonly int previousRead;
+        private readonly int previousDraw;
 
-        public FramebufferScope(GlStateCache cache, FramebufferTarget target, int previous)
+        #region Public API
+        /// <summary>Retains independent binding names for the requested target.</summary>
+        public FramebufferScope(GlStateCache cache, FramebufferTarget target, int previousRead, int previousDraw)
         {
             this.cache = cache;
             this.target = target;
-            this.previous = previous;
+            this.previousRead = previousRead;
+            this.previousDraw = previousDraw;
         }
 
+        /// <summary>Restores only the selected binding, or both independent bindings for a combined scope.</summary>
         public void Dispose()
         {
-            cache.BindFramebuffer(target, previous);
+            if (target != FramebufferTarget.DrawFramebuffer)
+                cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, previousRead);
+            if (target != FramebufferTarget.ReadFramebuffer)
+                cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer, previousDraw);
         }
+        #endregion
     }
-
     /// <summary>Records a completed VGE or engine bind without issuing GL calls; the combined query aliases the draw target.</summary>
     internal void SetFramebufferCache(FramebufferTarget target, int value)
     {

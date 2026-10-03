@@ -46,7 +46,16 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     private MeshRef? quadMeshRef;
 
+    /// <summary>Optional opaque snapshots consumed only after completed composition.</summary>
+    internal Liquids.WaterRefractionScene RefractionScene { get; } = new();
+    /// <summary>Frame-scoped clean world source captured before local hand projection begins.</summary>
+    internal Liquids.WaterRefractionScene? PreOverlayScene { get; set; }
+
     private GpuFramebuffer? compositeFbo;
+    private GpuFramebuffer? primaryResolveFbo;
+    private FrameBufferRef? primaryResolveSource;
+    private int primaryResolveSourceId;
+    private int primaryResolveColorId;
     private DynamicTexture2D? compositeColorTex;
 
     /// <summary>Pre-display lighting retained by this renderer; sky pixels retain the engine's color convention.</summary>
@@ -59,6 +68,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     public int RenderRange => RenderRangeValue;
 
+    #region Public API
     /// <summary>Creates the fullscreen mesh and registers composition after direct and indirect lighting.</summary>
     public PBRCompositeRenderer(
         ICoreClientAPI capi,
@@ -83,22 +93,23 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         quadMeshRef = capi.Render.UploadMesh(quadMesh);
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "pbr_composite");
+        capi.Event.LeaveWorld += ReleaseScreenResources;
 
         capi.Logger.Notification("[VGE] PBRCompositeRenderer registered (Opaque @ 11.0)");
     }
 
-    private void OnScreenResized()
-    {
-        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        if (primaryFb is not null && compositeFbo is { IsValid: true })
-        {
-            compositeFbo.Resize(primaryFb.Width, primaryFb.Height);
-        }
-    }
 
     /// <summary>Combines scene-linear lighting, then resolves it into the engine's display target.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
+        => RenderComposite(stage);
+
+    /// <summary>Uses the existing composition algorithm for either the primary resolve or an isolated world publication.</summary>
+    internal void RenderComposite(EnumRenderStage stage, Liquids.WaterRefractionScene? capture = null,
+        DirectLightingTargets? isolatedLighting = null)
     {
+        var publication = capture ?? RefractionScene;
+        publication.Invalidate();
+        if (!ConfigModSystem.Config.WaterRefractionEnabled) RefractionScene.Dispose();
         if (stage != EnumRenderStage.Opaque || quadMeshRef is null)
         {
             return;
@@ -117,10 +128,13 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
+        // Allocation, preparation and early exits share the same owner-backed restoration boundary.
+        using var framebufferBindings = GlStateCache.Current.BindFramebufferScope();
+
         // Need direct pass outputs.
-        if (directLightingBuffers.DirectDiffuseTex is null
+        if (isolatedLighting is null && (directLightingBuffers.DirectDiffuseTex is null
             || directLightingBuffers.DirectSpecularTex is null
-            || directLightingBuffers.EmissiveTex is null)
+            || directLightingBuffers.EmissiveTex is null))
         {
             return;
         }
@@ -135,34 +149,27 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // Use existing GBuffer/DynamicTexture resize support (no custom ensure helper).
         if (compositeFbo is null || compositeColorTex is null || !compositeFbo.IsValid || !compositeColorTex.IsValid)
         {
-            compositeFbo?.Dispose();
-            compositeFbo = null;
-
-            compositeColorTex?.Dispose();
-            compositeColorTex = null;
+            ReleaseScreenResources();
 
             compositeColorTex = DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
             if (!compositeColorTex.IsValid)
             {
-                compositeColorTex.Dispose();
-                compositeColorTex = null;
+                ReleaseScreenResources();
                 return;
             }
 
             compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, ownsTextures: false, debugName: "PBRCompositeFBO");
             if (compositeFbo is null || !compositeFbo.IsValid)
             {
-                compositeFbo?.Dispose();
-                compositeFbo = null;
-                compositeColorTex.Dispose();
-                compositeColorTex = null;
+                ReleaseScreenResources();
                 return;
             }
         }
         // Define-backed toggles must be set before Use() so the correct variant is bound.
-        bool lumOnEnabled = readLightingMode();
+        bool lumOnEnabled = capture is null && readLightingMode();
         var currentBuffers = lumOnEnabled ? getLumOnBuffers() : null;
-        var indirectTex = currentBuffers?.HasPublishedIndirect == true ? currentBuffers.IndirectFullTex : null;
+        // Current-frame LumOn gather has not run at the hand boundary. Use the established environment fallback.
+        var indirectTex = capture is null && currentBuffers?.HasPublishedIndirect == true ? currentBuffers.IndirectFullTex : null;
         if (indirectTex?.IsValid != true) indirectTex = null;
 
         shader.ConfigureOptions(() =>
@@ -181,21 +188,24 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
-        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
         GlStateCache.Current.InvalidateAll();
         GlStateCache.Current.Apply(CompositePipeline);
-        compositeFbo!.Bind();
-        GL.Viewport(0, 0, screenW, screenH);
-
-        // Single target output.
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        GpuFramebuffer? refractionTarget = null;
+        try { refractionTarget = publication.BeginFrame(ConfigModSystem.Config.WaterRefractionEnabled, compositeColorTex); }
+        catch (Exception error) { capi.Logger.Warning("[VGE] Water refraction source unavailable: {0}", error.Message); }
+        (refractionTarget ?? compositeFbo!).BindWithViewport();
+        shader.RefractionSourceEnabled = refractionTarget is not null;
+        var cleanSource = capture is null && PreOverlayScene?.Published == true ? PreOverlayScene : null;
+        shader.PreOverlayColor = cleanSource?.Color;
+        shader.PreOverlayDepth = cleanSource?.Depth;
 
 
 
         // Direct lighting radiance buffers (linear, fog-free)
-        shader.DirectDiffuse = directLightingBuffers.DirectDiffuseTex;
-        shader.DirectSpecular = directLightingBuffers.DirectSpecularTex;
-        shader.Emissive = directLightingBuffers.EmissiveTex;
+        shader.DirectDiffuse = isolatedLighting?.DirectDiffuse ?? directLightingBuffers.DirectDiffuseTex;
+        shader.DirectSpecular = isolatedLighting?.DirectSpecular ?? directLightingBuffers.DirectSpecularTex;
+        shader.Emissive = isolatedLighting?.Emissive ?? directLightingBuffers.EmissiveTex;
 
         if (lumOnEnabled) shader.IndirectDiffuse = indirectTex;
         shader.GBufferEnvironment = gBufferManager.EnvironmentTexture;
@@ -225,36 +235,55 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         shader.InvProjectionMatrix = invProjectionMatrix;
         shader.ViewMatrix = viewMatrix;
+        shader.PreOverlaySourceEnabled = cleanSource is not null;
 
-        if (!shader.TryUse()) return;
         using var cpuScope = Profiler.BeginScope("PBR.Composite", "Render");
+        using (shader.UseScope())
         using (GlGpuProfiler.Instance.Scope("PBR.Composite"))
         {
             capi.Render.RenderMesh(quadMeshRef);
         }
 
-        shader.Stop();
+        if (capture is not null)
+        {
+            if (refractionTarget is not null) publication.Publish();
+            return;
+        }
 
         // Resolve HDR deliberately before the RGBA8 primary and vanilla display grading.
         // The source is our scratch texture, so this draw has no color attachment feedback.
-        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-        GL.Viewport(0, 0, screenW, screenH);
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        // Borrow only primary color; this FBO owns its routing and never owns the engine texture.
+        if (primaryResolveFbo is not { IsValid: true }
+            || !ReferenceEquals(primaryResolveSource, primaryFb)
+            || primaryResolveSourceId != primaryFb.FboId
+            || primaryResolveColorId != primaryFb.ColorTextureIds[0])
+        {
+            // Rebuild only when the engine replaces the source or its borrowed attachment.
+            ReleasePrimaryResolve();
+            primaryResolveFbo = GpuFramebuffer.CreateEmpty("PBR.PrimaryResolve");
+            primaryResolveFbo.Attach(primaryFb.ColorTextureIds[0]);
+            primaryResolveSource = primaryFb;
+            primaryResolveSourceId = primaryFb.FboId;
+            primaryResolveColorId = primaryFb.ColorTextureIds[0];
+        }
+        primaryResolveFbo.Bind();
 
         display.PrimaryScene = compositeColorTex!.TextureId;
         display.PrimaryDepth = primaryFb.DepthTextureId;
-        if (!display.TryUse()) return;
+        using (display.UseScope())
         using (GlGpuProfiler.Instance.Scope("PBR.DisplayResolve"))
         {
             capi.Render.RenderMesh(quadMeshRef);
         }
-        display.Stop();
         Liquids.WaterVolumeRenderer.MarkComposed(capi);
+        if (refractionTarget is not null) RefractionScene.Publish();
     }
 
     /// <summary>Releases owned fullscreen resources and unregisters the renderer.</summary>
     public void Dispose()
     {
+        capi.Event.LeaveWorld -= ReleaseScreenResources;
+        ReleaseScreenResources();
         unregisterResize();
         if (quadMeshRef is not null)
         {
@@ -262,12 +291,45 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             quadMeshRef = null;
         }
 
-        compositeFbo?.Dispose();
-        compositeFbo = null;
-
-        compositeColorTex?.Dispose();
-        compositeColorTex = null;
-
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
     }
+
+    #endregion
+
+    #region Private
+    /// <summary>Retires snapshots before resizing their borrowed composite attachment.</summary>
+    private void OnScreenResized()
+    {
+        ReleasePrimaryResolve();
+        RefractionScene.Dispose();
+        PreOverlayScene?.Invalidate();
+        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primaryFb is not null && compositeFbo is { IsValid: true })
+        {
+            compositeFbo.Resize(primaryFb.Width, primaryFb.Height);
+        }
+    }
+
+    /// <summary>Withdraws borrowed publications before releasing this renderer's owned screen resources.</summary>
+    private void ReleaseScreenResources()
+    {
+        PreOverlayScene?.Invalidate();
+        RefractionScene.Dispose();
+        compositeFbo?.Dispose();
+        ReleasePrimaryResolve();
+        compositeFbo = null;
+        compositeColorTex?.Dispose();
+        compositeColorTex = null;
+    }
+
+    /// <summary>Retires the borrowed primary attachment and its cached source identity together.</summary>
+    private void ReleasePrimaryResolve()
+    {
+        primaryResolveFbo?.Dispose();
+        primaryResolveFbo = null;
+        primaryResolveSource = null;
+        primaryResolveSourceId = 0;
+        primaryResolveColorId = 0;
+    }
+    #endregion
 }

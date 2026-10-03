@@ -9,6 +9,12 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal interface ILiquidShaderProgramBindings
 {
     #region Public API
+    /// <summary>Declares optional immutable opaque radiance.</summary>
+    [ShaderBinding("vge_refractionColor", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    DynamicTexture2D? RefractionColorTexture { set; }
+    /// <summary>Declares optional immutable opaque depth.</summary>
+    [ShaderBinding("vge_refractionDepth", ShaderBindingKind.Sampler, 10, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    DynamicTexture2D? RefractionDepthTexture { set; }
     /// <summary>Declares the VgeLiquidFrameParams UniformBlock slot.</summary>
     [ShaderBinding("VgeLiquidFrameParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer FrameParameters { get; }

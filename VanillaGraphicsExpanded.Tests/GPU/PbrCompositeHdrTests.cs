@@ -99,7 +99,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
     [InlineData(true, true, 1f, true, true, true)]
     [InlineData(false, true, 1f, true, true, false)]
     [InlineData(true, true, 1f, true, true, false)]
-    public void WaterTransmissionStaysRgbAndSceneLinear(bool lumon, bool underwater, float density, bool mappedCamera, bool sky = false, bool knownExit = true)
+    [InlineData(false, false, 1f, true, false, true, true)]
+    [InlineData(true, false, 1f, true, false, true, true)]
+    public void WaterTransmissionStaysRgbAndSceneLinear(bool lumon, bool underwater, float density, bool mappedCamera, bool sky = false, bool knownExit = true, bool heldOverlay = false)
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRCompositeShaderProgram>(p => {
@@ -116,7 +118,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var optical = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f,
             [extinction.X * signedLength, extinction.Y * signedLength, extinction.Z * signedLength, signedLength]);
         using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, underwater && knownExit ? -1f : 0f]);
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var output = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f);
         using var atmosphereOwner = new AtmosphereModSystem();
         var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1,
@@ -132,6 +134,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
         program.SetAtmosphere(snapshot);
         program.SetUnderwater(underwater);
+        program.RefractionSourceEnabled = true;
         program.FogDensityIn = 10; program.FogMinIn = 1; program.RgbaFogIn = new(1, 1, 1, 1);
         program.SetWaterVolume(new WaterVolumeFrame(optical, source, underwater && mappedCamera ? medium : null));
         var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
@@ -139,7 +142,25 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 236));
         Assert.Equal(underwater && mappedCamera ? 1f : 0f, BitConverter.ToSingle(cpuParameters, 252));
         TestFramework.RenderQuadTo(program, output);
+        if (heldOverlay)
+        {
+            // The capture policy leaves the opaque world capture intact before first-person overlay writes.
+            Assert.True(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture.ShouldCapture(true,
+                Vintagestory.API.Client.EnumRenderStage.Opaque, false, true, Vintagestory.GameContent.RenderMode.FirstPerson));
+            depth.UploadDataImmediate([.01f]);
+            normal.UploadDataImmediate([.5f, 1f, .5f, -1f]);
+            direct.UploadDataImmediate([100f, 20f, 10f, 1f]);
+            Assert.Equal(.01f, depth.ReadPixels()[0]);
+        }
         var actual = output[0].ReadPixels();
+        var rawSource = output[1].ReadPixels();
+        var sourceDepth = output[2].ReadPixels();
+        // The published source bypasses straight-path medium transport and retains its matching hardware depth.
+        Assert.Equal(sky ? 0f : 1f, rawSource[3]);
+        Assert.InRange(MathF.Abs(sourceDepth[0] - (sky ? 1f : .75f)), 0, .000001f);
+        if (!sky)
+            for (int channel = 0; channel < 3; channel++)
+                Assert.InRange(MathF.Abs(rawSource[channel] - new float[] { 6f, 3f, 2f }[channel]), 0, .0001f);
         float distance = underwater ? 3 : 2;
         float[] coefficients = [extinction.X, extinction.Y, extinction.Z];
         float[] background = [6, 3, 2];

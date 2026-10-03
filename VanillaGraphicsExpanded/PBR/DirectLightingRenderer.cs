@@ -1,6 +1,5 @@
 using System;
 
-using OpenTK.Graphics.OpenGL;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
@@ -23,6 +22,12 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 {
     private const double RenderOrderValue = 9.0;
     private const int RenderRangeValue = 1;
+    private static readonly GlPipelineDesc LightingPipeline = new(
+        defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
+            .With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable)
+            .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
+        nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask),
+        depthWriteMask: false, name: "PBR.DirectLighting");
 
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
@@ -63,35 +68,40 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     /// <summary>Reconstructs terrain-relative receivers and renders direct lighting into its split targets.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (stage != EnumRenderStage.Opaque || quadMeshRef is null)
+        if (stage == EnumRenderStage.Opaque) RenderLighting();
+    }
+
+    /// <summary>Evaluates the same lighting contract into an isolated target for a pre-overlay world capture.</summary>
+    internal bool RenderLighting(DirectLightingTargets? isolated = null)
+    {
+        if (quadMeshRef is null)
         {
-            return;
+            return false;
         }
 
         int screenW = capi.Render.FrameWidth;
         int screenH = capi.Render.FrameHeight;
         if (screenW <= 0 || screenH <= 0)
         {
-            return;
+            return false;
         }
 
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
         {
-            return;
+            return false;
         }
 
         // Save current FBO + viewport so we can restore engine state.
         // Must happen before EnsureBuffers(), which may recreate/bind/unbind FBOs during resize.
-        int prevFbo = GpuFramebuffer.SaveBinding();
-        int[] prevViewport = new int[4];
-        GL.GetInteger(GetPName.Viewport, prevViewport);
+        using var fixedState = GlStateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
+        using var bindings = GlStateCache.Current.BindFramebufferScope();
 
         // Ensure output buffers match current screen size
-        if (!bufferManager.EnsureBuffers(screenW, screenH))
+        if (isolated is null ? !bufferManager.EnsureBuffers(screenW, screenH) : !isolated.IsValid)
         {
-            return;
+            return false;
         }
 
         // Compute inverse matrices
@@ -102,22 +112,14 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
         if (shader is null || !shader.EnsureReady())
         {
-            return;
+            return false;
         }
 
         // Bind output MRT FBO
-        bufferManager.BindForRendering();
-        GL.Viewport(0, 0, screenW, screenH);
-
-        // Clear outputs (the pass should fully overwrite, but clear is cheap insurance)
-        float[] clear = [0f, 0f, 0f, 0f];
-        GL.ClearBuffer(ClearBuffer.Color, 0, clear);
-        GL.ClearBuffer(ClearBuffer.Color, 1, clear);
-        GL.ClearBuffer(ClearBuffer.Color, 2, clear);
-
-        // State for fullscreen pass
-        capi.Render.GLDepthMask(false);
-        capi.Render.GlToggleBlend(false);
+        GlStateCache.Current.Apply(LightingPipeline);
+        var target = isolated?.Framebuffer ?? bufferManager.DirectLightingFbo!;
+        target.BindWithViewport();
+        target.Clear(0, 0, 0, 0);
 
 
 
@@ -167,17 +169,11 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
         {
-            shader.Use();
+            using var activation = shader.UseScope();
             capi.Render.RenderMesh(quadMeshRef);
         }
 
-        shader.Stop();
-
-        // Restore state
-        capi.Render.GLDepthMask(true);
-
-        GpuFramebuffer.RestoreBinding(prevFbo);
-        GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+        return true;
     }
 
     #endregion

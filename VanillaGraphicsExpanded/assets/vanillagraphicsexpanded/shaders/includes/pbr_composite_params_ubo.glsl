@@ -15,13 +15,13 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
     // rgbaFogIn
     vec4 fogColor;
 
-    // fogDensityIn.x, fogMinIn.y, underwater.z, reserved.w
+    // fogDensityIn.x, fogMinIn.y, underwater.z, optional refraction publication.w
     vec4 fogFloats0;
 
     // indirectTint.xyz, indirectIntensity.w
     vec4 indirectTint_intensity;
 
-    // diffuseAOStrength.x, specularAOStrength.y, reserved.zw
+    // diffuseAOStrength.x, specularAOStrength.y, current-frame pre-overlay source.z, reserved.w
     vec4 aoStrengths;
     vec4 atmosphereAerial; // admitted altitude (km), horizon elevation, reserved.zw
     vec4 atmosphereSun; // admitted solar direction, reserved.w

@@ -45,7 +45,7 @@ The RGBA material atlas supplies roughness, metallic, emission and transmission.
 
 Water uses IOR 1.333, dielectric Fresnel including underwater total internal reflection, GGX direct reflection, geometric surface normals, atmosphere solar/environment inputs, shadow cascades and view-space dynamic lights. Explicit material-owned absorption/scattering replaces albedo-derived extinction and tint-based scattering; see [water medium units, measured reference and transport](PBR.WaterMedium.md). An oriented boundary capture supplies RGB transport to opaque composition. After successful composition, OIT supplies the interface response without repeating bulk extinction. The bounded opaque-depth proxy remains a fallback when capture is unavailable; finite sky paths are supported when captured boundaries establish an exit; transparent-receiver coverage remains unresolved.
 
-Transmission remains straight-through weighted OIT. There is no screen-space refraction or scene reflection. Scalar revealage and display-space engine composition remain approximations; their improvements have separate tasks.
+Transmission defaults to straight-through weighted OIT. Optional [water refraction](PBR.WaterRefraction.md) uses immutable pre-transport opaque radiance/depth and replaces the OIT background on accepted hits. Missing hits retain straight-through transmission. Scene reflection is not implemented. Scalar revealage and display-space engine composition remain approximations; their improvements have separate tasks.
 
 ## Wave displacement and liquid-depth ownership
 
@@ -71,7 +71,7 @@ The depth target remains an engine resource for existing consumers. Color has a 
 
 Preparation and complete atlas/atmosphere availability are checked before taking liquid submission ownership. Unavailable inputs leave vanilla rendering enabled. A runtime exception logs its stack and disables the owned renderer for the world session. If some owned submission may already have occurred, vanilla is suppressed for that invocation only to avoid double accumulation; subsequent invocations use vanilla. Leaving the world resets the failure state. Arbitrary GL/context failures are not guaranteed recoverable.
 
-Neither renderer allocates a screen target. They sample current framebuffer references at their own render boundaries, including after resize. Shader reload follows the existing program library. Engine liquid depth and OIT resources remain engine-owned.
+Neither liquid mesh renderer allocates a screen target. The optional refraction scene owner publishes opaque snapshots through the existing composite draw and retires them through screen/world lifecycle boundaries. Liquid renderers sample current framebuffer references at their own boundaries, including after resize. Shader reload follows the existing program library. Engine liquid depth and OIT resources remain engine-owned.
 
 ## Validation and acceptance
 

@@ -65,6 +65,12 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     }
 
 #region Texture Samplers
+    /// <summary>Controls access to optional pre-overlay images without sampling absent fallback storage.</summary>
+    internal bool PreOverlaySourceEnabled { set => Params.PreOverlaySourceEnabled = value; }
+    /// <summary>Unattenuated world color captured before the local overlay.</summary>
+    public partial DynamicTexture2D? PreOverlayColor { set; }
+    /// <summary>Matching clean world depth.</summary>
+    public partial DynamicTexture2D? PreOverlayDepth { set; }
 
     public partial GpuTexture? DirectDiffuse { set; }
 
@@ -102,6 +108,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     #endregion
 
     #region Fog
+
+    /// <summary>Enables optional pre-transport MRT publication without changing normal composition.</summary>
+    internal bool RefractionSourceEnabled { set => Params.RefractionSourceEnabled = value; }
 
     /// <summary>Sets the shared atmospheric aerial-perspective approximation before final display conversion.</summary>
     internal void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)

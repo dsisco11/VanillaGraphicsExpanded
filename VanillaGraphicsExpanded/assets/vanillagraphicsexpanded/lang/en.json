@@ -1,4 +1,6 @@
 {
+  "config-water-refraction": "Water Refraction",
+  "config-water-refraction-tooltip": "Distort opaque backgrounds through water using bounded screen-space tracing. Adds radiance and depth snapshots; missing hits retain straight-through transmission.",
   "config-tessellation-maximum-level": "Maximum tessellation level",
   "config-tessellation-maximum-level-tooltip": "Integer 1-8 (default 5). Upper bound on adaptive terrain subdivision. Higher levels increase geometry cost.",
   "config-tessellation-target-edge-pixels": "Tessellation target edge size",

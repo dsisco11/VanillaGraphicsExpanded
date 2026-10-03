@@ -51,15 +51,19 @@ public sealed class ConfigPersistenceTests
         api.SetupGet(x => x.Logger).Returns(Mock.Of<ILogger>());
         var document = JObject.FromObject(new VgeConfig());
         document["Atmosphere"]!["SkyLutQuality"] = 2;
+        document["WaterRefractionEnabled"] = true;
         document["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"] = 4;
         api.Setup(x => x.LoadModConfig<JObject>(It.IsAny<string>())).Returns(() => (JObject)document.DeepClone());
         ConfigModSystem.EnsureConfigLoaded(api.Object);
         Assert.Equal(2, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
+        Assert.True(ConfigModSystem.Config.WaterRefractionEnabled);
         Assert.Equal(4, ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision.MaximumLevel);
         document["Atmosphere"]!["SkyLutQuality"] = 3;
+        document["WaterRefractionEnabled"] = false;
         system.Dispose();
         ConfigModSystem.EnsureConfigLoaded(api.Object);
         Assert.Equal(3, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
+        Assert.False(ConfigModSystem.Config.WaterRefractionEnabled);
         api.Verify(x => x.LoadModConfig<JObject>(It.IsAny<string>()), Times.Exactly(2));
     }
     #endregion

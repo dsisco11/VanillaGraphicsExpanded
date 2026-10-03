@@ -1397,6 +1397,10 @@ public class VgeConfig
     [JsonProperty]
     public DebugConfig Debug { get; set; } = new();
 
+    /// <summary>Enables bounded screen-space water refraction and optional opaque snapshots.</summary>
+    [JsonProperty]
+    public bool WaterRefractionEnabled { get; set; } = false;
+
     /// <summary>
     /// Configuration for LumOn (screen-probe gather) settings.
     /// Persisted under: LumOn

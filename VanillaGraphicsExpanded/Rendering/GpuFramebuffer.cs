@@ -31,6 +31,10 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     #region Fields
 
     private int fboId;
+    private GpuFramebuffer? blitRead;
+    private GpuFramebuffer? blitDraw;
+    private int wrappedWidth;
+    private int wrappedHeight;
     private readonly List<DynamicTexture2D> colorAttachments;
     private DynamicTexture2D? depthAttachment;
     private GpuRenderbuffer? depthRenderbuffer;
@@ -89,18 +93,18 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     }
 
     /// <summary>
-    /// Width of the framebuffer (from first color attachment or depth).
+    /// Width from the first color/depth attachment, or the viewport dimensions supplied to Wrap.
     /// </summary>
     public int Width => colorAttachments.Count > 0 
         ? colorAttachments[0].Width 
-        : depthAttachment?.Width ?? depthRenderbuffer?.Width ?? 0;
+        : depthAttachment?.Width ?? depthRenderbuffer?.Width ?? wrappedWidth;
 
     /// <summary>
-    /// Height of the framebuffer (from first color attachment or depth).
+    /// Height from the first color/depth attachment, or the viewport dimensions supplied to Wrap.
     /// </summary>
     public int Height => colorAttachments.Count > 0 
         ? colorAttachments[0].Height 
-        : depthAttachment?.Height ?? depthRenderbuffer?.Height ?? 0;
+        : depthAttachment?.Height ?? depthRenderbuffer?.Height ?? wrappedHeight;
 
     #endregion
 
@@ -381,16 +385,23 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
     }
 
     /// <summary>
-    /// Creates a GBuffer by wrapping an existing OpenGL FBO ID.
+    /// Wraps an existing OpenGL FBO ID without owning its framebuffer or attachments.
     /// Useful for working with VS-managed framebuffers.
     /// </summary>
     /// <param name="existingFboId">The existing FBO ID to wrap.</param>
-    /// <returns>A GBuffer wrapper (does not own the FBO).</returns>
-    public static GpuFramebuffer Wrap(int existingFboId, string? debugName = null)
+    /// <param name="debugName">Optional diagnostic name.</param>
+    /// <param name="width">Optional viewport width; supply both dimensions or leave both zero.</param>
+    /// <param name="height">Optional viewport height; this metadata does not transfer attachment ownership.</param>
+    /// <returns>A non-owning framebuffer wrapper.</returns>
+    public static GpuFramebuffer Wrap(int existingFboId, string? debugName = null, int width = 0, int height = 0)
     {
+        if (width < 0 || height < 0 || (width == 0) != (height == 0))
+            throw new ArgumentOutOfRangeException(nameof(width), "Supply two positive viewport dimensions or leave both zero.");
         var buffer = new GpuFramebuffer(ownsFramebuffer: false, ownsTextures: false)
         {
             fboId = existingFboId,
+            wrappedWidth = width,
+            wrappedHeight = height,
             debugName = debugName
         };
         return buffer;
@@ -961,7 +972,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             return;
         }
 
-        BlitFromInternal(source.FboId, source.Width, source.Height, mask, filter);
+        BlitAttachments(source.FboId, source.Width, source.Height, fboId, Width, Height, mask, filter);
     }
 
     /// <summary>
@@ -983,7 +994,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             return;
         }
 
-        BlitFromInternal(sourceFboId, srcWidth, srcHeight, mask, filter);
+        BlitAttachments(sourceFboId, srcWidth, srcHeight, fboId, Width, Height, mask, filter);
     }
 
     /// <summary>
@@ -1008,7 +1019,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             return;
         }
 
-        BlitToInternal(dest.FboId, dest.Width, dest.Height, mask, filter);
+        BlitAttachments(fboId, Width, Height, dest.FboId, dest.Width, dest.Height, mask, filter);
     }
 
     /// <summary>
@@ -1030,85 +1041,72 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             return;
         }
 
-        BlitToInternal(destFboId, dstWidth, dstHeight, mask, filter);
+        BlitAttachments(fboId, Width, Height, destFboId, dstWidth, dstHeight, mask, filter);
     }
 
-    private void BlitFromInternal(int sourceFboId, int srcWidth, int srcHeight,
-        ClearBufferMask mask, BlitFramebufferFilter filter)
+    /// <summary>Blits borrowed color attachments without changing original routing; depth/stencil copies need only bindings.</summary>
+    private void BlitAttachments(int source, int sourceWidth, int sourceHeight, int destination, int destinationWidth,
+        int destinationHeight, ClearBufferMask mask, BlitFramebufferFilter filter)
     {
         var gl = GlStateCache.Current;
-        int prevFbo = gl.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
-        int prevReadFbo = gl.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer);
-        int prevDrawFbo = gl.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
-        int prevReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
-        int prevDrawBuffer = GL.GetInteger(GetPName.DrawBuffer);
-
-        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sourceFboId);
-        gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fboId);
-
-        // For color blits, make sure we read/write from the expected attachment.
-        // VS primary FB is an MRT; without this, glBlitFramebuffer may copy the wrong attachment.
+        using var bindings = gl.BindFramebufferScope();
         if ((mask & ClearBufferMask.ColorBufferBit) != 0)
         {
-            GL.ReadBuffer(sourceFboId == 0 ? ReadBufferMode.Back : ReadBufferMode.ColorAttachment0);
-            GL.DrawBuffer(fboId == 0 ? DrawBufferMode.Back : DrawBufferMode.ColorAttachment0);
+            // Refresh borrowed attachment names on every call so engine rebuilds and texture replacement are observed.
+            int read = BorrowBlitColor(source, ref blitRead);
+            int draw = BorrowBlitColor(destination, ref blitDraw);
+            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read);
+            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, draw);
+            GL.BlitFramebuffer(0, 0, sourceWidth, sourceHeight, 0, 0, destinationWidth, destinationHeight,
+                ClearBufferMask.ColorBufferBit, filter);
         }
-
-        GL.BlitFramebuffer(
-            0, 0, srcWidth, srcHeight,
-            0, 0, Width, Height,
-            mask,
-            filter);
-
-        // Restore previous bindings/state
-        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, prevReadFbo);
-        gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, prevDrawFbo);
-        if ((mask & ClearBufferMask.ColorBufferBit) != 0)
+        var remaining = mask & ~ClearBufferMask.ColorBufferBit;
+        if (remaining != 0)
         {
-            GL.ReadBuffer((ReadBufferMode)prevReadBuffer);
-            GL.DrawBuffer((DrawBufferMode)prevDrawBuffer);
+            // Depth and stencil selection is independent of color read/draw routing.
+            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, source);
+            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destination);
+            GL.BlitFramebuffer(0, 0, sourceWidth, sourceHeight, 0, 0, destinationWidth, destinationHeight, remaining, filter);
         }
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
     }
 
-    private void BlitToInternal(int destFboId, int dstWidth, int dstHeight,
-        ClearBufferMask mask, BlitFramebufferFilter filter)
+    /// <summary>Reattaches color zero to a non-owning scratch target, preserving mip, face, or selected layer.</summary>
+    private static int BorrowBlitColor(int source, ref GpuFramebuffer? scratch)
     {
+        // Default framebuffer images cannot be attached elsewhere; retain their existing buffer selection.
+        if (source == 0) return 0;
         var gl = GlStateCache.Current;
-        int prevFbo = gl.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
-        int prevReadFbo = gl.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer);
-        int prevDrawFbo = gl.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
-        int prevReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
-        int prevDrawBuffer = GL.GetInteger(GetPName.DrawBuffer);
-
-        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
-        gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destFboId);
-
-        // For color blits, make sure we read/write from the expected attachment.
-        // VS primary FB is an MRT; without this, glBlitFramebuffer may copy the wrong attachment.
-        if ((mask & ClearBufferMask.ColorBufferBit) != 0)
+        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, source);
+        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
+            FramebufferParameterName.FramebufferAttachmentObjectType, out int type);
+        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
+            FramebufferParameterName.FramebufferAttachmentObjectName, out int name);
+        if (name == 0) throw new InvalidOperationException("Color blit requires attachment zero.");
+        int level = 0, face = 0, layer = 0;
+        if (type == (int)All.Texture)
         {
-            GL.ReadBuffer(fboId == 0 ? ReadBufferMode.Back : ReadBufferMode.ColorAttachment0);
-            GL.DrawBuffer(destFboId == 0 ? DrawBufferMode.Back : DrawBufferMode.ColorAttachment0);
+            GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
+                FramebufferParameterName.FramebufferAttachmentTextureLevel, out level);
+            GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
+                FramebufferParameterName.FramebufferAttachmentTextureCubeMapFace, out face);
+            GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
+                FramebufferParameterName.FramebufferAttachmentTextureLayer, out layer);
         }
-
-        GL.BlitFramebuffer(
-            0, 0, Width, Height,
-            0, 0, dstWidth, dstHeight,
-            mask,
-            filter);
-
-        // Restore previous bindings/state
-        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, prevReadFbo);
-        gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, prevDrawFbo);
-        if ((mask & ClearBufferMask.ColorBufferBit) != 0)
-        {
-            GL.ReadBuffer((ReadBufferMode)prevReadBuffer);
-            GL.DrawBuffer((DrawBufferMode)prevDrawBuffer);
-        }
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
+        scratch ??= CreateEmpty("Framebuffer.BlitScratch");
+        scratch.Bind();
+        if (type == (int)All.Renderbuffer)
+            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, name);
+        else if (face != 0)
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, (TextureTarget)face, name, level);
+        else if (layer != 0)
+            GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, name, level, layer);
+        else
+            // Whole layered attachments and selected layer zero both blit from layer zero.
+            GL.FramebufferTexture(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, name, level);
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        return scratch.FboId;
     }
-
     /// <summary>
     /// Saves the current framebuffer binding for later restoration.
     /// </summary>
@@ -1241,6 +1239,10 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
 
     protected override void OnAfterDelete()
     {
+        blitRead?.Dispose();
+        blitDraw?.Dispose();
+        blitRead = null;
+        blitDraw = null;
         if (ownsTextures)
         {
             foreach (var texture in colorAttachments)

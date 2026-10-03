@@ -9,6 +9,18 @@ namespace VanillaGraphicsExpanded.PBR;
 internal interface IPBRCompositeShaderProgramBindings
 {
     #region Public API
+    /// <summary>Clean radiance retained before first-person framebuffer overwrites.</summary>
+    [ShaderBinding("preOverlayColor", ShaderBindingKind.Sampler, 14, ShaderStageKind.Fragment, Required = false, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    DynamicTexture2D? PreOverlayColor { set; }
+    /// <summary>Depth from the same pre-overlay lighting invocation.</summary>
+    [ShaderBinding("preOverlayDepth", ShaderBindingKind.Sampler, 15, ShaderStageKind.Fragment, Required = false, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    DynamicTexture2D? PreOverlayDepth { set; }
+    /// <summary>Publishes unattenuated opaque scene-linear radiance for refraction.</summary>
+    [ShaderBinding("outRefractionColor", ShaderBindingKind.FragmentOutputLocation, 1, ShaderStageKind.Fragment)]
+    ShaderFragmentOutputLocationBinding RefractionColorOutput { get; }
+    /// <summary>Publishes matching full-precision hardware depth for refraction.</summary>
+    [ShaderBinding("outRefractionDepth", ShaderBindingKind.FragmentOutputLocation, 2, ShaderStageKind.Fragment)]
+    ShaderFragmentOutputLocationBinding RefractionDepthOutput { get; }
     /// <summary>Declares the VgePbrCompositeParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgePbrCompositeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer Parameters { get; }

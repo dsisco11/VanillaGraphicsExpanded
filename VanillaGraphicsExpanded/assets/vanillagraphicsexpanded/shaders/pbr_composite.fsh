@@ -1,6 +1,8 @@
 #version 330 core
 
 out vec4 outColor;
+layout(location = 1) out vec4 outRefractionColor;
+layout(location = 2) out float outRefractionDepth;
 
 // ============================================================================
 // PBR Composite Pass
@@ -41,6 +43,8 @@ uniform sampler2D gBufferMaterial;
 uniform sampler2D gBufferNormal;
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferPosition;
+uniform sampler2D preOverlayColor;
+uniform sampler2D preOverlayDepth;
 
 // Fog (VS convention)
 
@@ -70,6 +74,12 @@ void main(void)
     vec2 uv = gl_FragCoord.xy / vec2(textureSize(primaryDepth, 0));
 
     float depth = texture(primaryDepth, uv).r;
+    // Sky and first-person visibility proxies cannot establish a refracted hit.
+    if (vgePbrCompositeParams.fogFloats0.w > .5)
+    {
+        outRefractionDepth = depth;
+        outRefractionColor = vec4(0);
+    }
 
     vec3 directLight = texture(directDiffuse, uv).rgb + texture(directSpecular, uv).rgb;
     vec3 emissiveLight = texture(emissive, uv).rgb;
@@ -165,6 +175,19 @@ void main(void)
 #endif // VGE_LUMON_ENABLED
 
     finalColor = max(finalColor, vec3(0.0));
+
+    // Capture before water/atmospheric transport; the liquid evaluates its bent path once.
+    if (vgePbrCompositeParams.fogFloats0.w > .5)
+    {
+        outRefractionColor = vec4(finalColor, texture(gBufferNormal, uv).a >= 0.0 ? 1.0 : 0.0);
+        // Restore both members of the clean pair only where first-person visibility replaced the world.
+        // Optional missing captures bind the zero fallback and never establish a physical receiver.
+        if (texture(gBufferNormal, uv).a < 0.0 && vgePbrCompositeParams.aoStrengths.z > .5)
+        {
+            outRefractionColor = texelFetch(preOverlayColor, ivec2(gl_FragCoord.xy), 0);
+            outRefractionDepth = texelFetch(preOverlayDepth, ivec2(gl_FragCoord.xy), 0).r;
+        }
+    }
 
     bool waterResolved = false;
     bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;

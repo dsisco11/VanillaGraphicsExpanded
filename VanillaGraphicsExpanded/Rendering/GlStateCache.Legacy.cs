@@ -4,26 +4,34 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 internal sealed partial class GlStateCache
 {
-    public LegacyFixedFunctionScope CaptureLegacyFixedFunctionState()
+    /// <summary>Preserves fixed-function state, optionally including viewport for draws that resize it.</summary>
+    public LegacyFixedFunctionScope CaptureLegacyFixedFunctionState(bool preserveViewport = false)
     {
         var snapshot = LegacyFixedFunctionSnapshot.CaptureBestEffort();
-        return new LegacyFixedFunctionScope(this, snapshot);
+        return new LegacyFixedFunctionScope(this, snapshot, preserveViewport);
     }
 
+    /// <summary>Restores fixed-function state and, when requested by a draw pass, its previous viewport.</summary>
     public readonly struct LegacyFixedFunctionScope : System.IDisposable
     {
         private readonly GlStateCache cache;
         private readonly LegacyFixedFunctionSnapshot snapshot;
+        private readonly int[]? viewport;
 
-        internal LegacyFixedFunctionScope(GlStateCache cache, LegacyFixedFunctionSnapshot snapshot)
+        /// <summary>Captures viewport only for rendering passes which change it.</summary>
+        internal LegacyFixedFunctionScope(GlStateCache cache, LegacyFixedFunctionSnapshot snapshot, bool preserveViewport)
         {
             this.cache = cache;
             this.snapshot = snapshot;
+            viewport = preserveViewport ? new int[4] : null;
+            if (viewport is not null) GL.GetInteger(GetPName.Viewport, viewport);
         }
 
+        /// <summary>Restores only the state requested by this rendering boundary.</summary>
         public void Dispose()
         {
             snapshot.Restore(cache);
+            if (viewport is not null) GL.Viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
         }
     }
 

@@ -24,7 +24,7 @@ layout(std140, binding = 12) uniform VgeLiquidFrameParams
     vec3 pointLights[100];
     vec3 pointLightColors[100];
     float fogSpheres[24];
-    vec4 liquidMediumControl;
+    vec4 liquidMediumControl; // material lookup, composed volume, immutable refraction source, reserved
 };
 layout(std140, binding = 14) uniform VgeLiquidDrawParams
 {

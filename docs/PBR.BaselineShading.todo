@@ -463,6 +463,12 @@ Tasks
       Complete this entry only when the dedicated task list's acceptance criteria are satisfied.
 
   ☐ Implement water refraction integrated with PBR liquids and OIT.
+    - Implementation and remaining acceptance: docs/PBR.WaterRefraction.md. Optional opaque MRT
+      radiance/depth publication, bounded Snell-law tracing and OIT background replacement are wired.
+      Pre-overlay world color/depth capture preserves base-game draw order and restores refraction
+      receivers behind first-person visibility writes; its early lighting/coverage limits are documented.
+      Focused subagent regression passed 109/109; subsequent configuration restoration passed 23/23.
+      User-run appearance and production GPU cost acceptance remain outstanding; keep this entry open.
     - Gate refraction behind a user-facing Water Refraction option in VGE graphics settings, persisted
       through the existing configuration system. When disabled, retain straight-through liquid
       transmission and skip refraction-only snapshots, ray traversal and resource allocation.

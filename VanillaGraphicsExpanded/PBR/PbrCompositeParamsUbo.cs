@@ -18,6 +18,8 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     private const int OffsetIndirectTintIntensity = 160; // vec4 at 160 (tint.rgb, intensity)
     private const int OffsetAOStrengths = 176;       // vec4 at 176 (diffuseAO, specularAO, 0, 0)
     private bool underwater;
+    private bool refractionSource;
+    private bool preOverlaySource;
     // Total: 192 bytes
 
     public PbrCompositeParamsUbo() : base(272)
@@ -45,6 +47,16 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     #endregion
 
     #region Fog
+    /// <summary>Enables the clean pre-overlay pair only after successful current-frame capture.</summary>
+    internal bool PreOverlaySourceEnabled
+    {
+        set { preOverlaySource = value; WriteFloat(OffsetAOStrengths + 8, value ? 1 : 0); }
+    }
+    /// <summary>Controls optional pre-transport outputs in the reserved fog component.</summary>
+    internal bool RefractionSourceEnabled
+    {
+        set { refractionSource = value; WriteFloat(OffsetFogFloats + 12, value ? 1 : 0); }
+    }
     /// <summary>Publishes valid boundary capture and the camera's starting medium in SI units.</summary>
     internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
     {
@@ -81,7 +93,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            WriteVector4(OffsetFogFloats, new(value.fogDensity, value.fogMin, underwater ? 1f : 0f, 0f));
+            WriteVector4(OffsetFogFloats, new(value.fogDensity, value.fogMin, underwater ? 1f : 0f, refractionSource ? 1f : 0f));
         }
     }
 
@@ -105,7 +117,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     {
         set
         {
-            WriteVector4(OffsetAOStrengths, new(value.diffuse, value.specular, 0f, 0f));
+            WriteVector4(OffsetAOStrengths, new(value.diffuse, value.specular, preOverlaySource ? 1f : 0f, 0f));
         }
     }
 

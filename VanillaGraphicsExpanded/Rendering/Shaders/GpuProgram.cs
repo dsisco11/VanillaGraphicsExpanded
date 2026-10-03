@@ -152,7 +152,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         var previous = ShaderProgramBase.CurrentShaderProgram;
         int previousId = previous?.ProgramId ?? 0;
         if (previous is null)
-            GlStateCache.Current.TryGetCachedCurrentProgram(out previousId);
+            previousId = GlStateCache.Current.GetCurrentProgram();
         // Capture ownership now; nested disposal must fail restoration rather than bind a retired GL name.
         var previousCompute = previous is null ? GpuComputeShader.FindOwner(previousId) : null;
 
