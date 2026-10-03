@@ -463,6 +463,10 @@ Tasks
       Complete this entry only when the dedicated task list's acceptance criteria are satisfied.
 
   ☐ Implement water refraction integrated with PBR liquids and OIT.
+    - Dedicated execution and acceptance list: docs/PBR.WaterRefraction.todo. It owns the four
+      water-quality levels (ray march x8/x4/x2, UV distortion), shared HDR water composition,
+      refracted scattering, optional background downsampling and receiver-confidence improvements.
+      Complete this entry only when that list's acceptance criteria are satisfied.
     - Implementation and remaining acceptance: docs/PBR.WaterRefraction.md. Optional opaque MRT
       radiance/depth publication, bounded Snell-law tracing and OIT background replacement are wired.
       Pre-overlay world color/depth capture preserves base-game draw order and restores refraction
@@ -580,6 +584,8 @@ Tasks
       evidence to completed tasks and remove temporary profiling/comparison code after preserving it.
 
   ☐ Extend scene-linear HDR rendering through the complete scene and postprocessing pipeline.
+    - Coordinate prerequisite HDR water/OIT work with docs/PBR.WaterRefraction.todo; establish one
+      shared producer/consumer and final-display contract without reciprocal task dependencies.
     - Audit render-target formats, copies, blending and shader outputs across opaque terrain,
       entities, transparency/OIT, liquids, sky, clouds and late held items. Preserve HDR radiance
       in floating-point targets through scene composition; changing primary format alone is insufficient.

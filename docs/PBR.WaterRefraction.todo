@@ -1,0 +1,204 @@
+Water refraction quality, receiver stability and HDR composition
+==============================================================
+
+Source requirements: user direction on 2026-10-03.
+Parent: docs/PBR.BaselineShading.todo / Implement water refraction integrated with PBR liquids and OIT.
+Current implementation and evidence: docs/PBR.WaterRefraction.md.
+Related contracts: docs/PBR.WaterMedium.md, docs/PBR.Liquids.md,
+  docs/PBR.MaterialColorAndDisplay.md, docs/Rendering.AuthoritativePipelineState.todo.
+
+Goal and fixed requirements
+  Retain geometric ray-marched refraction at the three higher water-quality levels. Provide exactly
+  four levels, ordered highest to lowest: ray march x8, ray march x4, ray march x2, UV distortion.
+  Every level uses scene-linear HDR water composition, refracted scattering direction, and optional
+  downsampled background buffers. Preserve the independent WaterRefractionEnabled switch.
+  Implement shared bilateral receiver filtering for all four quality levels at every supported
+  background resolution, retaining valid receiver samples while excluding foreground contamination.
+  Prevent avoidable receiver/confidence failures and loss of visible distortion. Do not treat
+  invalid depth, foreground geometry or missing screen-space coverage as valid ray intersections.
+  This is a planning document; implementation has not started. All new tasks remain unchecked.
+
+Scope and execution contract
+  Reuse liquid, composite, water-medium, capture, framebuffer, shader-library and settings owners.
+  Keep resource orchestration thin; separate receiver sampling, traversal, transport and composition.
+  Preserve engine rendering order, first-person capture behavior, waves/flow, non-water liquids,
+  atmosphere, shadows, world lifecycle and operation with LumOn both enabled and disabled.
+  Follow repository documentation/comment conventions. Delegate all builds and tests to subagents.
+  Do not launch Vintage Story; user supplies live visual acceptance. Keep source review, headless
+  GPU checks, user-run results and measured performance distinct. Do not reuse old test counts as
+  evidence for changed algorithms. Record implementation evidence in PBR.WaterRefraction.md.
+  Scene reflections, caustics, exact animated camera waterline and native HDR monitor presentation
+  remain separately owned tasks. Internal HDR water must work on ordinary SDR displays.
+  Do not add temporal history, offscreen geometry tracing or a render graph without a separate
+  design decision. Current opaque snapshots cannot supply arbitrary hidden transparent geometry.
+
+Planning assumptions and decisions to resolve
+  - Interpret x8/x4/x2 as total maximum ray-position depth evaluations per fragment, including
+    iterative crossing refinement, not those counts plus the existing five bisections. Neighbour
+    filtering taps and fallback lookups are separate costs and must also be bounded and reported.
+    Confirm this interpretation before implementing traversal; no hidden extra refinement loop.
+  - Proposed initial settings: highest quality for an already-enabled refraction feature, full-size
+    backgrounds by default, optional half width/half height (one quarter as many texels). These
+    defaults/resolution choices are proposals, not user-specified values; settle in Phase 1.
+  - Proposed continuity policy: valid ray result first, validated UV-distorted receiver when ray
+    coverage is unavailable, safe undistorted transport only if neither has usable coverage.
+    The user requires preventing avoidable confidence loss; this fallback policy is an implementation
+    proposal for unavoidable missing coverage, not a replacement for fixing traversal.
+  - Bilateral receiver filtering is required. Its weights, eligibility tests and tolerances must
+    satisfy the local interface-plane geometry contract; these details remain implementation choices.
+
+Bilateral receiver filtering: meaning and limitations
+  A filtered background lookup typically combines four neighbouring texels. Ordinary bilinear
+  filtering uses only their distance from the lookup position. A bilateral receiver filter also
+  considers geometry: discard or reduce weights for texels that belong in front of the water or
+  otherwise violate receiver eligibility, then normalize the surviving weights. Apply compatible
+  weights to depth and scene-linear colour so foreground colour cannot leak into a water receiver.
+  Example: three taps see the submerged floor and one sees a foreground rock. Retaining the three
+  valid taps can yield a smooth floor sample without rejecting the whole lookup or importing rock
+  colour. No surviving weights means unavailable coverage, not permission to sample arbitrary colour.
+  Filtering must not average unrelated depth layers into a fictional ray intersection. Previously
+  downsampled colour contamination cannot be undone merely by rejecting taps at lookup time.
+
+Phase 1: Establish reproducible cases and shared contracts
+  Outcome: bounded quality, sampling and HDR contracts that subsequent work can implement.
+
+  ☐ Inventory the current paths and produce reproducible confidence-loss cases before changing them.
+    ☐ Trace includes/liquids/refraction.glsl, includes/pbr_liquid.glsl, pbr_composite.fsh,
+      WaterRefractionScene, WaterRefractionCapture, LiquidRenderer and PBRCompositeRenderer.
+    ☐ Distinguish rejection from confidence attenuation: projection bounds, interface-plane tests,
+      adjacent foreground, depth discontinuity/residual, sky/metadata, distance exhaustion and fades.
+    ☐ Add focused diagnostic evidence for selected receiver UV/depth, rejection reason, iteration
+      count, transport length and fallback selection using existing test/debug infrastructure.
+    ☐ Reproduce flat/tilted water, shallow shores, grazing views, screen-edge movement, positive
+      view-Z rays and camera headings/pitches. Separate executed reproductions from hypotheses.
+  ☐ Settle step-count semantics, quality default, stable persisted values and downsampling choices.
+    ☐ Specify independent quality and background-resolution controls; off is not a fifth level.
+    ☐ Define old-settings migration, invalid-value handling and disabled-feature resource behavior.
+  ☐ Audit the complete water HDR path and write the required pass/colour-space contract in the
+    existing implementation document before changing targets or output equations.
+    ☐ Trace opaque publication, pre-overlay capture, water volume, OIT producers/compositor,
+      atmosphere, late draws, exposure and display conversion, including vanilla-owned consumers.
+    ☐ Identify exactly which surrounding producers/consumers must migrate for compatible HDR
+      composition. A float texture containing display-converted values does not satisfy HDR.
+    ☐ Coordinate required HDR groundwork with the parent's complete-scene HDR task; execute the
+      required common prerequisite before Phase 2. Avoid reciprocal dependencies or duplicate resolves.
+  ☐ Review contracts and reproduce baseline cases; record outstanding design choices explicitly.
+
+Phase 2: Establish shared HDR water transport and composition
+  Dependencies: Phase 1 HDR producer/consumer contract and its identified shared prerequisites.
+  Outcome: one scene-linear composition path usable by all four sampling algorithms.
+
+  ☐ Preserve HDR radiance through water surface lighting, RGB medium transport, fallback blending
+    and transparency composition. Remove liquid-local display resolve/dither at this boundary.
+    ☐ Retain values above one and apply exposure/output conversion once at the agreed final boundary.
+    ☐ Preserve RGB background transmission and avoid adding the original background twice.
+    ☐ Define interaction with ordinary transparent objects, overlapping water and late first-person
+      draws; document remaining ordered-transport limitations rather than claiming OIT solves them.
+    ☐ Preserve straight-through disabled-refraction rendering within the compatible colour contract.
+  ☐ Separate background receiver selection from shared optical evaluation and HDR composition.
+    ☐ Carry receiver validity, sampling method, submerged length and refracted direction explicitly;
+      do not let an approximate UV receiver masquerade as an exact ray intersection.
+    ☐ Use the refracted direction within the water medium for directional single scattering.
+      Establish photon-direction signs and world/view transforms; distinguish above-water entry
+      from underwater exit, where the outgoing refracted segment is air, not the scattering medium.
+    ☐ Preserve water IOR/Fresnel/TIR, RGB extinction, local/environment sources and air-segment
+      atmospheric transport without double-applying opaque water-volume attenuation.
+  ☐ Validate HDR highlight preservation, linear blends, exposure independence, single display
+    conversion, colored transmission and independently predicted directional-scattering cases.
+  ☐ Complete focused regression checks and source review before sampler implementations depend on it.
+
+Phase 3: Implement coherent background resolution and receiver filtering
+  Dependencies: shared HDR and receiver contracts.
+  Outcome: coherent full/downsampled receiver data shared by all four levels.
+
+  ☐ Extend existing snapshot owners with the selected optional background downsampling control.
+    ☐ Keep colour/depth/validity in one frame, projection and resolution generation, including
+      restored pre-overlay pixels. Resolve capture/downsample ordering before publication.
+    ☐ Define a geometry-aware reduction policy preserving colour/depth association and excluding
+      sky, foreground and overlay metadata contamination; do not blindly average depth layers.
+    ☐ Distinguish framebuffer dimensions from background dimensions in projection, texel offsets,
+      filtering footprints and UV bounds. Cover odd dimensions and resize transitions.
+    ☐ Reuse framebuffer/binding ownership APIs; never sample an active writable attachment.
+  ☐ Implement shared bilateral receiver filtering for all four quality levels and supported
+    background resolutions, replacing the existing nearest/all-neighbours rejection policy.
+    ☐ Compare interface-plane eligibility and slope/depth tolerances using executed shore/occluder
+      cases. Select and document a bounded policy that retains valid taps without invented surfaces.
+    ☐ Share eligible weights between colour and depth; preserve hard rejection of unsupported data.
+    ☐ Verify mixed foreground/background taps retain valid receiver support without colour leakage,
+      all-invalid taps report unavailable coverage, and unrelated depth layers do not create false hits.
+  ☐ Verify repeated resolution/quality/toggle changes, resize/reload, failed publication, world
+    teardown and LumOn switching without stale sampling, leaks or redundant steady-state allocation.
+  ☐ Validate full versus reduced resolution at thin silhouettes, slopes and first-person boundaries;
+    record memory, reduction-pass and lookup costs separately. Review before proceeding.
+
+Phase 4: Implement lowest-quality UV distortion
+  Dependencies: shared HDR transport and coherent receiver sampling.
+  Outcome: lowest quality uses bounded UV distortion with no iterative ray traversal.
+
+  ☐ Implement material-normal-based screen UV distortion with projection/FOV/aspect correction,
+    water-thickness/depth-bias suppression and safe sampling bounds using the existing water optics.
+    ☐ Select and document IOR-based versus pixel-normal-offset behavior against flat/wavy-water
+      references. Express all dimensional parameters consistently in VGE's metre units.
+    ☐ Validate distorted receivers with the shared filter; define safe undistorted fallback when
+      all candidate coverage is unavailable and prevent foreground smearing at clamped edges.
+    ☐ Supply a documented approximate water path length for transport, with refracted scattering
+      direction even though UV selection is not a geometric ray intersection.
+    ☐ Preserve underwater entry/exit and TIR; distortion must not imply transmission during TIR.
+  ☐ Verify predictable UV displacement, depth suppression, aspect/FOV changes, entry/exit, HDR
+    composition and both background resolutions. Review the implementation and bounded lookup cost.
+
+Phase 5: Implement bounded x8/x4/x2 traversal and prevent avoidable distortion loss
+  Dependencies: shared receiver sampling and validated UV fallback.
+  Outcome: higher quality keeps geometric tracing within exact budgets and stable receiver selection.
+
+  ☐ Replace the 32-step plus five-refinement algorithm with the agreed total 8/4/2 budgets.
+    ☐ Choose sample placement, ray extent and crossing estimation based on represented depth and
+      projected coverage; do not merely delete samples from the old fixed 32-metre quadratic march.
+    ☐ Use analytic estimates or budgeted refinement where appropriate; bound and count every
+      additional ray-depth evaluation. Report filtering/fallback taps separately from ray steps.
+    ☐ Preserve oriented-interface eligibility, positive view-Z rays and camera-transform invariance.
+  ☐ Fix demonstrated false-negative receiver tests and confidence-driven loss of valid distortion.
+    ☐ Replace blanket adjacent-tap rejection where valid receiver support remains available.
+    ☐ Establish depth/residual tolerances from sampling footprint and geometry; do not just enlarge
+      the old 0.15-metre threshold until foreground/discontinuity crossings are accepted.
+    ☐ Remove unconditional edge/range confidence attenuation for otherwise supported receivers;
+      separate true geometric/data validity from aesthetic blending confidence.
+    ☐ Avoid aborting a recoverable search at an invalid intermediate sample when remaining budget
+      and known coverage support a safe search; never bridge unknown topology as a confirmed hit.
+    ☐ Integrate the agreed validated UV fallback for genuinely unavailable ray coverage. Transition
+      between complete HDR transport results without darkening, double backgrounds or edge jumps.
+    ☐ Classify irreducible cases explicitly: offscreen/occluded receivers, sky/invalid snapshots,
+      no valid UV support and TIR. Zero transmission during TIR is correct, not confidence failure.
+  ☐ Verify exact iteration ceilings and absence of the old hidden refinement loop for all tiers.
+  ☐ Re-run baseline reproductions and compare against an offline higher-budget reference for
+    receiver location, missed thin geometry, motion continuity and fallback frequency.
+    ☐ Demonstrate retained distortion for the reproduced avoidable-failure cases; do not claim
+      universal receiver availability from screen-space-only data.
+  ☐ Complete focused tests and source review for each tier before claiming traversal completion.
+
+Phase 6: Expose settings and complete integration/acceptance
+  Dependencies: all four algorithms, shared HDR composition and background-resolution lifecycle.
+  Outcome: usable persisted controls and evidence for the complete quality matrix.
+
+  ☐ Integrate Water Quality and optional background-resolution controls with existing VgeConfig,
+    ConfigLib and generated shader inputs. Present highest-to-lowest x8, x4, x2, UV distortion.
+    ☐ Preserve saved enable/disable state; supply agreed defaults for missing leaves and verify
+      actual save/load restoration, invalid values and runtime transitions without restart.
+    ☐ Prepare required production shader variants through the existing shader build pipeline;
+      share optical behavior and avoid multiplying unrelated variants unnecessarily.
+  ☐ Delegate fresh builds and focused numerical/GPU/integration regressions to subagents.
+    ☐ Cover four qualities by supported resolutions, both PBR modes, above/underwater/TIR, disabled
+      feature, unavailable sources and all resource transitions; distinguish test coverage from live UI.
+    ☐ Exercise waves/flow, shadows, fog, lava/other liquids, first-person overlays, overlapping
+      transparency and preview transparency against the agreed composition contract.
+  ☐ Obtain user-run acceptance for shallow/deep water, moving shores/occluders, grazing views,
+    screen edges and camera crossings. Track any remaining distortion discontinuities with evidence.
+  ☐ Measure matched-scene GPU costs per tier/resolution: capture/publication, downsampling,
+    traversal/filter/fallback, HDR composition, total pass/frame time and memory/bandwidth.
+    ☐ Record fallback frequency and image differences alongside timings; fewer ray steps alone
+      are not proof of a faster frame or better visual quality. Do not sum inclusive timers.
+  ☐ Perform second review and independent completion audit against this list and linked contracts.
+  ☐ Update PBR.WaterRefraction.md with final equations, settings, lifecycle, limitations and fresh
+    receipts; reconcile shared HDR work with the parent list without marking unrelated HDR work done.
+  ☐ Complete the parent refraction entry only after all required checks and user-run acceptance;
+    explicitly report unresolved requirements rather than silently deferring them.
