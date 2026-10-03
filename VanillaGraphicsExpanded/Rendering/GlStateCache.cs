@@ -8,7 +8,8 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 /// <remarks>
 /// Best-effort: correctness assumes state changes flow through this cache.
-/// When external code stomps state, callers should use <see cref="InvalidateAll"/> (or a targeted dirty method).
+/// When external code changes state, callers should use <see cref="Invalidate"/> for known categories
+/// or <see cref="InvalidateAll"/> when the affected state is unknown.
 /// </remarks>
 internal sealed partial class GlStateCache
 {
@@ -39,29 +40,8 @@ internal sealed partial class GlStateCache
     private bool?[]? blendEnabledIndexed;
     private GlBlendFunc?[]? blendFuncIndexed;
 
-    public void InvalidateAll()
-    {
-        depthTestEnabled = null;
-        depthFunc = null;
-        depthWriteMask = null;
-
-        blendEnabled = null;
-        blendFunc = null;
-
-        cullFaceEnabled = null;
-        scissorTestEnabled = null;
-        colorMask = null;
-        lineWidth = null;
-        pointSize = null;
-
-        if (blendEnabledIndexed is not null) Array.Fill(blendEnabledIndexed, null);
-        if (blendFuncIndexed is not null) Array.Fill(blendFuncIndexed, null);
-
-        InvalidateBindings();
-        DirtyPixelPackState();
-        patchVertices = null;
-        provokingVertex = null;
-    }
+    /// <summary>Forgets all mutable state while preserving diagnostic counters and capability limits.</summary>
+    public void InvalidateAll() => Invalidate(EPipelineState.All);
 
     public void DirtyIndexedBlendFunc()
     {

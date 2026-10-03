@@ -34,9 +34,21 @@ Binding a previously unobserved VAO no longer invents a zero element-buffer asso
 
 Line width and point size use exact equality rather than approximate equality, so forwarding engine calls does not suppress distinct requested values.
 
-Deletion adapters preserve native deletion semantics and invalidate affected cached knowledge. Program deletion does not assume immediate unbinding: OpenGL may retain a deleted current executable until it is unbound. Bulk/less-frequent deletion paths conservatively invalidate binding snapshots; they do not reset unrelated fixed-function state.
+Deletion adapters preserve native deletion semantics and invalidate affected cached knowledge. Program deletion does not assume immediate unbinding: OpenGL may retain a deleted current executable until it is unbound. Bulk buffer, sampler, framebuffer, VAO and program deletion now invalidate their respective categories without forgetting the active texture unit or unrelated bindings.
 
 Single-field pixel-store adapters preserve native overload behavior and invalidate the aggregate pack snapshot instead of querying and replaying unrelated fields.
+
+## Selective invalidation
+
+`GlStateCache.Invalidate(EPipelineState)` forgets selected cached knowledge without issuing GL commands or queries. Flags can be combined, for example `Invalidate(EPipelineState.Program | EPipelineState.FramebufferBindings)`. `None` is a no-op; unknown bits are rejected before modifying the cache.
+
+The enum covers depth, blending, culling, scissor enable, color mask, line width, point size, patch count, provoking convention, program/pipeline, VAO, framebuffer, renderbuffer, transform feedback, active texture selection, textures, samplers, buffers, images and pixel-pack layout. `FixedFunction`, `Bindings`, and `All` provide composite masks. These flags are independent of the existing pipeline descriptor bit layout.
+
+Active texture selection, per-unit texture bindings and sampler bindings are separate categories. Invalidating one preserves the other two. Dependencies are explicit: blending invalidates global and indexed snapshots together; VAO invalidation also clears element-buffer associations; buffer invalidation clears generic, indexed and element-buffer snapshots while preserving the selected VAO; transform-feedback invalidation also removes that object's indexed feedback-buffer snapshots. Framebuffer invalidation clears both read/draw snapshots and their combined alias.
+
+`InvalidateAll()` remains a compatibility entry point for `All`. `PurgeCache()` and `BeginFrame()` retain their existing broad binding/pixel-pack boundary semantics. Unknown external mutation boundaries still require broad invalidation; this change narrows resource deletion paths where affected state is known. Diagnostic counters and immutable capability limits are preserved.
+
+Selective-invalidation validation: the normal build passed with zero errors and 106 warnings; all 41 focused invalidation, engine-switching, unbind, pixel-pack and shader-binding tests passed with zero skips. Tests cover independent categories, combined and invalid masks, dependent VAO/buffer and transform-feedback snapshots, full-invalidation compatibility, and preservation of active-unit knowledge through resource deletion. Logs: `artifacts/selective-invalidation-build.log` and `artifacts/selective-invalidation-tests.log`.
 
 ## Limits
 

@@ -64,35 +64,35 @@ internal sealed partial class GlStateCache
     internal void DeleteBuffers(int count, ref int buffers)
     {
         GL.DeleteBuffers(count, ref buffers);
-        InvalidateBindings();
+        Invalidate(EPipelineState.BufferBindings);
     }
 
     /// <summary>Forgets sampler slots after native retirement, including subsequent numeric-name reuse.</summary>
     internal void DeleteSampler(int sampler)
     {
         GL.DeleteSampler(sampler);
-        InvalidateBindings();
+        Invalidate(EPipelineState.SamplerBindings);
     }
 
     /// <summary>Forgets framebuffer snapshots after native deletion implicitly changes a binding.</summary>
     internal void DeleteFramebuffer(int framebuffer)
     {
         GL.DeleteFramebuffer(framebuffer);
-        InvalidateBindings();
+        Invalidate(EPipelineState.FramebufferBindings);
     }
 
     /// <summary>Forgets VAO and element-buffer associations after native retirement.</summary>
     internal void DeleteVertexArray(int array)
     {
         GL.DeleteVertexArray(array);
-        InvalidateBindings();
+        Invalidate(EPipelineState.VertexArray);
     }
 
     /// <summary>Forgets executable knowledge without assuming a currently bound program is immediately deleted.</summary>
     internal void DeleteProgram(int program)
     {
         GL.DeleteProgram(program);
-        InvalidateBindings();
+        Invalidate(EPipelineState.Program);
     }
     #endregion
     #endregion

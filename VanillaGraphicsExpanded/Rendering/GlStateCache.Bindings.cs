@@ -28,8 +28,7 @@ internal sealed partial class GlStateCache
     /// </summary>
     public void PurgeCache()
     {
-        InvalidateBindings();
-        DirtyPixelPackState();
+        Invalidate(EPipelineState.Bindings | EPipelineState.PixelPack);
     }
 
     /// <summary>
@@ -38,26 +37,6 @@ internal sealed partial class GlStateCache
     public void BeginFrame()
     {
         PurgeCache();
-    }
-
-    private void InvalidateBindings()
-    {
-        currentProgram = null;
-        currentVao = null;
-        currentProgramPipeline = null;
-        currentFramebuffer = null;
-        currentReadFramebuffer = null;
-        currentDrawFramebuffer = null;
-        currentRenderbuffer = null;
-        currentTransformFeedback = null;
-
-        activeTextureUnit = null;
-        textureBindingsByUnit = null;
-        samplerBindingByUnit = null;
-        bufferBindingByTarget.Clear();
-        elementArrayBufferByVao.Clear();
-        imageBindings.Clear();
-        indexedBufferBindings.Clear();
     }
 
     public int GetCurrentProgram()

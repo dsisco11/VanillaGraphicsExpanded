@@ -56,10 +56,20 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
             EngineStateCalls.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             EngineStateCalls.BindVertexArray(array);
             EngineStateCalls.DeleteTexture(texture);
+            Assert.True(cache.TryGetCachedActiveTextureUnit(out var activeUnit));
+            Assert.Equal(0, activeUnit);
             EngineStateCalls.DeleteSampler(sampler);
+            Assert.True(cache.TryGetCachedCurrentVao(out var cachedArray));
+            Assert.Equal(array, cachedArray);
             EngineStateCalls.DeleteBuffers(1, ref buffer);
+            Assert.True(cache.TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out var cachedFramebuffer));
+            Assert.Equal(framebuffer, cachedFramebuffer);
             EngineStateCalls.DeleteFramebuffer(framebuffer);
+            Assert.True(cache.TryGetCachedCurrentVao(out cachedArray));
+            Assert.Equal(array, cachedArray);
             EngineStateCalls.DeleteVertexArray(array);
+            Assert.True(cache.TryGetCachedActiveTextureUnit(out activeUnit));
+            Assert.Equal(0, activeUnit);
             Assert.Equal(0, cache.GetBoundTexture(TextureTarget.Texture2D, 0));
             Assert.Equal(0, cache.GetBoundSampler(0));
             Assert.Equal(0, cache.GetBoundBuffer(BufferTarget.ArrayBuffer));
@@ -169,7 +179,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
             cache.BindSampler(3, sampler);
 
             // Simulate losing only active-unit knowledge while retaining snapshots on multiple units.
-            AccessTools.Field(typeof(GlStateCache), "activeTextureUnit").SetValue(cache, null);
+            cache.Invalidate(EPipelineState.ActiveTextureUnit);
             long bindsBefore = cache.TextureBindCount;
             EngineStateCalls.BindTexture(TextureTarget.Texture2D, nextTexture);
 
