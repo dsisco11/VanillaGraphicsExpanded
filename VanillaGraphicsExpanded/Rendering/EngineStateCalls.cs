@@ -72,12 +72,9 @@ internal static class EngineStateCalls
     }
     /// <summary>Converts the native texture-unit enum to the cache's zero-based unit.</summary>
     public static void ActiveTexture(TextureUnit texture) => GlStateCache.Current.ActiveTexture((int)texture - (int)TextureUnit.Texture0);
-    /// <summary>Binds on the active unit without altering sampler ownership.</summary>
-    public static void BindTexture(TextureTarget target, int texture)
-    {
-        var cache = GlStateCache.Current;
-        cache.BindTexture(target, cache.GetActiveTextureUnit(), texture);
-    }
+    /// <summary>Binds on the native active unit without querying, reselecting it, or altering sampler ownership.</summary>
+    public static void BindTexture(TextureTarget target, int texture) =>
+        GlStateCache.Current.BindTextureOnActiveUnit(target, texture);
     /// <summary>Publishes a sampler independently of texture binding.</summary>
     public static void BindSampler(int unit, int sampler) => GlStateCache.Current.BindSampler(unit, sampler);
     /// <summary>Publishes generic and vertex-array-owned buffer bindings.</summary>

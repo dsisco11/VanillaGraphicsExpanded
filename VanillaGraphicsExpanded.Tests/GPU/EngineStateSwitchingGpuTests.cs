@@ -129,7 +129,9 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         try
         {
             cache.BindSampler(3, sampler);
+            long bindsBefore = cache.TextureBindCount;
             ChangeTexture(texture);
+            Assert.Equal(bindsBefore + 1, cache.TextureBindCount);
             Assert.True(cache.TryGetCachedActiveTextureUnit(out int unit));
             Assert.Equal(3, unit);
             Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out int cachedTexture));
@@ -142,6 +144,53 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         {
             harmony.UnpatchAll(harmony.Id);
             GL.DeleteTexture(texture);
+            GL.DeleteSampler(sampler);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            cache.InvalidateAll();
+        }
+    }
+
+    /// <summary>An unknown active unit stays unknown while only potentially stale target snapshots are discarded.</summary>
+    [Fact]
+    public void UnknownActiveTextureUnitBindsWithoutQueryAndInvalidatesOnlyAffectedTarget()
+    {
+        EnsureContextValid();
+        var cache = GlStateCache.Current;
+        int previousTexture = GL.GenTexture();
+        int nextTexture = GL.GenTexture();
+        int cubeTexture = GL.GenTexture();
+        int sampler = GL.GenSampler();
+        try
+        {
+            cache.InvalidateAll();
+            cache.BindTexture(TextureTarget.Texture2D, 1, previousTexture);
+            cache.BindTexture(TextureTarget.Texture2D, 3, previousTexture);
+            cache.BindTexture(TextureTarget.TextureCubeMap, 3, cubeTexture);
+            cache.BindSampler(3, sampler);
+
+            // Simulate losing only active-unit knowledge while retaining snapshots on multiple units.
+            AccessTools.Field(typeof(GlStateCache), "activeTextureUnit").SetValue(cache, null);
+            long bindsBefore = cache.TextureBindCount;
+            EngineStateCalls.BindTexture(TextureTarget.Texture2D, nextTexture);
+
+            Assert.Equal(bindsBefore + 1, cache.TextureBindCount);
+            Assert.False(cache.TryGetCachedActiveTextureUnit(out _));
+            Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 1, out _));
+            Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out _));
+            Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.TextureCubeMap, 3, out int cachedCube));
+            Assert.Equal(cubeTexture, cachedCube);
+            Assert.Equal((int)TextureUnit.Texture3, GL.GetInteger(GetPName.ActiveTexture));
+            Assert.Equal(nextTexture, GL.GetInteger(GetPName.TextureBinding2D));
+            Assert.Equal(sampler, GL.GetInteger(GetPName.SamplerBinding));
+            GL.ActiveTexture(TextureUnit.Texture1);
+            Assert.Equal(previousTexture, GL.GetInteger(GetPName.TextureBinding2D));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            GL.DeleteTexture(previousTexture);
+            GL.DeleteTexture(nextTexture);
+            GL.DeleteTexture(cubeTexture);
             GL.DeleteSampler(sampler);
             GL.ActiveTexture(TextureUnit.Texture0);
             cache.InvalidateAll();

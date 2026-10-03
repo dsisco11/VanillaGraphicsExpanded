@@ -17,7 +17,7 @@ The engine's supported native state calls are replaced at their managed call sit
 - Enable/disable of depth testing, culling, scissor testing and global/indexed blending. Other capability values pass through to OpenGL.
 - Depth comparison/write mask, global/indexed blend factors including separate RGB/alpha factors, global color mask, line width and point size.
 - Executable, program-pipeline, VAO, framebuffer, renderbuffer and transform-feedback binding.
-- Active texture unit, texture and sampler binding. Native texture-unit enums become zero-based cache units; texture binding uses the active unit and does not alter sampler ownership.
+- Active texture unit, texture and sampler binding. Native texture-unit enums become zero-based cache units. Engine texture binding issues only the native bind, without querying or reselecting the active unit, and does not alter sampler ownership. When the unit is known, its cached target binding is updated; otherwise that target's snapshots are invalidated across units and the active unit remains unknown.
 - Generic buffer, indexed buffer base/range, and image-view binding.
 - Pixel-store changes, patch vertex count and the cached provoking-vertex convention.
 - Engine texture/buffer retirement and deletion invalidation for framebuffer, sampler, VAO and program bindings, including the engine's by-reference bulk buffer deletion overload.
@@ -64,3 +64,9 @@ dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -
 Receipts: `artifacts/engine-state-tests.log`, `artifacts/engine-state-patched-methods.txt`, and `artifacts/engine-gl-inventory.txt`. Tests installing global patches are serialized with the GPU collection and remove their patches in `finally` blocks.
 
 The source review checked the exact-signature boundary, builtin assembly selection, IL operand walking, shader ownership preservation, texture/sampler independence, native deletion semantics, and interaction between indexed and global blend caches. These checks do not claim live engine rendering or a measured speedup.
+
+### Active-unit texture binding follow-up
+
+The engine adapter now uses `BindTextureOnActiveUnit` rather than querying the active unit and calling the explicit-unit binding API. Focused regression coverage verifies no active-unit query or reselection in that path, one native texture bind, known-unit bookkeeping, unknown-unit selective target invalidation, and sampler preservation. All 19 selected engine-switching, inventory, shader-binding and texture-lifetime tests passed with zero skips.
+
+The full build encountered a shader-cache atomic file-move access error; the serialized shader retry was stopped after it stalled. Validation compiled the production C# project with `EnableSpirv=false`, then compiled tests with `BuildProjectReferences=false`, reusing existing shader artifacts. Both C# builds passed. This fix changes no shaders; it does not establish that a fresh shader rebuild succeeds. Receipts: `artifacts/active-texture-fix-production-build.log`, `artifacts/active-texture-fix-build.log`, and `artifacts/active-texture-fix-tests.log`.

@@ -631,6 +631,26 @@ internal sealed partial class GlStateCache
         return 0;
     }
 
+    /// <summary>Binds on the native active unit without querying or changing that unit.</summary>
+    internal void BindTextureOnActiveUnit(TextureTarget target, int textureId)
+    {
+        GL.BindTexture(target, textureId);
+        TextureBindCount++;
+
+        if (activeTextureUnit is int unit)
+        {
+            EnsureTextureUnitCapacity(unit);
+            var bindings = textureBindingsByUnit![unit] ??= new Dictionary<TextureTarget, int>();
+            bindings[target] = textureId;
+        }
+        else if (textureBindingsByUnit is not null)
+        {
+            // The native bind succeeded, but its unit is unknown. Forget only this target's
+            // snapshots rather than querying GL or claiming an assignment on the wrong unit.
+            foreach (var bindings in textureBindingsByUnit) bindings?.Remove(target);
+        }
+    }
+
     public void BindTexture(TextureTarget target, int unit, int textureId)
     {
         EnsureTextureUnitCapacity(unit);

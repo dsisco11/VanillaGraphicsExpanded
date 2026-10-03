@@ -14,6 +14,20 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class EngineStateSwitchingTests
 {
     #region Public API
+    /// <summary>The engine texture path cannot query or reselect the active texture unit.</summary>
+    [Fact]
+    public void TextureAdapterBindsWithoutActiveUnitOperations()
+    {
+        // Inspect both sides of the adapter boundary so an accidental return to the explicit-unit API fails.
+        var adapter = AccessTools.Method(typeof(EngineStateCalls), nameof(EngineStateCalls.BindTexture), [typeof(TextureTarget), typeof(int)]);
+        var binding = AccessTools.Method(typeof(GlStateCache), "BindTextureOnActiveUnit");
+        var adapterCalls = PatchProcessor.GetOriginalInstructions(adapter).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();
+        Assert.Contains(binding, adapterCalls);
+        var bindingCalls = PatchProcessor.GetOriginalInstructions(binding).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();
+        Assert.Single(bindingCalls, method => method.DeclaringType == typeof(GL) && method.Name == nameof(GL.BindTexture));
+        Assert.DoesNotContain(adapterCalls.Concat(bindingCalls), method => method.Name is "GetActiveTextureUnit" or "ActiveTexture" or "GetInteger");
+    }
+
     /// <summary>All discovered base-game call sites accept the real Harmony patch without running engine code.</summary>
     [Fact]
     public void DiscoveredEngineMethodsCanAllBePatched()
