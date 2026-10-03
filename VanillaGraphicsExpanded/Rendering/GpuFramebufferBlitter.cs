@@ -3,86 +3,117 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Owns reusable scratch framebuffers for copies while borrowing source and destination attachments.</summary>
-/// <remarks>The caller retains this owner across copies and disposes it on teardown. Blits preserve bindings and never change viewport or original attachment routing.</remarks>
+/// <summary>Copies between a fixed pair of borrowed framebuffers, refreshing scratch attachments only after lifecycle notifications.</summary>
 public sealed class GpuFramebufferBlitter : IDisposable
 {
+    private readonly GpuFramebuffer source;
+    private readonly GpuFramebuffer destination;
+    private readonly ClearBufferMask mask;
     private GpuFramebuffer? blitRead;
     private GpuFramebuffer? blitDraw;
-    private BorrowedColor? readColor;
-    private BorrowedColor? drawColor;
+    private bool dirty = true;
     private bool disposed;
 
     #region Public API
-    /// <summary>Copies between managed framebuffer targets without taking ownership of either target.</summary>
-    public void Blit(GpuFramebuffer source, GpuFramebuffer destination,
-        ClearBufferMask mask = ClearBufferMask.ColorBufferBit,
-        BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
+    /// <summary>Configures reusable scratch attachments and subscribes to changes in both borrowed targets.</summary>
+    public GpuFramebufferBlitter(GpuFramebuffer source, GpuFramebuffer destination,
+        ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(destination);
-        if (!source.IsValid || !destination.IsValid)
-            throw new ArgumentException("Blit framebuffers must be valid.");
-        Blit(source.FboId, source.Width, source.Height, destination.FboId, destination.Width, destination.Height, mask, filter);
+        this.source = source;
+        this.destination = destination;
+        this.mask = mask;
+        ConfigureAttachments();
+        source.AttachmentsChanged += OnAttachmentsChanged;
+        destination.AttachmentsChanged += OnAttachmentsChanged;
     }
-    
-    /// <summary>Blits borrowed color attachments without changing original routing; depth/stencil copies need only bindings.</summary>
-    public void Blit(int source, int sourceWidth, int sourceHeight, int destination, int destinationWidth,
-        int destinationHeight, ClearBufferMask mask = ClearBufferMask.ColorBufferBit, BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
+
+    /// <summary>Copies the configured buffers while preserving bindings; ordinary copies do not query attachment metadata.</summary>
+    public void Blit(BlitFramebufferFilter filter = BlitFramebufferFilter.Nearest)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (source < 0 || destination < 0)
-            throw new ArgumentOutOfRangeException(nameof(source), "Framebuffer names cannot be negative.");
-        if (sourceWidth <= 0 || sourceHeight <= 0 || destinationWidth <= 0 || destinationHeight <= 0)
-            throw new ArgumentOutOfRangeException(nameof(sourceWidth), "Blit dimensions must be positive.");
+        ValidateTargets();
+        if (dirty) ConfigureAttachments();
         var gl = GlStateCache.Current;
         using var bindings = gl.BindFramebufferScope();
         if ((mask & ClearBufferMask.ColorBufferBit) != 0)
         {
-            // Refresh borrowed attachment names on every call so engine rebuilds and texture replacement are observed.
-            int read = BorrowBlitColor(source, ref blitRead, ref readColor);
-            int draw = BorrowBlitColor(destination, ref blitDraw, ref drawColor);
-            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read);
-            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, draw);
-            GL.BlitFramebuffer(0, 0, sourceWidth, sourceHeight, 0, 0, destinationWidth, destinationHeight,
+            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, blitRead?.FboId ?? 0);
+            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, blitDraw?.FboId ?? 0);
+            GL.BlitFramebuffer(0, 0, source.Width, source.Height, 0, 0, destination.Width, destination.Height,
                 ClearBufferMask.ColorBufferBit, filter);
         }
         var remaining = mask & ~ClearBufferMask.ColorBufferBit;
         if (remaining != 0)
         {
             // Depth and stencil selection is independent of color read/draw routing.
-            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, source);
-            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destination);
-            GL.BlitFramebuffer(0, 0, sourceWidth, sourceHeight, 0, 0, destinationWidth, destinationHeight, remaining, filter);
+            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, source.FboId);
+            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destination.FboId);
+            GL.BlitFramebuffer(0, 0, source.Width, source.Height, 0, 0, destination.Width, destination.Height, remaining, filter);
         }
     }
 
-    /// <summary>Releases scratch framebuffer storage and borrowed references when the caller retires its targets.</summary>
-    public void Reset()
+    /// <summary>Unsubscribes both targets and releases scratch framebuffers without disposing borrowed resources.</summary>
+    public void Dispose()
     {
+        if (disposed) return;
+        disposed = true;
+        source.AttachmentsChanged -= OnAttachmentsChanged;
+        destination.AttachmentsChanged -= OnAttachmentsChanged;
         blitRead?.Dispose();
         blitDraw?.Dispose();
         blitRead = null;
         blitDraw = null;
-        readColor = null;
-        drawColor = null;
-    }
-
-    /// <summary>Releases only owned scratch framebuffers; borrowed textures and renderbuffers remain caller-owned.</summary>
-    public void Dispose()
-    {
-        if (disposed) return;
-        Reset();
-        disposed = true;
     }
     #endregion
 
     #region Private
-    /// <summary>Updates a borrowed image only when its framebuffer or selected attachment changes.</summary>
-    private static int BorrowBlitColor(int source, ref GpuFramebuffer? scratch, ref BorrowedColor? previous)
+    /// <summary>Defers GL work until the next copy, allowing notifications during resource teardown.</summary>
+    private void OnAttachmentsChanged()
+    {
+        dirty = true;
+    }
+
+    /// <summary>Rejects retired targets or absent viewport dimensions before touching driver bindings.</summary>
+    private void ValidateTargets()
+    {
+        if (source.IsDisposed || destination.IsDisposed)
+            throw new ObjectDisposedException(nameof(GpuFramebuffer), "Blit target has been retired.");
+        if (source.Width <= 0 || source.Height <= 0 || destination.Width <= 0 || destination.Height <= 0)
+            throw new InvalidOperationException("Blit targets require positive dimensions.");
+    }
+
+    /// <summary>Rebuilds scratch attachments once after a target notification, preserving the caller's bindings on failure.</summary>
+    private void ConfigureAttachments()
+    {
+        ValidateTargets();
+        using var bindings = GlStateCache.Current.BindFramebufferScope();
+        try
+        {
+            if ((mask & ClearBufferMask.ColorBufferBit) != 0)
+            {
+                BorrowBlitColor(source.FboId, ref blitRead);
+                BorrowBlitColor(destination.FboId, ref blitDraw);
+            }
+            dirty = false;
+        }
+        catch
+        {
+            // Constructor failures must not leave partially configured scratch resources alive.
+            blitRead?.Dispose();
+            blitDraw?.Dispose();
+            blitRead = null;
+            blitDraw = null;
+            throw;
+        }
+    }
+
+    /// <summary>Configures a scratch target from the current color image during initialization or notification-driven refresh.</summary>
+    private static void BorrowBlitColor(int source, ref GpuFramebuffer? scratch)
     {
         // Default framebuffer images cannot be attached elsewhere; retain their existing buffer selection.
-        if (source == 0) return 0;
+        if (source == 0) return;
         var gl = GlStateCache.Current;
         gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, source);
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
@@ -100,8 +131,6 @@ public sealed class GpuFramebufferBlitter : IDisposable
             GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, FramebufferAttachment.ColorAttachment0,
                 FramebufferParameterName.FramebufferAttachmentTextureLayer, out layer);
         }
-        var attachment = new BorrowedColor(source, type, name, level, face, layer);
-        if (scratch is { IsValid: true } && previous == attachment) return scratch.FboId;
         scratch ??= GpuFramebuffer.CreateEmpty("Framebuffer.BlitScratch");
         scratch.Bind();
         if (type == (int)All.Renderbuffer)
@@ -115,10 +144,6 @@ public sealed class GpuFramebufferBlitter : IDisposable
             GL.FramebufferTexture(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, name, level);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-        previous = attachment;
-        return scratch.FboId;
     }
-    /// <summary>Identifies the image borrowed by one scratch framebuffer, including its selected subresource.</summary>
-    private readonly record struct BorrowedColor(int Framebuffer, int Type, int Name, int Level, int Face, int Layer);
     #endregion
 }

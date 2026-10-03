@@ -34,7 +34,7 @@ public sealed class LumOnBufferManager : IDisposable
     private int halfResHeight;
 
     private LumOnTargets? targets;
-    private readonly GpuFramebufferBlitter surfaceAlbedoBlitter = new();
+    private GpuFramebufferBlitter? surfaceAlbedoBlitter;
 
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
@@ -405,17 +405,15 @@ public sealed class LumOnBufferManager : IDisposable
     /// Captures the current primary framebuffer to LumOn's surface albedo texture.
     /// Call this before probe tracing so surface inputs are frame-consistent.
     /// </summary>
-    /// <param name="primaryFboId">The primary framebuffer ID to blit from</param>
-    /// <param name="screenWidth">Screen width</param>
-    /// <param name="screenHeight">Screen height</param>
-    public void CaptureSurfaceAlbedo(int primaryFboId, int screenWidth, int screenHeight)
+    public void CaptureSurfaceAlbedo()
     {
         if (!isInitialized || targets?.SurfaceAlbedoFbo == null)
             return;
 
-        var destination = targets.SurfaceAlbedoFbo;
-        surfaceAlbedoBlitter.Blit(primaryFboId, screenWidth, screenHeight,
-            destination.FboId, destination.Width, destination.Height);
+        var source = GBufferManager.Instance?.PrimaryFramebuffer;
+        if (source?.IsValid != true) return;
+        surfaceAlbedoBlitter ??= new GpuFramebufferBlitter(source, targets.SurfaceAlbedoFbo);
+        surfaceAlbedoBlitter.Blit();
     }
 
     #endregion
@@ -452,7 +450,8 @@ public sealed class LumOnBufferManager : IDisposable
     private void DeleteBuffers()
     {
         HasPublishedIndirect = false;
-        surfaceAlbedoBlitter.Reset();
+        surfaceAlbedoBlitter?.Dispose();
+        surfaceAlbedoBlitter = null;
         targets?.Dispose();
         targets = null;
         isInitialized = false;
@@ -468,7 +467,6 @@ public sealed class LumOnBufferManager : IDisposable
         unregisterResize();
         WorldProbeSuppressedLighting = null;
         DeleteBuffers();
-        surfaceAlbedoBlitter.Dispose();
     }
 
     #endregion

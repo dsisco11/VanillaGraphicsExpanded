@@ -304,7 +304,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Capture LumOn-owned surface inputs before ray tracing.
-        bufferManager.CaptureSurfaceAlbedo(primaryFb.FboId, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        bufferManager.CaptureSurfaceAlbedo();
 
         // Update matrices
         UpdateMatrices();

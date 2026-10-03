@@ -1,7 +1,7 @@
 Issues:
   Current:
     ✔ Add debug label scopes for the remaining unlabeled base-game rendering passes. See docs/GPU.EngineRenderScopes.md; Debug build and 16 focused tests passed. Live RenderDoc confirmation remains user-run.
-    ✔ Extract FBO blitting into dedicated `GpuFramebufferBlitter` class. Scratch ownership and LumOn caller migrated; fresh build and 232 focused regressions passed. See docs/PBR.WaterRefraction.md for validation receipts.
+    ✔ Extract FBO blitting into dedicated `GpuFramebufferBlitter` class. Constructor-configured targets, attachment notifications and persistent primary wrapper implemented; validation receipts in docs/PBR.WaterRefraction.md.
     ☐ Create proper abstraction for FBO attachments.
     ☐ Normal maps not loading from material atlas baking system?
     ☐ Tessellation not working (possibly due to the normal maps not loading?).

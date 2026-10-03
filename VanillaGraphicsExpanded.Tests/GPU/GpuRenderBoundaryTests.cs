@@ -100,10 +100,9 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void BlitPreservesTargetAndCallerRouting(bool rawIds)
+    public void BlitPreservesTargetAndCallerRouting(bool wrapped)
     {
         EnsureContextValid();
-        using var blitter = new GpuFramebufferBlitter();
         using var scope = GlStateCache.Current.BindFramebufferScope();
         using var source = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var destination = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
@@ -124,8 +123,10 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, callerRead.FboId);
         GL.ReadBuffer(ReadBufferMode.None);
         GL.Viewport(1, 2, 3, 4);
-        if (rawIds) blitter.Blit(source.FboId, 2, 2, destination.FboId, 2, 2);
-        else blitter.Blit(source, destination);
+        using var wrappedSource = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+        using var wrappedDestination = GpuFramebuffer.Wrap(destination.FboId, width: 2, height: 2);
+        using var blitter = new GpuFramebufferBlitter(wrapped ? wrappedSource : source, wrapped ? wrappedDestination : destination);
+        blitter.Blit();
         Assert.Equal(callerDraw.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(callerRead.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
         Assert.Equal((int)ReadBufferMode.None, GL.GetInteger(GetPName.ReadBuffer));
@@ -149,7 +150,6 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void BlitFollowsReplacedBorrowedAttachments()
     {
         EnsureContextValid();
-        using var blitter = new GpuFramebufferBlitter();
         using var scope = GlStateCache.Current.BindFramebufferScope();
         using var first = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var replacement = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
@@ -159,10 +159,11 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using (var source = GpuFramebuffer.CreateSingle(first, ownsTextures: false)!)
         using (var destination = GpuFramebuffer.CreateSingle(output, ownsTextures: false)!)
         {
-            blitter.Blit(source, destination);
+            using var blitter = new GpuFramebufferBlitter(source, destination);
+            blitter.Blit();
             Assert.All(output.ReadPixels(), value => Assert.Equal(3f, value));
             source.Attach(replacement);
-            blitter.Blit(source, destination);
+            blitter.Blit();
             Assert.All(output.ReadPixels(), value => Assert.Equal(9f, value));
         }
         Assert.True(GL.IsTexture(first.TextureId));
@@ -171,23 +172,23 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Reset permits reuse, and releasing the blitter leaves borrowed framebuffers and textures alive.</summary>
+    /// <summary>Repeated copies reuse setup, and releasing the blitter leaves borrowed framebuffers and textures alive.</summary>
     [Fact]
-    public void BlitterResetAndDisposalPreserveBorrowedTargets()
+    public void BlitterRepeatedCopiesAndDisposalPreserveBorrowedTargets()
     {
         EnsureContextValid();
         using var scope = GlStateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using (var blitter = new GpuFramebufferBlitter())
+        using (var blitter = new GpuFramebufferBlitter(source, destination))
         {
-            // Repeated blits and a reset must continue to copy the current source data.
+            // Repeated blits must continue to copy the current source data.
             foreach (float value in new[] { 3f, 7f, 11f })
             {
                 source[0].UploadDataImmediate(Enumerable.Repeat(value, 16).ToArray());
-                blitter.Blit(source, destination);
+                blitter.Blit();
                 Assert.All(destination[0].ReadPixels(), pixel => Assert.Equal(value, pixel));
-                if (value == 7f) blitter.Reset();
+
             }
         }
         Assert.True(GL.IsFramebuffer(source.FboId));
@@ -201,7 +202,6 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void DepthOnlyBlitCopiesDepth()
     {
         EnsureContextValid();
-        using var blitter = new GpuFramebufferBlitter();
         using var scope = GlStateCache.Current.BindFramebufferScope();
         using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
         using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
@@ -216,7 +216,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         destination.Bind();
         GL.ClearDepth(1);
         destination.Clear(ClearBufferMask.DepthBufferBit);
-        blitter.Blit(source, destination, ClearBufferMask.DepthBufferBit);
+        using var blitter = new GpuFramebufferBlitter(source, destination, ClearBufferMask.DepthBufferBit);
+        blitter.Blit();
         Assert.All(destinationDepth.ReadPixels(), value => Assert.InRange(value, 0.374f, 0.376f));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -225,7 +226,6 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void CombinedBlitCopiesColorAndDepth()
     {
         EnsureContextValid();
-        using var blitter = new GpuFramebufferBlitter();
         using var scope = GlStateCache.Current.BindFramebufferScope();
         using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
         using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
@@ -247,7 +247,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         destination.Bind();
         GL.DrawBuffer(DrawBufferMode.None);
         GL.ReadBuffer(ReadBufferMode.None);
-        blitter.Blit(source, destination, ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+        using var blitter = new GpuFramebufferBlitter(source, destination, ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+        blitter.Blit();
         Assert.Equal((int)DrawBufferMode.None, GL.GetInteger(GetPName.DrawBuffer0));
         Assert.Equal((int)ReadBufferMode.None, GL.GetInteger(GetPName.ReadBuffer));
         Assert.All(destinationDepth.ReadPixels(), value => Assert.InRange(value, 0.624f, 0.626f));
@@ -260,7 +261,6 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void BlitCopiesBorrowedColorRenderbuffer()
     {
         EnsureContextValid();
-        using var blitter = new GpuFramebufferBlitter();
         using var scope = GlStateCache.Current.BindFramebufferScope();
         using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
         using var color = GpuRenderbuffer.Create(RenderbufferStorage.Rgba32f, 2, 2);
@@ -275,7 +275,9 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         GL.ColorMask(true, true, true, true);
         source.Clear(0.25f, 0.25f, 0.25f, 0.25f);
         // The externally owned framebuffer has no managed attachment metadata.
-        blitter.Blit(source.FboId, 2, 2, destination.FboId, 2, 2);
+        using var borrowed = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+        using var blitter = new GpuFramebufferBlitter(borrowed, destination);
+        blitter.Blit();
         Assert.Equal((int)ReadBufferMode.None, GL.GetInteger(GetPName.ReadBuffer));
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(0.25f, value));
         destination.Dispose();

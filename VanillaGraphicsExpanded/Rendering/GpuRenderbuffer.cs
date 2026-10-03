@@ -244,9 +244,12 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// <summary>
     /// Reallocates storage using the previously configured format and sample count.
     /// </summary>
-    public void Resize(int width, int height)
+    /// <returns>True if storage was resized; false for unchanged dimensions or a retired renderbuffer.</returns>
+    public bool Resize(int width, int height)
     {
+        if (!IsValid || (this.width == width && this.height == height)) return false;
         AllocateStorage(storage, width, height, samples);
+        return true;
     }
 
     /// <summary>

@@ -48,6 +48,9 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
 
     #region Properties
 
+    /// <summary>Notifies dependents after attachment updates, resize, external framebuffer refresh, or retirement.</summary>
+    public event Action? AttachmentsChanged;
+
     /// <summary>
     /// OpenGL framebuffer ID. Returns 0 if disposed or not created.
     /// </summary>
@@ -405,6 +408,20 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         return buffer;
     }
 
+    /// <summary>Updates a persistent non-owning wrapper after its external owner rebuilds the framebuffer.</summary>
+    /// <remarks>Always notifies subscribers, including equal-size rebuilds that can reuse GL names.</remarks>
+    public void RefreshWrappedFramebuffer(int existingFboId, int width, int height)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (ownsFramebuffer) throw new InvalidOperationException("Only borrowed framebuffer wrappers can be refreshed.");
+        if (existingFboId <= 0 || width <= 0 || height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(existingFboId), "External framebuffer and dimensions must be valid.");
+        fboId = existingFboId;
+        wrappedWidth = width;
+        wrappedHeight = height;
+        AttachmentsChanged?.Invoke();
+    }
+
     /// <summary>
     /// Creates an empty framebuffer object that owns the underlying OpenGL FBO id but owns no textures.
     /// </summary>
@@ -660,6 +677,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         }
 
         colorAttachments[attachmentIndex] = texture;
+        AttachmentsChanged?.Invoke();
     }
 
     /// <summary>
@@ -695,6 +713,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             textureId,
             mipLevel);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
+        AttachmentsChanged?.Invoke();
     }
 
     /// <summary>Attaches one base-level color layer without taking ownership of its texture.</summary>
@@ -709,6 +728,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
             FramebufferAttachment.ColorAttachment0 + attachmentIndex, texture.TextureId, 0, layer);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + attachmentIndex);
+        AttachmentsChanged?.Invoke();
     }
 
     /// <summary>
@@ -741,6 +761,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer,
             FramebufferAttachment.StencilAttachment, TextureTarget.Texture2D,
             texture.TextureId, mipLevel);
+        AttachmentsChanged?.Invoke();
     }
 
     /// <summary>
@@ -779,6 +800,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         depthAttachment = null;
         depthRenderbuffer = renderbuffer;
         depthRenderbufferAttachmentOverride = isDepthStencil ? FramebufferAttachment.DepthStencilAttachment : null;
+        AttachmentsChanged?.Invoke();
     }
 
     /// <summary>
@@ -917,10 +939,10 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
 
         if (depthRenderbuffer != null)
         {
-            depthRenderbuffer.Resize(newWidth, newHeight);
-            resized = true;
+            resized |= depthRenderbuffer.Resize(newWidth, newHeight);
         }
 
+        if (resized) AttachmentsChanged?.Invoke();
         return resized;
     }
 
@@ -992,6 +1014,7 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         depthAttachment = texture;
         depthRenderbuffer = null;
         depthRenderbufferAttachmentOverride = null;
+        AttachmentsChanged?.Invoke();
     }
 
     private void CreateFramebuffer()
@@ -1100,6 +1123,15 @@ public sealed class GpuFramebuffer : GpuResource, IDisposable
         depthRenderbufferAttachmentOverride = null;
         attachmentBlendEnabled = null;
         attachmentBlendFunc = null;
+        AttachmentsChanged?.Invoke();
+        AttachmentsChanged = null;
+    }
+
+    /// <summary>Withdraws borrowed attachment publications when the framebuffer handle leaves this owner.</summary>
+    protected override void OnDetached(nint id)
+    {
+        AttachmentsChanged?.Invoke();
+        AttachmentsChanged = null;
     }
 
     #endregion

@@ -71,10 +71,14 @@ public sealed partial class GBufferManager : IDisposable
     /// Whether the G-buffer textures have been attached to the current primary framebuffer.
     /// </summary>
     private bool isInjected;
+    private bool primaryRefreshPending = true;
 
     #endregion
 
     #region Properties
+
+    /// <summary>Persistent borrowed representation of the engine primary framebuffer with injected deferred attachments.</summary>
+    public GpuFramebuffer PrimaryFramebuffer { get; } = GpuFramebuffer.Wrap(0, "GBuffer.Primary");
 
     /// <summary>Returns the borrowed normal attachment owned by this manager.</summary>
     public DynamicTexture2D? NormalTexture => normalTex;
@@ -120,7 +124,7 @@ public sealed partial class GBufferManager : IDisposable
         Instance = this;
         unregisterResize = ScreenResourceManager.Register(
             ScreenResourceManager.GBufferOrder,
-            SetupGBuffers);
+            OnScreenResized);
     }
 
     
@@ -143,7 +147,8 @@ public sealed partial class GBufferManager : IDisposable
         int height = primaryFb.Height;
 
         // Create textures if needed or if size changed
-        if (!isInitialized || width != lastWidth || height != lastHeight)
+        bool attachmentsRecreated = !isInitialized || width != lastWidth || height != lastHeight;
+        if (attachmentsRecreated)
         {
             CreateGBufferTextures(width, height);
             lastWidth = width;
@@ -161,6 +166,12 @@ public sealed partial class GBufferManager : IDisposable
         // an equal-sized rebuild still replaces the primary FBO and deletes its old position texture.
         PrepareReceiverPosition(primaryFb, width, height);
         AttachToFramebuffer(primaryFb.FboId);
+        // Normal primary loads can repeat setup without changing any attachment identity.
+        if (primaryRefreshPending || attachmentsRecreated || PrimaryFramebuffer.FboId != primaryFb.FboId)
+        {
+            PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, width, height);
+            primaryRefreshPending = false;
+        }
     }
 
     /// <summary>
@@ -406,6 +417,7 @@ public sealed partial class GBufferManager : IDisposable
             // Re-attach to framebuffer
             PrepareReceiverPosition(primaryFb, screenWidth, screenHeight);
             AttachToFramebuffer(primaryFb.FboId);
+            PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, screenWidth, screenHeight);
             
             isInjected = true;
             capi.Logger.Debug($"[VGE] EnsureBuffers: Recreated G-buffer textures for {screenWidth}x{screenHeight}");
@@ -418,6 +430,13 @@ public sealed partial class GBufferManager : IDisposable
     #endregion
 
     #region Private Methods
+
+    /// <summary>Publishes a completed engine rebuild even when dimensions and GL names are reused.</summary>
+    private void OnScreenResized()
+    {
+        primaryRefreshPending = true;
+        SetupGBuffers();
+    }
 
     private void CreateGBufferTextures(int width, int height)
     {
@@ -568,15 +587,19 @@ public sealed partial class GBufferManager : IDisposable
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         
         capi.Logger.Notification("[VGE] G-buffer detached from Primary framebuffer");
+        if (PrimaryFramebuffer.IsValid && PrimaryFramebuffer.FboId == fboId)
+            PrimaryFramebuffer.RefreshWrappedFramebuffer(fboId, PrimaryFramebuffer.Width, PrimaryFramebuffer.Height);
     }
     
     #endregion
 
     #region IDisposable
 
+    /// <summary>Retires the borrowed primary representation and owned G-buffer attachments.</summary>
     public void Dispose()
     {
         unregisterResize();
+        PrimaryFramebuffer.Dispose();
         // Clean up textures (framebuffer attachment cleanup happens via UnloadGBuffer hook)
         DeleteTextures();
         
