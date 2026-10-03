@@ -1,4 +1,5 @@
 using System.Reflection;
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -11,6 +12,39 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Lifecycle tests
+
+    /// <summary>The production blit owner survives target recreation and leaves its engine source alive on teardown.</summary>
+    [Fact]
+    public void SurfaceAlbedoCaptureSurvivesRecreationAndDisposal()
+    {
+        EnsureContextValid();
+        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var assets = new BinaryShaderApiFixture();
+        using var source = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba16f);
+        var config = new VgeConfig();
+        config.LumOn.ProbeSpacingPx = 8;
+        using (var buffers = new LumOnBufferManager(assets.Api, config))
+        {
+            buffers.EnsureBuffers(8, 8);
+            Assert.True(buffers.EnsureBuffers(8, 8));
+            source[0].UploadDataImmediate(Enumerable.Repeat(0.25f, 8 * 8 * 4).ToArray());
+            buffers.CaptureSurfaceAlbedo(source.FboId, 8, 8);
+            Assert.All(buffers.SurfaceAlbedoTex!.ReadPixels(), value => Assert.Equal(0.25f, value));
+
+            // Recreation must retire the scratch references before replacing the destination.
+            var retired = buffers.SurfaceAlbedoTex;
+            buffers.RequestRecreateBuffers("blit ownership regression");
+            buffers.EnsureBuffers(8, 8);
+            Assert.True(buffers.EnsureBuffers(8, 8));
+            Assert.True(retired.IsDisposed);
+            source[0].UploadDataImmediate(Enumerable.Repeat(0.5f, 8 * 8 * 4).ToArray());
+            buffers.CaptureSurfaceAlbedo(source.FboId, 8, 8);
+            Assert.All(buffers.SurfaceAlbedoTex!.ReadPixels(), value => Assert.Equal(0.5f, value));
+        }
+        Assert.True(GL.IsFramebuffer(source.FboId));
+        Assert.True(GL.IsTexture(source[0].TextureId));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
 
     /// <summary>Swapping roles preserves allocations; recreation retires both temporal roles and publication.</summary>
     [Fact]

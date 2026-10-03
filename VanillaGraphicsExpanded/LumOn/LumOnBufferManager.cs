@@ -34,6 +34,7 @@ public sealed class LumOnBufferManager : IDisposable
     private int halfResHeight;
 
     private LumOnTargets? targets;
+    private readonly GpuFramebufferBlitter surfaceAlbedoBlitter = new();
 
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
@@ -412,7 +413,9 @@ public sealed class LumOnBufferManager : IDisposable
         if (!isInitialized || targets?.SurfaceAlbedoFbo == null)
             return;
 
-        targets?.SurfaceAlbedoFbo.BlitFromExternal(primaryFboId, screenWidth, screenHeight);
+        var destination = targets.SurfaceAlbedoFbo;
+        surfaceAlbedoBlitter.Blit(primaryFboId, screenWidth, screenHeight,
+            destination.FboId, destination.Width, destination.Height);
     }
 
     #endregion
@@ -449,6 +452,7 @@ public sealed class LumOnBufferManager : IDisposable
     private void DeleteBuffers()
     {
         HasPublishedIndirect = false;
+        surfaceAlbedoBlitter.Reset();
         targets?.Dispose();
         targets = null;
         isInitialized = false;
@@ -464,6 +468,7 @@ public sealed class LumOnBufferManager : IDisposable
         unregisterResize();
         WorldProbeSuppressedLighting = null;
         DeleteBuffers();
+        surfaceAlbedoBlitter.Dispose();
     }
 
     #endregion

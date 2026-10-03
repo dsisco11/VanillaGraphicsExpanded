@@ -61,7 +61,8 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
             Assert.Equal(source.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             // This real follow-up operation consumes the cached combined binding while
             // restoring its state, reproducing the delayed error in the runtime fixture.
-            target.BlitFrom(source);
+            using var blitter = new GpuFramebufferBlitter();
+            blitter.Blit(source, target);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             Assert.Equal(target.FboId, cache.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
         }
