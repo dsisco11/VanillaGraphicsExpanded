@@ -30,7 +30,211 @@ A fully trusted refracted source includes the background, medium transport and F
 
 The snapshot represents opaque receivers only. Accepted paths approximate one water interval; other water boundaries, overlapping liquids and transparent objects are absent from it. Multiple accepted liquid layers retain engine bucket color averaging, rather than ordered optical transport. A transparent object behind water can contribute separately through OIT and is not refracted by this algorithm. Preview transparency deliberately mixes the completed liquid result with the original background. These limitations require live evaluation at overlaps and shorelines; this implementation does not claim complete transparent scene transport or the later scene-linear HDR pipeline.
 
+## Water quality and receiver contract
+
+The following contract governs the work in [PBR.WaterRefraction.todo](PBR.WaterRefraction.todo).
+It is a design decision for subsequent implementation, not a description of settings already shipped.
+The existing Boolean remains the only implemented water-refraction setting today.
+
+| Persisted property | Values and default | Contract |
+| --- | --- | --- |
+| `WaterRefractionEnabled` | Existing Boolean, default `false` | Preserve existing saved values. Off is independent of quality. |
+| `WaterRefractionQuality` | Integer `3` = ray march x8 (default), `2` = x4, `1` = x2, `0` = UV distortion | Present the UI in highest-to-lowest order, labelled Water Quality. Values are stable identifiers, not loop counts. |
+| `WaterRefractionBackgroundScale` | Integer divisor `1` = full size (default), `2` = half width and height | Independent of quality; all four qualities support both resolutions. No automatic resolution reduction when changing quality. |
+
+Missing leaves use these defaults through the existing `ConfigModSystem` load/default-materialization
+and `VgeConfig.Sanitize` paths. Preserve the current enable flag when migrating old documents.
+Unknown integer quality values reset to `3`; unsupported divisors reset to `1`, rather than silently
+turning the feature off. Wrong JSON types follow the existing loader's error/recovery policy; add
+focused saved-settings checks when implementing the fields. Runtime changes are adopted as one
+frame-consistent settings snapshot; a resolution change invalidates publication before replacing
+the pair. A quality-only change does not reallocate the background. Disable withdraws publication,
+reclaims refraction-only final and pre-overlay storage, and skips traversal, distortion and reduction.
+Shared water-volume, atmosphere and HDR scene resources remain independently owned and active.
+
+The x8/x4/x2 limits count **all ray-position receiver-depth evaluations**, including refinement and
+any final revalidation. Cached results can be reused, but the old five refinements and final lookup
+cannot be added outside that ceiling. Current tracing can perform 32 coarse evaluations, five
+refinements and one final lookup: 38 receiver evaluations, each potentially followed by four
+neighbour-depth fetches. Texture taps are not ray steps. Record those taps and bounded UV fallback
+work separately; the UV tier performs no iterative ray traversal. The 32-metre current extent is
+a baseline, not a mandate to distribute two new samples across that whole distance blindly.
+
+All tiers use shared bilateral receiver filtering: spatial weights combined with valid metadata,
+oriented interface-plane eligibility and compatible depth support. Normalize only surviving taps,
+and associate colour with the same receiver support as depth. No support means unavailable data.
+Do not average distinct surfaces into a fictitious intersection. Filter tolerances and crossing
+estimation are selected against the baseline fixtures during their implementation; requiring the
+filter does not license removing physical foreground rejection. Projection uses the full view;
+sampling offsets and bounds use the background texture dimensions explicitly.
+
+Half-size storage uses `max(1, ceil(width / 2))` by `max(1, ceil(height / 2))`. Resolve pre-overlay
+restoration at full resolution before reducing the final publication. The reduction must select
+compatible receiver support and preserve its associated radiance/depth/validity, including odd
+edge footprints; simple independent colour/depth averages are prohibited. Full resolution remains
+the baseline because reduced storage cannot recover subpixel coverage already discarded. Publish
+only a complete pair from one frame/projection/settings generation, using the existing owners and
+completed resize/reload boundaries. Extra reduction scratch belongs to `WaterRefractionScene`,
+not the liquid mesh renderer. Do not introduce a parallel framebuffer/state ownership system.
+
+Receiver outcomes are explicit: valid marched receiver, valid approximate UV receiver, unavailable
+coverage, and no transmitted ray due to total internal reflection. Prefer the valid marched result;
+when its coverage is genuinely unavailable, attempt bounded UV distortion with the same receiver
+eligibility/filtering. Only use undistorted transport when neither selection is usable. An
+approximate UV receiver must not be reported as a geometric ray hit. Valid supported distortion
+must not be unconditionally faded solely because the interface is near the screen edge, or because
+an arbitrary distance fade begins. Any transition blends complete HDR transport contributions,
+not a second copy of the original background. Hidden/offscreen geometry and transparent layers
+absent from the snapshot remain unavailable; total internal reflection correctly transmits nothing.
+
+Optical evaluation retains IOR 1.333 and material-owned RGB coefficients in inverse metres. For an
+above-water camera, the ray into water points away from the surface toward the receiver, so the
+outgoing photon direction used in the water phase function is its negative, transformed to world
+axes. For an underwater camera, scattering toward the camera uses the water-side interface-to-eye
+direction; the outgoing refracted ray beyond the interface lies in air and must not replace it.
+Compare that water-side outgoing direction with incoming light propagation (`-L`) consistently.
+Keep isotropic environment terms, bounded local lighting and the existing homogeneous-medium
+approximation; this contract does not add a volumetric shadow march or change coefficient units.
+
+## HDR producer and consumer contract
+
+Current source inspection confirms the pipeline below. Installed-client IL was freshly exported
+to `artifacts/PbrColor/water-hdr-engine-il.txt` using Mono.Cecil assembly reading,
+without executing the client. `VintagestoryLib.dll` SHA256 is
+`E08F22B493B92FEAF0AAEB79D22437EA0F7EFC38AA7F72A04A47F98BC0E40DF0`.
+The installed shader sources are under `G:/Vintagestory/assets/game/shaders`; these identify the
+inspected installation and are not new source-code dependencies.
+
+| Boundary / owner | Current verified behaviour | Required HDR contract |
+| --- | --- | --- |
+| Opaque material capture, `GBufferManager` and surface patches | Primary attachment zero contains linear albedo for supported geometry, but already-resolved sky colour for sky pixels; engine primary allocation is RGBA8. | Preserve material/radiance distinction and metadata; provide floating-point scene storage and a compatible engine primary handoff. Format replacement alone is insufficient. |
+| `WaterRefractionCapture.BeforeOverlay` / `PBRCompositeRenderer.RenderComposite(capture, isolatedLighting)` | Before local first-person projection, evaluates isolated direct plus standalone environment lighting; early return publishes without a display draw. No current-frame LumOn gather exists yet. | Retain engine order and coherent pre-overlay world colour/depth. Do not invent late coverage or reuse stale GI. Keep unattenuated scene-linear capture. |
+| `DirectLightingRenderer` at Opaque 9 / LumOn | Direct and indirect signals are unexposed linear; composition selects one environment/GI policy. | Preserve units, publication checks and single application of light. |
+| `WaterVolumeRenderer` at Opaque 10.5 | Additive RGBA32F optical-depth/source capture; `WasComposed` prevents repeated liquid bulk transport. | Retain boundary capture and consume matching-generation volume transport once; change publication acknowledgement to the completed HDR scene write, not an obsolete early display resolve. |
+| `pbr_composite.fsh` / Opaque 11 | Captures unattenuated RGBA16F radiance and R32F depth before water/aerial transport; ordinary RGBA16F output carries transported geometry plus display-space sky. | Keep pre-transport refraction source separate from transported HDR background. Migrate sky inputs and remove the mixed colour convention. Preserve invalid sky/first-person receiver marking. |
+| `pbr_display_resolve.fsh` / `PBRCompositeRenderer` | Converts geometry to SDR primary before OIT; sky bypasses conversion. | Remove this early conversion only with the complete compatible scene handoff; move display conversion after HDR composition and migrate the sky bypass at the same time. |
+| `LiquidRenderer` / `pbr_liquid.fsh` / `includes/pbr_liquid.glsl` | OIT 0.369; local display conversion/dither, display-space confidence blending, then local sphere fog and preview alpha; six bucket outputs. | Emit scene-linear surface/background transport and compatible sphere fog; preserve preview alpha and glow semantics, no early display transform. |
+| `PbrSurfaceShaderPatches` / `pbr_forward_surface.glsl` | Standard, instanced, animated and transparent terrain evaluate forward light but resolve to display RGB before OIT/AfterOIT. | Migrate every scene forward route sharing HDR targets, including standard-derived first-person items and entityanimated hands. Keep GUI/offscreen routes separate. |
+| Engine `SystemRenderOITLayers.BeforeOIT/AfterOIT` | Rebuild installs RGB8 bucket revealage and RGBA16F three-layer accumulation, six outputs and multiplicative/additive blending; AfterOIT binds bucket sources. | Keep alpha/revealage as dimensionless data; all accumulation producers must supply compatible linear premultiplied RGB. Preserve engine attachment ownership and late bucket setup. |
+| `ClientPlatformWindows.MergeTransparentRenderPass` / `transparentcompose.fsh` | Bucket unprojection, overall revealage, straight-alpha result blended over Primary using SRC_ALPHA / ONE_MINUS_SRC_ALPHA. | Merge over transported floating-point HDR background, retaining single background contribution. Floating-point accumulation already exists but currently accumulates display RGB. |
+| `ClientMain.MainRenderLoop` / AfterOIT | Opaque -> OIT -> merge -> AfterOIT; late entities use Primary. | Keep AfterOIT scene draws inside the HDR interval; preserve their physical/overlay depth contracts. |
+| Sky/solar patches and engine celestial/effect draws | `AtmosphereSkyPatches` and solar shader resolve before blending; stars/moon retain authored display colours. | Retain atmosphere radiance through scene blending; explicitly decode/calibrate legacy authored colours at their scene boundary and move display-only perception effects to the final boundary. |
+| `RenderPostprocessingEffects` / `RenderFinalComposition` | Bloom extraction reads primary; final scene input is framebuffer index 10, not directly primary. `final.fsh` performs FXAA, bloom/SSAO/godray combinations and display grading/clamps. | Preserve HDR through all pre-display copies/postprocess intermediates, including the scene sent to final composition. Give bloom/SSAO/godrays explicit linear roles; place one tone-map/output conversion before display grading/UI. |
+
+The required common prerequisite is owned by the **complete-scene HDR task in
+[PBR.BaselineShading.todo](PBR.BaselineShading.todo)**, not duplicated inside the water renderer.
+Before water HDR integration starts, that owner must establish and verify:
+
+1. Floating-point scene target handoff through opaque, merge, AfterOIT and pre-display processing,
+   with coherent resize/reload and no read/write feedback. Retain engine mesh and framebuffer
+   authority, using existing resource APIs and explicit restoration boundaries.
+2. Linear output from all scene contributors sharing those targets, including fallback vanilla
+   liquids if VGE ownership is unavailable. Installed OIT source families also include
+   `particlesquad`, `particlesquad2d`, `clouds`, `cloudvolumetric`, `aurora` and `blockhighlights`,
+   in addition to `chunkliquid`, `chunktransparent` and `entityanimated`; standard/instanced
+   variants and custom shaders can acquire OIT includes through preprocessing. Opaque
+   `particlescube` and authored celestial/effect draws also need explicit routing. Preserve alpha,
+   depth, glow and render order; adapt existing effects rather than replacing their algorithms.
+   Unknown third-party scene contributors require an explicit compatibility boundary or rejection
+   of the HDR handoff, never silently treating their display RGB as radiance.
+3. One final scene display boundary after linear composition/effects, before display grading and
+   UI. Update `findbright`, blur/intermediate formats, `final` colour operations and FXAA ordering
+   consistently. UI/inventory must not pass through scene exposure. Native HDR output and new bloom
+   quality algorithms are separate tasks; ordinary SDR output is sufficient here.
+   Move SDR dithering to the final encoded output as specified by [PBR.OutputDithering.md](PBR.OutputDithering.md);
+   do not retain per-draw dither in scene-linear radiance or apply an 8-bit amplitude to HDR storage.
+4. Executed producer/consumer fixtures proving values above one survive the handoff, linear
+   transparency matches numerical references, output conversion occurs once, and unsupported or
+   failed setup retains an entirely compatible old path rather than mixing old and new routes.
+
+This prerequisite is currently **not implemented or verified** by the baseline investigation.
+New water HDR integration stays gated on that receipt. The dependency is one-way:
+the common HDR task establishes the handoff first (including compatible current liquid output),
+then water integration adds its new transport/receiver composition. The common task must not wait
+for the new water algorithms, downsampling or settings, and completing water does not complete all
+scene-HDR or HDR-monitor work. The approved authoritative-pipeline proposal constrains future
+state ownership; its unimplemented APIs are not a prerequisite for these source/diagnostic checks.
+
+Current missing-scene coverage, scalar OIT revealage and multiple-liquid bucket averaging are
+separate limitations. Moving RGB into HDR fixes colour-space composition, not ordered refraction
+through arbitrary transparent layers. Preserve the documented single represented opaque receiver
+contract until a separate transport extension is designed and verified.
+
+The contract inventory uses the following controlling sources. These references describe the
+requirements consulted, not new claims of runtime verification:
+
+| Work item | Consulted document and requirement | Evidence / verification boundary |
+| --- | --- | --- |
+| Receiver baseline and sampling decisions | [PBR.BaselineShading.todo](PBR.BaselineShading.todo), refraction item; current Optics and traversal section above | Exact production traversal include, liquid consumer, snapshot/capture owners and focused diagnostic/production GPU fixtures. No live camera-defect reproduction claimed. |
+| Medium and liquid compatibility | [PBR.WaterMedium.md](PBR.WaterMedium.md), Evaluation and ownership; [PBR.Liquids.md](PBR.Liquids.md), Captured OIT contract; [PBR.LiquidRenderer.Proposal.md](PBR.LiquidRenderer.Proposal.md), Compatibility and lifecycle | Preserve SI units, RGB transport, one submission owner, six bucket outputs and engine-owned meshes/targets. New transport implementation remains subsequent work. |
+| Settings and resource decisions | Parent refraction enable/disable contract and current `ConfigModSystem`, `VgeConfig`, `WaterRefractionScene` / `WaterRefractionCapture` | Stable settings/defaults and publication policy specified above; new settings runtime tests belong to implementation, not this design receipt. |
+| HDR dependency and colour boundaries | [PBR.MaterialColorAndDisplay.md](PBR.MaterialColorAndDisplay.md), Lighting and display; [PBR.EntityAndLateCoverage.md](PBR.EntityAndLateCoverage.md), Transparency and display boundary; [PBR.SharedDisplay.md](PBR.SharedDisplay.md), HDR ordering; [PBR.OutputDithering.md](PBR.OutputDithering.md), final-output migration | Source/installed IL inventory above defines the one-way common prerequisite; no HDR migration or HDR acceptance claimed. |
+| Lighting and engine authority | [PBR.LightingModes.md](PBR.LightingModes.md), LumOn composition and lifecycle; [Rendering.AuthoritativePipelineState.todo](Rendering.AuthoritativePipelineState.todo) and its approved proposal, Scope boundaries / Engine integration | Retain mode-generation ownership, engine shader activation and framebuffer restoration. Diagnostic hooks compile away normally; no new submission architecture is introduced. |
+
 ## Validation and remaining acceptance
+
+### Receiver baseline diagnostics
+
+`WaterRefractionDiagnosticTests` compiles the actual `includes/liquids/refraction.glsl` with opt-in
+event/sample macros, using the existing headless shader test framework. Ordinary shader variants
+expand these hooks to nothing; traversal equations, rejection thresholds and composition remain
+unchanged. Three diagnostic outputs record hit/reason/evaluation count/confidence, last receiver
+UV and positive view depth, and submerged length/refracted Z/fallback mixing weight/returned Z.
+On rejection, the sample is the last attempted lookup, not a selected valid receiver; a projection
+failure before any lookup leaves it zero. The fallback weight is `1-confidence` (one on failure),
+not the engine's final revealage or a measurement of visible distortion strength.
+
+The following controlled 128-pixel GPU cases are reproduced in
+`artifacts/PbrColor/water-refraction-contract-final.log`:
+
+| Case | Observed result | Implication for subsequent work |
+| --- | --- | --- |
+| Flat / tilted normal | Accepted in 23 receiver evaluations, confidence 1; UV x changes from 0.503125 to 0.571335. | Established successful baseline; retain supported geometric distortion. |
+| Receiver 1 cm behind a flat interface | Interface-plane rejection on the first evaluation (reason 4). | The fixed 2 cm exclusion rejects this physically behind-water sample; shallow-path eligibility needs improvement. |
+| One adjacent foreground texel | Entire trace rejected on first evaluation (reason 5), despite valid central depth. | Bilateral support can retain valid taps, provided foreground colour never leaks into them. |
+| Edge sweep at columns 1, 3, 6, 12, 32, 64 | Column 1 fails projection before a receiver read. Columns 3 and 6 are accepted but confidence is 0.058087 and 0.409624; columns 12 onward have confidence 1. | Distinguishes hard margin rejection from avoidable attenuation of a valid receiver. At column 3 the receiver UV x is already 0.138667: the interface-edge fade suppresses otherwise supported distortion. |
+| Receiver depth 30 m, interface depth 2 m | Accepted length 28.009766 m, 36 evaluations, confidence 0.498169. | Range fade halves a valid contribution without a missing receiver. |
+| Positive view-Z ray | Accepted with direction Z +0.115695, 13 evaluations, confidence 1; UV (0.804779, 0.5), sampled positive depth 1.822360 m, returned ray Z -1.850749 m. | Confirms the helper can accept a ray moving toward the camera; this uses a synthetic wide projection and does not establish ordinary in-game camera coverage. |
+| Depth step from 20 m to 3 m | Residual rejection (reason 7), 13 evaluations, approximately 0.434958 m mismatch. | Necessary discontinuity guard; broad threshold relaxation would admit unsupported crossings. |
+| Grazing normal | Projection rejection (reason 1) after 12 receiver evaluations. | Demonstrated screen-coverage limitation; no hidden receiver is asserted. |
+| Sky / invalid receiver metadata | Rejection (reason 2) on first evaluation. | Keep invalid coverage distinct from physical receivers. |
+| Receiver beyond traversal range | Exhaustion (reason 9) after 32 evaluations. | No hit is proven; a bounded approximate fallback must retain its own validity rules. |
+
+The diagnostic codes also distinguish homogeneous reconstruction failure (3), total internal
+reflection (6) and nonfinite radiance (8); their mere instrumentation is not proof that every
+branch was exercised by these new cases. Existing production-SPIR-V `WaterRefractionTests` were
+rerun alongside them, including flat/tilted surfaces, underwater exit/TIR, invalid/nonfinite depth,
+bottom-edge composition and fixed-world pitches 15/45/75 degrees at headings 0/90 degrees.
+Those tests predict the floor texel and composition independently; they do not launch the client.
+
+The fresh focused Debug build/test invocation passed **44/44**, zero skips: 12 diagnostic cases,
+20 production refraction cases, nine overlay-composition cases, two lifecycle cases and one
+capture-state case. The final fresh build and expanded water/liquid/composite regression passed
+**114/114**, zero failures/skips, in 5.09 seconds. These counts overlap and must not be added.
+Receipts: `artifacts/PbrColor/water-refraction-contract-final.log` and
+`artifacts/PbrColor/water-refraction-contract-regression.log`. The initial shader build compiled
+and verified 168 stages / 406 variants; the final incremental receipt verified all 406 binaries
+current. Existing compiler/analyzer warnings remain. An initial diagnostic assertion incorrectly
+treated receiver depth 30 m as a 30 m water path; the actual interface starts at 2 m. Correcting its
+expected 28 m path gives the independently expected half-strength range fade. No production
+threshold was changed to obtain a pass. Earlier failed diagnostic logs are superseded by these
+fresh receipts, not counted as successful validation. Sandbox restore/compiler-path failures
+were resolved through approved escalation before the successful fresh build/test runs.
+
+Run through a build/test subagent with the existing NuGet package location:
+
+```powershell
+$env:NUGET_PACKAGES = 'C:/Users/Sisco/.nuget/packages'
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~WaterRefraction|FullyQualifiedName~WaterMedium|FullyQualifiedName~WaterBoundary|FullyQualifiedName~WaterVolume|FullyQualifiedName~Liquid|FullyQualifiedName~PbrComposite' --logger 'console;verbosity=detailed'
+```
+
+Source/contract review separates these executed baseline observations from the planned fixes.
+Second review and an independent completion audit found the baseline investigation and design
+contract fully supported by the source, linked documents and executed receipts.
+No settings UI, reduced-step algorithm, bilateral filter, downsampling or HDR migration is claimed
+implemented by these diagnostics. Live appearance and production GPU cost remain unmeasured.
+
+### Earlier implementation receipts
 
 Constructor-configured blitting and attachment notifications passed a fresh build and 236/236 regressions. After tightening ordinary primary-load notification suppression, a fresh final build and 34/34 affected tests passed. Functional checks prove that silent external attachment changes are not queried during ordinary copies, wrapper refresh updates the retained copy, repeated setup/load/unload emits no refresh, and an equal-size window-rebuild callback notifies once. Resize completion/no-op suppression, retirement rejection and subscription removal are also covered. Receipts: `artifacts/PbrColor/event-blitter-build.log`, `artifacts/PbrColor/event-blitter-regressions.log` and matching TRX, plus `artifacts/PbrColor/event-blitter-final-refresh.log` and matching TRX. Counts overlap; working-tree whitespace checks and source review passed.
 

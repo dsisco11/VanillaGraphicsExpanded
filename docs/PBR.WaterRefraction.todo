@@ -2,10 +2,11 @@ Water refraction quality, receiver stability and HDR composition
 ==============================================================
 
 Source requirements: user direction on 2026-10-03.
-Parent: docs/PBR.BaselineShading.todo / Implement water refraction integrated with PBR liquids and OIT.
-Current implementation and evidence: docs/PBR.WaterRefraction.md.
-Related contracts: docs/PBR.WaterMedium.md, docs/PBR.Liquids.md,
-  docs/PBR.MaterialColorAndDisplay.md, docs/Rendering.AuthoritativePipelineState.todo.
+Parent: PBR.BaselineShading.todo / Implement water refraction integrated with PBR liquids and OIT.
+Current implementation and evidence: PBR.WaterRefraction.md.
+Related contracts: PBR.WaterMedium.md, PBR.Liquids.md,
+  PBR.MaterialColorAndDisplay.md, Rendering.AuthoritativePipelineState.todo.
+Document paths here are relative to this file's directory.
 
 Goal and fixed requirements
   Retain geometric ray-marched refraction at the three higher water-quality levels. Provide exactly
@@ -16,7 +17,8 @@ Goal and fixed requirements
   background resolution, retaining valid receiver samples while excluding foreground contamination.
   Prevent avoidable receiver/confidence failures and loss of visible distortion. Do not treat
   invalid depth, foreground geometry or missing screen-space coverage as valid ray intersections.
-  This is a planning document; implementation has not started. All new tasks remain unchecked.
+  Quality algorithms and HDR migration remain unimplemented. Baseline diagnostics and design
+  contracts are recorded in PBR.WaterRefraction.md; completion requires the verification gates below.
 
 Scope and execution contract
   Reuse liquid, composite, water-medium, capture, framebuffer, shader-library and settings owners.
@@ -32,18 +34,18 @@ Scope and execution contract
   Do not add temporal history, offscreen geometry tracing or a render graph without a separate
   design decision. Current opaque snapshots cannot supply arbitrary hidden transparent geometry.
 
-Planning assumptions and decisions to resolve
-  - Interpret x8/x4/x2 as total maximum ray-position depth evaluations per fragment, including
-    iterative crossing refinement, not those counts plus the existing five bisections. Neighbour
-    filtering taps and fallback lookups are separate costs and must also be bounded and reported.
-    Confirm this interpretation before implementing traversal; no hidden extra refinement loop.
-  - Proposed initial settings: highest quality for an already-enabled refraction feature, full-size
-    backgrounds by default, optional half width/half height (one quarter as many texels). These
-    defaults/resolution choices are proposals, not user-specified values; settle in Phase 1.
-  - Proposed continuity policy: valid ray result first, validated UV-distorted receiver when ray
-    coverage is unavailable, safe undistorted transport only if neither has usable coverage.
-    The user requires preventing avoidable confidence loss; this fallback policy is an implementation
-    proposal for unavoidable missing coverage, not a replacement for fixing traversal.
+Design decisions established by Phase 1
+  - x8/x4/x2 are total maximum ray-position depth evaluations, including refinement and final
+    revalidation; no hidden extra refinement loop. Filter taps and bounded UV fallback work are
+    separate costs. Current tracing can perform 38 evaluations (32 + 5 + final lookup).
+  - WaterRefractionQuality uses stable integer values 3=x8 (default), 2=x4, 1=x2, 0=UV distortion.
+    WaterRefractionBackgroundScale independently selects divisor 1=full (default), 2=half dimensions
+    rounded up. Missing/invalid values use defaults; preserve the existing enable flag, default false.
+    Off is not a quality level. Exact migration/lifetime contract: PBR.WaterRefraction.md,
+    Water quality and receiver contract. Runtime fields are implemented in Phase 6.
+  - Continuity policy: valid ray result first, validated UV-distorted receiver when ray coverage is
+    unavailable, safe undistorted transport only if neither has usable coverage. Fix avoidable
+    failures first; the UV result remains an approximate receiver, never a confirmed ray hit.
   - Bilateral receiver filtering is required. Its weights, eligibility tests and tolerances must
     satisfy the local interface-plane geometry contract; these details remain implementation choices.
 
@@ -61,31 +63,39 @@ Bilateral receiver filtering: meaning and limitations
 
 Phase 1: Establish reproducible cases and shared contracts
   Outcome: bounded quality, sampling and HDR contracts that subsequent work can implement.
+  Completed 2026-10-03: diagnostic baseline, settled settings/sampling contracts and HDR inventory
+    in PBR.WaterRefraction.md. Fresh build and 114/114 focused regressions passed without skips.
+    Second review and independent audit-stage-completion found no remaining Phase 1 issues.
+    No live appearance/performance acceptance or implementation of later phases is claimed.
 
-  ☐ Inventory the current paths and produce reproducible confidence-loss cases before changing them.
-    ☐ Trace includes/liquids/refraction.glsl, includes/pbr_liquid.glsl, pbr_composite.fsh,
+  ☑ Inventory the current paths and produce reproducible confidence-loss cases before changing them.
+    ☑ Trace includes/liquids/refraction.glsl, includes/pbr_liquid.glsl, pbr_composite.fsh,
       WaterRefractionScene, WaterRefractionCapture, LiquidRenderer and PBRCompositeRenderer.
-    ☐ Distinguish rejection from confidence attenuation: projection bounds, interface-plane tests,
+    ☑ Distinguish rejection from confidence attenuation: projection bounds, interface-plane tests,
       adjacent foreground, depth discontinuity/residual, sky/metadata, distance exhaustion and fades.
-    ☐ Add focused diagnostic evidence for selected receiver UV/depth, rejection reason, iteration
+    ☑ Add focused diagnostic evidence for selected receiver UV/depth, rejection reason, iteration
       count, transport length and fallback selection using existing test/debug infrastructure.
-    ☐ Reproduce flat/tilted water, shallow shores, grazing views, screen-edge movement, positive
+    ☑ Reproduce flat/tilted water, shallow shores, grazing views, screen-edge movement, positive
       view-Z rays and camera headings/pitches. Separate executed reproductions from hypotheses.
-  ☐ Settle step-count semantics, quality default, stable persisted values and downsampling choices.
-    ☐ Specify independent quality and background-resolution controls; off is not a fifth level.
-    ☐ Define old-settings migration, invalid-value handling and disabled-feature resource behavior.
-  ☐ Audit the complete water HDR path and write the required pass/colour-space contract in the
+  ☑ Settle step-count semantics, quality default, stable persisted values and downsampling choices.
+    ☑ Specify independent quality and background-resolution controls; off is not a fifth level.
+    ☑ Define old-settings migration, invalid-value handling and disabled-feature resource behavior.
+  ☑ Audit the complete water HDR path and write the required pass/colour-space contract in the
     existing implementation document before changing targets or output equations.
-    ☐ Trace opaque publication, pre-overlay capture, water volume, OIT producers/compositor,
+    ☑ Trace opaque publication, pre-overlay capture, water volume, OIT producers/compositor,
       atmosphere, late draws, exposure and display conversion, including vanilla-owned consumers.
-    ☐ Identify exactly which surrounding producers/consumers must migrate for compatible HDR
+    ☑ Identify exactly which surrounding producers/consumers must migrate for compatible HDR
       composition. A float texture containing display-converted values does not satisfy HDR.
-    ☐ Coordinate required HDR groundwork with the parent's complete-scene HDR task; execute the
-      required common prerequisite before Phase 2. Avoid reciprocal dependencies or duplicate resolves.
-  ☐ Review contracts and reproduce baseline cases; record outstanding design choices explicitly.
+    ☑ Coordinate required HDR groundwork with the parent's complete-scene HDR task and assign its
+      execution as a prerequisite before Phase 2. Avoid reciprocal dependencies or duplicate resolves.
+      - Phase 1 defines the prerequisite and its owning task; it does not perform that HDR migration.
+        Phase 2 remains blocked until the parent task's common HDR handoff has verified receipts.
+  ☑ Review contracts and reproduce baseline cases; record outstanding design choices explicitly.
 
 Phase 2: Establish shared HDR water transport and composition
   Dependencies: Phase 1 HDR producer/consumer contract and its identified shared prerequisites.
+  Entry gate: PBR.WaterRefraction.md / HDR producer and consumer contract. The common HDR handoff
+    remains unimplemented; complete it in the parent scene-HDR task before starting this phase.
   Outcome: one scene-linear composition path usable by all four sampling algorithms.
 
   ☐ Preserve HDR radiance through water surface lighting, RGB medium transport, fallback blending

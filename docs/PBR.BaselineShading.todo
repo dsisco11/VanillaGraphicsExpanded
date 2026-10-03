@@ -586,6 +586,12 @@ Tasks
   ☐ Extend scene-linear HDR rendering through the complete scene and postprocessing pipeline.
     - Coordinate prerequisite HDR water/OIT work with docs/PBR.WaterRefraction.todo; establish one
       shared producer/consumer and final-display contract without reciprocal task dependencies.
+    ☐ Establish the common HDR scene handoff required before water transport integration.
+      - Follow docs/PBR.WaterRefraction.md / HDR producer and consumer contract: floating-point
+        scene storage, compatible opaque/sky/OIT/late and fallback contributors, linear merge and
+        pre-display effects, then one final display boundary before grading/UI.
+      - Verify highlight retention, linear blends, single conversion and coherent failure/lifecycle
+        handling before PBR.WaterRefraction.todo Phase 2. Do not wait for new water sampling algorithms.
     - Audit render-target formats, copies, blending and shader outputs across opaque terrain,
       entities, transparency/OIT, liquids, sky, clouds and late held items. Preserve HDR radiance
       in floating-point targets through scene composition; changing primary format alone is insufficient.
