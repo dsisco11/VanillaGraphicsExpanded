@@ -1,0 +1,224 @@
+Authoritative graphics pipeline state
+====================================
+
+Source proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md
+Approval: user approved the proposal on 2026-10-03. Implementation has not started.
+Project index: project.todo / Performance / PipelineState.
+
+Goal and execution contract
+  Establish explicit state ownership for VGE-owned graphics draws, preserving shader activation,
+  framebuffer attachment ownership, engine restoration, and redundant native-call suppression.
+  The proposal is authoritative. This plan sequences implementation; it does not broaden scope.
+  New types and migrated types use responsibility-based names without Gl/GL/Gpu prefixes.
+  Existing source names below locate current implementations, not prescribed final names.
+  Keep files focused, dependencies directional, and GraphicsCommandContext a thin composition root.
+  Follow repository XML comments, visibility regions, and nontrivial-method comment conventions.
+  Delegate all builds and tests to subagents. Record commands, results, failures and limitations.
+  Never launch Vintage Story. Live game/RenderDoc evidence is supplied by the user.
+  Keep tasks unchecked until their stated verification is complete. Distinguish source review,
+  unit/headless integration evidence, live rendering evidence, and measured performance.
+  Implementation evidence belongs in docs/Rendering.AuthoritativePipelineState.md (to be created).
+
+Scope boundaries
+  Preserve existing resource hierarchies, disposal queues, shader reflection/preparation, generated
+  shader inputs, compute submission, and FBO borrowing/owning contracts.
+  Retain explicit partial overrides at documented compatibility boundaries.
+  Resource hazards, barriers, resolves, blits and readback remain explicit operations.
+  Renderbuffer binding is resource-operation state, not graphics pipeline identity.
+  No render graph, deferred command recording, multithreaded GL submission or additional backend.
+  Pipeline interning, prewarming and asynchronous preparation remain follow-up capabilities.
+  No blanket engine-wide authority claim or removal of all invalidation/restoration scopes.
+  Rename types as they migrate; a repository-wide unrelated resource rename is outside this plan.
+
+Phase 1: Establish state and consumer contracts
+  Dependencies: approved proposal.
+  Outcome: explicit supported state inventory and migration boundaries that later work can implement.
+
+  ☐ Inventory graphics consumers and native/engine mutation paths.
+    ☐ Locate descriptor application, framebuffer blend policy, raw GL changes, shader activation,
+      MeshRef/VAO draws, tessellation setup, and capture/invalidation scopes.
+    ☐ Classify every consumer as VGE-owned or engine-owned; record required adapters and migration order.
+    ☐ Classify mutation paths as observed, explicitly restored or unknown, including existing Harmony hooks.
+    ☐ Audit renderbuffer binding/scope coverage without adding it to the PSO key.
+  ☐ Resolve and document the proposal's open design choices before their dependent implementations.
+    ☐ Specify supported state and defaults: depth/stencil, rasterizer, indexed blending, sampling,
+      framebuffer sRGB, clipping/depth conventions, restart, patch size and shader-controlled point size.
+    ☐ Declare viewport/scissor, stencil reference and blend constant dynamic where applicable;
+      choose depth-range ownership and line-width/point-size policy from actual consumers.
+    ☐ Define vertex layout and geometry adapters for MeshRef and VGE VAOs.
+    ☐ Define exact normalized format/sample matching, sparse routing and intentionally discarded outputs.
+    ☐ Define wrapped/default framebuffer metadata providers and refresh boundaries.
+    ☐ Establish shader executable generation and context generation identity sources.
+    ☐ Specify per-boundary engine restoration sets and known-state versus capture policy.
+  ☐ Create the implementation evidence document with a consumer/state coverage matrix and source links.
+    ☐ Record deterministic direct-lighting reference cases and comparison methodology before migration.
+    ☐ Record unsupported features as rejected or excluded by a verified boundary, never ambient defaults.
+  ☐ Completion gate: every open choice has a documented decision for the first consumer and a defined
+    resolution prerequisite for remaining consumers; scope and evidence categories are explicit.
+
+Phase 2: Complete immutable descriptions
+  Dependencies: Phase 1 state, layout, target and naming decisions.
+  Outcome: complete pipeline inputs with stable structural identity and release-build validation.
+
+  ☐ Introduce GraphicsPipelineDesc and focused state value types.
+    ☐ Represent shader variant/layout identity, vertex layout, topology, target signature and dynamics.
+    ☐ Cover rasterizer cull/mode/winding, polygon mode, bias, clamp/clip, discard and provoking convention.
+    ☐ Cover depth comparison/write policy and front/back stencil comparisons, operations and masks.
+    ☐ Cover per-output blend enables, RGB/alpha factors/equations and write masks.
+    ☐ Cover supported multisample, mask/coverage, alpha-to-coverage and sRGB settings.
+    ☐ Include restart and tessellation control-point configuration and other inventoried relevant state.
+  ☐ Resolve construction omissions against explicit defaults; never inherit live GL state.
+    ☐ Require explicit dynamic declarations; canonicalize inactive values without losing re-enable behavior.
+    ☐ Separate partial override identity from complete descriptions; retain stable legacy mask numbering.
+  ☐ Implement deep immutability, structural equality and hashing.
+    ☐ Include every behavior-affecting field; exclude debug labels, actual FBO IDs and dimensions.
+    ☐ Separate reusable description identity from live executable/context realization identity.
+    ☐ Reject invalid combinations and unsupported capabilities in all builds.
+  ☐ Delegate focused unit tests in Debug and Release for immutability, equivalent copied arrays,
+    field-sensitive identity, defaults, dynamic requirements and invalid combinations.
+  ☐ Completion gate: published descriptions cannot be mutated; supported state has explicit ownership;
+    complete and partial descriptions cannot be accidentally interchanged.
+
+Phase 3: Context-aware state application and engine boundaries
+  Dependencies: Phases 1–2.
+  Outcome: complete descriptions can be applied independently of prior state and safely restored.
+
+  ☐ Extend and migrate GlStateCache to StateCache, updating references atomically with the rename.
+    ☐ Implement all supported static/dynamic transitions while preserving existing binding caches.
+    ☐ Handle global/indexed blend interactions, write masks and disabled-to-enabled transitions.
+    ☐ Associate knowledge with context generation; reset on replacement/loss/switch as required.
+    ☐ Invalidate affected resource bindings on retirement and native-name reuse; preserve VAO-aware EBO tracking.
+  ☐ Implement focused engine boundary adapters for the first consumer and shared mechanisms.
+    ☐ Capture or obtain required incoming state; restore native state and engine shader ownership.
+    ☐ Observe successful known engine mutations without duplicate native calls or recursive hooks.
+    ☐ Retain invalidation for unobserved paths; document explicit external-operation boundaries.
+    ☐ Ensure exception paths restore the boundary and leave cache knowledge truthful.
+  ☐ Add bounded instrumentation for state calls, queries and draw submission verification.
+  ☐ Delegate headless transition tests after deliberately hostile prior state and A-to-B-to-A changes.
+    ☐ Verify indexed blend/masks, sampling, stencil and rasterizer results, not only cached fields.
+    ☐ Verify redundant-call suppression, context replacement, retirement and name reuse.
+    ☐ Verify boundary restoration and unknown external mutation handling on success and exceptions.
+  ☐ Completion gate: first-consumer state application and restoration are proven before production
+    migration; unverified engine paths remain explicitly outside authority.
+
+Phase 4: Prepared graphics pipelines and executable compatibility
+  Dependencies: Phases 1–3, including executable/context identities.
+  Outcome: validated GraphicsPipeline realizations usable by submission without per-draw reflection.
+
+  ☐ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.
+    ☐ Validate active stages, vertex attributes/scalar interpretation/components/divisors, fragment output
+      locations/scalar classes, resource layout, static state, target signature and capabilities.
+    ☐ Add missing interface validation at preparation time; do not build parallel reflection/binding systems.
+  ☐ Publish prepared objects only after successful validation.
+    ☐ Retain needed dependency references without acquiring ownership of externally owned shader resources.
+    ☐ Reject retired dependencies and obsolete executable/context generations.
+    ☐ Invalidate on reload; revalidate incompatible changes before publishing replacements.
+    ☐ Preserve existing deferred deletion; do not invent ResourceId for a managed aggregate.
+    ☐ Use explicit prepared objects; defer registry/interning and bound future cache requirements in docs.
+  ☐ Delegate tests for interface/format/sample mismatch, unsupported stages/settings, failed preparation,
+    compatible/incompatible reload, explicit disposal and context generation replacement.
+  ☐ Completion gate: failures cannot expose a partially usable pipeline; no steady-state interface queries.
+
+Phase 5: Render passes and target lifetime
+  Dependencies: Phases 1–4 target and state contracts.
+  Outcome: explicit pass targets, routing, clears and store intentions with compatibility validation.
+
+  ☐ Implement RenderPassDesc and target signature extraction/validation through existing FBO resources.
+    ☐ Preserve output-location/draw-buffer/attachment-index distinctions and sparse routing.
+    ☐ Supply wrapped/default target metadata through the chosen provider; reject unknown strict metadata.
+    ☐ Retain borrowed references for the pass without changing FBO or attachment ownership.
+    ☐ Recheck completeness/compatibility after replacement, resize or backing changes at safe boundaries.
+    ☐ Reject mutation during an active pass or require end/rebegin; refresh viewport/render area after resize.
+  ☐ Implement preserve, typed per-attachment clear and discard intentions where meaningful.
+    ☐ Establish clear masks/scissor/render-area behavior independently of draw write masks.
+    ☐ Preserve unrequested aspects; keep resolve/blit/readback/barriers explicit.
+    ☐ End passes without disposing borrowed targets; clean up on setup failure.
+  ☐ Delegate headless tests for sparse targets, packed depth/stencil aspects, typed clears, preservation,
+    discard contract, metadata refresh, resize, replacement, format/sample changes and retirement.
+  ☐ Completion gate: same-signature targets reuse a pipeline across dimensions/IDs, while incompatible
+    or retired targets fail deterministically; clear behavior is independent of preceding draw state.
+
+Phase 6: Immediate graphics submission
+  Dependencies: Phases 3–5.
+  Outcome: one authoritative entry point validates and establishes the full draw contract.
+
+  ☐ Implement DynamicDrawState, geometry adapters and a thin GraphicsCommandContext.
+    ☐ Support BeginPass, pipeline/dynamic selection, existing shader-input assignment, Draw and EndPass.
+    ☐ Reject accidental nesting and draws outside a valid pass.
+    ☐ Validate current target/generations, geometry layout/topology, required dynamics and resources.
+    ☐ Use existing engine-aware shader activation and input publication, including CurrentShaderProgram,
+      overlapping-owner restrictions, failure cleanup and recursion/mutation guards.
+    ☐ Publish changed resources/uniforms even when the selected pipeline is unchanged.
+    ☐ Establish all required state before issuing the draw; failure must emit no draw.
+    ☐ Document and observe engine geometry helper mutations; prohibit untracked operations inside a pass.
+    ☐ End/suspend authority at declared external boundaries and dirty affected categories before resuming.
+  ☐ Delegate integration tests for missing dynamics/resources, invalid geometry, no-draw failures,
+    changed inputs on the same pipeline, external operations, nesting rejection and exception cleanup.
+  ☐ Completion gate: deterministic fixture draws use the full submission path with no hidden ambient
+    state dependency or per-draw reflection/state queries under stable managed conditions.
+
+Phase 7: Direct-lighting production migration
+  Dependencies: Phases 1–6, including baseline evidence and first-consumer engine adapter.
+  Outcome: first VGE production pass exercises the complete architecture.
+
+  ☐ Migrate DirectLightingRenderer and its normal/isolated targets to prepared pipeline/pass submission.
+    ☐ Preserve shader inputs, image formats, output routing, clear behavior and engine restoration.
+    ☐ Preserve resource lifetimes, resize handling and readiness/failure behavior.
+    ☐ Remove redundant local state setup only after the new owner covers it.
+  ☐ Delegate deterministic old/reference-versus-migrated output tests and focused consumer regressions.
+    ☐ Exercise first use, repeated draws, target resize, shader failure/reload and external state changes.
+    ☐ Record state calls, steady-state queries and preparation/submission costs separately.
+  ☐ Perform a second source review against the proposal and evidence; resolve discrepancies before
+    migrating additional production consumers. Record remaining engine/live-runtime limitations.
+  ☐ Completion gate: direct-lighting output and restoration are preserved, required state is explicit,
+    and changed inputs are never skipped by redundant-state suppression.
+
+Phase 8: Remaining VGE consumers and compatibility cleanup
+  Dependencies: Phase 7 review gate; Phase 1 consumer inventory.
+  Outcome: inventoried VGE passes adopt complete submission or have a documented scope disposition.
+
+  ☐ Migrate composite and capture passes, then indexed-blend/MRT consumers.
+    ☐ Extend per-consumer boundary adapters and metadata before migrating each caller.
+    ☐ Move framebuffer blend policy to pipeline descriptions as its consumers migrate.
+    ☐ Add output, lifetime, routing and restoration regression evidence for each consumer family.
+  ☐ Migrate VGE-owned debug/tessellation/terrain-related draws using the required specialized adapters.
+    ☐ Preserve engine-owned rendering behind explicit compatibility boundaries; do not claim ownership
+      solely because a shader or draw helper is shared with VGE.
+    ☐ Record any unconverted in-scope consumer as incomplete; require explicit scope agreement to defer it.
+  ☐ Reconcile partial overrides and legacy helpers after inventorying remaining callers.
+    ☐ Retain partial changes only outside complete submissions or through declared boundaries.
+    ☐ Remove obsolete migrated blend storage/setup and temporary adapters only after caller/tests prove safety.
+    ☐ Retain necessary capture/invalidation; remove individual scopes only with tracking/restoration evidence.
+    ☐ Complete migrated type renames and references without unrelated hierarchy or ownership changes.
+  ☐ Reconcile project.todo binding/hook items with the coverage matrix; do not mark unobserved paths done.
+  ☐ Delegate focused consumer regressions and compute/shared-binding regressions affected by common changes.
+  ☐ Completion gate: every inventoried consumer has an evidenced disposition, no migrated pass has two
+    blend/state owners, and temporary compatibility code has been removed or assigned a justified purpose.
+
+Phase 9: Acceptance evidence and measurements
+  Dependencies: Phases 1–8.
+  Outcome: implementation scope, correctness and measured costs are reviewable without overstated claims.
+
+  ☐ Map each proposal section to implemented source and evidence in the implementation document.
+    ☐ Cover naming, immutable identity, complete/partial semantics, all supported state, targets/lifetime,
+      preparation, submission, engine boundaries and adoption; record limitations and follow-up exclusions.
+  ☐ Delegate required Debug/Release builds and focused unit/headless integration suites.
+    ☐ Consolidate prior valid receipts; rerun where later edits affect previously verified behavior.
+    ☐ Record context, commands, pass/failure/skip counts and outstanding failures without hiding skips.
+  ☐ Record comparable-workload state-call/query counts, CPU submission and preparation cost,
+    prepared-object/cache retention, and representative GPU timing with instrumentation/environment details.
+    ☐ Separate measured results from expected benefits; do not require an invented speedup threshold.
+  ☐ Provide user-run live game/RenderDoc cases for migrated passes, engine handoff, resize and reload.
+    ☐ Record supplied visual/runtime results separately from headless evidence; leave live acceptance
+      pending if unavailable and do not launch the game to obtain it.
+  ☐ Perform a final second review of implementation, contracts, remaining compatibility paths and evidence.
+    ☐ Resolve verified issues and document explicit scope dispositions before completion claims.
+  ☐ Final acceptance: required implementation and tests are complete, live evidence status is explicit,
+    proposal requirements are accounted for, and no authority/performance claim exceeds verified coverage.
+
+Open assumptions and follow-up boundaries
+  Concrete API spellings are selected during design within the approved responsibility model.
+  Whole-engine authority remains outside the initial scope; unknown engine/mod mutations retain fallback.
+  Future interning needs bounded retention/eviction and equality checks for hash collisions.
+  Prewarming/asynchronous preparation, render graphs and additional backends require separate plans.
+  User-run runtime evidence can extend elapsed delivery time; test completion does not substitute for it.

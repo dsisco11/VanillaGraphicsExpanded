@@ -1,6 +1,6 @@
 # Authoritative graphics pipeline state
 
-Status: proposed architecture; no runtime implementation is included in this document.
+Status: approved on 2026-10-03. Implementation plan: [Rendering.AuthoritativePipelineState.todo](Rendering.AuthoritativePipelineState.todo). No runtime implementation is included in this document.
 
 ## Intent
 
