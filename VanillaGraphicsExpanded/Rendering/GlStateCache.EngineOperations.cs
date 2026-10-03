@@ -59,41 +59,5 @@ internal sealed partial class StateCache
     }
     #endregion
 
-    #region Resource retirement
-    /// <summary>Preserves the bulk deletion overload and forgets implicitly changed buffer bindings.</summary>
-    internal void DeleteBuffers(int count, ref int buffers)
-    {
-        GL.DeleteBuffers(count, ref buffers);
-        Invalidate(EPipelineState.BufferBindings);
-    }
-
-    /// <summary>Forgets sampler slots after native retirement, including subsequent numeric-name reuse.</summary>
-    internal void DeleteSampler(int sampler)
-    {
-        GL.DeleteSampler(sampler);
-        Invalidate(EPipelineState.SamplerBindings);
-    }
-
-    /// <summary>Forgets framebuffer snapshots after native deletion implicitly changes a binding.</summary>
-    internal void DeleteFramebuffer(int framebuffer)
-    {
-        GL.DeleteFramebuffer(framebuffer);
-        Invalidate(EPipelineState.FramebufferBindings);
-    }
-
-    /// <summary>Forgets VAO and element-buffer associations after native retirement.</summary>
-    internal void DeleteVertexArray(int array)
-    {
-        GL.DeleteVertexArray(array);
-        Invalidate(EPipelineState.VertexArray);
-    }
-
-    /// <summary>Forgets executable knowledge without assuming a currently bound program is immediately deleted.</summary>
-    internal void DeleteProgram(int program)
-    {
-        GL.DeleteProgram(program);
-        Invalidate(EPipelineState.Program);
-    }
-    #endregion
     #endregion
 }

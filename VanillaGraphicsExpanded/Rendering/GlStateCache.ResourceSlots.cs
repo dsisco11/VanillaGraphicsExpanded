@@ -67,17 +67,6 @@ internal sealed partial class StateCache
         if (textureBindingsByUnit != null && unit < textureBindingsByUnit.Length) textureBindingsByUnit[unit]?.Clear();
     }
 
-    /// <summary>Deletes buffer storage and invalidates all assignments referencing its retired numeric name.</summary>
-    internal void DeleteBuffer(int buffer)
-    {
-        GL.DeleteBuffer(buffer);
-        foreach (var key in indexedBufferBindings.Where(pair => pair.Value.Buffer == buffer).Select(pair => pair.Key).ToArray())
-            indexedBufferBindings.Remove(key);
-        foreach (var key in bufferBindingByTarget.Where(pair => pair.Value == buffer).Select(pair => pair.Key).ToArray())
-            bufferBindingByTarget.Remove(key);
-        foreach (var key in elementArrayBufferByVao.Where(pair => pair.Value == buffer).Select(pair => pair.Key).ToArray())
-            elementArrayBufferByVao[key] = 0;
-    }
     #endregion
 
     #region Private

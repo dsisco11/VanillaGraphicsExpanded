@@ -34,7 +34,11 @@ Binding a previously unobserved VAO no longer invents a zero element-buffer asso
 
 Line width and point size use exact equality rather than approximate equality, so forwarding engine calls does not suppress distinct requested values.
 
-Deletion adapters preserve native deletion semantics and invalidate affected cached knowledge. Program deletion does not assume immediate unbinding: OpenGL may retain a deleted current executable until it is unbound. Bulk buffer, sampler, framebuffer, VAO and program deletion now invalidate their respective categories without forgetting the active texture unit or unrelated bindings.
+Deletion adapters update only entries referencing the retired resource. Matching sampler slots and framebuffer read/draw bindings become zero; deleting a VAO removes only its element-buffer association and resets the selected VAO only if it was current. Single and bulk buffer deletion share targeted cleanup of matching generic, indexed and element-buffer snapshots. Zero names leave cache knowledge unchanged. Unrelated entries in the same category remain known, as does the active texture unit.
+
+Program deletion leaves binding knowledge intact: a current executable remains in use until a subsequent program switch. See [Khronos program deletion semantics](https://wikis.khronos.org/opengl/GLAPI/glDeleteProgram). Matching buffer associations in other VAOs become unknown rather than being asserted zero: unbound containers can retain references to deleted storage. See [OpenGL object deletion semantics](https://registry.khronos.org/OpenGL/specs/gl/glspec44.core.pdf), section 5.1.2. Resource-specific cleanup is owned by `StateCache.ResourceDeletion.cs`; category invalidation is reserved for boundaries where the exact changed resource is not known.
+
+Targeted-deletion validation passed 38 distinct tests, including six new GPU cases for surviving sampler/framebuffer/VAO bindings, bulk buffer deletion, retained storage in an unbound VAO, and current-program deletion. After strengthening exception-path test cleanup, the final normal build passed with zero errors and 101 warnings and all six new tests passed again without skips. Receipts: `artifacts/targeted-deletion-build.log`, `artifacts/targeted-deletion-tests.log`, `artifacts/targeted-deletion-unbind-tests.log`, and `artifacts/targeted-deletion-final-tests.log`. No game was launched.
 
 Single-field pixel-store adapters preserve native overload behavior and invalidate the aggregate pack snapshot instead of querying and replaying unrelated fields.
 
