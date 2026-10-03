@@ -22,6 +22,7 @@ Issues:
 
   Performance:
     PipelineState:
+      Supported engine call routing is implemented: 216 call sites across 78 methods, 45 focused tests passed. See docs/Rendering.EngineStateSwitching.md; live engine acceptance remains pending for the integration entries below.
       ☐ Evolve graphics pipeline state into an authoritative submission system. Approved proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md. Plan: docs/Rendering.AuthoritativePipelineState.todo.
       ☐ Audit renderbuffer resource-operation binding/cache coverage; keep it outside graphics pipeline identity. See docs/Rendering.AuthoritativePipelineState.todo.
       ☐ Establish concrete framebuffer targets through render-pass setup and compatible target signatures through pipeline validation. See docs/Rendering.AuthoritativePipelineState.todo.

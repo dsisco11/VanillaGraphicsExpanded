@@ -371,6 +371,8 @@ internal sealed partial class GlStateCache
             if (enabled) GL.Enable(IndexedEnableCap.Blend, attachmentIndex);
             else GL.Disable(IndexedEnableCap.Blend, attachmentIndex);
             blendEnabledIndexed[attachmentIndex] = enabled;
+            // An indexed change invalidates the assertion that every output has the global value.
+            blendEnabled = null;
         }
         catch
         {
@@ -396,6 +398,7 @@ internal sealed partial class GlStateCache
         {
             GL.BlendFuncSeparate(attachmentIndex, func.SrcRgb, func.DstRgb, func.SrcAlpha, func.DstAlpha);
             blendFuncIndexed[attachmentIndex] = func;
+            blendFunc = null;
         }
         catch
         {
@@ -421,7 +424,7 @@ internal sealed partial class GlStateCache
 
     public void SetLineWidth(float width)
     {
-        if (lineWidth.HasValue && Math.Abs(lineWidth.Value - width) < 0.0001f)
+        if (lineWidth.HasValue && lineWidth.Value == width)
         {
             return;
         }
@@ -438,7 +441,7 @@ internal sealed partial class GlStateCache
 
     public void SetPointSize(float size)
     {
-        if (pointSize.HasValue && Math.Abs(pointSize.Value - size) < 0.0001f)
+        if (pointSize.HasValue && pointSize.Value == size)
         {
             return;
         }

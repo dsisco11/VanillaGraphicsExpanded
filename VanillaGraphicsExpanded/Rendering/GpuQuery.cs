@@ -16,7 +16,7 @@ internal sealed class GpuQuery : GpuResource, IDisposable
     public override nint ResourceId
     {
         get => queryId;
-        protected set => queryId = (nint)value;
+        protected set => queryId = (int)value;
     }
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Query;

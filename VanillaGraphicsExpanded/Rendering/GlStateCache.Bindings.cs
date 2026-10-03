@@ -241,11 +241,8 @@ internal sealed partial class GlStateCache
             GL.BindVertexArray(vaoId);
             currentVao = vaoId;
 
-            // Track per-VAO EBO bindings. Default to 0 until observed/bound through the cache.
-            if (!elementArrayBufferByVao.ContainsKey(vaoId))
-            {
-                elementArrayBufferByVao[vaoId] = 0;
-            }
+            // A borrowed VAO may already own an EBO. Leave unknown associations uncached
+            // until queried or observed through BindBuffer rather than inventing a zero binding.
         }
         catch
         {
