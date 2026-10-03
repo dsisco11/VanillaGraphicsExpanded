@@ -100,7 +100,7 @@ once during validation, and their texture slot cache is invalidated before bindi
 cannot establish external allocation identity. CPU uniform-block uploads and dirty-state commitment
 remain with `CpuUniformBuffer` and the existing ring allocator, using the prepared binding slot.
 
-[GlStateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/GlStateCache.ResourceSlots.cs)
+[StateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/StateCache.ResourceSlots.cs)
 adds complete image-view and indexed buffer-range keys to the existing context cache. Cache invalidation,
 immediate and queued deletion, image scopes, buffer texture views and engine terrain buffer binds use
 the same owner. Image/buffer slot bind counts distinguish actual driver calls from cache comparisons.
@@ -417,9 +417,9 @@ the generator escape path, rather than unlisted production shader implementation
 
 ## Lifetime and cache findings
 
-[GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) exposes IsValid, IsDisposed, Dispose and Detach, with queued deletion off the render thread. [GpuTexture](../VanillaGraphicsExpanded/Rendering/GpuTexture.cs) can replace allocation while keeping wrapper identity. It deletes old texture storage through [GlStateCache.TextureLifetime](../VanillaGraphicsExpanded/Rendering/GlStateCache.TextureLifetime.cs), which clears cached texture-unit names. Submission must read current validity/handle; equality of the wrapper is insufficient.
+[GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) exposes IsValid, IsDisposed, Dispose and Detach, with queued deletion off the render thread. [GpuTexture](../VanillaGraphicsExpanded/Rendering/GpuTexture.cs) can replace allocation while keeping wrapper identity. It deletes old texture storage through [StateCache.TextureLifetime](../VanillaGraphicsExpanded/Rendering/StateCache.TextureLifetime.cs), which clears cached texture-unit names. Submission must read current validity/handle; equality of the wrapper is insufficient.
 
-[GlStateCache.Bindings](../VanillaGraphicsExpanded/Rendering/GlStateCache.Bindings.cs) deduplicates texture/sampler state and invalidates it through PurgeCache/BeginFrame. Its BindBufferBase and BindBufferRange currently issue unconditional calls; image binding occurs directly in GpuProgramLayout. Therefore the approved image/indexed-buffer deduplication requires extending this existing cache, including view/range keys and deletion/invalidation behavior. There is no existing universal allocation-generation or successful-uniform-history mechanism to assume.
+[StateCache.Bindings](../VanillaGraphicsExpanded/Rendering/StateCache.Bindings.cs) deduplicates texture/sampler state and invalidates it through PurgeCache/BeginFrame. Its BindBufferBase and BindBufferRange currently issue unconditional calls; image binding occurs directly in GpuProgramLayout. Therefore the approved image/indexed-buffer deduplication requires extending this existing cache, including view/range keys and deletion/invalidation behavior. There is no existing universal allocation-generation or successful-uniform-history mechanism to assume.
 
 Buffer deletion in GpuResource uses GL.DeleteBuffer; texture-specific invalidation is not a buffer-lifetime solution. Extend the established deletion boundary for any new indexed-buffer cache. A raw engine ID can be recycled externally, so the adapter boundary must invalidate affected cached state on external mutation/retirement. General InvalidateAll/PurgeCache must invalidate new image/indexed-buffer state too. Do not infer correctness solely from the presence of a numerically equal ID.
 
