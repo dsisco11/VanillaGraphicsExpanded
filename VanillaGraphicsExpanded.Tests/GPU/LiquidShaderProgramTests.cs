@@ -52,7 +52,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         Assert.True(firstBuffer != secondBuffer || firstOffset != secondOffset);
         Assert.Equal(new float[] {-4,5,6,.25f}, second[16..]);
         // Previously submitted draws must keep their old bytes after later parameter writes.
-        using (GlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, firstBuffer))
+        using (StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, firstBuffer))
         {
             float[] retained = new float[20];
             GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)firstOffset, 80, retained);
@@ -119,7 +119,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         string[] names = ["terrainTex", "depthTex", "vge_materialParamsTex", "shadowMapNear", "shadowMapFar", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation"];
         for (int unit = 0; unit < images.Length; unit++)
         {
-            GlStateCache.Current.ActiveTexture(unit);
+            StateCache.Current.ActiveTexture(unit);
             Assert.Equal(images[unit], GL.GetInteger(unit < 5 ? GetPName.TextureBinding2D : GetPName.TextureBinding3D));
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, unit, out int sampler);
             Assert.Equal(samplers[unit], sampler);
@@ -154,7 +154,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
         Assert.NotEqual(0, buffer);
         byte[] bytes = new byte[LiquidFrameParamsUbo.BlockSize];
-        using var binding = GlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
+        using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
         Assert.Equal(new float[] { 1, 2, 3, 4 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(bytes.AsSpan(192, 16)).ToArray());
         Assert.Equal(new int[] { 2, 1, 0, 0 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(bytes.AsSpan(352, 16)).ToArray());
@@ -197,7 +197,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Object, out offset);
         Assert.NotEqual(0, buffer);
         float[] values = new float[20];
-        using var binding = GlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
+        using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, 80, values);
         return values;
     }

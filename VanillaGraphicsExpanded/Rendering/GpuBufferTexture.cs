@@ -35,7 +35,7 @@ public sealed class GpuBufferTexture : GpuBufferView
 
         try
         {
-            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
+            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -53,7 +53,7 @@ public sealed class GpuBufferTexture : GpuBufferView
         }
         catch
         {
-            try { GlStateCache.Current.DeleteTexture(id); } catch { }
+            try { StateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }
@@ -94,7 +94,7 @@ public sealed class GpuBufferTexture : GpuBufferView
 
         try
         {
-            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
+            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -113,7 +113,7 @@ public sealed class GpuBufferTexture : GpuBufferView
         }
         catch
         {
-            try { GlStateCache.Current.DeleteTexture(id); } catch { }
+            try { StateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }

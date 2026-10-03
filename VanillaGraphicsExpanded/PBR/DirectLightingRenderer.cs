@@ -95,8 +95,8 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
         // Save current FBO + viewport so we can restore engine state.
         // Must happen before EnsureBuffers(), which may recreate/bind/unbind FBOs during resize.
-        using var fixedState = GlStateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
-        using var bindings = GlStateCache.Current.BindFramebufferScope();
+        using var fixedState = StateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
+        using var bindings = StateCache.Current.BindFramebufferScope();
 
         // Ensure output buffers match current screen size
         if (isolated is null ? !bufferManager.EnsureBuffers(screenW, screenH) : !isolated.IsValid)
@@ -116,7 +116,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         }
 
         // Bind output MRT FBO
-        GlStateCache.Current.Apply(LightingPipeline);
+        StateCache.Current.Apply(LightingPipeline);
         var target = isolated?.Framebuffer ?? bufferManager.DirectLightingFbo!;
         target.BindWithViewport();
         target.Clear(0, 0, 0, 0);

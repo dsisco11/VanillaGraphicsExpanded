@@ -31,7 +31,7 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
     public void CleanCaptureRestoresWorldBehindFirstPersonPixels(bool lumon, bool overlay, bool captured)
     {
         EnsureShaderTestAvailable();
-        using var fixedFunction = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunction = StateCache.Current.CaptureLegacyFixedFunctionState();
         var program = Programs.Create<PBRCompositeShaderProgram>(value =>
         {
             value.LumOnEnabled = lumon;
@@ -93,7 +93,7 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         Assert.InRange(MathF.Abs(sourceDepth[0] - (restored ? .75f : overlay ? .01f : .8f)), 0, .000001f);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         // The fixture's raw texture helpers do not own VGE's resource-slot cache.
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
     }
 
     /// <summary>Capture eligibility excludes shadows, other players, body modes and unrelated stages.</summary>

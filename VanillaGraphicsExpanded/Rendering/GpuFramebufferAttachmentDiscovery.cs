@@ -18,7 +18,7 @@ internal static class GpuFramebufferAttachmentDiscovery
         }
         if (framebuffer.IsDisposed || framebuffer.FboId == 0)
             throw new InvalidOperationException("An external FBO image is required.");
-        using var bindings = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
+        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
             FramebufferParameterName.FramebufferAttachmentObjectType, out int type);
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
@@ -26,7 +26,7 @@ internal static class GpuFramebufferAttachmentDiscovery
         if (name == 0) throw new InvalidOperationException("The requested attachment is absent.");
         if (type == (int)All.Renderbuffer)
         {
-            using var renderbuffer = GlStateCache.Current.BindRenderbufferScope(name);
+            using var renderbuffer = StateCache.Current.BindRenderbufferScope(name);
             GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferWidth, out int width);
             GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferHeight, out int height);
             GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int samples);

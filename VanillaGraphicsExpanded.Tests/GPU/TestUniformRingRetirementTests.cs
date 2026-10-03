@@ -99,7 +99,7 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
             foreach (var output in outputs) output?.Dispose();
             if (program != 0) TestShaderInterfaces.DeleteProgram(program);
             TestShaderInterfaces.DeleteShader(shader);
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
     #endregion

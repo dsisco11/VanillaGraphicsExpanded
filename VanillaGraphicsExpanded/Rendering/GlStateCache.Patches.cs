@@ -3,7 +3,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Owns fixed-function patch size for scoped tessellated draws.</summary>
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     private int? patchVertices;
     private ProvokingVertexMode? provokingVertex;

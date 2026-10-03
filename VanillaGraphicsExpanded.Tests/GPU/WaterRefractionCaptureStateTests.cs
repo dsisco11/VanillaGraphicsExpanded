@@ -17,7 +17,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
     public void CaptureRestoresEngineOwnerAndIndependentFramebufferBindings()
     {
         EnsureContextValid();
-        using var fixedFunction = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunction = StateCache.Current.CaptureLegacyFixedFunctionState();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var programs = new RuntimeLightingPrograms();
@@ -57,7 +57,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;
             caller.Use();
             // Simulate engine framebuffer binds that bypass an already-primed VGE cache.
-            GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, terrain.Output.FboId);
+            StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, terrain.Output.FboId);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, callerTarget.FboId);
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, readTarget.FboId);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);

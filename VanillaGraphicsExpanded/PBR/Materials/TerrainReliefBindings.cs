@@ -51,7 +51,7 @@ internal static class TerrainReliefBindings
         program.BindTexture2D("vge_displacementTex", available ? page!.Indices.TextureId : neutral.TextureId, IndexUnit);
         program.BindTexture2D("vge_displacementRecords", available ? page!.Records.TextureId : neutral.TextureId, RecordUnit);
         program.BindTexture2D("vge_normalDepthTex", height, HeightUnit);
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         cache.BindSampler(IndexUnit, GpuSamplers.NearestClamp.SamplerId);
         cache.BindSampler(RecordUnit, GpuSamplers.NearestClamp.SamplerId);
         cache.BindSampler(HeightUnit, GpuSamplers.NearestClamp.SamplerId);

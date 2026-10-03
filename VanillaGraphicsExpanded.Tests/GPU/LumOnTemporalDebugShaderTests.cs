@@ -64,7 +64,7 @@ public sealed class LumOnTemporalDebugShaderTests : RenderTestBase
         finally
         {
             GL.UseProgram(0); GL.DeleteBuffer(output); GL.DeleteProgram(program); GL.DeleteShader(shader);
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
     #endregion

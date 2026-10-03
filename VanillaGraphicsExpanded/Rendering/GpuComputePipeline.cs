@@ -344,7 +344,7 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
             throw new InvalidOperationException("Compute preparation failed: " + preparationLog);
         }
 
-        GlStateCache.Current.UseProgram(programId);
+        StateCache.Current.UseProgram(programId);
     }
 
     /// <summary>
@@ -357,7 +357,7 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
-        GlStateCache.Current.UseProgram(programId);
+        StateCache.Current.UseProgram(programId);
         return true;
     }
 
@@ -367,7 +367,7 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
     public ProgramScope UseScope()
     {
         if (!EnsureReady()) throw new InvalidOperationException(preparationLog);
-        var scope = GlStateCache.Current.UseProgramScope(programId);
+        var scope = StateCache.Current.UseProgramScope(programId);
         return new ProgramScope(scope);
     }
 
@@ -428,9 +428,9 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public readonly struct ProgramScope : IDisposable
     {
-        private readonly GlStateCache.ProgramScope scope;
+        private readonly StateCache.ProgramScope scope;
 
-        public ProgramScope(GlStateCache.ProgramScope scope)
+        public ProgramScope(StateCache.ProgramScope scope)
         {
             this.scope = scope;
         }

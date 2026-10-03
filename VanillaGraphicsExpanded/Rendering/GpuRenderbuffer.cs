@@ -156,7 +156,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindRenderbuffer(renderbufferId);
+        StateCache.Current.BindRenderbuffer(renderbufferId);
     }
 
     /// <summary>
@@ -169,7 +169,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
             return false;
         }
 
-        GlStateCache.Current.BindRenderbuffer(renderbufferId);
+        StateCache.Current.BindRenderbuffer(renderbufferId);
         return true;
     }
 
@@ -178,7 +178,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public void Unbind()
     {
-        GlStateCache.Current.BindRenderbuffer(0);
+        StateCache.Current.BindRenderbuffer(0);
     }
 
     /// <summary>
@@ -186,7 +186,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
-        var scope = GlStateCache.Current.BindRenderbufferScope(renderbufferId);
+        var scope = StateCache.Current.BindRenderbufferScope(renderbufferId);
         return new BindingScope(scope);
     }
 
@@ -258,11 +258,11 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
-        private readonly GlStateCache.RenderbufferScope scope;
+        private readonly StateCache.RenderbufferScope scope;
         private readonly int previous;
         private readonly bool useCacheScope;
 
-        internal BindingScope(GlStateCache.RenderbufferScope scope)
+        internal BindingScope(StateCache.RenderbufferScope scope)
         {
             this.scope = scope;
             previous = 0;
@@ -284,7 +284,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
                 return;
             }
 
-            GlStateCache.Current.BindRenderbuffer(previous);
+            StateCache.Current.BindRenderbuffer(previous);
         }
     }
 }

@@ -45,7 +45,7 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
             Submit();
             (owners ??= new())[ProgramId] = new(this);
         }
-        catch { GlStateCache.Current.UnbindProgram(); throw; }
+        catch { StateCache.Current.UnbindProgram(); throw; }
         finally { submitting = false; }
     }
 
@@ -54,7 +54,7 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
     {
         RequireInputMutation();
         var previous = ShaderProgramBase.CurrentShaderProgram;
-        int previousId = GlStateCache.Current.GetCurrentProgram();
+        int previousId = StateCache.Current.GetCurrentProgram();
         // Retain owner identity before nested work can dispose it or recycle its GL name.
         var scope = new SubmissionScope(previous, previousId, FindOwner(previousId));
         try { Use(); return scope; }
@@ -129,9 +129,9 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
                 if (previous is GpuProgram graphics) graphics.Use();
                 else if (previous != null) previous.Use();
                 else if (compute != null) compute.Use();
-                else GlStateCache.Current.UseProgram(program);
+                else StateCache.Current.UseProgram(program);
             }
-            catch { GlStateCache.Current.UnbindProgram(); throw; }
+            catch { StateCache.Current.UnbindProgram(); throw; }
         }
     }
     #endregion

@@ -9,7 +9,7 @@ internal static class GeometryCostStorageQuery
     /// <summary>Returns nominal texel bytes from actual GL level allocation; driver metadata/compression are excluded.</summary>
     public static long TextureBytes(int texture, TextureTarget target)
     {
-        using var binding = GlStateCache.Current.BindTextureScope(target, 0, texture);
+        using var binding = StateCache.Current.BindTextureScope(target, 0, texture);
         GL.GetTexLevelParameter(target, 0, GetTextureParameter.TextureWidth, out int width);
         GL.GetTexLevelParameter(target, 0, GetTextureParameter.TextureHeight, out int height);
         GL.GetTexLevelParameter(target, 0, GetTextureParameter.TextureDepth, out int depth);

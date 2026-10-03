@@ -57,7 +57,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture) : Rende
         projection.M43 = -2 * far * near / (far - near);
         program.ProjectionMatrix = Flatten(projection);
         program.ModelViewMatrix = Flatten(Matrix4x4.Identity);
-        var state = GlStateCache.Current;
+        var state = StateCache.Current;
         using var fixedFunction = state.CaptureLegacyFixedFunctionState();
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         target.BindWithViewport();

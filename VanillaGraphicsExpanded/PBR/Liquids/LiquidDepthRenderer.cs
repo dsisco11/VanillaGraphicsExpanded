@@ -70,7 +70,7 @@ internal sealed class LiquidDepthRenderer : IDisposable
         bool beganSubmission = false;
         try
         {
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
             if (!LiquidRenderer.CanTakeOwnership(api, atlases) || !program.EnsureReady()) return false;
             var waves = LiquidWaveFrame.Capture(api);
             program.ProjectionMatrix = render.CurrentProjectionMatrix;
@@ -99,7 +99,7 @@ internal sealed class LiquidDepthRenderer : IDisposable
             // Once a pool has drawn, the engine must not draw the whole depth pass a second time.
             return beganSubmission;
         }
-        finally { GlStateCache.Current.InvalidateAll(); }
+        finally { StateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

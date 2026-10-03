@@ -22,7 +22,7 @@ internal sealed class GpuUniformRingBeginRenderer : IRenderer
     {
         if (stage == EnumRenderStage.Before)
         {
-            GlStateCache.Current.BeginFrame();
+            StateCache.Current.BeginFrame();
             controller.BeginFrame();
         }
     }

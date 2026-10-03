@@ -105,7 +105,7 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
     /// <summary>Reads driver storage rather than only trusting the allocation object's metadata.</summary>
     private static void AssertStorage(GpuTexture texture, TextureTarget target, PixelInternalFormat expected)
     {
-        using var binding = GlStateCache.Current.BindTextureScope(target,0,texture.TextureId);
+        using var binding = StateCache.Current.BindTextureScope(target,0,texture.TextureId);
         GL.GetTexLevelParameter(target,0,GetTextureParameter.TextureInternalFormat,out int actual);
         Assert.Equal((int)expected,actual);
     }

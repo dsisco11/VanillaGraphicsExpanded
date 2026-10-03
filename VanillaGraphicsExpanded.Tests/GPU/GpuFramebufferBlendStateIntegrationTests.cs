@@ -27,7 +27,7 @@ public class GpuFramebufferBlendStateIntegrationTests
     public void AttachmentBlendEnable_OverridesGlobalBlendDisable()
     {
         fixture.MakeCurrent();
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
 
         using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att0");
         using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att1");
@@ -36,7 +36,7 @@ public class GpuFramebufferBlendStateIntegrationTests
         fbo.BindWithViewport();
 
         // Global blending disabled...
-        GlStateCache.Current.Apply(new GlPipelineDesc(
+        StateCache.Current.Apply(new GlPipelineDesc(
             defaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable),
             nonDefaultMask: new GlPipelineStateMask(0),
             validate: false));
@@ -81,7 +81,7 @@ public class GpuFramebufferBlendStateIntegrationTests
     public void AttachmentBlendDisable_OverridesGlobalBlendEnable()
     {
         fixture.MakeCurrent();
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
 
         using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att0");
         using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att1");
@@ -90,7 +90,7 @@ public class GpuFramebufferBlendStateIntegrationTests
         fbo.BindWithViewport();
 
         // Global blending enabled (alpha blend).
-        GlStateCache.Current.Apply(new GlPipelineDesc(
+        StateCache.Current.Apply(new GlPipelineDesc(
             defaultMask: new GlPipelineStateMask(0),
             nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.BlendFunc),
             blendFunc: new GlBlendFunc(
@@ -142,7 +142,7 @@ public class GpuFramebufferBlendStateIntegrationTests
 
     private static void ClearColorAttachments(int fboId, int drawBufferCount, byte r, byte g, byte b, byte a)
     {
-        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
         float rf = r / 255f;
         float gf = g / 255f;
@@ -158,7 +158,7 @@ public class GpuFramebufferBlendStateIntegrationTests
 
     private static (byte R, byte G, byte B, byte A) ReadRgba8(int fboId, int attachmentIndex)
     {
-        GlStateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
+        StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + attachmentIndex);
 
         byte[] px = new byte[4];

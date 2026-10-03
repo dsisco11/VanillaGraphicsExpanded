@@ -117,7 +117,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                 int bufferId = LumOnTerrainBridgeUboState.BufferId;
                 if (bufferId != 0)
                 {
-                    GlStateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
+                    StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
                 }
             }
             // Compute passes reuse the Object binding; a version check alone cannot restore it.

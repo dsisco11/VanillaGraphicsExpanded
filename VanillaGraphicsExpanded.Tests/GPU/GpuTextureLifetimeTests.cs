@@ -29,9 +29,9 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         target.UploadDataImmediate(new float[] { .25f, .5f, .75f, 1 });
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        Assert.Equal(0, GlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
-        Assert.Equal(target.TextureId, GlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 3));
-        GlStateCache.Current.ActiveTexture(0);
+        Assert.Equal(0, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
+        Assert.Equal(target.TextureId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 3));
+        StateCache.Current.ActiveTexture(0);
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2D));
         Assert.Equal(new float[] { .25f, .5f, .75f, 1 }, target.ReadPixels());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -55,10 +55,10 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
             worker.Start(); worker.Join();
             Assert.Null(workerError);
             Assert.True(GL.IsTexture(retiredId));
-            Assert.Equal(retiredId, GlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 0));
+            Assert.Equal(retiredId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 0));
             manager.OnRenderFrame(0, GpuResourceManager.Stage);
             Assert.False(GL.IsTexture(retiredId));
-            Assert.Equal(0, GlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 0));
+            Assert.Equal(0, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 0));
             target.UploadDataImmediate(new float[] { 0, 0, 0, 1 });
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

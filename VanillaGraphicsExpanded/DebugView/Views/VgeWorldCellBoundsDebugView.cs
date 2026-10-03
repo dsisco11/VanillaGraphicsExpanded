@@ -282,13 +282,13 @@ public static partial class VgeBuiltInDebugViews
             UpdateCurrentViewProjMatrix();
 
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+            using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
 
             bool shaderUsed = false;
             try
             {
-                GlStateCache.Current.InvalidateAll();
-                GlStateCache.Current.Apply(WorldCellBoundsViewState.DepthTest ? BoundsLinesPso : BoundsLinesNoDepthPso);
+                StateCache.Current.InvalidateAll();
+                StateCache.Current.Apply(WorldCellBoundsViewState.DepthTest ? BoundsLinesPso : BoundsLinesNoDepthPso);
 
 
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
@@ -301,7 +301,7 @@ public static partial class VgeBuiltInDebugViews
                 shaderUsed = true;
                 vao!.Bind();
                 GL.DrawArrays(PrimitiveType.Lines, 0, written);
-                GlStateCache.Current.SetLineWidth(1f);
+                StateCache.Current.SetLineWidth(1f);
 
                 GL.BindVertexArray(0);
             }
@@ -314,7 +314,7 @@ public static partial class VgeBuiltInDebugViews
 
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
 
-                GlStateCache.Current.InvalidateAll();
+                StateCache.Current.InvalidateAll();
             }
         }
 

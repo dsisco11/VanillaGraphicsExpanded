@@ -226,9 +226,9 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.WorldProbe.UploadResolve");
-        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
-        GlStateCache.Current.InvalidateAll();
-        GlStateCache.Current.Apply(ResolvePso);
+        using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
+        StateCache.Current.InvalidateAll();
+        StateCache.Current.Apply(ResolvePso);
 
         // Pass 1: tile samples -> radiance atlas
         if (tileProg is not null && !tileProg.LoadError && !tileProg.Disposed && tileVertices.Count > 0)

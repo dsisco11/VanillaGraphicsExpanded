@@ -31,7 +31,7 @@ internal struct ShaderUniformPublication<T>
     {
         var current = owner.ProgramLayout.BinaryInterface ?? throw new InvalidOperationException("No prepared executable.");
         if (!current.PreparedBindings.ContainsUniformLocation(declaredLocation)) return;
-        if (!GlStateCache.Current.TryGetCachedCurrentProgram(out int bound) || bound != owner.ProgramId)
+        if (!StateCache.Current.TryGetCachedCurrentProgram(out int bound) || bound != owner.ProgramId)
             throw new InvalidOperationException("Ordinary uniforms can only publish to the active executable.");
         Publish(current, declaredLocation, value, ShaderUniformUpload.Write);
     }

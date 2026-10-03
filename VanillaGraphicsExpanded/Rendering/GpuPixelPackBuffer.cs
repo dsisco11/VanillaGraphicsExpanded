@@ -93,7 +93,7 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
 
         using var scope = BindScope();
 
-        using var packScope = GlStateCache.Current.SetPixelPackScope(new GlStateCache.PixelPackState(packAlignment));
+        using var packScope = StateCache.Current.SetPixelPackScope(new StateCache.PixelPackState(packAlignment));
         GL.ReadPixels(x, y, width, height, format, type, (IntPtr)dstOffsetBytes);
     }
     /// <summary>

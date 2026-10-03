@@ -56,7 +56,7 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         using var target=draw.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
         int id=program.ProgramId;
         var layout=GpuProgramLayout.TryBuild(id);
-        GlStateCache.Current.UseProgram(id); GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(id); StateCache.Current.BindVertexArray(vao.VertexArrayId);
         heights.Bind(0); indices.Bind(1); records.Bind(2);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),1);
@@ -73,7 +73,7 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
             Assert.InRange(pixels[center]*direction,expected*.92f,expected*1.02f);
         }
         for(int i=0;i<pixels.Length;i+=4) { Assert.True(float.IsFinite(pixels[i]));Assert.InRange(Math.Abs(pixels[i]),0,.031251f);Assert.InRange(pixels[i+2],0,1); }
-        GlStateCache.Current.UseProgram(0);GlStateCache.Current.BindVertexArray(0);
+        StateCache.Current.UseProgram(0);StateCache.Current.BindVertexArray(0);
     }
     #endregion
 }

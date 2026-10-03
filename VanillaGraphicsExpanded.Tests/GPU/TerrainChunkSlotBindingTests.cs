@@ -152,7 +152,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             LumOnTerrainBridgeUboState.Dispose();
             GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(shader);
             GL.DeleteBuffer(output); GL.DeleteBuffer(unrelated);
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
     #endregion

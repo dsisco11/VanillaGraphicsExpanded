@@ -283,7 +283,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         var scene=runtime.Cache.Geometry.Resources!;
         int n=scene.Resolution/16;
         var cells=new uint[n*n*n];
-        using var binding=VanillaGraphicsExpanded.Rendering.GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D,0,scene.Readiness.TextureId);
+        using var binding=VanillaGraphicsExpanded.Rendering.StateCache.Current.BindTextureScope(TextureTarget.Texture3D,0,scene.Readiness.TextureId);
         GL.GetTexImage(TextureTarget.Texture3D,0,PixelFormat.RedInteger,PixelType.UnsignedInt,cells);
         int sx=((x>>4)%n+n)%n,sy=((y>>4)%n+n)%n,sz=((z>>4)%n+n)%n;
         Assert.Equal(ready?1u:0u,cells[(sz*n+sy)*n+sx]);

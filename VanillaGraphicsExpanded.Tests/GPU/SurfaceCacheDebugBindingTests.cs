@@ -34,13 +34,13 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
         Set(texture);
         using var active = program.UseScope();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        GlStateCache.Current.ActiveTexture(unit);
+        StateCache.Current.ActiveTexture(unit);
         Assert.Equal(texture.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
         Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
         Set(null);
         program.Use();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        GlStateCache.Current.ActiveTexture(unit);
+        StateCache.Current.ActiveTexture(unit);
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
 
         /// <summary>Calls the production property used by the debug renderer for each cache resource.</summary>

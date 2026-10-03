@@ -27,80 +27,80 @@ public class GlStateCacheUnbindIntegrationTests
     public void UnbindMethods_SetBindingsToZero()
     {
         fixture.MakeCurrent();
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
 
         // Program
         using (var program = SimpleProgram.Create("Test.Program"))
         {
-            GlStateCache.Current.UseProgram(program.ProgramId);
-            Assert.Equal(program.ProgramId, GlStateCache.Current.GetCurrentProgram());
+            StateCache.Current.UseProgram(program.ProgramId);
+            Assert.Equal(program.ProgramId, StateCache.Current.GetCurrentProgram());
 
-            GlStateCache.Current.UnbindProgram();
-            Assert.Equal(0, GlStateCache.Current.GetCurrentProgram());
+            StateCache.Current.UnbindProgram();
+            Assert.Equal(0, StateCache.Current.GetCurrentProgram());
         }
 
         // VAO
         int vao = GL.GenVertexArray();
-        GlStateCache.Current.BindVertexArray(vao);
-        Assert.Equal(vao, GlStateCache.Current.GetCurrentVao());
-        GlStateCache.Current.UnbindVertexArray();
-        Assert.Equal(0, GlStateCache.Current.GetCurrentVao());
+        StateCache.Current.BindVertexArray(vao);
+        Assert.Equal(vao, StateCache.Current.GetCurrentVao());
+        StateCache.Current.UnbindVertexArray();
+        Assert.Equal(0, StateCache.Current.GetCurrentVao());
         GL.DeleteVertexArray(vao);
 
         // FBO
         int fbo = GL.GenFramebuffer();
-        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
-        Assert.Equal(fbo, GlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
-        GlStateCache.Current.UnbindFramebuffer(FramebufferTarget.Framebuffer);
-        Assert.Equal(0, GlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
+        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
+        Assert.Equal(fbo, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
+        StateCache.Current.UnbindFramebuffer(FramebufferTarget.Framebuffer);
+        Assert.Equal(0, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
         GL.DeleteFramebuffer(fbo);
 
         // Program pipeline
         int pipeline = GL.GenProgramPipeline();
-        GlStateCache.Current.BindProgramPipeline(pipeline);
-        Assert.Equal(pipeline, GlStateCache.Current.GetCurrentProgramPipeline());
-        GlStateCache.Current.UnbindProgramPipeline();
-        Assert.Equal(0, GlStateCache.Current.GetCurrentProgramPipeline());
+        StateCache.Current.BindProgramPipeline(pipeline);
+        Assert.Equal(pipeline, StateCache.Current.GetCurrentProgramPipeline());
+        StateCache.Current.UnbindProgramPipeline();
+        Assert.Equal(0, StateCache.Current.GetCurrentProgramPipeline());
         GL.DeleteProgramPipeline(pipeline);
 
         // Renderbuffer
         int rbo = GL.GenRenderbuffer();
-        GlStateCache.Current.BindRenderbuffer(rbo);
-        Assert.Equal(rbo, GlStateCache.Current.GetCurrentRenderbuffer());
-        GlStateCache.Current.UnbindRenderbuffer();
-        Assert.Equal(0, GlStateCache.Current.GetCurrentRenderbuffer());
+        StateCache.Current.BindRenderbuffer(rbo);
+        Assert.Equal(rbo, StateCache.Current.GetCurrentRenderbuffer());
+        StateCache.Current.UnbindRenderbuffer();
+        Assert.Equal(0, StateCache.Current.GetCurrentRenderbuffer());
         GL.DeleteRenderbuffer(rbo);
 
         // Transform feedback
         int tf = GL.GenTransformFeedback();
-        GlStateCache.Current.BindTransformFeedback(tf);
-        Assert.Equal(tf, GlStateCache.Current.GetCurrentTransformFeedback());
-        GlStateCache.Current.UnbindTransformFeedback();
-        Assert.Equal(0, GlStateCache.Current.GetCurrentTransformFeedback());
+        StateCache.Current.BindTransformFeedback(tf);
+        Assert.Equal(tf, StateCache.Current.GetCurrentTransformFeedback());
+        StateCache.Current.UnbindTransformFeedback();
+        Assert.Equal(0, StateCache.Current.GetCurrentTransformFeedback());
         GL.DeleteTransformFeedback(tf);
 
         // Texture + sampler
         int tex = GL.GenTexture();
         const int unit = 5;
-        GlStateCache.Current.BindTexture(TextureTarget.Texture2D, unit, tex);
-        Assert.Equal(tex, GlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, unit));
-        GlStateCache.Current.UnbindTexture(TextureTarget.Texture2D, unit);
-        Assert.Equal(0, GlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, unit));
+        StateCache.Current.BindTexture(TextureTarget.Texture2D, unit, tex);
+        Assert.Equal(tex, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, unit));
+        StateCache.Current.UnbindTexture(TextureTarget.Texture2D, unit);
+        Assert.Equal(0, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, unit));
         GL.DeleteTexture(tex);
 
         int sampler = GL.GenSampler();
-        GlStateCache.Current.BindSampler(unit, sampler);
-        Assert.Equal(sampler, GlStateCache.Current.GetBoundSampler(unit));
-        GlStateCache.Current.UnbindSampler(unit);
-        Assert.Equal(0, GlStateCache.Current.GetBoundSampler(unit));
+        StateCache.Current.BindSampler(unit, sampler);
+        Assert.Equal(sampler, StateCache.Current.GetBoundSampler(unit));
+        StateCache.Current.UnbindSampler(unit);
+        Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));
         GL.DeleteSampler(sampler);
 
         // Buffer
         int buffer = GL.GenBuffer();
-        GlStateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, buffer);
-        Assert.Equal(buffer, GlStateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
-        GlStateCache.Current.UnbindBuffer(BufferTarget.ArrayBuffer);
-        Assert.Equal(0, GlStateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
+        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, buffer);
+        Assert.Equal(buffer, StateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
+        StateCache.Current.UnbindBuffer(BufferTarget.ArrayBuffer);
+        Assert.Equal(0, StateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
         GL.DeleteBuffer(buffer);
     }
 

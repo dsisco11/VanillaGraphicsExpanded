@@ -67,8 +67,8 @@ public sealed class PbrFinalDisplayDitherTests(HeadlessGLFixture fixture) : Rend
         int width = tiles * 8;
         using var target = framework.CreateTestGBuffer(width, 8, PixelInternalFormat.Rgba8);
         target.BindWithViewport();
-        GlStateCache.Current.UseProgram(program.ProgramId);
-        GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(program.ProgramId);
+        StateCache.Current.BindVertexArray(vao.VertexArrayId);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.FramebufferSrgb);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         float[] actual = target[0].ReadPixels();

@@ -69,7 +69,7 @@ public abstract class RenderTestBase : IDisposable
 
         // Many production paths rely on GlStateCache + PSO for correctness.
         // Tests should invalidate the cache, then apply explicit PSO intent per pass.
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
     }
 
     #region Render Target Management

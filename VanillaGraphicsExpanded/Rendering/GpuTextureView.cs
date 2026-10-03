@@ -163,7 +163,7 @@ public sealed class GpuTextureView : GpuResource, IDisposable
         }
         catch
         {
-            try { GlStateCache.Current.DeleteTexture(id); } catch { }
+            try { StateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }
@@ -218,6 +218,6 @@ public sealed class GpuTextureView : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindTexture(target, unit, textureId);
+        StateCache.Current.BindTexture(target, unit, textureId);
     }
 }

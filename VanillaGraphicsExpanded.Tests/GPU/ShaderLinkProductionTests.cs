@@ -102,7 +102,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
         double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         Assert.InRange(pixel.R, .499f, .501f);
         GL.UseProgram(0);
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
         return elapsed;
     }
     #endregion

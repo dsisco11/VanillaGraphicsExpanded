@@ -35,7 +35,7 @@ public sealed class GpuFramebufferBlitter : IDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
         ValidateTargets();
         if (dirty) ConfigureAttachments();
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
         using var bindings = gl.BindFramebufferScope();
         if ((mask & ClearBufferMask.ColorBufferBit) != 0)
         {
@@ -90,7 +90,7 @@ public sealed class GpuFramebufferBlitter : IDisposable
     private void ConfigureAttachments()
     {
         ValidateTargets();
-        using var bindings = GlStateCache.Current.BindFramebufferScope();
+        using var bindings = StateCache.Current.BindFramebufferScope();
         try
         {
             if ((mask & ClearBufferMask.ColorBufferBit) != 0)

@@ -51,7 +51,7 @@ public sealed class GpuSampler : GpuResource, IDisposable
 
         // Some drivers treat names returned by glGenSamplers as "reserved" until first bind.
         // glObjectLabel requires an existing object name, so ensure the sampler is realized.
-        using (GlStateCache.Current.BindSamplerScope(unit: 0, samplerId: id))
+        using (StateCache.Current.BindSamplerScope(unit: 0, samplerId: id))
         {
         }
 
@@ -84,7 +84,7 @@ public sealed class GpuSampler : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindSampler(unit, samplerId);
+        StateCache.Current.BindSampler(unit, samplerId);
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public sealed class GpuSampler : GpuResource, IDisposable
             return false;
         }
 
-        GlStateCache.Current.BindSampler(unit, samplerId);
+        StateCache.Current.BindSampler(unit, samplerId);
         return true;
     }
 
@@ -106,7 +106,7 @@ public sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public static void Unbind(int unit)
     {
-        GlStateCache.Current.UnbindSampler(unit);
+        StateCache.Current.UnbindSampler(unit);
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope(int unit)
     {
-        var scope = GlStateCache.Current.BindSamplerScope(unit, samplerId);
+        var scope = StateCache.Current.BindSamplerScope(unit, samplerId);
         return new BindingScope(scope);
     }
 
@@ -187,9 +187,9 @@ public sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
-        private readonly GlStateCache.SamplerScope scope;
+        private readonly StateCache.SamplerScope scope;
 
-        internal BindingScope(GlStateCache.SamplerScope scope)
+        internal BindingScope(StateCache.SamplerScope scope)
         {
             this.scope = scope;
         }

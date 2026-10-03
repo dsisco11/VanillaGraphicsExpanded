@@ -57,7 +57,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
         using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         var sunLayout = GpuProgramLayout.TryBuild(sun.ProgramId);
         var bloomLayout = GpuProgramLayout.TryBuild(bloom.ProgramId);
-        GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.BindVertexArray(vao.VertexArrayId);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         float previous = float.PositiveInfinity;
         // Bright, attenuated underwater, dim, and fully extinguished solar inputs.
@@ -65,7 +65,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
         {
             source.BindWithViewport();
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
-            GlStateCache.Current.UseProgram(sun.ProgramId);
+            StateCache.Current.UseProgram(sun.ProgramId);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereDisk"), radiance, radiance, radiance, .01f);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereSun"), 0f, 1f, 0f, 0f);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "attenuation"), attenuation);
@@ -81,9 +81,9 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
             }
             else Assert.All(emission, value => Assert.Equal(0f, value));
             output.BindWithViewport();
-            GlStateCache.Current.UseProgram(bloom.ProgramId);
-            using var colorBinding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, color.TextureId);
-            using var glowBinding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, glow.TextureId);
+            StateCache.Current.UseProgram(bloom.ProgramId);
+            using var colorBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, color.TextureId);
+            using var glowBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, glow.TextureId);
             ShaderTestFramework.SetUniform(bloomLayout.GetUniformLocation(bloom.ProgramId, "colorTex"), 0);
             ShaderTestFramework.SetUniform(bloomLayout.GetUniformLocation(bloom.ProgramId, "glowTex"), 1);
             ShaderTestFramework.SetUniform(bloomLayout.GetUniformLocation(bloom.ProgramId, "ambientBloomLevel"), 0f);

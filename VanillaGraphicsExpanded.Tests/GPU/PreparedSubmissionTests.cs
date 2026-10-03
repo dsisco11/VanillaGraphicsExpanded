@@ -84,7 +84,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         pipeline.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 11, 22, 33, 44 }, output.ReadPixels());
-        Assert.True(GlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 7, out int restored));
+        Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 7, out int restored));
         Assert.Equal(first.TextureId, restored);
     }
 
@@ -103,11 +103,11 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         ShaderPreparedSubmission.SamplerArray(inputs, [texture, texture]);
         ShaderPreparedSubmission.Image(outputBinding, output);
         Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(inputs, [texture]));
-        Assert.True(GlStateCache.Current.TryGetCachedImageTexture(7, out int retained));
+        Assert.True(StateCache.Current.TryGetCachedImageTexture(7, out int retained));
         Assert.Equal(output.TextureId, retained);
         ShaderPreparedSubmission.ValidateSampler(inactive, (GpuTexture?)null);
         ShaderPreparedSubmission.Sampler(inactive, (GpuTexture?)null);
-        Assert.False(GlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 10, out _));
+        Assert.False(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 10, out _));
 
         // The same disposed wrapper is now invalid even though its desired reference did not change.
         texture.Dispose();
@@ -115,13 +115,13 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         var optional = inputs with { Contract = inputs.Contract with { Binding = inputs.Contract.Binding with { Required = false } } };
         ShaderPreparedSubmission.ValidateSamplerArray(optional, [texture, texture]);
         ShaderPreparedSubmission.SamplerArray(optional, [texture, texture]);
-        Assert.True(GlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 7, out int cleared));
+        Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 7, out int cleared));
         Assert.Equal(0, cleared);
         output.Dispose();
-        Assert.False(GlStateCache.Current.TryGetCachedImageTexture(7, out _));
+        Assert.False(StateCache.Current.TryGetCachedImageTexture(7, out _));
         var optionalImage = outputBinding with { Contract = outputBinding.Contract with { Binding = outputBinding.Contract.Binding with { Required = false } } };
         ShaderPreparedSubmission.Image(optionalImage, output);
-        Assert.True(GlStateCache.Current.TryGetCachedImageTexture(7, out int clearedImage));
+        Assert.True(StateCache.Current.TryGetCachedImageTexture(7, out int clearedImage));
         Assert.Equal(0, clearedImage);
     }
 
@@ -130,7 +130,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
     public void IndexedBuffersAndImagesRestoreAndInvalidateCompleteAssignments()
     {
         EnsureContextValid();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         cache.InvalidateAll();
         using var first = GpuShaderStorageBuffer.Create();
         using var second = GpuShaderStorageBuffer.Create();
@@ -187,7 +187,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
             new GpuTextureBinding(array, Layered: true)));
         var optional = image with { Contract = image.Contract with { Binding = image.Contract.Binding with { Required = false } } };
         ShaderPreparedSubmission.Image(optional, new GpuTextureBinding(null!, (TextureAccess)(-1), -1, true, -1, (SizedInternalFormat)(-1)));
-        Assert.True(GlStateCache.Current.TryGetCachedImageTexture(7, out int cleared));
+        Assert.True(StateCache.Current.TryGetCachedImageTexture(7, out int cleared));
         Assert.Equal(0, cleared);
     }
     #endregion

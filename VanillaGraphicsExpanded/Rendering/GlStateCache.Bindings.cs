@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     private int? currentProgram;
     private int? currentVao;
@@ -318,14 +318,14 @@ internal sealed partial class GlStateCache
     /// <summary>Restores framebuffer bindings only; attachment routing and viewport are unchanged by binding.</summary>
     public readonly struct FramebufferScope : IDisposable
     {
-        private readonly GlStateCache cache;
+        private readonly StateCache cache;
         private readonly FramebufferTarget target;
         private readonly int previousRead;
         private readonly int previousDraw;
 
         #region Public API
         /// <summary>Retains independent binding names for the requested target.</summary>
-        public FramebufferScope(GlStateCache cache, FramebufferTarget target, int previousRead, int previousDraw)
+        public FramebufferScope(StateCache cache, FramebufferTarget target, int previousRead, int previousDraw)
         {
             this.cache = cache;
             this.target = target;
@@ -513,37 +513,37 @@ internal sealed partial class GlStateCache
 
     private sealed class ProgramScopeTracker : BindScopeTracker<ProgramScopeTracker>
     {
-        protected override int GetCurrent() => GlStateCache.Current.GetCurrentProgram();
+        protected override int GetCurrent() => StateCache.Current.GetCurrentProgram();
 
-        protected override void Bind(int id) => GlStateCache.Current.UseProgram(id);
+        protected override void Bind(int id) => StateCache.Current.UseProgram(id);
     }
 
     private sealed class VaoScopeTracker : BindScopeTracker<VaoScopeTracker>
     {
-        protected override int GetCurrent() => GlStateCache.Current.GetCurrentVao();
+        protected override int GetCurrent() => StateCache.Current.GetCurrentVao();
 
-        protected override void Bind(int id) => GlStateCache.Current.BindVertexArray(id);
+        protected override void Bind(int id) => StateCache.Current.BindVertexArray(id);
     }
 
     private sealed class ProgramPipelineScopeTracker : BindScopeTracker<ProgramPipelineScopeTracker>
     {
-        protected override int GetCurrent() => GlStateCache.Current.GetCurrentProgramPipeline();
+        protected override int GetCurrent() => StateCache.Current.GetCurrentProgramPipeline();
 
-        protected override void Bind(int id) => GlStateCache.Current.BindProgramPipeline(id);
+        protected override void Bind(int id) => StateCache.Current.BindProgramPipeline(id);
     }
 
     private sealed class RenderbufferScopeTracker : BindScopeTracker<RenderbufferScopeTracker>
     {
-        protected override int GetCurrent() => GlStateCache.Current.GetCurrentRenderbuffer();
+        protected override int GetCurrent() => StateCache.Current.GetCurrentRenderbuffer();
 
-        protected override void Bind(int id) => GlStateCache.Current.BindRenderbuffer(id);
+        protected override void Bind(int id) => StateCache.Current.BindRenderbuffer(id);
     }
 
     private sealed class TransformFeedbackScopeTracker : BindScopeTracker<TransformFeedbackScopeTracker>
     {
-        protected override int GetCurrent() => GlStateCache.Current.GetCurrentTransformFeedback();
+        protected override int GetCurrent() => StateCache.Current.GetCurrentTransformFeedback();
 
-        protected override void Bind(int id) => GlStateCache.Current.BindTransformFeedback(id);
+        protected override void Bind(int id) => StateCache.Current.BindTransformFeedback(id);
     }
 
     public int GetActiveTextureUnit()
@@ -679,13 +679,13 @@ internal sealed partial class GlStateCache
 
     public readonly struct TextureScope : IDisposable
     {
-        private readonly GlStateCache cache;
+        private readonly StateCache cache;
         private readonly TextureTarget target;
         private readonly int unit;
         private readonly int previousTexture;
         private readonly int previousActiveUnit;
 
-        public TextureScope(GlStateCache cache, TextureTarget target, int unit, int previousTexture, int previousActiveUnit)
+        public TextureScope(StateCache cache, TextureTarget target, int unit, int previousTexture, int previousActiveUnit)
         {
             this.cache = cache;
             this.target = target;
@@ -772,11 +772,11 @@ internal sealed partial class GlStateCache
 
     public readonly struct SamplerScope : IDisposable
     {
-        private readonly GlStateCache cache;
+        private readonly StateCache cache;
         private readonly int unit;
         private readonly int previous;
 
-        public SamplerScope(GlStateCache cache, int unit, int previous)
+        public SamplerScope(StateCache cache, int unit, int previous)
         {
             this.cache = cache;
             this.unit = unit;
@@ -942,11 +942,11 @@ internal sealed partial class GlStateCache
 
     public readonly struct BufferScope : IDisposable
     {
-        private readonly GlStateCache cache;
+        private readonly StateCache cache;
         private readonly BufferTarget target;
         private readonly int previous;
 
-        public BufferScope(GlStateCache cache, BufferTarget target, int previous)
+        public BufferScope(StateCache cache, BufferTarget target, int previous)
         {
             this.cache = cache;
             this.target = target;

@@ -55,7 +55,7 @@ internal static class TerrainTessellationPrograms
             if (GpuSupport.ApiVersion is not { } version || version < new Version(4, 0))
                 throw new NotSupportedException("Terrain tessellation requires OpenGL 4.0.");
             if (GpuSupport.MaxPatchVertices < 3 || GpuSupport.MaxTessGenLevel < 1
-                || GlStateCache.Current.ProvokingVertex != ProvokingVertexMode.LastVertexConvention)
+                || StateCache.Current.ProvokingVertex != ProvokingVertexMode.LastVertexConvention)
                 throw new NotSupportedException("Unsupported patch limits or provoking-vertex convention.");
             if (Requested && (GpuSupport.MaxCombinedTextureImageUnits <= TerrainReliefBindings.HeightUnit
                 || GpuSupport.MaxTessControlTextureImageUnits < 3 || GpuSupport.MaxTessEvaluationTextureImageUnits < 1

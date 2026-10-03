@@ -129,7 +129,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         }
 
         // Allocation, preparation and early exits share the same owner-backed restoration boundary.
-        using var framebufferBindings = GlStateCache.Current.BindFramebufferScope();
+        using var framebufferBindings = StateCache.Current.BindFramebufferScope();
 
         // Need direct pass outputs.
         if (isolatedLighting is null && (directLightingBuffers.DirectDiffuseTex is null
@@ -188,9 +188,9 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
-        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
-        GlStateCache.Current.InvalidateAll();
-        GlStateCache.Current.Apply(CompositePipeline);
+        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
+        StateCache.Current.InvalidateAll();
+        StateCache.Current.Apply(CompositePipeline);
         GpuFramebuffer? refractionTarget = null;
         try { refractionTarget = publication.BeginFrame(ConfigModSystem.Config.WaterRefractionEnabled, compositeColorTex); }
         catch (Exception error) { capi.Logger.Warning("[VGE] Water refraction source unavailable: {0}", error.Message); }

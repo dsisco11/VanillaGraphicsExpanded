@@ -61,7 +61,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
 
     public BindingScope BindScope()
     {
-        var scope = GlStateCache.Current.BindVertexArrayScope(vertexArrayId);
+        var scope = StateCache.Current.BindVertexArrayScope(vertexArrayId);
         return new BindingScope(scope);
     }
 
@@ -73,7 +73,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindVertexArray(vertexArrayId);
+        StateCache.Current.BindVertexArray(vertexArrayId);
     }
 
     /// <summary>
@@ -102,13 +102,13 @@ internal sealed class GpuVao : GpuResource, IDisposable
             return false;
         }
 
-        GlStateCache.Current.BindVertexArray(vertexArrayId);
+        StateCache.Current.BindVertexArray(vertexArrayId);
         return true;
     }
 
     public void Unbind()
     {
-        GlStateCache.Current.BindVertexArray(0);
+        StateCache.Current.BindVertexArray(0);
     }
 
     public void BindElementBuffer(int bufferId)
@@ -122,7 +122,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         if (!VaoDsa.TryVertexArrayElementBuffer(vertexArrayId, bufferId))
         {
             Bind();
-            GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+            StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
         }
     }
 
@@ -297,7 +297,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         }
 
         Bind();
-        GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElements(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes);
     }
 
@@ -353,7 +353,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         }
 
         Bind();
-        GlStateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElementsInstanced(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes, instanceCount);
     }
 
@@ -516,9 +516,9 @@ internal sealed class GpuVao : GpuResource, IDisposable
 
     public readonly struct BindingScope : IDisposable
     {
-        private readonly GlStateCache.VaoScope scope;
+        private readonly StateCache.VaoScope scope;
 
-        public BindingScope(GlStateCache.VaoScope scope)
+        public BindingScope(StateCache.VaoScope scope)
         {
             this.scope = scope;
         }

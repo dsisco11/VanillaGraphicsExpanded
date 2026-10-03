@@ -226,7 +226,7 @@ public class GpuProgramLayout
     {
         // Engine texture binds without a custom sampler rely on the texture's own
         // filtering and comparison state. A surviving VGE sampler overrides that state.
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         foreach (var binding in samplerContract.Values)
             cache.UnbindSampler(binding.BindingOrUnit);
     }
@@ -673,7 +673,7 @@ public class GpuProgramLayout
 
         // Contract application is correctness-critical and should be PSO-owned.
         // Bind the program temporarily and assign the contract via Uniform1.
-        using var _ = GlStateCache.Current.UseProgramScope(programId);
+        using var _ = StateCache.Current.UseProgramScope(programId);
 
         foreach (var (uniformName, spec) in contract)
         {
@@ -1267,10 +1267,10 @@ public class GpuProgramLayout
             return false;
         }
 
-        GlStateCache.Current.BindTexture(target, unit, textureId);
+        StateCache.Current.BindTexture(target, unit, textureId);
         if (samplerId != 0)
         {
-            GlStateCache.Current.BindSampler(unit, samplerId);
+            StateCache.Current.BindSampler(unit, samplerId);
         }
 
         return true;
@@ -1311,14 +1311,14 @@ public class GpuProgramLayout
             return false;
         }
 
-        GlStateCache.Current.BindTexture(target, unit, textureId);
+        StateCache.Current.BindTexture(target, unit, textureId);
         if (samplerId != 0)
         {
-            GlStateCache.Current.BindSampler(unit, samplerId);
+            StateCache.Current.BindSampler(unit, samplerId);
         }
         else
         {
-            GlStateCache.Current.UnbindSampler(unit);
+            StateCache.Current.UnbindSampler(unit);
         }
 
         return true;
@@ -1339,7 +1339,7 @@ public class GpuProgramLayout
             return false;
         }
 
-        GlStateCache.Current.BindTexture(target, unit, textureId, sampler);
+        StateCache.Current.BindTexture(target, unit, textureId, sampler);
         return true;
     }
 
@@ -1367,7 +1367,7 @@ public class GpuProgramLayout
             return false;
         }
 
-        GlStateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
         return true;
     }
 
@@ -1405,7 +1405,7 @@ public class GpuProgramLayout
             return false;
         }
 
-        GlStateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
         return true;
     }
 

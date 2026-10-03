@@ -19,7 +19,7 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
     public void SurfaceAlbedoCaptureSurvivesRecreationAndDisposal()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var assets = new BinaryShaderApiFixture();
         using var terrain = new EngineTerrainBuffers(8, 8);
         var source = terrain.Output;

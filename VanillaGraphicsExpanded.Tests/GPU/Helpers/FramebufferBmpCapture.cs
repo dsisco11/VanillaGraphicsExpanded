@@ -17,7 +17,7 @@ internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
             throw new ArgumentException("Framebuffer dimensions do not match the capture buffer.", nameof(framebuffer));
         int byteCount = width * height * 4;
         readback.AllocateOrphan(byteCount);
-        using var binding = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
+        using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         readback.ReadPixels(0, 0, width, height, PixelFormat.Bgra, PixelType.UnsignedByte);
         IntPtr mapped = readback.MapRange(0, byteCount, MapBufferAccessMask.MapReadBit);

@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Tracks pixel-pack layout used by framebuffer readback.</summary>
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     private PixelPackState? pixelPackState;
 
@@ -54,11 +54,11 @@ internal sealed partial class GlStateCache
     /// <summary>Restores a borrowed pack layout through the owning cache.</summary>
     public readonly struct PixelPackScope : IDisposable
     {
-        private readonly GlStateCache cache;
+        private readonly StateCache cache;
         private readonly PixelPackState previous;
 
         /// <summary>Records the layout to restore when this scope ends.</summary>
-        internal PixelPackScope(GlStateCache cache, PixelPackState previous)
+        internal PixelPackScope(StateCache cache, PixelPackState previous)
         {
             this.cache = cache;
             this.previous = previous;

@@ -121,7 +121,7 @@ internal static class ShaderPreparedSubmission
         if (!binding.Active) return;
         Require(binding, range.Buffer?.IsValid == true);
         if (range.Buffer?.IsValid == true && (range.OffsetBytes < 0 || range.SizeBytes <= 0 || range.OffsetBytes > range.Buffer.SizeBytes - range.SizeBytes ||
-            range.OffsetBytes % GlStateCache.Current.StorageBufferOffsetAlignment != 0))
+            range.OffsetBytes % StateCache.Current.StorageBufferOffsetAlignment != 0))
             throw new InvalidOperationException($"Invalid storage range for {binding.Contract.Name}.");
     }
     /// <summary>Checks counter storage using retained executable activity.</summary>
@@ -149,7 +149,7 @@ internal static class ShaderPreparedSubmission
     {
         if (!binding.Active) return;
         // External allocation identity is unknowable from an integer; force its bind through the cache boundary.
-        GlStateCache.Current.InvalidateTextureUnit(binding.Contract.Binding.Slot);
+        StateCache.Current.InvalidateTextureUnit(binding.Contract.Binding.Slot);
         BindSampler(binding, texture, (TextureTarget)binding.Contract.Binding.TextureTarget);
     }
     /// <summary>Publishes a default image view through the context-wide cache.</summary>
@@ -159,7 +159,7 @@ internal static class ShaderPreparedSubmission
     {
         if (!binding.Active) return;
         bool valid = image.Texture?.IsValid == true;
-        GlStateCache.Current.BindImageTexture(binding.Contract.Binding.Slot, valid ? image.Texture!.TextureId : 0,
+        StateCache.Current.BindImageTexture(binding.Contract.Binding.Slot, valid ? image.Texture!.TextureId : 0,
             valid ? image.Level : 0, valid && image.Layered, valid ? image.Layer : 0, valid ? image.Access : TextureAccess.ReadOnly,
             valid ? image.Format ?? (SizedInternalFormat)image.Texture!.InternalFormat : SizedInternalFormat.Rgba8);
     }
@@ -168,13 +168,13 @@ internal static class ShaderPreparedSubmission
     {
         if (!binding.Active) return;
         if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else GlStateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
+        else StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
     }
     /// <summary>Leaves content upload and dirty-state commitment with the CPU block and ring owners.</summary>
     internal static void UniformBlock(GpuPreparedBindings.Entry binding, CpuUniformBuffer? buffer)
     {
         if (!binding.Active) return;
-        if (buffer == null) GlStateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
+        if (buffer == null) StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
         else if (!buffer.TryBindToSlot(binding.Contract.Binding.Slot)) throw new InvalidOperationException($"Could not publish {binding.Contract.Name}.");
     }
     /// <summary>Publishes or clears a complete storage allocation.</summary>
@@ -182,22 +182,22 @@ internal static class ShaderPreparedSubmission
     {
         if (!binding.Active) return;
         if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else GlStateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
+        else StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
     }
     /// <summary>Publishes the initialized storage range or clears optional absent storage.</summary>
     internal static void StorageBlock(GpuPreparedBindings.Entry binding, GpuStorageBufferBinding range)
     {
         if (!binding.Active) return;
         if (range.Buffer?.IsValid == true)
-            GlStateCache.Current.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, range.Buffer.BufferId, range.OffsetBytes, range.SizeBytes);
-        else GlStateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
+            StateCache.Current.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, range.Buffer.BufferId, range.OffsetBytes, range.SizeBytes);
+        else StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
     }
     /// <summary>Publishes counter storage without repeating executable inspection.</summary>
     internal static void AtomicCounter(GpuPreparedBindings.Entry binding, GpuAtomicCounterBuffer? buffer)
     {
         if (!binding.Active) return;
         if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else GlStateCache.Current.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, binding.Contract.Binding.Slot, 0);
+        else StateCache.Current.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, binding.Contract.Binding.Slot, 0);
     }
     #endregion
     #endregion
@@ -233,7 +233,7 @@ internal static class ShaderPreparedSubmission
             ShaderSamplerPolicy.ShadowCompareLinearClamp => GpuSamplers.ShadowCompareLinearClamp.SamplerId,
             _ => throw new InvalidOperationException("Unknown sampler policy.")
         };
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         if (!cache.TryGetCachedBoundTexture(target, unit, out int previous) || previous != texture) cache.BindTexture(target, unit, texture);
         if (!cache.TryGetCachedBoundSampler(unit, out int previousSampler) || previousSampler != sampler) cache.BindSampler(unit, sampler);
     }

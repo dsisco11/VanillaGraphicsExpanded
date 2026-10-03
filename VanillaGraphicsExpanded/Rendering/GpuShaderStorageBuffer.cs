@@ -47,7 +47,7 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        GlStateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId);
+        StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId);
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(offsetBytes), "Offset must be >= 0 and size must be > 0.");
         }
 
-        GlStateCache.Current.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId, offsetBytes, sizeBytes);
+        StateCache.Current.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId, offsetBytes, sizeBytes);
     }
 
     /// <summary>
@@ -84,6 +84,6 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        GlStateCache.Current.UnbindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex);
+        StateCache.Current.UnbindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex);
     }
 }

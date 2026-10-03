@@ -69,7 +69,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
     private static void AssertTexture(AtmosphereLighting snapshot)
     {
         Assert.Same(snapshot, AtmosphereModSystem.Lighting);
-        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
+        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureWidth, out int width);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureHeight, out int height);
         Assert.Equal(snapshot.Width, width);
@@ -88,7 +88,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
     /// <summary>Verifies both cumulative transport volumes were fully uploaded with the published angular extent.</summary>
     private static void AssertVolume(int id, ImmutableArray<float> expected, AtmosphereLighting snapshot, bool packedRadiance = false)
     {
-        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, id);
+        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, id);
         GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureWidth, out int width);
         GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureHeight, out int height);
         GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureDepth, out int depth);

@@ -85,7 +85,7 @@ internal sealed class LiquidRenderer : IRenderer
         try
         {
             // Engine callbacks bind GL resources directly between VGE passes.
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
             if (!program.EnsureReady()) return;
             // Missing atlas or atmosphere data retains vanilla ownership for the entire invocation.
             if (!source.TryGetAtlasPools(out var atlases, out var pools) || !CanTakeOwnership(api, atlases)) return;
@@ -135,7 +135,7 @@ internal sealed class LiquidRenderer : IRenderer
             failed = true;
             api.Logger.Error("[VGE] Liquid renderer disabled; vanilla submission resumes next invocation. {0}", error.ToString());
         }
-        finally { GlStateCache.Current.InvalidateAll(); }
+        finally { StateCache.Current.InvalidateAll(); }
     }
     #endregion
 

@@ -82,7 +82,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
         int fragment=shaders.Compile(ShaderType.FragmentShader,fragmentSource);
         using var vertexArray = GpuVao.Create();
         int vao = vertexArray.VertexArrayId, program = 0;
-        int oldPatch=GlStateCache.Current.PatchVertices;
+        int oldPatch=StateCache.Current.PatchVertices;
         try
         {
             Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out program,out string error),error);
@@ -93,7 +93,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,pixels);
             using var target=framework.CreateTestGBuffer(16,16,PixelInternalFormat.Rgba32f);
             var layout = GpuProgramLayout.TryBuild(program);
-            target.BindWithViewport(); GlStateCache.Current.UseProgram(program); GlStateCache.Current.BindVertexArray(vao);
+            target.BindWithViewport(); StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
             amplitude.Bind(0); atlas.Bind(1); records.Bind(2);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
@@ -113,7 +113,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
                 ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"shadowRangeFar"),100f);
             }
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            GlStateCache.Current.SetPatchVertices(3);
+            StateCache.Current.SetPatchVertices(3);
             if(mode==11) {
                 // Separate submissions represent a pool/chunk boundary sharing the same eye-relative edge.
                 GL.DrawArrays(PrimitiveType.Patches,0,6);
@@ -150,7 +150,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             }
             if(mode<10) Assert.InRange(actual[center+3],.999f,1.001f);
         }
-        finally { GlStateCache.Current.UseProgram(0); GlStateCache.Current.BindVertexArray(0); GlStateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
+        finally { StateCache.Current.UseProgram(0); StateCache.Current.BindVertexArray(0); StateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
     }
     #endregion
 }

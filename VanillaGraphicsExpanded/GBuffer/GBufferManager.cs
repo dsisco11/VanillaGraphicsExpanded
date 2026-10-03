@@ -218,7 +218,7 @@ public sealed partial class GBufferManager : IDisposable
     /// </summary>
     private void ApplyGBufferBlendState(bool forceDirty)
     {
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
 
         if (forceDirty)
         {
@@ -240,7 +240,7 @@ public sealed partial class GBufferManager : IDisposable
             return;
 
         // Only reapply if Primary framebuffer is currently bound
-        int currentFbo = GlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
+        int currentFbo = StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
         FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null || currentFbo != primaryFb.FboId)
             return;
@@ -335,7 +335,7 @@ public sealed partial class GBufferManager : IDisposable
         }
 
         // Fallback: bind the primary FBO and clear the attachments by index.
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
         using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, primaryFb.FboId);
 
         // Ensure our draw buffers are addressable (some drivers validate indices against the active list).
@@ -463,7 +463,7 @@ public sealed partial class GBufferManager : IDisposable
             | RelinquishIfDeleted(environmentTex);
         if (externallyDeleted)
         {
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
 
         textures?.Dispose();
@@ -493,7 +493,7 @@ public sealed partial class GBufferManager : IDisposable
     /// <param name="fboId">The framebuffer ID to attach to</param>
     private void AttachToFramebuffer(int fboId)
     {
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
         using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
 
         // Reuse the engine SSAO position target, or occupy its vacant slot when SSAO is disabled.
@@ -547,7 +547,7 @@ public sealed partial class GBufferManager : IDisposable
     /// <param name="fboId">The framebuffer ID to detach from</param>
     private void DetachFromFramebuffer(int fboId)
     {
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
         // Detach our color textures (ColorAttachment4-7)

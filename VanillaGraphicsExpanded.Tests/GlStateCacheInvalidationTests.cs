@@ -94,7 +94,7 @@ public sealed class GlStateCacheInvalidationTests
     {
         var cache = CreateSeeded();
         if (compatibility) cache.InvalidateAll(); else cache.Invalidate(EPipelineState.All);
-        foreach (var field in typeof(GlStateCache).GetFields(BindingFlags.Instance | BindingFlags.NonPublic))
+        foreach (var field in typeof(StateCache).GetFields(BindingFlags.Instance | BindingFlags.NonPublic))
         {
             if (Nullable.GetUnderlyingType(field.FieldType) is not null && field.Name != "storageBufferOffsetAlignment")
                 Assert.Null(field.GetValue(cache));
@@ -107,10 +107,10 @@ public sealed class GlStateCacheInvalidationTests
 
     #region Private
     /// <summary>Seeds snapshots directly so tests cannot depend on native GL availability.</summary>
-    private static GlStateCache CreateSeeded()
+    private static StateCache CreateSeeded()
     {
-        var cache = (GlStateCache)Activator.CreateInstance(typeof(GlStateCache), nonPublic: true)!;
-        foreach (var field in typeof(GlStateCache).GetFields(BindingFlags.Instance | BindingFlags.NonPublic))
+        var cache = (StateCache)Activator.CreateInstance(typeof(StateCache), nonPublic: true)!;
+        foreach (var field in typeof(StateCache).GetFields(BindingFlags.Instance | BindingFlags.NonPublic))
         {
             var type = Nullable.GetUnderlyingType(field.FieldType);
             if (type is not null) field.SetValue(cache, Activator.CreateInstance(type));
@@ -127,9 +127,9 @@ public sealed class GlStateCacheInvalidationTests
     }
 
     /// <summary>Reads private state for context-free contract checks.</summary>
-    private static object? Read(GlStateCache cache, string name) => typeof(GlStateCache).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cache);
+    private static object? Read(StateCache cache, string name) => typeof(StateCache).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cache);
 
     /// <summary>Seeds private state without mutating the native context.</summary>
-    private static void Set(GlStateCache cache, string name, object value) => typeof(GlStateCache).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(cache, value);
+    private static void Set(StateCache cache, string name, object value) => typeof(StateCache).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(cache, value);
     #endregion
 }

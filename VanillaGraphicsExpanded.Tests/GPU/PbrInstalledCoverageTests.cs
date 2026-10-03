@@ -49,7 +49,7 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f, oit > 0 ? 6 : 2);
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { .2f, .4f, .6f, alpha });
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        GlStateCache.Current.UseProgram(program.ProgramId); GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
         texture.Bind(0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, family == "standard" ? "tex" : "entityTex"), 0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);

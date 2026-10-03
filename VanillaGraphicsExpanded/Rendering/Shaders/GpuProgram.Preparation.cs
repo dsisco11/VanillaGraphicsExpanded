@@ -97,9 +97,9 @@ public abstract partial class GpuProgram
             else
             {
                 // A reload can replace the executable while the engine still names this owner as current.
-                GlStateCache.Current.UseProgram(ProgramId);
+                StateCache.Current.UseProgram(ProgramId);
             }
-            GlStateCache.Current.NotifyProgramBound(ProgramId);
+            StateCache.Current.NotifyProgramBound(ProgramId);
             SubmitPreparedInputs();
         }
         catch
@@ -118,7 +118,7 @@ public abstract partial class GpuProgram
         if (ReferenceEquals(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram, this))
         {
             try { Stop(); }
-            finally { GlStateCache.Current.UnbindProgram(); }
+            finally { StateCache.Current.UnbindProgram(); }
         }
     }
 

@@ -78,7 +78,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindProgramPipeline(pipelineId);
+        StateCache.Current.BindProgramPipeline(pipelineId);
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
             return false;
         }
 
-        GlStateCache.Current.BindProgramPipeline(pipelineId);
+        StateCache.Current.BindProgramPipeline(pipelineId);
         return true;
     }
 
@@ -100,7 +100,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// </summary>
     public static void Unbind()
     {
-        GlStateCache.Current.BindProgramPipeline(0);
+        StateCache.Current.BindProgramPipeline(0);
     }
 
     /// <summary>
@@ -108,7 +108,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
         var scope = gl.BindProgramPipelineScope(pipelineId);
         return new BindingScope(scope);
     }
@@ -191,9 +191,9 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
-        private readonly GlStateCache.ProgramPipelineScope scope;
+        private readonly StateCache.ProgramPipelineScope scope;
 
-        public BindingScope(GlStateCache.ProgramPipelineScope scope)
+        public BindingScope(StateCache.ProgramPipelineScope scope)
         {
             this.scope = scope;
         }

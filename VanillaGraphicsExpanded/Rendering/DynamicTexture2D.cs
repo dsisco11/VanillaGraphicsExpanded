@@ -187,7 +187,7 @@ public class DynamicTexture2D : GpuTexture
     /// <param name="unit">Texture unit to unbind.</param>
     public static new void Unbind(int unit)
     {
-        GlStateCache.Current.UnbindTexture(TextureTarget.Texture2D, unit);
+        StateCache.Current.UnbindTexture(TextureTarget.Texture2D, unit);
     }
 
     /// <summary>
@@ -274,7 +274,7 @@ public class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
         GL.TexSubImage2D(
             TextureTarget.Texture2D,
             0,
@@ -325,7 +325,7 @@ public class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
         GL.TexSubImage2D(
             TextureTarget.Texture2D,
@@ -379,7 +379,7 @@ public class DynamicTexture2D : GpuTexture
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
         GL.TexSubImage2D(
             TextureTarget.Texture2D,
             0,

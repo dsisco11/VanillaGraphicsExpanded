@@ -152,7 +152,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         var previous = ShaderProgramBase.CurrentShaderProgram;
         int previousId = previous?.ProgramId ?? 0;
         if (previous is null)
-            previousId = GlStateCache.Current.GetCurrentProgram();
+            previousId = StateCache.Current.GetCurrentProgram();
         // Capture ownership now; nested disposal must fail restoration rather than bind a retired GL name.
         var previousCompute = previous is null ? GpuComputeShader.FindOwner(previousId) : null;
 
@@ -162,10 +162,10 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
             if (!ReferenceEquals(previous, this))
             {
                 previous?.Stop();
-                GlStateCache.Current.NotifyProgramBound(0);
+                StateCache.Current.NotifyProgramBound(0);
             }
             Use();
-            GlStateCache.Current.NotifyProgramBound(ProgramId);
+            StateCache.Current.NotifyProgramBound(ProgramId);
             return new ProgramUseScope(previous, previousId, previousCompute, this);
         }
         catch
@@ -188,7 +188,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     /// </summary>
     public static void Unuse()
     {
-        GlStateCache.Current.UnbindProgram();
+        StateCache.Current.UnbindProgram();
     }
 
     /// <summary>Restores owned resources through submission and preserves foreign engine activation policy.</summary>
@@ -199,12 +199,12 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
             if (previous is GpuProgram owner) owner.Use();
             else if (previous is not null) previous.Use();
             else if (previousCompute is not null) previousCompute.Use();
-            else GlStateCache.Current.UseProgram(previousId);
-            GlStateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousCompute?.ProgramId ?? previousId);
+            else StateCache.Current.UseProgram(previousId);
+            StateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousCompute?.ProgramId ?? previousId);
         }
         catch
         {
-            GlStateCache.Current.UnbindProgram();
+            StateCache.Current.UnbindProgram();
             throw;
         }
     }
@@ -235,7 +235,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
             if (!ReferenceEquals(current, previous))
             {
                 current.Stop();
-                GlStateCache.Current.NotifyProgramBound(0);
+                StateCache.Current.NotifyProgramBound(0);
             }
             RestoreProgram(previous, previousProgramId, previousCompute);
         }

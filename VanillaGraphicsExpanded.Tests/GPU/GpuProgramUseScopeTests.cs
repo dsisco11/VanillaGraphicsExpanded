@@ -125,11 +125,11 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
         var raw = programs.Create<CountingShader>();
         var nested = programs.Create<CountingShader>();
         // Deliberate low-level precondition: external callers can own a GL-only binding.
-        GlStateCache.Current.UseProgram(raw.ProgramId);
+        StateCache.Current.UseProgram(raw.ProgramId);
         using (nested.UseScope()) AssertActive(nested);
         Assert.Null(ShaderProgramBase.CurrentShaderProgram);
         Assert.Equal(raw.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-        GlStateCache.Current.UnbindProgram();
+        StateCache.Current.UnbindProgram();
     }
 
     /// <summary>Observes the actual driver state; the cache alone cannot detect a refused engine activation.</summary>
@@ -137,7 +137,7 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
     {
         Assert.Same(expected, ShaderProgramBase.CurrentShaderProgram);
         Assert.Equal(expected.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-        Assert.True(GlStateCache.Current.TryGetCachedCurrentProgram(out int cached));
+        Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cached));
         Assert.Equal(expected.ProgramId, cached);
     }
     #endregion

@@ -15,8 +15,8 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void DepthRenderbufferResizePublishesOnlyStorageChanges()
     {
         EnsureContextValid();
-        using var bindings = GlStateCache.Current.BindFramebufferScope();
-        using var fixedState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var fixedState = StateCache.Current.CaptureLegacyFixedFunctionState();
         using var depth = GpuRenderbuffer.Create(RenderbufferStorage.DepthComponent24, 2, 2);
         using var framebuffer = GpuFramebuffer.CreateDepthOnly(depth)!;
         framebuffer.Bind();
@@ -76,7 +76,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void WrappedRefreshReconfiguresOnlyAfterNotification()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var first = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var replacement = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var source = GpuFramebuffer.CreateSingle(first)!;
@@ -110,7 +110,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void ResizePublishesCompletedAttachmentsAndUpdatesCopyDimensions()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var blitter = new GpuFramebufferBlitter(source, destination);
@@ -138,7 +138,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void RetirementWithdrawsConfiguredCopyTargets()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var blitter = new GpuFramebufferBlitter(source, destination);
@@ -158,7 +158,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void DisposedBlitterIsNotRetainedByLiveTargets()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         var retired = CreateDisposedBlitter(source, destination);

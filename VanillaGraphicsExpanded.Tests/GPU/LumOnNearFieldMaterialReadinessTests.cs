@@ -116,7 +116,7 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     {
         var readiness = new byte[scene.RegionResolution * scene.RegionResolution * scene.RegionResolution];
         GL.GetInteger(GetPName.PackAlignment, out int previous);
-        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
+        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
         try
         {
             GL.PixelStore(PixelStoreParameter.PackAlignment, 1);

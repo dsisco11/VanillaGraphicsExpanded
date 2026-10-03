@@ -79,7 +79,7 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         using var fixture = new DynamicSurfaceLightingFixture(32);
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
         float[] history = Enumerable.Range(0, 64).SelectMany(_ => new float[] { 32, 32, 32, 1024 }).ToArray();
-        using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, fixture.Page.IrradianceAtlas.TextureId))
+        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, fixture.Page.IrradianceAtlas.TextureId))
             GL.TexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 8, 8, 1, PixelFormat.Rgba, PixelType.Float, history);
         Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
         float[] result = fixture.Page.ReadLighting();

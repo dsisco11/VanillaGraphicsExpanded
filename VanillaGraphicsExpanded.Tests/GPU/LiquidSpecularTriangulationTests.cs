@@ -62,7 +62,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.ModelViewMatrix = Flatten(view);
 
 
-        var state = GlStateCache.Current;
+        var state = StateCache.Current;
         using var fixedFunction = state.CaptureLegacyFixedFunctionState();
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         using var vao = GpuVao.Create("Test.LiquidTriangulation.Vao");

@@ -23,7 +23,7 @@ internal static class TerrainTessellationDrawHook
         __state = null;
         if (!TerrainTessellationPrograms.Active) return;
         TerrainDisplacementRuntime.Bind();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         __state = cache.PatchVertices;
         cache.SetPatchVertices(3);
     }
@@ -32,7 +32,7 @@ internal static class TerrainTessellationDrawHook
     [HarmonyFinalizer]
     internal static void Finalizer(int? __state)
     {
-        if (__state is { } previous) GlStateCache.Current.SetPatchVertices(previous);
+        if (__state is { } previous) StateCache.Current.SetPatchVertices(previous);
     }
     #endregion
 

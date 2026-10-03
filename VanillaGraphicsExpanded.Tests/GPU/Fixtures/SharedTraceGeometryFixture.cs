@@ -52,7 +52,7 @@ internal sealed class SharedTraceGeometryFixture : IDisposable
     {
         int n = Scene.Resolution;
         var words = new uint[n * n * n];
-        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, Scene.Geometry.TextureId);
+        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, Scene.Geometry.TextureId);
         GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, words);
         return words[(((z % n + n) % n) * n + (y % n + n) % n) * n + (x % n + n) % n];
     }

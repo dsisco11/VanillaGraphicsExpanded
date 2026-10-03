@@ -199,7 +199,7 @@ public sealed class DynamicTexture3D : GpuTexture
             clearData[i + 3] = a;
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage3D(
             textureTarget,
             0, 0, 0, 0,

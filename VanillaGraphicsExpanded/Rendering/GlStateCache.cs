@@ -11,14 +11,14 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// When external code changes state, callers should use <see cref="Invalidate"/> for known categories
 /// or <see cref="InvalidateAll"/> when the affected state is unknown.
 /// </remarks>
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     [ThreadStatic]
-    private static GlStateCache? current;
+    private static StateCache? current;
 
-    public static GlStateCache Current => current ??= new GlStateCache();
+    public static StateCache Current => current ??= new StateCache();
 
-    private GlStateCache()
+    private StateCache()
     {
     }
 

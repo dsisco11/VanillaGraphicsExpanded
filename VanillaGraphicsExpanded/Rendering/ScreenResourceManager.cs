@@ -33,7 +33,7 @@ internal static class ScreenResourceManager
     {
         // Engine retirement deletes cached framebuffer and texture bindings. Invalidate after
         // that deletion, before any resource callback can save and restore those bindings.
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
         foreach (var orderedCallbacks in callbacks.Values)
         {
             foreach (var callback in orderedCallbacks.ToArray())

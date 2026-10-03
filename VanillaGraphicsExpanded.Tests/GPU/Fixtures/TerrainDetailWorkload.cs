@@ -45,7 +45,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     private readonly List<IDisposable> resources=new();
     private readonly Action<string> bindHeight;
     private PrimitiveType topology;
-    private readonly int oldPatch=GlStateCache.Current.PatchVertices;
+    private readonly int oldPatch=StateCache.Current.PatchVertices;
 
     #region Resource ownership and draws
     /// <summary>Creates static stage variants and identical render inputs before warmup begins.</summary>
@@ -109,7 +109,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     {
         int id=programs[mode.StartsWith("adaptive",StringComparison.Ordinal)?"adaptive":mode].ProgramId;
         topology=mode is "triangles" or "relief" or "reliefOff" ? PrimitiveType.Triangles : PrimitiveType.Patches;
-        GlStateCache.Current.UseProgram(id);GlStateCache.Current.BindVertexArray(vao.VertexArrayId);GlStateCache.Current.SetPatchVertices(3);
+        StateCache.Current.UseProgram(id);StateCache.Current.BindVertexArray(vao.VertexArrayId);StateCache.Current.SetPatchVertices(3);
         bindTarget();bindHeight(mode);
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
         var layout=GpuProgramLayout.TryBuild(id);
@@ -135,7 +135,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     /// <summary>Restores topology state and releases all owned rendering resources.</summary>
     public void Dispose()
     {
-        GlStateCache.Current.UseProgram(0);GlStateCache.Current.BindVertexArray(0);GlStateCache.Current.SetPatchVertices(oldPatch);
+        StateCache.Current.UseProgram(0);StateCache.Current.BindVertexArray(0);StateCache.Current.SetPatchVertices(oldPatch);
         foreach(var resource in resources)resource.Dispose();foreach(var program in programs.Values)program.Dispose();vao.Dispose();shaders.Dispose();framework.Dispose();
     }
     #endregion

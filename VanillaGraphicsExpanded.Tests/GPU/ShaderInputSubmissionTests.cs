@@ -34,18 +34,18 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.SrcMip = 1;
             var parameters = (CpuUniformBuffer)typeof(LumOnHzbDownsampleShaderProgram)
                 .GetField("paramsUbo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
-            GlStateCache.Current.BindTexture(TextureTarget.Texture2D, 0, previous.TextureId);
+            StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, previous.TextureId);
             Assert.False(shader.TryUse());
             Assert.True(parameters.IsDirty);
             Assert.Equal(0, ring.AllocationsWritten);
-            Assert.True(GlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int retained));
+            Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int retained));
             Assert.Equal(previous.TextureId, retained);
             shader.HzbDepth = desired;
             using (shader.UseScope())
             {
                 Assert.False(parameters.IsDirty);
                 Assert.Equal(1, ring.AllocationsWritten);
-                Assert.True(GlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int published));
+                Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int published));
                 Assert.Equal(desired.TextureId, published);
             }
             using (shader.UseScope()) { }

@@ -100,7 +100,7 @@ public class GpuBufferView : GpuResource, IDisposable
 
         try
         {
-            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
+            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -118,7 +118,7 @@ public class GpuBufferView : GpuResource, IDisposable
         }
         catch
         {
-            try { GlStateCache.Current.DeleteTexture(id); } catch { }
+            try { StateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }
@@ -160,7 +160,7 @@ public class GpuBufferView : GpuResource, IDisposable
 
         try
         {
-            using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
+            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
 
             // Prefer DSA when available, otherwise fall back to bind-to-edit.
             try
@@ -179,7 +179,7 @@ public class GpuBufferView : GpuResource, IDisposable
         }
         catch
         {
-            try { GlStateCache.Current.DeleteTexture(id); } catch { }
+            try { StateCache.Current.DeleteTexture(id); } catch { }
             throw;
         }
     }
@@ -195,7 +195,7 @@ public class GpuBufferView : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindTexture(TextureTarget.TextureBuffer, unit, textureId);
+        StateCache.Current.BindTexture(TextureTarget.TextureBuffer, unit, textureId);
     }
 
     /// <summary>
@@ -217,6 +217,6 @@ public class GpuBufferView : GpuResource, IDisposable
             throw new ArgumentOutOfRangeException(nameof(unit), unit, "Image unit must be >= 0.");
         }
 
-        GlStateCache.Current.BindImageTexture(unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
+        StateCache.Current.BindImageTexture(unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
     }
 }

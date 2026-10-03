@@ -39,14 +39,14 @@ internal static class AtmosphereShaderBindingHook
             // Standard also draws before world initialization. Assign distinct 3D
             // sampler units even then, so they cannot alias engine 2D samplers at unit zero.
             __instance.Uniform("vge_atmosphereAerialRadiance", AerialRadianceTextureUnit);
-            var cache = Rendering.GlStateCache.Current;
+            var cache = Rendering.StateCache.Current;
             cache.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTextureId);
             cache.UnbindSampler(AerialRadianceTextureUnit);
         }
         if ((bindings & AtmosphereBindings.AerialAttenuation) != 0)
         {
             __instance.Uniform("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
-            var cache = Rendering.GlStateCache.Current;
+            var cache = Rendering.StateCache.Current;
             cache.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTextureId);
             cache.UnbindSampler(AerialAttenuationTextureUnit);
         }
@@ -68,7 +68,7 @@ internal static class AtmosphereShaderBindingHook
         if ((bindings & AtmosphereBindings.Sky) != 0)
         {
             __instance.BindTexture2D("vge_atmosphereSky", AtmosphereModSystem.SkyTextureId, SkyTextureUnit);
-            Rendering.GlStateCache.Current.UnbindSampler(SkyTextureUnit);
+            Rendering.StateCache.Current.UnbindSampler(SkyTextureUnit);
         }
     }
     #endregion

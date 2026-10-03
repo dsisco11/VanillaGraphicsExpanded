@@ -94,7 +94,7 @@ public readonly struct GpuImageUnitBinding : IDisposable
 
         try
         {
-            GlStateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+            StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
         }
         catch (Exception e)
         {
@@ -166,7 +166,7 @@ public readonly struct GpuImageUnitBinding : IDisposable
 
         try
         {
-            GlStateCache.Current.BindImageTexture(
+            StateCache.Current.BindImageTexture(
                 unit,
                 prevName,
                 prevLevel,

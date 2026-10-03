@@ -2088,7 +2088,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         int y = virtualPageIndex / VirtualPageTableW;
 
         int texId = nearGpu.PageTable.PageTableMip0.TextureId;
-        using var _ = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, unit: 0, texId);
+        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, unit: 0, texId);
 
         uint value = packedEntry;
         GL.TexSubImage3D(

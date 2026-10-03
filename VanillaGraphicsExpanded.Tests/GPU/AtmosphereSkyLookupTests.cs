@@ -68,10 +68,10 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
             { Width = width, Height = height, HorizonElevation = horizon, SkyMie = ImmutableArray.CreateRange(mie) });
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         target.BindWithViewport();
-        GlStateCache.Current.UseProgram(program.ProgramId); GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
         // Mirror AtmosphereShaderBindingHook: the published sky texture owns its repeat/filter policy.
-        GlStateCache.Current.UnbindSampler(0);
-        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
+        StateCache.Current.UnbindSampler(0);
+        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereSky"), 0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereLutHorizon"), horizon);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereSunDirection"), 0f, 1f, 0f);

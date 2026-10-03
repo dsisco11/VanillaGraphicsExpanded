@@ -19,7 +19,7 @@ internal static class GpuProgramStopHook
         // engine's current-program reference and VGE's nested program scopes.
         if (__instance is not GpuProgram program) return;
         program.ProgramLayout.ReleaseSamplerBindings();
-        GlStateCache.Current.NotifyProgramBound(0);
+        StateCache.Current.NotifyProgramBound(0);
     }
 
     #endregion

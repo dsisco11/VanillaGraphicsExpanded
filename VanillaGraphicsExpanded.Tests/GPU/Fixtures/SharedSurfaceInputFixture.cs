@@ -19,10 +19,10 @@ internal sealed class SharedSurfaceInputFixture : IDisposable
         var words = new uint[size * size * size];
         // Integer texture readback is an observation seam; the ordinary shader inputs below
         // are published and subsequently bound by their actual production owners.
-        using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, legacy.TextureId))
+        using (StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, legacy.TextureId))
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, words);
         var entries = new uint[palette.Width * palette.Height * 4];
-        using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, palette.TextureId))
+        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, palette.TextureId))
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, entries);
         var faces = new uint[16384 * 4];
         entries.CopyTo(faces, 0);

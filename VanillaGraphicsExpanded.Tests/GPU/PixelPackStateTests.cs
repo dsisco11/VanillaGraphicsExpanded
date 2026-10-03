@@ -1,7 +1,7 @@
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
-using PackState = VanillaGraphicsExpanded.Rendering.GlStateCache.PixelPackState;
+using PackState = VanillaGraphicsExpanded.Rendering.StateCache.PixelPackState;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -16,7 +16,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     public void NestedScopesRestoreDriverAndCache()
     {
         EnsureContextValid();
-        var cache=GlStateCache.Current;
+        var cache=StateCache.Current;
         using var restore=cache.SetPixelPackScope(new(8,19,3,7,true));
         var outer=cache.GetPixelPackState();
         using(cache.SetPixelPackScope(new(1,11,2,4)))
@@ -39,7 +39,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     public void InvalidationDiscoversExternalState(int boundary)
     {
         EnsureContextValid();
-        var cache=GlStateCache.Current;
+        var cache=StateCache.Current;
         using var restore=cache.SetPixelPackScope(new(4));
         GL.PixelStore(PixelStoreParameter.PackAlignment,8);
         GL.PixelStore(PixelStoreParameter.PackRowLength,23);
@@ -66,7 +66,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     public void InvalidLayoutsDoNotMutateState(int alignment,int rowLength,int rows,int pixels)
     {
         EnsureContextValid();
-        var cache=GlStateCache.Current;
+        var cache=StateCache.Current;
         using var restore=cache.SetPixelPackScope(new(8,9,1,3,true));
         Assert.Throws<ArgumentOutOfRangeException>(()=>cache.SetPixelPackState(new(alignment,rowLength,rows,pixels)));
         AssertState(new(8,9,1,3,true));
@@ -77,7 +77,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     /// <summary>Compares every tracked value to actual OpenGL state rather than cache values alone.</summary>
     private static void AssertState(PackState expected)
     {
-        Assert.Equal(expected,GlStateCache.Current.GetPixelPackState());
+        Assert.Equal(expected,StateCache.Current.GetPixelPackState());
         Assert.Equal(expected.Alignment,GL.GetInteger(GetPName.PackAlignment));
         Assert.Equal(expected.RowLength,GL.GetInteger(GetPName.PackRowLength));
         Assert.Equal(expected.SkipRows,GL.GetInteger(GetPName.PackSkipRows));

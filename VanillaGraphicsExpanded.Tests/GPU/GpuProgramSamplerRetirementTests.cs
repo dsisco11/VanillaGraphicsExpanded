@@ -58,9 +58,9 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            GlStateCache.Current.UnbindSampler(4);
-            GlStateCache.Current.UnbindSampler(5);
-            GlStateCache.Current.UnbindSampler(9);
+            StateCache.Current.UnbindSampler(4);
+            StateCache.Current.UnbindSampler(5);
+            StateCache.Current.UnbindSampler(9);
         }
     }
 
@@ -86,8 +86,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.2f, .4f, .6f, 1f]);
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        GlStateCache.Current.UseProgram(program.ProgramId);
-        GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(program.ProgramId);
+        StateCache.Current.BindVertexArray(vao.VertexArrayId);
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "ordinaryTexture"), 5);
         // Intentionally bypass VGE texture binding: vanilla does not clear foreign sampler objects.
@@ -97,7 +97,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(new[] { .2f, .4f, .6f, 1f }, target[0].ReadPixels());
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
     }
     #endregion
 }

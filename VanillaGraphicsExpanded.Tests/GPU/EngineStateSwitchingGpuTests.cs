@@ -20,7 +20,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         int array = GL.GenVertexArray();
         int buffer = GL.GenBuffer();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         try
         {
             // Populate native VAO state before the cache observes this object.
@@ -41,7 +41,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void RetiredBindingsResolveToNativeZero()
     {
         EnsureContextValid();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         int texture = GL.GenTexture();
         int sampler = GL.GenSampler();
         int buffer = GL.GenBuffer();
@@ -91,7 +91,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void PatchedDepthCallRestoresPreviouslyCachedValue()
     {
         EnsureContextValid();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         var harmony = Patch(nameof(ChangeDepth));
         try
         {
@@ -110,7 +110,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void IndexedBlendChangesCannotSuppressGlobalRestore()
     {
         EnsureContextValid();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         var harmony = Patch(nameof(ChangeIndexedBlend));
         try
         {
@@ -132,7 +132,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void PatchedTextureBindingPreservesSamplerAndTracksActiveUnit()
     {
         EnsureContextValid();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         int texture = GL.GenTexture();
         int sampler = GL.GenSampler();
         var harmony = Patch(nameof(ChangeTexture));
@@ -165,7 +165,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void UnknownActiveTextureUnitBindsWithoutQueryAndInvalidatesOnlyAffectedTarget()
     {
         EnsureContextValid();
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         int previousTexture = GL.GenTexture();
         int nextTexture = GL.GenTexture();
         int cubeTexture = GL.GenTexture();
@@ -226,7 +226,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         {
             harmony.UnpatchAll(harmony.Id);
             if (previous) GL.Enable(EnableCap.Dither); else GL.Disable(EnableCap.Dither);
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
     #endregion

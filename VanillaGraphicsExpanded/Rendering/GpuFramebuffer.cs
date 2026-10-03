@@ -66,7 +66,7 @@ public sealed partial class GpuFramebuffer : GpuResource
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (fboId == 0) throw new InvalidOperationException("The default framebuffer cannot accept attachments.");
         attachment.ValidateSlot(slot);
-        using var bindings = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
+        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
         attachment.AttachTo(slot);
         // Packed attachment calls update two independent GL aspect slots. Keep both
         // references so replacing depth later does not lose the remaining stencil image.
@@ -88,7 +88,7 @@ public sealed partial class GpuFramebuffer : GpuResource
             ? attachments.Remove(FramebufferAttachment.DepthAttachment) | attachments.Remove(FramebufferAttachment.StencilAttachment)
             : attachments.Remove(slot);
         if (!removed) return false;
-        using var bindings = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
+        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
         GL.FramebufferTexture(FramebufferTarget.Framebuffer, slot, 0, 0);
         PublishAttachmentsChanged();
         return true;
@@ -129,7 +129,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     public void Bind()
     {
         ValidateAttachments();
-        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
         if (attachmentsDirty)
         {
             // Shared image changes can affect several FBOs; refresh each FBO lazily
@@ -139,7 +139,7 @@ public sealed partial class GpuFramebuffer : GpuResource
         }
     }
     /// <summary>Binds the default framebuffer.</summary>
-    public static void Unbind() => GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    public static void Unbind() => StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     /// <summary>Binds this framebuffer and its selected image dimensions as the viewport.</summary>
     public void BindWithViewport()
     {
@@ -170,16 +170,16 @@ public sealed partial class GpuFramebuffer : GpuResource
     public bool CheckStatus(out string? errorMessage)
     {
         if (IsDisposed) { errorMessage = "Framebuffer has retired."; return false; }
-        using var bindings = GlStateCache.Current.BindFramebufferScope();
+        using var bindings = StateCache.Current.BindFramebufferScope();
         Bind();
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
         errorMessage = status == FramebufferErrorCode.FramebufferComplete ? null : $"Framebuffer incomplete: {status}";
         return errorMessage is null;
     }
     /// <summary>Saves the current draw framebuffer binding for legacy callers.</summary>
-    public static int SaveBinding() => GlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
+    public static int SaveBinding() => StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
     /// <summary>Restores both framebuffer targets for callers with one saved binding.</summary>
-    public static void RestoreBinding(int fboId) => GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+    public static void RestoreBinding(int fboId) => StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
     /// <summary>Sets the debug label on the framebuffer object.</summary>
     public override void SetDebugName(string? debugName)
     {

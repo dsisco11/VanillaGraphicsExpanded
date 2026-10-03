@@ -39,7 +39,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         using var vao=GpuVao.Create();using var framework=new ShaderTestFramework();
         using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         int id=program.ProgramId;var layout=GpuProgramLayout.TryBuild(id);
-        target.BindWithViewport();GlStateCache.Current.UseProgram(id);GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        target.BindWithViewport();StateCache.Current.UseProgram(id);StateCache.Current.BindVertexArray(vao.VertexArrayId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"distance"),distance);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),1024f);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),128f,128f,8f,8f);
@@ -50,7 +50,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         float expected=1f+(Math.Clamp(128f/Math.Max(.05f,radial),1f,7f)-1f)*(1f-t*t*(3f-2f*t));
         Assert.InRange(result[0],expected-.00001f,expected+.00001f);
         Assert.Equal(result[0],result[1]);Assert.Equal(1f,result[2]);Assert.InRange(result[0],1f,7f);
-        GlStateCache.Current.UseProgram(0);GlStateCache.Current.BindVertexArray(0);
+        StateCache.Current.UseProgram(0);StateCache.Current.BindVertexArray(0);
     }
 
     /// <summary>Height mapping is signed and bounded; neutral, boundary and invalid samples remain undisplaced.</summary>
@@ -95,7 +95,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,data);
             using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
             var layout = GpuProgramLayout.TryBuild(program);
-            target.BindWithViewport(); GlStateCache.Current.UseProgram(program); GlStateCache.Current.BindVertexArray(vao);
+            target.BindWithViewport(); StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
             atlas.Bind(0); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"sampleInput"),u,v,amplitude);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationDistance"),10f,20f);
@@ -109,7 +109,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             Assert.InRange(actual[0],expected-.00001f,expected+.00001f);
             Assert.Equal(4f,actual[1]); Assert.Equal(actual[1],actual[2]); Assert.Equal(1f,actual[3]);
         }
-        finally { GlStateCache.Current.UseProgram(0); GlStateCache.Current.BindVertexArray(0);  GpuProgramObject.Adopt(program).Dispose();   }
+        finally { StateCache.Current.UseProgram(0); StateCache.Current.BindVertexArray(0);  GpuProgramObject.Adopt(program).Dispose();   }
     }
     #endregion
 }

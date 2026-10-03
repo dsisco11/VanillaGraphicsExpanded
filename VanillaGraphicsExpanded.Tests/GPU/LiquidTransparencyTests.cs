@@ -62,7 +62,7 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         projection.M33 = -(100+.1f)/(100-.1f);
         projection.M43 = -2*100*.1f/(100-.1f);
         program.ProjectionMatrix = Flatten(projection);
-        var state = GlStateCache.Current;
+        var state = StateCache.Current;
         using var fixedFunction = state.CaptureLegacyFixedFunctionState();
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         using var vao = GpuVao.Create("Test.LiquidBuckets.Vao");

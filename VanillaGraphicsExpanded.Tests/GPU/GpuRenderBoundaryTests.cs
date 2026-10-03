@@ -22,7 +22,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var read = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
         using var nested = CreateRenderTarget(3, 3, PixelInternalFormat.Rgba32f);
         // Engine calls may bypass a primed managed cache.
-        GlStateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, nested.FboId);
+        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, nested.FboId);
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, defaultFramebuffer ? 0 : draw.FboId);
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
         GL.ReadBuffer(ReadBufferMode.None);
@@ -32,7 +32,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         GL.Viewport(1, 2, 7, 9);
         Assert.Throws<InvalidOperationException>((Action)(() =>
         {
-            using var scope = GlStateCache.Current.BindFramebufferScope();
+            using var scope = StateCache.Current.BindFramebufferScope();
             nested.Bind();
             throw new InvalidOperationException("Controlled render failure.");
         }));
@@ -43,8 +43,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         if (!defaultFramebuffer)
             for (int i = 0; i < routing.Length; i++)
                 Assert.Equal((int)routing[i], GL.GetInteger((GetPName)((int)GetPName.DrawBuffer0 + i)));
-        Assert.Equal(defaultFramebuffer ? 0 : draw.FboId, GlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
-        Assert.Equal(read.FboId, GlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
+        Assert.Equal(defaultFramebuffer ? 0 : draw.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
+        Assert.Equal(read.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
         int[] viewport = new int[4];
         GL.GetInteger(GetPName.Viewport, viewport);
         Assert.Equal(new[] {1, 2, 7, 9}, viewport);
@@ -57,7 +57,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void ExistingBindAndClearMethodsClearAllFloatOutputs()
     {
         EnsureContextValid();
-        using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
         using var target = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f, PixelInternalFormat.R32f);
         target[0].UploadDataImmediate(Enumerable.Repeat(2f, 16).ToArray());
         target[1].UploadDataImmediate(Enumerable.Repeat(3f, 4).ToArray());
@@ -80,7 +80,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void WrappedFramebufferUsesViewportWithoutOwningResources()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var target = CreateRenderTarget(3, 5, PixelInternalFormat.Rgba32f);
         using (var borrowed = GpuFramebuffer.Wrap(target.FboId, "Borrowed test target", width: 3, height: 5))
         {
@@ -103,7 +103,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void BlitPreservesTargetAndCallerRouting(bool wrapped)
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var destination = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var callerDraw = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
@@ -150,7 +150,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void BlitFollowsReplacedBorrowedAttachments()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var first = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var replacement = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var output = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
@@ -177,7 +177,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void BlitterRepeatedCopiesAndDisposalPreserveBorrowedTargets()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using (var blitter = new GpuFramebufferBlitter(source, destination))
@@ -202,8 +202,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void DepthOnlyBlitCopiesDepth()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
-        using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var scope = StateCache.Current.BindFramebufferScope();
+        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
         using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var source = GpuFramebuffer.CreateDepthOnly(sourceDepth)!;
@@ -226,8 +226,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void CombinedBlitCopiesColorAndDepth()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
-        using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var scope = StateCache.Current.BindFramebufferScope();
+        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
         using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var sourceColor = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
@@ -261,8 +261,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void BlitCopiesBorrowedColorRenderbuffer()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
-        using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var scope = StateCache.Current.BindFramebufferScope();
+        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
         using var color = GpuRenderbuffer.Create(RenderbufferStorage.Rgba32f, 2, 2);
         using var source = GpuFramebuffer.CreateEmpty("Tests.ColorRenderbuffer");
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
@@ -295,7 +295,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         var previous = programs.Create<GpuProgramUseScopeTests.CountingShader>();
         var nested = programs.Create<GpuProgramUseScopeTests.CountingShader>();
         if (engineOwned) previous.Use();
-        else GlStateCache.Current.UseProgram(previous.ProgramId);
+        else StateCache.Current.UseProgram(previous.ProgramId);
         Assert.Throws<InvalidOperationException>((Action)(() =>
         {
             using var activation = nested.UseScope();
@@ -307,8 +307,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         if (engineOwned) Assert.Equal(2, previous.Submissions);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         if (engineOwned) previous.Stop();
-        else GlStateCache.Current.UseProgram(0);
-        GlStateCache.Current.InvalidateAll();
+        else StateCache.Current.UseProgram(0);
+        StateCache.Current.InvalidateAll();
     }
     #endregion
 }

@@ -163,7 +163,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         if (targets?.Framebuffer is not { IsValid: true } framebuffer)
             return;
 
-        using var bindings = GlStateCache.Current.BindFramebufferScope();
+        using var bindings = StateCache.Current.BindFramebufferScope();
         framebuffer.Bind();
         framebuffer.Clear(0, 0, 0, 0);
     }

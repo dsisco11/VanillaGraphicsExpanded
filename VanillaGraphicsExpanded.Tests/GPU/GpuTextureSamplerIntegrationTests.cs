@@ -34,9 +34,9 @@ public class GpuTextureSamplerIntegrationTests
         const int unit = 3;
         tex.Bind(unit);
 
-        Assert.Equal(0, GlStateCache.Current.GetBoundSampler(unit));
+        Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));
 
-        using (GlStateCache.Current.BindTextureScope(tex.TextureTarget, unit: 0, tex.TextureId))
+        using (StateCache.Current.BindTextureScope(tex.TextureTarget, unit: 0, tex.TextureId))
         {
             GL.GetTexParameter(tex.TextureTarget, GetTextureParameter.TextureMinFilter, out int minFilter);
             GL.GetTexParameter(tex.TextureTarget, GetTextureParameter.TextureMagFilter, out int magFilter);
@@ -50,7 +50,7 @@ public class GpuTextureSamplerIntegrationTests
         }
 
         tex.Unbind(unit);
-        Assert.Equal(0, GlStateCache.Current.GetBoundSampler(unit));
+        Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));
     }
 
     [Fact]
@@ -65,21 +65,21 @@ public class GpuTextureSamplerIntegrationTests
         const int unit = 2;
 
         // Establish a known texture+sampler binding without going through GpuTexture.Bind (which unbinds samplers).
-        GlStateCache.Current.BindTexture(t1.TextureTarget, unit, t1.TextureId);
-        GlStateCache.Current.BindSampler(unit, s1);
+        StateCache.Current.BindTexture(t1.TextureTarget, unit, t1.TextureId);
+        StateCache.Current.BindSampler(unit, s1);
 
-        int prevTexId = GlStateCache.Current.GetBoundTexture(t1.TextureTarget, unit);
-        int prevSamplerId = GlStateCache.Current.GetBoundSampler(unit);
+        int prevTexId = StateCache.Current.GetBoundTexture(t1.TextureTarget, unit);
+        int prevSamplerId = StateCache.Current.GetBoundSampler(unit);
         Assert.Equal(t1.TextureId, prevTexId);
         Assert.Equal(s1.SamplerId, prevSamplerId);
 
         using (t2.BindScope(unit))
         {
-            Assert.Equal(t2.TextureId, GlStateCache.Current.GetBoundTexture(t2.TextureTarget, unit));
-            Assert.Equal(0, GlStateCache.Current.GetBoundSampler(unit));
+            Assert.Equal(t2.TextureId, StateCache.Current.GetBoundTexture(t2.TextureTarget, unit));
+            Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));
         }
 
-        Assert.Equal(t1.TextureId, GlStateCache.Current.GetBoundTexture(t1.TextureTarget, unit));
-        Assert.Equal(s1.SamplerId, GlStateCache.Current.GetBoundSampler(unit));
+        Assert.Equal(t1.TextureId, StateCache.Current.GetBoundTexture(t1.TextureTarget, unit));
+        Assert.Equal(s1.SamplerId, StateCache.Current.GetBoundSampler(unit));
     }
 }

@@ -116,16 +116,16 @@ public sealed class TerrainTessellationTests : RenderTestBase
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
         target.BindWithViewport();
-        GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
-        GlStateCache.Current.UseProgram(tessellated);
+        StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(tessellated);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         // This is the primitive submitted by the engine's non-grouped entity shadow path.
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
-        GlStateCache.Current.UseProgram(ordinary.ProgramId);
+        StateCache.Current.UseProgram(ordinary.ProgramId);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        GlStateCache.Current.UseProgram(0);
+        StateCache.Current.UseProgram(0);
     }
 
     /// <summary>Compiles installed alpha-tested terrain shadow stages with both terrain mesh layouts.</summary>
@@ -195,7 +195,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             ShaderProgramBase.CurrentShaderProgram = owner;
             Assert.Equal(PrimitiveType.Patches, TerrainTessellationPrograms.Topology(PrimitiveType.Triangles));
             Assert.Equal(PrimitiveType.Lines, TerrainTessellationPrograms.Topology(PrimitiveType.Lines));
-            var cache = VanillaGraphicsExpanded.Rendering.GlStateCache.Current;
+            var cache = VanillaGraphicsExpanded.Rendering.StateCache.Current;
             int previousPatchSize = cache.PatchVertices;
             cache.SetPatchVertices(5);
             VanillaGraphicsExpanded.HarmonyPatches.TerrainTessellationDrawHook.Prefix(out int? saved);
@@ -260,7 +260,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             """);
         using var vertexArray = GpuVao.Create();
         int ordinary = 0, tessellated = 0, vao = vertexArray.VertexArrayId;
-        int previousPatchVertices = GlStateCache.Current.PatchVertices;
+        int previousPatchVertices = StateCache.Current.PatchVertices;
         try
         {
             ordinary = TerrainShaderTestFixture.Link(vertex, fragment);
@@ -269,12 +269,12 @@ public sealed class TerrainTessellationTests : RenderTestBase
             using var target = framework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba32f, 2);
             target.BindWithViewport();
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            GlStateCache.Current.BindVertexArray(vao);
-            GlStateCache.Current.UseProgram(ordinary); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            StateCache.Current.BindVertexArray(vao);
+            StateCache.Current.UseProgram(ordinary); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             var expected = target[0].ReadPixels();
             var expectedCoordinates = target[1].ReadPixels();
-            GlStateCache.Current.SetPatchVertices( 3);
-            GlStateCache.Current.UseProgram(tessellated);
+            StateCache.Current.SetPatchVertices( 3);
+            StateCache.Current.UseProgram(tessellated);
             var layout = GpuProgramLayout.TryBuild(tessellated);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementEnabled"), 0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementReactive"), 0);
@@ -288,7 +288,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         }
         finally
         {
-            GlStateCache.Current.UseProgram(0); GlStateCache.Current.BindVertexArray(0); GlStateCache.Current.SetPatchVertices( previousPatchVertices);
+            StateCache.Current.UseProgram(0); StateCache.Current.BindVertexArray(0); StateCache.Current.SetPatchVertices( previousPatchVertices);
              if (ordinary != 0) GpuProgramObject.Adopt(ordinary).Dispose(); if (tessellated != 0) GpuProgramObject.Adopt(tessellated).Dispose();
 
         }

@@ -154,15 +154,15 @@ public static partial class VgeBuiltInDebugViews
             }
 
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+            using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
 
             var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
             blitShader.Use();
 
             try
             {
-                GlStateCache.Current.InvalidateAll();
-                GlStateCache.Current.Apply(OverlayPso);
+                StateCache.Current.InvalidateAll();
+                StateCache.Current.Apply(OverlayPso);
 
                 GL.ActiveTexture(TextureUnit.Texture0);
                 GL.BindTexture(TextureTarget.Texture2D, textureId);
@@ -176,7 +176,7 @@ public static partial class VgeBuiltInDebugViews
                 blitShader.Stop();
 
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
-                GlStateCache.Current.InvalidateAll();
+                StateCache.Current.InvalidateAll();
             }
         }
 

@@ -59,7 +59,7 @@ internal static class TerrainBoundaryCaptureFixture
         shader.Dispatch(1, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
         byte[] pixels = new byte[4 * 4 * 4];
-        using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, material.TextureId))
+        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, material.TextureId))
             GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
         int u = Math.Clamp((int)(BitConverter.UInt32BitsToSingle(mapping[4]) * 4), 0, 3);
         int v = Math.Clamp((int)(BitConverter.UInt32BitsToSingle(mapping[5]) * 4), 0, 3);

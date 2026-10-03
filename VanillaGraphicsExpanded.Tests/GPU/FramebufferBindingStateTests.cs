@@ -18,7 +18,7 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         using var draw = GpuFramebuffer.CreateEmpty("Tests.DrawAlias");
         using var read = GpuFramebuffer.CreateEmpty("Tests.ReadAlias");
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         try
         {
             cache.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
@@ -49,7 +49,7 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         using var targetTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
         using var source = GpuFramebuffer.CreateSingle(sourceTexture)!;
         using var target = GpuFramebuffer.CreateSingle(targetTexture)!;
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         try
         {
             source.BindAndClear(1, 0, 0, 1);

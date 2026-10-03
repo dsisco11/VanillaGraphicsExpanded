@@ -42,7 +42,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        GlStateCache.Current.BindBuffer(BufferTarget.DrawIndirectBuffer, bufferId);
+        StateCache.Current.BindBuffer(BufferTarget.DrawIndirectBuffer, bufferId);
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        GlStateCache.Current.BindBuffer(BufferTarget.DispatchIndirectBuffer, bufferId);
+        StateCache.Current.BindBuffer(BufferTarget.DispatchIndirectBuffer, bufferId);
     }
 
     /// <summary>Binds indirect arguments as shader storage so compute can generate command counts.</summary>
@@ -64,24 +64,24 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     {
         if (bindingIndex < 0) throw new ArgumentOutOfRangeException(nameof(bindingIndex));
         if (!IsValid) throw new ObjectDisposedException(nameof(GpuIndirectBuffer));
-        GlStateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId);
+        StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId);
     }
 
     /// <summary>
     /// Binds this buffer as the draw-indirect buffer and returns a scope that restores the previous binding.
     /// </summary>
-    public GlStateCache.BufferScope BindDrawScope()
+    public StateCache.BufferScope BindDrawScope()
     {
         BindDraw();
-        return GlStateCache.Current.BindBufferScope(BufferTarget.DrawIndirectBuffer, bufferId);
+        return StateCache.Current.BindBufferScope(BufferTarget.DrawIndirectBuffer, bufferId);
     }
 
     /// <summary>
     /// Binds this buffer as the dispatch-indirect buffer and returns a scope that restores the previous binding.
     /// </summary>
-    public GlStateCache.BufferScope BindDispatchScope()
+    public StateCache.BufferScope BindDispatchScope()
     {
-        return GlStateCache.Current.BindBufferScope(BufferTarget.DispatchIndirectBuffer, bufferId);
+        return StateCache.Current.BindBufferScope(BufferTarget.DispatchIndirectBuffer, bufferId);
     }
 
     /// <summary>

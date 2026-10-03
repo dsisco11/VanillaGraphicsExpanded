@@ -40,7 +40,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     public void SparseMipAttachmentRetainsExactImageSelection()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var texture = DynamicTexture2D.CreateMipmapped(8, 4, PixelInternalFormat.Rgba8, 3);
         using var attachment = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = GpuFramebuffer.CreateEmpty();
@@ -63,7 +63,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     public void ArrayLayerSelectionMatchesDriverAttachment(int selectedLayer)
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var texture = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8);
         using var attachment = GpuFramebufferAttachment.FromTexture(texture, layer: selectedLayer);
         using var framebuffer = GpuFramebuffer.Create([attachment])!;

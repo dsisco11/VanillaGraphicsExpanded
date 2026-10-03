@@ -18,7 +18,7 @@ public sealed partial class GpuFramebuffer
         GpuFramebufferAttachment? depth = null, string? debugName = null)
     {
         ArgumentNullException.ThrowIfNull(colors);
-        using var bindings = GlStateCache.Current.BindFramebufferScope();
+        using var bindings = StateCache.Current.BindFramebufferScope();
         var framebuffer = CreateEmpty(debugName);
         try
         {

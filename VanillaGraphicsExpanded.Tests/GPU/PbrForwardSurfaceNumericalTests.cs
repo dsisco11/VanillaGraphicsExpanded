@@ -96,8 +96,8 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             float[] scatter = scenario is 12 or 13 ? [.04f,.09f,.16f,1f] : [0f,0f,0f,1f];
             atmosphereOwner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f,0f,0f,1f))
                 { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>new[]{0f,0f,0f,1f})) });
-            using var radianceBinding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
-            using var attenuationBinding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
+            using var radianceBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
+            using var attenuationBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialRadiance"),11);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialAttenuation"),12);
             using var framework = new ShaderTestFramework();

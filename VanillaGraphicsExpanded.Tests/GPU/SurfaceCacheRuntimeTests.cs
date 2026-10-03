@@ -158,7 +158,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
     {
         var atlas=snapshot.OutgoingRadiance;
         var all=new float[atlas.Width*atlas.Height*atlas.Depth*4];
-        using var binding=GlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,atlas.TextureId);
+        using var binding=StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,atlas.TextureId);
         GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,all);
         int local=(int)((id-1)%(uint)snapshot.TilesPerAtlas), layer=(int)((id-1)/(uint)snapshot.TilesPerAtlas);
         int x=local%snapshot.TilesPerAxis*snapshot.TileSize,y=local/snapshot.TilesPerAxis*snapshot.TileSize;

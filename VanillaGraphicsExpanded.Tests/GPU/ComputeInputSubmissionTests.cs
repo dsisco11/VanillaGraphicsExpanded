@@ -66,7 +66,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         }
         finally
         {
-            GlStateCache.Current.UnbindProgram();
+            StateCache.Current.UnbindProgram();
             while (GL.GetError() != ErrorCode.NoError) { }
         }
     }

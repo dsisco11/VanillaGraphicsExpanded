@@ -20,7 +20,7 @@ public sealed class EngineStateSwitchingTests
     {
         // Inspect both sides of the adapter boundary so an accidental return to the explicit-unit API fails.
         var adapter = AccessTools.Method(typeof(EngineStateCalls), nameof(EngineStateCalls.BindTexture), [typeof(TextureTarget), typeof(int)]);
-        var binding = AccessTools.Method(typeof(GlStateCache), "BindTextureOnActiveUnit");
+        var binding = AccessTools.Method(typeof(StateCache), "BindTextureOnActiveUnit");
         var adapterCalls = PatchProcessor.GetOriginalInstructions(adapter).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();
         Assert.Contains(binding, adapterCalls);
         var bindingCalls = PatchProcessor.GetOriginalInstructions(binding).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();

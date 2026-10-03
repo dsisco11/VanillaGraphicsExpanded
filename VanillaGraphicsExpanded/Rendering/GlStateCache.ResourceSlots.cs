@@ -5,7 +5,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Retains image views and indexed buffer ranges in the existing context-wide binding cache.</summary>
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     private readonly Dictionary<int, ImageBinding> imageBindings = new();
     private readonly Dictionary<(BufferRangeTarget Target, int Slot), IndexedBufferBinding> indexedBufferBindings = new();

@@ -132,7 +132,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             sceneColor.UploadDataImmediate(floorColor);
         }
         program.ModelViewMatrix = Flatten(modelView);
-        var state = GlStateCache.Current;
+        var state = StateCache.Current;
         using var fixedFunction = state.CaptureLegacyFixedFunctionState();
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         target.BindWithViewport();

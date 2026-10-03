@@ -139,13 +139,13 @@ public abstract class GpuResource : IDisposable
             switch (kind)
             {
                 case GpuResourceKind.Buffer:
-                    GlStateCache.Current.DeleteBuffer((int)id);
+                    StateCache.Current.DeleteBuffer((int)id);
                     break;
                 case GpuResourceKind.VertexArray:
                     GL.DeleteVertexArray((int)id);
                     break;
                 case GpuResourceKind.Texture:
-                    GlStateCache.Current.DeleteTexture((int)id);
+                    StateCache.Current.DeleteTexture((int)id);
                     break;
                 case GpuResourceKind.Framebuffer:
                     GL.DeleteFramebuffer((int)id);

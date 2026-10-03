@@ -5,7 +5,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Owns selective invalidation of cached knowledge without querying or changing native state.</summary>
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     #region Public API
     /// <summary>Forgets only the selected categories and their dependent snapshots; makes no GL calls.</summary>

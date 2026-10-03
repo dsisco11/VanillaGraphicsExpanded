@@ -58,12 +58,12 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             ImmutableArray.CreateRange(new float[width * height * 4]))
         { Width = width, Height = height, AerialRadiance = ImmutableArray.CreateRange(scatter), AerialAttenuation = ImmutableArray.CreateRange(loss), AerialMie = ImmutableArray.CreateRange(mie) });
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        GlStateCache.Current.UseProgram(program.ProgramId); GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
-        using var r = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
-        using var a = GlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
+        StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        using var r = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
+        using var a = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
-        GlStateCache.Current.UnbindSampler(11); GlStateCache.Current.UnbindSampler(12);
+        StateCache.Current.UnbindSampler(11); StateCache.Current.UnbindSampler(12);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         foreach (float row in new[] { .25f, .5f, .75f })
         foreach (float slice in new[] { .2f, .8f })

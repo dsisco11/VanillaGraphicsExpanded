@@ -78,7 +78,7 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
         using var buckets = Texture3D.Create(2, 2, 3, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture2DArray);
         using var replacement = Texture3D.Create(2, 2, 3, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture2DArray);
         var frame = Borrow(target);
-        using var binding = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
+        using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         int activeTexture = GL.GetInteger(GetPName.ActiveTexture);
         EngineFramebufferDebugLabels.ApplyOit(frame, reveal.TextureId, buckets.TextureId);
 #if DEBUG

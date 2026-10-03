@@ -152,13 +152,13 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                 switch (command.Kind)
                 {
                     case GpuDeletionKind.Buffer:
-                        GlStateCache.Current.DeleteBuffer((int)command.Id);
+                        StateCache.Current.DeleteBuffer((int)command.Id);
                         break;
                     case GpuDeletionKind.VertexArray:
                         GL.DeleteVertexArray((int)command.Id);
                         break;
                     case GpuDeletionKind.Texture:
-                        GlStateCache.Current.DeleteTexture((int)command.Id);
+                        StateCache.Current.DeleteTexture((int)command.Id);
                         break;
                     case GpuDeletionKind.Framebuffer:
                         GL.DeleteFramebuffer((int)command.Id);

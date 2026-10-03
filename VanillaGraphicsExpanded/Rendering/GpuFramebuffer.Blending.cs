@@ -81,11 +81,11 @@ public sealed partial class GpuFramebuffer
     }
 
     /// <summary>
-    /// Applies any configured per-attachment blend settings using <see cref="GlStateCache"/>.
+    /// Applies any configured per-attachment blend settings using <see cref="StateCache"/>.
     /// </summary>
     public void ApplyAttachmentBlendState()
     {
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
 
         if (attachmentBlendEnabled is not null)
         {

@@ -78,7 +78,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindTransformFeedback(transformFeedbackId);
+        StateCache.Current.BindTransformFeedback(transformFeedbackId);
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
             return false;
         }
 
-        GlStateCache.Current.BindTransformFeedback(transformFeedbackId);
+        StateCache.Current.BindTransformFeedback(transformFeedbackId);
         return true;
     }
 
@@ -100,7 +100,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// </summary>
     public void Unbind()
     {
-        GlStateCache.Current.BindTransformFeedback(0);
+        StateCache.Current.BindTransformFeedback(0);
     }
 
     /// <summary>
@@ -108,7 +108,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
         var scope = gl.BindTransformFeedbackScope(transformFeedbackId);
         return new BindingScope(scope);
     }
@@ -124,7 +124,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
         }
 
         using var _ = BindScope();
-        GlStateCache.Current.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId);
+        StateCache.Current.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId);
     }
 
     /// <summary>
@@ -147,7 +147,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
         }
 
         using var _ = BindScope();
-        GlStateCache.Current.BindBufferRange(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId, offsetBytes, sizeBytes);
+        StateCache.Current.BindBufferRange(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId, offsetBytes, sizeBytes);
     }
 
     /// <summary>
@@ -214,9 +214,9 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// </summary>
     public readonly struct BindingScope : IDisposable
     {
-        private readonly GlStateCache.TransformFeedbackScope scope;
+        private readonly StateCache.TransformFeedbackScope scope;
 
-        public BindingScope(GlStateCache.TransformFeedbackScope scope)
+        public BindingScope(StateCache.TransformFeedbackScope scope)
         {
             this.scope = scope;
         }

@@ -26,7 +26,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         shader.Output = new(result, TextureAccess.WriteOnly);
         shader.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         var prepared = pipeline.ProgramLayout.BinaryInterface!.PreparedBindings;
         int reflection = prepared.ReflectionQueries;
         long names = pipeline.ProgramLayout.UniformNameResolutions;
@@ -128,7 +128,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         input = input with { Contract = input.Contract with { Binding = input.Contract.Binding with { TextureTarget = (int)TextureTarget.Texture2D } } };
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         int borrowedId = texture.TextureId;
-        var cache = GlStateCache.Current;
+        var cache = StateCache.Current;
         long binds = cache.TextureBindCount;
         for (int use = 0; use < 3; use++)
         {

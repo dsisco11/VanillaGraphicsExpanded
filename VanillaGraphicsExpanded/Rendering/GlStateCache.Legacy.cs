@@ -2,7 +2,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     /// <summary>Preserves fixed-function state, optionally including viewport for draws that resize it.</summary>
     public LegacyFixedFunctionScope CaptureLegacyFixedFunctionState(bool preserveViewport = false)
@@ -14,12 +14,12 @@ internal sealed partial class GlStateCache
     /// <summary>Restores fixed-function state and, when requested by a draw pass, its previous viewport.</summary>
     public readonly struct LegacyFixedFunctionScope : System.IDisposable
     {
-        private readonly GlStateCache cache;
+        private readonly StateCache cache;
         private readonly LegacyFixedFunctionSnapshot snapshot;
         private readonly int[]? viewport;
 
         /// <summary>Captures viewport only for rendering passes which change it.</summary>
-        internal LegacyFixedFunctionScope(GlStateCache cache, LegacyFixedFunctionSnapshot snapshot, bool preserveViewport)
+        internal LegacyFixedFunctionScope(StateCache cache, LegacyFixedFunctionSnapshot snapshot, bool preserveViewport)
         {
             this.cache = cache;
             this.snapshot = snapshot;
@@ -121,7 +121,7 @@ internal sealed partial class GlStateCache
                 ps);
         }
 
-        public void Restore(GlStateCache cache)
+        public void Restore(StateCache cache)
         {
             // Force the cache to re-emit on restore.
             cache.depthTestEnabled = null;

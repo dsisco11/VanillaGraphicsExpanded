@@ -83,7 +83,7 @@ public sealed class AtmosphereEngineBindingTests(HeadlessGLFixture fixture, ITes
                 using var framework = new ShaderTestFramework();
                 using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
                 using var dryDepth = framework.CreateTexture(1, 1, PixelInternalFormat.R32f, [1f]);
-                GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+                StateCache.Current.BindVertexArray(vao.VertexArrayId);
                 GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
                 float[] brightness = new float[6];
                 var lighting = lookup.Current!;

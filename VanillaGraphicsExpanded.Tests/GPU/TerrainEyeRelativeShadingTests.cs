@@ -101,7 +101,7 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
         finally
         {
             GL.UseProgram(0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
     #endregion

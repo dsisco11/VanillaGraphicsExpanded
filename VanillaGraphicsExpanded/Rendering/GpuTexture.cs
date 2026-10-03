@@ -90,12 +90,12 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
 
         var sizedFormat = format ?? (SizedInternalFormat)internalFormat;
-        GlStateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, sizedFormat);
+        StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, sizedFormat);
     }
 
     public BindingScope BindScope(int unit)
     {
-        var gl = GlStateCache.Current;
+        var gl = StateCache.Current;
 
         // Ensure sampler-object state doesn't override texture-object parameters.
         // Use GlStateCache scopes so binding restore is PSO-owned and cache-consistent.
@@ -127,7 +127,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         DeleteTextureIfAllocated();
 
         textureId = GL.GenTexture();
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
 
         Allocate2DStorageBound(mipLevels);
         StorageMipLevels = mipLevels;
@@ -161,7 +161,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             throw new InvalidOperationException("TextureRectangle does not support mipmaps.");
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         Allocate2DStorageBound(mipLevels);
         StorageMipLevels = mipLevels;
         Apply2DTextureObjectParamsBound(mipLevels);
@@ -174,7 +174,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         DeleteTextureIfAllocated();
 
         textureId = GL.GenTexture();
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
 
         Allocate3DStorageBound();
 
@@ -189,7 +189,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
     {
         if (textureId != 0)
         {
-            GlStateCache.Current.DeleteTexture(textureId);
+            StateCache.Current.DeleteTexture(textureId);
             textureId = 0;
         }
     }
@@ -304,9 +304,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
             return;
         }
 
-        GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
+        StateCache.Current.BindTexture(textureTarget, unit, textureId);
         // Ensure sampler-object state doesn't override texture-object parameters.
-        GlStateCache.Current.UnbindSampler(unit);
+        StateCache.Current.UnbindSampler(unit);
     }
 
     public bool TryBind(int unit)
@@ -316,16 +316,16 @@ public abstract class GpuTexture : GpuResource, IDisposable
             return false;
         }
 
-        GlStateCache.Current.BindTexture(textureTarget, unit, textureId);
+        StateCache.Current.BindTexture(textureTarget, unit, textureId);
         // Ensure sampler-object state doesn't override texture-object parameters.
-        GlStateCache.Current.UnbindSampler(unit);
+        StateCache.Current.UnbindSampler(unit);
         return true;
     }
 
     public virtual void Unbind(int unit)
     {
-        GlStateCache.Current.BindTexture(textureTarget, unit, 0);
-        GlStateCache.Current.UnbindSampler(unit);
+        StateCache.Current.BindTexture(textureTarget, unit, 0);
+        StateCache.Current.UnbindSampler(unit);
     }
 
     #region Texture-Object State Helpers (TexParameter)
@@ -343,7 +343,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         try
         {
-            using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+            using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
             GL.TexParameter(textureTarget, TextureParameterName.TextureBaseLevel, baseLevel);
             GL.TexParameter(textureTarget, TextureParameterName.TextureMaxLevel, maxLevel);
         }
@@ -372,7 +372,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         try
         {
-            using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+            using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
             GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, (int)minFilter);
             GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, (int)magFilter);
         }
@@ -393,7 +393,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         try
         {
-            using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+            using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
             GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)wrapS);
             GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)wrapT);
 
@@ -628,7 +628,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage3D(
             textureTarget,
             mipLevel,
@@ -659,7 +659,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         if (data.Length != expected)
             throw new ArgumentException($"Expected {expected} tightly packed bytes, got {data.Length}.", nameof(data));
 
-        using var binding = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var binding = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         // Single-channel regions need not have four-byte-wide rows.
         GL.GetInteger(GetPName.UnpackAlignment, out int previousAlignment);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
@@ -701,7 +701,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage3D(
             textureTarget,
             mipLevel,
@@ -731,7 +731,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         if (x < 0 || y < 0 || regionWidth <= 0 || regionHeight <= 0 || x + regionWidth > width || y + regionHeight > height)
             throw new ArgumentOutOfRangeException(nameof(regionWidth));
         if (data.Length != checked(regionWidth * regionHeight * GetChannelCount())) throw new ArgumentException("Incorrect byte payload size.", nameof(data));
-        using var binding = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var binding = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.GetInteger(GetPName.UnpackAlignment, out int previousAlignment);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
         try { GL.TexSubImage2D(textureTarget, 0, x, y, regionWidth, regionHeight, TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.UnsignedByte, data); }
@@ -760,7 +760,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         Ensure2DLike();
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage2D(
             textureTarget,
             level: 0,
@@ -800,7 +800,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage2D(
             textureTarget,
             level: 0,
@@ -840,7 +840,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage2D(
             textureTarget,
             level: 0,
@@ -886,7 +886,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.TexSubImage2D(
             textureTarget,
             level: 0,
@@ -926,7 +926,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 nameof(data));
         }
 
-        using var _ = GlStateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
+        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
         GL.TexSubImage2D(
             textureTarget,
@@ -1202,8 +1202,8 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     public readonly struct BindingScope : IDisposable
     {
-        private readonly GlStateCache.TextureScope textureScope;
-        private readonly GlStateCache.SamplerScope samplerScope;
+        private readonly StateCache.TextureScope textureScope;
+        private readonly StateCache.SamplerScope samplerScope;
 
         private readonly TextureTarget target;
         private readonly int unit;
@@ -1214,7 +1214,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         private readonly bool useCacheScopes;
 
-        internal BindingScope(GlStateCache.TextureScope textureScope, GlStateCache.SamplerScope samplerScope)
+        internal BindingScope(StateCache.TextureScope textureScope, StateCache.SamplerScope samplerScope)
         {
             this.textureScope = textureScope;
             this.samplerScope = samplerScope;
@@ -1256,12 +1256,12 @@ public abstract class GpuTexture : GpuResource, IDisposable
                 return;
             }
 
-            GlStateCache.Current.BindTexture(target, unit, previousBinding);
-            GlStateCache.Current.BindSampler(unit, previousSampler);
+            StateCache.Current.BindTexture(target, unit, previousBinding);
+            StateCache.Current.BindSampler(unit, previousSampler);
 
             if (restoreActive)
             {
-                GlStateCache.Current.ActiveTexture(previousActiveUnit);
+                StateCache.Current.ActiveTexture(previousActiveUnit);
             }
         }
     }

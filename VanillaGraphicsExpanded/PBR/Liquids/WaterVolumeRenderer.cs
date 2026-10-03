@@ -75,7 +75,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
         if (program is null) return;
         try
         {
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
             if (target is null)
             {
                 var resources = new GpuResourceCollection();
@@ -106,10 +106,10 @@ internal sealed class WaterVolumeRenderer : IRenderer
             LiquidRenderer.BindWaterMedium(program, MaterialAtlasSystem.Instance.TextureStore, atlases[0]);
             program.AerialRadianceTexture = ModSystems.AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = ModSystems.AtmosphereModSystem.AerialAttenuationTexture;
-            using var state = GlStateCache.Current.CaptureLegacyFixedFunctionState();
-            using var framebuffer = GlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
+            using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
+            using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
             target.BindWithViewport();
-            GlStateCache.Current.Apply(Pipeline);
+            StateCache.Current.Apply(Pipeline);
             target.Clear(0, 0, 0, 0);
             var engineRender = (Vintagestory.Client.RenderAPIBase)api.Render;
             bool previous = LiquidMeshSource.UseSsbo(engineRender);
@@ -139,7 +139,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
         finally
         {
             program.CaptureMode = 0;
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
 

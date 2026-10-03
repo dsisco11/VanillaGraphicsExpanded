@@ -727,7 +727,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 UpdateWorldProbeClipmapDebugVerticesForCurrentCameraOrigin();
 
                 int prevOitActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-                using (GlStateCache.Current.CaptureLegacyFixedFunctionState())
+                using (StateCache.Current.CaptureLegacyFixedFunctionState())
                 {
                     RenderWorldProbeClipmapBoundsLive();
                     RenderWorldProbeQueuedTraceRaysLive();
@@ -735,7 +735,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     GL.ActiveTexture((TextureUnit)prevOitActiveTexture);
                 }
 
-                GlStateCache.Current.InvalidateAll();
+                StateCache.Current.InvalidateAll();
             }
 
             return;
@@ -890,7 +890,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             worldProbeDiffuseStride: hasWorldProbeResources ? 2 : 0);
         if (!LumOnDebugShaderProgramFamily.EnsureReady(capi, shader)) return;
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
 
         int[] prevViewport = new int[4];
         int[] prevScissorBox = new int[4];
@@ -916,8 +916,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         try
         {
             // Fullscreen overlays should not disturb global GL state even on early-return paths.
-            GlStateCache.Current.InvalidateAll();
-            GlStateCache.Current.Apply(FullscreenOverlayPso);
+            StateCache.Current.InvalidateAll();
+            StateCache.Current.Apply(FullscreenOverlayPso);
 
             GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
 
@@ -1136,7 +1136,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
 
             // This pass restores previous engine state via raw GL/wrappers, so the cache must be considered stale.
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
 
         // Store current matrix for next frame's reprojection
@@ -1342,13 +1342,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBounds"))
         {
             int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+            using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
 
             bool shaderUsed = false;
             try
             {
-                GlStateCache.Current.InvalidateAll();
-                GlStateCache.Current.Apply(ClipmapBoundsLinesPso);
+                StateCache.Current.InvalidateAll();
+                StateCache.Current.Apply(ClipmapBoundsLinesPso);
 
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = GetClipmapDebugWorldOffset();
@@ -1360,7 +1360,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 clipmapBoundsVao.Bind();
                 GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
-                GlStateCache.Current.SetLineWidth(1f);
+                StateCache.Current.SetLineWidth(1f);
 
                 GL.BindVertexArray(0);
             }
@@ -1373,7 +1373,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 GL.ActiveTexture((TextureUnit)prevActiveTexture);
 
-                GlStateCache.Current.InvalidateAll();
+                StateCache.Current.InvalidateAll();
             }
         }
 
@@ -1415,8 +1415,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             bool shaderUsed = false;
             try
             {
-                GlStateCache.Current.InvalidateAll();
-                GlStateCache.Current.Apply(ClipmapBoundsLivePso);
+                StateCache.Current.InvalidateAll();
+                StateCache.Current.Apply(ClipmapBoundsLivePso);
 
                 shader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 shader.WorldOffset = new Vec3f(0, 0, 0);
@@ -1426,13 +1426,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 clipmapBoundsVao.Bind();
 
                 GL.DrawArrays(PrimitiveType.Lines, 0, clipmapBoundsCount);
-                GlStateCache.Current.SetLineWidth(1f);
+                StateCache.Current.SetLineWidth(1f);
 
                 GL.BindVertexArray(0);
 
                 if (clipmapProbePointsCount > 0 && clipmapProbePointsVao is not null && clipmapProbePointsVao.IsValid)
                 {
-                    GlStateCache.Current.SetPointSize(3.5f);
+                    StateCache.Current.SetPointSize(3.5f);
 
                     clipmapProbePointsVao.Bind();
                     GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbePointsCount);
@@ -1444,7 +1444,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     && closestProbeMarkerVao.IsValid)
                 {
                     // Always-visible marker (no depth test) to help locate probe centers even when they're inside solids.
-                    GlStateCache.Current.Apply(ClosestProbeMarkerPso);
+                    StateCache.Current.Apply(ClosestProbeMarkerPso);
 
                     closestProbeMarkerVao.Bind();
                     GL.DrawArrays(PrimitiveType.Points, 0, 1);
@@ -1535,8 +1535,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         bool shaderUsed = false;
         try
         {
-            GlStateCache.Current.InvalidateAll();
-            GlStateCache.Current.Apply(QueuedTraceRaysPso);
+            StateCache.Current.InvalidateAll();
+            StateCache.Current.Apply(QueuedTraceRaysPso);
 
 
             shader.ModelViewProjectionMatrix = currentViewProjMatrix;
@@ -1546,7 +1546,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shaderUsed = true;
             clipmapQueuedTraceRaysVao.Bind();
             GL.DrawArrays(PrimitiveType.Lines, 0, clipmapQueuedTraceRayVertexCount);
-            GlStateCache.Current.SetLineWidth(1f);
+            StateCache.Current.SetLineWidth(1f);
             GL.BindVertexArray(0);
         }
         finally
@@ -2007,8 +2007,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             bool shaderUsed = false;
             try
             {
-                GlStateCache.Current.InvalidateAll();
-                GlStateCache.Current.Apply(WorldProbeOrbsPointsPso);
+                StateCache.Current.InvalidateAll();
+                StateCache.Current.Apply(WorldProbeOrbsPointsPso);
                 bool importanceColorMode = config.LumOn.DebugMode == LumOnDebugMode.WorldProbeImportance;
 
 
@@ -2062,7 +2062,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     var markerShader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
                     if (markerShader is not null && markerShader.EnsureReady())
                     {
-                        GlStateCache.Current.Apply(ClosestProbeMarkerPso);
+                        StateCache.Current.Apply(ClosestProbeMarkerPso);
 
                         markerShader.ModelViewProjectionMatrix = currentViewProjMatrix;
                         markerShader.WorldOffset = new Vec3f(0, 0, 0);
@@ -2559,15 +2559,15 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-        using var fixedFunctionState = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
 
         var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
         blitShader.Use();
 
         try
         {
-            GlStateCache.Current.InvalidateAll();
-            GlStateCache.Current.Apply(FullscreenOverlayPso);
+            StateCache.Current.InvalidateAll();
+            StateCache.Current.Apply(FullscreenOverlayPso);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texId);
@@ -2585,7 +2585,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             blitShader.Stop();
 
             GL.ActiveTexture((TextureUnit)prevActiveTexture);
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
 

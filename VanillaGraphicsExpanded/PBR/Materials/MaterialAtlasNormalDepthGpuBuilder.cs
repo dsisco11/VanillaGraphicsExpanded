@@ -136,19 +136,19 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
         int prevFbo = GpuFramebuffer.SaveBinding();
-        var prevGl = GlStateCache.Current;
+        var prevGl = StateCache.Current;
         _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
         _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
         _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
         _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
 
         // Engine GL state can leak into the bake. Force a known-good state and restore after.
-        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState();
 
         try
         {
             // Known-good state for offscreen full-screen passes.
-            var gl = GlStateCache.Current;
+            var gl = StateCache.Current;
             gl.InvalidateAll();
             gl.Apply(BakeKnownGoodPso);
 
@@ -461,7 +461,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             // "Already a different shader (...) in use!" on the next render pass.
             StopAllBakerPrograms();
 
-            var gl = GlStateCache.Current;
+            var gl = StateCache.Current;
 
             gl.UseProgram(prevProgram);
             gl.BindVertexArray(prevVao);
@@ -499,17 +499,17 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
         int prevFbo = GpuFramebuffer.SaveBinding();
-        var prevGl = GlStateCache.Current;
+        var prevGl = StateCache.Current;
         _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
         _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
         _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
         _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
 
-        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState();
 
         try
         {
-            var gl = GlStateCache.Current;
+            var gl = StateCache.Current;
             gl.InvalidateAll();
             gl.Apply(BakeKnownGoodPso);
 
@@ -526,7 +526,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         {
             StopAllBakerPrograms();
 
-            var gl = GlStateCache.Current;
+            var gl = StateCache.Current;
 
             gl.UseProgram(prevProgram);
             gl.BindVertexArray(prevVao);
@@ -583,17 +583,17 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         int[] prevViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, prevViewport);
         int prevFbo = GpuFramebuffer.SaveBinding();
-        var prevGl = GlStateCache.Current;
+        var prevGl = StateCache.Current;
         _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
         _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
         _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
         _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
 
-        using var fixedFunctionScope = GlStateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState();
 
         try
         {
-            var gl = GlStateCache.Current;
+            var gl = StateCache.Current;
             gl.InvalidateAll();
             gl.Apply(BakeKnownGoodPso);
 
@@ -679,7 +679,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         {
             StopAllBakerPrograms();
 
-            var gl = GlStateCache.Current;
+            var gl = StateCache.Current;
 
             gl.UseProgram(prevProgram);
             gl.BindVertexArray(prevVao);

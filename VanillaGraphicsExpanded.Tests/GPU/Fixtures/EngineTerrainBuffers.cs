@@ -36,7 +36,7 @@ internal sealed class EngineTerrainBuffers : IDisposable
     public void UploadFeedback(GBufferManager buffers, uint[] values)
     {
         Assert.Equal(Primary.Width*Primary.Height*4,values.Length);
-        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,buffers.PatchIdTextureId);
+        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,buffers.PatchIdTextureId);
         GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,Primary.Width,Primary.Height,PixelFormat.RgbaInteger,PixelType.UnsignedInt,values);
     }
 
@@ -44,7 +44,7 @@ internal sealed class EngineTerrainBuffers : IDisposable
     private void Upload(int texture, float[] values)
     {
         Assert.Equal(Primary.Width*Primary.Height*4,values.Length);
-        using var binding = GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,texture);
+        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,texture);
         GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,Primary.Width,Primary.Height,PixelFormat.Rgba,PixelType.Float,values);
     }
     #endregion

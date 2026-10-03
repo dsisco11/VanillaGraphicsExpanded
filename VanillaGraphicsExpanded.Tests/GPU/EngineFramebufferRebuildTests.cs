@@ -72,7 +72,7 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
             var failures = new List<string>();
             for (int index = 0; index < inputs.Length; index++)
             {
-                GlStateCache.Current.BindTexture(TextureTarget.Texture2D, inputs[index].Unit, inputs[index].Texture);
+                StateCache.Current.BindTexture(TextureTarget.Texture2D, inputs[index].Unit, inputs[index].Texture);
                 var error = GL.GetError();
                 if (error != ErrorCode.NoError) failures.Add($"{inputs[index].Name}: texture {inputs[index].Texture}, {error}");
             }
@@ -111,7 +111,7 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             AccessTools.Method(typeof(ClientPlatformWindows), "DisposeFrameBuffers").Invoke(platform, [frameField.GetValue(platform)]);
             replacement = null;
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
         }
     }
     #endregion
@@ -147,7 +147,7 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
         }
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.BindTexture(TextureTarget.Texture2D, 0);
-        GlStateCache.Current.InvalidateAll();
+        StateCache.Current.InvalidateAll();
         return frames;
     }
 

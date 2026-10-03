@@ -3,7 +3,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Adapts individual engine state operations to the cache without changing unrelated state.</summary>
-internal sealed partial class GlStateCache
+internal sealed partial class StateCache
 {
     #region Public API
     #region State changes

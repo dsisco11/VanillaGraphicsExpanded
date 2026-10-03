@@ -27,8 +27,8 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         texture.UploadDataImmediate(data,0,0,0,5,4,3);
         using var draw=GpuFramebuffer.CreateEmpty("Tests.Readback.Draw");
         using var read=GpuFramebuffer.CreateEmpty("Tests.Readback.Read");
-        using var drawScope=GlStateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
-        using var readScope=GlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
+        using var drawScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
+        using var readScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
         using var pack=GpuPixelPackBuffer.Create(debugName:"Tests.Readback.ExistingPack");
         using var packScope=pack.BindScope();
         var packing=new[]{PixelStoreParameter.PackAlignment,PixelStoreParameter.PackRowLength,
@@ -39,7 +39,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         try
         {
             for(int i=0;i<packing.Length;i++) GL.PixelStore(packing[i],hostile[i]);
-            GlStateCache.Current.DirtyPixelPackState();
+            StateCache.Current.DirtyPixelPackState();
             using var result=texture.ReadPixelsRegion(2,1,2,2,2);
             Assert.True(result.Span.SequenceEqual(new float[]{2,1,2,312,3,1,2,313,2,2,2,322,3,2,2,323}));
             for(int i=0;i<packing.Length;i++) Assert.Equal(hostile[i],GL.GetInteger((GetPName)packing[i]));
@@ -48,7 +48,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         finally
         {
             for(int i=0;i<packing.Length;i++) GL.PixelStore(packing[i],previous[i]);
-            GlStateCache.Current.DirtyPixelPackState();
+            StateCache.Current.DirtyPixelPackState();
         }
 
         Assert.Equal(draw.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));

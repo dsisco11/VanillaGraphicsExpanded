@@ -200,18 +200,18 @@ public sealed class ShaderTestFramework : IDisposable
     {
         EnsureQuadInitialized();
 
-        GlStateCache.Current.Apply(FullscreenPassPso);
-        GlStateCache.Current.UseProgram(programId);
+        StateCache.Current.Apply(FullscreenPassPso);
+        StateCache.Current.UseProgram(programId);
         using var geometry = _quadVao!.BindScope();
         _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
-        GlStateCache.Current.UnbindProgram();
+        StateCache.Current.UnbindProgram();
     }
 
     /// <summary>Draws an isolated pass using its production activation and state handling.</summary>
     public void RenderQuad(GpuProgram program)
     {
         EnsureQuadInitialized();
-        GlStateCache.Current.Apply(FullscreenPassPso);
+        StateCache.Current.Apply(FullscreenPassPso);
         using var use = program.UseScope();
         using var geometry = _quadVao!.BindScope();
         _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
@@ -221,7 +221,7 @@ public sealed class ShaderTestFramework : IDisposable
     public void RenderQuadTo(GpuProgram program, GpuFramebuffer target, (float r, float g, float b, float a)? clearColor = null)
     {
         target.BindWithViewport();
-        GlStateCache.Current.Apply(FullscreenPassPso);
+        StateCache.Current.Apply(FullscreenPassPso);
         var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
         target.Clear(r, g, b, a);
         RenderQuad(program);
@@ -239,7 +239,7 @@ public sealed class ShaderTestFramework : IDisposable
     {
         target.BindWithViewport();
 
-        GlStateCache.Current.Apply(FullscreenPassPso);
+        StateCache.Current.Apply(FullscreenPassPso);
 
         var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
         target.Clear(r, g, b, a);

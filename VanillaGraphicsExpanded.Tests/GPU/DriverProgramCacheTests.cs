@@ -112,7 +112,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         }
         finally
         {
-            GlStateCache.Current.InvalidateAll();
+            StateCache.Current.InvalidateAll();
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }

@@ -39,8 +39,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        GlStateCache.Current.UseProgram(program.ProgramId);
-        GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(program.ProgramId);
+        StateCache.Current.BindVertexArray(vao.VertexArrayId);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         for (int exponent = 2; exponent <= 7; exponent++)
         foreach (float sign in new[] { -1f, 1f })
@@ -106,8 +106,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var glow = DynamicTexture2D.Create(64, 64, PixelInternalFormat.Rgba32f);
         using var target = GpuFramebuffer.CreateMRT([color, glow], depth)!;
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        GlStateCache.Current.UseProgram(program.ProgramId);
-        GlStateCache.Current.BindVertexArray(vao.VertexArrayId);
+        StateCache.Current.UseProgram(program.ProgramId);
+        StateCache.Current.BindVertexArray(vao.VertexArrayId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereDisk"), 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);

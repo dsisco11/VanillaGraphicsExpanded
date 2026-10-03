@@ -129,7 +129,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         Assert.NotEqual(0, gbuffer.EnvironmentTextureId);
         GL.ClearTexImage(gbuffer.EnvironmentTextureId, 0, PixelFormat.Rgba, PixelType.Float, new[] { 1f,1f,1f,1f });
         gbuffer.ClearGBuffer(EnumFrameBuffer.Primary);
-        using (GlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, gbuffer.EnvironmentTextureId))
+        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, gbuffer.EnvironmentTextureId))
         {
             float[] pixels = new float[16];
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);

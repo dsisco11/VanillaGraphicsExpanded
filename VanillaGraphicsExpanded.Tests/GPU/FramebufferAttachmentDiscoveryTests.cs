@@ -34,7 +34,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
     public void ExternalArrayLayerCopiesSelectedImage(int layer)
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         using var texture = DynamicTexture3D.Create(2, 2, 2, PixelInternalFormat.Rgba32f);
         using var image = GpuFramebufferAttachment.FromTexture(texture, layer: layer);
         using var source = GpuFramebuffer.Create([image])!;
@@ -53,12 +53,12 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
     public void ExternalCubeFaceCopiesSelectedImage()
     {
         EnsureContextValid();
-        using var scope = GlStateCache.Current.BindFramebufferScope();
+        using var scope = StateCache.Current.BindFramebufferScope();
         int texture = GL.GenTexture();
         try
         {
             // No cube-map allocation wrapper exists; allocate every face to provide complete cube storage.
-            using (GlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, texture))
+            using (StateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, texture))
             {
                 for (int face = 0; face < 6; face++)
                     GL.TexImage2D(TextureTarget.TextureCubeMapPositiveX + face, 0, PixelInternalFormat.Rgba32f,
@@ -79,7 +79,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         }
         finally
         {
-            GlStateCache.Current.DeleteTexture(texture);
+            StateCache.Current.DeleteTexture(texture);
         }
     }
     #endregion

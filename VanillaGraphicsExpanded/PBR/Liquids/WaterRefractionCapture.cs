@@ -92,10 +92,10 @@ internal sealed class WaterRefractionCapture : IRenderer
         int width = api.Render.FrameWidth, height = api.Render.FrameHeight;
         if (width <= 0 || height <= 0) return;
         // Each lighting/composite draw restores shader ownership through its own UseScope.
-        using var fixedState = GlStateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
-        using var bindings = GlStateCache.Current.BindFramebufferScope();
-        GlStateCache.Current.InvalidateAll();
-        GlStateCache.Current.Apply(CapturePipeline);
+        using var fixedState = StateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
+        using var bindings = StateCache.Current.BindFramebufferScope();
+        StateCache.Current.InvalidateAll();
+        StateCache.Current.Apply(CapturePipeline);
         if (lighting?.IsValid != true || lighting.DirectDiffuse.Width != width || lighting.DirectDiffuse.Height != height)
         {
             scene.Dispose();
