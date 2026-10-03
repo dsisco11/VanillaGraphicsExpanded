@@ -1,6 +1,8 @@
 Issues:
   Current:
     ✔ Add debug label scopes for the remaining unlabeled base-game rendering passes. See docs/GPU.EngineRenderScopes.md; Debug build and 16 focused tests passed. Live RenderDoc confirmation remains user-run.
+    ☐ Extract FBO blitting into dedicated `GpuFramebufferBlitter` class.
+    ☐ Create proper abstraction for FBO attachments.
     ☐ Normal maps not loading from material atlas baking system?
     ☐ Tessellation not working (possibly due to the normal maps not loading?).
     ☐ Add edge beveling for geometry normals prior to direct lighting so that lighting appears smoother along edges and corners.
@@ -19,25 +21,23 @@ Issues:
     ☐ Split all of the Probe-view debug modes into nested categories for better organization. e.g. all "Probe-atlas" views should be under the "Probe atlas" category, etc.
 
   Performance:
-    ✔ Refactor uniform-buffer writes to report changes and avoid unnecessary dirty marking. Debug build, 34 focused tests and independent review completed. GPU upload reduction is not claimed.
-      - Make UboPacking write methods return bool: true only when the destination's stored data
-        changes, false for an identical write. Cover scalar, vector and matrix writers consistently.
-      - Have CpuUniformBuffer's typed writers consume that result and call MarkDirty only for changed
-        data. CpuUniformBuffer owns dirty tracking; review GpuUniformBuffer and the upload/ring path
-        as consumers rather than moving CPU dirty tracking into the GPU storage owner.
-      - Preserve previously dirty ranges when a later write is unchanged. Migrate direct packing callers
-        that currently mark dirty unconditionally, preserving batching and explicit raw-write contracts.
-      - Define comparison by stored representation, including NaN bit patterns and signed zero; preserve
-        adjacent members/padding and validate the full destination range before modifying bytes.
-      - Do not skip a required GPU bind or reuse an expired ring allocation merely because CPU bytes
-        are unchanged. Any upload-elision work must respect frame/ring lifetime and program reload.
-      - Add focused subagent-run tests for changed/unchanged scalar, integer, vector and matrix writes,
-        dirty-range preservation, invalid writes and floating-point bit patterns. Measure comparison
-        overhead separately from any claimed reduction in GPU uploads.
-    ✔ Establish retained shader inputs with contract-generated Submit on Use. See docs/Rendering.ShaderPreparation.todo.
-    ☐ Audit each of the LumOn shaders for opportunities to reduce shader code instruction count.
-    ☐ Profile the performance of the near-tracing geometry system to identify bottlenecks and optimize GPU memory usage.
-    ☐ Investigate potential optimizations for memory layout and data transfer patterns to improve overall GPU efficiency.
+    PipelineState:
+      ☐ Add support for expected Renderbuffer binding to the PipelineState system.
+      ☐ Add support for expected Framebuffer binding to the PipelineState system.
+      ☐ Add support for expected Shader binding to the PipelineState system.
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for rasterization state changes (e.g., glEnable, glDisable, blending, depthTesting, depthMasking).
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for texture binding changes (e.g., glBindTexture).
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for framebuffer binding changes (e.g., glBindFramebuffer).
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for renderbuffer binding changes (e.g., glBindRenderbuffer).
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for program binding changes (e.g., glUseProgram).
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for vertex array binding changes (e.g., glBindVertexArray).
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for buffer binding changes (e.g., glBindBuffer).
+      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for UBO binding changes (e.g., glBindBufferBase for uniform buffers).
+      ☐ Remove all of the `GlStateCache.InvalidateAll()` and `GlStateCache.CaptureLegacyFixedFunctionState()` calls from the codebase, as they should no longer be necessary with the injected Harmony patches.
+    General:
+      ☐ Audit each of the LumOn shaders for opportunities to reduce shader code instruction count.
+      ☐ Profile the performance of the near-tracing geometry system to identify bottlenecks and optimize GPU memory usage.
+      ☐ Investigate potential optimizations for memory layout and data transfer patterns to improve overall GPU efficiency.
 
   PBR Shading:
     ☐ Ensure PBR shader system can operate independently of LumOn and still produce nice lighting.
