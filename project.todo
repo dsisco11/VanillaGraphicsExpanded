@@ -22,19 +22,9 @@ Issues:
 
   Performance:
     PipelineState:
-      Supported engine call routing is implemented: 216 call sites across 78 methods, 45 focused tests passed. See docs/Rendering.EngineStateSwitching.md; live engine acceptance remains pending for the integration entries below.
       ☐ Evolve graphics pipeline state into an authoritative submission system. Approved proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md. Plan: docs/Rendering.AuthoritativePipelineState.todo.
-      ☐ Audit renderbuffer resource-operation binding/cache coverage; keep it outside graphics pipeline identity. See docs/Rendering.AuthoritativePipelineState.todo.
       ☐ Establish concrete framebuffer targets through render-pass setup and compatible target signatures through pipeline validation. See docs/Rendering.AuthoritativePipelineState.todo.
       ☐ Integrate prepared shader dependencies through the existing activation/submission lifecycle. See docs/Rendering.AuthoritativePipelineState.todo.
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for rasterization state changes (e.g., glEnable, glDisable, blending, depthTesting, depthMasking).
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for texture binding changes (e.g., glBindTexture).
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for framebuffer binding changes (e.g., glBindFramebuffer).
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for renderbuffer binding changes (e.g., glBindRenderbuffer).
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for program binding changes (e.g., glUseProgram).
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for vertex array binding changes (e.g., glBindVertexArray).
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for buffer binding changes (e.g., glBindBuffer).
-      ☐ Add Harmony patches to auto inject GlStateCache calls into the base-game engine methods for UBO binding changes (e.g., glBindBufferBase for uniform buffers).
       ☐ Remove individual invalidation/capture scopes only after tracking and engine restoration are proven; retain fallback boundaries for unknown mutations. See docs/Rendering.AuthoritativePipelineState.todo.
     General:
       ☐ Audit each of the LumOn shaders for opportunities to reduce shader code instruction count.
