@@ -211,17 +211,35 @@ Phase 6 — Capture refraction backgrounds only when needed
   submission ownership control this gate; pipeline state and water-medium transport are unchanged.
 
 Phase 7 — Eliminate discarded fallback shading
-  ☐ Skip ordinary fallback shading when a valid refracted receiver fully replaces its contribution.
+  ☑ Skip ordinary fallback shading when a valid refracted receiver fully replaces its contribution.
     - Current successful ray/UV receivers have confidence 1. Preserve the fallback for invalid
       receivers and any supported partial-confidence path; do not force confidence to one.
     - Avoid unused fallback scattering-source, transport and atmospheric calculations, including
       fallback-only work inside the point-light loop. Retain shared reflection lighting.
     - Preserve non-water liquids, total internal reflection, alpha, glow and OIT outputs.
-  ☐ Verify valid ray/UV receivers, rejected receivers, refraction disabled and underwater views.
+  ☑ Verify valid ray/UV receivers, rejected receivers, refraction disabled and underwater views.
     - Inspect optimized variants and compare work on coherent and mixed receiver-validity regions;
       branch divergence may affect savings.
   Completion: fully replaced fallback contributions are not shaded, with unchanged composition.
   Dependency: integrate with Phase 5 source-light gating rather than adding competing branches.
+  Implemented 2026-10-04: valid full-confidence receivers skip fallback depth/thickness,
+  transport and aerial evaluation. Invalid/partial receivers keep fallback; confidence and
+  premultiplied composition are unchanged. Positive effective scattering and contribution demand
+  gate solar/point source terms together, retaining shared reflection and all non-water/OIT paths.
+  Fresh serial shader/Debug build and 101/101 focused tests passed, zero failures/skips.
+  Matched optimized builds cover 32 variants: eight surface variants retain the branches and
+  each gain 66 static instructions; the other 24 capture variants are unchanged.
+  Four corrected ABBA runs passed two UV/x8 cases each over coherent and mixed validity regions.
+  All 36 attachment comparisons preserve revealage/glow exactly and color within 1.1921e-6.
+  GPU timing ranges overlap broadly; no reliable or live-frame speedup is claimed.
+  See PBR.WaterRefraction.md / Shared receiver and optical evaluation and
+  artifacts/WaterLagAnalysis/fallback-shading-* for exact results and the initial fixture-override
+  assertion failure, corrected before the four completed measurement runs.
+  Traceability: WaterRefraction receiver/confidence/composition, WaterMedium effective scattering
+  and photon direction, Liquids six-target OIT, and material/shared-display/dither boundaries
+  govern this change. Retired WaterRefraction.todo resolves before deletion commit e918f189.
+  Pipeline ownership and capture evidence remain unchanged; full-scene HDR stays separate.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 8 — Reuse atmospheric transport for the shared camera segment
   ☐ Evaluate surface-to-camera atmospheric attenuation and scattering once when both contributions

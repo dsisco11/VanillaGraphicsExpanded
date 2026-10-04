@@ -440,6 +440,54 @@ output adapter. HDR output keeps radiance above one; legacy output applies the s
 operator and dither once to the resulting straight color. This fixes the previous interpolation
 of separately tone-mapped contributions without activating full-scene HDR.
 
+The surface evaluates ordinary fallback transport only when the receiver is unavailable or
+its confidence is below full replacement. A valid receiver with confidence at least one skips
+the fallback depth lookup, thickness, extinction, scattering integration and camera-segment
+aerial perspective. The unused fallback inputs are initialized to zero radiance and unit alpha;
+the existing clamped premultiplied composition then returns the complete refracted contribution.
+Confidence is not changed. Partial-confidence receivers retain both contributions, while disabled
+refraction, rejected coverage and total internal reflection retain the ordinary path.
+
+Source illumination uses the same positive-effective-scattering rule as boundary capture.
+Solar and point-light phase terms are evaluated only for required fallback/refracted sources;
+the refracted photon-direction transform is likewise unnecessary for zero scattering. Shared
+shadow visibility, solar and point-light reflection remain outside these gates. Non-water body
+lighting, glow, sphere fog, preview alpha and six-target OIT output retain their existing paths.
+The underwater outgoing air segment remains separate from the submerged camera segment.
+
+The fallback-work change passed a fresh serial shader/Debug build and 101/101 focused tests
+with zero failures or skips. Coverage includes all refraction tiers, full/half receivers,
+disabled/rejected refraction, underwater/TIR, directional scattering, non-water compatibility,
+transparency and sun reflection. Existing optical-helper tests retain partial-confidence
+composition checks; current production selectors publish only zero or one confidence.
+Matched optimized builds cover all 32 liquid fragment variants. The eight surface variants
+retain the conditional fallback depth, transport, aerial and source-phase work and each gain
+66 static instructions; the other 24 capture variants are unchanged. Static image-sampling
+counts are unchanged. This demonstrates conditional execution, not
+a smaller shader or measured register/occupancy improvement.
+
+Four warmed ABBA runs passed two production cases each, comparing UV and x8 at full resolution
+on an RTX 4090 (driver 591.86). Each sample times 16 draws at 512x512, excluding preparation
+and uploads. Nonzero medium scattering, solar/environment/point lighting and aerial transport
+remain active. Valid, invalid and 8-pixel checker receiver regions produce 120 samples.
+The checker includes both replaced and fallback pixels: 161344/262144 replaced for UV and
+199228/262144 for x8. Across 36 attachment comparisons, revealage and glow are bit-identical;
+weighted color differs by at most 1.1921e-6 absolute (1.1236e-6 scaled).
+
+| Receiver workload | UV baseline / changed (ms) | x8 baseline / changed (ms) |
+| --- | ---: | ---: |
+| Valid | 2.2062 / 2.1893 | 4.3402 / 4.0847 |
+| Invalid | 0.6339 / 0.6513 | 6.1773 / 4.7974 |
+| Checker | 2.1171 / 2.0828 | 14.7528 / 13.0181 |
+
+These are medians per 16 draws, with broad overlapping ranges. For example, x8 checker ranges
+are 12.58–16.62 ms before and 8.78–17.51 ms after. They do not establish a reliable speedup,
+production cost or isolated divergence penalty. Live frame-time benefit remains unmeasured.
+Receipts are `artifacts/WaterLagAnalysis/fallback-shading-*`: build/test logs, optimized and
+timing CSVs, ABBA logs/TRX, and full-attachment output comparisons. An initial measurement
+attempt rejected the missing default-x8 binary override before timing that case; the corrected
+fixture explicitly maps both default and variant assets, and all four subsequent runs passed.
+
 The controlling contracts are the receiver/provenance and composition requirements in
 `PBR.WaterRefraction.todo`, the units and photon-direction convention in `PBR.WaterMedium.md`,
 and the six-target OIT/engine ownership contract in `PBR.Liquids.md`. Display adaptation follows

@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises production liquid refraction with immutable scene radiance and depth.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     private const int LavaCase = 1;
     private const int FullAlphaCase = 2;
@@ -117,10 +117,23 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3, int compatibility = 0)
     {
         EnsureContextValid();
-        int frameSize = scenario >= 14 ? 128 : 16;
+        string? binaryDirectory = Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_BINARIES");
+        bool measure = Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_SURFACE") == "1" && scenario == 0 && compatibility == 0;
+        int frameSize = measure ? 512 : scenario >= 14 ? 128 : 16;
         int center = frameSize / 2;
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        if (!string.IsNullOrEmpty(binaryDirectory))
+        {
+            assets.BeforeRead = path =>
+            {
+                bool variant = path.Contains("variants/pbr_liquid.fsh/",StringComparison.Ordinal);
+                if (!variant && !path.EndsWith("/pbr_liquid.fsh.spv",StringComparison.Ordinal)) return;
+                string binary = Path.Combine(binaryDirectory,variant
+                    ? $"pbr_liquid.fsh.{Path.GetFileNameWithoutExtension(path)}.glsl.spv" : "default.spv");
+                assets.Overrides[path] = File.ReadAllBytes(binary);
+            };
+        }
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         program.ConfigureOptions(() =>
         {
@@ -128,6 +141,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             program.RefractionBackgroundScale = 3 - backgroundScale;
         });
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
+        if (!string.IsNullOrEmpty(binaryDirectory)) Assert.NotEmpty(assets.Overrides);
         program.SceneLinear = sceneLinear;
         using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var terrain = DynamicTexture2D.Create(compatibility == FlowCase ? 8 : 1, compatibility == FlowCase ? 8 : 1, PixelInternalFormat.Rgba32f);
@@ -412,6 +426,67 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             for (int row = 0; row < 8; ++row) Assert.InRange(edgeRevealage[row * 4],0,.00001f);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+
+        if (!string.IsNullOrEmpty(binaryDirectory))
+        {
+            // Compare the same existing numerical scenarios across independently
+            // compiled binaries without changing their expected optical outcomes.
+            output.WriteLine($"surface-output scenario={scenario} quality={refractionQuality} scale={backgroundScale} compatibility={compatibility} disabledReveal={string.Join(',',baseline)} disabledAccumulation={string.Join(',',baselineAccumulation)}");
+            for (int attachment = 0; attachment < 6; attachment++)
+                output.WriteLine($"surface-mrt index={attachment} center={string.Join(',',target[attachment].ReadPixelsRegion(center,center,1,1))}");
+        }
+        if (measure)
+        {
+            Assert.Equal(1,backgroundScale);
+            output.WriteLine($"surface-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)} binaries={binaryDirectory}");
+            // Keep transport, source and shared point-light reflection active.
+            // Receiver eligibility alone varies between coherent and mixed regions.
+            mediumRecord.UploadDataImmediate([.1f,.2f,.3f,.7f, .2f,.3f,.4f,0]);
+            program.MediumLookupEnabled = true;
+            program.SolarIrradiance = new(10,10,10,0);
+            program.EnvironmentIrradiance = new(2,2,2,0);
+            program.SetCounts(1,0);
+            program.SetPointLightPosition(0,new(0,0,-12)); program.SetPointLightColor(0,new(100));
+            program.AerialParameters = new(100,100,0,0);
+            aerial.UploadDataImmediate([.05f,.05f,.05f,.1f],0,0,0,1,1,1,0);
+            foreach (string workload in new[] { "valid", "invalid", "checker" })
+            {
+                var receiverDepths = new float[frameSize * frameSize];
+                for (int pixel = 0; pixel < receiverDepths.Length; pixel++)
+                    receiverDepths[pixel] = workload == "invalid" || workload == "checker" && (((pixel % frameSize) / 8 + (pixel / frameSize) / 8) & 1) != 0 ? 1 : deviceDepth;
+                sceneDepth.UploadDataImmediate(receiverDepths);
+                for (int sample = -2; sample < 5; sample++)
+                {
+                    DrawBoundary(2,true); target.Clear(0,0,0,0);
+                    using var elapsed = GpuTimerQuery.Create();
+                    using var shader = program.UseScope();
+                    elapsed.Begin();
+                    for (int draw = 0; draw < 16; draw++) vao.DrawElements(PrimitiveType.Triangles,indices);
+                    elapsed.End();
+                    double milliseconds = elapsed.GetResultNanoseconds() / 1e6;
+                    if (sample >= 0) output.WriteLine($"surface-cost quality={refractionQuality} workload={workload} sample={sample} gpuMs={milliseconds:R} viewport=512x512 draws=16");
+                }
+                float[] revealage = target[1].ReadPixels();
+                int replaced = Enumerable.Range(0,frameSize * frameSize).Count(pixel => revealage[pixel * 4] == 0);
+                if (workload == "checker") Assert.InRange(replaced,1,frameSize * frameSize - 1);
+                for (int attachment = 0; attachment < 6; attachment++)
+                {
+                    float[] pixels = target[attachment].ReadPixels();
+                    Assert.All(pixels,value => Assert.True(float.IsFinite(value)));
+                    string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan())));
+                    output.WriteLine($"surface-workload-output quality={refractionQuality} workload={workload} mrt={attachment} sum={pixels.Sum(value => (double)value):R} hash={hash} replaced={replaced}");
+                    string? captureDirectory = Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_OUTPUTS");
+                    if (!string.IsNullOrEmpty(captureDirectory))
+                    {
+                        Directory.CreateDirectory(captureDirectory);
+                        using var file = File.Create(Path.Combine(captureDirectory,$"q{refractionQuality}-{workload}-mrt{attachment}.f32.gz"));
+                        using var compressed = new System.IO.Compression.GZipStream(file,System.IO.Compression.CompressionLevel.Fastest);
+                        compressed.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan()));
+                    }
+                }
+                target.BindWithViewport();
+            }
+        }
 
         /// <summary>Submits a sloped quad with an explicitly encoded outward normal and no wave animation.</summary>
         void DrawBoundary(float distance, bool entry)
