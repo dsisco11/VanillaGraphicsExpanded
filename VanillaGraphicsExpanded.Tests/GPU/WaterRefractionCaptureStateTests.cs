@@ -2,6 +2,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Vintagestory.API.Client;
@@ -104,6 +105,62 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             if (backgroundScale == 2)
                 Assert.Equal(new float[] { .75f, .5f, .5f, 1 }, composite.RefractionScene.Depth.ReadPixels());
             Assert.Equal(.01f, terrain.Depth.ReadPixels()[0]);
+
+            var ordinary = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
+            var preOverlay = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!;
+            Assert.NotSame(ordinary, preOverlay);
+            Assert.NotEqual(ordinary.ProgramId, preOverlay.ProgramId);
+            int retainedCapture = preOverlay.ProgramId;
+            // Structural changes belong to the ordinary owner. Warm each selected
+            // setting once, then verify actual alternating draws reuse both programs.
+            foreach (var (enabled, pbr, ao) in new[]
+                { (lumon, lumon, lumon), (!lumon, !lumon, !lumon), (true, true, false), (true, false, true), (lumon, lumon, lumon) })
+            {
+                config.LumOn.Enabled = enabled;
+                config.LumOn.EnablePbrComposite = pbr;
+                config.LumOn.EnableShortRangeAo = ao;
+                Assert.True(composite.PrepareFrame());
+                Assert.Equal(retainedCapture, preOverlay.ProgramId);
+                Assert.Equal(enabled, ordinary.LumOnEnabled);
+                Assert.Equal(enabled && pbr, ordinary.EnablePbrComposite);
+                Assert.Equal(enabled && ao, ordinary.EnableShortRangeAo);
+                Assert.False(preOverlay.LumOnEnabled);
+                Assert.False(preOverlay.EnablePbrComposite);
+                Assert.False(preOverlay.EnableShortRangeAo);
+                AssertStableFrames();
+            }
+
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = false;
+            capture.OnRenderFrame(.016f, EnumRenderStage.Before);
+            int ordinaryId = ordinary.ProgramId;
+            int readsBeforeDisabled = assets.Reads.Count;
+            for (int frame = 0; frame < 2; frame++)
+            {
+                Assert.True(composite.PrepareFrame());
+                composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                Assert.False(composite.RefractionScene.Published);
+                Assert.False(composite.PreOverlayScene.Published);
+            }
+            Assert.Equal(ordinaryId, ordinary.ProgramId);
+            Assert.Equal(retainedCapture, preOverlay.ProgramId);
+            Assert.Equal(readsBeforeDisabled, assets.Reads.Count);
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;
+            AssertStableFrames();
+
+            Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
+            // Engine Stop releases managed ownership but can retain the last raw
+            // binding. End that submission before simulating the engine reload boundary.
+            StateCache.Current.UnbindProgram();
+            Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
+            Assert.True(VgeShaderPrograms.RegisterAll(api));
+            Assert.Same(ordinary, GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite"));
+            Assert.Same(preOverlay, GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName));
+            Assert.True(composite.PrepareFrame());
+            // Reload also invalidates direct/reduction programs; warm the complete
+            // production path before checking for recurring executable preparation.
+            ComposeChangedWorld(.375f);
+            AssertStableFrames();
+
             terrain.UploadTerrain(gbuffer, [.75f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
             caller.Use();
             caller.PrimaryScene = terrain.Color.TextureId;
@@ -128,7 +185,50 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = false;
             capture.OnRenderFrame(.016f, EnumRenderStage.Before);
             Assert.Null(composite.PreOverlayScene.Color);
+            caller.Stop();
+            ordinaryId = ordinary.ProgramId;
+            retainedCapture = preOverlay.ProgramId;
+            GpuShaderPrograms.Dispose(api);
+            Assert.False(GL.IsProgram(ordinaryId));
+            Assert.False(GL.IsProgram(retainedCapture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
+
+            /// <summary>Observes stable real executables and asset reads across changed frame inputs.</summary>
+            void AssertStableFrames()
+            {
+                int ordinaryProgram = ordinary.ProgramId;
+                int captureProgram = preOverlay.ProgramId;
+                var ordinaryInterface = ordinary.ProgramLayout.BinaryInterface;
+                var captureInterface = preOverlay.ProgramLayout.BinaryInterface;
+                int reads = assets.Reads.Count;
+                ComposeChangedWorld(.25f);
+                ComposeChangedWorld(.625f);
+                Assert.Equal(ordinaryProgram, ordinary.ProgramId);
+                Assert.Equal(captureProgram, preOverlay.ProgramId);
+                Assert.Same(ordinaryInterface, ordinary.ProgramLayout.BinaryInterface);
+                Assert.Same(captureInterface, preOverlay.ProgramLayout.BinaryInterface);
+                Assert.Equal(reads, assets.Reads.Count);
+            }
+
+            /// <summary>Captures new world data then verifies ordinary publication restores it behind an overlay.</summary>
+            void ComposeChangedWorld(float depth)
+            {
+                Assert.True(composite.PrepareFrame());
+                Assert.Equal(ErrorCode.NoError, GL.GetError());
+                terrain.UploadTerrain(gbuffer, [depth], [.5f,.5f,1,1], [.5f,0,0,0], [depth,depth,depth,1]);
+                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
+                Assert.True(composite.PreOverlayScene!.Published);
+                Assert.Equal(depth, composite.PreOverlayScene.Depth!.ReadPixels()[0]);
+                Assert.Equal(ErrorCode.NoError, GL.GetError());
+                float[] worldColor = composite.PreOverlayScene.Color!.ReadPixels();
+                terrain.UploadTerrain(gbuffer, [.01f], [.5f,.5f,1,-1], [.5f,0,0,0], [1f,0f,0f,1]);
+                direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                Assert.Equal(ErrorCode.NoError, GL.GetError());
+                composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                Assert.True(composite.RefractionScene.Published);
+                Assert.Equal(depth, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
+                Assert.Equal(worldColor, composite.RefractionScene.SourceColor!.ReadPixels());
+            }
         }
         finally
         {

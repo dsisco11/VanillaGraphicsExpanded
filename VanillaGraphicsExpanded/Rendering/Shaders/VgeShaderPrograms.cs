@@ -25,6 +25,14 @@ internal static class VgeShaderPrograms
             new PBR.Liquids.LiquidDepthShaderProgram(),
             new PBR.Liquids.WaterRefractionReductionShaderProgram(),
             new PBRCompositeShaderProgram(),
+            // Capture precedes current-frame LumOn gathering; retain its environment-only executable.
+            new PBRCompositeShaderProgram
+            {
+                PassName = PBRCompositeShaderProgram.PreOverlayPassName,
+                LumOnEnabled = false,
+                EnablePbrComposite = false,
+                EnableShortRangeAo = false
+            },
             new PBRDisplayResolveShaderProgram(),
             new PBR.SceneColor.SceneColorParticleShaderProgram(),
             new PBR.SceneColor.SceneColorParticleSsaoShaderProgram(),

@@ -45,18 +45,26 @@ Measurement policy
   independent optimization. Final targeted comparisons may reuse earlier applicable evidence.
 
 Phase 1 — Remove composite executable replacement
-  ☐ Retain independently prepared pre-overlay and ordinary composite owners.
+  ☑ Retain independently prepared pre-overlay and ordinary composite owners.
     - Audit actual capture/ordinary callers: capture forces LumOn off; ordinary composition can
       enable it. Both currently mutate one pbr_composite executable through structural options.
     - Keep the capture environment fallback and ordinary LumOn inputs unchanged. Configure
       each owner at its appropriate settings/reload boundary, without per-frame option toggling.
     - Update PrepareFrame consistently, but do not activate deferred full-scene HDR coordination.
     - Preserve frame inputs, binding contracts, registry lifecycle and shared offline binaries.
-  ☐ Verify LumOn on/off, refraction enabled/disabled, and alternating capture/ordinary use.
+  ☑ Verify LumOn on/off, refraction enabled/disabled, and alternating capture/ordinary use.
     - Check retained program IDs and absence of repeated asset reads/preparation after warmup.
     - Verify quality/settings changes, reload and disposal without stale inputs or resource leaks.
   Completion: both required composite executables remain resident; alternating passes do not
   create/load/link/delete programs or rebuild their interfaces. Record any live timing separately.
+  Verified 2026-10-04: isolated Debug build passed; 29/29 focused GPU tests passed, zero skips.
+  Production capture/ordinary draws retain program IDs, interfaces and asset-read counts after
+  warmup, including full/half backgrounds, independent PBR/AO changes, refraction disable/re-enable,
+  changing receiver inputs, reload and disposal. Second review and independent completion audit
+  passed. See artifacts/WaterLagAnalysis/composite-owner-build.log, composite-owner-test-build.log
+  and composite-owner-tests.log/.trx; ownership is documented in PBR.WaterRefraction.md.
+  Initial reload failures were corrected at the synthetic fixture's raw-binding boundary;
+  strict GL checks remain. Live timing improvement is unmeasured.
 
 Phase 2 — Supply inverse projection once per frame
   ☐ Add inverse projection to the existing liquid frame binding/UBO contract and frame capture.

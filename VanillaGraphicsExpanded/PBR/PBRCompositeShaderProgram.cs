@@ -24,7 +24,8 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
 public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRCompositeShaderProgramBindings
 {
-
+    /// <summary>Registry identity for the retained environment-only pre-overlay executable and inputs.</summary>
+    internal const string PreOverlayPassName = "pbr_composite_pre_overlay";
 
     /// <summary>Uses the immutable declaration owned by this shader class.</summary>
     internal override GpuShaderContract ProgramContract => Contract;

@@ -14,6 +14,15 @@ At the ordinary order-11 composite, only refraction outputs at negative first-pe
 
 The early capture adds one direct-lighting draw and one composite draw, three RGBA16F lighting targets and an RGBA16F/R32F radiance/depth pair (36 additional bytes per pixel). The composite scratch is shared with its existing owner. Current-frame LumOn gather has not run at the capture boundary, so captured pixels use direct lighting, emission and the existing standalone environment response rather than stale screen-space GI. Final unmasked pixels still use the selected PBR mode. World geometry drawn later that was occluded by the overlay's depth cannot be recovered from this snapshot; it records actual coverage at the capture boundary. This remains a screen-space limitation, not permission to reorder base-game renderers.
 
+Pre-overlay composition retains its own `PBRCompositeShaderProgram` under
+`pbr_composite_pre_overlay`, with LumOn, PBR GI composition and short-range AO disabled.
+Ordinary composition retains `pbr_composite` and adopts the engine generation's lighting mode
+and current composite options before preparation. Alternating these passes does not change
+either owner's structural options. Both share the existing offline shader contract and binaries,
+with independent executables and frame inputs managed by the normal registry reload/disposal
+path. The deferred `PrepareFrame` readiness check prepares both owners without activating
+full-scene HDR. This removes recurring executable replacement; live timing remains unmeasured.
+
 ## Background resolution and bilateral receivers
 
 `WaterRefractionScene.BackgroundScale` selects full (`1`) or half (`2`) background storage.

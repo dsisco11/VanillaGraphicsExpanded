@@ -117,8 +117,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
         // The pre-overlay world capture uses the environment fallback even when
         // ordinary composition consumes LumOn, so both variants must be available.
-        if (PrepareCompositeProgram(false) is null) return false;
-        return PrepareCompositeProgram(readLightingMode()) is not null && display?.EnsureReady() == true;
+        if (PrepareCompositeProgram(false, preOverlay: true) is null) return false;
+        return PrepareCompositeProgram(readLightingMode(), preOverlay: false) is not null && display?.EnsureReady() == true;
     }
 
     /// <summary>Combines lighting and hands it to primary using the prepared frame's color convention.</summary>
@@ -173,7 +173,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         var indirectTex = capture is null && currentBuffers?.HasPublishedIndirect == true ? currentBuffers.IndirectFullTex : null;
         if (indirectTex?.IsValid != true) indirectTex = null;
 
-        var shader = PrepareCompositeProgram(lumOnEnabled);
+        var shader = PrepareCompositeProgram(lumOnEnabled, preOverlay: capture is not null);
         var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
         if (shader is null || display is null || !display.EnsureReady()) return;
 
@@ -318,17 +318,27 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         }
     }
 
-    /// <summary>Prepares the same shader options for early readiness checks and actual composition.</summary>
-    private PBRCompositeShaderProgram? PrepareCompositeProgram(bool lumOnEnabled)
+    /// <summary>Prepares the selected retained owner, adopting ordinary lighting changes before readiness.</summary>
+    private PBRCompositeShaderProgram? PrepareCompositeProgram(bool lumOnEnabled, bool preOverlay)
     {
-        var shader = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi, "pbr_composite");
+        var shader = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi,
+            preOverlay ? PBRCompositeShaderProgram.PreOverlayPassName : "pbr_composite");
         if (shader is null) return null;
-        shader.ConfigureOptions(() =>
+        // Capture's fixed options belong to its declaration. Ordinary composition adopts
+        // the engine generation's lighting mode without changing the capture executable.
+        // Compare requested options so pending edits and failed preparation remain retryable.
+        bool pbrComposite = lumOnEnabled && (lumOnConfig?.LumOn.EnablePbrComposite ?? true);
+        bool shortRangeAo = lumOnEnabled && (lumOnConfig?.LumOn.EnableShortRangeAo ?? true);
+        if (!preOverlay && (shader.LumOnEnabled != lumOnEnabled
+            || shader.EnablePbrComposite != pbrComposite || shader.EnableShortRangeAo != shortRangeAo))
         {
-            shader.LumOnEnabled = lumOnEnabled;
-            shader.EnablePbrComposite = lumOnEnabled && (lumOnConfig?.LumOn.EnablePbrComposite ?? true);
-            shader.EnableShortRangeAo = lumOnEnabled && (lumOnConfig?.LumOn.EnableShortRangeAo ?? true);
-        });
+            shader.ConfigureOptions(() =>
+            {
+                shader.LumOnEnabled = lumOnEnabled;
+                shader.EnablePbrComposite = pbrComposite;
+                shader.EnableShortRangeAo = shortRangeAo;
+            });
+        }
         return shader.EnsureReady() ? shader : null;
     }
 
