@@ -114,21 +114,13 @@ bool VgeWaterUvAdjacentPatch(vec2 sampleUv, vec3 surface, vec3 normalVS, mat4 in
     return VgeWaterUvPatch(sampleUv, inverseProjection, adjacent, positionVS, radiance);
 }
 
-/** Selects a Snell-based projected UV receiver with at most two filtered lookups and no ray search. */
-VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwater)
+/** Selects an approximate receiver from an already validated interface seed and Snell direction. */
+VgeWaterReceiver VgeWaterUvRefractionFromSeed(vec3 surface, vec3 normalVS, bool underwater,
+    vec3 direction, VgeRefractionSupport seed)
 {
-    vec3 direction = refract(normalize(surface), normalVS, underwater ? 1.333 : 1.0 / 1.333);
     VgeWaterReceiver result = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE,
         vec3(0), surface, direction, 0.0, 0.0);
-    // A refracted air exit is never used as the water-side scattering direction.
-    // TIR has no transmitted receiver and performs no background reads.
-    if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return result; }
-    vec2 seedUv;
-    if (!VgeWaterUvProject(surface, seedUv)) return result;
     mat4 inverseProjection = inverseProjectionMatrix;
-    VgeRefractionSupport seed;
-    VGE_REFRACTION_UV_SAMPLE(seedUv);
-    if (!VgeRefractionFilterSupport(seedUv, surface, normalVS, inverseProjection, seed)) return result;
 
     // Use the represented receiver slope, just as the marcher's next probe does.
     // This remains a UV proposal, never proof of a geometric intersection. Sparse
@@ -185,5 +177,21 @@ VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwat
         : min(32.0, max(0.0, -dot(selectedPosition - surface, normalVS)) / normalCosine);
     return VgeWaterReceiver(true, VGE_WATER_RECEIVER_UV, selectedRadiance,
         selectedPosition, direction, pathLength, 1.0);
+}
+
+/** Selects standalone UV quality with its own seed, at most two filtered lookups and no ray search. */
+VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwater)
+{
+    vec3 direction = refract(normalize(surface), normalVS, underwater ? 1.333 : 1.0 / 1.333);
+    VgeWaterReceiver result = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE,
+        vec3(0), surface, direction, 0.0, 0.0);
+    // TIR has no transmitted receiver and performs no background reads.
+    if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return result; }
+    vec2 seedUv;
+    if (!VgeWaterUvProject(surface, seedUv)) return result;
+    VgeRefractionSupport seed;
+    VGE_REFRACTION_UV_SAMPLE(seedUv);
+    if (!VgeRefractionFilterSupport(seedUv, surface, normalVS, inverseProjectionMatrix, seed)) return result;
+    return VgeWaterUvRefractionFromSeed(surface, normalVS, underwater, direction, seed);
 }
 #endif

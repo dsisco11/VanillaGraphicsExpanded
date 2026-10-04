@@ -119,15 +119,36 @@ Phase 3 — Separate receiver geometry search from radiance reconstruction
   implementation, not this revised publication contract. Live GPU savings remain unmeasured.
 
 Phase 4 — Reuse the trace seed in UV fallback
-  ☐ Pass the already evaluated interface seed into fallback through the shared receiver contract.
+  ☑ Pass the already evaluated interface seed into fallback through the shared receiver contract.
     - Preserve valid and invalid seed outcomes; do not reuse the last marched receiver as the seed.
     - Avoid copying an unnecessarily large payload or extending its lifetime without checking cost.
     - Keep UV-only quality independent and retain total-internal-reflection/early-out behavior.
     - Retain x2/x4/x8 traversal ceilings and separately account for fallback sampling.
-  ☐ Verify exhausted traces, invalid initial support, shallow x2 transitions and screen edges.
+  ☑ Verify exhausted traces, invalid initial support, shallow x2 transitions and screen edges.
     - Demonstrate removal of duplicate seed sampling without changing fallback radiance/geometry.
   Completion: fallback reuses equivalent initial support and preserves the existing distortion fixes.
   Dependency: settle Phase 3 receiver payload changes before finalizing seed handoff.
+  Implemented 2026-10-04: retain only the original distance-zero support and its validity for
+  UV fallback. Later ray probes never replace it; invalid seeds add no fallback reads. Standalone
+  UV retains its independent seed. Shared candidate selection preserves geometry, radiance,
+  provenance and transport. Reuse removes one filtered lookup (four depth taps plus any continuity
+  checks; fewer at partial edges) without adding resources or changing the ray ceilings.
+  The existing support payload lives across traversal; no extra payload type is introduced.
+  Matched -O compilation passed for 32 baseline/current liquid variants. Full-resolution ray
+  modules shrink 5,859 -> 5,219 static instructions; half-resolution 7,100 -> 6,380. UV-only gains
+  ten instructions with unchanged static texture-fetch counts. GPU time/register use is unmeasured.
+  Fresh isolated Debug build passed; all 71 distinct selected GPU cases have passing evidence.
+  Initial run: 68 passed, three incorrect half-edge count assertions failed. Corrected the expected
+  in-bounds seed count from four to two, then all six new comparison cases passed; no production
+  change or full-suite repeat. Last-probe distinctions, output equivalence, initial offscreen,
+  TIR, exact budgets, standalone UV and moving shallow x2 transitions passed. Second review and
+  independent completion audit passed.
+  See artifacts/WaterLagAnalysis/seed-reuse-build.log, seed-reuse-test-build.log,
+  seed-reuse-tests.log/.trx, seed-reuse-corrected-tests.log/.trx and seed-reuse-optimized.csv.
+  Traceability: PBR.WaterRefraction.md / Optics and traversal, UV distortion and bilateral receivers
+  govern sampling; WaterMedium/Liquids and display documents retain transport and ownership.
+  The retired PBR.WaterRefraction.todo reference resolves to its completed version before
+  deletion commit e918f189; no missing implementation requirement is inferred from its removal.
 
 Phase 5 — Skip scattering illumination for zero-scattering media
   ☐ Add a bounded zero-scattering path to volume-boundary shading.

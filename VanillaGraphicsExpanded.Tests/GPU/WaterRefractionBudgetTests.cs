@@ -194,7 +194,100 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         var decision = target[0].ReadPixels(); var selected = target[3].ReadPixels();
         Assert.Equal(0,decision[0]); Assert.Equal(0,selected[0]);
         Assert.Equal(tir ? 0 : 1 << quality,decision[2]);
-        Assert.Equal(tir ? 0 : 1,selected[1]);
+        Assert.Equal(0,selected[1]);
+    }
+
+    /// <summary>Fallback preserves standalone UV results while reusing the initial support, including a rejected seed.</summary>
+    [Theory]
+    [InlineData(1,false)]
+    [InlineData(1,true)]
+    [InlineData(2,false)]
+    [InlineData(2,true)]
+    [InlineData(3,false)]
+    [InlineData(3,true)]
+    public void ExhaustedFallbackReusesInitialSupport(int quality, bool half)
+    {
+        EnsureShaderTestAvailable();
+        using var color = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.Rgba32f);
+        using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
+        using var halfColor = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
+        using var halfDepth = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
+        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
+        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        var inputs = (IWaterRefractionDiagnosticBindings)program;
+        SetProjection(inputs);
+        inputs.Scenario = 12; inputs.Budget = 1 << quality; inputs.Quality = quality;
+        inputs.FrameSize = new(Size); inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
+        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        foreach (string scene in new[] { "exhausted", "invalid-seed", "invalid-later", "edge", "offscreen" })
+        {
+            var colors = new float[Size * Size * 4]; var depths = new float[Size * Size];
+            for (int pixel = 0; pixel < depths.Length; pixel++)
+            {
+                int x = pixel % Size;
+                bool unavailable = scene == "invalid-seed" && x is >= 60 and <= 67
+                    || scene == "invalid-later" && x is < 60 or > 67;
+                depths[pixel] = unavailable ? 1 : .5f * (1 + (100.1f - 20f / 80) / 99.9f);
+                colors[pixel * 4] = 4 + x / (float)Size;
+                colors[pixel * 4 + 1] = 2; colors[pixel * 4 + 2] = .5f;
+                colors[pixel * 4 + 3] = unavailable ? 0 : 1;
+            }
+            color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
+            if (half)
+            {
+                reduction!.SourceColor = color; reduction.SourceDepth = depth;
+                TestFramework.RenderQuadTo(reduction,reduced!);
+            }
+            inputs.Surface = scene == "offscreen" ? new(2,0,-2)
+                : scene == "edge" ? new(1.14f,0,-2) : new(0,0,-2);
+            inputs.Normal = Vector3.Normalize(scene == "edge" ? new Vector3(-1,0,.1f) : new Vector3(-.4f,0,1));
+            // Separate draws expose raw traversal, the production dispatcher, and
+            // independently seeded UV using identical immutable receiver inputs.
+            var outputs = new float[3][][];
+            for (int mode = 0; mode < outputs.Length; mode++)
+            {
+                inputs.SelectReceiver = mode;
+                TestFramework.RenderQuadTo(program,target);
+                outputs[mode] = Enumerable.Range(0,7).Select(i => target[i].ReadPixels()).ToArray();
+            }
+            var ray = outputs[0]; var selected = outputs[1]; var uv = outputs[2];
+            if (scene == "offscreen")
+            {
+                foreach (var result in outputs)
+                {
+                    Assert.Equal(0,result[0][0]); Assert.Equal(0,result[0][2]);
+                    Assert.Equal(0,result[3][1]); Assert.All(result[6],value => Assert.Equal(0,value));
+                }
+                continue;
+            }
+            Assert.Equal(0,ray[0][0]);
+            Assert.Equal(1 << quality,ray[0][2]);
+            if (scene == "invalid-seed" && quality == 3) Assert.InRange(ray[1][2],79.9f,80.1f);
+            if (scene == "invalid-later") Assert.Equal(0,ray[1][2]);
+            Assert.Equal(uv[0][0],selected[0][0]);
+            foreach (int attachment in new[] { 2,4,5 })
+                for (int channel = 0; channel < 4; channel++)
+                    Assert.InRange(MathF.Abs(selected[attachment][channel] - uv[attachment][channel]),0,.00001f);
+            Assert.Equal(uv[3][0],selected[3][0]);
+            Assert.Equal(uv[3][1] - 1,selected[3][1]);
+            // The half-size edge footprint straddles the image boundary: only
+            // its two in-bounds taps were fetched, so only those can be saved.
+            int seedDepthReads = half && scene == "edge" ? 2 : 4;
+            Assert.Equal(ray[6][0] + uv[6][0] - seedDepthReads,selected[6][0]);
+            Assert.Equal(uv[6][1],selected[6][1]);
+            Assert.Equal(uv[6][2],selected[6][2]);
+            Assert.Equal(uv[6][3],selected[6][3]);
+            if (scene == "invalid-seed")
+            {
+                Assert.Equal(0,selected[0][0]); Assert.Equal(0,selected[6][1]);
+                Assert.Equal(ray[6][0],selected[6][0]);
+            }
+            else Assert.Equal(1,selected[0][0]);
+            output.WriteLine($"quality={quality} half={half} scene={scene}: rayDepth={ray[6][0]}, uvDepth={uv[6][0]}, combinedDepth={selected[6][0]}, uvLookups={selected[3][1]}");
+        }
     }
 
     /// <summary>Motion sweeps report geometric error, missed thin receivers and explicit UV fallback without hiding work.</summary>

@@ -65,15 +65,19 @@ bool VgeRefractionPatchHit(vec3 surface, vec3 direction,
     if (!VgeRefractionProject(surface + direction * hitDistance, hitUv)) return false;
     // Original reduced-source positions can form an irregular quadrilateral. A
     // bounding box would fill unsupported corners; intersect the actual triangles
-    // and reweight cached radiance at the corrected hit, with no extra depth read.
+    // and reconstruct radiance at the corrected hit, with no extra depth read.
     vec3 hit = surface + direction * hitDistance;
     return VgeRefractionTriangle(hit, support, support.primaryTriangle, radiance)
         || (support.secondaryTriangle && VgeRefractionTriangle(hit, support, ivec3(1,3,2), radiance));
 }
 
-/** Searches the represented opaque layer with an exact total ceiling of two, four or eight lookups. */
-VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater, int budget)
+/** Searches within the selected ceiling and retains only the interface seed for approximate fallback. */
+VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater, int budget,
+    out VgeRefractionSupport seed, out bool seedValid)
 {
+    // False also covers TIR or projection failure before the interface was sampled.
+    // Callers must not read seed unless this validity flag is true.
+    seedValid = false;
     vec3 direction = refract(normalize(surface), normalVS, underwater ? 1.333 : 1.0 / 1.333);
     VgeWaterReceiver result = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE,
         vec3(0), surface, direction, 0.0, 0.0);
@@ -95,6 +99,11 @@ VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater
         if (!VgeRefractionProject(surface + direction * distance, sampleUv)) return result;
         VgeRefractionSupport support;
         bool valid = VgeRefractionFilterSupport(sampleUv, surface, normalVS, inverseProjection, support);
+        if (step == 0)
+        {
+            seedValid = valid;
+            if (valid) seed = support;
+        }
         VGE_REFRACTION_SAMPLE(sampleUv, -support.positionVS.z);
         if (!valid)
         {

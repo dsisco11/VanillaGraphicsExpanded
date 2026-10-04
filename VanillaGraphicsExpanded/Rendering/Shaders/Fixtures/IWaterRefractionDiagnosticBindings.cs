@@ -28,7 +28,7 @@ internal interface IWaterRefractionDiagnosticBindings
     /// <summary>Caps all receiver evaluations performed by the ray-only entry point.</summary>
     [ShaderBinding("diagnosticBudget", ShaderBindingKind.UniformLocation, 124, ShaderStageKind.Fragment)]
     int Budget { get; set; }
-    /// <summary>Selects the complete tier dispatcher instead of the isolated ray algorithm.</summary>
+    /// <summary>Selects raw ray traversal (zero), the tier dispatcher (one), or standalone UV (two).</summary>
     [ShaderBinding("diagnosticSelect", ShaderBindingKind.UniformLocation, 125, ShaderStageKind.Fragment)]
     int SelectReceiver { get; set; }
     /// <summary>Chooses the production quality identifier when dispatch is requested.</summary>

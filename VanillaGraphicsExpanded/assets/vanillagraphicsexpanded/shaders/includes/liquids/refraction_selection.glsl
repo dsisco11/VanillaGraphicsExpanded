@@ -23,9 +23,13 @@ VgeWaterReceiver VgeWaterSelectRefraction(vec3 surface, vec3 normalVS, bool unde
     int budget = quality == 1 ? 2 : quality == 2 ? 4 : 8;
 #endif
 #if !defined(VGE_WATER_REFRACTION_QUALITY) || VGE_WATER_REFRACTION_QUALITY > 0
-    VgeWaterReceiver receiver = VgeWaterRefraction(surface, normalVS, underwater, budget);
-    if (receiver.valid || dot(receiver.refractedDirectionVS, receiver.refractedDirectionVS) < .0001) return receiver;
-    return VgeWaterUvRefraction(surface, normalVS, underwater);
+    VgeRefractionSupport seed;
+    bool seedValid;
+    VgeWaterReceiver receiver = VgeWaterRefraction(surface, normalVS, underwater, budget, seed, seedValid);
+    // Only the distance-zero support belongs to UV thickness estimation. A later
+    // probe cannot repair an invalid seed or replace it with different geometry.
+    if (receiver.valid || !seedValid) return receiver;
+    return VgeWaterUvRefractionFromSeed(surface, normalVS, underwater, receiver.refractedDirectionVS, seed);
 #endif
 }
 #endif

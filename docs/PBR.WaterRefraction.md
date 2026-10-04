@@ -289,8 +289,8 @@ zero spatial-weight neighbors may supply local geometry but never alter the eval
 or depth weights. The local compatible layer guides sampling rather than distributing a few
 samples blindly across the former quadratic 32 m march.
 
-`VgeRefractionSupport` retains the filtered position/radiance and four cached source
-positions/radiances. Three noncollinear compatible taps estimate a local plane normal and
+`VgeRefractionSupport` retains the filtered position, spatial weights, four cached source
+positions and integer color texel coordinates. Three noncollinear compatible taps estimate a local plane normal and
 authorize only their actual triangle. A fourth compatible coplanar tap can authorize the second
 triangle; a missing corner never becomes a filled rectangle. For plane normal `m`, receiver
 position `b`, interface `s` and Snell direction `d`,
@@ -328,10 +328,43 @@ still change receiver selection: screen-space data cannot establish arbitrary of
 receivers, missing transparent layers, hidden topology or all subpixel thin geometry. No temporal
 history or universal receiver/motion-continuity guarantee is introduced.
 
+The ray sampler returns the validity and support of its distance-zero interface lookup along
+with its result. UV fallback consumes that original support and the already computed Snell
+direction; it does not project/filter the seed again. Later recovery probes never overwrite
+the retained seed. An invalid seed still permits ray recovery, but an unsuccessful ray with
+an invalid seed returns unavailable coverage without UV reads. TIR and failure to project the
+interface likewise perform no fallback reads. Standalone UV quality continues to evaluate its
+own seed independently, using the same subsequent candidate-selection implementation.
+
+The handoff retains one existing `VgeRefractionSupport` plus a validity flag across traversal;
+it adds no texture, UBO, persistent state or new payload type. It extends the seed's lifetime
+and copies valid initial support once, so saved samples alone do not prove reduced register
+pressure or GPU duration. Matched compilation of all 32 liquid variants before and after
+the handoff, using the same compiler and `-O`, reduced full-resolution ray modules from
+5,859 to 5,219 static instructions and half-resolution ray modules from 7,100 to 6,380.
+Standalone UV modules gained ten instructions with unchanged static texture-fetch counts.
+The comparison is recorded in `artifacts/WaterLagAnalysis/seed-reuse-optimized.csv`;
+hardware register allocation and live GPU savings remain unmeasured.
+
+Fresh isolated Debug validation covers 71 distinct GPU cases. The initial run passed 68 and
+failed three half-resolution edge assertions: those seeds contain two in-bounds depth taps,
+not four. After correcting only that expected count, all six new comparison cases passed in
+a focused rerun; this was not a second full 71-case run. The comparisons render raw tracing,
+combined selection and independently seeded UV against identical full/half backgrounds at
+x2/x4/x8. Geometry, HDR radiance and transport agree; counters verify the removed seed reads,
+including partial edges. Invalid-initial/valid-later and valid-initial/invalid-later cases check
+the last probe explicitly, and initial offscreen projection performs zero reads. Existing
+standalone UV, TIR, exact-budget exhaustion and shallow moving x2 transitions also passed.
+Receipts: `artifacts/WaterLagAnalysis/seed-reuse-tests.log/.trx`,
+`seed-reuse-corrected-tests.log/.trx`, `seed-reuse-build.log` and `seed-reuse-test-build.log`.
+
 Maximum depth-fetch bounds, separately from ray evaluations, are 48/24/12 for x8/x4/x2,
 including up to two depth-only steep-continuity checks per evaluation. A successful ray adds
-three selected-color reads. Exhausted rays fetch no color before UV fallback, which adds at
-most 19 fetches including reduced-footprint neighbor recovery and selected radiance. UV-only
+three selected-color reads. Exhausted rays fetch no color before UV fallback. A valid cached
+seed allows fallback to add at most nine depth reads (one four-tap candidate, two continuity
+neighbors and three reduced-footprint recovery neighbors) plus four selected-color reads;
+an invalid cached seed adds none. Reuse removes the original seed's four depth reads and up
+to two continuity reads, with fewer saved reads at partial screen-edge footprints. UV-only
 uses at most 19; TIR uses zero. These bounds assume the coherent producer-validated pair.
 They are source work bounds, not measured GPU timings or proof of a faster frame.
 

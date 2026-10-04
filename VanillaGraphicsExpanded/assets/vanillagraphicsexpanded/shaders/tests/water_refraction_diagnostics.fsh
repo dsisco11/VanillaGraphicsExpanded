@@ -45,9 +45,15 @@ void main()
         : diagnosticScenario == 8 ? normalize(vec3(-.7,0,-.714))
         : diagnosticScenario == 11 ? normalize(vec3(1,0,.01)) : vec3(0,0,1);
     if (diagnosticScenario == 12) { surface = customSurface; normal = customNormal; }
-    VgeWaterReceiver receiver = diagnosticSelect != 0
-        ? VgeWaterSelectRefraction(surface, normal, diagnosticUnderwater != 0, diagnosticQuality)
-        : VgeWaterRefraction(surface, normal, diagnosticUnderwater != 0, diagnosticBudget);
+    VgeRefractionSupport seed;
+    bool seedValid;
+    VgeWaterReceiver receiver;
+    if (diagnosticSelect == 2)
+        receiver = VgeWaterUvRefraction(surface, normal, diagnosticUnderwater != 0);
+    else if (diagnosticSelect != 0)
+        receiver = VgeWaterSelectRefraction(surface, normal, diagnosticUnderwater != 0, diagnosticQuality);
+    else
+        receiver = VgeWaterRefraction(surface, normal, diagnosticUnderwater != 0, diagnosticBudget, seed, seedValid);
     decision = vec4(receiver.valid ? 1 : 0, diagnosticReason, diagnosticCount, receiver.confidence);
     sampled = vec4(diagnosticSample, 1);
     transport = vec4(receiver.submergedLength, receiver.refractedDirectionVS.z,
