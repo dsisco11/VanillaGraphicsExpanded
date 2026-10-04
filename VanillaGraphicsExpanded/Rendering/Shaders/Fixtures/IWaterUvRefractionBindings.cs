@@ -22,6 +22,9 @@ internal interface IWaterUvRefractionBindings
     /// <summary>Selects the submerged-camera exit interface.</summary>
     [ShaderBinding("underwater", ShaderBindingKind.UniformLocation, 127, ShaderStageKind.Fragment)]
     int Underwater { get; set; }
+    /// <summary>Reconstructs receivers with the CPU inverse of the supplied camera projection.</summary>
+    [ShaderBinding("inverseProjectionMatrix", ShaderBindingKind.UniformLocation, 128, ShaderStageKind.Fragment)]
+    Matrix4x4 InverseProjection { get; set; }
     /// <summary>Supplies linear radiance and eligibility metadata.</summary>
     [ShaderBinding("vge_refractionColor", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, Sampler = ShaderSamplerPolicy.NearestClamp)]
     DynamicTexture2D Color { get; set; }

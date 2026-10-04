@@ -53,6 +53,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         }
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
+        SetProjection(inputs);
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Quality = 1; inputs.SelectReceiver = 1;
         inputs.FrameSize = new(Size); inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
@@ -144,6 +145,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         Vector3 normal = Vector3.Normalize(Vector3.Normalize(surface) / 1.333f - direction);
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
+        SetProjection(inputs);
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Surface = surface; inputs.Normal = normal;
         inputs.FrameSize = new(Size); inputs.Color = color; inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
@@ -175,6 +177,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         depth.UploadDataImmediate(Enumerable.Repeat(1f,Size * Size).ToArray());
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
+        SetProjection(inputs);
         inputs.Scenario = 12; inputs.Budget = 1 << quality; inputs.Quality = quality; inputs.SelectReceiver = 1;
         inputs.Surface = new(0,0,-2); inputs.FrameSize = new(Size); inputs.Underwater = tir ? 1 : 0;
         inputs.Normal = tir ? Vector3.Normalize(new Vector3(.9f,0,.3f)) : Vector3.UnitZ;
@@ -208,6 +211,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
+        SetProjection(inputs);
         inputs.Scenario = 12; inputs.Budget = budget; inputs.Quality = quality; inputs.SelectReceiver = 1;
         inputs.FrameSize = new(Size); inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
@@ -294,6 +298,14 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     #endregion
 
     #region Private
+    /// <summary>Supplies the conventional OpenGL camera and its CPU inverse for authored depth fields.</summary>
+    private static void SetProjection(IWaterRefractionDiagnosticBindings inputs)
+    {
+        var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, .1f, 100);
+        projection.M33 = -100.1f / 99.9f; projection.M43 = -20f / 99.9f;
+        Assert.True(Matrix4x4.Invert(projection, out var inverse));
+        inputs.Projection = projection; inputs.InverseProjection = inverse;
+    }
     /// <summary>Authors depth from visible axial planes, including coverage absent from the immutable snapshot.</summary>
     private static void FillScene(DynamicTexture2D color, DynamicTexture2D depth, string scene)
     {

@@ -1,4 +1,6 @@
 using OpenTK.Graphics.OpenGL;
+using System.Numerics;
+using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
@@ -16,6 +18,60 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Projection changes publish a coherent GPU matrix pair and reject singular updates atomically.</summary>
+    [Fact]
+    public void ProjectionUpdatesPublishMatchingInverseForAsymmetricCamera()
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var assets = new BinaryShaderApiFixture();
+        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
+        TestUniformRing.EnsureFrame();
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
+        AssignTextures(program, texture, atmosphere);
+        Matrix4x4 lastProjection = default;
+        Matrix4x4 lastInverse = default;
+        foreach (float shift in new[] { .23f, -.17f })
+        {
+            var projection = Matrix4x4.CreatePerspectiveFieldOfView(shift > 0 ? .8f : 1.3f, 1.7f, .1f, 100);
+            projection.M33 = -100.1f / 99.9f; projection.M43 = -20f / 99.9f;
+            projection.M31 = shift; projection.M32 = -.11f;
+            program.ProjectionMatrix = MemoryMarshal.Cast<Matrix4x4, float>(new[] { projection }).ToArray();
+            var pair = ReadPair();
+            Assert.Equal(projection, pair.Projection);
+            // Project independent view-space points, then use the GPU-published
+            // inverse to reconstruct them. Off-axis terms expose transposition errors.
+            foreach (var point in new[] { new Vector4(.4f, -.2f, -2, 1), new Vector4(-1.2f, .7f, -12, 1) })
+            {
+                Vector4 clip = Vector4.Transform(point, pair.Projection);
+                Vector4 reconstructed = Vector4.Transform(clip / clip.W, pair.Inverse);
+                reconstructed /= reconstructed.W;
+                Assert.InRange(Vector4.Distance(point, reconstructed), 0, .0002f);
+            }
+            lastProjection = pair.Projection; lastInverse = pair.Inverse;
+        }
+        Assert.Throws<ArgumentException>(() => program.ProjectionMatrix = new float[16]);
+        var retained = ReadPair();
+        Assert.Equal(lastProjection, retained.Projection);
+        Assert.Equal(lastInverse, retained.Inverse);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+
+        /// <summary>Reads the production uniform block after normal shader activation publishes frame inputs.</summary>
+        (Matrix4x4 Projection, Matrix4x4 Inverse) ReadPair()
+        {
+            using var activation = program.UseScope();
+            GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
+            GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
+            byte[] bytes = new byte[LiquidFrameParamsUbo.BlockSize];
+            using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
+            GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
+            return (MemoryMarshal.Read<Matrix4x4>(bytes.AsSpan(0, 64)),
+                MemoryMarshal.Read<Matrix4x4>(bytes.AsSpan(4640, 64)));
+        }
+    }
+
     /// <summary>Alternating volume and surface submissions retain separate executables through quality changes and reload.</summary>
     [Fact]
     public void RegisteredVolumeAndSurfaceRetainIndependentExecutables()

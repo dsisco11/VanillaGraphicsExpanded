@@ -37,5 +37,11 @@ internal interface IWaterRefractionDiagnosticBindings
     /// <summary>Selects an underwater exit for custom optical geometry.</summary>
     [ShaderBinding("diagnosticUnderwater", ShaderBindingKind.UniformLocation, 127, ShaderStageKind.Fragment)]
     int Underwater { get; set; }
+    /// <summary>Supplies the CPU-authored projection used to generate the receiver depths.</summary>
+    [ShaderBinding("projectionMatrix", ShaderBindingKind.UniformLocation, 128, ShaderStageKind.Fragment)]
+    Matrix4x4 Projection { get; set; }
+    /// <summary>Supplies its CPU inverse for production receiver reconstruction.</summary>
+    [ShaderBinding("inverseProjectionMatrix", ShaderBindingKind.UniformLocation, 132, ShaderStageKind.Fragment)]
+    Matrix4x4 InverseProjection { get; set; }
     #endregion
 }

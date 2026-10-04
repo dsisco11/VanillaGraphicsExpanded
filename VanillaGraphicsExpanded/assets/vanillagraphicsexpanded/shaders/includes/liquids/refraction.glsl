@@ -78,7 +78,7 @@ VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater
     VgeWaterReceiver result = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE,
         vec3(0), surface, direction, 0.0, 0.0);
     if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return result; }
-    mat4 inverseProjection = inverse(projectionMatrix);
+    mat4 inverseProjection = inverseProjectionMatrix;
 #ifdef VGE_WATER_REFRACTION_QUALITY
     const int limit = 1 << VGE_WATER_REFRACTION_QUALITY;
 #else

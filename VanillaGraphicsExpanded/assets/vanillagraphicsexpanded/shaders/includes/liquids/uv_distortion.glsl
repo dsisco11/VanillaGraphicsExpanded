@@ -125,7 +125,7 @@ VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwat
     if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return result; }
     vec2 seedUv;
     if (!VgeWaterUvProject(surface, seedUv)) return result;
-    mat4 inverseProjection = inverse(projectionMatrix);
+    mat4 inverseProjection = inverseProjectionMatrix;
     VgeRefractionSupport seed;
     VGE_REFRACTION_UV_SAMPLE(seedUv);
     if (!VgeRefractionFilterSupport(seedUv, surface, normalVS, inverseProjection, seed)) return result;

@@ -354,6 +354,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
                 var diagnostic = GpuShaderPrograms.Declare(assets.Api, new WaterRefractionDiagnosticShaderProgram());
                 var diagnosticInputs = (IWaterRefractionDiagnosticBindings)diagnostic;
                 diagnosticInputs.Scenario = 12;
+                Assert.True(Matrix4x4.Invert(projection, out var inverse));
+                diagnosticInputs.Projection = projection; diagnosticInputs.InverseProjection = inverse;
                 diagnosticInputs.Budget = refractionQuality == 1 ? 2 : refractionQuality == 2 ? 4 : 8;
                 diagnosticInputs.FrameSize = new(frameSize);
                 Vector3 viewRay = new((2f * (center + .5f) / frameSize - 1) / MathF.Sqrt(3),

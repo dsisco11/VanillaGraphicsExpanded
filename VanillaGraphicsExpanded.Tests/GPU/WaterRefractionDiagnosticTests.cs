@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
+using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -55,6 +56,10 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         inputs.Scenario = scenario;
+        float focal = scenario == 8 ? .1f : MathF.Sqrt(3);
+        var projection = new Matrix4x4(focal,0,0,0, 0,focal,0,0, 0,0,-100.1f/99.9f,-1, 0,0,-20f/99.9f,0);
+        Assert.True(Matrix4x4.Invert(projection, out var inverse));
+        inputs.Projection = projection; inputs.InverseProjection = inverse;
         inputs.Budget = budget;
         inputs.FrameSize = new(size, size);
         inputs.Color = color;

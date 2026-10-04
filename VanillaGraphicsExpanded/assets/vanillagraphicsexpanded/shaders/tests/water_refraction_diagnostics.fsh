@@ -7,7 +7,8 @@ uniform int diagnosticBudget;
 uniform int diagnosticSelect;
 uniform int diagnosticQuality;
 uniform int diagnosticUnderwater;
-mat4 projectionMatrix;
+uniform mat4 projectionMatrix;
+uniform mat4 inverseProjectionMatrix;
 int diagnosticReason = 0;
 int diagnosticCount = 0;
 vec3 diagnosticSample = vec3(0);
@@ -31,8 +32,7 @@ layout(location=5) out vec4 receiverRadiance;
 /** Exposes rejection, receiver evaluation count, confidence, and selected optical geometry. */
 void main()
 {
-    float focal = diagnosticScenario == 8 ? .1 : sqrt(3.0);
-    projectionMatrix = mat4(focal,0,0,0, 0,focal,0,0, 0,0,-100.1/99.9,-1, 0,0,-20.0/99.9,0);
+    float focal = projectionMatrix[0][0];
     vec3 surface = diagnosticScenario == 8 ? vec3(10,0,-2)
         : vec3((gl_FragCoord.xy / frameSize * 2.0 - 1.0) * 2.0 / focal, -2);
     vec3 normal = diagnosticScenario == 1 || diagnosticScenario == 10 ? normalize(vec3(-.4,0,1))

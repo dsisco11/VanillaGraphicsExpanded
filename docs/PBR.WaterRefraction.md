@@ -221,6 +221,23 @@ does not establish live appearance or GPU cost; no game was launched.
 
 ## Optics and traversal
 
+The liquid frame owner computes the inverse projection on the CPU when it stages the
+camera projection. Both column-major matrices are published together through the existing
+frame UBO; singular projections are rejected before replacing either matrix. The inverse is
+appended at byte offset 4640, making the block 4704 bytes while preserving earlier offsets.
+Ray traversal, UV distortion and its fallback use this supplied inverse for receiver
+reconstruction rather than inverting the projection per fragment. Diagnostic shaders receive
+the same projection/inverse pair through typed fixture inputs. This changes where the matrix
+is evaluated, not receiver validation, traversal budgets or background-resolution semantics.
+
+Validation on 2026-10-04 passed a fresh isolated Debug build and 312/312 GPU regressions
+with zero skips, including asymmetric camera reconstruction, changed projection publication,
+full/half receivers and shallow continuity. Disassembly found no `MatrixInverse` instructions
+in all 32 liquid fragment variants, their shared vertex binary, or the two refraction diagnostic
+binaries. Receipts are `artifacts/WaterLagAnalysis/inverse-projection-build.log`,
+`inverse-projection-tests.log/.trx` and `inverse-projection-spirv.json`. These checks establish
+correctness and removed shader work; they do not measure live GPU improvement or Release cost.
+
 The liquid shader uses its continuous animated water normal and the existing water IOR of 1.333. This is the current water material optical model, not a new configurable IOR property. Air entry uses an eta ratio of 1/1.333; underwater exit uses 1.333. Existing dielectric Fresnel handles total internal reflection. Reflection keeps the existing direct/environment response; scene reflections remain a separate task.
 
 Tracing starts at the displaced interface in view space. The stable quality IDs `1`, `2`, `3`

@@ -8,12 +8,14 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
 {
     internal const string BlockName = "VgeLiquidFrameParams";
-    internal const int BlockSize = 4640;
+    internal const int BlockSize = 4704;
     #region Frame parameters
     /// <summary>Allocates the block declared by liquids/params.glsl.</summary>
     internal LiquidFrameParamsUbo() : base(BlockSize) { }
     /// <summary>Stages the ProjectionMatrix field.</summary>
     internal ReadOnlySpan<float> ProjectionMatrix { set => WriteMatrix4(0, value); }
+    /// <summary>Stages the matching column-major inverse used by every receiver reconstruction.</summary>
+    internal ReadOnlySpan<float> InverseProjectionMatrix { set => WriteMatrix4(4640, value); }
     /// <summary>Stages the ShadowMatrixNear field.</summary>
     internal ReadOnlySpan<float> ShadowMatrixNear { set => WriteMatrix4(64, value); }
     /// <summary>Stages the ShadowMatrixFar field.</summary>

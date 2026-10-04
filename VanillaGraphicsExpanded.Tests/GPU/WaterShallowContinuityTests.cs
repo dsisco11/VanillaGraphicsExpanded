@@ -90,6 +90,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3,1,.1f,100);
         projection.M33 = -100.1f/99.9f; projection.M43 = -20f/99.9f;
         Assert.True(Matrix4x4.Invert(projection,out var inverse));
+        inputs.Projection = projection; inputs.InverseProjection = inverse;
         filterInputs.InverseProjection = inverse; filterInputs.FullFrameSize = new(size);
         filterInputs.Normal = inputs.Normal; filterInputs.Color = halfColor ?? color; filterInputs.Depth = halfDepth ?? depth;
         using var filterTarget = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);

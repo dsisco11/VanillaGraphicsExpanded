@@ -46,9 +46,14 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
     [InlineData(90, .5f, true)]
     [InlineData(90, 2f, false)]
     [InlineData(90, 2f, true)]
-    public void ProjectedSnellOffsetMatchesCoordinateRadiance(float fieldOfView, float aspect, bool half)
+    [InlineData(60, 1.7f, false, .23f)]
+    [InlineData(60, 1.7f, true, .23f)]
+    [InlineData(75, 1.7f, false, -.17f)]
+    [InlineData(75, 1.7f, true, -.17f)]
+    public void ProjectedSnellOffsetMatchesCoordinateRadiance(float fieldOfView, float aspect, bool half, float shift = 0)
     {
         var projection = Projection(fieldOfView, aspect);
+        projection.M31 = shift; projection.M32 = shift * -.5f;
         Vector3 surface = new(0,0,-2), normal = Vector3.Normalize(new Vector3(-.3f,.1f,1));
         Vector3 direction = Refract(Vector3.Normalize(surface), normal, 1 / 1.333f);
         float cosine = -Vector3.Dot(direction,normal);
@@ -255,6 +260,8 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         var program = Programs.Create<WaterUvRefractionShaderProgram>();
         var inputs = (IWaterUvRefractionBindings)program;
         inputs.Surface = surface; inputs.Normal = normal; inputs.Projection = projection;
+        Assert.True(Matrix4x4.Invert(projection, out var inverse));
+        inputs.InverseProjection = inverse;
         inputs.FrameSize = new(Width,Height); inputs.Underwater = underwater ? 1 : 0;
         inputs.Color = reducedColor ?? color; inputs.Depth = reducedDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
@@ -283,7 +290,8 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
 
     /// <summary>Reconstructs a planar receiver directly from camera focal scales and axial depth.</summary>
     private static Vector3 Position(Vector2 uv, float metres, Matrix4x4 projection) =>
-        new((uv.X * 2 - 1) * metres / projection.M11,(uv.Y * 2 - 1) * metres / projection.M22,-metres);
+        new((uv.X * 2 - 1 + projection.M31) * metres / projection.M11,
+            (uv.Y * 2 - 1 + projection.M32) * metres / projection.M22,-metres);
 
     /// <summary>Applies Snell's law independently, including its total internal reflection condition.</summary>
     private static Vector3 Refract(Vector3 incident, Vector3 normal, float eta)

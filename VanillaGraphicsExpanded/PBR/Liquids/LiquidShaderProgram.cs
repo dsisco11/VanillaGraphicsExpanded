@@ -8,7 +8,7 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.PBR.Liquids;
 
 /// <summary>Owns liquid SPIR-V and publishes mesh-pool parameters through the engine shader interface.</summary>
-[ShaderProgram("Contract", "pbr_liquid", 32)]
+[ShaderProgram("Contract", "pbr_liquid", 33)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_liquid.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_liquid.fsh")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(CaptureMode))]

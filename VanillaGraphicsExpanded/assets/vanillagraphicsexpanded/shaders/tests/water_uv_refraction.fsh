@@ -2,6 +2,7 @@
 uniform vec3 surfaceVS;
 uniform vec3 normalVS;
 uniform mat4 projectionMatrix;
+uniform mat4 inverseProjectionMatrix;
 uniform vec2 frameSize;
 uniform int underwater;
 int uvLookups = 0;

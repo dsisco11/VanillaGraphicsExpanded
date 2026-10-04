@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
@@ -10,8 +11,21 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed partial class LiquidShaderProgram
 {
     #region Frame inputs
-    /// <summary>Stages the column-major projection matrix; Use submits the completed frame.</summary>
-    internal ReadOnlySpan<float> ProjectionMatrix { set => frame.ProjectionMatrix = value; }
+    /// <summary>Stages a coherent column-major projection/inverse pair; Use submits the completed frame.</summary>
+    internal ReadOnlySpan<float> ProjectionMatrix
+    {
+        set
+        {
+            RequireInputMutation();
+            // Invert once when capturing the camera, not in each fragment or fallback.
+            // Keep both matrices unchanged if the supplied projection cannot be inverted.
+            Span<float> inverse = stackalloc float[16];
+            if (!MatrixHelper.Invert(value, inverse))
+                throw new ArgumentException("Liquid projection must be invertible.", nameof(value));
+            frame.ProjectionMatrix = value;
+            frame.InverseProjectionMatrix = inverse;
+        }
+    }
     /// <summary>Stages the column-major near-cascade transform; Use submits the completed frame.</summary>
     internal ReadOnlySpan<float> ShadowMatrixNear { set => frame.ShadowMatrixNear = value; }
     /// <summary>Stages the column-major far-cascade transform; Use submits the completed frame.</summary>

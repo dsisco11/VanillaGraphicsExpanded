@@ -67,14 +67,23 @@ Phase 1 — Remove composite executable replacement
   strict GL checks remain. Live timing improvement is unmeasured.
 
 Phase 2 — Supply inverse projection once per frame
-  ☐ Add inverse projection to the existing liquid frame binding/UBO contract and frame capture.
+  ☑ Add inverse projection to the existing liquid frame binding/UBO contract and frame capture.
     - Reuse the owning matrix convention and existing CPU inversion APIs.
     - Share it across ray tracing, UV distortion and fallback; remove fragment matrix inversions.
     - Update production-importing fixtures and generated binding expectations together.
-  ☐ Verify reconstructed positions and refraction across camera views and full/half backgrounds.
+  ☑ Verify reconstructed positions and refraction across camera views and full/half backgrounds.
     - Confirm compiled production variants no longer contain the redundant matrix inversions.
   Completion: existing rendering behavior is preserved and inverse projection is supplied through
   the normal frame input owner, including diagnostic paths that import the shared algorithms.
+  Verified 2026-10-04: fresh isolated Debug build passed; 312/312 GPU regressions passed, zero skips.
+  GPU UBO readback verifies asymmetric projection changes, reconstruction and singular-update
+  rejection; receiver tests cover full/half backgrounds, UV/ray tiers and shallow continuity.
+  All 32 liquid fragment variants, shared vertex and both refraction diagnostic binaries contain
+  zero MatrixInverse instructions (35 binaries); the original capture contains two.
+  Second review and independent completion audit passed. See artifacts/WaterLagAnalysis/
+  inverse-projection-build.log, inverse-projection-tests.log/.trx and inverse-projection-spirv.json.
+  The frame layout and matrix convention are documented in PBR.WaterRefraction.md.
+  Live performance and optimized Release validation were not measured by this Debug run.
 
 Phase 3 — Separate receiver geometry search from radiance reconstruction
   ☐ Audit the receiver validity contract before deferring color samples.
