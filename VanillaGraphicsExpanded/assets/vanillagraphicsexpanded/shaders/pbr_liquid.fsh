@@ -103,10 +103,17 @@ void main()
     vec3 toEye = normalize(-vge_viewPosition);
     float orientation = dot(mat3(modelViewMatrix) * outward, toEye) >= 0.0 ? 1.0 : -1.0;
     VgeWaterMedium medium = VgeWaterMaterial(uv);
-    vec3 eyeWorld = transpose(mat3(modelViewMatrix)) * toEye;
-    vec3 source = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility()
-        * VgeWaterPhase(dot(-normalize(vge_atmosphereSunDirection), eyeWorld), medium.anisotropy)
-        + max(vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility, vec3(0)) / 12.56637061436;
+    vec3 source = vec3(0);
+    // Published coefficients already include density. Clear and zero-density
+    // media still accumulate their signed geometry/extinction, but need no source
+    // illumination or shadow samples when every scattering channel is zero.
+    if (any(greaterThan(medium.scattering, vec3(0))))
+    {
+        vec3 eyeWorld = transpose(mat3(modelViewMatrix)) * toEye;
+        source = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility()
+            * VgeWaterPhase(dot(-normalize(vge_atmosphereSunDirection), eyeWorld), medium.anisotropy)
+            + max(vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility, vec3(0)) / 12.56637061436;
+    }
     outWaterOpticalDepth = vec4((medium.absorption + medium.scattering) * remaining, remaining) * orientation;
     outWaterSource = vec4(medium.scattering * source * remaining, 1.0) * orientation;
     return;

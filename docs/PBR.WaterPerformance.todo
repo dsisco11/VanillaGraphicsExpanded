@@ -151,15 +151,29 @@ Phase 4 — Reuse the trace seed in UV fallback
   deletion commit e918f189; no missing implementation requirement is inferred from its removal.
 
 Phase 5 — Skip scattering illumination for zero-scattering media
-  ☐ Add a bounded zero-scattering path to volume-boundary shading.
+  ☑ Add a bounded zero-scattering path to volume-boundary shading.
     - Skip shadow/phase/source-light evaluation when all effective scattering coefficients are zero.
     - Preserve absorption, signed optical depth, submerged length and boundary-count accumulation.
     - Preserve nonzero scattering and mixed-material boundary behavior; zero density must stay valid.
     - Audit analogous surface calculations, but do not skip lighting shared with reflections.
-  ☐ Verify clear water, authored scattering, mixed boundaries and underwater camera transport.
+  ☑ Verify clear water, authored scattering, mixed boundaries and underwater camera transport.
     - Compare GPU cost for coherent clear-water regions and mixed media; branch overhead may differ.
   Completion: zero-scattering output is unchanged and unnecessary source-light work is avoided;
   do not claim a measured speedup without an applicable comparison.
+  Implemented 2026-10-04: capture mode 3 gates source illumination on any positive effective
+  scattering channel, with no epsilon threshold. Clear/zero-density media retain signed
+  absorption, water length and boundary count. Surface visibility and point-light calculations
+  also feed reflection/body lighting and remain unchanged; camera-medium transport is preserved.
+  Fresh isolated Debug build and 12/12 focused boundary/transport checks passed. Four optimized
+  ABBA runs passed ten boundary cases each; two binary/device provenance checks passed one each.
+  Optimized control flow encloses shadow/phase/source work in the scattering branch; static
+  instructions grow 534 -> 543. Matched coherent-clear/scattering and spatial-checker GPU queries
+  measured about 0.294 ms for 16 draws at 512x512 on RTX 4090, with no meaningful before/after
+  separation. Source sums and coverage counts match; no live-frame speedup is claimed.
+  Second review and independent completion audit passed. See PBR.WaterMedium.md for
+  exact measurements and artifacts/WaterLagAnalysis/clear-scattering-* for receipts.
+  Traceability: WaterMedium's effective-coefficient and signed-boundary contracts control this
+  change; WaterRefraction/Liquids and the pipeline/display contracts retain their existing paths.
 
 Phase 6 — Capture refraction backgrounds only when needed
   ☐ Identify an existing authoritative water-demand signal available before the hand overlay.

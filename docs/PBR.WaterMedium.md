@@ -52,6 +52,45 @@ Medium metadata is rebuilt from resolved material plans on synchronous, asynchro
 
 `WaterVolumeRenderer` submits the existing liquid meshes double-sided before opaque composition, using the completed liquid-depth wave snapshot. Its retained `pbr_water_volume` shader owner stays in capture mode 3 independently of the mode-0 liquid surface owner, avoiding per-frame executable replacement. Entry boundaries add and exit boundaries subtract the distance remaining to the opaque receiver. Two additive RGBA32F targets hold signed RGB optical depth, submerged length, scattering-source integral and boundary count. This handles visible sloped interfaces and multiple disjoint intervals without using the old depth cap. A recognized underwater camera adds its initial medium over the full receiver distance; the actual fluid block and resolved material distinguish water from other submerged liquids. Camera lighting supplies bounded diffuse environment/block illumination.
 
+Boundary capture evaluates source illumination only when at least one effective scattering
+coefficient is positive. The material record already includes density, so clear water and
+zero-density media skip the world-space eye transform, solar-direction normalization, shadow
+visibility, phase function and diffuse source calculation. Their source RGB is zero, while
+signed optical depth, remaining water length and boundary count are accumulated normally.
+No small-coefficient threshold is used: any positive channel retains the existing lighting.
+The predicate is evaluated per fragment, so mixed materials retain their individual response.
+
+Surface lighting has a different sharing boundary: its solar visibility and point-light
+calculations also supply reflection and non-water body lighting. Those evaluations remain
+unchanged, as does the camera-medium contribution. Skipping the volume source is not a
+reason to suppress the surface reflection or a submerged camera's absorption.
+
+The zero-scattering gate passed a fresh isolated Debug build and 12/12 focused boundary and
+transport checks. Production boundary draws cover clear water, a positive red-only scattering
+coefficient with solar/environment illumination, zero effective density and different entry/exit
+materials. Signed-interval and underwater transport checks retain their numerical references.
+Optimized SPIR-V places shadow visibility, phase and source lighting inside the positive-scattering
+branch, merging zero before the unchanged output writes; static instructions increase from 534
+to 543. This establishes skipped source work, not an automatic reduction in GPU duration.
+
+A controlled warmed ABBA comparison used equally optimized baseline/current binaries, existing
+`GpuTimerQuery`, active shadow sampling and 16 draws at 512x512 per sample. Preparation and uploads
+were outside the query. On an NVIDIA RTX 4090, driver 591.86, the mean query times were:
+
+| Medium pattern | Baseline | With gate |
+| --- | ---: | ---: |
+| Clear | 0.294502 ms | 0.293990 ms |
+| Scattering | 0.294195 ms | 0.294400 ms |
+| Spatial checker | 0.294400 ms | 0.294605 ms |
+
+These results show no meaningful timing separation. Driver program caching was bypassed and
+binary overrides were checked. The checker contained both clear and scattering pixels; source
+output sums and zero-pixel counts matched between binaries. This small headless workload does
+not establish a production speedup or the cost of divergence in a game scene. Evidence is in
+`artifacts/WaterLagAnalysis/clear-scattering-*`: build/test logs, matched timing CSV and ABBA
+logs, baseline/current provenance runs and optimized disassemblies. Each ABBA run passed all
+ten boundary cases, and the two subsequent provenance checks each passed their selected case.
+
 The opaque composite evaluates RGB transmittance before its existing display resolve, with atmospheric transport restricted to aggregate air length. No extra exposure resolve is introduced. Successful opaque publication disables bulk transport in the later liquid OIT surface pass. Capture failure retains the original liquid fallback. Screen storage costs 32 bytes per pixel (about 63.3 MiB at 1920 × 1080), plus an extra liquid mesh submission; GPU cost has not been measured.
 
 ## Remaining rendering requirements
