@@ -31,8 +31,9 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
         framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
         float[] identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        int drawCalls = 0;
         var render = RuntimeEngineServices.Render(1, framebuffers, () => identity, () => identity,
-            () => drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)));
+            () => { drawCalls++; drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); });
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
             "get_Render" => render, "get_Event" => events.Api, "get_Shader" => programs.Api,
@@ -62,6 +63,41 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
             return composite.SceneLinearColor!.ReadPixels()[0];
         }
 
+        // Readiness prepares real binary programs and attachments without submitting either draw.
+        terrain.Color.UploadDataImmediate([.125f, .25f, .5f, 1f]);
+        float[] primaryBefore = terrain.Color.ReadPixels();
+        using (var otherColor = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f))
+        using (var other = GpuFramebuffer.CreateSingle(otherColor)!)
+        using (StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, terrain.Output.FboId))
+        using (StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, other.FboId))
+        {
+            foreach (bool enabled in new[] { false, true, false })
+            {
+                config.LumOn.Enabled = enabled;
+                Assert.True(composite.PrepareFrame());
+                var prepared = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
+                Assert.Equal(enabled ? "1" : "0", prepared.InstalledSettings!.Values["VGE_LUMON_ENABLED"].Canonical);
+            }
+            Assert.Equal(terrain.Output.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
+            Assert.Equal(other.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
+            Assert.Equal(0, drawCalls);
+            Assert.False(composite.RefractionScene.Published);
+            Assert.Equal(primaryBefore, terrain.Color.ReadPixels());
+            Assert.True(composite.SceneLinearColor?.IsValid);
+
+            // Invalid publications must be rejected before allocations or submissions.
+            framebuffers[(int)EnumFrameBuffer.Primary] = null!;
+            Assert.False(composite.PrepareFrame());
+            framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
+            terrain.Primary.Width = 0;
+            Assert.False(composite.PrepareFrame());
+            terrain.Primary.Width = 1;
+            terrain.Primary.DepthTextureId = 0;
+            Assert.False(composite.PrepareFrame());
+            terrain.Primary.DepthTextureId = terrain.Depth.TextureId;
+            Assert.Equal(0, drawCalls);
+            Assert.Equal(primaryBefore, terrain.Color.ReadPixels());
+        }
         Assert.InRange(Compose(), .249f, .251f);
         Assert.Equal(0, providerReads);
         // Repeated production draws retain the borrowed resolve FBO until its source changes.

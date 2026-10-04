@@ -125,7 +125,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
         // Bind input textures
         shader.PrimaryScene = primaryFb.ColorTextureIds[0];
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         shader.GBufferNormal = gBufferManager.NormalTextureId;
         shader.GBufferPosition = gBufferManager.PositionTextureId;
         shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;

@@ -1,8 +1,12 @@
 # Material color and display boundaries
 
 Opaque terrain and topsoil now publish unlit, linear material RGB before the direct and LumOn
-passes. The scene-linear composite remains RGBA16F. A separate display resolve writes the
-engine's RGBA8 primary target before OIT and final grading.
+passes. The scene-linear composite remains RGBA16F. A separate handoff writes the engine's
+primary target before OIT and final grading. Primary and bloom blur storage use RGBA16F.
+After successful frame preparation, this handoff preserves linear radiance and the engine's
+final composition performs display conversion. Unsupported frames retain the earlier
+display-referred handoff. Runtime activation is deferred: the owned liquid and opaque handoff
+explicitly select legacy output until the full-scene task integrates existing binding owners.
 
 Animated entities, standard/instanced meshes, transparent terrain and late held items are covered
 by the subsequent [entity and late-surface integration](PBR.EntityAndLateCoverage.md). The
@@ -26,8 +30,8 @@ view-space point lights and emission; these formulas have not changed.
 
 Color mapping and layered blending retain the engine's authored color-space behavior; the
 result is decoded once for lighting. This does not redefine the engine's texture filtering or
-implement linear-space atlas filtering. Primary attachment zero remains RGBA8 while temporarily
-carrying material color, so dark linear albedo still has that target's quantization limit.
+implement linear-space atlas filtering. Primary attachment zero temporarily carries material
+color; the scene-color allocation adapter now supplies RGBA16F storage for it.
 
 The capture patch checks its engine-source boundary and reports unsupported layouts instead of
 silently assuming the capture succeeded. It adds no per-pixel texture samples. Its preservation
@@ -43,31 +47,55 @@ Direct diffuse/specular, emission, Surface Cache and indirect lighting remain un
 signals. `pbr_composite` adds their contributions and blends fog after decoding the engine fog
 color to linear. It does not clamp radiance to one or apply a display transform.
 
-`pbr_display_resolve` performs the explicit opaque display boundary:
+`pbr_display_resolve` copies linear radiance on an HDR frame, including sky, and composites
+the captured premultiplied particle layer over the transported background once. On the retained
+legacy route it performs the opaque display boundary instead. Both routes use the same display
+policy at their respective conversion point:
 
 1. Fixed unit exposure, common to LumOn-enabled and standalone composition (see [PBR.LightingModes.md](PBR.LightingModes.md)).
 2. Nonnegative RGB-ratio-preserving mapping: `c / (1 + max(c.r, c.g, c.b))`.
-3. Exact linear-to-sRGB encoding for the ordinary RGBA8 primary attachment.
+3. Exact linear-to-sRGB encoding.
 
 This is an explicit baseline display policy, not adaptive exposure or a calibrated filmic
 transform. It preserves highlight ordering above one instead of clipping all highlights during
 a blit. All channels share a shoulder denominator to retain linear RGB ratios.
 See [PBR.SharedDisplay.md](PBR.SharedDisplay.md) for the sky/sun/surface contract.
 
-Sky pixels already used the shared display helper and bypass this resolve. Both composition and
-resolve use `lumonIsSky`, including its exact depth threshold. Vanilla final gamma, brightness,
-contrast and color grading remain subsequent display adjustments. The renderer uses a distinct
+On the legacy route, sky pixels already used the shared display helper and bypass this resolve.
+Both composition and resolve use `lumonIsSky`, including its exact depth threshold. On HDR
+frames the final shader converts the composed scene and effects before vanilla gamma,
+brightness, contrast and color grading. The renderer uses a distinct
 source texture and disables depth testing/writes for the fullscreen draws, restoring fixed
 function state afterwards. The new GPU scope is `PBR.DisplayResolve`.
 
 ## Remaining ownership
 
-This change addresses opaque terrain/topsoil. Animated entities, standard/instanced items,
-OIT liquids/transparency and late held items remain assigned to the separate coverage task in
-`PBR.BaselineShading.todo`. Their existing mixed color/material contracts are not claimed fixed.
-Underwater attenuation needs a lighting/composition owner in that work rather than being baked
-into albedo. A physically based sky and unified atmospheric fog are also separate tasks; the
-legacy fog/sky colors do not constitute calibrated radiance.
+This document owns opaque material capture and its color boundary. Entity, forward-surface
+and late-item coverage is documented in [PBR.EntityAndLateCoverage.md](PBR.EntityAndLateCoverage.md).
+The complete scene-HDR prerequisite and water transport work remain open in
+`PBR.BaselineShading.todo` and `PBR.WaterRefraction.todo`; conditional HDR branches alone do not
+establish complete-frame correctness. Engine-authored fog and effect colors are decoded for
+linear composition but do not constitute calibrated physical radiance.
+
+## Shared HDR handoff work
+
+`PBR/SceneColor/SceneColorAllocation` selects RGBA16F for primary color and the existing bloom
+blur targets at the engine's allocation calls. Glow, revealage, depth and SSAO data keep their
+formats. Engine-owned texture names, framebuffer publication and retirement are unchanged.
+Luma and god-ray storage were already RGBA16F in the inspected installation. This removes an
+intermediate storage limit; it does not by itself change the scene's color convention.
+
+`VgeSceneOutput`, the liquid frame's `SceneLinear` field and the opaque handoff shader's
+`SceneLinear` input support linear radiance without per-draw display conversion. Engine shader
+patches use a default-zero `vge_sceneLinear` input. The experimental coordinator and global
+shader-use hook were removed; activation through existing binding owners belongs to the full-scene
+HDR task, including explicit UI/offscreen isolation and resource/executable checks.
+Sky-specific HDR patches were removed by user direction. The existing atmospheric lookup and
+legacy sky effects remain; the sky does not declare HDR compatibility. The VGE-owned sky
+replacement in `PBR.BaselineShading.todo` is required before HDR activation and complete-frame
+verification can proceed.
+The complete contract and remaining prerequisite work are in
+[PBR.WaterRefraction.md](PBR.WaterRefraction.md#hdr-producer-and-consumer-contract).
 
 ## Validation
 

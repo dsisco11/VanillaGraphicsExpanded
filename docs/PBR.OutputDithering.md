@@ -1,5 +1,11 @@
 # SDR output dithering
 
+The per-draw boundaries below describe the retained legacy color route. The conditional
+scene-linear route disables those calls and retains final encoded-output dithering. Primary
+storage is now floating point. Runtime HDR activation is deferred to existing binding-owner
+integration and the planned VGE-owned sky shader; full handoff and perception-effect verification remain
+open in [PBR.WaterRefraction.md](PBR.WaterRefraction.md#hdr-producer-and-consumer-contract).
+
 `VgeDitherDisplay` in `pbr_color.glsl` adds ordered dither to encoded display RGB,
 after shared exposure, tone mapping and sRGB encoding. Its 8x8 Bayer tile visits
 all 64 ranks once. The offset is `((rank + 0.5) / 64 - 0.5) / 255`, strictly
@@ -15,7 +21,7 @@ dither may be spatially visible under magnification; live invisibility is not
 claimed from numerical checks.
 
 Deferred geometry dithers once in `pbr_display_resolve` immediately before the
-RGBA8 primary write. Sky dithers at the end of its patched fragment main, after
+display-referred primary write. Sky dithers at the end of its patched fragment main, after
 underwater/night-vision effects. Solar RGB dithers after underwater effects and
 before coverage blending. Forward surfaces dither their resolved display RGB
 before existing primary/OIT blending. Sky-depth pixels bypass deferred dithering
@@ -25,10 +31,11 @@ can attenuate the dither, and later vanilla grading may introduce new quantizati
 The engine `final.fsh` is also patched through TinyAst to apply `VgeDitherFinalDisplay`
 after god-ray/bloom composition, color grading and vignettes. These effects create
 gradients after primary-buffer dithering, so they need coverage at their own SDR
-output boundary. The final patch changes RGB only; it does not apply exposure or
-tone mapping again, and does not alter halo intensity, falloff or alpha. Dithering
-earlier buffers remains necessary because final noise cannot reconstruct precision
-already lost in the primary. The user accepted the initial sky result but reported
+output boundary. The final patch changes RGB only. On HDR frames it applies the shared display
+conversion before grading; on legacy frames it does not repeat exposure or tone mapping.
+It preserves halo intensity, falloff and alpha. Legacy per-draw dithering remains available;
+HDR frames preserve floating-point radiance until final conversion.
+The user accepted the initial sky result but reported
 remaining solar-halo bands; attribution to atmospheric LUT sampling versus later
 postprocessing remains unconfirmed without a visual comparison.
 
@@ -37,10 +44,10 @@ This preserves already-quantized colors at every dither rank while distributing
 new fractional postprocessing values between adjacent codes. Simply adding noise
 again failed the unchanged-color GPU check on the test driver.
 
-The current primary is SDR RGBA8; this amplitude must not be carried unchanged
-into a future higher-bit-depth HDR presentation path. When scene-linear HDR
-composition moves display conversion to a final pass, move this dither with it
-and remove the per-draw calls together. `VgeResolveDisplay` remains a pure transfer
+The dither amplitude targets SDR RGBA8 output; it must not be carried unchanged
+into a future higher-bit-depth HDR presentation path. The conditional scene-linear route
+moves display conversion and dithering to the final pass and disables per-draw calls
+together. `VgeResolveDisplay` remains a pure transfer
 function so lighting computations and numerical references are not contaminated.
 
 ## Validation boundary

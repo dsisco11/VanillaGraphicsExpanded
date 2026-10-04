@@ -1,4 +1,8 @@
 uniform int vge_atmosphereSunDraw;
+#ifndef VGE_SCENE_LINEAR_INPUT
+#define VGE_SCENE_LINEAR_INPUT
+uniform int vge_sceneLinear;
+#endif
 uniform vec4 vge_atmosphereSun;
 uniform vec4 vge_atmosphereDisk;
 in vec3 vge_sunDirection;
@@ -15,7 +19,10 @@ void VgeDrawAtmosphericSun()
         * smoothstep(vge_atmosphereSun.w - horizonEdge * .5, vge_atmosphereSun.w + horizonEdge * .5, elevation);
     if (coverage <= 0.0 || max(max(vge_atmosphereDisk.r, vge_atmosphereDisk.g), vge_atmosphereDisk.b) <= 0.0) discard;
     vec3 displayColor = applyUnderwaterEffects(VgeResolveDisplay(vge_atmosphereDisk.rgb), getSkyMurkiness());
-    outColor = vec4(VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
+    // HDR keeps the disk's physical radiance. Its water transport is owned by scene
+    // composition; the legacy display tint remains only on the compatible SDR route.
+    outColor = vec4(vge_sceneLinear != 0 ? max(vge_atmosphereDisk.rgb, vec3(0.0))
+        : VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
     // Feed the engine's bloom extraction separately from atmospheric scattering.
     // Use attenuated, underwater-adjusted color before dithering, so a dim disk
     // fades its bloom too. Coverage is applied by the existing attachment blending.

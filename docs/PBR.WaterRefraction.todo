@@ -17,8 +17,9 @@ Goal and fixed requirements
   background resolution, retaining valid receiver samples while excluding foreground contamination.
   Prevent avoidable receiver/confidence failures and loss of visible distortion. Do not treat
   invalid depth, foreground geometry or missing screen-space coverage as valid ray intersections.
-  Quality algorithms and HDR migration remain unimplemented. Baseline diagnostics and design
-  contracts are recorded in PBR.WaterRefraction.md; completion requires the verification gates below.
+  Quality algorithms and full-scene HDR activation remain unimplemented. Shared water transport
+  and its output adapters are implemented; verification status and baseline diagnostics are recorded
+  in PBR.WaterRefraction.md. Completion requires the applicable verification gates below.
 
 Scope and execution contract
   Reuse liquid, composite, water-medium, capture, framebuffer, shader-library and settings owners.
@@ -86,36 +87,43 @@ Phase 1: Establish reproducible cases and shared contracts
       atmosphere, late draws, exposure and display conversion, including vanilla-owned consumers.
     ☑ Identify exactly which surrounding producers/consumers must migrate for compatible HDR
       composition. A float texture containing display-converted values does not satisfy HDR.
-    ☑ Coordinate required HDR groundwork with the parent's complete-scene HDR task and assign its
-      execution as a prerequisite before Phase 2. Avoid reciprocal dependencies or duplicate resolves.
-      - Phase 1 defines the prerequisite and its owning task; it does not perform that HDR migration.
-        Phase 2 remains blocked until the parent task's common HDR handoff has verified receipts.
+    ☑ Identify common HDR groundwork and its parent owner, avoiding duplicate resolves.
+      - Scope corrected by user direction: full-scene HDR and sky replacement are separate work,
+        not prerequisites for implementing or completing Phase 2's water-specific contract.
   ☑ Review contracts and reproduce baseline cases; record outstanding design choices explicitly.
 
 Phase 2: Establish shared HDR water transport and composition
-  Dependencies: Phase 1 HDR producer/consumer contract and its identified shared prerequisites.
-  Entry gate: PBR.WaterRefraction.md / HDR producer and consumer contract. The common HDR handoff
-    remains unimplemented; complete it in the parent scene-HDR task before starting this phase.
+  Dependencies: Phase 1 receiver and water color/transport contracts.
+  Scope: implement and verify water-specific transport and composition using the existing linear
+    receiver buffers. Sky replacement and complete-scene HDR activation belong to separate parent
+    tasks and do not gate this phase. Validate the water HDR branch with controlled linear inputs;
+    retain the compatible legacy output boundary while the running scene is display-referred.
   Outcome: one scene-linear composition path usable by all four sampling algorithms.
+  Completed 2026-10-04: fresh builds, 40/40 focused checks and 55/55 regressions, zero skips.
+    Second review and independent audit-stage-completion found no remaining scoped requirements.
+    Receipts and retained limitations: PBR.WaterRefraction.md / Shared receiver and optical evaluation.
 
-  ☐ Preserve HDR radiance through water surface lighting, RGB medium transport, fallback blending
-    and transparency composition. Remove liquid-local display resolve/dither at this boundary.
-    ☐ Retain values above one and apply exposure/output conversion once at the agreed final boundary.
-    ☐ Preserve RGB background transmission and avoid adding the original background twice.
-    ☐ Define interaction with ordinary transparent objects, overlapping water and late first-person
+  ☑ Preserve HDR radiance through water surface lighting, RGB medium transport, fallback blending
+    and water's transparency contribution. Keep display resolve/dither outside shared optical math;
+    bypass it on the HDR route and retain it at the legacy output adapter when required.
+    ☑ Retain values above one internally and convert once at the boundary selected by scene convention.
+    ☑ Preserve RGB background transmission and avoid adding the original background twice.
+    ☑ Define interaction with ordinary transparent objects, overlapping water and late first-person
       draws; document remaining ordered-transport limitations rather than claiming OIT solves them.
-    ☐ Preserve straight-through disabled-refraction rendering within the compatible colour contract.
-  ☐ Separate background receiver selection from shared optical evaluation and HDR composition.
-    ☐ Carry receiver validity, sampling method, submerged length and refracted direction explicitly;
+    ☑ Preserve straight-through disabled-refraction rendering within the compatible colour contract.
+  ☑ Separate background receiver selection from shared optical evaluation and HDR composition.
+    ☑ Carry receiver validity, sampling method, submerged length and refracted direction explicitly;
       do not let an approximate UV receiver masquerade as an exact ray intersection.
-    ☐ Use the refracted direction within the water medium for directional single scattering.
+    ☑ Use the refracted direction within the water medium for directional single scattering.
       Establish photon-direction signs and world/view transforms; distinguish above-water entry
       from underwater exit, where the outgoing refracted segment is air, not the scattering medium.
-    ☐ Preserve water IOR/Fresnel/TIR, RGB extinction, local/environment sources and air-segment
+    ☑ Preserve water IOR/Fresnel/TIR, RGB extinction, local/environment sources and air-segment
       atmospheric transport without double-applying opaque water-volume attenuation.
-  ☐ Validate HDR highlight preservation, linear blends, exposure independence, single display
+  ☑ Validate HDR highlight preservation, linear blends, exposure independence, single display
     conversion, colored transmission and independently predicted directional-scattering cases.
-  ☐ Complete focused regression checks and source review before sampler implementations depend on it.
+  ☑ Complete focused regression checks and source review before sampler implementations depend on it.
+    - Completion establishes the water implementation and its HDR/legacy contracts, not complete-scene
+      HDR activation, a replacement sky renderer or live acceptance of the full rendering pipeline.
 
 Phase 3: Implement coherent background resolution and receiver filtering
   Dependencies: shared HDR and receiver contracts.

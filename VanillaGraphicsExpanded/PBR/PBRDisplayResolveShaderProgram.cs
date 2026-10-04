@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>Resolves scene-linear opaque lighting into the engine's display-referred primary target.</summary>
+/// <summary>Hands off opaque lighting and optional particles using the selected scene color convention.</summary>
 [ShaderProgram("Contract", "pbr_display_resolve", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh", Identity = "pbr_display_resolve.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_display_resolve.fsh")]
@@ -28,6 +28,15 @@ public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDis
 
     /// <summary>Depth distinguishes geometry from the unchanged legacy sky.</summary>
     public partial int PrimaryDepth { set; }
+
+    /// <summary>Preserves scene radiance when the complete HDR producer/consumer handoff is ready.</summary>
+    public partial int SceneLinear { set; }
+
+    /// <summary>Composes ordered particle radiance over transported opaque lighting on the linear route.</summary>
+    public partial DynamicTexture2D? ParticleLayer { set; }
+
+    /// <summary>Enables sampling only for a completed particle layer from the current frame.</summary>
+    public partial int ParticleLayerEnabled { set; }
 
     #endregion
     #region Binding sources

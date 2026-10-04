@@ -934,7 +934,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             shader.LumOnTerrainBridge = terrainBridgeUbo;
 
             // Bind textures
-            shader.PrimaryDepth = primaryFb.DepthTextureId;
+            shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
             // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
             // encoded to [0,1] via the shader patching system
             shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;

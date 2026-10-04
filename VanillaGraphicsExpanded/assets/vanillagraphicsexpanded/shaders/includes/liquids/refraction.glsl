@@ -1,5 +1,6 @@
 #ifndef VGE_WATER_REFRACTION_GLSL
 #define VGE_WATER_REFRACTION_GLSL
+@import "./transport.glsl"
 // Diagnostic hooks compile away in ordinary rendering variants.
 // Reasons: 0 accepted, 1 projection/bounds, 2 depth/sky/metadata, 3 homogeneous
 // reconstruction, 4 interface plane, 5 adjacent receiver, 6 TIR, 7 residual,
@@ -58,17 +59,17 @@ bool VgeRefractionReceiver(vec2 sampleUv, vec3 surface, vec3 normalVS,
 }
 
 /** Traces only the visible opaque layer, with 32 samples and five crossing refinements over at most 32 metres. */
-bool VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater,
-    out vec3 background, out float submergedLength, out vec3 receiver, out float confidence)
+VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater)
 {
-    background = vec3(0);
-    submergedLength = 0.0;
-    receiver = surface;
-    confidence = 0.0;
+    vec3 background = vec3(0);
+    float submergedLength = 0.0;
+    vec3 receiver = surface;
+    float confidence = 0.0;
     vec3 incident = normalize(surface);
     vec3 direction = refract(incident, normalVS, underwater ? 1.333 : 1.0 / 1.333);
+    VgeWaterReceiver result = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE, vec3(0), surface, direction, 0.0, 0.0);
     // A zero direction is total internal reflection; it is never a transmitted hit.
-    if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return false; }
+    if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return result; }
     mat4 inverseProjection = inverse(projectionMatrix);
     float previousT = 0.0;
     for (int step = 1; step <= 32; ++step)
@@ -79,7 +80,7 @@ bool VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater,
         vec2 sampleUv;
         float receiverZ;
         if (!VgeRefractionProject(point, sampleUv)
-            || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return false;
+            || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return result;
         if (-point.z >= receiverZ)
         {
             float low = previousT;
@@ -89,17 +90,17 @@ bool VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater,
                 float middle = (low + high) * .5;
                 point = surface + direction * middle;
                 if (!VgeRefractionProject(point, sampleUv)
-                    || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return false;
+                    || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return result;
                 if (-point.z >= receiverZ) high = middle;
                 else low = middle;
             }
             receiver = surface + direction * high;
             if (!VgeRefractionProject(receiver, sampleUv)
-                || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return false;
+                || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return result;
             // A depth discontinuity can mimic a crossing. Missing hidden geometry is not a hit.
-            if (abs(-receiver.z - receiverZ) > .15) { VGE_REFRACTION_EVENT(7); return false; }
+            if (abs(-receiver.z - receiverZ) > .15) { VGE_REFRACTION_EVENT(7); return result; }
             background = texture(vge_refractionColor, sampleUv).rgb;
-            if (any(isnan(background)) || any(isinf(background))) { VGE_REFRACTION_EVENT(8); return false; }
+            if (any(isnan(background)) || any(isinf(background))) { VGE_REFRACTION_EVENT(8); return result; }
             submergedLength = underwater ? length(surface) : high;
             // Fade the complete refracted contribution before clipping or exhausting the trace.
             // Use both endpoints so lower-screen interfaces do not develop a binary fallback seam.
@@ -110,11 +111,11 @@ bool VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater,
             confidence = smoothstep(2.0, 2.0 + fadeWidth, edge)
                 * (1.0 - smoothstep(24.0, 32.0, high))
                 * (1.0 - smoothstep(.04, .15, abs(-receiver.z - receiverZ)));
-            return true;
+            return VgeWaterReceiver(true, VGE_WATER_RECEIVER_RAY, background, receiver, direction, submergedLength, confidence);
         }
         previousT = distance;
     }
     VGE_REFRACTION_EVENT(9);
-    return false;
+    return result;
 }
 #endif

@@ -35,7 +35,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     [InlineData(17)]
     [InlineData(18)]
     [InlineData(19)]
-    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario)
+    [InlineData(0, true)]
+    [InlineData(7, true)]
+    [InlineData(9, true)]
+    [InlineData(14, true)]
+    [InlineData(9, true, 1)]
+    [InlineData(9, true, 2)]
+    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0)
     {
         EnsureContextValid();
         int frameSize = scenario >= 14 ? 128 : 16;
@@ -44,6 +50,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         using var assets = new BinaryShaderApiFixture();
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
+        program.SceneLinear = sceneLinear;
         using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -65,10 +72,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         var sceneDepthValues = Enumerable.Repeat(scenario == 4 ? float.NaN : deviceDepth, frameSize * frameSize).ToArray();
         if (scenario == 10) sceneDepthValues[8 * 16 + 9] = .5f * (1 + (far + near - 2 * far * near) / (far - near));
         sceneDepth.UploadDataImmediate(sceneDepthValues);
+        if (scatteringSource != 0)
+            sceneColor.UploadDataImmediate(Enumerable.Range(0, frameSize * frameSize).SelectMany(_ => new float[] { 0, 0, 0, 1 }).ToArray());
         using var mediumIndex = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
         using var mediumRecord = Texture2D.Create(2, 1, PixelInternalFormat.Rgba32f);
         mediumIndex.UploadDataImmediate([1f]);
         mediumRecord.UploadDataImmediate(new float[8]);
+        if (scatteringSource != 0) mediumRecord.UploadDataImmediate([.1f,.2f,.3f,.7f, .2f,.3f,.4f,0]);
         program.WaterMediumIndicesTexture = mediumIndex;
         program.WaterMediumRecordsTexture = mediumRecord;
         program.RefractionColorTexture = sceneColor;
@@ -85,6 +95,17 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         program.DepthRangeAndFrameSize = new(near, far, frameSize, frameSize);
         program.AtlasMetrics = Vector4.One;
         program.SetCounts(0, 0);
+        if (scatteringSource == 1)
+        {
+            program.SunDirection = new(0,0,-1,0);
+            program.SolarIrradiance = new(100,100,100,0);
+        }
+        if (scatteringSource == 2)
+        {
+            program.SetCounts(1, 0);
+            program.SetPointLightPosition(0, new(0,0,-12));
+            program.SetPointLightColor(0, new(10000));
+        }
         program.MediumLookupEnabled = scenario == 9 || scenario >= 14;
         program.AerialParameters = new(0, 0, scenario is >= 6 and <= 8 ? 1 : 0, 0);
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, near, far);
@@ -177,7 +198,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         {
             Assert.True(actual[0] < baseline[0], $"Fixed-world camera scenario {scenario} must transmit a refracted floor sample.");
             AssertFixedWorldSnellGradient(target[3].ReadPixelsRegion(center,center,1,1), baselineAccumulation,
-                actual[0], baseline[0], frameSize, camera, worldFromView, modelView * projection);
+                actual[0], baseline[0], frameSize, camera, worldFromView, modelView * projection, sceneLinear);
         }
         else if (scenario < 2 || scenario == 6 || scenario == 9 || scenario >= 11)
         {
@@ -186,7 +207,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
             Assert.True(accumulation[0] > 0);
             Assert.True(baseline[0] > .001f);
-            if (scenario == 9) AssertSnellGradient(accumulation);
+            if (scenario == 9) AssertSnellGradient(accumulation, sceneLinear, scatteringSource);
+            if (sceneLinear && scenario is 0 or 9) Assert.True(accumulation.Take(3).Max() / accumulation[3] > 1);
 
         }
         else if (scenario == 7)
@@ -252,7 +274,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     #region Private
     /// <summary>Checks the independently predicted refracted floor sample and premultiplied fallback mixture.</summary>
     private static void AssertFixedWorldSnellGradient(float[] accumulation, float[] fallback, float revealage,
-        float fallbackRevealage, int frameSize, Vector3 camera, Matrix4x4 worldFromView, Matrix4x4 viewProjection)
+        float fallbackRevealage, int frameSize, Vector3 camera, Matrix4x4 worldFromView, Matrix4x4 viewProjection, bool sceneLinear)
     {
         // Intersect the camera ray with the interface, apply Snell's law, then intersect the fixed floor.
         Vector3 incident = Vector3.Normalize(Vector3.TransformNormal(new(1 / ((float)frameSize * MathF.Sqrt(3)),
@@ -274,18 +296,22 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         float rs = (eta * cosine - transmittedCosine) / (eta * cosine + transmittedCosine);
         float rp = (cosine - eta * transmittedCosine) / (cosine + eta * transmittedCosine);
         float rawRed = MathF.Max(.1f, 2 + sampledFloor.X * .02f) * (1 - .5f * (rs * rs + rp * rp));
-        float linearRed = rawRed / (1 + rawRed);
-        float encodedRed = 1.055f * MathF.Pow(linearRed, 1 / 2.4f) - .055f + (.5f / 64 - .5f) / 255;
         float alpha = 1 - revealage;
         float fallbackAlpha = 1 - fallbackRevealage;
-        // Revealage identifies the confidence weight; compare the independently composed display source.
+        // No direct/environment/source light exists here, so the fallback contribution is black.
+        Assert.InRange(MathF.Abs(fallback[0]), 0, .00001f);
         float confidence = (alpha - fallbackAlpha) / (1 - fallbackAlpha);
-        float expectedRed = (fallback[0] / fallback[3] * fallbackAlpha * (1 - confidence) + encodedRed * confidence) / alpha;
+        float expectedRed = rawRed * confidence / alpha;
+        if (!sceneLinear)
+        {
+            float mapped = expectedRed / (1 + expectedRed);
+            expectedRed = 1.055f * MathF.Pow(mapped, 1 / 2.4f) - .055f + (.5f / 64 - .5f) / 255;
+        }
         Assert.InRange(accumulation[0] / accumulation[3], expectedRed - .003f, expectedRed + .003f);
     }
 
     /// <summary>Predicts the refracted receiver texel using independent vector Snell optics and display transfer.</summary>
-    private static void AssertSnellGradient(float[] accumulation)
+    private static void AssertSnellGradient(float[] accumulation, bool sceneLinear, int scatteringSource)
     {
         float raySlope = 1f / (16f * MathF.Sqrt(3));
         float z = -2f / (1f + .4f * raySlope);
@@ -303,6 +329,27 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         float rp = (cosine - eta * transmittedCosine) / (cosine + eta * transmittedCosine);
         float transmission = 1f - .5f * (rs * rs + rp * rp);
         float rawRed = (1f + pixel * .2f) * transmission;
+        if (scatteringSource != 0)
+        {
+            Vector3 light = scatteringSource == 1 ? new(0,0,-1) : Vector3.Normalize(new Vector3(0,0,-12) - surface);
+            float intensity = scatteringSource == 1 ? 100 : 10000 / Vector3.DistanceSquared(new(0,0,-12), surface);
+            double phaseCosine = Vector3.Dot(-light, -direction);
+            double phase = (1 - .7 * .7) / (4 * Math.PI * Math.Pow(1 + .7 * .7 - 2 * .7 * phaseCosine, 1.5));
+            double path = Vector3.Distance(receiver, surface);
+            double[] extinction = [.3,.5,.7], scatter = [.2,.3,.4];
+            for (int channel = 0; channel < 3; channel++)
+            {
+                double expected = transmission * intensity * phase * scatter[channel] / extinction[channel]
+                    * (1 - Math.Exp(-extinction[channel] * path));
+                Assert.InRange((double)(accumulation[channel] / accumulation[3]), expected * .995, expected * 1.005);
+            }
+            return;
+        }
+        if (sceneLinear)
+        {
+            Assert.InRange(accumulation[0] / accumulation[3], rawRed - .002f, rawRed + .002f);
+            return;
+        }
         float linearRed = rawRed / (1f + rawRed);
         float encodedRed = 1.055f * MathF.Pow(linearRed, 1f / 2.4f) - .055f;
         float dither = (.5f / 64f - .5f) / 255f;
@@ -314,8 +361,6 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         value.M21,value.M22,value.M23,value.M24,value.M31,value.M32,value.M33,value.M34,value.M41,value.M42,value.M43,value.M44];
     #endregion
 }
-
-
 
 
 

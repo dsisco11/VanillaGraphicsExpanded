@@ -8,6 +8,31 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class ShaderCapabilitiesTests
 {
     #region Publication and identity
+    /// <summary>Scene color support belongs to one successfully linked executable and is withdrawn on reload or failure.</summary>
+    [Fact]
+    public void SceneColorConventionRequiresCurrentSuccessfulExecutable()
+    {
+        var program = new ShaderProgram { ProgramId = 10 };
+        ShaderCapabilities.Declare(program, ShaderCapability.SceneColorConvention);
+        Assert.False(ShaderCapabilities.Has(program, ShaderCapability.SceneColorConvention));
+
+        bool success = true;
+        ShaderPatchCompilationHook.Finalizer(program, ref success, null);
+        Assert.True(ShaderCapabilities.Has(program, ShaderCapability.SceneColorConvention));
+
+        program.ProgramId = 11;
+        Assert.False(ShaderCapabilities.Has(program, ShaderCapability.SceneColorConvention));
+        ShaderCapabilities.PublishDeclared(program);
+        Assert.True(ShaderCapabilities.Has(program, ShaderCapability.SceneColorConvention));
+
+        success = false;
+        ShaderPatchCompilationHook.Finalizer(program, ref success, null);
+        Assert.False(ShaderCapabilities.Has(program, ShaderCapability.SceneColorConvention));
+        ShaderCapabilities.Forget(program);
+        ShaderCapabilities.PublishDeclared(program);
+        Assert.False(ShaderCapabilities.Has(program, ShaderCapability.SceneColorConvention));
+    }
+
     /// <summary>Source declarations become visible only at the successful compile boundary.</summary>
     [Fact]
     public void DeclarationRequiresSuccessfulCompilation()

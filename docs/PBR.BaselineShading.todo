@@ -99,6 +99,28 @@ Tasks
       Warmed CPU lookup work measured approximately 0.95 ms per bounded update on this machine.
       Source and implementation review completed; no game launch or live appearance claim.
 
+  ☐ Fully replace the base-game sky shader with a VGE-owned shader.
+    - Reuse the existing atmospheric LUT generation, publication and shared lighting inputs;
+      replace the engine sky program rather than extending its GLSL with further HDR patches.
+    - Use the established VGE shader asset, typed binding, registration and SPIR-V build paths.
+      Establish draw ownership while preserving engine sky geometry, render order and celestial
+      ordering; avoid duplicate sky draws and keep resource orchestration thin.
+    - Explicitly own twilight/star visibility alpha, horizon and liquid-depth masking, underwater
+      tint, night vision, psychedelic effects, glow and G-buffer/SSAO outputs. Specify which effects
+      remain spatial sky operations and which belong at the final display boundary.
+    - Emit scene-linear HDR on prepared HDR frames, retaining the compatible legacy display route
+      until the common scene handoff is ready. Preserve values above one; apply display conversion
+      and SDR dithering once at the selected boundary. Keep UI/offscreen rendering separate.
+    - Enable scene-HDR participation only after the owned program and bindings are
+      verified. This task supports full-scene HDR activation but does not gate water Phase 2.
+    - Preserve shader reload, resize, world teardown, failure handling and both PBR lighting modes.
+      Remove superseded sky source patches when the owned shader assumes their responsibilities.
+    - Validate LUT row/seam sampling, day/night alpha and celestial ordering, perception effects,
+      above/underwater views, HDR/legacy output and lifecycle with focused subagent tests. Retain
+      existing atmospheric-model tests; obtain user-run visual acceptance without launching the game.
+    - Contracts: docs/PBR.Atmosphere.md, docs/PBR.SharedDisplay.md, docs/PBR.OutputDithering.md,
+      docs/PBR.MaterialColorAndDisplay.md and docs/PBR.WaterRefraction.md.
+
   ☐ Add optional depth-map tessellation and relief mapping through the production shader pipeline.
     ☑ Audit terrain topology, draw submission and the existing depth-map contract.
       - Trace installed engine opaque/topsoil index layouts, draw calls, vertex attributes and shadow
@@ -584,14 +606,35 @@ Tasks
       evidence to completed tasks and remove temporary profiling/comparison code after preserving it.
 
   ☐ Extend scene-linear HDR rendering through the complete scene and postprocessing pipeline.
-    - Coordinate prerequisite HDR water/OIT work with docs/PBR.WaterRefraction.todo; establish one
+    - Coordinate HDR water/OIT integration with docs/PBR.WaterRefraction.todo; establish one
       shared producer/consumer and final-display contract without reciprocal task dependencies.
-    ☐ Establish the common HDR scene handoff required before water transport integration.
+    ☐ Establish the common HDR scene handoff for full-scene activation.
+      - Depends on the VGE-owned sky replacement above. Sky-specific HDR patches and their tests
+        were removed by user direction; the current sky retains display output.
+      - Integrate color-convention selection with existing surface, atmosphere and owned-program
+        binding owners; do not introduce a separate hook on every ShaderProgramBase.Use invocation.
+        Inventory uncovered engine contributors and use explicit owning boundaries for them.
+      - Define scene/postprocess/final and nested UI/offscreen transitions, stale-binding reset and
+        reload/failure behavior before activation. The experimental SceneColorFrame coordinator and
+        global binding/final/postprocess hooks were removed; runtime output remains legacy meanwhile.
       - Follow docs/PBR.WaterRefraction.md / HDR producer and consumer contract: floating-point
         scene storage, compatible opaque/sky/OIT/late and fallback contributors, linear merge and
         pre-display effects, then one final display boundary before grading/UI.
       - Verify highlight retention, linear blends, single conversion and coherent failure/lifecycle
-        handling before PBR.WaterRefraction.todo Phase 2. Do not wait for new water sampling algorithms.
+        handling before full-scene HDR activation. Water Phase 2 can implement and verify its optical
+        math and HDR/legacy output contracts independently; do not expand it into this scene migration.
+      - In progress: engine-owned scene/blur storage promotion and selectable linear output branches;
+        foundation tests passed 33/33; later producer/postprocess regressions passed 76/76.
+          These separate receipts do not satisfy the common-handoff gate. Runtime activation is
+          deferred to the binding-owner integration above; complete-frame execution remains unverified.
+      - Preserve underlying material/depth for legacy cube-particle alpha blending at Opaque 0.6,
+        before deferred lighting/composition. Do not mix completed radiance with material RGB,
+        move engine callbacks or replay submissions. Evidence and remaining work: PBR.WaterRefraction.md.
+        Isolated particle storage, receiver separation and linear handoff now pass 27/27 focused
+        tests. Engine callback/depth-consumer wiring and selective SSAO metadata restoration pass
+        a separate 31/31 focused integration suite. Current frame routing, target/fallback checks
+          and installed-shader GLSL compilation are recorded in PBR.WaterRefraction.md; successful
+        complete-frame execution remains outstanding. The overlapping receipts must not be summed.
     - Audit render-target formats, copies, blending and shader outputs across opaque terrain,
       entities, transparency/OIT, liquids, sky, clouds and late held items. Preserve HDR radiance
       in floating-point targets through scene composition; changing primary format alone is insufficient.

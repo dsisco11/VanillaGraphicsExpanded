@@ -24,9 +24,55 @@ Accepted hits fade toward straight-through transmission near either the interfac
 
 Accepted above-water paths apply the authored water absorption and constant-source in-scattering over the refracted interface-to-receiver length. Atmospheric transport applies only on the camera-to-interface air segment. Underwater exits apply atmospheric transport on the outgoing air segment and medium transport on the camera-to-interface segment. The existing engine camera classification does not follow animated water contact; that belongs to the waterline task. The local lighting and homogeneous medium approximations are unchanged from [water transport](PBR.WaterMedium.md).
 
+## Shared receiver and optical evaluation
+
+`liquids/transport.glsl` defines `VgeWaterReceiver`: validity, sampling provenance, unattenuated
+linear radiance, view-space position and refracted direction, submerged length in metres, and
+confidence. The current sampler reports only unavailable or ray-traced results. Confidence is
+independent of validity; later sampling methods must report their own provenance explicitly.
+`liquids/refraction.glsl` selects that receiver without evaluating lighting or display conversion.
+
+For accepted above-water rays, scattering compares the incoming photon direction (`-L`) with
+`transpose(mat3(modelViewMatrix)) * -refractedDirectionVS`. The trace travels from camera toward
+the receiver; outgoing scattered photons travel in reverse. For an underwater exit, outgoing
+water photons instead point from the interface toward the camera (`-surfaceVS` transformed to
+world space). The refracted segment is air. Solar and point-light scattering share this rule;
+isotropic environment lighting is unchanged. Unavailable/disabled refraction retains the
+straight-through source direction.
+
+`VgeWaterTransport` evaluates RGB extinction and integrated source radiance independently of
+receiver selection. Accepted paths consume the unattenuated snapshot, so opaque water-volume
+attenuation is not applied twice. The straight-through path retains its existing `WasComposed`
+guard. `VgeWaterCompose` combines linear premultiplied contributions and coverage before the
+output adapter. HDR output keeps radiance above one; legacy output applies the shared display
+operator and dither once to the resulting straight color. This fixes the previous interpolation
+of separately tone-mapped contributions without activating full-scene HDR.
+
+The controlling contracts are the receiver/provenance and composition requirements in
+`PBR.WaterRefraction.todo`, the units and photon-direction convention in `PBR.WaterMedium.md`,
+and the six-target OIT/engine ownership contract in `PBR.Liquids.md`. Display adaptation follows
+`PBR.MaterialColorAndDisplay.md`, `PBR.SharedDisplay.md` and `PBR.OutputDithering.md`.
+Focused validation must cover production liquid output and independent transport/direction
+references; existing traversal diagnostics retain their original rejection and confidence cases.
+
+Fresh build and focused validation passed 40/40 tests with zero skips in
+`artifacts/PbrColor/water-transport-integration-tests.log`. The production liquid cases cover
+HDR and legacy output, highlights above one, Snell-selected receivers, linear confidence blending,
+TIR, disabled/unavailable refraction, camera rotations and nonzero solar/point-light scattering.
+The directional cases independently predict Snell, Henyey-Greenstein and Beer-Lambert results
+per RGB channel. A typed precompiled helper fixture checks entry/exit photon directions and
+world transforms, colored transport and confidence endpoints. The 12 receiver diagnostic cases
+now use a precompiled fixture importing production traversal, preserving the original rejection,
+sample-count and confidence checks. No runtime compilation of VGE-owned GLSL is needed.
+These receipts establish the scoped water contract, not whole-scene HDR activation or live visuals.
+The separate regression run passed 55/55 with zero skips in
+`artifacts/PbrColor/water-transport-regressions.log`: liquid transparency/sun/program behavior,
+signed water boundaries and capture, RGB water-volume composition in both lighting modes,
+refraction publication/overlay handling and resource lifecycle. Both runs used fresh builds.
+
 ## OIT composition and limitations
 
-A fully trusted refracted source includes the background, medium transport and Fresnel-weighted interface response. It emits opacity one, causing overall multiplicative OIT revealage to become zero, so the engine compositor does not add the original background again. During fallback transitions, blend premultiplied display color and opacity together: `alpha = mix(fallbackAlpha, 1, confidence)` and `source = mix(fallbackColor * fallbackAlpha, refractedColor, confidence)`. The final straight color is `source / alpha`; the original background contributes only `(1-confidence)*(1-fallbackAlpha)`. This keeps the complete result continuous without blending the original background twice. The bucket weights and six output attachments remain unchanged. Failed traces retain the existing scalar straight-through transmission and already-composed opaque water transport. Flow animation, shadows, lava/body lighting, emission, local fog spheres and preview transparency continue through the liquid path.
+A fully trusted refracted source includes the background, medium transport and Fresnel-weighted interface response. It emits opacity one, causing overall multiplicative OIT revealage to become zero, so the engine compositor does not add the original background again. During fallback transitions, blend premultiplied scene-linear radiance and opacity together: `alpha = mix(fallbackAlpha, 1, confidence)` and `source = mix(fallbackColor * fallbackAlpha, refractedColor, confidence)`. The straight linear color is `source / alpha`; the selected HDR/legacy output adapter runs only after this blend; the original background contributes only `(1-confidence)*(1-fallbackAlpha)`. This keeps the complete result continuous without blending the original background twice. The bucket weights and six output attachments remain unchanged. Failed traces retain the existing scalar straight-through transmission and already-composed opaque water transport. Flow animation, shadows, lava/body lighting, emission, local fog spheres and preview transparency continue through the liquid path.
 
 The snapshot represents opaque receivers only. Accepted paths approximate one water interval; other water boundaries, overlapping liquids and transparent objects are absent from it. Multiple accepted liquid layers retain engine bucket color averaging, rather than ordered optical transport. A transparent object behind water can contribute separately through OIT and is not refracted by this algorithm. Preview transparency deliberately mixes the completed liquid result with the original background. These limitations require live evaluation at overlaps and shorelines; this implementation does not claim complete transparent scene transport or the later scene-linear HDR pipeline.
 
@@ -98,14 +144,15 @@ approximation; this contract does not add a volumetric shadow march or change co
 
 ## HDR producer and consumer contract
 
-Current source inspection confirms the pipeline below. Installed-client IL was freshly exported
+The baseline inspection established the pipeline below, before the conditional HDR changes
+described under Shared handoff implementation status. Installed-client IL was exported
 to `artifacts/PbrColor/water-hdr-engine-il.txt` using Mono.Cecil assembly reading,
 without executing the client. `VintagestoryLib.dll` SHA256 is
 `E08F22B493B92FEAF0AAEB79D22437EA0F7EFC38AA7F72A04A47F98BC0E40DF0`.
 The installed shader sources are under `G:/Vintagestory/assets/game/shaders`; these identify the
 inspected installation and are not new source-code dependencies.
 
-| Boundary / owner | Current verified behaviour | Required HDR contract |
+| Boundary / owner | Verified baseline behaviour | Required HDR contract |
 | --- | --- | --- |
 | Opaque material capture, `GBufferManager` and surface patches | Primary attachment zero contains linear albedo for supported geometry, but already-resolved sky colour for sky pixels; engine primary allocation is RGBA8. | Preserve material/radiance distinction and metadata; provide floating-point scene storage and a compatible engine primary handoff. Format replacement alone is insufficient. |
 | `WaterRefractionCapture.BeforeOverlay` / `PBRCompositeRenderer.RenderComposite(capture, isolatedLighting)` | Before local first-person projection, evaluates isolated direct plus standalone environment lighting; early return publishes without a display draw. No current-frame LumOn gather exists yet. | Retain engine order and coherent pre-overlay world colour/depth. Do not invent late coverage or reuse stale GI. Keep unattenuated scene-linear capture. |
@@ -121,9 +168,9 @@ inspected installation and are not new source-code dependencies.
 | Sky/solar patches and engine celestial/effect draws | `AtmosphereSkyPatches` and solar shader resolve before blending; stars/moon retain authored display colours. | Retain atmosphere radiance through scene blending; explicitly decode/calibrate legacy authored colours at their scene boundary and move display-only perception effects to the final boundary. |
 | `RenderPostprocessingEffects` / `RenderFinalComposition` | Bloom extraction reads primary; final scene input is framebuffer index 10, not directly primary. `final.fsh` performs FXAA, bloom/SSAO/godray combinations and display grading/clamps. | Preserve HDR through all pre-display copies/postprocess intermediates, including the scene sent to final composition. Give bloom/SSAO/godrays explicit linear roles; place one tone-map/output conversion before display grading/UI. |
 
-The required common prerequisite is owned by the **complete-scene HDR task in
+The common scene migration is owned by the **complete-scene HDR task in
 [PBR.BaselineShading.todo](PBR.BaselineShading.todo)**, not duplicated inside the water renderer.
-Before water HDR integration starts, that owner must establish and verify:
+Before full-scene HDR activation, that owner must establish and verify:
 
 1. Floating-point scene target handoff through opaque, merge, AfterOIT and pre-display processing,
    with coherent resize/reload and no read/write feedback. Retain engine mesh and framebuffer
@@ -147,13 +194,251 @@ Before water HDR integration starts, that owner must establish and verify:
    transparency matches numerical references, output conversion occurs once, and unsupported or
    failed setup retains an entirely compatible old path rather than mixing old and new routes.
 
-This prerequisite is currently **not implemented or verified** by the baseline investigation.
-New water HDR integration stays gated on that receipt. The dependency is one-way:
-the common HDR task establishes the handoff first (including compatible current liquid output),
-then water integration adds its new transport/receiver composition. The common task must not wait
-for the new water algorithms, downsampling or settings, and completing water does not complete all
-scene-HDR or HDR-monitor work. The approved authoritative-pipeline proposal constrains future
+This scene migration is currently **not complete or verified as a whole**. It does not block
+water-specific implementation or verification. Shared water optics consume linear receiver data
+and produce linear transport results; an output adapter preserves the existing display convention
+until full-scene HDR is available. Controlled producer/consumer fixtures can verify the water HDR
+branch without replacing the sky or activating HDR throughout the running scene. Sky replacement
+and complete-scene activation remain separate parent tasks. Completing the water contract does not
+claim their completion or HDR-monitor support. The approved authoritative-pipeline proposal constrains future
 state ownership; its unimplemented APIs are not a prerequisite for these source/diagnostic checks.
+
+### Shared handoff implementation status
+
+The engine allocation adapter now selects RGBA16F for primary scene color and bloom blur
+intermediates at the original allocation calls. Primary glow, OIT revealage and depth/SSAO data
+retain their formats. Luma and god-ray targets were already RGBA16F. Engine framebuffer ownership,
+completed-rebuild publication and retirement remain unchanged. The installed allocation sequence
+is checked directly, including primary color-before-glow and both SSAO branches.
+
+PBR forward/liquid output and the opaque handoff have explicit linear branches. In that branch,
+`VgeSceneOutput` retains nonnegative unexposed radiance, and local sphere-fog colors are decoded
+before interpolation. The sun branch also retains radiance; sky HDR support is deferred to the
+planned VGE-owned replacement. Legacy OIT adapters decode
+straight color before engine premultiplication; volumetric clouds decode the authored color
+sample before integration. Postprocessing preserves linear RGB, uses display-derived alpha for
+FXAA contrast, and selects one display conversion before final grading. The god-ray glare metric
+uses display brightness without clipping its linear RGB. Runtime activation of these branches is deferred to existing binding-owner integration in the parent scene-HDR task. No whole-scene HDR activation
+or all-producer coverage is claimed from these branches.
+
+Fresh subagent-run foundation validation passed 33/33 tests with no skips in
+`artifacts/PbrColor/scene-color-foundation-tests.log`: installed allocation/Harmony checks,
+headless float storage, engine rebuild regressions, actual opaque handoff in both modes,
+shared output math and existing display regressions. This receipt predates the subsequent
+legacy/postprocess adapters and does not validate their complete integration.
+
+The subsequent fresh shader regression passed 76/76 with no skips in
+`artifacts/PbrColor/scene-color-patches-regression.log`. Installed-source and GPU cases cover
+legacy OIT decoding before premultiplication, cloud sample decoding before volume integration,
+linear RGB with perceptual luma alpha, HDR god-ray suppression, and HDR scene/bloom/god-ray
+composition resolved once before grading and final quantization. Existing final/sky/sun/forward
+and liquid highlight regressions also pass. The first run exposed an AST mistake: a preprocessor
+directive node did not contain the conditional's statement body. The patch now guards the actual
+clamp statement, and the final receipt supersedes the failed run and an intermediate whitespace
+assertion failure. These counts are separate receipts, not a summed distinct-test total.
+
+| Shared scene-HDR work | Controlling requirements | Current evidence |
+| --- | --- | --- |
+| Engine scene storage | Parent common-handoff task; HDR contract items 1 and 4; authoritative state proposal's engine ownership boundary | `SceneColorAllocation`/`SceneColorAllocationHook`; original installed IL, Harmony installation, headless storage and rebuild checks. Native window allocation has not been executed by these fixtures. |
+| Selectable producer output and fog | HDR contract item 2; `PBR.MaterialColorAndDisplay.md`; `PBR.Liquids.md` six-output and alpha contract | `VgeSceneOutput`, liquid frame/handoff bindings and producer shader patches; helper, handoff and retained legacy-output checks. Conditional frame activation is wired; complete-frame execution remains unverified. |
+| Legacy OIT and existing effects | HDR contract items 2 and 3; `PBR.SharedDisplay.md`; `PBR.OutputDithering.md` final-output requirement | `SceneColorLegacyPatches`, `SceneColorPostprocessPatches`, final patch; installed GLSL compilation and independently predicted numerical cases in the 76-test receipt. No new bloom algorithm or HDR monitor output. |
+| Ordered opaque particles | HDR contract items 1, 2 and 4; parent common-handoff particle requirement; authoritative state proposal's engine ownership boundary | `SceneColorParticleTargets`, receiver separation shader, draw scope, capture hook and optional opaque handoff layer; focused receipts below. Conditional preparation and activation are wired; complete-frame execution remains outstanding. |
+
+Further installed-source inspection found an additional coupling that activation must resolve:
+`SystemRenderParticles.OnRenderFrame3D` enables alpha blending for cube particles at Opaque 0.6,
+before direct lighting at 9 and composition at 11. Primary RGB still contains material color at
+that point. Merely decoding the particle output or marking the blended pixel as completed radiance
+would mix material data with radiance and lose the underlying receiver. Preserve underlying
+material/depth and compose particle radiance without reordering or replaying engine submissions.
+`SceneColorParticleTargets` now provides the isolated storage for that boundary: particle RGB
+blends into owned RGBA16F with accumulated coverage, while depth and glow are borrowed from
+primary. Its draw routing leaves underlying material and receiver metadata untouched. Matching
+32-bit depth snapshots bracket the original particle invocation; the installed engine requests
+`DepthComponent32`, and snapshots retain that exact format. The separation shader restores the
+pre-particle material depth where particle visibility survives, or selects a later opaque
+receiver and suppresses the particle layer where visibility changed. This comparison uses the
+same depth representation without a geometric tolerance. Equal-depth replacement is not
+distinguishable from depth alone; the intended engine boundary uses strict `Less` depth testing.
+Unknown draws using a different depth convention require rejection by HDR readiness.
+
+The opaque handoff shader has an explicitly enabled optional particle layer. It combines
+`background * (1 - coverage) + premultipliedParticleRGB` on the linear route after opaque air/water
+transport. Decoded legacy particle color already includes its original fog effects and must not
+receive that transport again. The retained material background remains the refraction receiver;
+this does not add refracted particle layers or ordered transparent transport. Capture resets and
+primary attachment notifications invalidate publication; owned-image disposal preserves borrowed
+engine images. Depth copies preserve independent framebuffer bindings and scissor state, and
+storage clearing leaves indexed blend/write masks unchanged. Scissor preservation is owned by
+`StateCache.PreserveScissorState`: the caller must establish known state through the cache before
+capture. The copy applies its scissor-disabled pipeline and restores cached state without driver
+queries or invalidation. Unknown state is rejected before copying rather than guessed.
+The cache-owned scope and particle regressions pass 14/14 focused tests with no skips after a
+fresh build (`artifacts/PbrColor/scene-color-particles-cache-scope.log`), including nested and
+exceptional restoration, unknown-state rejection, and indexed-state preservation.
+
+Fresh subagent-run validation passed 27/27 with no skips in
+`artifacts/PbrColor/scene-color-particles-final.log`, including particle capture/separation,
+installed cube-shader output, linear/legacy handoff and existing display regressions. Cases
+cover HDR ordered blending, zero/partial/full coverage, later foreground replacement,
+zero-alpha depth writers, empty draws/reuse, indexed state restoration, unsupported-depth
+rejection, equal-size publication invalidation and borrowed-image survival after retirement.
+Copied depth matches actual source readback exactly; nominal fragment depth uses a small
+storage-quantization tolerance for the installed fixed-point format. A fresh build succeeded;
+the shader catalog contains 170 stages / 408 variants and the final receipt verifies all
+408 binaries current. The initial run caught use of the color-texture factory for depth
+snapshots; those now use `DepthTexture`. Fixture corrections cover OpenTK enum availability,
+engine lighting defaults, depth quantization and deferred disposal. This final receipt
+supersedes those failed intermediate runs; it is not added to prior overlapping test counts.
+
+`SceneColorParticleCaptureHook` now brackets the installed `Render(int, float)` call, which follows
+standard alpha-blend setup in `OnRenderFrame3D`. Its void prefix never suppresses the original
+submission. The draw scope establishes the known full-scene particle boundary through pipeline
+descriptions, redirects only its color destination and restores independent framebuffer bindings
+and the engine's standard output-zero blend factors. A finalizer withdraws failed captures and
+restores routing even when the original method throws. Model, stage, framebuffer and current
+shader checks exclude OIT/offscreen submissions; the cube shader's color-convention input is
+selected at each recognized submission to prevent stale fallback/offscreen values.
+
+The capture owner is registered at Opaque 8.5, ahead of direct lighting at 9. It resolves the
+current particle layer and material depth before direct lighting, LumOn, water-volume integration
+and composition consume that depth. Engine visibility depth remains unchanged for OIT visibility
+and interface clipping. The opaque handoff receives the separated particle layer after material
+transport. Before-stage invalidation withdraws the previous frame, and resize/world/disposal
+boundaries retire owned snapshots. `PrepareFrame` preflights resources and the patched cube shader;
+runtime activation is deferred. Future scene-HDR binding-owner integration must prepare it after
+the Before 8.5 reset and reject an incomplete handoff. Complete-frame execution remains outstanding.
+
+Shader compatibility now uses the existing executable-capability registry:
+`SceneColorConvention` is declared only after the relevant fragment patch succeeds and is
+published only after successful engine compilation. It describes the selectable color branch,
+not complete HDR readiness. Particle preparation requires that capability on the current
+executable as well as its binding uniform; a similarly named uniform alone is insufficient.
+The frame coordinator must additionally validate target formats, all contributors, perception
+effects and prepared consumers before choosing HDR. This change does not enable a partial frame.
+Focused verification passed 8/8 tests with zero skips in
+`artifacts/PbrColor/scene-color-capability-tests.log`: executable identity/failure/reload semantics,
+final-patch capability declaration and particle preparation in both SSAO modes. The publication
+fixture explicitly supplies a capability on its test program; this is not an installed-engine
+compilation or complete-frame HDR receipt. The particle rasterization, integration and publication
+test files still contain runtime GLSL compilation/raw GL setup and need migration to the prescribed
+precompiled test path. Their existing raster coverage has not been removed to hide that gap.
+
+The runtime shader registry now explicitly registers `SceneColorParticleShaderProgram`; packaged
+shader compilation alone did not make `GpuShaderPrograms.Get` return it. A registered-owner
+lifecycle fixture exposed this omission before activation. The corrected callback/publication
+integration passed 27/27 tests with no skips in
+`artifacts/PbrColor/scene-color-particle-integration-final.log`. This includes actual registered
+shader resolution and Before/world/resize/disable/disposal boundaries, not a live game frame.
+
+Source review also identified required SSAO follow-through: the installed cube shader writes
+engine normal/position outputs 2/3. When those engine attachments exist, particle capture now
+stores both outputs in separate RGBA16F images. The underlying engine position remains intact
+for deferred lighting, including physical first-person receivers. After ordinary opaque
+composition, `SceneColorParticleSsaoShaderProgram` restores only pixels where particle depth
+still owns visibility; later foreground and untouched pixels retain their existing metadata.
+Zero-alpha particles retain their original depth/metadata behavior. The restoration destination
+borrows only engine normal/position, avoiding feedback with sampled visibility depth. Both
+registered particle programs must be ready before selecting the HDR frame. This additional
+SSAO path passed a fresh 31/31 focused GPU/integration tests with zero skips in
+`artifacts/PbrColor/scene-color-particle-ssao-tests.log`; shader generation covered 172 stages
+and 410 variants. Cases cover selective restoration, zero-alpha depth writes, later foreground,
+untouched pixels, borrowed-image lifetime, installed cube SSAO outputs and registered owner
+lifecycle with SSAO enabled/disabled. The lifecycle fixture invokes restoration after receiver
+resolve; the placement inside `PBRCompositeRenderer` was source-reviewed, not executed by that
+fixture. This receipt overlaps the earlier suites and must not be added to their counts.
+The SSAO component test was subsequently rewritten to follow `VanillaGraphicsExpanded.Tests/agents.md`:
+precompiled production shaders, typed GPU abstractions, shared setup and separate behavioral/lifetime
+cases. Its fresh receipt is 7/7 passed with zero skips in
+`artifacts/PbrColor/scene-color-particle-ssao-standards.log`. These cases upload independently specified
+particle submission results and execute the real depth copies, receiver resolve and metadata restore;
+they do not rasterize particles or verify engine scheduling. The earlier synthetic rasterization case
+is no longer part of this test file.
+
+`PBRCompositeRenderer.PrepareFrame` now exposes composition preparation before scene submission:
+it prepares separate scratch/primary destinations and both the pre-overlay fallback and selected
+ordinary composition shader variants, plus display handoff. The normal draw reuses the same
+preparation methods. Preparation does not draw, publish refraction or select HDR; lighting,
+particles, compatible scene producers and final processing remain the frame owner's other gates.
+Registered-owner preparation and related regressions passed 11/11 tests with zero skips in
+`artifacts/PbrColor/scene-color-compositor-preflight-tests.log`. Preparation selects both lighting
+modes without draws/publication or primary-color changes, preserves independent framebuffer
+bindings, and rejects missing/invalid primary metadata. Subsequent ordinary composition, borrowed
+target replacement, pre-overlay capture state and color handoff checks also pass. This proves the
+compositor preparation boundary, not complete-frame execution.
+
+Installed-engine inspection identifies `ShaderRegistry.shaderPrograms` as the shared array for
+file and memory registrations, including third-party programs. `Before` callbacks precede the
+engine shadow/opaque/OIT stages. The outer screen renderer calls scene rendering, postprocessing,
+AfterPostProcessing, final composition, AfterFinalComposition and the final blit in that order.
+The frame decision must therefore cover the engine postprocess/final methods explicitly rather
+than infer their role from `CurrentRenderStage` alone. A registry inventory also does not establish
+that arbitrary third-party Before callbacks are safe scene contributors.
+
+`SceneColorShaderInventory` now reads that engine registry instead of maintaining a separate
+registration list. Scene contributors require current linked color-convention or material-capture
+capabilities. Known auxiliary passes require linked engine classes using engine file assets;
+unknown programs, third-party subclasses and memory programs cannot claim that exemption merely
+by copying a pass name. VGE-owned programs still require preparation by their consuming owners.
+An empty registry does not itself establish frame readiness; the coordinator must separately
+require the actual scene and final consumers. Future scene-HDR activation must use this classification
+as one of its preparation gates.
+
+The installed registry always includes `woittest` and `colorgrade`. Field-use inspection identifies
+`woittest` as an optional framebuffer-debug OIT producer, so its patch decodes straight authored
+RGB at `drawPixel` entry before the unchanged alpha/weight calculation. The alternate `colorgrade`
+endpoint resolves linear input before grading and dithers after output only when its color flag
+is explicitly enabled. Neither pass receives an unconditional auxiliary exemption. Ordinary terrain
+fragment patches now declare `SceneMaterialCapture` after successful source mutation.
+Fresh build and 19/19 focused checks passed with zero skips in
+`artifacts/PbrColor/scene-color-shader-inventory-final.log`: inventory classification, executable
+capability lifetime and installed-source patch placement. These are CPU/source checks, not GPU
+execution of the two new engine shader branches or complete-frame HDR evidence.
+The particle path allocates a nominal 28 bytes per pixel of owned scratch storage, plus 16 bytes
+when SSAO metadata is retained. It adds two depth copies, one receiver-separation draw and an
+optional SSAO-restoration draw. These are format/pass counts, not measured GPU costs.
+
+Runtime scene-HDR activation is deferred to the parent full-scene task. The experimental
+`SceneColorFrame` coordinator, global shader-use hook, postprocess/final hooks and their dedicated
+tests were removed. There is no new callback on every engine shader activation and no Before-stage
+HDR preflight. The owned liquid and opaque handoff explicitly select legacy output; the water HDR
+shader branch remains independently tested. Shader reload no longer invokes the removed coordinator.
+
+Future activation must integrate with existing surface, atmosphere and owned-program binding
+owners, with explicit boundaries for uncovered engine consumers. It must handle nested offscreen/UI
+uses, postprocess/final ordering, failed preparation and lifecycle resets without stale convention
+values. Retained target validation, inventory and shader output helpers are groundwork, not an active
+frame controller. Earlier coordinator-specific receipts are historical and do not validate a current
+activation path. Sky HDR patches remain removed; the owned-sky replacement is a separate task.
+After this deferral, a fresh build and 55/55 focused tests passed with zero skips in
+`artifacts/PbrColor/water-deferred-coordinator-regressions.log`: the 40 water checks, lighting-mode
+lifecycle, opaque handoff and final-output regressions. Water transport completion is unchanged.
+
+The opaque handoff tests now use the existing fullscreen framework for pipeline and framebuffer
+setup rather than issuing redundant raw GL state calls. All nine existing numerical cases passed
+after that cleanup in `artifacts/PbrColor/scene-color-handoff-framework-tests.log`, with no skips.
+`SceneColorOutputTests` has also been migrated to a typed offline-built fixture importing the
+production color helper; its original HDR, negative-input, alpha and dither assertions are retained.
+Fresh build and the migrated output plus nine handoff cases passed 10/10 with no skips in
+`artifacts/PbrColor/scene-color-output-handoff-precompiled-tests.log`. The helper now executes
+from production-importing SPIR-V through the shared GPU program/fullscreen owners, with no
+runtime GLSL compilation or test-local shader lifetime management.
+
+Vanilla engine shader fixtures use GLSL compilation, as explicitly clarified by the user.
+`InstalledShaderFixture` reuses the existing installed-source patch helper and
+`TerrainShaderTestFixture`, then imports reflected driver locations into the matching engine
+shader wrapper. The executable has one owner. No separate exporter, numeric interface contract,
+SPIR-V manifest or extra test-build project is required for vanilla shaders.
+Reachability review of `particlesquad2d` found that its `oitPass <= 0` direct assignment bypasses
+the OIT decoding wrapper, but the installed engine library constructs and renders that owner
+only from `GuiCompositeMainMenuLeft`; its pass field retains zero. This is a GUI route, where
+the frame binding must remain legacy, not a demonstrated scene-HDR omission. No production
+decode was added to that branch. GUI isolation still requires a rendered check.
+No complete-frame HDR or live appearance claim follows from these focused checks. The common
+handoff still requires complete execution evidence, review and audit.
+
+Decals register at AfterOIT 0.5 and do not share this early material-buffer problem. These are
+installed IL observations, not live visual results. Complete execution coverage of readiness,
+unknown-contributor rejection and failure/lifecycle handling, plus sky perception effects, remains required.
 
 Current missing-scene coverage, scalar OIT revealage and multiple-liquid bucket averaging are
 separate limitations. Moving RGB into HDR fixes colour-space composition, not ordered refraction
@@ -166,18 +451,19 @@ requirements consulted, not new claims of runtime verification:
 | Work item | Consulted document and requirement | Evidence / verification boundary |
 | --- | --- | --- |
 | Receiver baseline and sampling decisions | [PBR.BaselineShading.todo](PBR.BaselineShading.todo), refraction item; current Optics and traversal section above | Exact production traversal include, liquid consumer, snapshot/capture owners and focused diagnostic/production GPU fixtures. No live camera-defect reproduction claimed. |
-| Medium and liquid compatibility | [PBR.WaterMedium.md](PBR.WaterMedium.md), Evaluation and ownership; [PBR.Liquids.md](PBR.Liquids.md), Captured OIT contract; [PBR.LiquidRenderer.Proposal.md](PBR.LiquidRenderer.Proposal.md), Compatibility and lifecycle | Preserve SI units, RGB transport, one submission owner, six bucket outputs and engine-owned meshes/targets. New transport implementation remains subsequent work. |
+| Medium and liquid compatibility | [PBR.WaterMedium.md](PBR.WaterMedium.md), Evaluation and ownership; [PBR.Liquids.md](PBR.Liquids.md), Captured OIT contract; [PBR.LiquidRenderer.Proposal.md](PBR.LiquidRenderer.Proposal.md), Compatibility and lifecycle | Preserve SI units, RGB transport, one submission owner, six bucket outputs and engine-owned meshes/targets. Shared receiver/transport evaluation and linear confidence composition are implemented and covered by the focused water receipt above. |
 | Settings and resource decisions | Parent refraction enable/disable contract and current `ConfigModSystem`, `VgeConfig`, `WaterRefractionScene` / `WaterRefractionCapture` | Stable settings/defaults and publication policy specified above; new settings runtime tests belong to implementation, not this design receipt. |
-| HDR dependency and colour boundaries | [PBR.MaterialColorAndDisplay.md](PBR.MaterialColorAndDisplay.md), Lighting and display; [PBR.EntityAndLateCoverage.md](PBR.EntityAndLateCoverage.md), Transparency and display boundary; [PBR.SharedDisplay.md](PBR.SharedDisplay.md), HDR ordering; [PBR.OutputDithering.md](PBR.OutputDithering.md), final-output migration | Source/installed IL inventory above defines the one-way common prerequisite; no HDR migration or HDR acceptance claimed. |
+| HDR dependency and colour boundaries | [PBR.MaterialColorAndDisplay.md](PBR.MaterialColorAndDisplay.md), Lighting and display; [PBR.EntityAndLateCoverage.md](PBR.EntityAndLateCoverage.md), Transparency and display boundary; [PBR.SharedDisplay.md](PBR.SharedDisplay.md), HDR ordering; [PBR.OutputDithering.md](PBR.OutputDithering.md), final-output migration | Source/installed IL inventory defines the full-scene activation contract; water-specific implementation is independently testable and does not claim complete-scene HDR acceptance. |
 | Lighting and engine authority | [PBR.LightingModes.md](PBR.LightingModes.md), LumOn composition and lifecycle; [Rendering.AuthoritativePipelineState.todo](Rendering.AuthoritativePipelineState.todo) and its approved proposal, Scope boundaries / Engine integration | Retain mode-generation ownership, engine shader activation and framebuffer restoration. Diagnostic hooks compile away normally; no new submission architecture is introduced. |
 
 ## Validation and remaining acceptance
 
 ### Receiver baseline diagnostics
 
-`WaterRefractionDiagnosticTests` compiles the actual `includes/liquids/refraction.glsl` with opt-in
-event/sample macros, using the existing headless shader test framework. Ordinary shader variants
-expand these hooks to nothing; traversal equations, rejection thresholds and composition remain
+`WaterRefractionDiagnosticTests` executes a precompiled fixture importing the actual
+`includes/liquids/refraction.glsl` with opt-in event/sample macros through the existing headless
+shader framework. Ordinary shader variants
+expand these hooks to nothing; traversal equations and rejection thresholds remain
 unchanged. Three diagnostic outputs record hit/reason/evaluation count/confidence, last receiver
 UV and positive view depth, and submerged length/refracted Z/fallback mixing weight/returned Z.
 On rejection, the sample is the last attempted lookup, not a selected valid receiver; a projection
@@ -231,7 +517,7 @@ dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -
 Source/contract review separates these executed baseline observations from the planned fixes.
 Second review and an independent completion audit found the baseline investigation and design
 contract fully supported by the source, linked documents and executed receipts.
-No settings UI, reduced-step algorithm, bilateral filter, downsampling or HDR migration is claimed
+No settings UI, reduced-step algorithm, bilateral filter, downsampling or whole-scene HDR activation is claimed
 implemented by these diagnostics. Live appearance and production GPU cost remain unmeasured.
 
 ### Earlier implementation receipts

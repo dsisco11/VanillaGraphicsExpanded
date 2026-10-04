@@ -46,7 +46,13 @@ public sealed class PbrFinalDisplayDitherTests(HeadlessGLFixture fixture) : Rend
         var tree = SyntaxTree.Parse("""
             #version 430 core
             layout(location=0) out vec4 outColor;
+            uniform int vge_sceneLinear;
             void main() {
+                vec4 color=vec4(0);
+            #if GODRAYS > 0
+                color.rgb = min(color.rgb, vec3(1));
+            #endif
+                vec4 gradedColor = color;
                 float tile=floor(gl_FragCoord.x/8.0);
                 outColor=vec4(vec3(100.0/255.0),73.0/255.0);
             #if ADD_HALO
@@ -97,7 +103,3 @@ public sealed class PbrFinalDisplayDitherTests(HeadlessGLFixture fixture) : Rend
     }
     #endregion
 }
-
-
-
-

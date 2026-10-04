@@ -23,6 +23,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.Liquids.LiquidDepthRenderer? liquidDepthRenderer;
     private PBR.Liquids.WaterVolumeRenderer? waterVolumeRenderer;
     private PBR.Liquids.WaterRefractionCapture? waterRefractionCapture;
+    private PBR.SceneColor.SceneColorParticleCapture? particleCapture;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -54,6 +55,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         HarmonyPatches.PbrDrawRouteHook.Api = null;
 
         liquidRenderer?.Dispose();
+        particleCapture?.Dispose();
+        particleCapture = null;
         waterRefractionCapture?.Dispose();
         waterRefractionCapture = null;
         waterVolumeRenderer?.Dispose();
@@ -82,6 +85,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         }
 
         directLightingBufferManager ??= new DirectLightingBufferManager(capi);
+        particleCapture ??= new PBR.SceneColor.SceneColorParticleCapture(capi, gBufferManager);
         directLightingRenderer ??= new DirectLightingRenderer(capi, gBufferManager, directLightingBufferManager);
 
         liquidDepthRenderer ??= new PBR.Liquids.LiquidDepthRenderer(capi);

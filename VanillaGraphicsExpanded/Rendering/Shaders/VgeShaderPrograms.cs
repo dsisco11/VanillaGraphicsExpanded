@@ -23,6 +23,8 @@ internal static class VgeShaderPrograms
             new PBR.Liquids.LiquidDepthShaderProgram(),
             new PBRCompositeShaderProgram(),
             new PBRDisplayResolveShaderProgram(),
+            new PBR.SceneColor.SceneColorParticleShaderProgram(),
+            new PBR.SceneColor.SceneColorParticleSsaoShaderProgram(),
             new LumOnWorldProbeClipmapResolveShaderProgram(),
             new LumOnWorldProbeRadianceTileResolveShaderProgram(),
             new LumOnProbeAnchorShaderProgram(),

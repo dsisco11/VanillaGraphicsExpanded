@@ -97,7 +97,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             program.WaveFrame = waves;
             program.ModelViewMatrix = api.Render.CameraMatrixOriginf;
             program.ForcedTransparency = 0;
-            program.DepthTexture = primary.DepthTextureId;
+            program.DepthTexture = SceneColor.SceneColorParticleCapture.ReceiverDepth(api, primary.DepthTextureId);
             program.ShadowMapNear = api.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;
             program.ShadowMapFar = api.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapFar]?.DepthTextureId ?? 0;
             MaterialAtlasSystem.Instance.TextureStore.TryGetPageTextures(atlases[0], out var initialMaterial);

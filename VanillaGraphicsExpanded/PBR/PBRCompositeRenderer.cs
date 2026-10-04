@@ -11,6 +11,7 @@ using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.PBR;
 
@@ -99,7 +100,28 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     }
 
 
-    /// <summary>Combines scene-linear lighting, then resolves it into the engine's display target.</summary>
+    /// <summary>Prepares composition resources before a caller selects the frame's scene color convention.</summary>
+    internal bool PrepareFrame()
+    {
+        if (quadMeshRef is null || capi.Render.FrameWidth <= 0 || capi.Render.FrameHeight <= 0) return false;
+        var buffers = capi.Render.FrameBuffers;
+        if (buffers.Count <= (int)EnumFrameBuffer.Primary
+            || buffers[(int)EnumFrameBuffer.Primary] is not { } primary
+            || primary.ColorTextureIds is not { Length: > 0 } colors || colors[0] == 0
+            || primary.DepthTextureId == 0 || primary.Width <= 0 || primary.Height <= 0) return false;
+
+        // Preparation may allocate and bind FBOs, but never publishes color or changes
+        // the frame convention. The frame owner must also prepare the other producers.
+        using var bindings = StateCache.Current.BindFramebufferScope();
+        if (!PrepareTargets(primary)) return false;
+        var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
+        // The pre-overlay world capture uses the environment fallback even when
+        // ordinary composition consumes LumOn, so both variants must be available.
+        if (PrepareCompositeProgram(false) is null) return false;
+        return PrepareCompositeProgram(readLightingMode()) is not null && display?.EnsureReady() == true;
+    }
+
+    /// <summary>Combines lighting and hands it to primary using the prepared frame's color convention.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
         => RenderComposite(stage);
 
@@ -139,32 +161,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi, "pbr_composite");
-        if (shader is null)
-        {
-            return;
-        }
-
-        // Ensure the scratch composite target exists and matches current resolution.
-        // Use existing GBuffer/DynamicTexture resize support (no custom ensure helper).
-        if (compositeFbo is null || compositeColorTex is null || !compositeFbo.IsValid || !compositeColorTex.IsValid)
-        {
-            ReleaseScreenResources();
-
-            compositeColorTex = DynamicTexture2D.Create(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
-            if (!compositeColorTex.IsValid)
-            {
-                ReleaseScreenResources();
-                return;
-            }
-
-            compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, debugName: "PBRCompositeFBO");
-            if (compositeFbo is null || !compositeFbo.IsValid)
-            {
-                ReleaseScreenResources();
-                return;
-            }
-        }
+        if (!PrepareTargets(primaryFb)) return;
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         bool lumOnEnabled = capture is null && readLightingMode();
         var currentBuffers = lumOnEnabled ? getLumOnBuffers() : null;
@@ -172,15 +169,9 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         var indirectTex = capture is null && currentBuffers?.HasPublishedIndirect == true ? currentBuffers.IndirectFullTex : null;
         if (indirectTex?.IsValid != true) indirectTex = null;
 
-        shader.ConfigureOptions(() =>
-        {
-            shader.LumOnEnabled = lumOnEnabled;
-            shader.EnablePbrComposite = lumOnEnabled && (lumOnConfig?.LumOn.EnablePbrComposite ?? true);
-            shader.EnableShortRangeAo = lumOnEnabled && (lumOnConfig?.LumOn.EnableShortRangeAo ?? true);
-        });
-
-        var display = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
-        if (!shader.EnsureReady() || display is null || !display.EnsureReady()) return;
+        var shader = PrepareCompositeProgram(lumOnEnabled);
+        var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
+        if (shader is null || display is null || !display.EnsureReady()) return;
 
         // Matrices for optional PBR composite mode
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
@@ -215,7 +206,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.GBufferMaterial = gBufferManager.MaterialTexture;
         shader.GBufferNormal = gBufferManager.NormalTexture;
         shader.GBufferPosition = gBufferManager.PositionTextureId;
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
 
         // Fog uniforms
         shader.RgbaFogIn = capi.Render.FogColor;
@@ -250,31 +241,26 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Resolve HDR deliberately before the RGBA8 primary and vanilla display grading.
+        // Preserve HDR for a prepared linear frame; otherwise retain the legacy display resolve.
         // The source is our scratch texture, so this draw has no color attachment feedback.
         // Borrow only primary color; this FBO owns its routing and never owns the engine texture.
-        if (primaryResolveFbo is not { IsValid: true }
-            || !ReferenceEquals(primaryResolveSource, primaryFb)
-            || primaryResolveSourceId != primaryFb.FboId
-            || primaryResolveColorId != primaryFb.ColorTextureIds[0])
-        {
-            // Rebuild only when the engine replaces the source or its borrowed attachment.
-            ReleasePrimaryResolve();
-            primaryResolveFbo = GpuFramebuffer.CreateEmpty("PBR.PrimaryResolve");
-            primaryResolveFbo.Attach(primaryFb.ColorTextureIds[0]);
-            primaryResolveSource = primaryFb;
-            primaryResolveSourceId = primaryFb.FboId;
-            primaryResolveColorId = primaryFb.ColorTextureIds[0];
-        }
-        primaryResolveFbo.Bind();
+        primaryResolveFbo!.Bind();
 
         display.PrimaryScene = compositeColorTex!.TextureId;
         display.PrimaryDepth = primaryFb.DepthTextureId;
+        // Runtime scene output remains display-referred until its existing binding owners adopt HDR.
+        display.SceneLinear = 0;
+        var particleLayer = SceneColor.SceneColorParticleCapture.Layer(capi);
+        display.ParticleLayer = particleLayer;
+        display.ParticleLayerEnabled = particleLayer is null ? 0 : 1;
         using (display.UseScope())
         using (GlGpuProfiler.Instance.Scope("PBR.DisplayResolve"))
         {
             capi.Render.RenderMesh(quadMeshRef);
         }
+        // Deferred receivers are no longer needed this frame. Publish the original
+        // particle normal/position values before engine SSAO consumes its attachments.
+        SceneColor.SceneColorParticleCapture.RestoreSsao(capi);
         Liquids.WaterVolumeRenderer.MarkComposed(capi);
         if (refractionTarget is not null) RefractionScene.Publish();
     }
@@ -297,6 +283,57 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     #endregion
 
     #region Private
+    /// <summary>Prepares the same shader options for early readiness checks and actual composition.</summary>
+    private PBRCompositeShaderProgram? PrepareCompositeProgram(bool lumOnEnabled)
+    {
+        var shader = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi, "pbr_composite");
+        if (shader is null) return null;
+        shader.ConfigureOptions(() =>
+        {
+            shader.LumOnEnabled = lumOnEnabled;
+            shader.EnablePbrComposite = lumOnEnabled && (lumOnConfig?.LumOn.EnablePbrComposite ?? true);
+            shader.EnableShortRangeAo = lumOnEnabled && (lumOnConfig?.LumOn.EnableShortRangeAo ?? true);
+        });
+        return shader.EnsureReady() ? shader : null;
+    }
+
+    /// <summary>Prepares separate composition and borrowed primary destinations without drawing or publishing.</summary>
+    private bool PrepareTargets(FrameBufferRef primary)
+    {
+        if (compositeFbo is not { IsValid: true } || compositeColorTex is not { IsValid: true })
+        {
+            ReleaseScreenResources();
+            compositeColorTex = DynamicTexture2D.Create(primary.Width, primary.Height,
+                PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
+            compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, debugName: "PBRCompositeFBO");
+            if (!compositeColorTex.IsValid || compositeFbo is not { IsValid: true })
+            {
+                ReleaseScreenResources();
+                return false;
+            }
+        }
+        if (compositeFbo.Width != primary.Width || compositeFbo.Height != primary.Height)
+        {
+            // Withdraw borrowers before resizing the owned attachment they reference.
+            RefractionScene.Dispose();
+            PreOverlayScene?.Invalidate();
+            compositeFbo.Resize(primary.Width, primary.Height);
+        }
+        if (primaryResolveFbo is not { IsValid: true }
+            || !ReferenceEquals(primaryResolveSource, primary)
+            || primaryResolveSourceId != primary.FboId
+            || primaryResolveColorId != primary.ColorTextureIds[0])
+        {
+            ReleasePrimaryResolve();
+            primaryResolveFbo = GpuFramebuffer.CreateEmpty("PBR.PrimaryResolve");
+            primaryResolveFbo.Attach(primary.ColorTextureIds[0]);
+            primaryResolveSource = primary;
+            primaryResolveSourceId = primary.FboId;
+            primaryResolveColorId = primary.ColorTextureIds[0];
+        }
+        return primaryResolveFbo.IsValid;
+    }
+
     /// <summary>Retires snapshots before resizing their borrowed composite attachment.</summary>
     private void OnScreenResized()
     {

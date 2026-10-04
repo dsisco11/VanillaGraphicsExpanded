@@ -119,7 +119,11 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     {
         ShaderCapability capabilities = ShaderCapability.None;
         Build(name, 2, name == "chunktransparent.fsh" ? 1 : 0, 0, 0, 0, value => capabilities |= value);
-        Assert.Equal(expected ? ShaderCapability.TwoSidedSurfaceNormals : ShaderCapability.None, capabilities);
+        Assert.Equal(expected, capabilities.HasFlag(ShaderCapability.TwoSidedSurfaceNormals));
+        Assert.Equal(name is "standard.fsh" or "chunktransparent.fsh",
+            capabilities.HasFlag(ShaderCapability.SceneColorConvention));
+        Assert.Equal(name is "chunkopaque.fsh" or "chunktopsoil.fsh",
+            capabilities.HasFlag(ShaderCapability.SceneMaterialCapture));
     }
     #endregion
 
@@ -146,7 +150,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             return included.Add(path) ? Expand(File.ReadAllText(path), Path.GetDirectoryName(path)!) : "";
         });
         tree = SyntaxTree.Parse(Expand(tree.ToText(), Path.Combine(AppContext.BaseDirectory, "assets/shaders")), GlslSchema.Instance);
-        if (name is not ("sky.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
+        if (name is not ("sky.vsh" or "particlescube.vsh" or "particlesquad2d.vsh" or "final.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
         if (name == "standard.fsh")
         {
             string main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single().ToText();

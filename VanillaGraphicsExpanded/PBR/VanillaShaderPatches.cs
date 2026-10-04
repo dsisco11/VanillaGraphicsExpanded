@@ -36,6 +36,8 @@ internal static class VanillaShaderPatches
         "chunkshadowmap.vsh" or "final.fsh" or "sky.fsh"
         || PatchedChunkVertexShaders.Contains(sourceName)
         || PatchedChunkShaders.Contains(sourceName)
+        || SceneColor.SceneColorPostprocessPatches.Supports(sourceName)
+        || SceneColor.SceneColorLegacyPatches.Supports(sourceName)
         || PbrSurfaceShaderPatches.Supports(sourceName);
 
     #endregion
@@ -225,6 +227,16 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (SceneColor.SceneColorLegacyPatches.Supports(sourceName))
+            {
+                SceneColor.SceneColorLegacyPatches.Preprocess(tree);
+                return true;
+            }
+            if (SceneColor.SceneColorPostprocessPatches.Supports(sourceName))
+            {
+                SceneColor.SceneColorPostprocessPatches.Preprocess(tree);
+                return true;
+            }
             if (sourceName == "chunkshadowmap.vsh")
                 return Tessellation.TerrainDisplacementPatches.Apply(tree, sourceName);
             if (sourceName == "final.fsh")
@@ -367,9 +379,22 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (SceneColor.SceneColorLegacyPatches.Supports(sourceName))
+            {
+                SceneColor.SceneColorLegacyPatches.Apply(tree, sourceName);
+                declare?.Invoke(ShaderCapability.SceneColorConvention);
+                return true;
+            }
+            if (SceneColor.SceneColorPostprocessPatches.Supports(sourceName))
+            {
+                SceneColor.SceneColorPostprocessPatches.Apply(tree, sourceName);
+                declare?.Invoke(ShaderCapability.SceneColorConvention);
+                return true;
+            }
             if (sourceName == "final.fsh")
             {
                 PbrFinalDisplayPatches.Apply(tree);
+                declare?.Invoke(ShaderCapability.SceneColorConvention);
                 return true;
             }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
@@ -380,6 +405,8 @@ flat in uint vge_faceId;
                 PbrSurfaceShaderPatches.Apply(tree, editor, sourceName);
                 editor.Commit();
                 if (sourceName == "chunktransparent.fsh") declare?.Invoke(ShaderCapability.TwoSidedSurfaceNormals);
+                if (sourceName.EndsWith(".fsh", StringComparison.Ordinal))
+                    declare?.Invoke(ShaderCapability.SceneColorConvention);
                 return true;
             }
             if (PatchedChunkVertexShaders.Contains(sourceName))
@@ -393,6 +420,7 @@ flat in uint vge_faceId;
             if (PatchedChunkShaders.Contains(sourceName))
             {
                 ApplyChunkFragmentPatches(tree, sourceName);
+                declare?.Invoke(ShaderCapability.SceneMaterialCapture);
                 if (sourceName == "chunkopaque.fsh") declare?.Invoke(ShaderCapability.TwoSidedSurfaceNormals);
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;

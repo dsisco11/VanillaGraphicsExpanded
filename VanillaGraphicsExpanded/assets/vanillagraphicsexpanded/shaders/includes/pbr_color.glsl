@@ -56,4 +56,13 @@ vec3 VgeDitherFinalDisplay(vec3 encoded, vec2 pixel)
     // Explicit rounding prevents the final framebuffer conversion from biasing repeated dithering.
     return floor(VgeDitherDisplay(encoded, pixel) * 255.0 + 0.5) / 255.0;
 }
+
+/** Preserves unexposed radiance for a linear scene, or supplies the compatible SDR draw boundary. */
+vec3 VgeSceneOutput(vec3 radiance, vec2 pixel, bool linearScene)
+{
+    // Select before any display operation: HDR blending must never accumulate tone-mapped
+    // samples, and encoded-output dither has no meaning in a radiance attachment.
+    if (linearScene) return max(radiance, vec3(0.0));
+    return VgeDitherDisplay(VgeResolveDisplay(radiance), pixel);
+}
 #endif

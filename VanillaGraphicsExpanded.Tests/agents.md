@@ -6,7 +6,8 @@ This document provides guidelines and instructions for writing tests for the Van
 
 Shader tests MUST adhere to the following guidelines:
 
-- **SPIRV only**: Tests must use precompiled SPIR-V shaders, NEVER raw GLSL or HLSL code.
+- **VGE-owned shaders**: Tests must use precompiled SPIR-V rather than compiling raw GLSL or HLSL at runtime.
+- **Vanilla engine shaders**: Base-game shaders, including VGE-patched variants, may use their GLSL compilation path. Reuse the existing installed-source and driver compilation fixtures; do not add SPIR-V export machinery for them.
 - **DRY (Don't Repeat Yourself)**: Tests must reuse the existing GPU abstractions and avoid duplicating setup or teardown code.
 - **Abstraction**: Tests should aim to abstract common setup and teardown logic to reduce duplication and improve maintainability.
 - **Clarity**: Tests should be written clearly and concisely to ensure they are easy to understand and maintain.

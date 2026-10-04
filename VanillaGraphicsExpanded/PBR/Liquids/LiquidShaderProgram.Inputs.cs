@@ -22,6 +22,8 @@ internal sealed partial class LiquidShaderProgram
     internal bool VolumeTransportEnabled { set => frame.VolumeTransportEnabled = value; }
     /// <summary>Stages availability of immutable opaque radiance and depth.</summary>
     internal bool RefractionEnabled { set => frame.RefractionEnabled = value; }
+    /// <summary>Selects the frame's common scene color convention before optical composition.</summary>
+    internal bool SceneLinear { set => frame.SceneLinear = value; }
     #endregion
 
     #region Texture inputs

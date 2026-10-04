@@ -16,11 +16,18 @@ exposure or calibrated HDR presentation.
 
 ## Current draw boundaries
 
+The table describes the retained legacy color route. Scene storage is now floating point,
+and selectable shader branches support scene-linear output and a single final conversion.
+Runtime activation is deferred to existing binding owners in the full-scene HDR task; the global
+shader-use hook and experimental coordinator are removed. The current sky retains display output. Its HDR patch
+adapters were removed; the planned VGE-owned sky replacement must supply compatible output.
+See [PBR.WaterRefraction.md](PBR.WaterRefraction.md#hdr-producer-and-consumer-contract).
+
 | Path | Input | Conversion point |
 | --- | --- | --- |
 | Atmospheric sky | Scene-linear sky LUT radiance | Patched `getSkyColorAt`, before dome blending |
 | Sun | Atmosphere-attenuated disk radiance | Solar fragment path, before coverage blending |
-| Deferred terrain/entities | Composed lighting and aerial transport | `pbr_display_resolve`, before RGBA8 primary |
+| Deferred terrain/entities | Composed lighting and aerial transport | `pbr_display_resolve`, before display-referred primary |
 | Forward/OIT/held surfaces | Forward lighting and aerial transport | `pbr_forward_surface.glsl`, before existing display-space blending |
 
 Composition and display resolve bypass sky-depth pixels because those pixels are
@@ -29,19 +36,20 @@ coverage do not pass through RGB transfer. Moon textures and stars remain
 engine-authored display colors, rather than being interpreted as physical radiance.
 
 The installed `sky.fsh` invokes `getSkyColorAt` before underwater/night-vision
-effects; `final.fsh` applies user gamma, brightness and contrast later. Those
-effects retain their display roles. The solar override bypasses vanilla solar
+effects; `final.fsh` applies user gamma, brightness and contrast later. Those sky effects
+currently retain the engine's display-color behavior; their HDR ownership belongs to the
+planned VGE-owned sky shader. The solar override bypasses vanilla solar
 tint/fog so atmospheric attenuation is not applied twice.
 
 ## HDR ordering and validation limits
 
-One shared operator does not mean one fullscreen conversion today. The primary
-RGBA8 attachment and existing OIT blending require the boundaries above. The
-scene-linear HDR task must keep sky, celestial coverage, opaque and transparent
-composition in floating-point buffers, then move this operator to one final SDR
-resolve and remove earlier conversions together. HDR monitor output separately
-requires transfer-function and presentation support. Removing the sky bypass now
-would double-map existing colors.
+One shared operator does not mean one fullscreen conversion on the legacy route. Its
+display-referred scene and existing OIT blending retain the boundaries above. The
+conditional scene-linear route keeps these contributors in floating-point buffers and
+selects the operator in final composition, disabling earlier conversions together.
+Complete-frame verification of that route is still required. HDR monitor output separately
+requires transfer-function and presentation support. The legacy sky bypass remains necessary
+because those pixels have already been converted on that route.
 
 No textures, buffers, CPU updates, draw calls or LUT work are added. The shoulder
 replaces a vector denominator with two scalar maximum operations and a common

@@ -115,7 +115,7 @@ void main()
 #if VGE_LIQUID_CAPTURE_MODE > 0
     outSpecularCapture = liquid;
 #else
-    liquid = applySpheresFog(liquid, 0.0, fWorldPos);
+    liquid = applySpheresFog(liquid, 0.0, fWorldPos, liquidMediumControl.w > .5);
     liquid.a *= 1.0 - forcedTransparency;
     writeOit(liquid, max(glowLevel, clamp(material.b, 0, 1)));
 #endif

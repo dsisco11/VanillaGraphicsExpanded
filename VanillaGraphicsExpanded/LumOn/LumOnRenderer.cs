@@ -579,7 +579,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         shader.PatchIdentity = gBufferManager!.PatchIdTextureId;
 
         if (!shader.TryUse())
@@ -630,7 +630,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind G-buffer textures
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
         shader.PmjJitter = pmjJitter;
@@ -804,7 +804,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeTraceMask = primaryBuffers.ProbeTraceMaskTex;
 
         // Bind scene depth for ray marching
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
 
         // Bind LumOn-owned albedo plus VGE material properties for hit radiance sampling.
         shader.SurfaceAlbedo = primaryBuffers.SurfaceAlbedoTex;
@@ -880,7 +880,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using (GlGpuProfiler.Instance.Scope(copy.PassName))
         {
-            copy.PrimaryDepth = primaryFb.DepthTextureId;
+            copy.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
             if (!copy.TryUse()) { lightingPassesComplete = false; return; }
             capi.Render.RenderMesh(quadMeshRef);
             copy.Stop();
@@ -1139,7 +1139,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
         shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
 
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
         shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
@@ -1230,7 +1230,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
 
         // Bind G-buffer for pixel info
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
         shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
@@ -1385,7 +1385,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.IndirectHalf = bufferManager.IndirectHalfTex!;
 
         // Retain G-buffer guides for edge-aware upsampling.
-        shader.PrimaryDepth = primaryFb.DepthTextureId;
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
 
         // Bilateral upsample parameters (SPG-008 Section 3.1)

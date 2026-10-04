@@ -48,6 +48,8 @@ internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
     internal bool VolumeTransportEnabled { set => WriteFloat(4628, value ? 1 : 0); }
     /// <summary>Enables traversal only when coherent immutable opaque inputs were published.</summary>
     internal bool RefractionEnabled { set => WriteFloat(4632, value ? 1 : 0); }
+    /// <summary>Selects unexposed scene-linear RGB for the shared HDR handoff.</summary>
+    internal bool SceneLinear { set => WriteFloat(4636, value ? 1 : 0); }
     /// <summary>Sets the bounded numbers of active point lights and fog spheres.</summary>
     internal void SetCounts(int lights, int spheres) => WriteIntVector4(352, lights, spheres, 0, 0);
     /// <summary>Stages one ColorMapRect array element with std140 stride.</summary>

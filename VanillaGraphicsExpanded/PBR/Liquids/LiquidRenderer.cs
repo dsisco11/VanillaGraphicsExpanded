@@ -92,6 +92,8 @@ internal sealed class LiquidRenderer : IRenderer
             var store = MaterialAtlasSystem.Instance.TextureStore;
             program.CaptureFrameInputs(api, source.TileSize);
             program.VolumeTransportEnabled = WaterVolumeRenderer.WasComposed(api);
+            // Keep the compatible output adapter until scene binding owners establish an HDR frame.
+            program.SceneLinear = false;
             var refraction = ConfigModSystem.Config.WaterRefractionEnabled ? getRefractionScene() : null;
             program.RefractionEnabled = refraction?.Published == true;
             program.RefractionColorTexture = refraction?.Published == true ? refraction.Color : null;

@@ -1,0 +1,174 @@
+using HarmonyLib;
+using Moq;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.SceneColor;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using Vintagestory.API.Client;
+using Vintagestory.Client.NoObf;
+
+namespace VanillaGraphicsExpanded.Tests.GPU;
+
+/// <summary>Runs particle capture publication and retirement through registered renderer callbacks.</summary>
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    /// <summary>Only successful current-frame captures publish corrected depth and retire on every owner boundary.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RegisteredCapturePublishesAndInvalidatesAcrossLifecycle(bool ssao)
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var assets = new BinaryShaderApiFixture();
+        using var programs = new RuntimeLightingPrograms();
+        using var drawing = new ShaderTestFramework();
+        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
+        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
+        using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
+        using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
+        using var normal = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
+        using var position = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
+        using var engine = GpuFramebuffer.Create(ssao ? [material, glow, normal, position] : [material, glow], depth);
+        var primary = new FrameBufferRef { FboId = engine.FboId, Width = 2, Height = 2,
+            DepthTextureId = depth.TextureId, ColorTextureIds = ssao ? [material.TextureId, glow.TextureId, normal.TextureId, position.TextureId] : [material.TextureId, glow.TextureId] };
+        var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
+        frames[0] = primary;
+        var events = new RuntimeRenderEvents();
+        float[] identity = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+        int resolveDraws = 0;
+        var render = RuntimeEngineServices.Render(2, frames, () => identity, () => identity,
+            () => { resolveDraws++; drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); });
+        var renderMock = Mock.Get(render);
+        renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
+        renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
+        var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
+        {
+            "get_Render" => render, "get_Event" => events.Api, "get_Shader" => programs.Api,
+            _ => method.Invoke(assets.Api, args)
+        });
+        programs.Initialize(api);
+        using var gbuffer = new GBufferManager(api);
+        Assert.True(gbuffer.EnsureBuffers(2, 2));
+        using var capture = new SceneColorParticleCapture(api, gbuffer);
+        Assert.Equal(8.5, capture.RenderOrder);
+        Assert.Contains(events.Registrations, value => ReferenceEquals(value.Renderer, capture) && value.Stage == EnumRenderStage.Before);
+        Assert.Contains(events.Registrations, value => ReferenceEquals(value.Renderer, capture) && value.Stage == EnumRenderStage.Opaque);
+        var previousCube = ShaderPrograms.Particlescube;
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, "#version 430 core\nvoid main(){gl_Position=vec4(0);}");
+        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\nuniform int vge_sceneLinear;out vec4 color;void main(){color=vec4(vge_sceneLinear);}");
+        using var linked = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        var cube = new LinkedCube { ProgramId = linked.ProgramId };
+        cube.Populate();
+        try
+        {
+            ShaderPrograms.Particlescube = null;
+            Assert.False(capture.PrepareFrame(true));
+            ShaderPrograms.Particlescube = cube;
+            // A matching uniform alone cannot establish the compiled color convention.
+            Assert.True(cube.HasUniform("vge_sceneLinear"));
+            Assert.False(capture.PrepareFrame(true));
+            ShaderCapabilities.Publish(cube, ShaderCapability.SceneColorConvention);
+            Assert.False(capture.PrepareFrame(false));
+            Assert.Null(SceneColorParticleCapture.BeginDraw(1));
+            for (int cycle = 0; cycle < 4; cycle++)
+            {
+                events.Render(EnumRenderStage.Before);
+                Assert.Null(SceneColorParticleCapture.Layer(api));
+                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId));
+                Assert.True(cube.HasUniform("vge_sceneLinear"));
+                Assert.True(capture.PrepareFrame(true), string.Join(Environment.NewLine, assets.Logs));
+                Assert.Null(SceneColorParticleCapture.BeginDraw(0));
+                engine.BindWithViewport();
+                GL.DepthMask(true);
+                GL.ClearBuffer(ClearBuffer.Depth, 0, new[] { .75f });
+                if (ssao)
+                {
+                    GL.ClearBuffer(ClearBuffer.Color, 2, new[] { .25f, .5f, .75f, 1f });
+                    GL.ClearBuffer(ClearBuffer.Color, 3, new[] { 1f, 2f, 3f, 4f });
+                }
+                ShaderProgramBase.CurrentShaderProgram = cube;
+                StateCache.Current.UseProgram(cube.ProgramId);
+                ShaderProgramBase.CurrentShaderProgram = null;
+                Assert.Null(SceneColorParticleCapture.BeginDraw(1));
+                ShaderProgramBase.CurrentShaderProgram = cube;
+                renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.OIT);
+                Assert.Null(SceneColorParticleCapture.BeginDraw(1));
+                GL.GetUniform(cube.ProgramId, GL.GetUniformLocation(cube.ProgramId, "vge_sceneLinear"), out int inactiveMode);
+                Assert.Equal(0, inactiveMode);
+                renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
+                renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(new FrameBufferRef { FboId = -1 });
+                Assert.Null(SceneColorParticleCapture.BeginDraw(1));
+                renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
+                using (var scope = SceneColorParticleCapture.BeginDraw(1))
+                {
+                    Assert.NotNull(scope);
+                    GL.GetUniform(cube.ProgramId, GL.GetUniformLocation(cube.ProgramId, "vge_sceneLinear"), out int activeMode);
+                    Assert.Equal(1, activeMode);
+                    // Mimic the original renderer's successful empty submission; no late
+                    // geometry is fabricated, and the real resolve still executes on GPU.
+                    scope.Complete();
+                }
+                Assert.Null(SceneColorParticleCapture.Layer(api));
+                events.Render(EnumRenderStage.Opaque);
+                var layer = SceneColorParticleCapture.Layer(api);
+                Assert.NotNull(layer);
+                Assert.Null(SceneColorParticleCapture.Layer(assets.Api));
+                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(assets.Api, depth.TextureId));
+                Assert.All(layer.ReadPixels(), value => Assert.Equal(0, value));
+                int receiver = SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId);
+                Assert.NotEqual(depth.TextureId, receiver);
+                int perCycle = ssao ? 2 : 1;
+                Assert.Equal(cycle * perCycle + 1, resolveDraws);
+                if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadPixels()[..4]);
+                SceneColorParticleCapture.RestoreSsao(assets.Api);
+                Assert.Equal(cycle * perCycle + 1, resolveDraws);
+                // Model the compositor's later boundary explicitly: receiver separation
+                // above must not restore metadata before deferred material lighting.
+                SceneColorParticleCapture.RestoreSsao(api);
+                Assert.Equal((cycle + 1) * perCycle, resolveDraws);
+                if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadPixels()[..4]);
+                if (cycle == 0) capture.OnRenderFrame(.016f, EnumRenderStage.Before);
+                if (cycle == 1) events.LeaveWorld();
+                if (cycle == 2) ScreenResourceManager.HandleScreenResize();
+                if (cycle == 3) Assert.False(capture.PrepareFrame(false));
+                Assert.Null(SceneColorParticleCapture.Layer(api));
+                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId));
+                if (cycle > 0)
+                {
+                    GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
+                    Assert.False(layer.IsValid);
+                }
+            }
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            ShaderProgramBase.CurrentShaderProgram = null;
+            ShaderCapabilities.Forget(cube);
+            ShaderPrograms.Particlescube = previousCube;
+            StateCache.Current.UseProgram(0);
+        }
+        capture.Dispose();
+        capture.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => capture.PrepareFrame(true));
+        Assert.DoesNotContain(events.Registrations, value => ReferenceEquals(value.Renderer, capture));
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Publishes the linked engine cube shader uniform table without creating a game renderer.</summary>
+    private sealed class LinkedCube : ShaderProgramParticlescube
+    {
+        /// <summary>Registers the actual driver location used by the production scene-mode setter.</summary>
+        internal void Populate() => uniformLocations["vge_sceneLinear"] = GL.GetUniformLocation(ProgramId, "vge_sceneLinear");
+    }
+    #endregion
+}
