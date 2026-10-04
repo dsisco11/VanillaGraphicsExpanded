@@ -31,8 +31,8 @@ vec3 VgeWaterOutgoingDirection(vec3 surfaceVS, vec3 refractedDirectionVS, bool u
 /** Evaluates RGB medium transmission and source radiance without exposure or display conversion. */
 vec3 VgeWaterTransport(VgeWaterMedium medium, float submergedLength, vec3 background, vec3 source)
 {
-    return background * VgeWaterTransmittance(medium, submergedLength)
-        + VgeWaterInScattering(medium, submergedLength, source);
+    VgeWaterPath path = VgeWaterEvaluatePath(medium, submergedLength);
+    return background * path.transmittance + VgeWaterInScattering(medium, path, source);
 }
 
 /** Blends premultiplied linear contributions and coverage before any legacy display adaptation. */

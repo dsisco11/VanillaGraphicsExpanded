@@ -489,6 +489,12 @@ output adapter. HDR output keeps radiance above one; legacy output applies the s
 operator and dither once to the resulting straight color. This fixes the previous interpolation
 of separately tone-mapped contributions without activating full-scene HDR.
 
+Each homogeneous water path shares one evaluated transmission between attenuation and source
+integration. The straight-through fallback also reuses that transmission for coverage. Different
+receiver/fallback lengths remain separate evaluations; underwater transport still uses only
+the submerged camera segment. The thin-depth series and zero-scattering early return are
+described in [water medium evaluation](PBR.WaterMedium.md#evaluation-and-ownership).
+
 The surface evaluates ordinary fallback transport only when the receiver is unavailable or
 its confidence is below full replacement. A valid receiver with confidence at least one skips
 the fallback depth lookup, thickness, extinction and scattering integration. The unused fallback

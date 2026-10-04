@@ -128,10 +128,10 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
             vec2 screenUv = clamp(gl_FragCoord.xy / frameSize, vec2(0), vec2(1));
             float thickness = liquidMediumControl.y > .5 ? 0.0
                 : VgeLiquidThickness(texture(depthTex, screenUv).r, gl_FragCoord.z, vge_viewPosition, underwater);
-            vec3 transmittance = VgeWaterTransmittance(medium, thickness);
-            float transmitted = dot(transmittance, vec3(.2126,.7152,.0722)) * clamp(material.a,0.0,1.0);
+            VgeWaterPath path = VgeWaterEvaluatePath(medium, thickness);
+            float transmitted = dot(path.transmittance, vec3(.2126,.7152,.0722)) * clamp(material.a,0.0,1.0);
             alpha = clamp(1.0 - (1.0 - fresnel) * transmitted, .001, 1.0);
-            vec3 scattering = VgeWaterInScattering(medium, thickness, mediumSource) * (1.0 - fresnel);
+            vec3 scattering = VgeWaterInScattering(medium, path, mediumSource) * (1.0 - fresnel);
             // OIT multiplies by alpha. Normalize only our surface source, not the background transmission.
             radiance = (reflected + scattering) / alpha;
         }

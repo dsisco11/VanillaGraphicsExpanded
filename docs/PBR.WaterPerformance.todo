@@ -315,16 +315,44 @@ Phase 9 — Remove unused pre-overlay composite output
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 10 — Share homogeneous-medium integration calculations
-  ☐ Evaluate extinction, optical depth and transmission once for each identical medium/path pair.
+  ☑ Evaluate extinction, optical depth and transmission once for each identical medium/path pair.
     - Let transmission and scattering integration consume the shared evaluation where both are
       needed. Preserve the optically thin series expansion and zero-extinction limit.
     - Preserve RGB coefficients, nonnegative inputs and physical path-length conventions.
     - Do not calculate scattering-only results on the zero-scattering path from Phase 5.
-  ☐ Verify thin/thick paths, zero extinction/scattering, colored media and underwater transport.
+  ☑ Verify thin/thick paths, zero extinction/scattering, colored media and underwater transport.
     - Inspect optimized shaders first: compiler common-subexpression elimination may already
       remove some duplicate exponentials. Record actual remaining work and measured benefit.
   Completion: medium integration retains numerical stability and avoids demonstrated duplicate
   calculations; do not claim savings for expressions already eliminated by the compiler.
+  Implementation: VgeWaterEvaluatePath shares length/extinction/optical depth/transmission for
+  each receiver or fallback path; the existing source integral reuses transmission, retains its
+  thin-depth series, and skips integral work when all effective scattering channels are zero.
+  Optimized baseline inspection demonstrated scalar exponentials inside both RGB integration
+  loops in addition to their vector transmission exponentials. Existing compiler sharing of
+  extinction/length clamps is not counted as a saving; signed boundary capture has no such Exp.
+  Traceability: PBR.WaterMedium.md / Evaluation and ownership controls SI/RGB coefficients and
+  stable analytic integration; PBR.WaterRefraction.md / Shared receiver and optical evaluation
+  controls distinct path lengths, underwater ordering and linear composition. PBR.Liquids.md
+  and its renderer proposal preserve engine/OIT ownership. The capture findings and measurement
+  policy distinguish optimized inspection/headless timing from live performance; the approved
+  pipeline plan/proposal remain unchanged because no state, resource or submission owner changes.
+  Final implementation evaluates the three integral channels explicitly. Retaining the old
+  dynamic-index loop regressed UV timing in the initial experiment; the explicit RGB version
+  avoids that regression. Optimized surface variants remove two Exp sites (8 to 6), while
+  total static instructions increase by 46. All 24 capture variants remain opcode-identical.
+  Supported-build optimized binaries match all eight measured surface candidates byte-for-byte.
+  Matched 512x512/16-draw ABBA medians are slightly lower or equal in the six UV/x8 workloads;
+  most ranges overlap, with only UV invalid separating in this run. This is not an in-game
+  frame-time claim. PBR.WaterMedium.md records numbers, roundoff bounds and limitations;
+  artifacts/WaterLagAnalysis/shared-medium-candidate-* retains the measured evidence.
+  Final validation: supported serial shader/Debug build passed with zero warnings/errors;
+  113/113 focused GPU tests passed with no skips. The extended analytic fixture covers thin,
+  thick and threshold paths, zero extinction/scattering, colored media and defensive clamps;
+  production cases preserve underwater ordering, qualities/resolutions and liquid/boundary output.
+  See shared-medium-final-build.log, shared-medium-final-tests.log/.trx and final optimized
+  provenance artifacts in the same evidence directory.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 11 — Avoid unchanged shader-setting allocations
   ☐ Audit steady-state ConfigureOptions callers and measure their allocation/preparation work.

@@ -39,6 +39,59 @@ These extra coefficients are an authoring example, not a measured natural-water 
 
 `includes/liquids/medium.glsl` accepts a submerged path length in metres. It evaluates `T = exp(-(absorption + scattering) * length)` and the analytic integral of a constant single-scattering source. A short optical-depth series avoids cancellation and preserves the zero-extinction limit. The bounded Henyey-Greenstein function uses the cosine between incoming and outgoing photon directions.
 
+For a homogeneous surface path, `VgeWaterEvaluatePath` returns the clamped metre length,
+RGB extinction, optical depth and transmission together. Receiver transport and ordinary
+fallback each evaluate their own path once; they do not share results across different lengths.
+The fallback uses the same transmission for interface coverage and scattering integration.
+The source integral reuses transmission in `(1-T)/extinction`, retaining the existing
+second-order series below optical depth `.001` and its zero-extinction limit. When no
+effective scattering channel is positive, it returns zero before evaluating the integral;
+absorption still attenuates the background. Source radiance and scattering retain their
+nonnegative clamps. Transmission-only consumers retain the standalone helper.
+The integral evaluates the three RGB channels explicitly, avoiding dynamic vector indexing
+and temporary arrays while allowing each channel to select its own thin-path branch.
+
+Before this change, optimized surface binaries retained a vector exponential for transmission
+and a scalar exponential inside each receiver/fallback RGB integration loop. Local extinction
+and length clamps were already shared by the compiler; those are not claimed as removed work.
+Signed boundary capture accumulates optical depth rather than evaluating this exponential,
+so its accumulation and heterogeneous-source approximation are unchanged.
+
+Matched optimized inspection removes two scalar exponential sites from every surface variant
+(eight total `Exp` sites become six). These were inside RGB integration loops, so each could
+execute for up to three thick channels on its selected path. Explicit RGB integration and
+zero-scattering guards increase total static instructions by 46; fewer exponential sites alone
+do not establish lower GPU cost. All 24 capture variants retain their previous opcode sequences.
+
+An initial shared-transmission implementation retained dynamic RGB indexing and regressed UV
+timings in the focused fixture. The explicit RGB version removes that observed regression.
+A warmed baseline/current/current/baseline comparison uses equally optimized SPIR-V, the
+existing binary-override validation and `GpuTimerQuery` on an NVIDIA RTX 4090 (driver 591.86),
+512x512 targets, two warmup batches
+and five measured batches per run. Each query covers 16 draws, excluding preparation and uploads.
+The following medians combine ten samples per version/workload; units are milliseconds per batch.
+
+| Receiver pattern | UV baseline / shared | x8 baseline / shared |
+| --- | ---: | ---: |
+| Valid | 1.619968 / 1.581568 | 3.539968 / 3.432448 |
+| Invalid | 0.614400 / 0.568320 | 4.709888 / 4.709376 |
+| Spatial checker | 1.691136 / 1.635328 | 10.217984 / 9.913856 |
+
+Most ranges overlap; only UV invalid ranges separate in this run (0.607232–0.623616 versus
+0.566272–0.573440 ms). These are small workload-specific results, not a measured game-frame
+or volume-capture improvement. Thirty-six matched full-MRT comparisons retain exact alpha
+and exact values in outputs 0/1/2; the largest remaining color difference is `3.5762787e-7`.
+Receipts and sample ranges are in `artifacts/WaterLagAnalysis/shared-medium-candidate-*`;
+`shared-medium-*` without `candidate` retains the initial implementation's comparison.
+
+The final supported serial shader/Debug build passed with zero warnings/errors. All 113
+focused GPU cases passed without skips, covering analytic thin/thick/threshold paths,
+zero extinction/scattering, defensive coefficient/source/length clamps, underwater ordering,
+refraction quality/resolution, boundary capture and liquid compatibility. All eight optimized
+surface binaries from this build match the measured explicit-RGB candidates byte-for-byte.
+Final receipts: `shared-medium-final-build.log`, `shared-medium-final-tests.log/.trx` and
+`shared-medium-final-*` optimized/provenance artifacts in the same evidence directory.
+
 The current liquid consumer supplies shadow-visible solar irradiance, bounded surface-local environment/block lighting and distance-attenuated engine point lights. Environment/block source is isotropic; direct sources use the phase function. Sunlight does not enter this source when the receiver's existing shadow/sky visibility is zero. This is a constant local illumination approximation, not light transport integrated along the volume. Dynamic lights remain unshadowed as in the existing surface path; terrain rejection along their paths remains necessary.
 
 For accepted refracted receivers, solar and point-light phase evaluation uses the outgoing photon

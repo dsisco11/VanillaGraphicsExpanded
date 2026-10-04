@@ -17,7 +17,7 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<WaterMediumShaderProgram>();
-        using var target = CreateRenderTarget(5, 4, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(5, 10, PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         var pixels = target[0].ReadPixels();
         double[] distances = [0, .000001, 1, 10, 100];
@@ -39,7 +39,23 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
             double phase = (1 - .7 * .7) / (4 * Math.PI * Math.Pow(1 + .7 * .7 - 2 * .7 * cosine, 1.5));
             AssertClose(phase, pixels[x * 4 + 3]);
         }
-
+        // Coupled evaluation must preserve the analytic limit, coefficient/source
+        // clamps and cancellation-safe transition around the thin-path threshold.
+        double[] background = [8,4,2], thresholdDistances = [0,.0009999,.001,.0010001,100];
+        for (int row = 4; row < 10; row++)
+        for (int x = 0; x < 5; x++)
+        for (int channel = 0; channel < 3; channel++)
+        {
+            double distance = row == 5 ? 0 : row == 9 ? thresholdDistances[x] : distances[x];
+            double rawScatter = row == 7 ? 0 : row == 8 && channel == 2 ? -.4 : row == 9 ? .5 : scattering[channel];
+            double scatter = Math.Max(rawScatter,0);
+            double sigma = row == 4 ? 0 : row == 9 ? 1 : Math.Max(.1 * (channel + 1) + rawScatter,0);
+            double source = row == 8 && channel == 0 ? 0 : channel + 2;
+            double transmission = Math.Exp(-sigma * distance);
+            double integral = sigma == 0 ? distance : (1 - transmission) / sigma;
+            AssertClose(background[channel] * transmission + source * scatter * integral,
+                pixels[(row * 5 + x) * 4 + channel]);
+        }
     }
     #endregion
 
