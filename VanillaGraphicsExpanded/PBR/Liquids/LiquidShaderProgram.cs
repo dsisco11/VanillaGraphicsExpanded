@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(RefractionBackgroundScale))]
 internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, ILiquidShaderProgramBindings
 {
+    /// <summary>Registry identity for the independently retained volume-boundary executable and inputs.</summary>
+    internal const string VolumePassName = "pbr_water_volume";
 
 
 

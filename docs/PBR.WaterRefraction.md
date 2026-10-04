@@ -375,6 +375,13 @@ optimized through the existing build pipeline. No new generator or shader-cache 
 Release builds use the existing performance optimization policy; distinct compiled variants and
 removed runtime selection do not by themselves establish GPU speedup.
 
+Volume capture and surface rendering retain separate `LiquidShaderProgram` owners in the
+existing shader registry. `pbr_water_volume` keeps capture mode 3, while `pbr_liquid` keeps
+surface mode 0 and the selected refraction quality/resolution. They share the existing offline
+shader contract and binaries but own independent executables and frame inputs. Alternating
+passes therefore binds existing programs instead of replacing the executable twice per frame;
+normal asset reload and registry disposal manage both owners.
+
 Optimized name-stripped SPIR-V can expose separate vertex and fragment block entries at the
 same fixed binding. The existing prepared-binding owner accepts equal buffer extents with
 disjoint, known stage ownership and retains one diagnostic representative. Duplicate entries with

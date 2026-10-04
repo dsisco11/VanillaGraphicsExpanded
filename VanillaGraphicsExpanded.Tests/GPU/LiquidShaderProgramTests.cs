@@ -16,6 +16,80 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Alternating volume and surface submissions retain separate executables through quality changes and reload.</summary>
+    [Fact]
+    public void RegisteredVolumeAndSurfaceRetainIndependentExecutables()
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var assets = new BinaryShaderApiFixture();
+        Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
+        var surface = Assert.IsType<LiquidShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "pbr_liquid"));
+        var volume = Assert.IsType<LiquidShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
+        Assert.NotSame(surface, volume);
+        Assert.Equal(0, surface.CaptureMode);
+        Assert.Equal(3, volume.CaptureMode);
+        Assert.True(surface.EnsureReady(), string.Join("\n", assets.Logs));
+        Assert.True(volume.EnsureReady(), string.Join("\n", assets.Logs));
+        Assert.NotEqual(surface.ProgramId, volume.ProgramId);
+        TestUniformRing.EnsureFrame();
+        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
+        AssignTextures(surface, texture, atmosphere);
+        AssignTextures(volume, texture, atmosphere);
+        AssertStableSubmissions();
+
+        // A user quality change replaces only the surface executable. The volume
+        // executable has its own installed settings and remains ready for submission.
+        int volumeId = volume.ProgramId;
+        int surfaceId = surface.ProgramId;
+        Assert.True(surface.ConfigureOptions(() => surface.RefractionQuality = 0));
+        Assert.True(surface.EnsureReady(), string.Join("\n", assets.Logs));
+        Assert.NotEqual(surfaceId, surface.ProgramId);
+        Assert.Equal(volumeId, volume.ProgramId);
+        Assert.False(volume.RequiresPreparation);
+        AssertStableSubmissions();
+
+        // Production reload redeclares the owners. Both retain their selected
+        // mode and rebuild on demand, then return to stable alternating use.
+        Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
+        Assert.Same(surface, GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, "pbr_liquid"));
+        Assert.Same(volume, GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
+        Assert.True(surface.RequiresPreparation);
+        Assert.True(volume.RequiresPreparation);
+        Assert.True(surface.EnsureReady(), string.Join("\n", assets.Logs));
+        Assert.True(volume.EnsureReady(), string.Join("\n", assets.Logs));
+        Assert.Equal(0, surface.RefractionQuality);
+        Assert.Equal(0, surface.CaptureMode);
+        Assert.Equal(3, volume.CaptureMode);
+        AssertStableSubmissions();
+        surfaceId = surface.ProgramId;
+        volumeId = volume.ProgramId;
+        GpuShaderPrograms.Dispose(assets.Api);
+        Assert.False(GL.IsProgram(surfaceId));
+        Assert.False(GL.IsProgram(volumeId));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+
+        /// <summary>Checks real GL activation without asset reloads or executable replacement between draws.</summary>
+        void AssertStableSubmissions()
+        {
+            int reads = assets.Reads.Count;
+            int retainedSurface = surface.ProgramId;
+            int retainedVolume = volume.ProgramId;
+            for (int frame = 0; frame < 3; frame++)
+            foreach (var program in new[] { volume, surface })
+            {
+                Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
+                using var activation = program.UseScope();
+                Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+                Assert.False(program.RequiresPreparation);
+            }
+            Assert.Equal(retainedSurface, surface.ProgramId);
+            Assert.Equal(retainedVolume, volume.ProgramId);
+            Assert.Equal(reads, assets.Reads.Count);
+        }
+    }
+
     /// <summary>Water selections load distinct offline fragments while retaining the shared vertex and capture choices.</summary>
     [Fact]
     public void WaterOptionsSelectPrecompiledFragmentsBeforePreparation()

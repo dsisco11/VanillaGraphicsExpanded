@@ -71,7 +71,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             || !LiquidRenderer.CanTakeOwnership(api, atlases) || atlases.Length == 0) return;
         var primary = api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primary is null || primary.Width <= 0 || primary.Height <= 0 || primary.DepthTextureId == 0) return;
-        var program = GpuShaderPrograms.Get<LiquidShaderProgram>(api, "pbr_liquid");
+        var program = GpuShaderPrograms.Get<LiquidShaderProgram>(api, LiquidShaderProgram.VolumePassName);
         if (program is null) return;
         try
         {
@@ -89,7 +89,6 @@ internal sealed class WaterVolumeRenderer : IRenderer
                 catch { resources.Dispose(); throw; }
             }
             if (target.Width != primary.Width || target.Height != primary.Height) target.Resize(primary.Width, primary.Height);
-            program.CaptureMode = 3;
             if (!program.EnsureReady()) return;
             program.CaptureFrameInputs(api, source.TileSize);
             program.VolumeTransportEnabled = false;
@@ -138,7 +137,6 @@ internal sealed class WaterVolumeRenderer : IRenderer
         }
         finally
         {
-            program.CaptureMode = 0;
             StateCache.Current.InvalidateAll();
         }
     }
