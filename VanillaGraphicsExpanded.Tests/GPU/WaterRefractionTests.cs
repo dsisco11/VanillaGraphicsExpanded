@@ -60,6 +60,28 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     [InlineData(9, true, 0, 1, 0)]
     [InlineData(9, true, 1, 1, 0)]
     [InlineData(9, true, 2, 1, 0)]
+    [InlineData(0, false, 0, 1, 1)]
+    [InlineData(0, true, 0, 2, 1)]
+    [InlineData(1, true, 0, 2, 1)]
+    [InlineData(6, true, 0, 1, 1)]
+    [InlineData(7, true, 0, 1, 1)]
+    [InlineData(8, true, 0, 1, 1)]
+    [InlineData(9, false, 0, 1, 1)]
+    [InlineData(9, true, 1, 1, 1)]
+    [InlineData(9, true, 2, 1, 1)]
+    [InlineData(11, true, 0, 2, 1)]
+    [InlineData(14, true, 0, 2, 1)]
+    [InlineData(0, false, 0, 1, 2)]
+    [InlineData(0, true, 0, 2, 2)]
+    [InlineData(1, true, 0, 2, 2)]
+    [InlineData(6, true, 0, 1, 2)]
+    [InlineData(7, true, 0, 1, 2)]
+    [InlineData(8, true, 0, 1, 2)]
+    [InlineData(9, false, 0, 1, 2)]
+    [InlineData(9, true, 1, 1, 2)]
+    [InlineData(9, true, 2, 1, 2)]
+    [InlineData(11, true, 0, 2, 2)]
+    [InlineData(14, true, 0, 2, 2)]
     public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3)
     {
         EnsureContextValid();
@@ -68,9 +90,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        program.ConfigureOptions(() =>
+        {
+            program.RefractionQuality = refractionQuality;
+            program.RefractionBackgroundScale = 3 - backgroundScale;
+        });
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         program.SceneLinear = sceneLinear;
-        program.RefractionQuality = refractionQuality;
         using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -238,6 +264,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
                 var diagnostic = GpuShaderPrograms.Declare(assets.Api, new WaterRefractionDiagnosticShaderProgram());
                 var diagnosticInputs = (IWaterRefractionDiagnosticBindings)diagnostic;
                 diagnosticInputs.Scenario = 12;
+                diagnosticInputs.Budget = refractionQuality == 1 ? 2 : refractionQuality == 2 ? 4 : 8;
                 diagnosticInputs.FrameSize = new(frameSize);
                 Vector3 viewRay = new((2f * (center + .5f) / frameSize - 1) / MathF.Sqrt(3),
                     (2f * (center + .5f) / frameSize - 1) / MathF.Sqrt(3), -1);
@@ -256,8 +283,16 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             AssertFixedWorldSnellGradient(target[3].ReadPixelsRegion(center,center,1,1), baselineAccumulation,
                 actual[0], baseline[0], frameSize, camera, worldFromView, modelView * projection, sceneLinear);
         }
-        else if (scenario < 2 || scenario == 6 || scenario == 9 || scenario == 10 || scenario >= 11)
+        else if (scenario == 5)
         {
+            // Geometric coverage beyond the traversal extent still has a valid
+            // approximate UV receiver; optical attenuation may remove its red channel.
+            Assert.InRange(actual[0],0,.00001f);
+            Assert.True(baseline[0] > .001f);
+        }
+        else if (scenario < 2 || scenario == 6 || scenario == 8 || scenario == 9 || scenario == 10 || scenario >= 11)
+        {
+            // The steep underwater exit also retains a valid receiver.
             // Zero revealage proves scene radiance replaces rather than re-blends the original background.
             Assert.InRange(actual[0], 0, .00001f);
             var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
@@ -276,16 +311,11 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         else
             for (int channel = 0; channel < 4; channel++)
                 Assert.InRange(MathF.Abs(actual[channel] - baseline[channel]), 0, .00001f);
-        if (scenario == 0 && refractionQuality != 0)
+        if (scenario == 0)
         {
-            // The bottom image boundary must approach the original transmission continuously.
+            // Supported edge receivers retain transmission instead of fading it by position.
             var edgeRevealage = target[1].ReadPixelsRegion(8,0,1,8);
-            Assert.InRange(MathF.Abs(edgeRevealage[0] - edgeBaseline[0]), 0, .00001f);
-            Assert.True(edgeRevealage[3 * 4] > 0, $"Edge values: {string.Join(",", edgeRevealage)}; baseline: {string.Join(",", edgeBaseline)}");
-            Assert.True(edgeRevealage[3 * 4] < edgeBaseline[3 * 4]);
-            for (int row = 1; row < 8; ++row)
-                Assert.True(edgeRevealage[row * 4] / edgeBaseline[row * 4]
-                    <= edgeRevealage[(row - 1) * 4] / edgeBaseline[(row - 1) * 4] + .00001f);
+            for (int row = 0; row < 8; ++row) Assert.InRange(edgeRevealage[row * 4],0,.00001f);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 

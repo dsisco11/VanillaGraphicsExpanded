@@ -8,8 +8,6 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed partial class LiquidShaderProgram
 {
     #region Draw inputs
-    /// <summary>Selects the internal receiver algorithm; zero uses UV distortion, default three retains tracing.</summary>
-    public partial int RefractionQuality { set; }
     /// <summary>Sets ModelViewMatrix for the next draw submission.</summary>
     internal float[] ModelViewMatrix { set { draw.SetModelView(value); } }
     /// <summary>Sets Origin for the next draw submission.</summary>

@@ -188,21 +188,42 @@ internal sealed class GpuPreparedBindings
     #endregion
 
     #region Private
-    /// <summary>Matches block resources by their fixed namespace and rejects duplicate assignments.</summary>
+    /// <summary>Matches fixed block slots, including separate stage entries emitted for optimized SPIR-V.</summary>
     private void ReadBlocks(int program, ProgramInterface resourceInterface, ShaderBindingKind kind,
         Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)> linked)
     {
         GL.GetProgramInterface(program, resourceInterface, ProgramInterfaceParameter.ActiveResources, out int count);
         ReflectionQueries++;
-        ProgramProperty[] properties = [ProgramProperty.BufferBinding];
-        int[] slot = new int[1];
+        ProgramProperty[] properties = [ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize,
+            ProgramProperty.ReferencedByVertexShader, ProgramProperty.ReferencedByTessControlShader,
+            ProgramProperty.ReferencedByTessEvaluationShader, ProgramProperty.ReferencedByGeometryShader,
+            ProgramProperty.ReferencedByFragmentShader, (ProgramProperty)All.ReferencedByComputeShader];
+        int[] values = new int[properties.Length];
+        var blocks = new Dictionary<int, (int Size, int Stages)>();
         for (int resource = 0; resource < count; resource++)
         {
-            GL.GetProgramResource(program, resourceInterface, resource, properties.Length, properties, slot.Length, out _, slot);
+            GL.GetProgramResource(program, resourceInterface, resource, properties.Length, properties, values.Length, out _, values);
             ReflectionQueries++;
-            if (!linked.TryAdd((kind, slot[0]), (default, 1, slot[0])))
-                throw new InvalidOperationException($"Ambiguous linked {kind} binding {slot[0]}.");
-            blockIndices.Add((kind, slot[0]), resource);
+            int slot = values[0];
+            int stages = 0;
+            for (int stage = 2; stage < values.Length; stage++)
+                if (values[stage] != 0) stages |= 1 << (stage - 2);
+            if (blocks.TryGetValue(slot, out var previous))
+            {
+                // A driver may retain one block per stage after optimization strips names.
+                // These entries use the same fixed buffer slot; same-stage collisions,
+                // unknown stage ownership and unequal buffer extents remain ambiguous.
+                if (previous.Size != values[1] || previous.Stages == 0 || stages == 0
+                    || (previous.Stages & stages) != 0)
+                    throw new InvalidOperationException($"Ambiguous linked {kind} binding {slot}.");
+                blocks[slot] = (previous.Size, previous.Stages | stages);
+                continue;
+            }
+            blocks.Add(slot, (values[1], stages));
+            if (!linked.TryAdd((kind, slot), (default, 1, slot)))
+                throw new InvalidOperationException($"Ambiguous linked {kind} binding {slot}.");
+            // Diagnostic adapters retain one representative; submission binds by slot.
+            blockIndices.Add((kind, slot), resource);
         }
     }
 

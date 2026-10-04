@@ -17,7 +17,7 @@ Goal and fixed requirements
   background resolution, retaining valid receiver samples while excluding foreground contamination.
   Prevent avoidable receiver/confidence failures and loss of visible distortion. Do not treat
   invalid depth, foreground geometry or missing screen-space coverage as valid ray intersections.
-  The UV algorithm is implemented; reduced-step ray tiers and full-scene HDR activation remain
+  UV distortion and bounded x8/x4/x2 ray tiers are implemented; full-scene HDR activation remains
   unimplemented. Shared water transport
   and its output adapters are implemented; verification status and baseline diagnostics are recorded
   in PBR.WaterRefraction.md. Completion requires the applicable verification gates below.
@@ -39,14 +39,19 @@ Scope and execution contract
 Design decisions established by Phase 1
   - x8/x4/x2 are total maximum ray-position depth evaluations, including refinement and final
     revalidation; no hidden extra refinement loop. Filter taps and bounded UV fallback work are
-    separate costs. Current tracing can perform 38 evaluations (32 + 5 + final lookup).
+    separate costs. Historical tracing performed up to 38 evaluations (32 + 5 + final lookup);
+    the implemented replacement observes the exact total 8/4/2 ceilings.
   - WaterRefractionQuality uses stable integer values 3=x8 (default), 2=x4, 1=x2, 0=UV distortion.
     WaterRefractionBackgroundScale independently selects resolution 1=half dimensions rounded up,
     2=full (default). Both controls display lowest-to-highest quality. Missing/invalid values use
     defaults; preserve the existing enable flag, default false.
     Off is not a quality level. Exact migration/lifetime contract: PBR.WaterRefraction.md,
     Water quality and receiver contract. Runtime fields and the two working-mode controls are
-    implemented; exposing distinct lower ray budgets remains in Phases 5 and 6.
+    implemented; the distinct lower ray budgets are implemented, with four-choice menu exposure
+    remaining in Phase 6.
+    Algorithm quality and background resolution are fragment-only precompiled shader options;
+    select both through the existing configuration/preparation owner before liquid submission.
+    Keep vertex variants shared and retain the independent runtime enable/publication gate.
   - Continuity policy: valid ray result first, validated UV-distorted receiver when ray coverage is
     unavailable, safe undistorted transport only if neither has usable coverage. Fix avoidable
     failures first; the UV result remains an approximate receiver, never a confirmed ray hit.
@@ -181,38 +186,45 @@ Phase 4: Implement lowest-quality UV distortion
 Phase 5: Implement bounded x8/x4/x2 traversal and prevent avoidable distortion loss
   Dependencies: shared receiver sampling and validated UV fallback.
   Outcome: higher quality keeps geometric tracing within exact budgets and stable receiver selection.
+  Completed 2026-10-04: fresh build and 273/273 checks passed, zero skips; 417 shader variants verified.
+    Second review and independent audit-stage-completion found no remaining scoped requirements.
+    Equations, exact work bounds, reference/fallback metrics and measured thin-receiver limitations:
+    PBR.WaterRefraction.md / Optics and traversal / Validation / Bounded traversal and selection.
+    Four-tier menu exposure, live appearance and GPU timings remain separate work.
 
-  ☐ Replace the 32-step plus five-refinement algorithm with the agreed total 8/4/2 budgets.
-    ☐ Choose sample placement, ray extent and crossing estimation based on represented depth and
+  ☑ Replace the 32-step plus five-refinement algorithm with the agreed total 8/4/2 budgets.
+    ☑ Choose sample placement, ray extent and crossing estimation based on represented depth and
       projected coverage; do not merely delete samples from the old fixed 32-metre quadratic march.
-    ☐ Use analytic estimates or budgeted refinement where appropriate; bound and count every
+    ☑ Use analytic estimates or budgeted refinement where appropriate; bound and count every
       additional ray-depth evaluation. Report filtering/fallback taps separately from ray steps.
-    ☐ Preserve oriented-interface eligibility, positive view-Z rays and camera-transform invariance.
-  ☐ Fix demonstrated false-negative receiver tests and confidence-driven loss of valid distortion.
-    ☐ Replace blanket adjacent-tap rejection where valid receiver support remains available.
-    ☐ Establish depth/residual tolerances from sampling footprint and geometry; do not just enlarge
+    ☑ Preserve oriented-interface eligibility, positive view-Z rays and camera-transform invariance.
+  ☑ Fix demonstrated false-negative receiver tests and confidence-driven loss of valid distortion.
+    ☑ Replace blanket adjacent-tap rejection where valid receiver support remains available.
+    ☑ Establish depth/residual tolerances from sampling footprint and geometry; do not just enlarge
       the old 0.15-metre threshold until foreground/discontinuity crossings are accepted.
-    ☐ Remove unconditional edge/range confidence attenuation for otherwise supported receivers;
+    ☑ Remove unconditional edge/range confidence attenuation for otherwise supported receivers;
       separate true geometric/data validity from aesthetic blending confidence.
-    ☐ Avoid aborting a recoverable search at an invalid intermediate sample when remaining budget
+    ☑ Avoid aborting a recoverable search at an invalid intermediate sample when remaining budget
       and known coverage support a safe search; never bridge unknown topology as a confirmed hit.
-    ☐ Integrate the agreed validated UV fallback for genuinely unavailable ray coverage. Transition
+    ☑ Integrate the agreed validated UV fallback for genuinely unavailable ray coverage. Transition
       between complete HDR transport results without darkening, double backgrounds or edge jumps.
-    ☐ Classify irreducible cases explicitly: offscreen/occluded receivers, sky/invalid snapshots,
+    ☑ Classify irreducible cases explicitly: offscreen/occluded receivers, sky/invalid snapshots,
       no valid UV support and TIR. Zero transmission during TIR is correct, not confidence failure.
-  ☐ Verify exact iteration ceilings and absence of the old hidden refinement loop for all tiers.
-  ☐ Re-run baseline reproductions and compare against an offline higher-budget reference for
+  ☑ Verify exact iteration ceilings and absence of the old hidden refinement loop for all tiers.
+  ☑ Re-run baseline reproductions and compare against an offline higher-budget reference for
     receiver location, missed thin geometry, motion continuity and fallback frequency.
-    ☐ Demonstrate retained distortion for the reproduced avoidable-failure cases; do not claim
+    ☑ Demonstrate retained distortion for the reproduced avoidable-failure cases; do not claim
       universal receiver availability from screen-space-only data.
-  ☐ Complete focused tests and source review for each tier before claiming traversal completion.
+  ☑ Complete focused tests and source review for each tier before claiming traversal completion.
 
 Phase 6: Expose settings and complete integration/acceptance
   Dependencies: all four algorithms, shared HDR composition and background-resolution lifecycle.
   Outcome: usable persisted controls and evidence for the complete quality matrix.
   Settings groundwork: Water Settings now exposes enable/disable, the current ray/UV algorithms
-    and full/half receiver resolution. Keep the four-tier control and complete acceptance entries
-    open until the distinct x8/x4/x2 algorithms and required evidence are available.
+    and full/half receiver resolution. Algorithm/resolution selections specialize precompiled
+    fragment variants through the existing generated shader-option pipeline. Keep the four-tier
+    control and complete acceptance entries open for four-choice menu exposure and the complete
+    integration/acceptance evidence.
 
   ☐ Integrate Water Quality and optional background-resolution controls with existing VgeConfig,
     ConfigLib and generated shader inputs. Present lowest-to-highest UV distortion, x2, x4, x8.

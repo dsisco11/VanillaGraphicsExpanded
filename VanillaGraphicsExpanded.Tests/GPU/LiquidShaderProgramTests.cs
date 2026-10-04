@@ -2,6 +2,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Vintagestory.API.Client;
@@ -14,7 +15,73 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
-    #region Pool interface
+    #region Public API
+    /// <summary>Water selections load distinct offline fragments while retaining the shared vertex and capture choices.</summary>
+    [Fact]
+    public void WaterOptionsSelectPrecompiledFragmentsBeforePreparation()
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var assets = new BinaryShaderApiFixture();
+        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        Assert.Equal(3,program.RefractionQuality);
+        Assert.Equal(2,program.RefractionBackgroundScale);
+        Assert.DoesNotContain("vge_waterRefractionQuality",LiquidShaderProgram.Contract.Bindings.UniformLocations.Keys);
+        string? vertex = null;
+        var fragments = new HashSet<string>();
+        // Exercise generation replacement on one retained owner, rather than only
+        // enumerating settings that might never have compiled executable binaries.
+        for (int quality = 0; quality <= 3; quality++)
+        for (int resolution = 1; resolution <= 2; resolution++)
+        {
+            Assert.True(program.ConfigureOptions(() =>
+            {
+                program.RefractionQuality = quality;
+                program.RefractionBackgroundScale = resolution;
+            }));
+            Assert.True(program.RequiresPreparation);
+            var plan = new ShaderLoadPlan(program.RequestedSettings);
+            string selectedVertex = plan.Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Vertex).BinaryPath;
+            vertex ??= selectedVertex;
+            Assert.Equal(vertex,selectedVertex);
+            Assert.True(fragments.Add(plan.Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Fragment).BinaryPath));
+            Assert.True(program.EnsureReady(),string.Join("\n",assets.Logs));
+            Assert.False(program.RequiresPreparation);
+            Assert.Same(program.RequestedSettings,program.InstalledSettings);
+            Assert.False(((IShaderProgram)program).HasUniform("vge_waterRefractionQuality"));
+            Assert.Equal(quality,program.RefractionQuality);
+            Assert.Equal(resolution,program.RefractionBackgroundScale);
+        }
+        Assert.Equal(8,fragments.Count);
+        Assert.True(program.ConfigureOptions(() => program.CaptureMode = 1));
+        Assert.Equal(3,program.RefractionQuality);
+        Assert.Equal(2,program.RefractionBackgroundScale);
+        Assert.True(program.EnsureReady(),string.Join("\n",assets.Logs));
+        Assert.Equal(vertex,new ShaderLoadPlan(program.InstalledSettings!).Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Vertex).BinaryPath);
+        foreach (int capture in new[] { 2, 3 })
+        {
+            Assert.True(program.ConfigureOptions(() => program.CaptureMode = capture));
+            Assert.True(program.EnsureReady(),string.Join("\n",assets.Logs));
+            string fragment = new ShaderLoadPlan(program.RequestedSettings).Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Fragment).BinaryPath;
+            Assert.True(program.ConfigureOptions(() =>
+            {
+                program.RefractionQuality = capture == 2 ? 0 : 2;
+                program.RefractionBackgroundScale = capture == 2 ? 1 : 2;
+            }));
+            Assert.True(program.RequiresPreparation);
+            Assert.NotEqual(fragment,new ShaderLoadPlan(program.RequestedSettings).Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Fragment).BinaryPath);
+            Assert.True(program.EnsureReady(),string.Join("\n",assets.Logs));
+        }
+        // Diagnostic-only output may ignore these settings, but returning to the
+        // real liquid path must apply the user's last retained choices.
+        Assert.True(program.ConfigureOptions(() => program.CaptureMode = 0));
+        Assert.Equal(2,program.RefractionQuality);
+        Assert.Equal(2,program.RefractionBackgroundScale);
+        Assert.True(program.EnsureReady(),string.Join("\n",assets.Logs));
+        Assert.Same(program.RequestedSettings,program.InstalledSettings);
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+
     /// <summary>Pool draw boundaries publish staged origin writes and retain prior mini-dimension snapshots.</summary>
     [Fact]
     public void PoolWritesPublishAndRestoreActualGpuParameters()
@@ -178,6 +245,9 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         finally { harmony.UnpatchAll(harmony.Id); }
     }
 
+    #endregion
+
+    #region Private
     /// <summary>Supplies required borrowed textures for buffer-only tests that issue no draw.</summary>
     private static void AssignTextures(LiquidShaderProgram program, Texture2D texture, DynamicTexture3D volume)
     {

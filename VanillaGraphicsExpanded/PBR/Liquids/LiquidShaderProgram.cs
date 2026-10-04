@@ -8,18 +8,28 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.PBR.Liquids;
 
 /// <summary>Owns liquid SPIR-V and publishes mesh-pool parameters through the engine shader interface.</summary>
-[ShaderProgram("Contract", "pbr_liquid", 4)]
+[ShaderProgram("Contract", "pbr_liquid", 32)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_liquid.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_liquid.fsh")]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(CaptureMode))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(RefractionQuality))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(RefractionBackgroundScale))]
 internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, ILiquidShaderProgramBindings
 {
 
 
 
+    #region Shader options
     /// <summary>Selects normal OIT output or a precompiled diagnostic output for GPU tests.</summary>
     [ShaderOption("VGE_LIQUID_CAPTURE_MODE", 0, Domain = new object[] { 0, 1, 2, 3 })]
     internal partial int CaptureMode { get; set; }
+    /// <summary>Selects the precompiled UV or x2/x4/x8 receiver algorithm at zero/one/two/three.</summary>
+    [ShaderOption("VGE_WATER_REFRACTION_QUALITY", 3, Domain = new object[] { 0, 1, 2, 3 })]
+    internal partial int RefractionQuality { get; set; }
+    /// <summary>Selects precompiled half-source metadata decoding at one or full-source reconstruction at two.</summary>
+    [ShaderOption("VGE_WATER_BACKGROUND_RESOLUTION", 2, Domain = new object[] { 1, 2 })]
+    internal partial int RefractionBackgroundScale { get; set; }
+    #endregion
     private readonly LiquidDrawParamsUbo draw = new();
     private readonly LiquidFrameParamsUbo frame = new();
     private readonly LiquidWaveParamsUbo wave = new();
@@ -39,10 +49,9 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, 
 
 
     #endregion
-    /// <summary>Defaults to geometric refraction and attaches mutation guards to retained blocks.</summary>
+    /// <summary>Attaches mutation guards to retained blocks; the option contract supplies precompiled defaults.</summary>
     public LiquidShaderProgram()
     {
-        RefractionQuality = 3;
         frame.SetWriteGuard(RequireInputMutation);
         draw.SetWriteGuard(RequireInputMutation);
         wave.SetWriteGuard(RequireInputMutation);

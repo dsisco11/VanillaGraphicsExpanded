@@ -61,7 +61,16 @@ internal sealed class LiquidRenderer : IRenderer
             || AtmosphereModSystem.AerialAttenuationTextureId == 0
             || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
         var program = GpuShaderPrograms.Get<LiquidShaderProgram>(api, "pbr_liquid");
-        if (program is null || !program.EnsureReady()) return false;
+        if (program is null) return false;
+        var waterSettings = ConfigModSystem.Config;
+        // Publish both selections before preparation so one owned generation
+        // supplies the algorithm and the matching receiver metadata convention.
+        program.ConfigureOptions(() =>
+        {
+            program.RefractionQuality = waterSettings.WaterRefractionQuality;
+            program.RefractionBackgroundScale = waterSettings.WaterRefractionBackgroundScale;
+        });
+        if (!program.EnsureReady()) return false;
         var store = MaterialAtlasSystem.Instance.TextureStore;
         foreach (int atlas in atlases)
             if (!store.TryGetMaterialParamsTextureId(atlas, out _)) return false;
@@ -86,7 +95,7 @@ internal sealed class LiquidRenderer : IRenderer
         {
             // Engine callbacks bind GL resources directly between VGE passes.
             StateCache.Current.InvalidateAll();
-            if (!program.EnsureReady()) return;
+            var waterSettings = ConfigModSystem.Config;
             // Missing atlas or atmosphere data retains vanilla ownership for the entire invocation.
             if (!source.TryGetAtlasPools(out var atlases, out var pools) || !CanTakeOwnership(api, atlases)) return;
             var store = MaterialAtlasSystem.Instance.TextureStore;
@@ -94,8 +103,6 @@ internal sealed class LiquidRenderer : IRenderer
             program.VolumeTransportEnabled = WaterVolumeRenderer.WasComposed(api);
             // Keep the compatible output adapter until scene binding owners establish an HDR frame.
             program.SceneLinear = false;
-            var waterSettings = ConfigModSystem.Config;
-            program.RefractionQuality = waterSettings.WaterRefractionQuality;
             var refraction = waterSettings.WaterRefractionEnabled ? getRefractionScene() : null;
             // A settings event between publication and OIT cannot reuse an old-resolution pair.
             int backgroundScale = waterSettings.WaterRefractionBackgroundScale == 1 ? 2 : 1;

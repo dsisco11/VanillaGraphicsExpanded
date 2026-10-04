@@ -5,9 +5,7 @@
 
 @import "./pbr_liquid_optics.glsl"
 @import "./liquids/medium_material.glsl"
-@import "./liquids/refraction.glsl"
-@import "./liquids/uv_distortion.glsl"
-layout(location = 120) uniform int vge_waterRefractionQuality;
+@import "./liquids/refraction_selection.glsl"
 
 /** Uses the same engine cascade coordinates as liquid geometry, with no ambient brightness floor. */
 float VgeLiquidVisibility()
@@ -65,9 +63,7 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     if (water && liquidMediumControl.z > .5 && fresnel < 1.0)
     {
         vec3 normalVS = normalize(mat3(modelViewMatrix) * N);
-        receiver = vge_waterRefractionQuality == 0
-            ? VgeWaterUvRefraction(vge_viewPosition, normalVS, underwater)
-            : VgeWaterRefraction(vge_viewPosition, normalVS, underwater);
+        receiver = VgeWaterSelectRefraction(vge_viewPosition, normalVS, underwater);
     }
     vec3 waterOutgoing = receiver.valid
         ? VgeWaterOutgoingDirection(vge_viewPosition, receiver.refractedDirectionVS, underwater, toWorld) : V;

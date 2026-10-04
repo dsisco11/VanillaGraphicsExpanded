@@ -1,3 +1,4 @@
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering;
@@ -14,6 +15,44 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Different buffer extents remain invalid even when a driver reports stage-local block entries.</summary>
+    [Fact]
+    public void UnequalBlockSizesRejectPreparation()
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var assets = new BinaryShaderApiFixture();
+        using var shader = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
+        var installed = shader.ProgramLayout.BinaryInterface!;
+        int waves = installed.GetUniformBlockIndex(LiquidWaveParamsUbo.BlockName);
+        int draw = installed.GetUniformBlockIndex(LiquidDrawParamsUbo.BlockName);
+        GL.GetActiveUniformBlock(shader.ProgramId, waves, ActiveUniformBlockParameter.UniformBlockDataSize, out int waveSize);
+        GL.GetActiveUniformBlock(shader.ProgramId, draw, ActiveUniformBlockParameter.UniformBlockDataSize, out int drawSize);
+        Assert.Equal(32, waveSize);
+        Assert.Equal(80, drawSize);
+        foreach (int block in new[] { waves, draw })
+        {
+            GL.GetActiveUniformBlock(shader.ProgramId, block, ActiveUniformBlockParameter.UniformBlockReferencedByVertexShader, out int vertex);
+            GL.GetActiveUniformBlock(shader.ProgramId, block, ActiveUniformBlockParameter.UniformBlockReferencedByFragmentShader, out int fragment);
+            Assert.True(vertex != 0 || fragment != 0);
+        }
+        // Deliberately corrupt the linked interface: the owning APIs correctly
+        // provide no operation for aliasing incompatible resource declarations.
+        GL.UniformBlockBinding(shader.ProgramId, draw, 15);
+        try
+        {
+            var failure = Assert.Throws<InvalidOperationException>(() => new GpuProgramInterface(shader.ProgramId, [LiquidShaderProgram.Contract.Bindings]));
+            Assert.Contains("Ambiguous linked UniformBlock binding 15", failure.Message);
+            Assert.Same(installed, shader.ProgramLayout.BinaryInterface);
+        }
+        // Restore the executable's original resource map even if inspection fails.
+        finally { GL.UniformBlockBinding(shader.ProgramId, draw, 14); }
+        Assert.NotNull(new GpuProgramInterface(shader.ProgramId, [LiquidShaderProgram.Contract.Bindings]));
+        Assert.Same(installed, shader.ProgramLayout.BinaryInterface);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Linked resource assignments and array extents must agree with the authoritative contract.</summary>
     [Theory]
     [InlineData(true)]

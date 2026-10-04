@@ -9,9 +9,6 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal interface ILiquidShaderProgramBindings
 {
     #region Public API
-    /// <summary>Selects UV distortion at zero; other values retain the geometric sampler.</summary>
-    [ShaderBinding("vge_waterRefractionQuality", ShaderBindingKind.UniformLocation, 120, ShaderStageKind.Fragment, Required = false)]
-    int RefractionQuality { set; }
     /// <summary>Declares optional immutable opaque radiance.</summary>
     [ShaderBinding("vge_refractionColor", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
     DynamicTexture2D? RefractionColorTexture { set; }

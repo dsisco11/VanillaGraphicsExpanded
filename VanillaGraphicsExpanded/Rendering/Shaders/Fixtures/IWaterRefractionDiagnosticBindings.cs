@@ -25,5 +25,17 @@ internal interface IWaterRefractionDiagnosticBindings
     /// <summary>Supplies the corresponding oriented view-space water normal.</summary>
     [ShaderBinding("customNormal", ShaderBindingKind.UniformLocation, 123, ShaderStageKind.Fragment)]
     Vector3 Normal { get; set; }
+    /// <summary>Caps all receiver evaluations performed by the ray-only entry point.</summary>
+    [ShaderBinding("diagnosticBudget", ShaderBindingKind.UniformLocation, 124, ShaderStageKind.Fragment)]
+    int Budget { get; set; }
+    /// <summary>Selects the complete tier dispatcher instead of the isolated ray algorithm.</summary>
+    [ShaderBinding("diagnosticSelect", ShaderBindingKind.UniformLocation, 125, ShaderStageKind.Fragment)]
+    int SelectReceiver { get; set; }
+    /// <summary>Chooses the production quality identifier when dispatch is requested.</summary>
+    [ShaderBinding("diagnosticQuality", ShaderBindingKind.UniformLocation, 126, ShaderStageKind.Fragment)]
+    int Quality { get; set; }
+    /// <summary>Selects an underwater exit for custom optical geometry.</summary>
+    [ShaderBinding("diagnosticUnderwater", ShaderBindingKind.UniformLocation, 127, ShaderStageKind.Fragment)]
+    int Underwater { get; set; }
     #endregion
 }

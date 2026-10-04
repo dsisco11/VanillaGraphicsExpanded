@@ -1,11 +1,9 @@
 #ifndef VGE_WATER_REFRACTION_GLSL
 #define VGE_WATER_REFRACTION_GLSL
 @import "./transport.glsl"
-// Diagnostic hooks compile away in ordinary rendering variants.
-// Reasons: 0 accepted, 1 projection/bounds, 2 depth/sky/metadata, 3 homogeneous
-// reconstruction, 4 interface plane, 5 reserved (former adjacent veto), 6 TIR, 7 residual,
-// 8 nonfinite radiance, 9 distance exhaustion. SAMPLE counts every receiver
-// depth evaluation, including the final post-refinement validation.
+// Opt-in diagnostics count every ray-position lookup, including the seed.
+// Reasons: 1 projection, 2 unavailable data, 3 reconstruction, 4 interface,
+// 6 TIR, 7 unsupported crossing, 8 nonfinite radiance, 9 range/budget exhaustion.
 #ifndef VGE_REFRACTION_EVENT
 #define VGE_REFRACTION_EVENT(reason)
 #endif
@@ -14,87 +12,146 @@
 #endif
 @import "./receiver.glsl"
 
-/** Projects a view-space ray point without clamping offscreen samples into the image. */
+/** Projects visible ray positions; partial edge footprints are validated by the receiver filter. */
 bool VgeRefractionProject(vec3 position, out vec2 sampleUv)
 {
     vec4 clip = projectionMatrix * vec4(position, 1.0);
-    if (clip.w <= .0001) { VGE_REFRACTION_EVENT(1); return false; }
+    sampleUv = vec2(0);
+    if (any(isnan(clip)) || any(isinf(clip)) || clip.w <= .0001)
+    { VGE_REFRACTION_EVENT(1); return false; }
     sampleUv = clip.xy / clip.w * .5 + .5;
-    // Retain the existing view-pixel guard without doubling it at half size;
-    // reduced storage additionally requires a supported texel-center footprint.
-    vec2 margin = max(2.0 / frameSize, .5 / vec2(textureSize(vge_refractionDepth, 0)));
-    bool supported = all(greaterThan(sampleUv, margin)) && all(lessThan(sampleUv, 1.0 - margin));
+    bool supported = all(greaterThanEqual(sampleUv, vec2(0))) && all(lessThanEqual(sampleUv, vec2(1)));
     if (!supported) { VGE_REFRACTION_EVENT(1); }
     return supported;
 }
 
-/** Evaluates one shared filtered receiver without an all-neighbours foreground veto. */
-bool VgeRefractionReceiver(vec2 sampleUv, vec3 surface, vec3 normalVS,
-    mat4 inverseProjection, out float receiverZ, out vec3 radiance)
+/** Clips the search extent analytically against screen coverage and the eye plane, without depth reads. */
+float VgeRefractionVisibleExtent(vec3 surface, vec3 direction)
 {
-    vec3 positionVS;
-    bool supported = VgeRefractionFilter(sampleUv, surface, normalVS, inverseProjection, positionVS, radiance);
-    receiverZ = -positionVS.z;
-    VGE_REFRACTION_SAMPLE(sampleUv, receiverZ);
-    return supported;
+    vec4 clipOrigin = projectionMatrix * vec4(surface, 1.0);
+    vec4 delta = projectionMatrix * vec4(direction, 0.0);
+    float values[5] = float[5](clipOrigin.w + clipOrigin.x, clipOrigin.w - clipOrigin.x,
+        clipOrigin.w + clipOrigin.y, clipOrigin.w - clipOrigin.y, clipOrigin.w - .0001);
+    float slopes[5] = float[5](delta.w + delta.x, delta.w - delta.x,
+        delta.w + delta.y, delta.w - delta.y, delta.w);
+    float extent = 32.0;
+    for (int plane = 0; plane < 5; ++plane)
+        if (slopes[plane] < 0.0) extent = min(extent, max(0.0, -values[plane] / slopes[plane]));
+    // Stay numerically inside coverage; the receiver filter itself handles edges.
+    return max(0.0, extent - .0001);
 }
-/** Traces only the visible opaque layer, with 32 samples and five crossing refinements over at most 32 metres. */
-VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater)
+
+/** Estimates a ray/represented-plane distance without assuming that view Z decreases. */
+float VgeRefractionPlaneDistance(vec3 surface, vec3 direction, VgeRefractionSupport support)
 {
-    vec3 background = vec3(0);
-    float submergedLength = 0.0;
-    vec3 receiver = surface;
-    float confidence = 0.0;
-    vec3 incident = normalize(surface);
-    vec3 direction = refract(incident, normalVS, underwater ? 1.333 : 1.0 / 1.333);
-    VgeWaterReceiver result = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE, vec3(0), surface, direction, 0.0, 0.0);
-    // A zero direction is total internal reflection; it is never a transmitted hit.
+    float denominator = dot(direction, support.normalVS);
+    if (abs(denominator) < .00001) return -1.0;
+    return dot(support.positionVS - surface, support.normalVS) / denominator;
+}
+
+/** Interpolates associated radiance only inside an actual compatible source triangle. */
+bool VgeRefractionTriangle(vec3 point, VgeRefractionSupport support, ivec3 taps, out vec3 radiance)
+{
+    vec3 triangleOrigin = support.tapPositions[taps.x];
+    vec3 a = support.tapPositions[taps.y] - triangleOrigin;
+    vec3 b = support.tapPositions[taps.z] - triangleOrigin;
+    vec3 p = point - triangleOrigin;
+    float aa = dot(a,a), ab = dot(a,b), bb = dot(b,b);
+    float determinant = aa * bb - ab * ab;
+    radiance = vec3(0);
+    if (determinant <= 1e-16) return false;
+    float y = (bb * dot(p,a) - ab * dot(p,b)) / determinant;
+    float z = (aa * dot(p,b) - ab * dot(p,a)) / determinant;
+    vec3 weights = vec3(1.0 - y - z, y, z);
+    if (any(lessThan(weights, vec3(-1e-5)))) return false;
+    weights = max(weights, vec3(0));
+    weights /= weights.x + weights.y + weights.z;
+    // Geometry and color share these perspective-correct local-plane weights.
+    vec3 represented = triangleOrigin * weights.x + support.tapPositions[taps.y] * weights.y
+        + support.tapPositions[taps.z] * weights.z;
+    if (length(point - represented) > support.precisionMetres) return false;
+    radiance = support.tapRadiances[taps.x] * weights.x
+        + support.tapRadiances[taps.y] * weights.y + support.tapRadiances[taps.z] * weights.z;
+    return true;
+}
+
+/** Confirms a local intersection using cached coverage, never extrapolating across an unknown patch. */
+bool VgeRefractionPatchHit(vec3 surface, vec3 direction,
+    VgeRefractionSupport support, out float hitDistance, out vec3 radiance)
+{
+    hitDistance = 0.0;
+    radiance = support.radiance;
+    // Matching only filtered axial depth would associate a different ray position
+    // with this color on a slope. Sparse/nonplanar geometry guides further probes
+    // but cannot prove a geometric intersection; validated UV fallback owns it.
+    if (!support.planar) return false;
+    hitDistance = VgeRefractionPlaneDistance(surface, direction, support);
+    if (hitDistance <= 0.0 || hitDistance > 32.0) return false;
+    vec2 hitUv;
+    if (!VgeRefractionProject(surface + direction * hitDistance, hitUv)) return false;
+    // Original reduced-source positions can form an irregular quadrilateral. A
+    // bounding box would fill unsupported corners; intersect the actual triangles
+    // and reweight cached radiance at the corrected hit, with no extra depth read.
+    vec3 hit = surface + direction * hitDistance;
+    return VgeRefractionTriangle(hit, support, support.primaryTriangle, radiance)
+        || (support.secondaryTriangle && VgeRefractionTriangle(hit, support, ivec3(1,3,2), radiance));
+}
+
+/** Searches the represented opaque layer with an exact total ceiling of two, four or eight lookups. */
+VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater, int budget)
+{
+    vec3 direction = refract(normalize(surface), normalVS, underwater ? 1.333 : 1.0 / 1.333);
+    VgeWaterReceiver result = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE,
+        vec3(0), surface, direction, 0.0, 0.0);
     if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return result; }
     mat4 inverseProjection = inverse(projectionMatrix);
-    float previousT = 0.0;
-    for (int step = 1; step <= 32; ++step)
+#ifdef VGE_WATER_REFRACTION_QUALITY
+    const int limit = 1 << VGE_WATER_REFRACTION_QUALITY;
+#else
+    int limit = budget == 2 ? 2 : budget == 4 ? 4 : 8;
+#endif
+    float extent = VgeRefractionVisibleExtent(surface, direction);
+    float distance = 0.0;
+    // The seed depth predicts local represented coverage; unrepresented gaps use
+    // bounded recovery probes rather than the old fixed quadratic distribution.
+    float recoveryDistance = .125;
+    for (int step = 0; step < limit; ++step)
     {
-        float fraction = float(step) / 32.0;
-        float distance = 32.0 * fraction * fraction;
-        vec3 point = surface + direction * distance;
         vec2 sampleUv;
-        float receiverZ;
-        if (!VgeRefractionProject(point, sampleUv)
-            || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ, background)) return result;
-        if (-point.z >= receiverZ)
+        if (!VgeRefractionProject(surface + direction * distance, sampleUv)) return result;
+        VgeRefractionSupport support;
+        bool valid = VgeRefractionFilterSupport(sampleUv, surface, normalVS, inverseProjection, support);
+        VGE_REFRACTION_SAMPLE(sampleUv, -support.positionVS.z);
+        if (!valid)
         {
-            float low = previousT;
-            float high = distance;
-            for (int refine = 0; refine < 5; ++refine)
-            {
-                float middle = (low + high) * .5;
-                point = surface + direction * middle;
-                if (!VgeRefractionProject(point, sampleUv)
-                    || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ, background)) return result;
-                if (-point.z >= receiverZ) high = middle;
-                else low = middle;
-            }
-            receiver = surface + direction * high;
-            if (!VgeRefractionProject(receiver, sampleUv)
-                || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ, background)) return result;
-            // A depth discontinuity can mimic a crossing. Missing hidden geometry is not a hit.
-            if (abs(-receiver.z - receiverZ) > .15) { VGE_REFRACTION_EVENT(7); return result; }
-            if (any(isnan(background)) || any(isinf(background))) { VGE_REFRACTION_EVENT(8); return result; }
-            submergedLength = underwater ? length(surface) : high;
-            // Fade the complete refracted contribution before clipping or exhausting the trace.
-            // Use both endpoints so lower-screen interfaces do not develop a binary fallback seam.
-            vec2 edgePixels = min(sampleUv, 1.0 - sampleUv) * frameSize;
-            vec2 surfacePixels = min(gl_FragCoord.xy, frameSize - gl_FragCoord.xy);
-            float edge = min(min(edgePixels.x, edgePixels.y), min(surfacePixels.x, surfacePixels.y));
-            float fadeWidth = min(48.0, max(2.0, min(frameSize.x, frameSize.y) * .08));
-            confidence = smoothstep(2.0, 2.0 + fadeWidth, edge)
-                * (1.0 - smoothstep(24.0, 32.0, high))
-                * (1.0 - smoothstep(.04, .15, abs(-receiver.z - receiverZ)));
-            return VgeWaterReceiver(true, VGE_WATER_RECEIVER_RAY, background, receiver, direction, submergedLength, confidence);
+            // No crossing bracket spans a gap. A later lookup must independently
+            // prove a locally supported receiver using its own compatible taps.
+            distance = min(extent, max(distance + .125, recoveryDistance));
+            recoveryDistance = min(extent, max(recoveryDistance * 4.0, distance * 2.0));
+            continue;
         }
-        previousT = distance;
+        float hitDistance;
+        vec3 hitRadiance;
+        if (VgeRefractionPatchHit(surface, direction, support, hitDistance, hitRadiance))
+        {
+            VGE_REFRACTION_EVENT(0);
+            return VgeWaterReceiver(true, VGE_WATER_RECEIVER_RAY, hitRadiance,
+                surface + direction * hitDistance, direction,
+                underwater ? length(surface) : hitDistance, 1.0);
+        }
+        float estimate = VgeRefractionPlaneDistance(surface, direction, support);
+        VGE_REFRACTION_EVENT(estimate > 32.0 ? 9 : 7);
+        // Receiver-plane/Newton estimates are proposals, not assumed crossings.
+        // Each change of represented patch consumes another counted lookup.
+        if (estimate > 0.0 && abs(min(estimate, extent) - distance) > .0005)
+            distance = min(estimate, extent);
+        else
+        {
+            distance = min(extent, max(distance + .125, recoveryDistance));
+            recoveryDistance = min(extent, max(recoveryDistance * 4.0, distance * 2.0));
+        }
     }
-    VGE_REFRACTION_EVENT(9);
+    // Exhaustion is a search limit, never a license to accept the last receiver.
     return result;
 }
 #endif

@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
+using VanillaGraphicsExpanded.PBR.Liquids;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -12,21 +13,21 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>Separates rejected receivers from accepted hits attenuated by confidence heuristics.</summary>
+    /// <summary>Enumerates existing optical reproductions across every ray budget and background resolution.</summary>
+    public static IEnumerable<object[]> ReceiverCases()
+    {
+        string[] labels = ["flat","tilted","shallow-plane","adjacent-foreground","sky","range-exhaustion",
+            "edge-motion","range-fade","positive-view-z","metadata","depth-discontinuity","grazing"];
+        foreach (int budget in new[] {2,4,8})
+        foreach (bool half in new[] {false,true})
+        for (int scenario = 0; scenario < labels.Length; scenario++)
+            yield return [scenario,labels[scenario],budget,half];
+    }
+
+    /// <summary>Separates unavailable geometric support from fully weighted accepted receivers.</summary>
     [Theory]
-    [InlineData(0, "flat")]
-    [InlineData(1, "tilted")]
-    [InlineData(2, "shallow-plane")]
-    [InlineData(3, "adjacent-foreground")]
-    [InlineData(4, "sky")]
-    [InlineData(5, "range-exhaustion")]
-    [InlineData(6, "edge-motion")]
-    [InlineData(7, "range-fade")]
-    [InlineData(8, "positive-view-z")]
-    [InlineData(9, "metadata")]
-    [InlineData(10, "depth-discontinuity")]
-    [InlineData(11, "grazing")]
-    public void BaselineReceiverDiagnostics(int scenario, string label)
+    [MemberData(nameof(ReceiverCases))]
+    public void BaselineReceiverDiagnostics(int scenario, string label, int budget, bool half)
     {
         EnsureContextValid();
         const int size = 128;
@@ -54,9 +55,20 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         inputs.Scenario = scenario;
+        inputs.Budget = budget;
         inputs.FrameSize = new(size, size);
         inputs.Color = color;
         inputs.Depth = depth;
+        using var halfColor = half ? DynamicTexture2D.Create(size / 2,size / 2,PixelInternalFormat.Rgba32f) : null;
+        using var halfDepth = half ? DynamicTexture2D.Create(size / 2,size / 2,PixelInternalFormat.Rgba32f) : null;
+        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        if (half)
+        {
+            var reduction = Programs.Create<WaterRefractionReductionShaderProgram>();
+            reduction.SourceColor = color; reduction.SourceDepth = depth;
+            TestFramework.RenderQuadTo(reduction,reduced!);
+            inputs.Color = halfColor!; inputs.Depth = halfDepth!;
+        }
         using var target = CreateMRTRenderTarget(size, size, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         int[] columns = scenario == 6 ? [1, 3, 6, 12, 32, 64] : [64];
@@ -67,27 +79,26 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             float[] transport = target[2].ReadPixelsRegion(x, 64, 1, 1);
             output.WriteLine($"{label} x={x}: hit/reason/evaluations/confidence=[{string.Join(",", decision)}]; uv/depth=[{string.Join(",", sampled)}]; length/directionZ/fallback/receiverZ=[{string.Join(",", transport)}]");
             Assert.All(decision.Concat(sampled).Concat(transport), value => Assert.True(float.IsFinite(value)));
-            Assert.InRange(decision[2], 0, 38);
-            if (scenario is 0 or 1 or 7) Assert.Equal(1, decision[0]);
-            if (scenario == 2) Assert.Equal(4, decision[1]);
+            Assert.InRange(decision[2], 0, budget);
+            if (decision[0] == 1) Assert.Equal(1,decision[3]);
+            if (scenario is 0 or 1 or 2 or 7) Assert.Equal(1, decision[0]);
             if (scenario == 3) { Assert.Equal(1, decision[0]); Assert.Equal(0, decision[1]); }
             if (scenario is 4 or 9) Assert.Equal(2, decision[1]);
             if (scenario == 5) Assert.Equal(9, decision[1]);
             if (scenario == 6)
             {
-                Assert.Equal(x == 1 ? 0 : 1, decision[0]);
-                if (x is 3 or 6) Assert.InRange(decision[3], .01f, .5f);
-                if (x >= 12) Assert.Equal(1, decision[3]);
+                Assert.Equal(1, decision[0]);
+                Assert.Equal(1, decision[3]);
             }
-            // Receiver depth 30 is 28 metres beyond the surface: the range fade is half strength.
-            if (scenario == 7) Assert.InRange(decision[3], .49f, .51f);
+            // Valid 28 metre transmission retains its full weight, without a range fade.
+            if (scenario == 7) Assert.Equal(1,decision[3]);
             if (scenario == 8)
             {
                 Assert.True(transport[1] > 0);
-                Assert.Equal(1, decision[0]);
+                if (budget == 8) Assert.Equal(1, decision[0]);
             }
-            if (scenario == 10) Assert.Equal(7, decision[1]);
-            if (scenario == 11) Assert.Equal(1, decision[1]);
+            if (scenario == 10) Assert.Equal(0,decision[0]);
+            if (scenario == 11) Assert.Equal(0,decision[0]);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
