@@ -16,6 +16,10 @@ Scope and shared contracts
 
 Tasks
 
+  ☐ Optimize water rendering and composition performance. See docs/PBR.WaterPerformance.todo.
+    - Remove recurring executable preparation, reduce redundant receiver/scattering work, and
+      gate unnecessary background capture while preserving the established water rendering contracts.
+
   Material-definition decision
     Retain shared BRDFProperties schema and C# models for existing material-wide properties.
     Per-axis-face overrides were withdrawn: texture-to-material mappings already let different

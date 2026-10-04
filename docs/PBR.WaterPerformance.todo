@@ -1,0 +1,139 @@
+Water rendering and composition performance
+==========================================
+
+Scope and contracts
+  Remove recurring executable preparation and unnecessary water shader/background work.
+  Preserve the existing water-volume model, HDR transport, refracted scattering direction,
+  mandatory bilateral receiver filtering, and precompiled UV/x2/x4/x8 quality options.
+  Preserve full/half background resolution, opaque receiver validity, OIT ordering, and the
+  verified shallow-water banding/sparkle fixes. Performance changes must not restore confidence
+  fading, unsupported receiver hits, foreground leakage, or disappearing distortion.
+  Reuse shader registry, resource lifetime, pipeline descriptions, StateCache, and profiling owners.
+  Do not introduce a new shader-cache or profiling framework for this work.
+  Full-scene HDR and replacement of the base-game sky are separate work, not prerequisites.
+
+References
+  - docs/PBR.WaterRefraction.md: receiver, traversal, quality and composition contracts.
+  - docs/PBR.WaterMedium.md: signed boundary accumulation and physical transport.
+  - docs/PBR.Liquids.md: liquid/OIT integration.
+  - artifacts/WaterLagAnalysis/findings.md: original capture evidence and measurement limitations.
+  - docs/Rendering.AuthoritativePipelineState.todo: broader state ownership migration.
+
+Evidence and completed work
+  ☑ Retain separate volume and surface LiquidShaderProgram owners.
+    - pbr_water_volume retains mode 3; pbr_liquid retains surface mode 0.
+    - Removed per-frame mode changes from WaterVolumeRenderer. Existing registry reload and
+      disposal own both executables and their independent inputs.
+    - Isolated build and 20/20 focused GPU tests passed, including stable IDs during alternating
+      use, surface-only quality changes, reload and disposal. See owner-fix-tests.log/.trx in
+      artifacts/WaterLagAnalysis. In-game improvement has not yet been measured.
+  Original capture: frame 1367 at 3440x1377, before the owner fix. It records two liquid
+  program creations/links and approximately 10.45 ms/14.51 ms preparation intervals.
+  Those are captured CPU intervals, not GPU pass times or uncaptured gameplay costs.
+  Volume/surface fragment counts were approximately 1.95M/1.85M; extreme water overdraw was
+  not demonstrated in that view. Generic replay GPU timings were unreliable. The captured
+  surface binary matched a Debug artifact whose receipt specifies -O0.
+
+Measurement policy
+  Use the same scene, camera, viewport, settings, loaded build and shader optimization policy
+  for before/after comparisons. Record CPU preparation separately from GPU draws and frame time.
+  Reuse existing timer scopes, adding narrow scopes only where the affected work is unmeasured.
+  Do not infer production GPU cost from headless test duration, SPIR-V size, or texture-fetch bounds.
+  User-run captures provide live acceptance; do not launch or control the game automatically.
+  Missing live measurements must remain explicitly unmeasured, not be replaced by estimates.
+  Keep checks proportional to each change; do not require an exhaustive visual matrix for every
+  independent optimization. Final targeted comparisons may reuse earlier applicable evidence.
+
+Phase 1 — Remove composite executable replacement
+  ☐ Retain independently prepared pre-overlay and ordinary composite owners.
+    - Audit actual capture/ordinary callers: capture forces LumOn off; ordinary composition can
+      enable it. Both currently mutate one pbr_composite executable through structural options.
+    - Keep the capture environment fallback and ordinary LumOn inputs unchanged. Configure
+      each owner at its appropriate settings/reload boundary, without per-frame option toggling.
+    - Update PrepareFrame consistently, but do not activate deferred full-scene HDR coordination.
+    - Preserve frame inputs, binding contracts, registry lifecycle and shared offline binaries.
+  ☐ Verify LumOn on/off, refraction enabled/disabled, and alternating capture/ordinary use.
+    - Check retained program IDs and absence of repeated asset reads/preparation after warmup.
+    - Verify quality/settings changes, reload and disposal without stale inputs or resource leaks.
+  Completion: both required composite executables remain resident; alternating passes do not
+  create/load/link/delete programs or rebuild their interfaces. Record any live timing separately.
+
+Phase 2 — Supply inverse projection once per frame
+  ☐ Add inverse projection to the existing liquid frame binding/UBO contract and frame capture.
+    - Reuse the owning matrix convention and existing CPU inversion APIs.
+    - Share it across ray tracing, UV distortion and fallback; remove fragment matrix inversions.
+    - Update production-importing fixtures and generated binding expectations together.
+  ☐ Verify reconstructed positions and refraction across camera views and full/half backgrounds.
+    - Confirm compiled production variants no longer contain the redundant matrix inversions.
+  Completion: existing rendering behavior is preserved and inverse projection is supplied through
+  the normal frame input owner, including diagnostic paths that import the shared algorithms.
+
+Phase 3 — Separate receiver geometry search from radiance reconstruction
+  ☐ Audit the receiver validity contract before deferring color samples.
+    - Color alpha currently carries receiver validity; preserve that information during search.
+    - Reuse existing depth/source metadata where valid. If a representation change is needed,
+      document its producer/consumer contract and costs before implementing it.
+  ☐ Avoid loading/interpolating radiance for intermediate receiver probes where validity permits.
+    - Retain required depth taps, bilateral layer rejection, source positions, precision bounds,
+      slope/plane validation and supported-triangle tests.
+    - Reconstruct accepted receiver radiance with the same spatial weights and supported coverage.
+    - Preserve UV fallback and full/half source-coordinate semantics.
+  ☐ Verify invalid color/depth coverage, foreground occluders, shallow shores, steep walls and edges.
+    - Compare actual sample work and rendering against the prior implementation using focused cases.
+  Completion: intermediate radiance work is reduced without weakening receiver validation or
+  changing accepted shading. Record bounds separately from measured GPU savings.
+
+Phase 4 — Reuse the trace seed in UV fallback
+  ☐ Pass the already evaluated interface seed into fallback through the shared receiver contract.
+    - Preserve valid and invalid seed outcomes; do not reuse the last marched receiver as the seed.
+    - Avoid copying an unnecessarily large payload or extending its lifetime without checking cost.
+    - Keep UV-only quality independent and retain total-internal-reflection/early-out behavior.
+    - Retain x2/x4/x8 traversal ceilings and separately account for fallback sampling.
+  ☐ Verify exhausted traces, invalid initial support, shallow x2 transitions and screen edges.
+    - Demonstrate removal of duplicate seed sampling without changing fallback radiance/geometry.
+  Completion: fallback reuses equivalent initial support and preserves the existing distortion fixes.
+  Dependency: settle Phase 3 receiver payload changes before finalizing seed handoff.
+
+Phase 5 — Skip scattering illumination for zero-scattering media
+  ☐ Add a bounded zero-scattering path to volume-boundary shading.
+    - Skip shadow/phase/source-light evaluation when all effective scattering coefficients are zero.
+    - Preserve absorption, signed optical depth, submerged length and boundary-count accumulation.
+    - Preserve nonzero scattering and mixed-material boundary behavior; zero density must stay valid.
+    - Audit analogous surface calculations, but do not skip lighting shared with reflections.
+  ☐ Verify clear water, authored scattering, mixed boundaries and underwater camera transport.
+    - Compare GPU cost for coherent clear-water regions and mixed media; branch overhead may differ.
+  Completion: zero-scattering output is unchanged and unnecessary source-light work is avoided;
+  do not claim a measured speedup without an applicable comparison.
+
+Phase 6 — Capture refraction backgrounds only when needed
+  ☐ Identify an existing authoritative water-demand signal available before the hand overlay.
+    - Account for underwater views, partially visible water, frustum/screen transitions, resize,
+      first-/third-person rendering, and settings changes. Avoid synchronous GPU readback.
+    - Prefer conservative extra capture over missing a required current-frame background.
+  ☐ Gate pre-overlay lighting/composition using that signal when it proves capture unnecessary.
+    - Invalidate skipped publication so stale backgrounds cannot be consumed.
+    - Retain resources across ordinary visibility changes; retire through existing lifecycle owners.
+    - Preserve the hand-occlusion exclusion and environment fallback behavior.
+    - If no safe signal exists, record the missing ownership contract and measured benefit before
+      expanding scope; do not add an unreliable camera-block-only visibility heuristic.
+  ☐ Verify dry views, entering/exiting water views, underwater views and first-person overlays.
+  Completion: unnecessary captures are skipped without stale or absent required receivers.
+
+Phase 7 — Review remaining bandwidth and validate the combined result
+  ☐ Obtain a matched optimized-build comparison after executable-lifetime fixes.
+    - Separate preparation, water-depth, volume-boundary, surface/OIT, pre-overlay capture and
+      ordinary composition costs using existing profiling owners where possible.
+    - Compare affected quality/resolution selections and at least a water-heavy and dry view;
+      retain build/settings details alongside results. No fixed FPS target is assumed.
+  ☐ Investigate remaining volume-target and composition bandwidth only if measurements justify it.
+    - Two full-resolution RGBA32F volume targets remain a known cost; storage size is not bandwidth.
+    - Evaluate coverage restriction or compatible pass/resource reuse before changing precision.
+    - Do not blindly switch signed accumulation to RGBA16F, remove required backfaces, or enable
+      depth rejection that loses valid entry/exit boundaries. Any such change needs a separate
+      documented numerical/visibility justification and focused regression coverage.
+    - Keep measured findings with no justified implementation explicitly documented as such.
+  ☐ Review focused regressions, linked documentation and user-run visual/performance feedback.
+    - Preserve shallow-wall continuity, x2 stability, receiver rejection and underwater transitions.
+    - Record measured improvements, remaining bottlenecks and any unmeasured acceptance items.
+  Completion: implemented optimizations have applicable correctness evidence and an honest
+  performance record; speculative bandwidth redesign is not an automatic completion requirement.
