@@ -13,24 +13,30 @@ public sealed partial class GpuFramebuffer
     /// <param name="colors">Borrowed color images in consecutive attachment order; an empty list disables color reads and writes.</param>
     /// <param name="depth">Optional borrowed depth, stencil, or packed depth-stencil image.</param>
     /// <param name="debugName">Optional diagnostic label for the framebuffer.</param>
+    /// <param name="firstColorAttachment">First color output slot; preceding slots have no image and discard shader output.</param>
     /// <returns>A complete framebuffer that owns its FBO handle but does not own the supplied attachments.</returns>
     public static GpuFramebuffer Create(IReadOnlyList<GpuFramebufferAttachment> colors,
-        GpuFramebufferAttachment? depth = null, string? debugName = null)
+        GpuFramebufferAttachment? depth = null, string? debugName = null, int firstColorAttachment = 0)
     {
         ArgumentNullException.ThrowIfNull(colors);
+        if (firstColorAttachment < 0 || firstColorAttachment > 31 || colors.Count > 32 - firstColorAttachment)
+            throw new ArgumentOutOfRangeException(nameof(firstColorAttachment));
         using var bindings = StateCache.Current.BindFramebufferScope();
         var framebuffer = CreateEmpty(debugName);
         try
         {
             // Borrow image instances first, then establish routing for this configuration.
-            for (int i = 0; i < colors.Count; i++) framebuffer.SetAttachment(ColorSlot(i), colors[i]);
+            for (int i = 0; i < colors.Count; i++) framebuffer.SetAttachment(ColorSlot(firstColorAttachment + i), colors[i]);
             if (depth is not null) framebuffer.SetAttachment(depth.DepthStencilSlot, depth);
             framebuffer.Bind();
-            var drawBuffers = Enumerable.Range(0, colors.Count).Select(i => DrawBuffersEnum.ColorAttachment0 + i).ToArray();
+            // Preserve shader locations without allocating dummy images for leading holes.
+            var drawBuffers = colors.Count == 0 ? Array.Empty<DrawBuffersEnum>()
+                : Enumerable.Range(0, firstColorAttachment + colors.Count)
+                    .Select(i => i < firstColorAttachment ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + i).ToArray();
             if (drawBuffers.Length != 0)
             {
                 GL.DrawBuffers(drawBuffers.Length, drawBuffers);
-                GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+                GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + firstColorAttachment);
             }
             else
             {

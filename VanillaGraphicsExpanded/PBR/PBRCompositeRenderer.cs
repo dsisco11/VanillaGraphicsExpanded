@@ -165,7 +165,10 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (!PrepareTargets(primaryFb)) return;
+        // The clean receiver capture has no ordinary color consumer or display resolve.
+        // Its two-image target is independent of the later scene-color scratch allocation.
+        if (capture is null && !PrepareTargets(primaryFb)) return;
+        if (capture is not null && !refractionEnabled) return;
         // Define-backed toggles must be set before Use() so the correct variant is bound.
         bool lumOnEnabled = capture is null && readLightingMode();
         var currentBuffers = lumOnEnabled ? getLumOnBuffers() : null;
@@ -174,8 +177,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         if (indirectTex?.IsValid != true) indirectTex = null;
 
         var shader = PrepareCompositeProgram(lumOnEnabled, preOverlay: capture is not null);
-        var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
-        if (shader is null || display is null || !display.EnsureReady()) return;
+        var display = capture is null ? GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve") : null;
+        if (shader is null || (capture is null && (display is null || !display.EnsureReady()))) return;
 
         // Matrices for optional PBR composite mode
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
@@ -187,8 +190,15 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         StateCache.Current.InvalidateAll();
         StateCache.Current.Apply(CompositePipeline);
         GpuFramebuffer? refractionTarget = null;
-        try { refractionTarget = publication.BeginFrame(refractionEnabled, compositeColorTex, backgroundScale); }
+        try
+        {
+            refractionTarget = capture is null
+                ? publication.BeginFrame(refractionEnabled, compositeColorTex, backgroundScale)
+                : publication.BeginCapture(screenW, screenH);
+        }
         catch (Exception error) { capi.Logger.Warning("[VGE] Water refraction source unavailable: {0}", error.Message); }
+        // A failed optional capture must not draw its receiver-only shader into ordinary color.
+        if (capture is not null && refractionTarget is null) return;
         (refractionTarget ?? compositeFbo!).BindWithViewport();
         shader.RefractionSourceEnabled = refractionTarget is not null;
         var cleanSource = capture is null && PreOverlayScene?.Published == true ? PreOverlayScene : null;
@@ -212,13 +222,16 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.GBufferPosition = gBufferManager.PositionTextureId;
         shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
 
-        // Fog uniforms
-        shader.RgbaFogIn = capi.Render.FogColor;
-        shader.FogDensityIn = capi.Render.FogDensity;
-        shader.FogMinIn = capi.Render.FogMin;
-        shader.SetAtmosphere(AtmosphereModSystem.Lighting);
-        shader.SetUnderwater(capi.Render.ShaderUniforms.CameraUnderwater > .7f);
-        shader.SetWaterVolume(Liquids.WaterVolumeRenderer.TryGetFrame(capi, out var waterFrame) ? waterFrame : null);
+        // Only ordinary color consumes atmospheric, fog and signed-volume transport.
+        if (capture is null)
+        {
+            shader.RgbaFogIn = capi.Render.FogColor;
+            shader.FogDensityIn = capi.Render.FogDensity;
+            shader.FogMinIn = capi.Render.FogMin;
+            shader.SetAtmosphere(AtmosphereModSystem.Lighting);
+            shader.SetUnderwater(capi.Render.ShaderUniforms.CameraUnderwater > .7f);
+            shader.SetWaterVolume(Liquids.WaterVolumeRenderer.TryGetFrame(capi, out var waterFrame) ? waterFrame : null);
+        }
 
         // The published LumOn gather output already includes intensity and tint.
         // Composition applies receiver material response without scaling that signal twice.
@@ -250,7 +263,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // Borrow only primary color; this FBO owns its routing and never owns the engine texture.
         primaryResolveFbo!.Bind();
 
-        display.PrimaryScene = compositeColorTex!.TextureId;
+        display!.PrimaryScene = compositeColorTex!.TextureId;
         display.PrimaryDepth = primaryFb.DepthTextureId;
         // Runtime scene output remains display-referred until its existing binding owners adopt HDR.
         display.SceneLinear = 0;
@@ -347,13 +360,13 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     {
         if (compositeFbo is not { IsValid: true } || compositeColorTex is not { IsValid: true })
         {
-            ReleaseScreenResources();
+            ReleaseCompositeTargets();
             compositeColorTex = DynamicTexture2D.Create(primary.Width, primary.Height,
                 PixelInternalFormat.Rgba16f, debugName: "PBRComposite");
             compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, debugName: "PBRCompositeFBO");
             if (!compositeColorTex.IsValid || compositeFbo is not { IsValid: true })
             {
-                ReleaseScreenResources();
+                ReleaseCompositeTargets();
                 return false;
             }
         }
@@ -361,7 +374,6 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         {
             // Withdraw borrowers before resizing the owned attachment they reference.
             RefractionScene.Dispose();
-            PreOverlayScene?.Invalidate();
             compositeFbo.Resize(primary.Width, primary.Height);
         }
         if (primaryResolveFbo is not { IsValid: true }
@@ -396,6 +408,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private void ReleaseScreenResources()
     {
         PreOverlayScene?.Invalidate();
+        ReleaseCompositeTargets();
+    }
+
+    /// <summary>Retires ordinary composition targets without withdrawing an independent current-frame capture.</summary>
+    private void ReleaseCompositeTargets()
+    {
         RefractionScene.Dispose();
         compositeFbo?.Dispose();
         ReleasePrimaryResolve();

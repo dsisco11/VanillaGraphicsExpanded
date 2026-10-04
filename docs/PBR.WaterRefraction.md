@@ -12,7 +12,7 @@ The installed engine submits local first-person hands and held items inside `Ent
 
 At the ordinary order-11 composite, only refraction outputs at negative first-person normal markers use that retained pair; other pixels retain final opaque scene coverage. Primary color, depth and first-person shading follow their existing paths. Capture reuses `GlStateCache.BindFramebufferScope` to restore independent read/draw framebuffer bindings. The existing legacy fixed-function scope optionally preserves viewport for fullscreen draws that change it. Each draw uses the existing `GpuProgram.UseScope` to restore shader ownership. The binding scope adopts actual driver bindings without invalidating unrelated cached state. `GpuFramebufferBlitter` owns reusable scratch FBOs borrowing color attachment zero, so original read/draw routing is never modified. The blitter is constructed with its source and destination and configures scratch attachments once. It subscribes to `GpuFramebuffer.AttachmentsChanged`, which fires after attachment updates, completed resize and retirement; notifications mark its setup dirty for the next copy. Ordinary copies perform no attachment queries. The caller retains and disposes the blitter with its target allocation; disposal unsubscribes both targets. `GpuFramebuffer` owns no blit-operation resources; scratch FBOs do not own borrowed textures or renderbuffers. LumOn surface-albedo capture owns its blitter through `LumOnBufferManager`. `GBufferManager.PrimaryFramebuffer` is a persistent non-owning representation of the augmented engine primary FBO; G-buffer setup refreshes it and notifies dependents after the existing window-rebuild callback, including equal-size rebuilds. Depth/stencil blits bind the original targets without changing color routing. Default-framebuffer blits retain the existing default-buffer selection. Blits never change or capture viewport. Fixed-function state uses the existing scope and pipeline descriptions. The direct-lighting and composite renderers select owned or borrowed framebuffer targets through framebuffer APIs rather than issuing raw GL calls. Frame start invalidates previous publication. Resize disposes the final refraction pair, invalidates the borrowed pre-overlay publication, and resizes the composite scratch in place; the next capture rebuilds mismatched isolated storage. Disable and world/disposal boundaries reclaim isolated storage. Composite allocation replacement, failure, world leave and disposal share one owned-resource cleanup path. Immersive bodies, remote players and shadows retain their original behavior and do not trigger this capture.
 
-The early capture adds one direct-lighting draw and one composite draw, three RGBA16F lighting targets and an RGBA16F/R32F radiance/depth pair (36 additional bytes per pixel). The composite scratch is shared with its existing owner. Current-frame LumOn gather has not run at the capture boundary, so captured pixels use direct lighting, emission and the existing standalone environment response rather than stale screen-space GI. Final unmasked pixels still use the selected PBR mode. World geometry drawn later that was occluded by the overlay's depth cannot be recovered from this snapshot; it records actual coverage at the capture boundary. This remains a screen-space limitation, not permission to reorder base-game renderers.
+The early capture adds one direct-lighting draw and one composite draw, three RGBA16F lighting targets and an RGBA16F/R32F radiance/depth pair (36 additional bytes per pixel). It no longer writes or borrows the ordinary composite scratch. Current-frame LumOn gather has not run at the capture boundary, so captured pixels use direct lighting, emission and the existing standalone environment response rather than stale screen-space GI. Final unmasked pixels still use the selected PBR mode. World geometry drawn later that was occluded by the overlay's depth cannot be recovered from this snapshot; it records actual coverage at the capture boundary. This remains a screen-space limitation, not permission to reorder base-game renderers.
 
 Pre-overlay capture skips both draws only when the current engine liquid mesh source proves
 every pool in the active atlas prefix empty. `LiquidMeshSource` reads the manager's current
@@ -54,10 +54,59 @@ Pre-overlay composition retains its own `PBRCompositeShaderProgram` under
 `pbr_composite_pre_overlay`, with LumOn, PBR GI composition and short-range AO disabled.
 Ordinary composition retains `pbr_composite` and adopts the engine generation's lighting mode
 and current composite options before preparation. Alternating these passes does not change
-either owner's structural options. Both share the existing offline shader contract and binaries,
+either owner's structural options. Both share the existing offline shader contract and build system,
 with independent executables and frame inputs managed by the normal registry reload/disposal
 path. The deferred `PrepareFrame` readiness check prepares both owners without activating
 full-scene HDR. This removes recurring executable replacement; live timing remains unmeasured.
+
+The retained capture selects `VGE_COMPOSITE_PRE_OVERLAY_ONLY` at declaration. Its fragment
+variant exposes only receiver color at location 1 and hardware depth at location 2. The
+ordinary color output at location 0, sky-color preservation, water-volume/fog/aerial transport
+and restoration from another overlay capture are compiled out. Physical receiver lighting,
+standalone environment response and finite/half-float eligibility validation remain unchanged;
+sky and invalid first-person proxies publish zero color and sentinel depth one.
+
+`WaterRefractionScene.BeginCapture` allocates only the receiver pair. Its framebuffer has no
+attachment zero, draw routing `[None, ColorAttachment1, ColorAttachment2]`, and read attachment
+one. The existing framebuffer creation owner supports the leading unused output slot; native
+routing stays inside that owner and existing pipeline/binding scopes remain in effect.
+Ordinary publication still borrows the composite image at zero and writes all three outputs.
+
+The former capture-time composite color had no consumer: capture returned before display
+resolve, and ordinary composition overwrote that image before the display shader read it.
+Capture now neither prepares ordinary/display targets nor depends on display-shader readiness.
+Allocation failure withdraws capture publication without drawing into ordinary color. Initial
+ordinary allocation or replacement preserves the independent current-frame capture; actual
+screen resize and world/disposal boundaries still invalidate publication. Compatible captures
+reuse their pair, and reload retains the separately selected owners. Removing the extra
+RGBA16F write avoids eight nominal output bytes per full-resolution pixel; ordinary storage
+is still required later, so this is not an eight-byte-per-pixel persistent-memory saving.
+
+Matched optimized inspection retains the baseline opcode sequence for all eight ordinary
+variants. The retained environment-only capture changes from 1143 to 284 static instructions
+and from 22 to nine image-reading instructions. Its active fragment outputs are locations 1/2;
+water-volume, atmospheric and overlay-restore samplers are absent. These establish removed
+output/work, not measured bandwidth or frame-time improvement. The offline contract admits
+16 variants after adding the Boolean capture option; selection is fixed on the capture owner.
+
+Fresh serial shader/Debug compilation passed after the generator rejected an undersized
+variant budget and the declaration was corrected. The focused run passed 66 of 68 tests;
+two older overlay assertions expected unsanitized RGB/depth from an invalid receiver.
+Running the saved baseline binaries reproduced both failures. Correcting those expectations
+to zero color/alpha and sentinel depth one, rebuilding tests and rerunning the nine overlay
+checks passed. All 68 distinct selected cases therefore have passing evidence; no clean
+whole-suite rerun is claimed.
+
+The checks exercise real direct/capture/ordinary draws at full/half resolution with LumOn
+on/off, stable executable identities, reload, resize, failure publication and world cleanup.
+First capture allocates no ordinary color image; later captures preserve sentinel values in
+that image until ordinary composition overwrites it. Framebuffer checks verify absent slot zero,
+two images and sparse read/draw routing. Eight numerical cases compare capture receiver pairs
+exactly with ordinary pre-transport outputs, including nonzero environment lighting, atmospheric
+and fog inputs, physical/first-person positions, and a following sky draw that clears old data.
+Shared framebuffer creation checks also pass. Receipts, the baseline reproduction and optimized
+modules are retained in `artifacts/WaterLagAnalysis/capture-target-*`. Live performance is
+unmeasured.
 
 ## Background resolution and bilateral receivers
 

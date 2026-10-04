@@ -76,6 +76,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.True(composite.PreOverlayScene!.Published);
             Assert.Equal(1,composite.PreOverlayScene.BackgroundScale);
             Assert.Equal(2, draws);
+            Assert.Null(composite.SceneLinearColor);
             Assert.Equal(callerTarget.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(readTarget.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(caller.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
@@ -127,6 +128,8 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.False(preOverlay.LumOnEnabled);
                 Assert.False(preOverlay.EnablePbrComposite);
                 Assert.False(preOverlay.EnableShortRangeAo);
+                Assert.True(preOverlay.PreOverlayOnly);
+                Assert.False(ordinary.PreOverlayOnly);
                 AssertStableFrames();
             }
 
@@ -145,6 +148,20 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.Equal(retainedCapture, preOverlay.ProgramId);
             Assert.Equal(readsBeforeDisabled, assets.Reads.Count);
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;
+            AssertStableFrames();
+
+            // An unavailable receiver target must not fall back to the ordinary
+            // composite target or leave the preceding publication readable.
+            var preservedColor = Assert.IsType<DynamicTexture2D>(composite.SceneLinearColor);
+            float[] preservedPixels = preservedColor.ReadPixels();
+            HarmonyLib.AccessTools.Field(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionScene), "failed")
+                .SetValue(composite.PreOverlayScene, true);
+            int beforeFailure = draws;
+            HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
+            Assert.Equal(beforeFailure + 1, draws); // Direct capture succeeds; composite refuses to submit.
+            Assert.False(composite.PreOverlayScene.Published);
+            Assert.Equal(preservedPixels, preservedColor.ReadPixels());
+            composite.PreOverlayScene.Dispose();
             AssertStableFrames();
 
             // A live empty pool is authoritative even after a previous wet frame.
@@ -253,9 +270,13 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             {
                 Assert.True(composite.PrepareFrame());
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
+                var ordinaryColor = Assert.IsType<DynamicTexture2D>(composite.SceneLinearColor);
+                float[] sentinel = [13f, 7f, 3f, 1f];
+                ordinaryColor.UploadDataImmediate(sentinel);
                 terrain.UploadTerrain(gbuffer, [depth], [.5f,.5f,1,1], [.5f,0,0,0], [depth,depth,depth,1]);
                 HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
                 Assert.True(composite.PreOverlayScene!.Published);
+                Assert.Equal(sentinel, ordinaryColor.ReadPixels());
                 Assert.Equal(depth, composite.PreOverlayScene.Depth!.ReadPixels()[0]);
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
                 float[] worldColor = composite.PreOverlayScene.Color!.ReadPixels();
@@ -266,6 +287,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.True(composite.RefractionScene.Published);
                 Assert.Equal(depth, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
                 Assert.Equal(worldColor, composite.RefractionScene.SourceColor!.ReadPixels());
+                Assert.NotEqual(sentinel, ordinaryColor.ReadPixels());
             }
         }
         finally

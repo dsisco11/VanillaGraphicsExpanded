@@ -1,6 +1,8 @@
 #version 330 core
 
+#if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
 out vec4 outColor;
+#endif
 layout(location = 1) out vec4 outRefractionColor;
 layout(location = 2) out float outRefractionDepth;
 @import "./includes/liquids/receiver_publication.glsl"
@@ -49,6 +51,7 @@ uniform sampler2D preOverlayDepth;
 
 // Fog (VS convention)
 
+#if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
 /** Integrates captured segments, requiring a known return outside water for sky backgrounds. */
 bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission,
     out vec3 inScattering, out float waterLength)
@@ -69,18 +72,24 @@ bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission
         source, vgePbrCompositeParams.waterAbsorption.rgb + vgePbrCompositeParams.waterScattering.rgb,
         startsInWater, length(receiverVS), transmission, inScattering, waterLength);
 }
+#endif
 
+/** Publishes receiver lighting, with transported scene color only for ordinary composition. */
 void main(void)
 {
     vec2 uv = gl_FragCoord.xy / vec2(textureSize(primaryDepth, 0));
 
     float depth = texture(primaryDepth, uv).r;
     // Sky and first-person visibility proxies cannot establish a refracted hit.
-    if (vgePbrCompositeParams.fogFloats0.w > .5)
+    if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.fogFloats0.w > .5)
     {
         outRefractionDepth = 1.0;
         outRefractionColor = vec4(0);
     }
+#if VGE_COMPOSITE_PRE_OVERLAY_ONLY
+    // Sky has no physical receiver. Capture needs neither its display color nor its transport.
+    if (lumonIsSky(depth)) return;
+#endif
 
     vec3 directLight = texture(directDiffuse, uv).rgb + texture(directSpecular, uv).rgb;
     vec3 emissiveLight = texture(emissive, uv).rgb;
@@ -91,6 +100,7 @@ void main(void)
         ? texelFetch(gBufferPosition, ivec2(gl_FragCoord.xy), 0).xyz
         : lumonReconstructViewPos(uv, depth, invProjectionMatrix);
 
+#if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
     // Sky: skip indirect + fog
     if (lumonIsSky(depth))
     {
@@ -112,6 +122,7 @@ void main(void)
         outColor = vec4(max(skyColor, vec3(0.0)), 1.0);
         return;
     }
+#endif
 
 #if VGE_LUMON_ENABLED
     vec3 indirect = indirectIntensity > 0.0 ? texture(indirectDiffuse, uv).rgb : vec3(0.0);
@@ -178,17 +189,19 @@ void main(void)
     finalColor = max(finalColor, vec3(0.0));
 
     // Capture before water/atmospheric transport; the liquid evaluates its bent path once.
-    if (vgePbrCompositeParams.fogFloats0.w > .5)
+    if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.fogFloats0.w > .5)
     {
         outRefractionColor = vec4(finalColor, texture(gBufferNormal, uv).a >= 0.0 ? 1.0 : 0.0);
         outRefractionDepth = depth;
         // Restore both members of the clean pair only where first-person visibility replaced the world.
         // Optional missing captures bind the zero fallback and never establish a physical receiver.
+#if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
         if (texture(gBufferNormal, uv).a < 0.0 && vgePbrCompositeParams.aoStrengths.z > .5)
         {
             outRefractionColor = texelFetch(preOverlayColor, ivec2(gl_FragCoord.xy), 0);
             outRefractionDepth = texelFetch(preOverlayDepth, ivec2(gl_FragCoord.xy), 0).r;
         }
+#endif
         // Encode eligibility in existing depth storage, including restored overlay pixels.
         // Geometry probes can then reject invalid radiance without reading the color image.
         if (!VgeWaterReceiverPairValid(outRefractionColor, outRefractionDepth))
@@ -198,6 +211,7 @@ void main(void)
         }
     }
 
+#if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
     bool waterResolved = false;
     bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;
     bool hasPhysicalReceiver = texture(gBufferNormal, uv).a >= 0.0;
@@ -230,4 +244,5 @@ void main(void)
             texture(gBufferEnvironment, uv).a, vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
 
     outColor = vec4(finalColor, 1.0);
+#endif
 }

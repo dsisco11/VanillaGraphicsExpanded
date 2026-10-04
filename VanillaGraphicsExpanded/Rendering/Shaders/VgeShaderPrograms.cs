@@ -29,6 +29,7 @@ internal static class VgeShaderPrograms
             new PBRCompositeShaderProgram
             {
                 PassName = PBRCompositeShaderProgram.PreOverlayPassName,
+                PreOverlayOnly = true,
                 LumOnEnabled = false,
                 EnablePbrComposite = false,
                 EnableShortRangeAo = false

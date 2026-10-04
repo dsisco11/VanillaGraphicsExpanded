@@ -276,18 +276,43 @@ Phase 8 — Reuse atmospheric transport for the shared camera segment
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 9 — Remove unused pre-overlay composite output
-  ☐ Specialize the retained capture owner to produce only the background outputs its consumers need.
+  ☑ Specialize the retained capture owner to produce only the background outputs its consumers need.
     - Trace reads of the shared composite color target before removing its capture-time write.
     - Preserve refraction radiance/depth, validity metadata, environment fallback and hand exclusion.
     - Remove calculations used exclusively by the unconsumed ordinary display-color output.
     - Update output contracts, framebuffer routing and pipeline expectations together; preserve
       ordinary composition and prevent attachment feedback or stale-resource consumption.
     - Reuse existing shader-option and resource owners; do not reintroduce executable churn.
-  ☐ Verify capture publication, subsequent ordinary composition, resize, reload and failure paths.
+  ☑ Verify capture publication, subsequent ordinary composition, resize, reload and failure paths.
     - Compare output values and demonstrate the removed target write/unused shader work.
   Completion: required captures avoid unused display-color production while their background
   outputs remain equivalent. This complements Phase 6, which skips entire unneeded captures.
   Dependency: use the separate retained composite owners established in Phase 1.
+  Implemented 2026-10-04: capture selects a fixed precompiled receiver-only option on its
+  retained owner. Output zero and its sky/fog/water/aerial calculations are absent; outputs one
+  and two preserve unattenuated lighting, environment response and receiver validity.
+  Read trace: capture returns before display resolve; ordinary composition overwrites shared
+  composite color before its sole display consumer. Capture now has only two owned images,
+  with no borrowed ordinary color and routing [None, ColorAttachment1, ColorAttachment2].
+  Existing framebuffer creation owns the leading unused slot; pipeline and binding scopes stay.
+  Capture skips ordinary target/display preparation and fails without a substitute composite draw.
+  Ordinary target allocation preserves independent current-frame capture; resize/world teardown
+  retain explicit publication invalidation. No per-frame shader option change is introduced.
+  Traceability: PBR.WaterRefraction.md capture/publication/hand exclusion and PBR.Liquids.md
+  ordering govern the change. WaterMedium and material/shared-display contracts retain pre-transport
+  receivers and ordinary display behavior. Rendering.AuthoritativePipelineState's proposal
+  governs explicit target routing, borrowed lifetimes and existing owner/state boundaries.
+  Fresh serial shader/Debug build passed after correcting the declared variant budget to 16.
+  Initial focused run: 66/68 passed. The saved baseline reproduced both failures in stale
+  unavailable-overlay expectations; correcting only expected sanitized RGB/alpha/depth and
+  rebuilding tests gave 9/9 overlay passes. All 68 distinct selected cases have passing evidence.
+  Capture tests prove no ordinary allocation/write, sparse routing, equivalent receiver pairs,
+  fresh subsequent ordinary output, sky invalidation, reload/resize/failure and retained owners.
+  All eight ordinary optimized opcode sequences match baseline. The actual retained capture
+  falls from 1143 to 284 static instructions and 22 to nine image reads, with only outputs 1/2
+  and no water/aerial/overlay-restore samplers. No live timing or bandwidth improvement is claimed.
+  See PBR.WaterRefraction.md and artifacts/WaterLagAnalysis/capture-target-* for the receipts.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 10 — Share homogeneous-medium integration calculations
   ☐ Evaluate extinction, optical depth and transmission once for each identical medium/path pair.

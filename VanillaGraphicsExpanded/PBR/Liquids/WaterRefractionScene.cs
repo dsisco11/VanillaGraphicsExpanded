@@ -46,54 +46,12 @@ internal sealed class WaterRefractionScene : IDisposable
     #region Frame lifecycle
     /// <summary>Invalidates the preceding frame and prepares borrowed composite plus owned snapshot outputs.</summary>
     internal GpuFramebuffer? BeginFrame(bool enabled, DynamicTexture2D? compositeColor, int backgroundScale = 1)
-    {
-        Published = false;
-        BackgroundScale = backgroundScale;
-        if (!enabled || compositeColor?.IsValid != true)
-        {
-            Dispose();
-            return null;
-        }
-        // A failed allocation retains straight-through rendering until toggle, resize or world reset.
-        if (failed) return null;
-        // Recreate the attachment set together; a resized/replaced composite cannot retain old source storage.
-        if (target is not null && (!target.IsValid || SourceColor?.IsValid != true || SourceDepth?.IsValid != true
-            || SourceColor.Width != compositeColor.Width || SourceColor.Height != compositeColor.Height
-            || !ReferenceEquals(target[0], compositeColor))) Dispose();
-        if (target is null)
-        {
-            try
-            {
-                SourceColor = DynamicTexture2D.Create(compositeColor.Width, compositeColor.Height, PixelInternalFormat.Rgba16f,
-                    debugName: "WaterRefraction.Radiance");
-                SourceDepth = DynamicTexture2D.Create(compositeColor.Width, compositeColor.Height, PixelInternalFormat.R32f,
-                    debugName: "WaterRefraction.Depth");
-                target = GpuFramebuffer.CreateMRT([compositeColor, SourceColor, SourceDepth], debugName: "WaterRefraction.Publication") ?? throw new InvalidOperationException("Water refraction framebuffer unavailable.");
-                if (!target.IsValid) throw new InvalidOperationException("Water refraction framebuffer invalid.");
-            }
-            catch { Dispose(); failed = true; throw; }
-        }
-        // The composite always restores overlays at full resolution. Only its final
-        // receiver publication is reduced; no attachment is sampled while writable.
-        if (BackgroundScale == 1) RetireReduced();
-        else if (reducedTarget is null)
-        {
-            try
-            {
-                int width = (compositeColor.Width + 1) / 2;
-                int height = (compositeColor.Height + 1) / 2;
-                reducedColor = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f,
-                    debugName: "WaterRefraction.ReducedRadiance");
-                reducedDepth = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba32f,
-                    debugName: "WaterRefraction.ReducedDepthAndUv");
-                reducedTarget = GpuFramebuffer.CreateMRT([reducedColor, reducedDepth],
-                    debugName: "WaterRefraction.Reduction") ?? throw new InvalidOperationException("Water receiver reduction unavailable.");
-                if (!reducedTarget.IsValid) throw new InvalidOperationException("Water receiver reduction target invalid.");
-            }
-            catch { Dispose(); failed = true; throw; }
-        }
-        return target;
-    }
+        => PrepareFrame(enabled && compositeColor?.IsValid == true, compositeColor?.Width ?? 0,
+            compositeColor?.Height ?? 0, compositeColor, backgroundScale);
+
+    /// <summary>Prepares full-resolution receiver-only capture without borrowing an ordinary composite image.</summary>
+    internal GpuFramebuffer? BeginCapture(int width, int height)
+        => PrepareFrame(true, width, height, null, 1);
 
     /// <summary>Publishes after the owning composite finishes its coherent radiance/depth draw.</summary>
     internal void Publish(Action<GpuFramebuffer, DynamicTexture2D, DynamicTexture2D>? reduce = null)
@@ -112,7 +70,7 @@ internal sealed class WaterRefractionScene : IDisposable
     /// <summary>Invalidates an unfinished frame without requiring resource reallocation.</summary>
     internal void Invalidate() => Published = false;
 
-    /// <summary>Retires owned snapshots while preserving the borrowed composite image.</summary>
+    /// <summary>Retires owned snapshots while preserving any borrowed composite image.</summary>
     public void Dispose()
     {
         Published = false;
@@ -129,6 +87,61 @@ internal sealed class WaterRefractionScene : IDisposable
     #endregion
 
     #region Private
+    /// <summary>Allocates coherent receiver storage and routes its fixed output locations for capture or ordinary composition.</summary>
+    private GpuFramebuffer? PrepareFrame(bool enabled, int width, int height, DynamicTexture2D? compositeColor, int backgroundScale)
+    {
+        Published = false;
+        BackgroundScale = backgroundScale;
+        if (!enabled || width <= 0 || height <= 0)
+        {
+            Dispose();
+            return null;
+        }
+        // A failed allocation retains straight-through rendering until toggle, resize or world reset.
+        if (failed) return null;
+        // Recreate the attachment set together; a resized/replaced composite cannot retain old source storage.
+        if (target is not null && (!target.IsValid || SourceColor?.IsValid != true || SourceDepth?.IsValid != true
+            || SourceColor.Width != width || SourceColor.Height != height
+            || !ReferenceEquals(target.GetAttachment(FramebufferAttachment.ColorAttachment0)?.Resource, compositeColor))) Dispose();
+        if (target is null)
+        {
+            try
+            {
+                SourceColor = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f,
+                    debugName: "WaterRefraction.Radiance");
+                SourceDepth = DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f,
+                    debugName: "WaterRefraction.Depth");
+                target = compositeColor is null
+                    ? GpuFramebuffer.Create([GpuFramebufferAttachment.FromTexture(SourceColor), GpuFramebufferAttachment.FromTexture(SourceDepth)],
+                        debugName: "WaterRefraction.Capture", firstColorAttachment: 1)
+                    : GpuFramebuffer.CreateMRT([compositeColor, SourceColor, SourceDepth], debugName: "WaterRefraction.Publication");
+                if (target is null) throw new InvalidOperationException("Water refraction framebuffer unavailable.");
+                if (!target.IsValid) throw new InvalidOperationException("Water refraction framebuffer invalid.");
+            }
+            catch { Dispose(); failed = true; throw; }
+        }
+        // The composite always restores overlays at full resolution. Only its final
+        // receiver publication is reduced; no attachment is sampled while writable.
+        if (BackgroundScale == 1) RetireReduced();
+        else if (reducedTarget is null)
+        {
+            try
+            {
+                int reducedWidth = (width + 1) / 2;
+                int reducedHeight = (height + 1) / 2;
+                reducedColor = DynamicTexture2D.Create(reducedWidth, reducedHeight, PixelInternalFormat.Rgba16f,
+                    debugName: "WaterRefraction.ReducedRadiance");
+                reducedDepth = DynamicTexture2D.Create(reducedWidth, reducedHeight, PixelInternalFormat.Rgba32f,
+                    debugName: "WaterRefraction.ReducedDepthAndUv");
+                reducedTarget = GpuFramebuffer.CreateMRT([reducedColor, reducedDepth],
+                    debugName: "WaterRefraction.Reduction") ?? throw new InvalidOperationException("Water receiver reduction unavailable.");
+                if (!reducedTarget.IsValid) throw new InvalidOperationException("Water receiver reduction target invalid.");
+            }
+            catch { Dispose(); failed = true; throw; }
+        }
+        return target;
+    }
+
     /// <summary>Retires only reduction storage when full-size backgrounds are selected.</summary>
     private void RetireReduced()
     {

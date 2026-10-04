@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.PBR;
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
 /// applying fog once and writing scene-linear lighting for the separate display resolve.
 /// </summary>
-[ShaderProgram("Contract", "pbr_composite", 9)]
+[ShaderProgram("Contract", "pbr_composite", 16)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_composite.fsh")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Lighting")]
@@ -22,6 +22,7 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(LumOnEnabled))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnablePbrComposite))]
 [ShaderUse("Contract", ShaderStageKind.Fragment, nameof(EnableShortRangeAo))]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(PreOverlayOnly))]
 public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRCompositeShaderProgramBindings
 {
     /// <summary>Registry identity for the retained environment-only pre-overlay executable and inputs.</summary>
@@ -181,6 +182,10 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     #endregion
 
     #region Composite Controls
+
+    /// <summary>Specializes the retained capture owner to publish only unattenuated receiver color and depth.</summary>
+    [ShaderOption("VGE_COMPOSITE_PRE_OVERLAY_ONLY", false)]
+    internal partial bool PreOverlayOnly { get; set; }
 
     public float IndirectIntensity
     {

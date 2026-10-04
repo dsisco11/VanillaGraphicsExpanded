@@ -129,6 +129,30 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             Assert.InRange(actual[channel], expected - .004f, expected + .004f);
         }
         Assert.True(actual[0] > 1);
+
+        // Receiver publication precedes camera transport. The specialized capture
+        // must retain that exact pair while leaving the ordinary color owner alone.
+        environment.UploadDataImmediate(new float[] { .25f, .5f, 1f, skyVisibility });
+        program.RefractionSourceEnabled = true;
+        using var receiverOutputs = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba16f,
+            PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
+        TestFramework.RenderQuadTo(program, receiverOutputs);
+        float[] expectedReceiver = receiverOutputs[1].ReadPixels();
+        float[] expectedDepth = receiverOutputs[2].ReadPixels();
+        program.PreOverlayOnly = true;
+        using var capture = new WaterRefractionScene();
+        TestFramework.RenderQuadTo(program, capture.BeginCapture(1, 1)!);
+        capture.Publish();
+        Assert.True(capture.Published);
+        Assert.Equal(expectedReceiver, capture.Color!.ReadPixels());
+        Assert.Equal(expectedDepth, capture.Depth!.ReadPixels());
+        // Reusing the target for sky must overwrite both members of the old pair.
+        depth.UploadDataImmediate(new float[] { 1 });
+        TestFramework.RenderQuadTo(program, capture.BeginCapture(1, 1)!);
+        capture.Publish();
+        Assert.True(capture.Published);
+        Assert.Equal(new float[4], capture.Color.ReadPixels());
+        Assert.Equal(new float[] { 1 }, capture.Depth.ReadPixels());
     }
     #endregion
 

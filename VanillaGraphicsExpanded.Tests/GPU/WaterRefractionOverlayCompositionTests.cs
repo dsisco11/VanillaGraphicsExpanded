@@ -82,15 +82,17 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         float[] source = target[1].ReadPixels();
         float[] sourceDepth = target[2].ReadPixels();
         bool restored = overlay && captured;
-        float[] expected = restored ? [2f, 1f, .5f] : [6f, 3f, 2f];
+        bool unavailable = overlay && !captured;
+        float[] expected = unavailable ? [0f, 0f, 0f] : restored ? [2f, 1f, .5f] : [6f, 3f, 2f];
         // The visible first-person composite retains its own lighting; only the immutable refraction pair is restored.
         for (int channel = 0; channel < 3; ++channel)
         {
             Assert.InRange(MathF.Abs(presentation[channel] - new float[] { 6f, 3f, 2f }[channel]), 0, .0001f);
             Assert.InRange(MathF.Abs(source[channel] - expected[channel]), 0, .0001f);
         }
-        Assert.Equal(overlay && !captured ? 0f : 1f, source[3]);
-        Assert.InRange(MathF.Abs(sourceDepth[0] - (restored ? .75f : overlay ? .01f : .8f)), 0, .000001f);
+        // An unavailable physical pair is sanitized at publication, before depth-only searches.
+        Assert.Equal(unavailable ? 0f : 1f, source[3]);
+        Assert.InRange(MathF.Abs(sourceDepth[0] - (unavailable ? 1f : restored ? .75f : .8f)), 0, .000001f);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         // The fixture's raw texture helpers do not own VGE's resource-slot cache.
         StateCache.Current.InvalidateAll();

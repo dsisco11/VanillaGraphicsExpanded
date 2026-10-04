@@ -11,6 +11,44 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Capture owns only its receiver pair and retains sparse output routing across reuse and resize.</summary>
+    [Fact]
+    public void CaptureTargetOwnsOnlyReceiverAttachments()
+    {
+        EnsureContextValid();
+        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var source = new WaterRefractionScene();
+        var target = source.BeginCapture(2, 2)!;
+        Assert.Null(target.GetAttachment(FramebufferAttachment.ColorAttachment0));
+        Assert.Same(source.Color, target[1]);
+        Assert.Same(source.Depth, target[2]);
+        Assert.Null(target.GetAttachment(FramebufferAttachment.ColorAttachment3));
+        target.Bind();
+        Assert.Equal((int)DrawBuffersEnum.None, GL.GetInteger(GetPName.DrawBuffer0));
+        Assert.Equal((int)DrawBuffersEnum.ColorAttachment1, GL.GetInteger(GetPName.DrawBuffer1));
+        Assert.Equal((int)DrawBuffersEnum.ColorAttachment2, GL.GetInteger(GetPName.DrawBuffer2));
+        Assert.Equal((int)ReadBufferMode.ColorAttachment1, GL.GetInteger(GetPName.ReadBuffer));
+        source.Publish();
+        Assert.True(source.Published);
+        Assert.Same(target, source.BeginCapture(2, 2));
+        Assert.False(source.Published);
+        var oldColor = source.Color;
+        var oldDepth = source.Depth;
+        Assert.NotSame(target, source.BeginCapture(3, 1));
+        Assert.False(oldColor!.IsValid);
+        Assert.False(oldDepth!.IsValid);
+        Assert.Equal(3, source.Color!.Width);
+        Assert.Equal(1, source.Depth!.Height);
+        source.Publish();
+        Assert.True(source.Published);
+        Assert.Null(source.BeginCapture(0, 1));
+        Assert.False(source.Published);
+        Assert.Null(source.Color);
+        Assert.NotNull(source.BeginCapture(2, 2));
+        Assert.False(source.Published);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Repeated toggles invalidate publication, resize both images together and preserve borrowed color.</summary>
     [Theory]
     [InlineData(false)]
