@@ -3,15 +3,16 @@
 @import "./transport.glsl"
 // Diagnostic hooks compile away in ordinary rendering variants.
 // Reasons: 0 accepted, 1 projection/bounds, 2 depth/sky/metadata, 3 homogeneous
-// reconstruction, 4 interface plane, 5 adjacent receiver, 6 TIR, 7 residual,
+// reconstruction, 4 interface plane, 5 reserved (former adjacent veto), 6 TIR, 7 residual,
 // 8 nonfinite radiance, 9 distance exhaustion. SAMPLE counts every receiver
 // depth evaluation, including the final post-refinement validation.
 #ifndef VGE_REFRACTION_EVENT
 #define VGE_REFRACTION_EVENT(reason)
+#endif
+#ifndef VGE_REFRACTION_SAMPLE
 #define VGE_REFRACTION_SAMPLE(uv, depth)
 #endif
-layout(binding = 9) uniform sampler2D vge_refractionColor;
-layout(binding = 10) uniform sampler2D vge_refractionDepth;
+@import "./receiver.glsl"
 
 /** Projects a view-space ray point without clamping offscreen samples into the image. */
 bool VgeRefractionProject(vec3 position, out vec2 sampleUv)
@@ -19,45 +20,24 @@ bool VgeRefractionProject(vec3 position, out vec2 sampleUv)
     vec4 clip = projectionMatrix * vec4(position, 1.0);
     if (clip.w <= .0001) { VGE_REFRACTION_EVENT(1); return false; }
     sampleUv = clip.xy / clip.w * .5 + .5;
-    vec2 margin = 2.0 / frameSize;
+    // Retain the existing view-pixel guard without doubling it at half size;
+    // reduced storage additionally requires a supported texel-center footprint.
+    vec2 margin = max(2.0 / frameSize, .5 / vec2(textureSize(vge_refractionDepth, 0)));
     bool supported = all(greaterThan(sampleUv, margin)) && all(lessThan(sampleUv, 1.0 - margin));
     if (!supported) { VGE_REFRACTION_EVENT(1); }
     return supported;
 }
 
-/** Rejects unknown depth, sky, first-person proxies and foreground shoreline leakage. */
+/** Evaluates one shared filtered receiver without an all-neighbours foreground veto. */
 bool VgeRefractionReceiver(vec2 sampleUv, vec3 surface, vec3 normalVS,
-    mat4 inverseProjection, out float receiverZ)
+    mat4 inverseProjection, out float receiverZ, out vec3 radiance)
 {
-    float depth = texture(vge_refractionDepth, sampleUv).r;
-    receiverZ = VgeLiquidViewDepth(depth);
+    vec3 positionVS;
+    bool supported = VgeRefractionFilter(sampleUv, surface, normalVS, inverseProjection, positionVS, radiance);
+    receiverZ = -positionVS.z;
     VGE_REFRACTION_SAMPLE(sampleUv, receiverZ);
-    if (isnan(depth) || isinf(depth) || depth <= 0.0 || depth >= .999999
-        || texture(vge_refractionColor, sampleUv).a < .5) { VGE_REFRACTION_EVENT(2); return false; }
-    vec4 position = inverseProjection * vec4(sampleUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-    if (abs(position.w) < .00001) { VGE_REFRACTION_EVENT(3); return false; }
-    // Foreground is relative to the interface, not the camera's Z axis. A bent ray
-    // can legitimately reach a receiver with smaller view depth when the camera pitches.
-    if (dot(position.xyz / position.w - surface, normalVS) >= -.02) { VGE_REFRACTION_EVENT(4); return false; }
-    // A nearest sample beside foreground geometry must not bend that foreground behind the interface.
-    ivec2 pixel = ivec2(sampleUv * frameSize);
-    for (int axis = 0; axis < 4; ++axis)
-    {
-        ivec2 offset = axis == 0 ? ivec2(-1,0) : axis == 1 ? ivec2(1,0)
-            : axis == 2 ? ivec2(0,-1) : ivec2(0,1);
-        float adjacent = texelFetch(vge_refractionDepth, pixel + offset, 0).r;
-        if (isnan(adjacent) || isinf(adjacent) || adjacent <= 0.0) { VGE_REFRACTION_EVENT(5); return false; }
-        if (adjacent < .999999)
-        {
-            vec2 adjacentUv = (vec2(pixel + offset) + .5) / frameSize;
-            vec4 adjacentPosition = inverseProjection * vec4(adjacentUv * 2.0 - 1.0, adjacent * 2.0 - 1.0, 1.0);
-            if (abs(adjacentPosition.w) < .00001
-                || dot(adjacentPosition.xyz / adjacentPosition.w - surface, normalVS) >= -.02) { VGE_REFRACTION_EVENT(5); return false; }
-        }
-    }
-    return true;
+    return supported;
 }
-
 /** Traces only the visible opaque layer, with 32 samples and five crossing refinements over at most 32 metres. */
 VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater)
 {
@@ -80,7 +60,7 @@ VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater
         vec2 sampleUv;
         float receiverZ;
         if (!VgeRefractionProject(point, sampleUv)
-            || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return result;
+            || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ, background)) return result;
         if (-point.z >= receiverZ)
         {
             float low = previousT;
@@ -90,16 +70,15 @@ VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater
                 float middle = (low + high) * .5;
                 point = surface + direction * middle;
                 if (!VgeRefractionProject(point, sampleUv)
-                    || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return result;
+                    || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ, background)) return result;
                 if (-point.z >= receiverZ) high = middle;
                 else low = middle;
             }
             receiver = surface + direction * high;
             if (!VgeRefractionProject(receiver, sampleUv)
-                || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ)) return result;
+                || !VgeRefractionReceiver(sampleUv, surface, normalVS, inverseProjection, receiverZ, background)) return result;
             // A depth discontinuity can mimic a crossing. Missing hidden geometry is not a hit.
             if (abs(-receiver.z - receiverZ) > .15) { VGE_REFRACTION_EVENT(7); return result; }
-            background = texture(vge_refractionColor, sampleUv).rgb;
             if (any(isnan(background)) || any(isinf(background))) { VGE_REFRACTION_EVENT(8); return result; }
             submergedLength = underwater ? length(surface) : high;
             // Fade the complete refracted contribution before clipping or exhausting the trace.

@@ -3,6 +3,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -41,7 +42,11 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     [InlineData(14, true)]
     [InlineData(9, true, 1)]
     [InlineData(9, true, 2)]
-    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0)
+    [InlineData(0, true, 0, 2)]
+    [InlineData(1, true, 0, 2)]
+    [InlineData(11, true, 0, 2)]
+    [InlineData(14, true, 0, 2)]
+    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1)
     {
         EnsureContextValid();
         int frameSize = scenario >= 14 ? 128 : 16;
@@ -153,6 +158,20 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             sceneColor.UploadDataImmediate(floorColor);
         }
         program.ModelViewMatrix = Flatten(modelView);
+        // Feed the production traversal an actual geometry-aware reduction of the
+        // same receiver scene; projection/frame dimensions remain full resolution.
+        using var reducedColor = backgroundScale == 2 ? DynamicTexture2D.Create((frameSize + 1) / 2, (frameSize + 1) / 2, PixelInternalFormat.Rgba32f) : null;
+        using var reducedDepth = backgroundScale == 2 ? DynamicTexture2D.Create((frameSize + 1) / 2, (frameSize + 1) / 2, PixelInternalFormat.Rgba32f) : null;
+        using var reductionTarget = backgroundScale == 2 ? GpuFramebuffer.CreateMRT([reducedColor!, reducedDepth!]) : null;
+        if (backgroundScale == 2)
+        {
+            var reduction = GpuShaderPrograms.Declare(assets.Api, new WaterRefractionReductionShaderProgram());
+            reduction.SourceColor = sceneColor; reduction.SourceDepth = sceneDepth;
+            using var drawing = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
+            drawing.RenderQuadTo(reduction, reductionTarget!);
+            program.RefractionColorTexture = reducedColor;
+            program.RefractionDepthTexture = reducedDepth;
+        }
         var state = StateCache.Current;
         using var fixedFunction = state.CaptureLegacyFixedFunctionState();
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
@@ -196,11 +215,33 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         Assert.All(actual, value => Assert.True(float.IsFinite(value)));
         if (scenario >= 14)
         {
-            Assert.True(actual[0] < baseline[0], $"Fixed-world camera scenario {scenario} must transmit a refracted floor sample.");
+            string receiverDecision = "";
+            if (actual[0] >= baseline[0])
+            {
+                // Replay the same center ray through the production diagnostic binary;
+                // this reports rejection without replacing the liquid integration assertion.
+                var diagnostic = GpuShaderPrograms.Declare(assets.Api, new WaterRefractionDiagnosticShaderProgram());
+                var diagnosticInputs = (IWaterRefractionDiagnosticBindings)diagnostic;
+                diagnosticInputs.Scenario = 12;
+                diagnosticInputs.FrameSize = new(frameSize);
+                Vector3 viewRay = new((2f * (center + .5f) / frameSize - 1) / MathF.Sqrt(3),
+                    (2f * (center + .5f) / frameSize - 1) / MathF.Sqrt(3), -1);
+                Vector3 worldRay = Vector3.TransformNormal(viewRay, worldFromView);
+                diagnosticInputs.Surface = viewRay * (-camera.Y / worldRay.Y);
+                diagnosticInputs.Normal = Vector3.TransformNormal(Vector3.UnitY, modelView);
+                diagnosticInputs.Color = reducedColor ?? sceneColor;
+                diagnosticInputs.Depth = reducedDepth ?? sceneDepth;
+                using var diagnosticTarget = CreateMRTRenderTarget(frameSize, frameSize,
+                    PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+                using var diagnosticDraw = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
+                diagnosticDraw.RenderQuadTo(diagnostic, diagnosticTarget);
+                receiverDecision = $" decision={string.Join(",", diagnosticTarget[0].ReadPixelsRegion(center,center,1,1))} sample={string.Join(",", diagnosticTarget[1].ReadPixelsRegion(center,center,1,1))}";
+            }
+            Assert.True(actual[0] < baseline[0], $"Fixed-world camera scenario {scenario} must transmit a refracted floor sample.{receiverDecision}");
             AssertFixedWorldSnellGradient(target[3].ReadPixelsRegion(center,center,1,1), baselineAccumulation,
                 actual[0], baseline[0], frameSize, camera, worldFromView, modelView * projection, sceneLinear);
         }
-        else if (scenario < 2 || scenario == 6 || scenario == 9 || scenario >= 11)
+        else if (scenario < 2 || scenario == 6 || scenario == 9 || scenario == 10 || scenario >= 11)
         {
             // Zero revealage proves scene radiance replaces rather than re-blends the original background.
             Assert.InRange(actual[0], 0, .00001f);
@@ -225,7 +266,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             // The bottom image boundary must approach the original transmission continuously.
             var edgeRevealage = target[1].ReadPixelsRegion(8,0,1,8);
             Assert.InRange(MathF.Abs(edgeRevealage[0] - edgeBaseline[0]), 0, .00001f);
-            Assert.True(edgeRevealage[3 * 4] > 0);
+            Assert.True(edgeRevealage[3 * 4] > 0, $"Edge values: {string.Join(",", edgeRevealage)}; baseline: {string.Join(",", edgeBaseline)}");
             Assert.True(edgeRevealage[3 * 4] < edgeBaseline[3 * 4]);
             for (int row = 1; row < 8; ++row)
                 Assert.True(edgeRevealage[row * 4] / edgeBaseline[row * 4]
@@ -361,12 +402,3 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         value.M21,value.M22,value.M23,value.M24,value.M31,value.M32,value.M33,value.M34,value.M41,value.M42,value.M43,value.M44];
     #endregion
 }
-
-
-
-
-
-
-
-
-

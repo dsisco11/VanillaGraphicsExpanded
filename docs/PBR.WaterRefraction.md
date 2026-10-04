@@ -14,11 +14,94 @@ At the ordinary order-11 composite, only refraction outputs at negative first-pe
 
 The early capture adds one direct-lighting draw and one composite draw, three RGBA16F lighting targets and an RGBA16F/R32F radiance/depth pair (36 additional bytes per pixel). The composite scratch is shared with its existing owner. Current-frame LumOn gather has not run at the capture boundary, so captured pixels use direct lighting, emission and the existing standalone environment response rather than stale screen-space GI. Final unmasked pixels still use the selected PBR mode. World geometry drawn later that was occluded by the overlay's depth cannot be recovered from this snapshot; it records actual coverage at the capture boundary. This remains a screen-space limitation, not permission to reorder base-game renderers.
 
+## Background resolution and bilateral receivers
+
+`WaterRefractionScene.BackgroundScale` selects full (`1`) or half (`2`) background storage.
+This is an internal owner control; persisted settings and ConfigLib exposure remain in the
+settings work listed in `PBR.WaterRefraction.todo`. The running default is full resolution.
+The pre-overlay capture always remains full size. The ordinary composite restores its pixels
+at full size, completes the existing scene handoff, and then optionally reduces the restored
+receiver pair before publication. A changed divisor immediately withdraws publication. Resize,
+source replacement, disable and world teardown retire associated reduction storage; unchanged
+frames reuse their textures and framebuffers. Quality selection does not own these resources.
+
+`water_refraction_reduce.fsh` selects the farthest valid physical opaque texel in each bounded
+2x2 footprint. It excludes sky, invalid depth, nonfinite radiance and unsupported alpha metadata,
+and copies the selected HDR radiance without averaging. The reduced RGBA32F depth image stores
+hardware depth, original source UV and validity; RGBA16F color keeps the receiver metadata.
+Odd dimensions round up, and incomplete edge footprints read only existing source pixels.
+Retaining the original UV avoids reconstructing a selected silhouette at the reduced cell center.
+The reducer has no water-interface geometry: a footprint containing only foreground can retain
+that texel, which the subsequent interface test rejects. Farthest selection favors background
+coverage and can discard thin nearer submerged surfaces; full resolution remains the baseline.
+
+`liquids/receiver.glsl` supplies the shared four-tap receiver filter. Spatial bilinear weights
+are eligible only for finite physical receivers at least 2 cm behind the oriented local interface.
+The eligible tap with greatest spatial weight anchors the represented depth layer. Other taps
+must differ in axial depth by at most the larger of a 5 cm floor, ordinary footprint support
+capped at 2% of axial depth, and a grazing-interface allowance capped at 8% of axial depth.
+With `p = 2 * abs(inverseProjectionXYScale) / backgroundDimensions`, `z = abs(anchorZ)` and
+`r = anchorPosition / z`, ordinary support is `min(0.02*z, z*max(p.x,p.y))`; grazing support is
+`min(0.08*z, 1.5*z*dot(abs(interfaceNormal.xy),p)/max(0.1,abs(dot(interfaceNormal,r))))`.
+The latter estimates axial variation of submerged geometry parallel to the local interface;
+it prevents a represented shallow-view floor becoming depth stairs at half size. The 1.5
+multiplier supplies bounded tolerance for local slope variation, while the denominator floor
+and depth cap bound grazing growth. It is not a receiver-normal reconstruction or proof of
+hidden topology. Color and
+reconstructed position use exactly the same surviving normalized weights. Unsupported taps
+never contribute color; no surviving taps reports unavailable coverage. This replaces the
+previous nearest lookup and blanket adjacent-foreground veto. Small unresolved geometric
+features within the chosen tolerance remain an approximation of the represented depth field.
+Projection still uses the full camera matrix; lookup offsets and bounds use background dimensions.
+The sampler is independent of traversal and is the common receiver entry point for future tiers.
+
+The existing shader library owns the reduction executable and reload lifecycle. Reduction uses
+the composite pipeline description, framebuffer/binding restoration and program `UseScope`.
+Its source images are absent from the active reduction framebuffer. Preparation failure or a
+thrown reduction leaves publication unavailable, allowing ordinary liquid fallback. No display
+conversion or water-volume attenuation occurs in reduction or receiver filtering.
+
+Storage and work counts are format-derived bounds, not measured GPU costs. Full final snapshots
+retain 12 bytes per full pixel. Half backgrounds add 24 bytes per reduced pixel to that restoration
+storage, about 11.9 MiB extra at 1920x1080 (about 35.6 MiB total final snapshot storage).
+Existing pre-overlay storage remains independently required. Half publication adds one fullscreen
+draw, at most four paired full-source taps and two output writes per reduced pixel. Each receiver
+evaluation fetches at most four paired color/depth taps (eight fetches), with no extra adjacent loop
+or final unfiltered color read. Nominal format traffic is up to 48 bytes per full-resolution lookup
+or 96 bytes per reduced lookup, excluding caching and compression. Reduced lookup working sets
+do not establish a net speed or memory improvement; timing remains user-run acceptance work.
+
+Traceability: coherent capture/reduction and lifecycle follow the Water quality and receiver
+contract below and `PBR.Liquids.md` ownership boundary; filtering follows the bilateral and
+local-interface requirements in `PBR.WaterRefraction.todo`; linear radiance follows
+`PBR.MaterialColorAndDisplay.md` and `PBR.WaterMedium.md`. Draw state retains the existing
+compatibility boundary allowed by `Rendering.AuthoritativePipelineState.todo` and its proposal.
+`WaterRefractionReductionTests` independently selects eligible source pixels and checks exact
+associated radiance, depth and original UV, including odd edges. `WaterReceiverFilterTests`
+checks shared eligible weights, finite/metadata rejection, unrelated layers, clipped/smooth
+slopes and an independently authored grazing floor at both resolutions. The production liquid
+tests consume actual reduced sources, including the fixed-world shallow camera that exposed
+the insufficient initial slope bound. `WaterRefractionCaptureStateTests` executes capture and
+the registered final composite in both lighting modes, comparing restored RGB/depth before and
+after reduction. `WaterRefractionResolutionTests` checks target reuse, failed or missing reduction,
+resize, disable and shader-library invalidation/repreparation. Existing owner world-leave and
+mode regressions cover their established lifecycle boundaries. Future quality/settings controls
+remain separately required; the sampler and snapshot owner do not depend on quality selection.
+
+Completed validation on 2026-10-04: fresh build and **117/117 tests passed, zero skips**, in
+`artifacts/PbrColor/water-receiver-final-regressions.log`. This includes 79 focused receiver,
+reduction, production liquid, restoration and lifetime checks plus 38 adjacent composite,
+boundary, transparency, sun and mode regressions. The offline shader catalog verifies 416
+variants. Second source/document review and independent completion audit found no remaining
+scoped requirements. Reload evidence exercises actual shader-library redeclaration and
+preparation, rather than the complete engine reload event. Headless results establish numerical
+and ownership behavior; live appearance and GPU timings remain unmeasured.
+
 ## Optics and traversal
 
 The liquid shader uses its continuous animated water normal and the existing water IOR of 1.333. This is the current water material optical model, not a new configurable IOR property. Air entry uses an eta ratio of 1/1.333; underwater exit uses 1.333. Existing dielectric Fresnel handles total internal reflection. Reflection keeps the existing direct/environment response; scene reflections remain a separate task.
 
-Tracing starts at the displaced interface in view space. Thirty-two quadratically spaced samples cover at most 32 metres, followed by five bisection samples at the first depth crossing. The trace rejects offscreen projections, a two-pixel edge margin, invalid/nonfinite depth, sky, unsupported receiver metadata, foreground samples and adjacent foreground pixels. Foreground eligibility uses reconstructed receiver positions against the oriented local interface plane, rather than comparing receiver depth with surface camera Z. A refracted direction is not rejected solely for pointing toward the camera in view Z. A crossing must finish within 0.15 metres of the represented opaque depth. Exhaustion or unknown coverage retains the existing straight-through OIT response; no missing geometry is declared a hit. Nearest sampling prevents color filtering across foreground boundaries. This conservative screen-space method can miss thin geometry and cannot prove hidden topology or reconstruct offscreen backgrounds. It has no temporal history.
+Tracing starts at the displaced interface in view space. Thirty-two quadratically spaced samples cover at most 32 metres, followed by five bisection samples at the first depth crossing. The trace rejects offscreen projections, the existing two-view-pixel edge guard and a background half-texel footprint margin and unavailable filtered receiver support. Individual invalid/nonfinite, sky, unsupported metadata and foreground taps are excluded by the shared filter. Foreground eligibility uses reconstructed receiver positions against the oriented local interface plane, rather than comparing receiver depth with surface camera Z. A refracted direction is not rejected solely for pointing toward the camera in view Z. A crossing must finish within 0.15 metres of the represented opaque depth. Exhaustion or unknown coverage retains the existing straight-through OIT response; no missing geometry is declared a hit. Shared eligible weights prevent foreground color from entering the filtered receiver. This conservative screen-space method can miss thin geometry and cannot prove hidden topology or reconstruct offscreen backgrounds. It has no temporal history.
 
 Accepted hits fade toward straight-through transmission near either the interface pixel or receiver's screen boundary, near the 32-metre traversal limit, and as crossing residual approaches its rejection limit. The screen fade begins two pixels from the edge and spans up to 48 additional pixels (eight percent of the smaller dimension, at least two pixels). It replaces the original binary accepted-hit/background-replacement switch. This reduces edge seams without inventing offscreen geometry; missing opaque coverage can still limit refraction as the camera moves.
 
@@ -101,8 +184,9 @@ Shared water-volume, atmosphere and HDR scene resources remain independently own
 The x8/x4/x2 limits count **all ray-position receiver-depth evaluations**, including refinement and
 any final revalidation. Cached results can be reused, but the old five refinements and final lookup
 cannot be added outside that ceiling. Current tracing can perform 32 coarse evaluations, five
-refinements and one final lookup: 38 receiver evaluations, each potentially followed by four
-neighbour-depth fetches. Texture taps are not ray steps. Record those taps and bounded UV fallback
+refinements and one final lookup: 38 receiver evaluations, each using up to four paired
+color/depth taps (eight fetches) through the shared filter. The former adjacent-depth loop is
+removed. Texture taps are not ray steps. Record those taps and bounded UV fallback
 work separately; the UV tier performs no iterative ray traversal. The 32-metre current extent is
 a baseline, not a mandate to distribute two new samples across that whole distance blindly.
 
@@ -463,7 +547,7 @@ requirements consulted, not new claims of runtime verification:
 `WaterRefractionDiagnosticTests` executes a precompiled fixture importing the actual
 `includes/liquids/refraction.glsl` with opt-in event/sample macros through the existing headless
 shader framework. Ordinary shader variants
-expand these hooks to nothing; traversal equations and rejection thresholds remain
+expand these hooks to nothing. The historical baseline below predates bilateral filtering; traversal budgets and residual/confidence thresholds remain
 unchanged. Three diagnostic outputs record hit/reason/evaluation count/confidence, last receiver
 UV and positive view depth, and submerged length/refracted Z/fallback mixing weight/returned Z.
 On rejection, the sample is the last attempted lookup, not a selected valid receiver; a projection
@@ -517,7 +601,7 @@ dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -
 Source/contract review separates these executed baseline observations from the planned fixes.
 Second review and an independent completion audit found the baseline investigation and design
 contract fully supported by the source, linked documents and executed receipts.
-No settings UI, reduced-step algorithm, bilateral filter, downsampling or whole-scene HDR activation is claimed
+These historical baseline receipts do not establish settings UI, reduced-step algorithms, bilateral filtering, downsampling or whole-scene HDR activation
 implemented by these diagnostics. Live appearance and production GPU cost remain unmeasured.
 
 ### Earlier implementation receipts

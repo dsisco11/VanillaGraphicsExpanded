@@ -13,8 +13,12 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
 {
     #region Public API
     /// <summary>Runs actual direct/composite capture while engine bindings differ from cached framebuffer values.</summary>
-    [Fact]
-    public void CaptureRestoresEngineOwnerAndIndependentFramebufferBindings()
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    public void CaptureRestoresEngineOwnerAndIndependentFramebufferBindings(int backgroundScale, bool lumon)
     {
         EnsureContextValid();
         using var fixedFunction = StateCache.Current.CaptureLegacyFixedFunctionState();
@@ -37,7 +41,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         });
         programs.Initialize(api);
         var config = new VgeConfig();
-        config.LumOn.Enabled = false; config.LumOn.EnablePbrComposite = false;
+        config.LumOn.Enabled = lumon; config.LumOn.EnablePbrComposite = false;
         config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1,1,1];
         using var gbuffer = new GBufferManager(api);
         Assert.True(gbuffer.EnsureBuffers(1,1));
@@ -80,6 +84,26 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.Equal(1f, composite.PreOverlayScene.Color!.ReadPixels()[3]);
             Assert.Equal(.75f, terrain.Depth.ReadPixels()[0]);
             Assert.Equal(new float[] {.5f,.5f,.5f,1f}, terrain.Color.ReadPixels());
+            // Simulate the first-person write after clean capture, then run the actual
+            // final owner. Reduction must consume restored world depth, never the hand proxy.
+            caller.Stop();
+            terrain.UploadTerrain(gbuffer, [.01f], [.5f,.5f,1,-1], [.5f,0,0,0], [1f,0f,0f,1]);
+            composite.RefractionScene.BackgroundScale = backgroundScale;
+            direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+            composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+            Assert.True(composite.RefractionScene.Published);
+            Assert.Equal(backgroundScale == 2 ? 6 : 5, draws);
+            Assert.Equal(.75f, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
+            Assert.Equal(.75f, composite.RefractionScene.Depth!.ReadPixels()[0]);
+            Assert.Equal(composite.PreOverlayScene.Color!.ReadPixels(), composite.RefractionScene.SourceColor!.ReadPixels());
+            Assert.Equal(composite.RefractionScene.SourceColor.ReadPixels(), composite.RefractionScene.Color!.ReadPixels());
+            if (backgroundScale == 2)
+                Assert.Equal(new float[] { .75f, .5f, .5f, 1 }, composite.RefractionScene.Depth.ReadPixels());
+            Assert.Equal(.01f, terrain.Depth.ReadPixels()[0]);
+            terrain.UploadTerrain(gbuffer, [.75f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
+            caller.Use();
+            caller.PrimaryScene = terrain.Color.TextureId;
+            caller.PrimaryDepth = terrain.Depth.TextureId;
             // A resize must withdraw the borrowed pre-overlay publication before its scratch image changes.
             HarmonyLib.AccessTools.Method(typeof(PBRCompositeRenderer), "OnScreenResized").Invoke(composite, null);
             Assert.False(composite.PreOverlayScene.Published);
@@ -110,4 +134,3 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
     }
     #endregion
 }
-

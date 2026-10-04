@@ -183,7 +183,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         StateCache.Current.InvalidateAll();
         StateCache.Current.Apply(CompositePipeline);
         GpuFramebuffer? refractionTarget = null;
-        try { refractionTarget = publication.BeginFrame(ConfigModSystem.Config.WaterRefractionEnabled, compositeColorTex); }
+        try { refractionTarget = publication.BeginFrame(ConfigModSystem.Config.WaterRefractionEnabled, compositeColorTex,
+            capture is null ? publication.BackgroundScale : 1); }
         catch (Exception error) { capi.Logger.Warning("[VGE] Water refraction source unavailable: {0}", error.Message); }
         (refractionTarget ?? compositeFbo!).BindWithViewport();
         shader.RefractionSourceEnabled = refractionTarget is not null;
@@ -262,7 +263,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         // particle normal/position values before engine SSAO consumes its attachments.
         SceneColor.SceneColorParticleCapture.RestoreSsao(capi);
         Liquids.WaterVolumeRenderer.MarkComposed(capi);
-        if (refractionTarget is not null) RefractionScene.Publish();
+        if (refractionTarget is not null) PublishRefractionScene();
     }
 
     /// <summary>Releases owned fullscreen resources and unregisters the renderer.</summary>
@@ -283,6 +284,37 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     #endregion
 
     #region Private
+    /// <summary>Publishes restored receivers only after an optional geometry-aware reduction completes.</summary>
+    private void PublishRefractionScene()
+    {
+        // Reduction consumes the final restored pair, after the ordinary scene handoff.
+        // Optional publication failure retains ordinary straight-through liquid rendering.
+        try
+        {
+            if (RefractionScene.BackgroundScale == 1) RefractionScene.Publish();
+            else
+            {
+                var reduction = GpuShaderPrograms.Get<Liquids.WaterRefractionReductionShaderProgram>(capi, "water_refraction_reduce");
+                if (reduction?.EnsureReady() == true)
+                    RefractionScene.Publish((target, color, depth) =>
+                    {
+                        StateCache.Current.Apply(CompositePipeline);
+                        target.BindWithViewport();
+                        reduction.SourceColor = color;
+                        reduction.SourceDepth = depth;
+                        using (reduction.UseScope())
+                        using (GlGpuProfiler.Instance.Scope("PBR.WaterReceiverReduction"))
+                            capi.Render.RenderMesh(quadMeshRef!);
+                    });
+            }
+        }
+        catch (Exception error)
+        {
+            RefractionScene.Invalidate();
+            capi.Logger.Warning("[VGE] Water receiver reduction unavailable: {0}", error.Message);
+        }
+    }
+
     /// <summary>Prepares the same shader options for early readiness checks and actual composition.</summary>
     private PBRCompositeShaderProgram? PrepareCompositeProgram(bool lumOnEnabled)
     {

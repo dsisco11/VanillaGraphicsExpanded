@@ -21,6 +21,7 @@ internal static class VgeShaderPrograms
             new PBRDirectLightingShaderProgram(),
             new PBR.Liquids.LiquidShaderProgram(),
             new PBR.Liquids.LiquidDepthShaderProgram(),
+            new PBR.Liquids.WaterRefractionReductionShaderProgram(),
             new PBRCompositeShaderProgram(),
             new PBRDisplayResolveShaderProgram(),
             new PBR.SceneColor.SceneColorParticleShaderProgram(),

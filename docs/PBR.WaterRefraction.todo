@@ -48,7 +48,8 @@ Design decisions established by Phase 1
     unavailable, safe undistorted transport only if neither has usable coverage. Fix avoidable
     failures first; the UV result remains an approximate receiver, never a confirmed ray hit.
   - Bilateral receiver filtering is required. Its weights, eligibility tests and tolerances must
-    satisfy the local interface-plane geometry contract; these details remain implementation choices.
+    satisfy the local interface-plane geometry contract. The implemented bounded policy is documented
+    in PBR.WaterRefraction.md / Background resolution and bilateral receivers.
 
 Bilateral receiver filtering: meaning and limitations
   A filtered background lookup typically combines four neighbouring texels. Ordinary bilinear
@@ -128,25 +129,30 @@ Phase 2: Establish shared HDR water transport and composition
 Phase 3: Implement coherent background resolution and receiver filtering
   Dependencies: shared HDR and receiver contracts.
   Outcome: coherent full/downsampled receiver data shared by all four levels.
+  Completed 2026-10-04: fresh build and 117/117 focused/adjacent checks passed, zero skips.
+    Second review and independent audit-stage-completion found no remaining scoped requirements.
+    Geometry-aware reduction, shared bilateral filtering, ownership evidence and cost bounds:
+    PBR.WaterRefraction.md / Background resolution and bilateral receivers.
+    Persisted controls, future tiers and live appearance/GPU timings remain separate work.
 
-  ☐ Extend existing snapshot owners with the selected optional background downsampling control.
-    ☐ Keep colour/depth/validity in one frame, projection and resolution generation, including
+  ☑ Extend existing snapshot owners with the selected optional background downsampling control.
+    ☑ Keep colour/depth/validity in one frame, projection and resolution generation, including
       restored pre-overlay pixels. Resolve capture/downsample ordering before publication.
-    ☐ Define a geometry-aware reduction policy preserving colour/depth association and excluding
+    ☑ Define a geometry-aware reduction policy preserving colour/depth association and excluding
       sky, foreground and overlay metadata contamination; do not blindly average depth layers.
-    ☐ Distinguish framebuffer dimensions from background dimensions in projection, texel offsets,
+    ☑ Distinguish framebuffer dimensions from background dimensions in projection, texel offsets,
       filtering footprints and UV bounds. Cover odd dimensions and resize transitions.
-    ☐ Reuse framebuffer/binding ownership APIs; never sample an active writable attachment.
-  ☐ Implement shared bilateral receiver filtering for all four quality levels and supported
+    ☑ Reuse framebuffer/binding ownership APIs; never sample an active writable attachment.
+  ☑ Implement shared bilateral receiver filtering for all four quality levels and supported
     background resolutions, replacing the existing nearest/all-neighbours rejection policy.
-    ☐ Compare interface-plane eligibility and slope/depth tolerances using executed shore/occluder
+    ☑ Compare interface-plane eligibility and slope/depth tolerances using executed shore/occluder
       cases. Select and document a bounded policy that retains valid taps without invented surfaces.
-    ☐ Share eligible weights between colour and depth; preserve hard rejection of unsupported data.
-    ☐ Verify mixed foreground/background taps retain valid receiver support without colour leakage,
+    ☑ Share eligible weights between colour and depth; preserve hard rejection of unsupported data.
+    ☑ Verify mixed foreground/background taps retain valid receiver support without colour leakage,
       all-invalid taps report unavailable coverage, and unrelated depth layers do not create false hits.
-  ☐ Verify repeated resolution/quality/toggle changes, resize/reload, failed publication, world
+  ☑ Verify repeated resolution/quality/toggle changes, resize/reload, failed publication, world
     teardown and LumOn switching without stale sampling, leaks or redundant steady-state allocation.
-  ☐ Validate full versus reduced resolution at thin silhouettes, slopes and first-person boundaries;
+  ☑ Validate full versus reduced resolution at thin silhouettes, slopes and first-person boundaries;
     record memory, reduction-pass and lookup costs separately. Review before proceeding.
 
 Phase 4: Implement lowest-quality UV distortion

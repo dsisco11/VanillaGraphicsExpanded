@@ -54,6 +54,7 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         inputs.Scenario = scenario;
+        inputs.FrameSize = new(size, size);
         inputs.Color = color;
         inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(size, size, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
@@ -69,7 +70,7 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             Assert.InRange(decision[2], 0, 38);
             if (scenario is 0 or 1 or 7) Assert.Equal(1, decision[0]);
             if (scenario == 2) Assert.Equal(4, decision[1]);
-            if (scenario == 3) Assert.Equal(5, decision[1]);
+            if (scenario == 3) { Assert.Equal(1, decision[0]); Assert.Equal(0, decision[1]); }
             if (scenario is 4 or 9) Assert.Equal(2, decision[1]);
             if (scenario == 5) Assert.Equal(9, decision[1]);
             if (scenario == 6)

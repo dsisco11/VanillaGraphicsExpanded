@@ -1,6 +1,8 @@
 #version 450 core
 uniform int diagnosticScenario;
-const vec2 frameSize = vec2(128);
+uniform vec2 frameSize;
+uniform vec3 customSurface;
+uniform vec3 customNormal;
 mat4 projectionMatrix;
 int diagnosticReason = 0;
 int diagnosticCount = 0;
@@ -26,6 +28,7 @@ void main()
     vec3 normal = diagnosticScenario == 1 || diagnosticScenario == 10 ? normalize(vec3(-.4,0,1))
         : diagnosticScenario == 8 ? normalize(vec3(-.7,0,-.714))
         : diagnosticScenario == 11 ? normalize(vec3(1,0,.01)) : vec3(0,0,1);
+    if (diagnosticScenario == 12) { surface = customSurface; normal = customNormal; }
     VgeWaterReceiver receiver = VgeWaterRefraction(surface, normal, false);
     decision = vec4(receiver.valid ? 1 : 0, diagnosticReason, diagnosticCount, receiver.confidence);
     sampled = vec4(diagnosticSample, 1);
