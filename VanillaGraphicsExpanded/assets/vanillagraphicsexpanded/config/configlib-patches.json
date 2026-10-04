@@ -175,7 +175,7 @@
         "comment": "vanillagraphicsexpanded:config-water-quality-tooltip",
         "default": 3,
         "weight": 0.3,
-        "values": [0, 3]
+        "values": [0, 1, 2, 3]
       },
       "WATER_REFRACTION_BACKGROUND_SCALE": {
         "code": "WaterRefractionBackgroundScale",

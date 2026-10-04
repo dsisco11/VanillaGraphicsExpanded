@@ -21,7 +21,8 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
     [InlineData(.5f, false)]
     [InlineData(1f, false)]
     [InlineData(1f, true)]
-    public void CapturedBucketBlendPreservesTransmission(float opacity, bool water)
+    [InlineData(1f, true, true)]
+    public void CapturedBucketBlendPreservesTransmission(float opacity, bool water, bool refraction = false)
     {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
@@ -42,6 +43,16 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         terrain.UploadDataImmediate(new float[] {1,1,1,1});
         material.UploadDataImmediate([.25f,0,0,water ? 1 : 0]);
         depth.UploadDataImmediate(new float[] {.98f});
+        using var receiverColor = refraction ? DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f) : null;
+        using var receiverDepth = refraction ? DynamicTexture2D.Create(size, size, PixelInternalFormat.R32f) : null;
+        receiverColor?.UploadDataImmediate(Enumerable.Range(0, size * size).SelectMany(_ => new float[] {40,20,10,1}).ToArray());
+        // A represented plane at twenty metres is behind both submitted water layers.
+        float deviceDepth = .5f * (1 + (100 + .1f - 2 * 100 * .1f / 20) / (100 - .1f));
+        receiverDepth?.UploadDataImmediate(Enumerable.Repeat(deviceDepth, size * size).ToArray());
+        program.RefractionColorTexture = receiverColor;
+        program.RefractionDepthTexture = receiverDepth;
+        program.RefractionEnabled = refraction;
+        program.SceneLinear = refraction;
         aerial.UploadDataImmediate(new float[8], 0, 0, 0, 1, 2, 1, 0);
         program.TerrainTexture = terrain.TextureId;
         program.MaterialParamsTexture = material;
@@ -107,11 +118,24 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         {
             float[][] reference = Draw(false, opacity);
             float alpha = 1-reference[1][0];
-            if (water) Assert.InRange(alpha, .001f, .99f);
+            if (refraction)
+            {
+                Assert.InRange(MathF.Abs(alpha - 1), 0, .00001f);
+                Assert.True(reference[3].Take(3).Max() / reference[3][3] > 1);
+            }
+            else if (water) Assert.InRange(alpha, .001f, .99f);
             else Assert.InRange(MathF.Abs(alpha-opacity), 0, .00001f);
             float[][] single = Draw(true, opacity);
             AssertTargets(reference, single);
             float[][] second = Draw(false, .35f);
+            if (refraction)
+            {
+                // Preview transparency remains coverage after full HDR receiver replacement.
+                Assert.InRange(MathF.Abs(second[1][0] - .65f), 0, .00001f);
+                Vector3 fullRadiance = new(reference[3][0], reference[3][1], reference[3][2]);
+                Vector3 previewRadiance = new(second[3][0], second[3][1], second[3][2]);
+                Assert.InRange(Vector3.Distance(fullRadiance / reference[3][3], previewRadiance / second[3][3]), 0, .0001f);
+            }
             float[][] forward = Draw(true, opacity, .35f);
             float[][] reverse = Draw(true, .35f, opacity);
             AssertTargets(forward, reverse);

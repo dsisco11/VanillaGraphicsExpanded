@@ -39,8 +39,8 @@ coverage and can discard thin nearer submerged surfaces; full resolution remains
 `liquids/receiver.glsl` supplies the shared four-tap receiver filter. Spatial bilinear weights
 are eligible only for finite physical receivers more than 0.5 mm behind the oriented local interface.
 The numerical separation guard replaces the old 2 cm exclusion, retaining centimetre-deep
-receivers while still rejecting on-plane and foreground data. The UV displacement suppression
-ramp remains independently anchored at 2 cm; eligibility does not require visible displacement.
+receivers while still rejecting on-plane and foreground data. UV displacement scales with
+physical receiver separation; there is no separate shallow-water displacement ramp.
 The eligible tap with greatest spatial weight anchors the represented depth layer. Other taps
 must differ in axial depth by at most the larger of a 5 cm floor, ordinary footprint support
 capped at 2% of axial depth, and a grazing-interface allowance capped at 8% of axial depth.
@@ -51,7 +51,14 @@ The latter estimates axial variation of submerged geometry parallel to the local
 it prevents a represented shallow-view floor becoming depth stairs at half size. The 1.5
 multiplier supplies bounded tolerance for local slope variation, while the denominator floor
 and depth cap bound grazing growth. It is not a receiver-normal reconstruction or proof of
-hidden topology. Color and
+hidden topology. A steep receiver exceeding this axial gate can retain all four taps only
+when they are coplanar within reconstruction precision and two independent source neighbors,
+outside the footprint along its anchor's X and Y directions, confirm the same plane. This
+distinguishes a continuous wall from the fictitious plane that two separate depth columns can
+form inside a four-tap footprint. Missing or inconsistent evidence keeps the ordinary gate.
+Verification may use opaque geometry above the water interface at a shoreline, but those
+extra samples never supply receiver radiance, interpolation weights or intersection coverage.
+Color and
 reconstructed position use exactly the same surviving normalized weights. Unsupported taps
 never contribute color; no surviving taps reports unavailable coverage. This replaces the
 previous nearest lookup and blanket adjacent-foreground veto. Small unresolved geometric
@@ -70,9 +77,11 @@ retain 12 bytes per full pixel. Half backgrounds add 24 bytes per reduced pixel 
 storage, about 11.9 MiB extra at 1920x1080 (about 35.6 MiB total final snapshot storage).
 Existing pre-overlay storage remains independently required. Half publication adds one fullscreen
 draw, at most four paired full-source taps and two output writes per reduced pixel. Each receiver
-evaluation fetches at most four paired color/depth taps (eight fetches), with no extra adjacent loop
-or final unfiltered color read. Nominal format traffic is up to 48 bytes per full-resolution lookup
-or 96 bytes per reduced lookup, excluding caching and compression. Reduced lookup working sets
+evaluation interpolates four paired color/depth taps (eight fetches). A steep, fully eligible,
+coplanar footprint may additionally fetch two paired source neighbors to verify continuity;
+the maximum is six paired taps (twelve fetches). This does not add ray-position evaluations
+or a final unfiltered color read. Nominal format traffic is up to 72 bytes per full-resolution
+lookup or 144 bytes per reduced lookup, excluding caching and compression. Reduced lookup working sets
 do not establish a net speed or memory improvement; timing remains user-run acceptance work.
 
 Traceability: coherent capture/reduction and lifecycle follow the Water quality and receiver
@@ -89,8 +98,8 @@ the insufficient initial slope bound. `WaterRefractionCaptureStateTests` execute
 the registered final composite in both lighting modes, comparing restored RGB/depth before and
 after reduction. `WaterRefractionResolutionTests` checks target reuse, failed or missing reduction,
 resize, disable and shader-library invalidation/repreparation. Existing owner world-leave and
-mode regressions cover their established lifecycle boundaries. Future quality/settings controls
-remain separately required; the sampler and snapshot owner do not depend on quality selection.
+mode regressions cover their established lifecycle boundaries. Quality/settings controls use the
+existing preparation boundary; the snapshot owner does not depend on algorithm quality selection.
 
 Completed validation on 2026-10-04: fresh build and **117/117 tests passed, zero skips**, in
 `artifacts/PbrColor/water-receiver-final-regressions.log`. This includes 79 focused receiver,
@@ -113,19 +122,32 @@ wave normal, oriented toward the eye, and IOR 1.333 as the geometric sampler.
 The selected behavior is IOR-based projection rather than an arbitrary pixel-normal offset.
 Let `s` be the displaced view-space interface, `n` its oriented unit normal, and `d` the Snell
 direction from `normalize(s)`. A filtered lookup at `project(s)` supplies the straight receiver
-`b`. Its normal-plane separation is `h = max(0, -dot(b-s,n))` metres. With
-`c = max(0.1, -dot(d,n))`, the estimated endpoint is `s + d*min(32,h/c)`.
+`b` and a local receiver normal `m`. Its water-normal separation is
+`h = max(0, -dot(b-s,n))` metres. With `c = max(0.1, -dot(d,n))`, the conservative
+default estimate is `min(32,h/c)`. When `abs(dot(d,m)) > 0.00001` and
+`dot(b-s,m)/dot(d,m)` is positive, that receiver-plane proposal supplies the estimate,
+capped at 32 metres. Sparse support uses an axial receiver plane. Nonplanar support can
+guide this approximate projection but cannot establish a ray hit.
 Projection uses the full camera matrix and homogeneous division, so FOV, aspect and oblique
-interfaces do not rely on a fixed pixel scale. Distorted UV is the interpolation between the
-interface UV and projected endpoint UV with weight `smoothstep(0.02,0.25,h)`. All dimensional
-constants are metres: the 2 cm displacement threshold suppresses near-contact displacement, the ramp
-reaches full displacement at 25 cm, and the estimate is capped at 32 m. The cosine floor is
+interfaces do not rely on a fixed pixel scale. Distorted UV is the projection of
+`s + d*estimate`. Displacement naturally approaches zero as physical separation decreases;
+the former 2-to-25-centimetre ramp is removed because switching from a geometric hit to
+that suppressed fallback could abruptly erase shallow-water distortion. The cosine floor is
 dimensionless and bounds grazing behavior. A normally viewed flat interface has no offset;
 oblique flat water bends according to Snell, and wave normals alter the direction and offset.
 A pixel-normal offset would require separate calibration to retain this depth/FOV behavior.
 
 The seed and candidate both use the shared bilateral filter, including full or half-size
-original-UV reconstruction. Nonfinite projections, projections behind the eye and offscreen
+original-UV reconstruction. A candidate with compatible source triangles reweights geometry
+and HDR radiance at the desired projected endpoint's camera-ray intersection inside those
+actual triangles. Curved quads use each source triangle's plane independently; this does not
+establish a Snell-ray intersection. At half size, if the original-source quad does not cover
+the query, violated edges in its actual camera projection select a neighboring footprint.
+Overlapping corners reuse cached values; at most three missing corners are fetched and
+independently checked for submerged eligibility and layer compatibility or precise planar
+continuation. The new actual triangles must cover the query. No bounding-box filling or
+barycentric extrapolation is accepted. Unavailable coverage retains the eligible bilinear
+approximation. Nonfinite projections, projections behind the eye and offscreen
 endpoints are rejected, never clamped onto the image edge. An unsupported distorted candidate
 retains the validated seed radiance and geometry. If the seed has no support, no thickness is
 invented and the existing straight-through liquid transport remains active. The filter can
@@ -135,7 +157,7 @@ hidden geometry, and a disappearing represented receiver can still change the se
 
 Both distorted selection and its validated seed fallback report `VGE_WATER_RECEIVER_UV`, never
 `RAY`. For the selected receiver `r`, above-water submerged length is the approximate
-`min(32,max(0,-dot(r-s,n))/c)` metres. It assumes one locally parallel receiving layer; it is
+`min(32,max(0,-dot(r-s,n))/c)` metres. It estimates the ray distance from water-normal separation; it is
 not a ray intersection, exact bathymetry or multi-interface transport. Underwater length is
 `length(s)`: the camera-to-interface segment is water and the sampled exit segment is air.
 The retained Snell direction feeds the shared refracted-scattering convention, with the
@@ -144,13 +166,16 @@ receiver before any background lookup. Fresnel and HDR/legacy adaptation remain 
 shared liquid consumer; no second display conversion or opaque attenuation is introduced.
 
 The sampler performs no iterative ray evaluations and at most two filtered UV lookups:
-one seed and one candidate. Each uses at most four paired color/depth taps, giving at most
-16 texture fetches. Missing seed uses at most eight; TIR uses zero. The small fixed filter
+one seed and one candidate. Each interpolates four paired color/depth taps, with at most two
+additional paired continuity checks on a steep footprint. A reduced candidate can additionally
+fetch at most three missing neighbors to correct original-source coverage, giving at most
+30 texture fetches in total (24 without that correction, 16 without either extra check).
+A missing seed cannot meet the continuity preconditions and uses at most eight; TIR uses zero. The small fixed filter
 loops are sampling work, not ray traversal. No new screen targets or draw calls are required.
 Quality and background resolution specialize fragment binaries through the existing offline
 shader-option pipeline. These are source bounds, not GPU timings or speedup measurements.
 
-Traceability: the UV tasks in `PBR.WaterRefraction.todo` govern displacement, suppression,
+Traceability: the UV tasks in `PBR.WaterRefraction.todo` govern displacement, shallow-depth scaling,
 bounds, provenance and bounded work; the Water quality and receiver contract and Background
 resolution and bilateral receivers sections govern coherent geometry/radiance and fallback.
 `PBR.WaterMedium.md` governs SI units, RGB extinction and photon directions; `PBR.Liquids.md`
@@ -161,16 +186,18 @@ retain existing binding and state owners; this sampler introduces no new submiss
 Full-scene HDR activation, live appearance and measured GPU costs remain
 separate work.
 
-Fresh subagent build and validation passed 156/156 checks with zero skips in 6.1424 seconds
-(`artifacts/PbrColor/water-uv-final-regressions.log`); the offline catalog verified 417 current
-variants. `WaterUvRefractionTests` contributes 25 cases: independently projected FOV/aspect
+The original UV implementation's build and validation passed 156/156 checks with zero skips
+(`artifacts/PbrColor/water-uv-final-regressions.log`); that offline catalog verified 417
+variants. This historical receipt predates the shallow receiver corrections described under
+Shallow receiver continuity; it does not validate their changed equations or fetch bounds.
+`WaterUvRefractionTests` then contributed 25 cases: independently projected FOV/aspect
 displacement and associated HDR radiance at full/half size, authored flat/opposite local wave
 slopes, thin-depth suppression, foreground/invalid candidate fallback, unsupported seeds,
 underwater/TIR, near-edge bounds and the 32 m path cap. Its lookup counter executes the bounded
 seed/candidate work; it does not count filter taps as ray steps. These local wave-normal
 references do not establish animated in-game wave appearance.
 
-The production liquid suite passes 44 cases, including 14 new UV cases for HDR/legacy output,
+The production liquid suite then passed 44 cases, including 14 new UV cases for HDR/legacy output,
 full/half backgrounds, tilted/rotated interfaces, unavailable inputs, entry/exit/TIR and independently
 predicted approximate-path solar/point scattering. Legacy UV gradient checks retain the single
 display mapping. The other 87 checks cover the existing ray diagnostics, shared filter/reducer,
@@ -234,9 +261,11 @@ still change receiver selection: screen-space data cannot establish arbitrary of
 receivers, missing transparent layers, hidden topology or all subpixel thin geometry. No temporal
 history or universal receiver/motion-continuity guarantee is introduced.
 
-Maximum texture-fetch bounds, separately from ray evaluations, are 64/32/16 for x8/x4/x2,
-plus at most 16 for two UV fallback lookups. UV-only uses at most 16; TIR uses zero. These bounds
-include paired color/depth taps; cached analytic reuse performs no additional fetches.
+Maximum texture-fetch bounds, separately from ray evaluations, are 96/48/24 for x8/x4/x2,
+including up to two paired steep-continuity checks per evaluation. Two UV fallback lookups
+add at most 30 fetches, including reduced-footprint neighbor recovery. UV-only uses at most
+30; TIR uses zero. These bounds include paired color/depth taps; cached analytic interpolation
+performs no additional fetches.
 They are source work bounds, not measured GPU timings or proof of a faster frame.
 
 Traceability: bounded traversal, confidence-loss reproductions and reference comparisons follow
@@ -309,13 +338,12 @@ The snapshot represents opaque receivers only. Accepted paths approximate one wa
 The following contract governs the work in [PBR.WaterRefraction.todo](PBR.WaterRefraction.todo).
 The fields and default/validation behavior are implemented. The distinct x8/x4/x2 algorithms
 are implemented with total receiver-depth ceilings, as described under Optics and traversal.
-The ConfigLib Water Settings section currently exposes enable/disable, quality `3` (existing ray
-marching) or `0` (UV distortion), and background resolution `1` (half) or `2` (full, default).
+The ConfigLib Water Settings section exposes enable/disable, quality `0` (UV distortion),
+`1` (ray march x2), `2` (ray march x4), `3` (ray march x8, default), and background resolution
+`1` (half) or `2` (full, default).
 Both menus display lower values before higher values. Numeric allowed values retain
-integer persistence without named-mapping serialization. Values `1` and `2` remain valid stored
-quality IDs and select the x2/x4 samplers; expanding the menu to all four choices remains in the
-settings integration task. The original root enable property is retained, so saved choices
-do not require migration to a new nested configuration object.
+integer persistence without named-mapping serialization. The original root enable property is
+retained, so saved choices do not require migration to a new nested configuration object.
 
 All three controls are client-side and grouped between the Water Settings separator and the
 existing master section. Changes use the established ConfigLib event and sanitization paths,
@@ -400,7 +428,8 @@ Shared water-volume, atmosphere and HDR scene resources remain independently own
 The x8/x4/x2 limits count **all ray-position receiver-depth evaluations**, including refinement and
 any final revalidation. Cached results can be reused, but the old five refinements and final lookup
 cannot be added outside that ceiling. Historical tracing performed up to 38 receiver evaluations;
-the replacement performs at most 8/4/2, each using up to four paired color/depth taps (eight fetches).
+the replacement performs at most 8/4/2, each interpolating four paired color/depth taps and
+conditionally validating two additional neighbors (up to twelve fetches).
 The former adjacent-depth loop and hidden refinements are removed. Texture taps are not ray steps.
 Record those taps and bounded UV fallback
 work separately; the UV tier performs no iterative ray traversal. The 32-metre current extent is
@@ -758,6 +787,85 @@ requirements consulted, not new claims of runtime verification:
 
 ## Validation and remaining acceptance
 
+### Settings and integration
+
+Fresh subagent builds passed **1303/1303 checks in Debug and 1303/1303 in optimized Release,
+with zero failures or skips**, in 13.5629 and 11.1855 seconds respectively. Both builds verified
+179 stages and 445 variants. Receipts: `artifacts/PbrColor/water-settings-integration-debug-final.log`
+and `artifacts/PbrColor/water-settings-integration-release-final.log`. These overlapping suites
+include earlier checks and are not additive.
+
+The production liquid suite now has 93 cases. All four qualities at full/half resolution execute
+HDR entry, underwater exit, total internal reflection and unavailable receiver metadata, with
+disabled baselines. Legacy entry also covers every quality/resolution pair. Actual configuration
+loading across disposal/reload covers all eight saved quality/resolution combinations, changing
+the saved enable flag independently; missing leaves and invalid values retain their existing checks.
+Shipped ConfigLib controls and event values cover all four choices. Live GUI save/reopen is unverified.
+
+Representative compatibility checks exercise refraction exclusion for lava/full-alpha liquids,
+patterned atlas flow, scene-linear fog and blocked/restored solar scattering. Accepted HDR water
+also executes six-target bucket blending, overlapping layers and preview coverage, compared with
+independent blend arithmetic and a CPU model of the installed compositor. This does not execute
+the engine compositor or establish ordered refraction through transparent receivers. Existing
+included suites exercise rendered wave triangulation, pre-overlay restoration, both upstream PBR
+composition modes and resource transitions. The liquid shader has no separate LumOn mode axis.
+
+The initial flow fixture omitted its packed UV footprint, so atlas padding selected an adjacent
+texel. Correcting that authored metadata passed the unchanged color references and tolerances;
+no production shader change was needed. Verification used isolated outputs without replacing the
+running client's mod or shader cache. On 2026-10-04 the user initially reported no live checks,
+then reported shallow shoreline-wall banding with half-resolution backgrounds and x2 sparkles
+at both resolutions, and subsequently confirmed both issues fixed and verified in game.
+The user subsequently accepted the result and explicitly requested completion on 2026-10-04.
+Further visual-matrix runs, matched-scene GPU measurements, fallback statistics and matched
+image comparisons are waived as completion prerequisites. GPU time and actual bandwidth
+remain unmeasured; headless execution durations are not production GPU timings.
+
+### Shallow receiver continuity
+
+User-run observations on 2026-10-04 identified half-resolution shoreline-wall banding and
+x2 shallow-depth sparkles at both background resolutions. Independent shallow-wall GPU
+fixtures reproduced two different mechanisms. The original direct half-resolution filter
+jumped by 0.1742 HDR red units at 20 cm and 0.1492 at 3 cm separation during subpixel motion;
+full-resolution filtering stayed continuous. The axial layer gate discarded alternate columns
+of a steep continuous wall. Independent neighboring-plane checks now retain that surface
+without widening across separate depth plateaus.
+
+A smooth curved shallow receiver reproduced x2 ray/UV switching at both resolutions:
+adjacent HDR jumps reached 0.07305 at full size and 0.06777 at half size, while UV-only and
+x4/x8 stayed below 0.00274. Removing the shallow displacement ramp and using the represented
+receiver-plane proposal aligns the fallback with the refracted direction. Reduced-source
+coordinate correction and actual triangle interpolation additionally remove the half-size
+sample-center bias. The UV result remains approximate; the geometric hit proof, foreground
+eligibility and 2/4/8 ray-position ceilings remain unchanged. At most two additional paired
+source checks verify steep filter support; reduced UV candidate coverage can additionally
+fetch at most three missing neighboring source corners, reusing the overlapping corners.
+
+The corrected focused run passed **254/254 checks, zero skips**. At half size, the curved
+x2 receiver's largest adjacent HDR jump fell to 0.001901 while retaining the same 22 UV
+fallbacks and two method transitions; the planar 20 cm x2 case fell to 0.001489 with its
+three transitions retained. Full-resolution curved x2 fell to 0.006369 with its eight
+transitions retained. This verifies continuous fallback without suppressing transitions,
+raising the ray budget or accepting unsupported geometric hits. Half-size UV-only curved
+motion remained below 0.004901. Receipts: `artifacts/PbrColor/water-shallow-adjacent-build.log`
+and `artifacts/PbrColor/water-shallow-adjacent-focused.log`. Earlier reproduction and failed
+intermediate receipts remain separate; they are not passing validation.
+The final broader Debug and optimized Release runs each passed **329/329 checks, zero skips**,
+covering the water suites, liquid transparency, liquid shader program integration and fresh
+adjacent-corner foreground/depth-layer rejection. Receipts:
+`artifacts/PbrColor/water-shallow-final-debug.log`,
+`artifacts/PbrColor/water-shallow-final-release-build.log` and
+`artifacts/PbrColor/water-shallow-final-release.log`. The shader catalogs retain 179 stages
+and 445 variants. These counts overlap the focused run; durations are not production GPU timings.
+
+The regression fixture uses affine physical-position HDR radiance, 201 subpixel motions,
+both resolutions and all four tiers. It checks continuity and geometry/radiance association;
+a separate two-depth-column fixture rejects a fictitious four-corner plane. These numerical
+checks do not establish live visual acceptance or GPU cost. Separately, on 2026-10-04 the user
+confirmed that both reported artifacts are fixed and verified in game. This closes visual
+retesting for these two defects. The user's subsequent acceptance and explicit closure
+direction waive further matrix checks and GPU measurements as completion prerequisites.
+
 ### Bounded traversal and selection
 
 Fresh subagent build and final current-source validation passed **273/273 checks, zero skips**,
@@ -898,4 +1006,4 @@ During fixture development, `ReadPixelsRegion` unbound the render target; a late
 
 The screen-transition correction adds production GPU checks for continuous normalized bottom-row revealage, camera/world transform consistency, and a fixed horizontal water/floor scene viewed at pitches of 15, 45 and 75 degrees and headings of 0 and 90 degrees. The fixed scene's refracted floor texel, Fresnel response and premultiplied display contribution are predicted independently on the CPU. These cases use 128-pixel targets; a 16-pixel target's steep floor depth quantization exceeded the conservative crossing tolerance at 15 degrees. This remains a nearest-depth screen-space approximation. Positive view-Z accepted rays are not covered by these tests, and no live camera-facing defect reproduction is claimed. The shader build succeeded; final focused validation passed 27/27 and related water/liquid/display regressions passed 98/98, with no skips. Receipts: `artifacts/PbrColor/water-refraction-transitions-fixed-world.log` and `artifacts/PbrColor/water-refraction-transitions-regressions.log`, with matching TRX files.
 
-User-run visual acceptance remains outstanding for shorelines, grazing views, entering/exiting water, overlapping transparent geometry, waves/flow, resize/reload and LumOn switching. No game is launched for this work. Snapshot output bandwidth, traversal cost and full production GPU frame/pass time remain unmeasured; the parent checklist stays open until its acceptance requirements are resolved.
+The user verified the shallow shoreline-wall banding and x2 sparkle corrections in game on 2026-10-04, then accepted the result and explicitly requested completion. Further visual-matrix runs and production GPU measurements are waived as completion prerequisites. No game was launched by the agent. Snapshot output bandwidth, traversal cost and full production GPU frame/pass time remain unmeasured; no performance improvement is claimed.

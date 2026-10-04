@@ -67,7 +67,7 @@ public sealed class WaterRefractionConfigTests
             Assert.Equal((index + 2) / 10.0,setting["weight"]!.Value<double>());
             Assert.Null(setting["mapping"]); Assert.Null(setting["range"]);
         }
-        Assert.Equal(new[] {0,3},settings[codes[1]]["values"]!.Values<int>());
+        Assert.Equal(new[] {0,1,2,3},settings[codes[1]]["values"]!.Values<int>());
         Assert.Equal(new[] {1,2},settings[codes[2]]["values"]!.Values<int>());
         Assert.Equal(3,settings[codes[1]]["default"]!.Value<int>());
         Assert.Equal(2,settings[codes[2]]["default"]!.Value<int>());
@@ -76,6 +76,8 @@ public sealed class WaterRefractionConfigTests
     /// <summary>ConfigLib's actual shipped keys apply live values to the root config fields.</summary>
     [Theory]
     [InlineData(0,2)]
+    [InlineData(1,1)]
+    [InlineData(2,2)]
     [InlineData(3,1)]
     public void ShippedEventKeysApplyLiveSettings(int quality, int scale)
     {

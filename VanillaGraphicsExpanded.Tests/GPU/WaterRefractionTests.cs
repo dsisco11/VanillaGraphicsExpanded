@@ -13,6 +13,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+    private const int LavaCase = 1;
+    private const int FullAlphaCase = 2;
+    private const int FogCase = 3;
+    private const int ShadowCase = 4;
+    private const int FlowCase = 5;
     #region Public API
     /// <summary>Accepted opaque hits replace OIT transmission while invalid sources retain straight-through behavior.</summary>
     [Theory]
@@ -82,7 +87,34 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     [InlineData(9, true, 2, 1, 2)]
     [InlineData(11, true, 0, 2, 2)]
     [InlineData(14, true, 0, 2, 2)]
-    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3)
+    [InlineData(0, true, 0, 1, 1)]
+    [InlineData(0, true, 0, 1, 2)]
+    [InlineData(3, true, 0, 2, 0)]
+    [InlineData(3, true, 0, 1, 1)]
+    [InlineData(3, true, 0, 2, 1)]
+    [InlineData(3, true, 0, 1, 2)]
+    [InlineData(3, true, 0, 2, 2)]
+    [InlineData(3, true, 0, 1, 3)]
+    [InlineData(3, true, 0, 2, 3)]
+    [InlineData(6, true, 0, 2, 0)]
+    [InlineData(6, true, 0, 2, 1)]
+    [InlineData(6, true, 0, 2, 2)]
+    [InlineData(6, true, 0, 1, 3)]
+    [InlineData(6, true, 0, 2, 3)]
+    [InlineData(7, true, 0, 2, 0)]
+    [InlineData(7, true, 0, 2, 1)]
+    [InlineData(7, true, 0, 2, 2)]
+    [InlineData(7, true, 0, 2, 3)]
+    [InlineData(0, false, 0, 2, 0)]
+    [InlineData(0, false, 0, 2, 1)]
+    [InlineData(0, false, 0, 2, 2)]
+    [InlineData(0, false, 0, 2, 3)]
+    [InlineData(0, true, 0, 1, 3, LavaCase)]
+    [InlineData(0, true, 0, 1, 3, FullAlphaCase)]
+    [InlineData(0, true, 0, 1, 3, FogCase)]
+    [InlineData(9, true, 1, 1, 3, ShadowCase)]
+    [InlineData(0, true, 0, 1, 3, FlowCase)]
+    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3, int compatibility = 0)
     {
         EnsureContextValid();
         int frameSize = scenario >= 14 ? 128 : 16;
@@ -98,14 +130,18 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         program.SceneLinear = sceneLinear;
         using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var terrain = DynamicTexture2D.Create(compatibility == FlowCase ? 8 : 1, compatibility == FlowCase ? 8 : 1, PixelInternalFormat.Rgba32f);
         using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(frameSize, frameSize, PixelInternalFormat.R32f);
         using var aerial = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         // Allocation contents are undefined; numerical optics require an explicitly empty atmosphere.
         aerial.UploadDataImmediate(new float[4], 0, 0, 0, 1, 1, 1, 0);
-        terrain.UploadDataImmediate(new float[] { 1, 1, 1, 1 });
+        if (compatibility == FlowCase)
+            terrain.UploadDataImmediate(Enumerable.Range(0, 64).SelectMany(pixel => new float[] {.1f * (pixel % 8 + 1), .2f, .3f, 1}).ToArray());
+        else terrain.UploadDataImmediate(new float[] { 1, 1, 1, 1 });
         material.UploadDataImmediate([.1f, 0, 0, 1]);
+        if (compatibility is LavaCase or FullAlphaCase or FlowCase)
+            material.UploadDataImmediate([.1f, 0, 1, 1]);
         const float near = .1f, far = 100;
         float receiver = scenario == 2 ? 1 : scenario == 5 ? 80 : 10;
         float deviceDepth = .5f * (1 + (far + near - 2 * far * near / receiver) / (far - near));
@@ -141,6 +177,26 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         program.DepthRangeAndFrameSize = new(near, far, frameSize, frameSize);
         program.AtlasMetrics = Vector4.One;
         program.SetCounts(0, 0);
+        if (compatibility == FogCase)
+        {
+            // A camera-centred sphere covers the whole visible segment with saturated fog.
+            program.SetCounts(0, 1);
+            float[] sphere = [0, 0, 0, 10, 1, .5f, .25f, .125f];
+            for (int index = 0; index < sphere.Length; index++) program.SetFogSphereComponent(index, sphere[index]);
+        }
+        using var shadow = compatibility == ShadowCase ? new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f) : null;
+        if (shadow is not null)
+        {
+            // Constant cascade coordinates and depth zero establish complete solar occlusion.
+            shadow.UploadDataImmediate(new float[] {0});
+            program.ShadowMapNear = shadow.TextureId;
+            program.ShadowMapFar = shadow.TextureId;
+            program.ShadowRanges = new(100, 100, 0, 0);
+            float[] matrix = [0,0,0,0, 0,0,0,0, 0,0,0,0, .5f,.5f,.5f,1];
+            program.ShadowMatrixNear = matrix;
+            program.ShadowMatrixFar = matrix;
+        }
+        if (compatibility == FlowCase) program.AtlasMetrics = new(1, 1, 8, 8);
         if (scatteringSource == 1)
         {
             program.SunDirection = new(0,0,-1,0);
@@ -248,13 +304,47 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         var baseline = target[1].ReadPixelsRegion(center,center,1,1);
         var baselineAccumulation = target[3].ReadPixelsRegion(center,center,1,1);
         var edgeBaseline = target[1].ReadPixelsRegion(8,0,1,8);
+        if (compatibility == FlowCase) program.Animation = new(0, 1, 0, 0);
         program.RefractionEnabled = true;
         Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(4632, 4)));
         target.Clear(0, 0, 0, 0);
         DrawBoundary(2, true);
         var actual = target[1].ReadPixelsRegion(center,center,1,1);
         Assert.All(actual, value => Assert.True(float.IsFinite(value)));
-        if (scenario >= 14)
+        if (compatibility is LavaCase or FullAlphaCase)
+        {
+            // Excluded liquid materials preserve their original body response despite valid receiver data.
+            Assert.InRange(Vector4.Distance(new(actual[0], actual[1], actual[2], actual[3]),
+                new(baseline[0], baseline[1], baseline[2], baseline[3])), 0, .00001f);
+            Assert.InRange(Vector4.Distance(new(target[3].ReadPixelsRegion(center,center,1,1)), new(baselineAccumulation)), 0, .00001f);
+            Assert.True(baselineAccumulation[0] > 0);
+        }
+        else if (compatibility == FlowCase)
+        {
+            var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
+            Assert.InRange(MathF.Abs(baselineAccumulation[0] / baselineAccumulation[3] - Decode(.4f)), 0, .0001f);
+            Assert.InRange(MathF.Abs(accumulation[0] / accumulation[3] - Decode(.6f)), 0, .0001f);
+            Assert.InRange(actual[0], 0, .00001f);
+        }
+        else if (compatibility == FogCase)
+        {
+            var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
+            float[] fog = [.5f, .25f, .125f];
+            for (int channel = 0; channel < 3; channel++)
+                Assert.InRange(MathF.Abs(accumulation[channel] / accumulation[3] - Decode(fog[channel])), 0, .0001f);
+            Assert.InRange(actual[0], 0, .00001f);
+        }
+        else if (compatibility == ShadowCase)
+        {
+            var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
+            Assert.All(accumulation.Take(3), value => Assert.InRange(MathF.Abs(value), 0, .00001f));
+            // Restore sunlight and verify its independent Beer-Lambert/Henyey-Greenstein prediction.
+            shadow!.UploadDataImmediate(new float[] {1});
+            target.Clear(0, 0, 0, 0);
+            DrawBoundary(2, true);
+            AssertSnellGradient(target[3].ReadPixelsRegion(center,center,1,1), true, 1, refractionQuality);
+        }
+        else if (scenario >= 14)
         {
             string receiverDecision = "";
             if (actual[0] >= baseline[0])
@@ -311,7 +401,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         else
             for (int channel = 0; channel < 4; channel++)
                 Assert.InRange(MathF.Abs(actual[channel] - baseline[channel]), 0, .00001f);
-        if (scenario == 0)
+        if (scenario == 0 && compatibility == 0)
         {
             // Supported edge receivers retain transmission instead of fading it by position.
             var edgeRevealage = target[1].ReadPixelsRegion(8,0,1,8);
@@ -344,8 +434,18 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
                     data[offset + 2] = -points[vertex * 2 + 1] * 10;
                 }
                 data[offset + 3] = data[offset + 4] = .5f;
+                if (compatibility == FlowCase)
+                {
+                    data[offset + 3] = data[offset + 4] = .4375f;
+                    data[offset + 9] = .25f / 5.5f;
+                }
                 data[offset + 8] = 1;
                 packed[vertex * 3] = (7 << 22) | (entry ? 0 : 1 << 21);
+                packed[vertex * 3 + 2] = compatibility == LavaCase ? 1 << 27
+                    : compatibility is FullAlphaCase or FlowCase ? 1 << 30 : 0;
+                // Encode a real atlas footprint so animated wrapping uses a tile base,
+                // rather than treating the sample coordinate as a zero-size tile origin.
+                if (compatibility == FlowCase) packed[vertex * 3 + 2] |= (112 << 10) | (112 << 18);
                 if (scenario >= 14) packed[vertex * 3] = 7 << 18;
             }
             using (vertices.BindScope()) vertices.UploadData(data);
@@ -358,6 +458,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     #endregion
 
     #region Private
+    /// <summary>Decodes an authored sRGB channel independently of the production color include.</summary>
+    private static float Decode(float value) => value <= .04045f ? value / 12.92f : MathF.Pow((value + .055f) / 1.055f, 2.4f);
     /// <summary>Checks the independently predicted refracted floor sample and premultiplied fallback mixture.</summary>
     private static void AssertFixedWorldSnellGradient(float[] accumulation, float[] fallback, float revealage,
         float fallbackRevealage, int frameSize, Vector3 camera, Matrix4x4 worldFromView, Matrix4x4 viewProjection, bool sceneLinear)
@@ -409,16 +511,9 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         float transmittedCosine = MathF.Sqrt(1f - eta * eta * (1f - cosine * cosine));
         Vector3 direction = eta * incident + (eta * cosine - transmittedCosine) * normal;
         Vector3 receiver = surface + direction * ((-10f - z) / direction.Z);
-        if (refractionQuality == 0)
-        {
-            // UV selection first estimates a parallel-interface thickness from the
-            // straight floor, then projects that bounded endpoint back onto the
-            // actually sampled axial floor. It is not a ray/floor intersection.
-            Vector3 seed = incident * (-10 / incident.Z);
-            float thickness = -Vector3.Dot(seed - surface,normal);
-            Vector3 estimate = surface + direction * (thickness / transmittedCosine);
-            receiver = estimate * (-10 / estimate.Z);
-        }
+        // The authored constant-depth floor has an exact independent ray/plane
+        // endpoint. UV and geometric methods can share that projected coordinate
+        // while retaining their distinct approximation and sampling contracts.
         int pixel = (int)((receiver.X / 10f * MathF.Sqrt(3f) * .5f + .5f) * 16f);
         Assert.NotEqual(8, pixel);
         float rs = (eta * cosine - transmittedCosine) / (eta * cosine + transmittedCosine);

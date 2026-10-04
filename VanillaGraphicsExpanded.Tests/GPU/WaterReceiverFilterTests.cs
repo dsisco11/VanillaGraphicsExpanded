@@ -180,6 +180,56 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
     }
     #endregion
 
+    #region Public API - Depth discontinuities
+    /// <summary>Two constant-depth columns cannot masquerade as a continuous steep plane from four coplanar corners.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CoplanarFootprintDoesNotBridgeIndependentDepthColumns(bool half)
+    {
+        EnsureShaderTestAvailable();
+        const int fullSize = 16;
+        int size = half ? fullSize/2 : fullSize;
+        using var color = DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
+        using var depth = DynamicTexture2D.Create(size,size,half ? PixelInternalFormat.Rgba32f : PixelInternalFormat.R32f);
+        var colors = new float[size*size*4];
+        var depths = new float[size*size*(half ? 4 : 1)];
+        int origin = size/2;
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            int pixel = y*size+x;
+            bool anchorLayer = x <= origin;
+            float metres = anchorLayer ? 2.2f : 2.5f;
+            depths[pixel*(half ? 4 : 1)] = DeviceDepth(metres);
+            if (half)
+            {
+                depths[pixel*4+1] = (x*2+.5f)/fullSize;
+                depths[pixel*4+2] = (y*2+.5f)/fullSize;
+                depths[pixel*4+3] = 1;
+            }
+            colors[pixel*4] = anchorLayer ? 8 : 1000;
+            colors[pixel*4+3] = 1;
+        }
+        color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
+        var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3,1,.1f,100);
+        projection.M33 = -100.1f/99.9f; projection.M43 = -20f/99.9f;
+        Assert.True(Matrix4x4.Invert(projection,out var inverse));
+        var program = Programs.Create<WaterReceiverFilterShaderProgram>();
+        var inputs = (IWaterReceiverFilterBindings)program;
+        inputs.InverseProjection = inverse; inputs.FullFrameSize = new(fullSize);
+        inputs.SampleUv = new((origin+.75f)/size);
+        inputs.Surface = new(0,0,-2); inputs.Normal = Vector3.UnitZ;
+        inputs.Color = color; inputs.Depth = depth;
+        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        TestFramework.RenderQuadTo(program,target);
+        // Four queried corners are geometrically coplanar even though the two
+        // plateaus are disconnected. Outside neighbors disprove the invented slope.
+        Assert.InRange(MathF.Abs(target[0].ReadPixels()[2]+2.2f),0,.0001f);
+        Assert.InRange(MathF.Abs(target[1].ReadPixels()[0]-8),0,.0001f);
+    }
+    #endregion
+
     #region Private
     /// <summary>Maps axial metres to conventional OpenGL hardware depth independently of the receiver shader.</summary>
     private static float DeviceDepth(float metres) => .5f * (1 + (100.1f - 20 / metres) / 99.9f);

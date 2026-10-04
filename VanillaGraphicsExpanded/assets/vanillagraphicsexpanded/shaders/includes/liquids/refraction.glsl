@@ -49,32 +49,6 @@ float VgeRefractionPlaneDistance(vec3 surface, vec3 direction, VgeRefractionSupp
     return dot(support.positionVS - surface, support.normalVS) / denominator;
 }
 
-/** Interpolates associated radiance only inside an actual compatible source triangle. */
-bool VgeRefractionTriangle(vec3 point, VgeRefractionSupport support, ivec3 taps, out vec3 radiance)
-{
-    vec3 triangleOrigin = support.tapPositions[taps.x];
-    vec3 a = support.tapPositions[taps.y] - triangleOrigin;
-    vec3 b = support.tapPositions[taps.z] - triangleOrigin;
-    vec3 p = point - triangleOrigin;
-    float aa = dot(a,a), ab = dot(a,b), bb = dot(b,b);
-    float determinant = aa * bb - ab * ab;
-    radiance = vec3(0);
-    if (determinant <= 1e-16) return false;
-    float y = (bb * dot(p,a) - ab * dot(p,b)) / determinant;
-    float z = (aa * dot(p,b) - ab * dot(p,a)) / determinant;
-    vec3 weights = vec3(1.0 - y - z, y, z);
-    if (any(lessThan(weights, vec3(-1e-5)))) return false;
-    weights = max(weights, vec3(0));
-    weights /= weights.x + weights.y + weights.z;
-    // Geometry and color share these perspective-correct local-plane weights.
-    vec3 represented = triangleOrigin * weights.x + support.tapPositions[taps.y] * weights.y
-        + support.tapPositions[taps.z] * weights.z;
-    if (length(point - represented) > support.precisionMetres) return false;
-    radiance = support.tapRadiances[taps.x] * weights.x
-        + support.tapRadiances[taps.y] * weights.y + support.tapRadiances[taps.z] * weights.z;
-    return true;
-}
-
 /** Confirms a local intersection using cached coverage, never extrapolating across an unknown patch. */
 bool VgeRefractionPatchHit(vec3 surface, vec3 direction,
     VgeRefractionSupport support, out float hitDistance, out vec3 radiance)

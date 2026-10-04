@@ -17,11 +17,13 @@ struct VgeRefractionSupport
     ivec3 primaryTriangle;
     bool secondaryTriangle;
     float precisionMetres;
+    float depthToleranceMetres;
+    bool triangular;
     bool planar;
 };
 
-/** Reconstructs one physical receiver at its original source pixel, including reduced backgrounds. */
-bool VgeRefractionTap(ivec2 pixel, vec3 surface, vec3 normalVS, mat4 inverseProjection,
+/** Reconstructs one physical source pixel, optionally requiring submerged receiver eligibility. */
+bool VgeRefractionTap(ivec2 pixel, vec3 surface, vec3 normalVS, mat4 inverseProjection, bool requireSubmerged,
     out vec3 positionVS, out vec3 radiance, out float precisionMetres, out int rejection)
 {
     positionVS = vec3(0);
@@ -56,8 +58,62 @@ bool VgeRefractionTap(ivec2 pixel, vec3 surface, vec3 normalVS, mat4 inverseProj
         - positionVS.z * inverseProjection[2][3]) / position.w);
     precisionMetres = max(.0005, min(.02, 8.0 * 1.1920929e-7 * depthSensitivity));
     // A numerical separation guard must not discard centimetre-deep physical water.
-    if (dot(positionVS - surface, normalVS) >= -.0005) { rejection = 4; return false; }
+    if (requireSubmerged && dot(positionVS - surface, normalVS) >= -.0005) { rejection = 4; return false; }
     radiance = color.rgb;
+    return true;
+}
+
+/** Interpolates associated radiance only inside an actual compatible source triangle. */
+bool VgeRefractionTriangle(vec3 point, VgeRefractionSupport support, ivec3 taps, out vec3 radiance)
+{
+    vec3 triangleOrigin = support.tapPositions[taps.x];
+    vec3 a = support.tapPositions[taps.y] - triangleOrigin;
+    vec3 b = support.tapPositions[taps.z] - triangleOrigin;
+    vec3 p = point - triangleOrigin;
+    float aa = dot(a,a), ab = dot(a,b), bb = dot(b,b);
+    float determinant = aa * bb - ab * ab;
+    radiance = vec3(0);
+    if (determinant <= 1e-16) return false;
+    float y = (bb * dot(p,a) - ab * dot(p,b)) / determinant;
+    float z = (aa * dot(p,b) - ab * dot(p,a)) / determinant;
+    vec3 weights = vec3(1.0 - y - z, y, z);
+    if (any(lessThan(weights, vec3(-1e-5)))) return false;
+    weights = max(weights, vec3(0));
+    weights /= weights.x + weights.y + weights.z;
+    // Geometry and color share these perspective-correct local-plane weights.
+    vec3 represented = triangleOrigin * weights.x + support.tapPositions[taps.y] * weights.y
+        + support.tapPositions[taps.z] * weights.z;
+    if (length(point - represented) > support.precisionMetres) return false;
+    radiance = support.tapRadiances[taps.x] * weights.x
+        + support.tapRadiances[taps.y] * weights.y + support.tapRadiances[taps.z] * weights.z;
+    return true;
+}
+
+/** Verifies a steep footprint against independent neighbors instead of inventing a plane across a depth step. */
+bool VgeRefractionContinuousPlane(ivec2 footprintOrigin, int anchor, vec3 positions[4], float precisions[4],
+    vec3 surface, vec3 normalVS, mat4 inverseProjection)
+{
+    vec3 crossProduct = cross(positions[1] - positions[0], positions[2] - positions[0]);
+    if (dot(crossProduct, crossProduct) <= 1e-16) return false;
+    vec3 planeNormal = normalize(crossProduct);
+    float planePrecision = max(max(precisions[0], precisions[1]), max(precisions[2], precisions[3]));
+    if (abs(dot(positions[3] - positions[0], planeNormal)) > planePrecision) return false;
+    // Four samples on two depth columns can themselves form a fictitious plane.
+    // Require independent support outside the footprint along both source axes.
+    ivec2 corner = ivec2(anchor & 1, anchor >> 1);
+    for (int axis = 0; axis < 2; ++axis)
+    {
+        ivec2 offset = ivec2(0);
+        offset[axis] = corner[axis] == 0 ? -1 : 1;
+        vec3 neighbor, unusedRadiance;
+        float neighborPrecision;
+        int rejection;
+        // Above-water geometry may establish continuity at a shore, but its color
+        // never enters interpolation or authorizes a transmitted receiver.
+        if (!VgeRefractionTap(footprintOrigin + corner + offset, surface, normalVS, inverseProjection, false,
+            neighbor, unusedRadiance, neighborPrecision, rejection)) return false;
+        if (abs(dot(neighbor - positions[0], planeNormal)) > max(planePrecision, neighborPrecision)) return false;
+    }
     return true;
 }
 
@@ -69,7 +125,9 @@ bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inver
     support.radiance = vec3(0);
     support.normalVS = vec3(0,0,1);
     support.precisionMetres = .001;
+    support.depthToleranceMetres = .05;
     support.planar = false;
+    support.triangular = false;
     support.primaryTriangle = ivec3(0,1,2);
     support.secondaryTriangle = false;
     ivec2 size = textureSize(vge_refractionDepth, 0);
@@ -94,7 +152,7 @@ bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inver
         weights[tap] = spatial.x * spatial.y;
         int reason;
         eligible[tap] = VgeRefractionTap(footprintOrigin + offset, surface, normalVS,
-            inverseProjection, positions[tap], colors[tap], precisions[tap], reason);
+            inverseProjection, true, positions[tap], colors[tap], precisions[tap], reason);
         support.tapPositions[tap] = positions[tap];
         support.tapRadiances[tap] = colors[tap];
         if (!eligible[tap])
@@ -121,12 +179,22 @@ bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inver
     float interfaceSlope = depth * dot(abs(normalVS.xy), projectedTexel)
         / max(.1, abs(dot(normalVS, anchorRay)));
     float tolerance = max(.05, max(min(.02 * depth, footprintMetres), min(.08 * depth, 1.5 * interfaceSlope)));
+    support.depthToleranceMetres = tolerance;
+    bool allEligible = eligible[0] && eligible[1] && eligible[2] && eligible[3];
+    bool clippedSlope = false;
+    for (int tap = 0; tap < 4; ++tap)
+        clippedSlope = clippedSlope || (eligible[tap] && abs(positions[tap].z - positions[anchor].z) > tolerance);
+    // The ordinary layer gate remains conservative at silhouettes. A steep real
+    // receiver can bypass it only with independent local-plane evidence; no extra
+    // ray positions are searched, and interpolation still uses these four taps.
+    bool continuousSlope = allEligible && clippedSlope
+        && VgeRefractionContinuousPlane(footprintOrigin, anchor, positions, precisions, surface, normalVS, inverseProjection);
     float total = 0.0;
     int retained[4];
     int count = 0;
     for (int tap = 0; tap < 4; ++tap)
     {
-        if (!eligible[tap] || abs(positions[tap].z - positions[anchor].z) > tolerance) continue;
+        if (!eligible[tap] || (!continuousSlope && abs(positions[tap].z - positions[anchor].z) > tolerance)) continue;
         support.positionVS += positions[tap] * weights[tap];
         support.radiance += colors[tap] * weights[tap];
         total += weights[tap];
@@ -147,6 +215,7 @@ bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inver
             // must not become a filled rectangle, even at full resolution.
             support.primaryTriangle = ivec3(retained[0], retained[1], retained[2]);
             support.secondaryTriangle = count == 4;
+            support.triangular = true;
             support.planar = true;
             // A fourth tap on another local slope cannot authorize extrapolation.
             for (int tap = 0; tap < count; ++tap)

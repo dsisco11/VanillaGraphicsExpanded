@@ -484,17 +484,24 @@ Tasks
     - Record the complete declaration/consumer audit and validation in docs/Rendering.ShaderBindingState.md.
       Complete this entry only when the dedicated task list's acceptance criteria are satisfied.
 
-  ☐ Implement water refraction integrated with PBR liquids and OIT.
+  ☑ Implement water refraction integrated with PBR liquids and OIT.
     - Dedicated execution and acceptance list: docs/PBR.WaterRefraction.todo. It owns the four
       water-quality levels (ray march x8/x4/x2, UV distortion), shared HDR water composition,
       refracted scattering, optional background downsampling and receiver-confidence improvements.
       Complete this entry only when that list's acceptance criteria are satisfied.
-    - Implementation and remaining acceptance: docs/PBR.WaterRefraction.md. Optional opaque MRT
+    - Implementation and acceptance: docs/PBR.WaterRefraction.md. Optional opaque MRT
       radiance/depth publication, bounded Snell-law tracing and OIT background replacement are wired.
       Pre-overlay world color/depth capture preserves base-game draw order and restores refraction
       receivers behind first-person visibility writes; its early lighting/coverage limits are documented.
       Focused subagent regression passed 109/109; subsequent configuration restoration passed 23/23.
-      User-run appearance and production GPU cost acceptance remain outstanding; keep this entry open.
+      User accepted the result on 2026-10-04 and explicitly requested completion; further visual
+      matrix checks and GPU measurements are waived as completion prerequisites. GPU cost remains
+      unmeasured and no performance improvement is claimed.
+      Four-tier Water Settings and full/half precompiled receiver variants are now exposed;
+      current integration validation passed 1303/1303 in Debug and optimized Release, zero skips.
+      See PBR.WaterRefraction.md / Settings and integration for receipts and coverage limits.
+      The user verified the shallow half-resolution banding and x2 sparkle fixes in game;
+      affected water/liquid checks passed 329/329 in Debug and optimized Release, zero skips.
     - Gate refraction behind a user-facing Water Refraction option in VGE graphics settings, persisted
       through the existing configuration system. When disabled, retain straight-through liquid
       transmission and skip refraction-only snapshots, ray traversal and resource allocation.

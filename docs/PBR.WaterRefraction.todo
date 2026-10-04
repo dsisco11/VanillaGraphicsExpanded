@@ -46,9 +46,8 @@ Design decisions established by Phase 1
     2=full (default). Both controls display lowest-to-highest quality. Missing/invalid values use
     defaults; preserve the existing enable flag, default false.
     Off is not a quality level. Exact migration/lifetime contract: PBR.WaterRefraction.md,
-    Water quality and receiver contract. Runtime fields and the two working-mode controls are
-    implemented; the distinct lower ray budgets are implemented, with four-choice menu exposure
-    remaining in Phase 6.
+    Water quality and receiver contract. Runtime fields, four-choice quality control and full/half
+    receiver resolution are implemented; the complete integration/acceptance gates remain below.
     Algorithm quality and background resolution are fragment-only precompiled shader options;
     select both through the existing configuration/preparation owner before liquid submission.
     Keep vertex variants shared and retain the independent runtime enable/publication gate.
@@ -172,7 +171,7 @@ Phase 4: Implement lowest-quality UV distortion
     Persisted controls, reduced-step ray tiers, live appearance and GPU timings remain separate work.
 
   ☑ Implement material-normal-based screen UV distortion with projection/FOV/aspect correction,
-    water-thickness/depth-bias suppression and safe sampling bounds using the existing water optics.
+    natural water-thickness displacement scaling and safe sampling bounds using the existing water optics.
     ☑ Select and document IOR-based versus pixel-normal-offset behavior against flat/wavy-water
       references. Express all dimensional parameters consistently in VGE's metre units.
     ☑ Validate distorted receivers with the shared filter; define safe undistorted fallback when
@@ -180,7 +179,7 @@ Phase 4: Implement lowest-quality UV distortion
     ☑ Supply a documented approximate water path length for transport, with refracted scattering
       direction even though UV selection is not a geometric ray intersection.
     ☑ Preserve underwater entry/exit and TIR; distortion must not imply transmission during TIR.
-  ☑ Verify predictable UV displacement, depth suppression, aspect/FOV changes, entry/exit, HDR
+  ☑ Verify predictable UV displacement, shallow-depth scaling, aspect/FOV changes, entry/exit, HDR
     composition and both background resolutions. Review the implementation and bounded lookup cost.
 
 Phase 5: Implement bounded x8/x4/x2 traversal and prevent avoidable distortion loss
@@ -218,33 +217,53 @@ Phase 5: Implement bounded x8/x4/x2 traversal and prevent avoidable distortion l
   ☑ Complete focused tests and source review for each tier before claiming traversal completion.
 
 Phase 6: Expose settings and complete integration/acceptance
+  Status: Complete 2026-10-04. Second review and independent completion audit passed under
+    the updated user acceptance/waiver contract; GPU performance remains unmeasured.
   Dependencies: all four algorithms, shared HDR composition and background-resolution lifecycle.
   Outcome: usable persisted controls and evidence for the complete quality matrix.
-  Settings groundwork: Water Settings now exposes enable/disable, the current ray/UV algorithms
-    and full/half receiver resolution. Algorithm/resolution selections specialize precompiled
-    fragment variants through the existing generated shader-option pipeline. Keep the four-tier
-    control and complete acceptance entries open for four-choice menu exposure and the complete
-    integration/acceptance evidence.
+  Settings groundwork: Water Settings exposes enable/disable, UV distortion, x2, x4, x8 and full/half
+    receiver resolution. Algorithm/resolution selections specialize precompiled fragment variants
+    through the existing generated shader-option pipeline.
+  Completion contract update 2026-10-04: the user accepted the result and explicitly directed
+    closure so work can move on. Further visual-matrix runs, matched-scene GPU measurements,
+    fallback statistics and image comparisons are waived as completion prerequisites.
+    GPU cost remains unmeasured; no performance improvement is claimed.
+  Progress 2026-10-04: four-choice controls, actual saved-option reload and expanded integration
+    coverage are implemented. Fresh Debug and optimized Release each passed 1303/1303 checks,
+    zero skips; receipts and coverage boundaries are in PBR.WaterRefraction.md / Settings and
+    integration. User acceptance and the explicit completion-contract update above resolve
+    the remaining visual/profiling gates.
+  User visual findings 2026-10-04: half-resolution receivers showed shallow shoreline-wall
+    banding; x2 showed shallow-depth sparkles at both full and half resolution. Track these
+    separately: numerical reproduction confirms half-resolution wall discontinuities across
+    all four tiers and x2 ray/UV switching discontinuities at both resolutions. The user
+    confirmed that both reported issues are fixed and verified in game on 2026-10-04.
+    Corrections: independently verified steep receiver support, thickness-scaled receiver-plane
+      UV projection and actual source-triangle sampling with bounded reduced-neighbor recovery.
+      Fresh focused validation passed 254/254; final Debug and optimized Release each passed
+      329/329, zero skips. See PBR.WaterRefraction.md /
+      Shallow receiver continuity for measurements, fetch bounds and receipts.
 
-  ☐ Integrate Water Quality and optional background-resolution controls with existing VgeConfig,
+  ☑ Integrate Water Quality and optional background-resolution controls with existing VgeConfig,
     ConfigLib and generated shader inputs. Present lowest-to-highest UV distortion, x2, x4, x8.
-    ☐ Preserve saved enable/disable state; supply agreed defaults for missing leaves and verify
+    ☑ Preserve saved enable/disable state; supply agreed defaults for missing leaves and verify
       actual save/load restoration, invalid values and runtime transitions without restart.
-    ☐ Prepare required production shader variants through the existing shader build pipeline;
+    ☑ Prepare required production shader variants through the existing shader build pipeline;
       share optical behavior and avoid multiplying unrelated variants unnecessarily.
-  ☐ Delegate fresh builds and focused numerical/GPU/integration regressions to subagents.
-    ☐ Cover four qualities by supported resolutions, both PBR modes, above/underwater/TIR, disabled
+  ☑ Delegate fresh builds and focused numerical/GPU/integration regressions to subagents.
+    ☑ Cover four qualities by supported resolutions, both PBR modes, above/underwater/TIR, disabled
       feature, unavailable sources and all resource transitions; distinguish test coverage from live UI.
-    ☐ Exercise waves/flow, shadows, fog, lava/other liquids, first-person overlays, overlapping
+    ☑ Exercise waves/flow, shadows, fog, lava/other liquids, first-person overlays, overlapping
       transparency and preview transparency against the agreed composition contract.
-  ☐ Obtain user-run acceptance for shallow/deep water, moving shores/occluders, grazing views,
+  ☑ Obtain user-run acceptance for shallow/deep water, moving shores/occluders, grazing views,
     screen edges and camera crossings. Track any remaining distortion discontinuities with evidence.
-  ☐ Measure matched-scene GPU costs per tier/resolution: capture/publication, downsampling,
-    traversal/filter/fallback, HDR composition, total pass/frame time and memory/bandwidth.
-    ☐ Record fallback frequency and image differences alongside timings; fewer ray steps alone
-      are not proof of a faster frame or better visual quality. Do not sum inclusive timers.
-  ☐ Perform second review and independent completion audit against this list and linked contracts.
-  ☐ Update PBR.WaterRefraction.md with final equations, settings, lifecycle, limitations and fresh
+  ☑ Record the user's waiver of matched-scene GPU measurements as a completion requirement.
+    Capture/publication, downsampling, traversal/filter/fallback, HDR composition, total GPU
+    pass/frame time and actual memory/bandwidth costs remain unmeasured.
+    ☑ Record that fallback statistics and matched image comparisons are also waived;
+      fewer ray steps alone do not establish a faster frame or better visual quality.
+  ☑ Perform second review and independent completion audit against this list and linked contracts.
+  ☑ Update PBR.WaterRefraction.md with final equations, settings, lifecycle, limitations and fresh
     receipts; reconcile shared HDR work with the parent list without marking unrelated HDR work done.
-  ☐ Complete the parent refraction entry only after all required checks and user-run acceptance;
+  ☑ Complete the parent refraction entry only after all required checks and user-run acceptance;
     explicitly report unresolved requirements rather than silently deferring them.

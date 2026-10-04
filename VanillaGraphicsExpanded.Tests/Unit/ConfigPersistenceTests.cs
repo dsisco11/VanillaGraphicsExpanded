@@ -41,8 +41,16 @@ public sealed class ConfigPersistenceTests
     }
 
     /// <summary>World shutdown permits the next startup to read persisted values again.</summary>
-    [Fact]
-    public void DisposeAllowsReloadOfStoredSettings()
+    [Theory]
+    [InlineData(false, 0, 1)]
+    [InlineData(true, 0, 2)]
+    [InlineData(false, 1, 1)]
+    [InlineData(true, 1, 2)]
+    [InlineData(false, 2, 1)]
+    [InlineData(true, 2, 2)]
+    [InlineData(false, 3, 1)]
+    [InlineData(true, 3, 2)]
+    public void DisposeAllowsReloadOfStoredSettings(bool enabled, int quality, int scale)
     {
         using var lifetime = new ConfigLifetime();
         var system = lifetime.System;
@@ -51,19 +59,27 @@ public sealed class ConfigPersistenceTests
         api.SetupGet(x => x.Logger).Returns(Mock.Of<ILogger>());
         var document = JObject.FromObject(new VgeConfig());
         document["Atmosphere"]!["SkyLutQuality"] = 2;
-        document["WaterRefractionEnabled"] = true;
+        document["WaterRefractionEnabled"] = enabled;
+        document["WaterRefractionQuality"] = quality;
+        document["WaterRefractionBackgroundScale"] = scale;
         document["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"] = 4;
         api.Setup(x => x.LoadModConfig<JObject>(It.IsAny<string>())).Returns(() => (JObject)document.DeepClone());
         ConfigModSystem.EnsureConfigLoaded(api.Object);
         Assert.Equal(2, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
-        Assert.True(ConfigModSystem.Config.WaterRefractionEnabled);
+        Assert.Equal(enabled, ConfigModSystem.Config.WaterRefractionEnabled);
+        Assert.Equal(quality, ConfigModSystem.Config.WaterRefractionQuality);
+        Assert.Equal(scale, ConfigModSystem.Config.WaterRefractionBackgroundScale);
         Assert.Equal(4, ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision.MaximumLevel);
         document["Atmosphere"]!["SkyLutQuality"] = 3;
-        document["WaterRefractionEnabled"] = false;
+        document["WaterRefractionEnabled"] = !enabled;
+        document["WaterRefractionQuality"] = 3 - quality;
+        document["WaterRefractionBackgroundScale"] = 3 - scale;
         system.Dispose();
         ConfigModSystem.EnsureConfigLoaded(api.Object);
         Assert.Equal(3, ConfigModSystem.Config.Atmosphere.SkyLutQuality);
-        Assert.False(ConfigModSystem.Config.WaterRefractionEnabled);
+        Assert.Equal(!enabled, ConfigModSystem.Config.WaterRefractionEnabled);
+        Assert.Equal(3 - quality, ConfigModSystem.Config.WaterRefractionQuality);
+        Assert.Equal(3 - scale, ConfigModSystem.Config.WaterRefractionBackgroundScale);
         api.Verify(x => x.LoadModConfig<JObject>(It.IsAny<string>()), Times.Exactly(2));
     }
     #endregion

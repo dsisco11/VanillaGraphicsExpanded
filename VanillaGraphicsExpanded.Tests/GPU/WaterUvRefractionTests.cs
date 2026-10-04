@@ -16,6 +16,7 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
     private const int Height = 64;
 
     #region Public API
+    #region Optical projection
     /// <summary>Flat normal incidence stays undistorted, while opposite local wave slopes bend in opposite directions.</summary>
     [Theory]
     [InlineData(-.3f)]
@@ -27,7 +28,7 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         Vector3 surface = new(0,0,-2), normal = Vector3.Normalize(new Vector3(slope,0,1));
         var result = Render(surface,normal,projection,10,false,false);
         Vector3 direction = Refract(-Vector3.UnitZ,normal,1 / 1.333f);
-        Vector2 expectedUv = Project(surface + direction * (8 * normal.Z / -Vector3.Dot(direction,normal)),projection);
+        Vector2 expectedUv = Project(surface + direction * (-8 / direction.Z),projection);
         float displacement = result[4][2] - .5f;
         Assert.Equal(-Math.Sign(slope),Math.Sign(displacement));
         Assert.InRange(MathF.Abs(displacement - (expectedUv.X - .5f)),0,.00001f);
@@ -50,17 +51,17 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         var projection = Projection(fieldOfView, aspect);
         Vector3 surface = new(0,0,-2), normal = Vector3.Normalize(new Vector3(-.3f,.1f,1));
         Vector3 direction = Refract(Vector3.Normalize(surface), normal, 1 / 1.333f);
-        Vector2 seedUv = new Vector2(.5f) - (half ? new Vector2(.5f / Width,.5f / Height) : Vector2.Zero);
-        Vector3 seedPosition = Position(seedUv,10,projection);
         float cosine = -Vector3.Dot(direction,normal);
-        float thickness = -Vector3.Dot(seedPosition - surface,normal);
-        Vector3 endpoint = surface + direction * (thickness / cosine);
+        // The opaque receiver is independently authored at z=-10. Its ray
+        // intersection is independent of reduced sampling offsets and water tilt.
+        Vector3 endpoint = surface + direction * (-8 / direction.Z);
         Vector2 expectedUv = Project(endpoint, projection);
         var result = Render(surface, normal, projection, 10, half, false);
         Assert.Equal(1,result[0][0]); Assert.Equal(2,result[0][1]); Assert.Equal(1,result[0][3]);
-        // Equal-depth reduction selects the first source texel. Bilinear sampling
-        // of that associated coordinate field retains its half-source-pixel bias.
-        Vector2 sourceUv = expectedUv - (half ? new Vector2(.5f / Width,.5f / Height) : Vector2.Zero);
+        // Reduced source provenance changes the retained vertices, not the query
+        // ray. Cached geometry interpolation must recover the physical coordinate
+        // when that coordinate lies inside the actual source support.
+        Vector2 sourceUv = expectedUv;
         Assert.InRange(MathF.Abs(result[2][0] - (4 + 2 * sourceUv.X)),0,.0002f);
         Assert.InRange(MathF.Abs(result[2][1] - (2 + sourceUv.Y)),0,.0002f);
         Assert.True(result[2][0] > 1);
@@ -75,23 +76,19 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
             Assert.InRange(MathF.Abs(result[3][channel] - direction[channel]),0,.00001f);
     }
 
-    /// <summary>Shallow water continuously suppresses distortion in metre units rather than pixel units.</summary>
+    /// <summary>Physical Snell displacement naturally approaches zero with shallow receiver separation.</summary>
     [Theory]
     [InlineData(.03f)]
     [InlineData(.1f)]
     [InlineData(.3f)]
-    public void ThinWaterSuppressesProjectedDisplacement(float separation)
+    public void ThinWaterRetainsThicknessScaledSnellDisplacement(float separation)
     {
         var projection = Projection(60,2);
-        // Keep all four source taps below the oriented 2cm eligibility plane so
-        // this case isolates suppression, rather than changing filter support.
+        // Keep all four source taps physically submerged. The opaque plane's
+        // exact intersection determines displacement, with no arbitrary ramp.
         Vector3 surface = new(0,0,-2), normal = Vector3.Normalize(new Vector3(-.1f,0,1));
         Vector3 direction = Refract(Vector3.Normalize(surface),normal,1 / 1.333f);
-        float thickness = separation * normal.Z;
-        float fraction = Math.Clamp((thickness - .02f) / .23f,0,1);
-        float suppression = fraction * fraction * (3 - 2 * fraction);
-        Vector2 endpoint = Project(surface + direction * (thickness / -Vector3.Dot(direction,normal)),projection);
-        Vector2 expectedUv = Vector2.Lerp(new(.5f),endpoint,suppression);
+        Vector2 expectedUv = Project(surface + direction * (-separation / direction.Z),projection);
         var result = Render(surface,normal,projection,2 + separation,false,false);
         Assert.Equal(1,result[0][0]); Assert.Equal(1,result[0][3]);
         Assert.InRange(MathF.Abs(result[2][0] - (4 + 2 * expectedUv.X)),0,.00002f);
@@ -99,6 +96,9 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         Assert.Equal(2,result[3][3]);
     }
 
+    #endregion
+
+    #region Receiver eligibility
     /// <summary>Unavailable distorted coverage keeps the validated seed without importing a foreground color.</summary>
     [Theory]
     [InlineData(false, false)]
@@ -126,6 +126,44 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         Assert.InRange(MathF.Abs(result[2][0] - (5 - (half ? 1f / Width : 0))),0,.00002f);
     }
 
+    /// <summary>Reduced source-hull correction rejects fresh foreground and unrelated depth-layer corners.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AdjacentSourceRepairRejectsUnsupportedNewCorners(bool foreground)
+    {
+        var projection = Projection(60,2);
+        Vector3 surface = new(0,0,-2), normal = Vector3.Normalize(new Vector3(-.25f,0,1));
+        Vector3 direction = Refract(-Vector3.UnitZ,normal,1/1.333f);
+        Vector2 query = Project(surface + direction*(-8/direction.Z),projection);
+        int nominalOrigin = (int)MathF.Floor(query.X*(Width/2)-.5f);
+        // Constant depth selects each reduced cell's first full-size source.
+        // The optical query is inside the nominal footprint but beyond its
+        // retained right vertex, so actual-coverage repair needs source x=68.
+        Assert.Equal(32,nominalOrigin);
+        float sourceRight = (2*(nominalOrigin+1)+.5f)/Width;
+        Assert.True(query.X > sourceRight);
+        Assert.True(query.X < (nominalOrigin+1.5f)/(Width/2));
+        Assert.Equal(68,2*(nominalOrigin+2));
+        var result = Render(surface,normal,projection,10,true,false,(colors,depths) =>
+        {
+            for (int y = 0; y < Height; y++)
+            for (int x = 68; x < Width; x++)
+            {
+                int pixel = y*Width+x;
+                colors[pixel*4] = 1000;
+                depths[pixel] = DeviceDepth(foreground ? 1 : 20);
+            }
+        });
+        Assert.Equal(1,result[0][0]); Assert.Equal(2,result[0][1]);
+        Assert.InRange(MathF.Abs(result[1][2]+10),0,.0002f);
+        // Rejected repair preserves only the already validated candidate's
+        // coordinate field; neither new corner may enter HDR interpolation.
+        float representedUv = query.X-.5f/Width;
+        Assert.InRange(MathF.Abs(result[2][0]-(4+2*representedUv)),0,.00002f);
+        Assert.Equal(2,result[3][3]);
+    }
+
     /// <summary>TIR and absent seed support cannot become transmitted UV receivers.</summary>
     [Theory]
     [InlineData(false)]
@@ -139,6 +177,9 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         Assert.Equal(tir ? 0 : 1,result[3][3]);
     }
 
+    #endregion
+
+    #region Boundary and transport
     /// <summary>Exit transport uses the water camera segment while preserving the refracted air direction.</summary>
     [Theory]
     [InlineData(false)]
@@ -179,8 +220,10 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         Assert.Equal(1,result[0][3]); Assert.Equal(2,result[3][3]);
     }
     #endregion
+    #endregion
 
     #region Private
+    #region GPU rendering
     /// <summary>Draws the unmodified UV receiver with optional production reduction and deterministic input fields.</summary>
     private float[][] Render(Vector3 surface, Vector3 normal, Matrix4x4 projection, float metres,
         bool half, bool underwater, Action<float[],float[]>? edit = null)
@@ -220,6 +263,9 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         return [target[0].ReadPixels(),target[1].ReadPixels(),target[2].ReadPixels(),target[3].ReadPixels(),target[4].ReadPixels()];
     }
 
+    #endregion
+
+    #region Independent optical references
     /// <summary>Builds a conventional OpenGL projection without borrowing shader calculations.</summary>
     private static Matrix4x4 Projection(float degrees, float aspect)
     {
@@ -249,5 +295,6 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
 
     /// <summary>Converts axial metres to conventional hardware depth for the independently authored receiver.</summary>
     private static float DeviceDepth(float metres) => .5f * (1 + (100.1f - 20 / metres) / 99.9f);
+    #endregion
     #endregion
 }

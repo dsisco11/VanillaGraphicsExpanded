@@ -96,8 +96,11 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
             previousMethod = method; previousPosition = position; previousReference = reference; previousColor = rgb;
         }
         output.WriteLine($"half={half}: ray={rayCount}, uv={uvCount}, switches={switches}, maxTransitionPositionError={maximumPositionError:R}m, maxTransitionHdrError={maximumColorError:R}");
-        if (slope == 4) Assert.Equal(61,uvCount);
-        else Assert.True(switches > 0,"The authored sweep must exercise an actual RAY/UV transition.");
+        // Independent neighboring geometry now establishes steep continuous
+        // receiver coverage. Full-size planes must keep geometric intersections;
+        // reduced source hulls still exercise genuine ray/UV transition bounds.
+        if (!half) Assert.Equal(61,rayCount);
+        else Assert.True(switches > 0,"Reduced original-source hulls must exercise an actual RAY/UV transition.");
     }
 
     /// <summary>Cached reuse respects an irregular source hull and associates color with the corrected hit.</summary>
