@@ -176,18 +176,39 @@ Phase 5 — Skip scattering illumination for zero-scattering media
   change; WaterRefraction/Liquids and the pipeline/display contracts retain their existing paths.
 
 Phase 6 — Capture refraction backgrounds only when needed
-  ☐ Identify an existing authoritative water-demand signal available before the hand overlay.
+  ☑ Identify an existing authoritative water-demand signal available before the hand overlay.
     - Account for underwater views, partially visible water, frustum/screen transitions, resize,
       first-/third-person rendering, and settings changes. Avoid synchronous GPU readback.
     - Prefer conservative extra capture over missing a required current-frame background.
-  ☐ Gate pre-overlay lighting/composition using that signal when it proves capture unnecessary.
+  ☑ Gate pre-overlay lighting/composition using that signal when it proves capture unnecessary.
     - Invalidate skipped publication so stale backgrounds cannot be consumed.
     - Retain resources across ordinary visibility changes; retire through existing lifecycle owners.
     - Preserve the hand-occlusion exclusion and environment fallback behavior.
     - If no safe signal exists, record the missing ownership contract and measured benefit before
       expanding scope; do not add an unreliable camera-block-only visibility heuristic.
-  ☐ Verify dry views, entering/exiting water views, underwater views and first-person overlays.
+  ☑ Verify dry views, entering/exiting water views, underwater views and first-person overlays.
   Completion: unnecessary captures are skipped without stale or absent required receivers.
+  Implemented 2026-10-04: use the existing engine pool owner's current collection and each
+  MeshDataPool.IsEmpty(), not stale culling statistics. Skip only when all active liquid pools
+  are empty; unknown data or any nonempty pool conservatively retains capture, including hidden,
+  offscreen and mini-dimension geometry. This does not skip dry-looking views with liquids loaded
+  elsewhere. Camera immersion does not alter the gate; without an interface there is no refracted
+  receiver consumer, while opaque camera-medium transport remains independent.
+  Capture invalidates publication before the early return, avoiding lighting/composite draws and
+  retaining allocations for the next populated frame. Existing overlay restrictions remain intact.
+  Installed IL places ordinary/dimension-aware uploads at Before order 0.99, before Opaque/OIT;
+  atlas expansion creates empty managers and background tessellation queues its results.
+  Evidence: artifacts/WaterLagAnalysis/capture-demand-stage-il.log, capture-demand-upload-il.log
+  and capture-demand-pools-il.log. External mods inserting pool geometry later are outside the
+  inspected engine contract. All six focused cases passed with zero failures/skips, covering
+  live pool/atlas transitions, actual full/half capture with LumOn on/off, publication invalidation,
+  target reuse, lifecycle and overlay policy. Production/test C# builds passed using unchanged
+  validated shader artifacts; aggregate builds hit unrelated shader-cache replacement access errors.
+  This is not a fresh shader build. See capture-demand-csharp-build.log, capture-demand-test-build.log
+  and capture-demand-tests.log/.trx in the same artifact directory. Second review passed;
+  independent completion audit passed. Live frame-time benefit remains unmeasured.
+  Traceability: PBR.WaterRefraction.md capture/publication lifecycle and PBR.Liquids.md engine
+  submission ownership control this gate; pipeline state and water-medium transport are unchanged.
 
 Phase 7 — Eliminate discarded fallback shading
   ☐ Skip ordinary fallback shading when a valid refracted receiver fully replaces its contribution.

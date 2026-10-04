@@ -43,12 +43,38 @@ public sealed class LiquidMeshSourceTests
             Assert.True(source.TryGetAtlasPools(out var ids, out var activePools));
             Assert.Same(renderer.textureIds, ids);
             Assert.Same(pools, activePools);
+            Assert.False(source.MayHaveLiquidGeometry());
+            var livePools = (List<MeshDataPool>)AccessTools.Field(typeof(MeshDataPoolManager), "pools").GetValue(pools[0])!;
+            var pool = (MeshDataPool)AccessTools.Constructor(typeof(MeshDataPool), [typeof(int),typeof(int),typeof(int)]).Invoke([16,24,4]);
+            var locations = (List<ModelDataPoolLocation>)AccessTools.Field(typeof(MeshDataPool), "poolLocations").GetValue(pool)!;
+            livePools.Add(pool);
+            Assert.True(pool.IsEmpty()); Assert.False(source.MayHaveLiquidGeometry());
+            // Visibility and dimensions do not make allocated liquid geometry safe
+            // to ignore. The installed IsEmpty contract observes locations directly.
+            var location = new ModelDataPoolLocation { Hide = true, FrustumVisible = false };
+            AccessTools.Field(typeof(MeshDataPool), "dimensionId").SetValue(pool,7);
+            pool.RenderedTriangles = 0;
+            locations.Add(location);
+            Assert.False(pool.IsEmpty()); Assert.True(source.MayHaveLiquidGeometry());
+            pool.RemoveLocation(location);
+            Assert.True(pool.IsEmpty()); Assert.False(source.MayHaveLiquidGeometry());
+            livePools.Add(null!);
+            Assert.True(source.MayHaveLiquidGeometry());
+            livePools.RemoveAt(livePools.Count - 1);
             renderer.textureIds = [17,18];
             Assert.False(source.TryGetAtlasPools(out _, out _));
+            Assert.True(source.MayHaveLiquidGeometry());
             AccessTools.Method(typeof(ChunkRenderer), "RuntimeAddBlockTextureAtlas").Invoke(renderer, [new int[] {17,18}]);
-            Assert.True(source.TryGetAtlasPools(out _, out _));
+            Assert.True(source.TryGetAtlasPools(out _, out activePools));
+            Assert.False(source.MayHaveLiquidGeometry());
+            var newPools = (List<MeshDataPool>)AccessTools.Field(typeof(MeshDataPoolManager), "pools").GetValue(activePools[1])!;
+            newPools.Add(pool); locations.Add(location);
+            Assert.True(source.MayHaveLiquidGeometry());
+            pool.RemoveLocation(location);
+            Assert.False(source.MayHaveLiquidGeometry());
             renderer.textureIds = [17,18,19,20,21];
             Assert.False(source.TryGetAtlasPools(out _, out _));
+            Assert.True(source.MayHaveLiquidGeometry());
         }
         finally { harmony.UnpatchAll(harmony.Id); LiquidMeshSource.Remove(api); }
     }

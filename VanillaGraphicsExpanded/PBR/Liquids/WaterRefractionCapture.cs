@@ -89,6 +89,11 @@ internal sealed class WaterRefractionCapture : IRenderer
     private void Capture()
     {
         attempted = true;
+        scene.Invalidate();
+        // Unknown resources retain capture. Only current, entirely empty liquid
+        // pools prove that no interface can consume the pre-overlay receiver pair.
+        // Keep allocations across dry frames so returning water reuses them.
+        if (LiquidMeshSource.TryGet(api, out var source) && !source.MayHaveLiquidGeometry()) return;
         int width = api.Render.FrameWidth, height = api.Render.FrameHeight;
         if (width <= 0 || height <= 0) return;
         // Each lighting/composite draw restores shader ownership through its own UseScope.

@@ -14,6 +14,42 @@ At the ordinary order-11 composite, only refraction outputs at negative first-pe
 
 The early capture adds one direct-lighting draw and one composite draw, three RGBA16F lighting targets and an RGBA16F/R32F radiance/depth pair (36 additional bytes per pixel). The composite scratch is shared with its existing owner. Current-frame LumOn gather has not run at the capture boundary, so captured pixels use direct lighting, emission and the existing standalone environment response rather than stale screen-space GI. Final unmasked pixels still use the selected PBR mode. World geometry drawn later that was occluded by the overlay's depth cannot be recovered from this snapshot; it records actual coverage at the capture boundary. This remains a screen-space limitation, not permission to reorder base-game renderers.
 
+Pre-overlay capture skips both draws only when the current engine liquid mesh source proves
+every pool in the active atlas prefix empty. `LiquidMeshSource` reads the manager's current
+pool collection through a cached typed accessor and each pool's `IsEmpty()` contract; it does
+not use cached rendered-triangle counts, camera fluid classification or GPU readback. Missing
+or incomplete resources retain capture. Nonempty pools retain capture even if offscreen,
+occluded, nontransmitting or in a mini-dimension. This deliberately does not promise culling
+capture whenever a view appears dry while liquid geometry remains loaded elsewhere.
+
+The check runs at the actual first-person overwrite boundary. Skipping invalidates the
+pre-overlay publication before returning, without allocating, drawing or retiring the existing
+scratch targets. A subsequent populated frame captures fresh data and reuses compatible
+storage; resize, disable and world disposal keep their existing retirement behavior. Empty
+pools imply no liquid interface even for an underwater camera; the independent camera-medium
+and final opaque composition paths are not gated. Third-person, remote-entity and shadow
+restrictions remain in the existing overlay predicate.
+
+Installed-engine IL inspection places both `AddTesselatedChunk` call sites in
+`ChunkTesselatorManager.OnBeforeFrame`, registered at Before order 0.99. The main loop runs
+Before ahead of Opaque and OIT. Center/edge geometry uses the same dimension-aware pool
+insertion path, background tessellation queues results, and runtime atlas expansion creates
+empty managers. Thus the inspected engine does not populate liquid pools between this capture
+decision and submission. This contract does not cover external mods directly inserting meshes
+later in the frame. Evidence: `artifacts/WaterLagAnalysis/capture-demand-stage-il.log`,
+`capture-demand-upload-il.log` and `capture-demand-pools-il.log`.
+
+Verification passed all six focused cases, with no failures or skips: installed pool construction,
+live insertion/removal, a hidden pool in a non-default dimension, and atlas changes; actual capture at full/half
+resolution with LumOn on/off; and the first-person/third-person/shadow policy. Empty transitions
+perform zero capture draws, withdraw publication and retain the same valid textures; returning
+geometry republishes fresh data. Existing reload, resize, settings and world-lifecycle assertions
+also pass. The changed production/test C# assemblies were rebuilt successfully against unchanged,
+previously validated shader artifacts after unrelated shader-cache replacement access errors
+blocked aggregate builds. This is not a fresh shader-build receipt. Evidence:
+`artifacts/WaterLagAnalysis/capture-demand-csharp-build.log`, `capture-demand-test-build.log`
+and `capture-demand-tests.log/.trx`. No live frame-time improvement has been measured.
+
 Pre-overlay composition retains its own `PBRCompositeShaderProgram` under
 `pbr_composite_pre_overlay`, with LumOn, PBR GI composition and short-range AO disabled.
 Ordinary composition retains `pbr_composite` and adopts the engine generation's lighting mode

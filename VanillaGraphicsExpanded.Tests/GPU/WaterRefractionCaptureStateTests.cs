@@ -147,6 +147,44 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;
             AssertStableFrames();
 
+            // A live empty pool is authoritative even after a previous wet frame.
+            // Keep allocated targets across the skip, then republish current data
+            // when geometry is added back to that same engine-owned pool.
+            var liquidRenderer = (Vintagestory.Client.NoObf.ChunkRenderer)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.Client.NoObf.ChunkRenderer));
+            liquidRenderer.textureIds = [17];
+            liquidRenderer.poolsByRenderPass = new MeshDataPoolManager[(int)EnumChunkRenderPass.Liquid + 1][];
+            var manager = new MeshDataPoolManager(null!,null!,api,16,24,4);
+            liquidRenderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid] = [manager];
+            var pool = (MeshDataPool)HarmonyLib.AccessTools.Constructor(typeof(MeshDataPool), [typeof(int),typeof(int),typeof(int)]).Invoke([16,24,4]);
+            var livePools = (List<MeshDataPool>)HarmonyLib.AccessTools.Field(typeof(MeshDataPoolManager),"pools").GetValue(manager)!;
+            var locations = (List<ModelDataPoolLocation>)HarmonyLib.AccessTools.Field(typeof(MeshDataPool),"poolLocations").GetValue(pool)!;
+            livePools.Add(pool);
+            VanillaGraphicsExpanded.PBR.Liquids.LiquidMeshSource.Register(api,liquidRenderer,new(1,1));
+            try
+            {
+                var retainedColor = composite.PreOverlayScene.Color;
+                var retainedDepth = composite.PreOverlayScene.Depth;
+                int beforeDry = draws;
+                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture),"Capture").Invoke(capture,null);
+                Assert.Equal(beforeDry,draws);
+                Assert.False(composite.PreOverlayScene.Published);
+                Assert.Same(retainedColor,composite.PreOverlayScene.Color);
+                Assert.Same(retainedDepth,composite.PreOverlayScene.Depth);
+                Assert.True(retainedColor!.IsValid); Assert.True(retainedDepth!.IsValid);
+                var location = new ModelDataPoolLocation();
+                locations.Add(location);
+                capture.OnRenderFrame(.016f,EnumRenderStage.Before);
+                ComposeChangedWorld(.45f);
+                Assert.Same(retainedColor,composite.PreOverlayScene.Color);
+                Assert.Same(retainedDepth,composite.PreOverlayScene.Depth);
+                pool.RemoveLocation(location);
+                capture.OnRenderFrame(.016f,EnumRenderStage.Before);
+                beforeDry = draws;
+                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture),"Capture").Invoke(capture,null);
+                Assert.Equal(beforeDry,draws); Assert.False(composite.PreOverlayScene.Published);
+            }
+            finally { VanillaGraphicsExpanded.PBR.Liquids.LiquidMeshSource.Remove(api); }
+
             Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
             // Engine Stop releases managed ownership but can retain the last raw
             // binding. End that submission before simulating the engine reload boundary.
