@@ -198,7 +198,64 @@ Phase 12 — Prepare only required liquid frame inputs
   Completion: volume preparation omits proven unused array work while all active inputs remain
   current and independent of surface submission. Preserve the inverse-projection input from Phase 2.
 
-Phase 13 — Review remaining bandwidth and validate the combined result
+Phase 13 — Stop redundant endpoint probes
+  ☐ Detect traversal paths whose next probe cannot advance after clamping to the visible extent.
+    - Evaluate the endpoint before terminating; retain any proposal that can move to a different
+      supported position. Do not confuse revisiting a texture footprint with identical ray state.
+    - Route exhausted progress through the existing validated UV fallback, preserving the seed
+      handoff from Phase 4, total internal reflection and x2/x4/x8 maximum probe budgets.
+    - Do not accept an unsupported receiver or introduce a tolerance that discards useful movement.
+  ☐ Verify invalid endpoint support, failed patch intersections, short extents and screen edges.
+    - Compare receiver/fallback results and instrument probe counts in focused fixtures to show
+      that repeated identical endpoint evaluations are removed without losing valid hits.
+  Completion: unchanged endpoint state does not consume the remaining traversal budget repeatedly;
+  useful probes and the existing distortion behavior are preserved.
+
+Phase 14 — Simplify isotropic scattering evaluation
+  ☐ Use the constant 1/(4*pi) phase value when effective anisotropy is exactly zero.
+    - This applies to nonzero isotropic scattering, independently of Phase 5's zero-scattering path.
+    - Omit directional calculations only when they serve that phase evaluation exclusively;
+      preserve reflection, refraction and other consumers of the same directions.
+    - Preserve positive/negative anisotropy and existing clamping; do not approximate small
+      nonzero anisotropy as zero without a separately justified accuracy change.
+  ☐ Verify isotropic and anisotropic media under sun and point lighting, above and below water.
+    - Inspect optimized variants and measure coherent/mixed-material cases; a dynamic branch
+      must not be assumed faster than compiler simplification or the original expression.
+  Completion: isotropic phase evaluation retains its exact physical value while demonstrated
+  redundant phase arithmetic is removed, without undermining earlier shading-work reductions.
+
+Phase 15 — Reject reduction candidates before color fetches
+  ☐ Reorder half-resolution background reduction to reject unusable depth candidates first.
+    - Reject invalid/out-of-range depth and candidates that cannot beat the current selected depth
+      before fetching their color. Preserve bounds handling for odd source dimensions.
+    - Fetch and validate color for surviving candidates before updating the selected receiver.
+    - Preserve color-alpha validity, finite-value checks, tie ordering, original source UV metadata
+      and the farthest-valid-receiver policy; invalid color must not displace a valid selection.
+  ☐ Verify all-invalid blocks, mixed valid/invalid colors, equal depths, silhouettes and odd sizes.
+    - Compare reduced outputs with the prior algorithm and confirm reduced color sampling for
+      rejected candidates. Measure actual GPU effects separately from source-level fetch counts.
+  Completion: reduction produces equivalent receiver pairs with unnecessary color reads avoided.
+  Dependency: reconcile any validity representation changes made in Phase 3 before finalizing checks.
+
+Phase 16 — Reuse unchanged uniform-buffer uploads safely
+  ☐ Measure repeated whole-block uploads during activation/restoration through CpuUniformBuffer.
+    - Reuse the existing ring allocator and binding owners; distinguish this upload work from
+      Phase 12's CPU input preparation and Phase 11's shader-setting allocations.
+  ☐ Retain and rebind an uploaded range only while both contents and allocation remain valid.
+    - Track content revision and the allocator's actual lifetime/generation contract. IsDirty alone
+      cannot establish validity after ring reuse, reset, disposal or a different active ring.
+    - Preserve immutable earlier draw snapshots when contents change; allocate a fresh range
+      rather than overwrite storage still referenced by submitted draws.
+    - Rebind the correct slot/range even when upload is skipped. Preserve mutation guards,
+      failed-publication behavior, program reload, alignment and block-size validation.
+    - Audit existing writable-span/MarkDirty paths so every supported mutation invalidates reuse.
+  ☐ Verify unchanged reactivation, changed data, alternating owners, shared blocks, ring rollover,
+    allocator replacement and disposal. Include actual GPU-observed contents and upload counts.
+    - Check affected non-water consumers because this is a shared rendering-infrastructure change.
+  Completion: identical data reuses valid uploaded storage without stale bindings or premature
+  allocation reuse; record allocation/copy savings separately from GPU rendering performance.
+
+Phase 17 — Review remaining bandwidth and validate the combined result
   ☐ Obtain a matched optimized-build comparison after executable-lifetime fixes.
     - Separate preparation, water-depth, volume-boundary, surface/OIT, pre-overlay capture and
       ordinary composition costs using existing profiling owners where possible.
