@@ -5,6 +5,8 @@
 /** Receiver provenance is independent of confidence; unavailable coverage is never a ray hit. */
 const int VGE_WATER_RECEIVER_NONE = 0;
 const int VGE_WATER_RECEIVER_RAY = 1;
+/** Approximate projected receiver, including its validated undistorted seed fallback. */
+const int VGE_WATER_RECEIVER_UV = 2;
 
 /** Unattenuated linear receiver radiance and view-space optical geometry selected by a sampler. */
 struct VgeWaterReceiver

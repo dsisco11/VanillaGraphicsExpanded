@@ -46,7 +46,21 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     [InlineData(1, true, 0, 2)]
     [InlineData(11, true, 0, 2)]
     [InlineData(14, true, 0, 2)]
-    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1)
+    [InlineData(0, false, 0, 1, 0)]
+    [InlineData(0, true, 0, 1, 0)]
+    [InlineData(0, true, 0, 2, 0)]
+    [InlineData(1, true, 0, 1, 0)]
+    [InlineData(1, true, 0, 2, 0)]
+    [InlineData(3, true, 0, 1, 0)]
+    [InlineData(6, true, 0, 1, 0)]
+    [InlineData(7, true, 0, 1, 0)]
+    [InlineData(10, true, 0, 1, 0)]
+    [InlineData(11, true, 0, 2, 0)]
+    [InlineData(9, false, 0, 1, 0)]
+    [InlineData(9, true, 0, 1, 0)]
+    [InlineData(9, true, 1, 1, 0)]
+    [InlineData(9, true, 2, 1, 0)]
+    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3)
     {
         EnsureContextValid();
         int frameSize = scenario >= 14 ? 128 : 16;
@@ -56,6 +70,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         program.SceneLinear = sceneLinear;
+        program.RefractionQuality = refractionQuality;
         using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -248,7 +263,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
             var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
             Assert.True(accumulation[0] > 0);
             Assert.True(baseline[0] > .001f);
-            if (scenario == 9) AssertSnellGradient(accumulation, sceneLinear, scatteringSource);
+            if (scenario == 9) AssertSnellGradient(accumulation, sceneLinear, scatteringSource, refractionQuality);
             if (sceneLinear && scenario is 0 or 9) Assert.True(accumulation.Take(3).Max() / accumulation[3] > 1);
 
         }
@@ -261,7 +276,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         else
             for (int channel = 0; channel < 4; channel++)
                 Assert.InRange(MathF.Abs(actual[channel] - baseline[channel]), 0, .00001f);
-        if (scenario == 0)
+        if (scenario == 0 && refractionQuality != 0)
         {
             // The bottom image boundary must approach the original transmission continuously.
             var edgeRevealage = target[1].ReadPixelsRegion(8,0,1,8);
@@ -352,7 +367,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
     }
 
     /// <summary>Predicts the refracted receiver texel using independent vector Snell optics and display transfer.</summary>
-    private static void AssertSnellGradient(float[] accumulation, bool sceneLinear, int scatteringSource)
+    private static void AssertSnellGradient(float[] accumulation, bool sceneLinear, int scatteringSource, int refractionQuality)
     {
         float raySlope = 1f / (16f * MathF.Sqrt(3));
         float z = -2f / (1f + .4f * raySlope);
@@ -364,19 +379,35 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         float transmittedCosine = MathF.Sqrt(1f - eta * eta * (1f - cosine * cosine));
         Vector3 direction = eta * incident + (eta * cosine - transmittedCosine) * normal;
         Vector3 receiver = surface + direction * ((-10f - z) / direction.Z);
+        if (refractionQuality == 0)
+        {
+            // UV selection first estimates a parallel-interface thickness from the
+            // straight floor, then projects that bounded endpoint back onto the
+            // actually sampled axial floor. It is not a ray/floor intersection.
+            Vector3 seed = incident * (-10 / incident.Z);
+            float thickness = -Vector3.Dot(seed - surface,normal);
+            Vector3 estimate = surface + direction * (thickness / transmittedCosine);
+            receiver = estimate * (-10 / estimate.Z);
+        }
         int pixel = (int)((receiver.X / 10f * MathF.Sqrt(3f) * .5f + .5f) * 16f);
         Assert.NotEqual(8, pixel);
         float rs = (eta * cosine - transmittedCosine) / (eta * cosine + transmittedCosine);
         float rp = (cosine - eta * transmittedCosine) / (cosine + eta * transmittedCosine);
         float transmission = 1f - .5f * (rs * rs + rp * rp);
         float rawRed = (1f + pixel * .2f) * transmission;
+        if (refractionQuality == 0)
+        {
+            float coordinate = (receiver.X / 10 * MathF.Sqrt(3) * .5f + .5f) * 16 - .5f;
+            rawRed = (1 + coordinate * .2f) * transmission;
+        }
         if (scatteringSource != 0)
         {
             Vector3 light = scatteringSource == 1 ? new(0,0,-1) : Vector3.Normalize(new Vector3(0,0,-12) - surface);
             float intensity = scatteringSource == 1 ? 100 : 10000 / Vector3.DistanceSquared(new(0,0,-12), surface);
             double phaseCosine = Vector3.Dot(-light, -direction);
             double phase = (1 - .7 * .7) / (4 * Math.PI * Math.Pow(1 + .7 * .7 - 2 * .7 * phaseCosine, 1.5));
-            double path = Vector3.Distance(receiver, surface);
+            double path = refractionQuality == 0 ? -Vector3.Dot(receiver - surface,normal) / transmittedCosine
+                : Vector3.Distance(receiver, surface);
             double[] extinction = [.3,.5,.7], scatter = [.2,.3,.4];
             for (int channel = 0; channel < 3; channel++)
             {

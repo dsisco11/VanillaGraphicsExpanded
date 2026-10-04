@@ -17,7 +17,8 @@ Goal and fixed requirements
   background resolution, retaining valid receiver samples while excluding foreground contamination.
   Prevent avoidable receiver/confidence failures and loss of visible distortion. Do not treat
   invalid depth, foreground geometry or missing screen-space coverage as valid ray intersections.
-  Quality algorithms and full-scene HDR activation remain unimplemented. Shared water transport
+  The UV algorithm is implemented; reduced-step ray tiers and full-scene HDR activation remain
+  unimplemented. Shared water transport
   and its output adapters are implemented; verification status and baseline diagnostics are recorded
   in PBR.WaterRefraction.md. Completion requires the applicable verification gates below.
 
@@ -158,17 +159,21 @@ Phase 3: Implement coherent background resolution and receiver filtering
 Phase 4: Implement lowest-quality UV distortion
   Dependencies: shared HDR transport and coherent receiver sampling.
   Outcome: lowest quality uses bounded UV distortion with no iterative ray traversal.
+  Completed 2026-10-04: fresh build and 156/156 focused/adjacent checks passed, zero skips.
+    Second review and independent audit-stage-completion found no remaining scoped requirements.
+    Equations, approximate path, bounded lookup cost and evidence: PBR.WaterRefraction.md / UV distortion.
+    Persisted controls, reduced-step ray tiers, live appearance and GPU timings remain separate work.
 
-  ☐ Implement material-normal-based screen UV distortion with projection/FOV/aspect correction,
+  ☑ Implement material-normal-based screen UV distortion with projection/FOV/aspect correction,
     water-thickness/depth-bias suppression and safe sampling bounds using the existing water optics.
-    ☐ Select and document IOR-based versus pixel-normal-offset behavior against flat/wavy-water
+    ☑ Select and document IOR-based versus pixel-normal-offset behavior against flat/wavy-water
       references. Express all dimensional parameters consistently in VGE's metre units.
-    ☐ Validate distorted receivers with the shared filter; define safe undistorted fallback when
+    ☑ Validate distorted receivers with the shared filter; define safe undistorted fallback when
       all candidate coverage is unavailable and prevent foreground smearing at clamped edges.
-    ☐ Supply a documented approximate water path length for transport, with refracted scattering
+    ☑ Supply a documented approximate water path length for transport, with refracted scattering
       direction even though UV selection is not a geometric ray intersection.
-    ☐ Preserve underwater entry/exit and TIR; distortion must not imply transmission during TIR.
-  ☐ Verify predictable UV displacement, depth suppression, aspect/FOV changes, entry/exit, HDR
+    ☑ Preserve underwater entry/exit and TIR; distortion must not imply transmission during TIR.
+  ☑ Verify predictable UV displacement, depth suppression, aspect/FOV changes, entry/exit, HDR
     composition and both background resolutions. Review the implementation and bounded lookup cost.
 
 Phase 5: Implement bounded x8/x4/x2 traversal and prevent avoidable distortion loss

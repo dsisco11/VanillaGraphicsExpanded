@@ -39,9 +39,10 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, 
 
 
     #endregion
-    /// <summary>Attaches mutation guards to all retained blocks.</summary>
+    /// <summary>Defaults to geometric refraction and attaches mutation guards to retained blocks.</summary>
     public LiquidShaderProgram()
     {
+        RefractionQuality = 3;
         frame.SetWriteGuard(RequireInputMutation);
         draw.SetWriteGuard(RequireInputMutation);
         wave.SetWriteGuard(RequireInputMutation);

@@ -97,6 +97,87 @@ scoped requirements. Reload evidence exercises actual shader-library redeclarati
 preparation, rather than the complete engine reload event. Headless results establish numerical
 and ownership behavior; live appearance and GPU timings remain unmeasured.
 
+## UV distortion
+
+`liquids/uv_distortion.glsl` implements the approximate receiver independently of ray traversal.
+The internal typed `LiquidShaderProgram.RefractionQuality` input selects it at `0`; its constructor
+defaults to `3`, retaining the existing geometric sampler for other values. This is an algorithm
+entry point, not persisted configuration or the completed x8/x4/x2 implementation. ConfigLib and
+frame-consistent runtime selection remain settings work. It uses the same continuous material
+wave normal, oriented toward the eye, and IOR 1.333 as the geometric sampler.
+
+The selected behavior is IOR-based projection rather than an arbitrary pixel-normal offset.
+Let `s` be the displaced view-space interface, `n` its oriented unit normal, and `d` the Snell
+direction from `normalize(s)`. A filtered lookup at `project(s)` supplies the straight receiver
+`b`. Its normal-plane separation is `h = max(0, -dot(b-s,n))` metres. With
+`c = max(0.1, -dot(d,n))`, the estimated endpoint is `s + d*min(32,h/c)`.
+Projection uses the full camera matrix and homogeneous division, so FOV, aspect and oblique
+interfaces do not rely on a fixed pixel scale. Distorted UV is the interpolation between the
+interface UV and projected endpoint UV with weight `smoothstep(0.02,0.25,h)`. All dimensional
+constants are metres: the 2 cm receiver bias suppresses near-contact displacement, the ramp
+reaches full displacement at 25 cm, and the estimate is capped at 32 m. The cosine floor is
+dimensionless and bounds grazing behavior. A normally viewed flat interface has no offset;
+oblique flat water bends according to Snell, and wave normals alter the direction and offset.
+A pixel-normal offset would require separate calibration to retain this depth/FOV behavior.
+
+The seed and candidate both use the shared bilateral filter, including full or half-size
+original-UV reconstruction. Nonfinite projections, projections behind the eye and offscreen
+endpoints are rejected, never clamped onto the image edge. An unsupported distorted candidate
+retains the validated seed radiance and geometry. If the seed has no support, no thickness is
+invented and the existing straight-through liquid transport remains active. The filter can
+renormalize supported taps at an edge without importing out-of-bounds or foreground color.
+Valid selection has confidence one; it has no aesthetic edge/range fade. This does not supply
+hidden geometry, and a disappearing represented receiver can still change the selected result.
+
+Both distorted selection and its validated seed fallback report `VGE_WATER_RECEIVER_UV`, never
+`RAY`. For the selected receiver `r`, above-water submerged length is the approximate
+`min(32,max(0,-dot(r-s,n))/c)` metres. It assumes one locally parallel receiving layer; it is
+not a ray intersection, exact bathymetry or multi-interface transport. Underwater length is
+`length(s)`: the camera-to-interface segment is water and the sampled exit segment is air.
+The retained Snell direction feeds the shared refracted-scattering convention, with the
+water-side eye direction used underwater. Total internal reflection returns no transmitted
+receiver before any background lookup. Fresnel and HDR/legacy adaptation remain in the existing
+shared liquid consumer; no second display conversion or opaque attenuation is introduced.
+
+The sampler performs no iterative ray evaluations and at most two filtered UV lookups:
+one seed and one candidate. Each uses at most four paired color/depth taps, giving at most
+16 texture fetches. Missing seed uses at most eight; TIR uses zero. The small fixed filter
+loops are sampling work, not ray traversal. No new screen targets, draw calls or shader quality
+variant axis are required. These are source bounds, not GPU timings or speedup measurements.
+
+Traceability: the UV tasks in `PBR.WaterRefraction.todo` govern displacement, suppression,
+bounds, provenance and bounded work; the Water quality and receiver contract and Background
+resolution and bilateral receivers sections govern coherent geometry/radiance and fallback.
+`PBR.WaterMedium.md` governs SI units, RGB extinction and photon directions; `PBR.Liquids.md`
+and `PBR.LiquidRenderer.Proposal.md` retain the owned shader, waves and six-output OIT contract.
+`PBR.MaterialColorAndDisplay.md`, `PBR.SharedDisplay.md` and `PBR.OutputDithering.md` govern
+linear composition before the existing output adapter. The authoritative pipeline plan/proposal
+retain existing binding and state owners; this sampler introduces no new submission boundary.
+Full-scene HDR activation, persisted controls, live appearance and measured GPU costs remain
+separate work.
+
+Fresh subagent build and validation passed 156/156 checks with zero skips in 6.1424 seconds
+(`artifacts/PbrColor/water-uv-final-regressions.log`); the offline catalog verified 417 current
+variants. `WaterUvRefractionTests` contributes 25 cases: independently projected FOV/aspect
+displacement and associated HDR radiance at full/half size, authored flat/opposite local wave
+slopes, thin-depth suppression, foreground/invalid candidate fallback, unsupported seeds,
+underwater/TIR, near-edge bounds and the 32 m path cap. Its lookup counter executes the bounded
+seed/candidate work; it does not count filter taps as ray steps. These local wave-normal
+references do not establish animated in-game wave appearance.
+
+The production liquid suite passes 44 cases, including 14 new UV cases for HDR/legacy output,
+full/half backgrounds, tilted/rotated interfaces, unavailable inputs, entry/exit/TIR and independently
+predicted approximate-path solar/point scattering. Legacy UV gradient checks retain the single
+display mapping. The other 87 checks cover the existing ray diagnostics, shared filter/reducer,
+publication/capture/lifecycle, transport/overlay and adjacent composition/boundary/liquid behavior.
+The initial 3 cm suppression fixture incorrectly assumed all taps survived its strongly tilted
+eligibility plane; the final isolation case keeps them physically eligible and directly checks UV.
+Hard foreground rejection remains separately tested. No production eligibility tolerance was
+weakened. Second source/document review covered formulas, provenance, fallback, TIR, shared
+composition, default selection and unchanged state/resource owners. The independent completion
+audit found no remaining scoped requirements. Headless numerical evidence
+does not establish live appearance or GPU cost; no game was launched.
+
 ## Optics and traversal
 
 The liquid shader uses its continuous animated water normal and the existing water IOR of 1.333. This is the current water material optical model, not a new configurable IOR property. Air entry uses an eta ratio of 1/1.333; underwater exit uses 1.333. Existing dielectric Fresnel handles total internal reflection. Reflection keeps the existing direct/environment response; scene reflections remain a separate task.
@@ -111,9 +192,9 @@ Accepted above-water paths apply the authored water absorption and constant-sour
 
 `liquids/transport.glsl` defines `VgeWaterReceiver`: validity, sampling provenance, unattenuated
 linear radiance, view-space position and refracted direction, submerged length in metres, and
-confidence. The current sampler reports only unavailable or ray-traced results. Confidence is
-independent of validity; later sampling methods must report their own provenance explicitly.
-`liquids/refraction.glsl` selects that receiver without evaluating lighting or display conversion.
+confidence. The samplers report unavailable, ray-traced or approximate UV results. Confidence is
+independent of validity and provenance.
+`liquids/refraction.glsl` and `liquids/uv_distortion.glsl` select receivers without evaluating lighting or display conversion.
 
 For accepted above-water rays, scattering compares the incoming photon direction (`-L`) with
 `transpose(mat3(modelViewMatrix)) * -refractedDirectionVS`. The trace travels from camera toward
