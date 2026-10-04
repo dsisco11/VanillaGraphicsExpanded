@@ -3,6 +3,7 @@
 out vec4 outColor;
 layout(location = 1) out vec4 outRefractionColor;
 layout(location = 2) out float outRefractionDepth;
+@import "./includes/liquids/receiver_publication.glsl"
 
 // ============================================================================
 // PBR Composite Pass
@@ -77,7 +78,7 @@ void main(void)
     // Sky and first-person visibility proxies cannot establish a refracted hit.
     if (vgePbrCompositeParams.fogFloats0.w > .5)
     {
-        outRefractionDepth = depth;
+        outRefractionDepth = 1.0;
         outRefractionColor = vec4(0);
     }
 
@@ -180,12 +181,20 @@ void main(void)
     if (vgePbrCompositeParams.fogFloats0.w > .5)
     {
         outRefractionColor = vec4(finalColor, texture(gBufferNormal, uv).a >= 0.0 ? 1.0 : 0.0);
+        outRefractionDepth = depth;
         // Restore both members of the clean pair only where first-person visibility replaced the world.
         // Optional missing captures bind the zero fallback and never establish a physical receiver.
         if (texture(gBufferNormal, uv).a < 0.0 && vgePbrCompositeParams.aoStrengths.z > .5)
         {
             outRefractionColor = texelFetch(preOverlayColor, ivec2(gl_FragCoord.xy), 0);
             outRefractionDepth = texelFetch(preOverlayDepth, ivec2(gl_FragCoord.xy), 0).r;
+        }
+        // Encode eligibility in existing depth storage, including restored overlay pixels.
+        // Geometry probes can then reject invalid radiance without reading the color image.
+        if (!VgeWaterReceiverPairValid(outRefractionColor, outRefractionDepth))
+        {
+            outRefractionColor = vec4(0);
+            outRefractionDepth = 1.0;
         }
     }
 

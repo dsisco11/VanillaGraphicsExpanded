@@ -34,6 +34,7 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         Assert.InRange(MathF.Abs(displacement - (expectedUv.X - .5f)),0,.00001f);
         Assert.Equal(1,result[0][0]); Assert.Equal(1,result[0][3]);
         Assert.InRange(MathF.Abs(result[2][0] - (5 + 2 * displacement)),0,.00002f);
+        Assert.Equal(new float[] { 8, 3, 0, 1 }, result[5]);
     }
 
     /// <summary>Snell displacement responds to actual projection and preserves HDR at either background resolution.</summary>
@@ -79,6 +80,9 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         Assert.InRange(MathF.Abs(result[4][3] - expectedUv.Y),0,.00002f);
         for (int channel = 0; channel < 3; channel++)
             Assert.InRange(MathF.Abs(result[3][channel] - direction[channel]),0,.00001f);
+        Assert.Equal(0, result[5][2]);
+        Assert.Equal(1, result[5][3]);
+        Assert.Equal(3, result[5][1]);
     }
 
     /// <summary>Physical Snell displacement naturally approaches zero with shallow receiver separation.</summary>
@@ -247,6 +251,7 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
             colors[offset + 2] = .5f; colors[offset + 3] = 1;
         }
         edit?.Invoke(colors,depths);
+        WaterReceiverTestInputs.EncodeDepthValidity(colors, depths);
         color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
         using var reducedColor = half ? DynamicTexture2D.Create(Width / 2,Height / 2,PixelInternalFormat.Rgba32f) : null;
         using var reducedDepth = half ? DynamicTexture2D.Create(Width / 2,Height / 2,PixelInternalFormat.Rgba32f) : null;
@@ -265,9 +270,9 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         inputs.FrameSize = new(Width,Height); inputs.Underwater = underwater ? 1 : 0;
         inputs.Color = reducedColor ?? color; inputs.Depth = reducedDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
-        return [target[0].ReadPixels(),target[1].ReadPixels(),target[2].ReadPixels(),target[3].ReadPixels(),target[4].ReadPixels()];
+        return [target[0].ReadPixels(),target[1].ReadPixels(),target[2].ReadPixels(),target[3].ReadPixels(),target[4].ReadPixels(),target[5].ReadPixels()];
     }
 
     #endregion

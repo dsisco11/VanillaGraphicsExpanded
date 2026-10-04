@@ -9,6 +9,11 @@ uniform int diagnosticQuality;
 uniform int diagnosticUnderwater;
 uniform mat4 projectionMatrix;
 uniform mat4 inverseProjectionMatrix;
+ivec4 receiverWork = ivec4(0);
+#define VGE_REFRACTION_DEPTH_FETCH() receiverWork.x++
+#define VGE_REFRACTION_COLOR_FETCH() receiverWork.y++
+#define VGE_REFRACTION_RADIANCE_BLEND() receiverWork.z++
+#define VGE_REFRACTION_TRIANGLE_BLEND() receiverWork.w++
 int diagnosticReason = 0;
 int diagnosticCount = 0;
 vec3 diagnosticSample = vec3(0);
@@ -28,6 +33,7 @@ layout(location=2) out vec4 transport;
 layout(location=3) out vec4 selection;
 layout(location=4) out vec4 receiverPosition;
 layout(location=5) out vec4 receiverRadiance;
+layout(location=6) out vec4 receiverOperations;
 
 /** Exposes rejection, receiver evaluation count, confidence, and selected optical geometry. */
 void main()
@@ -49,4 +55,5 @@ void main()
     selection = vec4(receiver.method, uvCount, uvSample);
     receiverPosition = vec4(receiver.positionVS, receiver.valid ? 1 : 0);
     receiverRadiance = vec4(receiver.radiance, 1);
+    receiverOperations = vec4(receiverWork);
 }

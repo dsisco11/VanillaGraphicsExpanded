@@ -3,6 +3,18 @@
 #ifndef VGE_REFRACTION_EVENT
 #define VGE_REFRACTION_EVENT(reason)
 #endif
+#ifndef VGE_REFRACTION_DEPTH_FETCH
+#define VGE_REFRACTION_DEPTH_FETCH()
+#endif
+#ifndef VGE_REFRACTION_COLOR_FETCH
+#define VGE_REFRACTION_COLOR_FETCH()
+#endif
+#ifndef VGE_REFRACTION_RADIANCE_BLEND
+#define VGE_REFRACTION_RADIANCE_BLEND()
+#endif
+#ifndef VGE_REFRACTION_TRIANGLE_BLEND
+#define VGE_REFRACTION_TRIANGLE_BLEND()
+#endif
 layout(binding = 9) uniform sampler2D vge_refractionColor;
 layout(binding = 10) uniform sampler2D vge_refractionDepth;
 
@@ -10,10 +22,11 @@ layout(binding = 10) uniform sampler2D vge_refractionDepth;
 struct VgeRefractionSupport
 {
     vec3 positionVS;
-    vec3 radiance;
+    vec4 tapWeights;
+    float weightSum;
     vec3 normalVS;
     vec3 tapPositions[4];
-    vec3 tapRadiances[4];
+    ivec2 tapPixels[4];
     ivec3 primaryTriangle;
     bool secondaryTriangle;
     float precisionMetres;
@@ -24,18 +37,18 @@ struct VgeRefractionSupport
 
 /** Reconstructs one physical source pixel, optionally requiring submerged receiver eligibility. */
 bool VgeRefractionTap(ivec2 pixel, vec3 surface, vec3 normalVS, mat4 inverseProjection, bool requireSubmerged,
-    out vec3 positionVS, out vec3 radiance, out float precisionMetres, out int rejection)
+    out vec3 positionVS, out float precisionMetres, out int rejection)
 {
     positionVS = vec3(0);
-    radiance = vec3(0);
     precisionMetres = .0005;
     rejection = 2;
     ivec2 size = textureSize(vge_refractionDepth, 0);
     if (any(lessThan(pixel, ivec2(0))) || any(greaterThanEqual(pixel, size))) return false;
+    VGE_REFRACTION_DEPTH_FETCH();
     vec4 depth = texelFetch(vge_refractionDepth, pixel, 0);
-    vec4 color = texelFetch(vge_refractionColor, pixel, 0);
-    if (isnan(depth.r) || isinf(depth.r) || depth.r <= 0.0 || depth.r >= .999999 || color.a < .5) return false;
-    if (any(isnan(color)) || any(isinf(color))) { rejection = 8; return false; }
+    if (isnan(depth.r) || isinf(depth.r) || depth.r <= 0.0 || depth.r >= .999999) return false;
+    // Publication encodes invalid color/coverage as depth 1. Geometry probes use
+    // that producer-validated metadata without loading radiance at every step.
     // Reduced texels retain the selected full-resolution UV; their cell center
     // is not the original ray and can move a silhouette through the water plane.
     // Production variants specialize the receiver convention together with the
@@ -59,7 +72,36 @@ bool VgeRefractionTap(ivec2 pixel, vec3 surface, vec3 normalVS, mat4 inverseProj
     precisionMetres = max(.0005, min(.02, 8.0 * 1.1920929e-7 * depthSensitivity));
     // A numerical separation guard must not discard centimetre-deep physical water.
     if (requireSubmerged && dot(positionVS - surface, normalVS) >= -.0005) { rejection = 4; return false; }
+    return true;
+}
+
+/** Fetches a selected color, failing closed if an incoherent pair violates publication validity. */
+bool VgeRefractionColor(ivec2 pixel, out vec3 radiance)
+{
+    VGE_REFRACTION_COLOR_FETCH();
+    vec4 color = texelFetch(vge_refractionColor, pixel, 0);
+    radiance = vec3(0);
+    if (color.a < .5 || any(isnan(color)) || any(isinf(color)))
+    { VGE_REFRACTION_EVENT(8); return false; }
     radiance = color.rgb;
+    return true;
+}
+
+/** Reconstructs selected radiance using the geometry filter's surviving weights and normalization. */
+bool VgeRefractionRadiance(VgeRefractionSupport support, out vec3 radiance)
+{
+    radiance = vec3(0);
+    for (int tap = 0; tap < 4; ++tap)
+    {
+        if (support.tapWeights[tap] > 0.0)
+        {
+            vec3 color;
+            if (!VgeRefractionColor(support.tapPixels[tap], color)) { radiance = vec3(0); return false; }
+            radiance += color * support.tapWeights[tap];
+        }
+    }
+    VGE_REFRACTION_RADIANCE_BLEND();
+    radiance /= support.weightSum;
     return true;
 }
 
@@ -84,8 +126,12 @@ bool VgeRefractionTriangle(vec3 point, VgeRefractionSupport support, ivec3 taps,
     vec3 represented = triangleOrigin * weights.x + support.tapPositions[taps.y] * weights.y
         + support.tapPositions[taps.z] * weights.z;
     if (length(point - represented) > support.precisionMetres) return false;
-    radiance = support.tapRadiances[taps.x] * weights.x
-        + support.tapRadiances[taps.y] * weights.y + support.tapRadiances[taps.z] * weights.z;
+    vec3 color0, color1, color2;
+    if (!VgeRefractionColor(support.tapPixels[taps.x], color0)
+        || !VgeRefractionColor(support.tapPixels[taps.y], color1)
+        || !VgeRefractionColor(support.tapPixels[taps.z], color2)) return false;
+    VGE_REFRACTION_TRIANGLE_BLEND();
+    radiance = color0 * weights.x + color1 * weights.y + color2 * weights.z;
     return true;
 }
 
@@ -105,24 +151,25 @@ bool VgeRefractionContinuousPlane(ivec2 footprintOrigin, int anchor, vec3 positi
     {
         ivec2 offset = ivec2(0);
         offset[axis] = corner[axis] == 0 ? -1 : 1;
-        vec3 neighbor, unusedRadiance;
+        vec3 neighbor;
         float neighborPrecision;
         int rejection;
         // Above-water geometry may establish continuity at a shore, but its color
         // never enters interpolation or authorizes a transmitted receiver.
         if (!VgeRefractionTap(footprintOrigin + corner + offset, surface, normalVS, inverseProjection, false,
-            neighbor, unusedRadiance, neighborPrecision, rejection)) return false;
+            neighbor, neighborPrecision, rejection)) return false;
         if (abs(dot(neighbor - positions[0], planeNormal)) > max(planePrecision, neighborPrecision)) return false;
     }
     return true;
 }
 
-/** Filters four spatial taps on one bounded depth layer, sharing weights between geometry and radiance. */
+/** Filters published geometry and retains source texel coordinates for selected radiance reconstruction. */
 bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inverseProjection,
     out VgeRefractionSupport support)
 {
     support.positionVS = vec3(0);
-    support.radiance = vec3(0);
+    support.tapWeights = vec4(0);
+    support.weightSum = 0.0;
     support.normalVS = vec3(0,0,1);
     support.precisionMetres = .001;
     support.depthToleranceMetres = .05;
@@ -138,7 +185,6 @@ bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inver
     ivec2 footprintOrigin = ivec2(floor(footprint));
     vec2 fraction = fract(footprint);
     vec3 positions[4];
-    vec3 colors[4];
     float precisions[4];
     float weights[4];
     bool eligible[4];
@@ -152,9 +198,9 @@ bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inver
         weights[tap] = spatial.x * spatial.y;
         int reason;
         eligible[tap] = VgeRefractionTap(footprintOrigin + offset, surface, normalVS,
-            inverseProjection, true, positions[tap], colors[tap], precisions[tap], reason);
+            inverseProjection, true, positions[tap], precisions[tap], reason);
         support.tapPositions[tap] = positions[tap];
-        support.tapRadiances[tap] = colors[tap];
+        support.tapPixels[tap] = footprintOrigin + offset;
         if (!eligible[tap])
         {
             if (weights[tap] > 0.0) rejection = reason;
@@ -196,12 +242,12 @@ bool VgeRefractionFilterSupport(vec2 uv, vec3 surface, vec3 normalVS, mat4 inver
     {
         if (!eligible[tap] || (!continuousSlope && abs(positions[tap].z - positions[anchor].z) > tolerance)) continue;
         support.positionVS += positions[tap] * weights[tap];
-        support.radiance += colors[tap] * weights[tap];
+        support.tapWeights[tap] = weights[tap];
         total += weights[tap];
         retained[count++] = tap;
     }
     support.positionVS /= total;
-    support.radiance /= total;
+    support.weightSum = total;
     support.precisionMetres = precisions[anchor];
     if (count >= 3)
     {
@@ -233,7 +279,7 @@ bool VgeRefractionFilter(vec2 uv, vec3 surface, vec3 normalVS, mat4 inverseProje
     VgeRefractionSupport support;
     bool valid = VgeRefractionFilterSupport(uv, surface, normalVS, inverseProjection, support);
     positionVS = support.positionVS;
-    radiance = support.radiance;
-    return valid;
+    radiance = vec3(0);
+    return valid && VgeRefractionRadiance(support, radiance);
 }
 #endif

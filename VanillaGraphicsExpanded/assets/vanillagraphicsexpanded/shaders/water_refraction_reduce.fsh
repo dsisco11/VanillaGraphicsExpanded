@@ -3,6 +3,7 @@ layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outDepth;
 uniform sampler2D sourceColor;
 uniform sampler2D sourceDepth;
+@import "./includes/liquids/receiver_publication.glsl"
 
 /** Selects the farthest supported opaque texel, preserving its exact radiance and reconstruction UV. */
 void main()
@@ -21,8 +22,7 @@ void main()
         if (any(greaterThanEqual(pixel, size))) continue;
         float depth = texelFetch(sourceDepth, pixel, 0).r;
         vec4 color = texelFetch(sourceColor, pixel, 0);
-        if (isnan(depth) || isinf(depth) || depth <= 0.0 || depth >= .999999
-            || any(isnan(color)) || any(isinf(color)) || color.a < .5 || depth <= selected) continue;
+        if (!VgeWaterReceiverPairValid(color, depth) || depth <= selected) continue;
         selected = depth;
         outColor = color;
         outDepth = vec4(depth, (vec2(pixel) + .5) / vec2(size), 1.0);

@@ -86,19 +86,37 @@ Phase 2 — Supply inverse projection once per frame
   Live performance and optimized Release validation were not measured by this Debug run.
 
 Phase 3 — Separate receiver geometry search from radiance reconstruction
-  ☐ Audit the receiver validity contract before deferring color samples.
+  ☑ Audit the receiver validity contract before deferring color samples.
     - Color alpha currently carries receiver validity; preserve that information during search.
     - Reuse existing depth/source metadata where valid. If a representation change is needed,
       document its producer/consumer contract and costs before implementing it.
-  ☐ Avoid loading/interpolating radiance for intermediate receiver probes where validity permits.
+  ☑ Avoid loading/interpolating radiance for intermediate receiver probes where validity permits.
     - Retain required depth taps, bilateral layer rejection, source positions, precision bounds,
       slope/plane validation and supported-triangle tests.
     - Reconstruct accepted receiver radiance with the same spatial weights and supported coverage.
     - Preserve UV fallback and full/half source-coordinate semantics.
-  ☐ Verify invalid color/depth coverage, foreground occluders, shallow shores, steep walls and edges.
+  ☑ Verify invalid color/depth coverage, foreground occluders, shallow shores, steep walls and edges.
     - Compare actual sample work and rendering against the prior implementation using focused cases.
   Completion: intermediate radiance work is reduced without weakening receiver validation or
   changing accepted shading. Record bounds separately from measured GPU savings.
+  Revised 2026-10-04: publication encodes physical coverage and finite RGBA16F color eligibility
+  in the existing depth sentinel, after pre-overlay restoration. Reduction retains source UV.
+  Search and continuity checks now read depth only; accepted triangles read three colors, while
+  selected spatial reconstruction reads at most four. Invalid final colors still fail closed.
+  No new textures, attachment storage or draws; payload stores integer coordinates instead of RGB.
+  Fresh isolated Debug build passed; 300/300 focused GPU tests passed, zero failures or skips.
+  Actual composite/reducer publication, storage limits, malformed pairs, ray/UV sample counts,
+  full/half composition and moving shallow continuity passed. Second review and independent
+  completion audit passed.
+  The matched optimized comparison compiled 40 baseline and 40 current shaders with the same -O.
+  Liquid modules grew from 54,634 to 58,564 static instructions; composite modules grew from
+  8,747 to 9,251 with unchanged texture-read instructions. Reduced dynamic search reads do not
+  prove a net GPU speedup: final-selection code expands and publication gains validation work.
+  See artifacts/WaterLagAnalysis/depth-search-build.log, depth-search-tests.log/.trx and
+  depth-search-optimized.csv;
+  producer/consumer contracts and sampling bounds are documented in PBR.WaterRefraction.md.
+  Prior receiver-radiance-tests.log/.trx (322/322) covers the superseded interpolation-only
+  implementation, not this revised publication contract. Live GPU savings remain unmeasured.
 
 Phase 4 — Reuse the trace seed in UV fallback
   ☐ Pass the already evaluated interface seed into fallback through the shared receiver contract.

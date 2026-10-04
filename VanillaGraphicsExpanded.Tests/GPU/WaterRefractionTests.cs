@@ -148,11 +148,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture) : RenderTest
         depth.UploadDataImmediate(Enumerable.Repeat(deviceDepth, frameSize * frameSize).ToArray());
         using var sceneColor = DynamicTexture2D.Create(frameSize, frameSize, PixelInternalFormat.Rgba32f);
         using var sceneDepth = DynamicTexture2D.Create(frameSize, frameSize, PixelInternalFormat.R32f);
-        sceneColor.UploadDataImmediate(Enumerable.Range(0, frameSize * frameSize).SelectMany(pixel => scenario == 9
+        var sceneColors = Enumerable.Range(0, frameSize * frameSize).SelectMany(pixel => scenario == 9
             ? new float[] { 1f + (pixel % 16) * .2f, .2f, .1f, 1f }
-            : new float[] { 4f, 2f, 1f, scenario == 3 ? 0f : 1f }).ToArray());
+            : new float[] { 4f, 2f, 1f, scenario == 3 ? 0f : 1f }).ToArray();
+        sceneColor.UploadDataImmediate(sceneColors);
         var sceneDepthValues = Enumerable.Repeat(scenario == 4 ? float.NaN : deviceDepth, frameSize * frameSize).ToArray();
         if (scenario == 10) sceneDepthValues[8 * 16 + 9] = .5f * (1 + (far + near - 2 * far * near) / (far - near));
+        WaterReceiverTestInputs.EncodeDepthValidity(sceneColors, sceneDepthValues);
         sceneDepth.UploadDataImmediate(sceneDepthValues);
         if (scatteringSource != 0)
             sceneColor.UploadDataImmediate(Enumerable.Range(0, frameSize * frameSize).SelectMany(_ => new float[] { 0, 0, 0, 1 }).ToArray());

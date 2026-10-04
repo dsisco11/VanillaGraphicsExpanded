@@ -19,6 +19,56 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
     public PbrCompositeHdrTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Scene-linear composition
+    /// <summary>Actual composite publication encodes only finite representable physical pairs, including restored overlay data.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReceiverPublicationEncodesColorValidityInDepth(bool restoredOverlay)
+    {
+        EnsureShaderTestAvailable();
+        var program = Programs.Create<PBRCompositeShaderProgram>(p =>
+        {
+            p.LumOnEnabled = false; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
+        });
+        const int count = 10;
+        float[] red = [6, 65504, 65520, float.PositiveInfinity, 6, 6, 6, 6, 6, restoredOverlay ? float.NaN : 0];
+        float[] alpha = [1, 1, 1, 1, 0, float.NaN, float.PositiveInfinity, 1, 1, 1];
+        float[] receiverDepth = [.75f, .75f, .75f, .75f, .75f, .75f, .75f, 1, float.NaN, .75f];
+        float[] colorData = Enumerable.Range(0, count).SelectMany(i => new[] { red[i], 3f, 2f, alpha[i] }).ToArray();
+        using var color = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f, colorData);
+        using var zero = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f, new float[count * 4]);
+        using var depth = TestFramework.CreateTexture(count, 1, PixelInternalFormat.R32f,
+            restoredOverlay ? Enumerable.Repeat(.01f, count).ToArray() : receiverDepth);
+        using var restoredDepth = TestFramework.CreateTexture(count, 1, PixelInternalFormat.R32f, receiverDepth);
+        using var normal = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f,
+            Enumerable.Range(0, count).SelectMany(i => new[] { .5f, .5f, 1f, restoredOverlay || i == 4 ? -1f : 1f }).ToArray());
+        using var position = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f,
+            Enumerable.Range(0, count).SelectMany(_ => new[] { 0f, 0f, -2f, 1f }).ToArray());
+        using var output = CreateMRTRenderTarget(count, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
+        program.DirectDiffuse = color; program.DirectSpecular = zero; program.Emissive = zero;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero.TextureId; program.GBufferMaterial = zero;
+        program.GBufferNormal = normal; program.GBufferPosition = position.TextureId; program.GBufferEnvironment = zero;
+        program.PrimaryDepth = depth.TextureId;
+        program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        program.SetAtmosphere(null); program.SetWaterVolume(null); program.SetUnderwater(false);
+        program.RefractionSourceEnabled = true;
+        program.PreOverlaySourceEnabled = restoredOverlay;
+        program.PreOverlayColor = color; program.PreOverlayDepth = restoredDepth;
+        TestFramework.RenderQuadTo(program, output);
+        float[] publishedColor = output[1].ReadPixels(), publishedDepth = output[2].ReadPixels();
+        for (int pixel = 0; pixel < count; pixel++)
+        {
+            // Ordinary publication generates alpha from physical coverage. The
+            // restored pair must additionally reject its authored alpha/RGB defects.
+            bool valid = pixel is 0 or 1 || (!restoredOverlay && pixel is 5 or 6 or 9);
+            Assert.Equal(valid ? .75f : 1f, publishedDepth[pixel]);
+            Assert.Equal(valid ? 1f : 0f, publishedColor[pixel * 4 + 3]);
+            Assert.All(publishedColor.AsSpan(pixel * 4, 4).ToArray(), value => Assert.True(float.IsFinite(value)));
+            Assert.Equal(valid ? red[pixel] : 0, publishedColor[pixel * 4]);
+        }
+    }
+
     /// <summary>Radiance remains linear through composition, physical aerial transport, enclosure gating and decoded engine fog.</summary>
     [Theory]
     [InlineData(0f, false, 1f, false)]

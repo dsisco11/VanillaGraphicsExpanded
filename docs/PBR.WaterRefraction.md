@@ -68,12 +68,52 @@ form inside a four-tap footprint. Missing or inconsistent evidence keeps the ord
 Verification may use opaque geometry above the water interface at a shoreline, but those
 extra samples never supply receiver radiance, interpolation weights or intersection coverage.
 Color and
-reconstructed position use exactly the same surviving normalized weights. Unsupported taps
+reconstructed position use exactly the same surviving weights and normalization. Unsupported taps
 never contribute color; no surviving taps reports unavailable coverage. This replaces the
 previous nearest lookup and blanket adjacent-foreground veto. Small unresolved geometric
 features within the chosen tolerance remain an approximation of the represented depth field.
 Projection still uses the full camera matrix; lookup offsets and bounds use background dimensions.
 The sampler is independent of traversal and is the common receiver entry point for future tiers.
+
+The producer encodes eligibility in the existing depth image: `1` is unavailable, while a
+finite value strictly between zero and `.999999` promises physical coverage, alpha at least
+`.5`, and finite RGBA representable in RGBA16F. `receiver_publication.glsl` validates the pair,
+including the absolute 65504 half-float limit before storage. The composite applies this after
+restoring any pre-overlay pair; sky, unsupported overlays and invalid radiance publish zero
+color and sentinel depth. Reduction validates the pair before selecting its source and retains
+the existing original-UV and validity metadata. Formats, attachment sizes and draw count do
+not change. This moves repeated eligibility work to the producer, rather than allocating a
+separate validity image or trusting hardware depth from an unvalidated source.
+
+Ray probes and independent continuity neighbors read only depth. Support retains geometry,
+spatial weights and integer source texel coordinates instead of four RGB values. A confirmed
+triangle fetches its three colors after geometric acceptance. UV selection chooses its geometry
+first, then uses that triangle result or fetches at most four positive-weight colors for the
+selected spatial fallback. Reconstruction retains tap order and sum-then-divide normalization;
+there is no geometry refilter. Final color reads still fail closed on invalid alpha or nonfinite
+RGBA if a caller violates the coherent publication contract. Such malformed pairs are not
+supported geometry inputs and cannot rely on per-tap rejection during the earlier search.
+Replacing four `vec3` colors with four `ivec2` coordinates removes four scalar payload elements
+relative to the preceding implementation; actual register allocation still depends on compilation.
+
+The earlier 322-test receipt in `artifacts/WaterLagAnalysis/receiver-radiance-tests.log/.trx`
+validated deferred interpolation while still reading eligibility color during search. It does
+not validate this revised publication contract. The revised implementation passed a fresh
+isolated Debug build and 300/300 focused GPU checks, with zero failures or skips, recorded in
+`artifacts/WaterLagAnalysis/depth-search-build.log` and `depth-search-tests.log/.trx`.
+Actual composite draws verify ordinary and restored-overlay validity in RGBA16F/R32F targets;
+reduction tests check the 65504/65520 storage boundary. Receiver tests check malformed pairs,
+full/half reconstruction, ray/UV selection and moving shallow continuity. Instrumented cases
+verify zero color reads during unsuccessful search and three for selected triangles.
+The matched compiler comparison uses the same pinned compiler and `-O` for both saved
+baseline and current sources (`artifacts/WaterLagAnalysis/depth-search-optimized.csv`).
+Across 32 liquid variants, static instructions increase from 54,634 to 58,564, module bytes
+from 985,920 to 1,045,160, and static image-fetch instructions from 136 to 204. Across eight
+composite variants, instructions increase from 8,747 to 9,251 while image-fetch instructions
+remain 56. These are aggregate module counts, not instructions or fetches executed per pixel:
+moving color fetches into final reconstruction reduces repeated search reads but expands
+compiled final-selection paths, and publication adds validity checks. Register allocation,
+GPU timing and net in-game performance remain unmeasured.
 
 The existing shader library owns the reduction executable and reload lifecycle. Reduction uses
 the composite pipeline description, framebuffer/binding restoration and program `UseScope`.
@@ -86,12 +126,12 @@ retain 12 bytes per full pixel. Half backgrounds add 24 bytes per reduced pixel 
 storage, about 11.9 MiB extra at 1920x1080 (about 35.6 MiB total final snapshot storage).
 Existing pre-overlay storage remains independently required. Half publication adds one fullscreen
 draw, at most four paired full-source taps and two output writes per reduced pixel. Each receiver
-evaluation interpolates four paired color/depth taps (eight fetches). A steep, fully eligible,
-coplanar footprint may additionally fetch two paired source neighbors to verify continuity;
-the maximum is six paired taps (twelve fetches). This does not add ray-position evaluations
-or a final unfiltered color read. Nominal format traffic is up to 72 bytes per full-resolution
-lookup or 144 bytes per reduced lookup, excluding caching and compression. Reduced lookup working sets
-do not establish a net speed or memory improvement; timing remains user-run acceptance work.
+evaluation reads four depth taps, plus at most two depth-only continuity neighbors on a steep
+coplanar footprint. Only selected radiance adds three triangle-color reads or up to four spatial
+color reads. Six depth taps correspond to 24 bytes at full resolution or 96 bytes at half
+resolution; selected color adds 24 or 32 bytes. These are nominal format counts excluding caches
+and compression, not measured bandwidth. Reduced working sets do not establish a net speed or
+memory improvement; timing remains user-run acceptance work.
 
 Traceability: coherent capture/reduction and lifecycle follow the Water quality and receiver
 contract below and `PBR.Liquids.md` ownership boundary; filtering follows the bilateral and
@@ -175,11 +215,12 @@ receiver before any background lookup. Fresnel and HDR/legacy adaptation remain 
 shared liquid consumer; no second display conversion or opaque attenuation is introduced.
 
 The sampler performs no iterative ray evaluations and at most two filtered UV lookups:
-one seed and one candidate. Each interpolates four paired color/depth taps, with at most two
-additional paired continuity checks on a steep footprint. A reduced candidate can additionally
+one seed and one candidate. Each reads four depth taps, with at most two
+additional depth-only continuity checks on a steep footprint. A reduced candidate can additionally
 fetch at most three missing neighbors to correct original-source coverage, giving at most
-30 texture fetches in total (24 without that correction, 16 without either extra check).
-A missing seed cannot meet the continuity preconditions and uses at most eight; TIR uses zero. The small fixed filter
+15 depth reads plus at most four selected-color reads in total (16 total without that correction,
+12 without either extra check). A missing seed cannot meet the continuity preconditions and uses
+at most four depth reads and no color; TIR uses zero. The small fixed filter
 loops are sampling work, not ray traversal. No new screen targets or draw calls are required.
 Quality and background resolution specialize fragment binaries through the existing offline
 shader-option pipeline. These are source bounds, not GPU timings or speedup measurements.
@@ -287,11 +328,11 @@ still change receiver selection: screen-space data cannot establish arbitrary of
 receivers, missing transparent layers, hidden topology or all subpixel thin geometry. No temporal
 history or universal receiver/motion-continuity guarantee is introduced.
 
-Maximum texture-fetch bounds, separately from ray evaluations, are 96/48/24 for x8/x4/x2,
-including up to two paired steep-continuity checks per evaluation. Two UV fallback lookups
-add at most 30 fetches, including reduced-footprint neighbor recovery. UV-only uses at most
-30; TIR uses zero. These bounds include paired color/depth taps; cached analytic interpolation
-performs no additional fetches.
+Maximum depth-fetch bounds, separately from ray evaluations, are 48/24/12 for x8/x4/x2,
+including up to two depth-only steep-continuity checks per evaluation. A successful ray adds
+three selected-color reads. Exhausted rays fetch no color before UV fallback, which adds at
+most 19 fetches including reduced-footprint neighbor recovery and selected radiance. UV-only
+uses at most 19; TIR uses zero. These bounds assume the coherent producer-validated pair.
 They are source work bounds, not measured GPU timings or proof of a faster frame.
 
 Traceability: bounded traversal, confidence-loss reproductions and reference comparisons follow
@@ -461,8 +502,8 @@ Shared water-volume, atmosphere and HDR scene resources remain independently own
 The x8/x4/x2 limits count **all ray-position receiver-depth evaluations**, including refinement and
 any final revalidation. Cached results can be reused, but the old five refinements and final lookup
 cannot be added outside that ceiling. Historical tracing performed up to 38 receiver evaluations;
-the replacement performs at most 8/4/2, each interpolating four paired color/depth taps and
-conditionally validating two additional neighbors (up to twelve fetches).
+the replacement performs at most 8/4/2, each validating four depth taps and
+conditionally validating two additional depth neighbors (up to six fetches).
 The former adjacent-depth loop and hidden refinements are removed. Texture taps are not ray steps.
 Record those taps and bounded UV fallback
 work separately; the UV tier performs no iterative ray traversal. The 32-metre current extent is

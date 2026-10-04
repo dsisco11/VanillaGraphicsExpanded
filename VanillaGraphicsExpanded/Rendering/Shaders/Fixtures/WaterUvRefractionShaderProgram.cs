@@ -3,7 +3,7 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 
 /// <summary>Executes the production UV receiver through the established precompiled fixture catalog.</summary>
-[ShaderProgram("Contract", "tests/water_uv_refraction", 2)]
+[ShaderProgram("Contract", "tests/water_uv_refraction", 3)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "tests/GpuFramebufferBlendStateIntegrationTests_1.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "tests/water_uv_refraction.fsh")]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]

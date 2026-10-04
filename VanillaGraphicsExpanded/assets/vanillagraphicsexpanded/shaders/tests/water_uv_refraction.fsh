@@ -5,6 +5,11 @@ uniform mat4 projectionMatrix;
 uniform mat4 inverseProjectionMatrix;
 uniform vec2 frameSize;
 uniform int underwater;
+ivec4 receiverWork = ivec4(0);
+#define VGE_REFRACTION_DEPTH_FETCH() receiverWork.x++
+#define VGE_REFRACTION_COLOR_FETCH() receiverWork.y++
+#define VGE_REFRACTION_RADIANCE_BLEND() receiverWork.z++
+#define VGE_REFRACTION_TRIANGLE_BLEND() receiverWork.w++
 int uvLookups = 0;
 vec2 firstUv = vec2(0), lastUv = vec2(0);
 #define VGE_REFRACTION_UV_SAMPLE(uv) if (uvLookups == 0) firstUv = uv; lastUv = uv; uvLookups++
@@ -15,6 +20,7 @@ layout(location=1) out vec4 receiverPosition;
 layout(location=2) out vec4 receiverRadiance;
 layout(location=3) out vec4 refractedDirection;
 layout(location=4) out vec4 sampleCoordinates;
+layout(location=5) out vec4 receiverOperations;
 
 /** Exposes the unmodified approximate receiver and its water transport inputs. */
 void main()
@@ -25,4 +31,5 @@ void main()
     receiverRadiance = vec4(receiver.radiance, 1);
     refractedDirection = vec4(receiver.refractedDirectionVS, uvLookups);
     sampleCoordinates = vec4(firstUv, lastUv);
+    receiverOperations = vec4(receiverWork);
 }

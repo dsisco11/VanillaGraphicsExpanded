@@ -21,7 +21,7 @@ bool VgeWaterUvTriangle(vec3 cameraRay, VgeRefractionSupport support, ivec3 taps
     out vec3 positionVS, out vec3 radiance)
 {
     positionVS = support.positionVS;
-    radiance = support.radiance;
+    radiance = vec3(0);
     vec3 triangleOrigin = support.tapPositions[taps.x];
     vec3 triangleNormal = cross(support.tapPositions[taps.y] - triangleOrigin,
         support.tapPositions[taps.z] - triangleOrigin);
@@ -42,7 +42,7 @@ bool VgeWaterUvPatch(vec2 sampleUv, mat4 inverseProjection, VgeRefractionSupport
     out vec3 positionVS, out vec3 radiance)
 {
     positionVS = support.positionVS;
-    radiance = support.radiance;
+    radiance = vec3(0);
     if (!support.triangular) return false;
     vec3 cameraRay = (inverseProjection * vec4(sampleUv * 2.0 - 1.0, -1.0, 1.0)).xyz;
     // Original half-resolution source UVs need not sit at reduced cell centers.
@@ -57,7 +57,7 @@ bool VgeWaterUvAdjacentPatch(vec2 sampleUv, vec3 surface, vec3 normalVS, mat4 in
     VgeRefractionSupport support, out vec3 positionVS, out vec3 radiance)
 {
     positionVS = support.positionVS;
-    radiance = support.radiance;
+    radiance = vec3(0);
     if (!support.secondaryTriangle) return false;
     vec2 sourceUvs[4];
     for (int tap = 0; tap < 4; ++tap)
@@ -90,14 +90,14 @@ bool VgeWaterUvAdjacentPatch(vec2 sampleUv, vec3 surface, vec3 normalVS, mat4 in
         {
             int previousTap = previousOffset.y * 2 + previousOffset.x;
             adjacent.tapPositions[tap] = support.tapPositions[previousTap];
-            adjacent.tapRadiances[tap] = support.tapRadiances[previousTap];
+            adjacent.tapPixels[tap] = support.tapPixels[previousTap];
             continue;
         }
-        vec3 neighbor, neighborRadiance;
+        vec3 neighbor;
         float neighborPrecision;
         int rejection;
         if (!VgeRefractionTap(footprintOrigin + previousOffset, surface, normalVS, inverseProjection, true,
-            neighbor, neighborRadiance, neighborPrecision, rejection)) return false;
+            neighbor, neighborPrecision, rejection)) return false;
         // A shifted footprint must remain on the represented layer. Steep planar
         // continuation uses geometric residual; unrelated depth steps stay rejected.
         bool depthCompatible = abs(neighbor.z - support.positionVS.z) <= support.depthToleranceMetres;
@@ -105,7 +105,7 @@ bool VgeWaterUvAdjacentPatch(vec2 sampleUv, vec3 surface, vec3 normalVS, mat4 in
             <= max(support.precisionMetres, neighborPrecision);
         if (!depthCompatible && !planeCompatible) return false;
         adjacent.tapPositions[tap] = neighbor;
-        adjacent.tapRadiances[tap] = neighborRadiance;
+        adjacent.tapPixels[tap] = footprintOrigin + previousOffset;
         adjacent.precisionMetres = max(adjacent.precisionMetres, neighborPrecision);
     }
     adjacent.primaryTriangle = ivec3(0,1,2);
@@ -146,7 +146,8 @@ VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwat
     // Snell displacement already shrinks with physical separation. An additional
     // shallow-water ramp would abruptly erase it whenever x2 exhausts into UV.
     vec3 selectedPosition = seed.positionVS;
-    vec3 selectedRadiance = seed.radiance;
+    vec3 selectedRadiance = vec3(0);
+    bool corrected = false;
     vec2 projectedUv;
     if (VgeWaterUvProject(surface + direction * estimate, projectedUv))
     {
@@ -162,7 +163,8 @@ VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwat
         if (VgeRefractionFilterSupport(projectedUv, surface, normalVS, inverseProjection, candidate))
         {
             selectedPosition = candidate.positionVS;
-            selectedRadiance = candidate.radiance;
+            // The seed is no longer needed once the candidate is eligible.
+            seed = candidate;
             vec3 correctedPosition, correctedRadiance;
             if (VgeWaterUvPatch(projectedUv, inverseProjection, candidate, correctedPosition, correctedRadiance)
                 || (reduced && VgeWaterUvAdjacentPatch(projectedUv, surface, normalVS, inverseProjection,
@@ -170,9 +172,13 @@ VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwat
             {
                 selectedPosition = correctedPosition;
                 selectedRadiance = correctedRadiance;
+                corrected = true;
             }
         }
     }
+    // Geometry-only proposals never interpolate discarded radiance. Reuse the
+    // accepted triangle's color, or reconstruct only the selected spatial fallback.
+    if (!corrected && !VgeRefractionRadiance(seed, selectedRadiance)) return result;
     // This is a one-interface planar approximation, not a confirmed intersection.
     // Underwater the camera-to-interface segment is water; the sampled exit is air.
     float pathLength = underwater ? length(surface)

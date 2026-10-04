@@ -58,7 +58,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.FrameSize = new(Size); inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f);
         int switches = 0, rayCount = 0, uvCount = 0, previousMethod = 0;
         Vector3 previousPosition = default, previousReference = default, previousColor = default;
         float maximumPositionError = 0, maximumColorError = 0;
@@ -72,6 +73,11 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
             Assert.Equal(1,decision[0]); Assert.Equal(1,decision[3]);
             Assert.InRange(decision[2],0,2); Assert.InRange(selection[1],0,2);
             int method = (int)selection[0];
+            float[] work = target[6].ReadPixels();
+            Assert.InRange(work[1], 0, work[0]);
+            Assert.Equal(1, work[2] + work[3]);
+            Assert.InRange(work[1], 1, 4);
+            if (method == 1) Assert.Equal(0, work[2]);
             if (method == 1) rayCount++; else { Assert.Equal(2,method); uvCount++; }
             Vector3 position = new(receiver[0],receiver[1],receiver[2]);
             Vector3 rgb = new(radiance[0],radiance[1],radiance[2]);

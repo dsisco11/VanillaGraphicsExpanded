@@ -11,6 +11,29 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Reduction rejects float32 radiance that cannot survive its RGBA16F destination.</summary>
+    [Theory]
+    [InlineData(65504f, true)]
+    [InlineData(65520f, false)]
+    public void ReductionPreservesHalfFloatRepresentability(float radiance, bool accepted)
+    {
+        EnsureShaderTestAvailable();
+        using var color = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+        using var depth = DynamicTexture2D.Create(2, 2, PixelInternalFormat.R32f);
+        color.UploadDataImmediate([8,2,1,1, 8,2,1,1, 8,2,1,1, radiance,2,1,1]);
+        depth.UploadDataImmediate([.25f,.25f,.25f,.75f]);
+        var program = Programs.Create<WaterRefractionReductionShaderProgram>();
+        program.SourceColor = color; program.SourceDepth = depth;
+        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba32f);
+        TestFramework.RenderQuadTo(program, target);
+        float[] selected = target[0].ReadPixels(), provenance = target[1].ReadPixels();
+        Assert.Equal(accepted ? radiance : 8, selected[0]);
+        Assert.Equal(accepted ? .75f : .25f, provenance[0]);
+        Assert.Equal(1, selected[3]);
+        Assert.Equal(1, provenance[3]);
+        Assert.All(selected, value => Assert.True(float.IsFinite(value)));
+    }
+
     /// <summary>Each reduced footprint selects the farthest eligible receiver, including incomplete odd edges.</summary>
     [Theory]
     [InlineData(2, 2, false)]

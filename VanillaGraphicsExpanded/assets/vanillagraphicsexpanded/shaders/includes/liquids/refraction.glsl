@@ -54,7 +54,7 @@ bool VgeRefractionPatchHit(vec3 surface, vec3 direction,
     VgeRefractionSupport support, out float hitDistance, out vec3 radiance)
 {
     hitDistance = 0.0;
-    radiance = support.radiance;
+    radiance = vec3(0);
     // Matching only filtered axial depth would associate a different ray position
     // with this color on a slope. Sparse/nonplanar geometry guides further probes
     // but cannot prove a geometric intersection; validated UV fallback owns it.

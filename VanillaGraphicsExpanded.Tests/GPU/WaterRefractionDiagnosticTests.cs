@@ -51,8 +51,10 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
                     depths[y * size + x] = DeviceDepth(x < 69 ? 20 : 3);
         using var depth = DynamicTexture2D.Create(size, size, PixelInternalFormat.R32f);
         using var color = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
+        var colors = Enumerable.Range(0, size * size).SelectMany(_ => new[] { 4f, 2f, 1f, scenario == 9 ? 0f : 1f }).ToArray();
+        WaterReceiverTestInputs.EncodeDepthValidity(colors, depths);
         depth.UploadDataImmediate(depths);
-        color.UploadDataImmediate(Enumerable.Range(0, size * size).SelectMany(_ => new[] { 4f, 2f, 1f, scenario == 9 ? 0f : 1f }).ToArray());
+        color.UploadDataImmediate(colors);
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         inputs.Scenario = scenario;
@@ -74,7 +76,9 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             TestFramework.RenderQuadTo(reduction,reduced!);
             inputs.Color = halfColor!; inputs.Depth = halfDepth!;
         }
-        using var target = CreateMRTRenderTarget(size, size, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(size, size, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         int[] columns = scenario == 6 ? [1, 3, 6, 12, 32, 64] : [64];
         foreach (int x in columns)
@@ -82,6 +86,15 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             float[] decision = target[0].ReadPixelsRegion(x, 64, 1, 1);
             float[] sampled = target[1].ReadPixelsRegion(x, 64, 1, 1);
             float[] transport = target[2].ReadPixelsRegion(x, 64, 1, 1);
+            float[] work = target[6].ReadPixelsRegion(x, 64, 1, 1);
+            // Published depth alone supplies search eligibility. Only a final
+            // accepted triangle may fetch its three associated radiance samples.
+            Assert.Equal(0, work[2]);
+            Assert.Equal(decision[0], work[3]);
+            Assert.Equal(decision[0] * 3, work[1]);
+            Assert.InRange(work[1], 0, work[0]);
+            Assert.InRange(work[0], 0, decision[2] * 6);
+            if (scenario == 4) Assert.Equal(0, work[1]);
             output.WriteLine($"{label} x={x}: hit/reason/evaluations/confidence=[{string.Join(",", decision)}]; uv/depth=[{string.Join(",", sampled)}]; length/directionZ/fallback/receiverZ=[{string.Join(",", transport)}]");
             Assert.All(decision.Concat(sampled).Concat(transport), value => Assert.True(float.IsFinite(value)));
             Assert.InRange(decision[2], 0, budget);
@@ -89,7 +102,12 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             if (scenario is 0 or 1 or 2 or 7) Assert.Equal(1, decision[0]);
             if (scenario == 3) { Assert.Equal(1, decision[0]); Assert.Equal(0, decision[1]); }
             if (scenario is 4 or 9) Assert.Equal(2, decision[1]);
-            if (scenario == 5) Assert.Equal(9, decision[1]);
+            if (scenario == 5)
+            {
+                Assert.Equal(9, decision[1]);
+                Assert.Equal(budget, decision[2]);
+                Assert.Equal(0, work[2] + work[3]);
+            }
             if (scenario == 6)
             {
                 Assert.Equal(1, decision[0]);
