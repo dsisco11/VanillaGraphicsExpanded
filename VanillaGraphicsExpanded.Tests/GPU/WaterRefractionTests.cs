@@ -314,6 +314,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             vao.AttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
             vao.AttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
         }
+        float validationSky = 1;
         program.RefractionEnabled = false;
         target.Clear(0, 0, 0, 0);
         DrawBoundary(2, true);
@@ -435,6 +436,25 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             for (int attachment = 0; attachment < 6; attachment++)
                 output.WriteLine($"surface-mrt index={attachment} center={string.Join(',',target[attachment].ReadPixelsRegion(center,center,1,1))}");
         }
+        if (Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_AERIAL") == "1")
+        {
+            // The normal scenario assertions run first. This optional comparison
+            // then records actual production outputs with nonzero atmospheric LUTs.
+            program.AerialParameters = new(100,100,scenario is >= 6 and <= 8 ? 1 : 0,0);
+            aerial.UploadDataImmediate([.05f,.1f,.2f,.1f],0,0,0,1,1,1,0);
+            foreach (float sky in new[] { 0f,.4f,1f })
+            foreach (bool enabled in new[] { false,true })
+            {
+                validationSky = sky; program.RefractionEnabled = enabled;
+                target.Clear(0,0,0,0); DrawBoundary(2,true);
+                for (int attachment = 0; attachment < 6; attachment++)
+                {
+                    float[] values = target[attachment].ReadPixelsRegion(center,center,1,1);
+                    Assert.All(values,value => Assert.True(float.IsFinite(value)));
+                    output.WriteLine($"aerial-output scenario={scenario} quality={refractionQuality} source={scatteringSource} compatibility={compatibility} sky={sky:R} enabled={enabled} mrt={attachment} values={string.Join(',',values.Select(value => value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)))}");
+                }
+            }
+        }
         if (measure)
         {
             Assert.Equal(1,backgroundScale);
@@ -518,7 +538,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                     data[offset + 3] = data[offset + 4] = .4375f;
                     data[offset + 9] = .25f / 5.5f;
                 }
-                data[offset + 8] = 1;
+                data[offset + 8] = validationSky;
                 packed[vertex * 3] = (7 << 22) | (entry ? 0 : 1 << 21);
                 packed[vertex * 3 + 2] = compatibility == LavaCase ? 1 << 27
                     : compatibility is FullAlphaCase or FlowCase ? 1 << 30 : 0;

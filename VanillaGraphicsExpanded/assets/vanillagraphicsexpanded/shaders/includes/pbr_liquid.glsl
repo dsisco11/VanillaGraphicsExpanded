@@ -122,9 +122,6 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
             vec3 transmittedBackground = VgeWaterTransport(medium, receiver.submergedLength,
                 refractedBackground, refractedSource);
             refractedRadiance = reflected + (1.0 - fresnel) * clamp(material.a, 0.0, 1.0) * transmittedBackground;
-            if (!underwater)
-                refractedRadiance = VgeApplyAerial(refractedRadiance, toWorld * vge_viewPosition, vge_skyVisibility,
-                    vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
         }
         if (needsFallback)
         {
@@ -144,12 +141,15 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
         // Milk/dyes/oil and emissive lava retain distinct opaque body response; no water absorption is inferred.
         radiance = reflected + diffuse + tint * bodyLight + tint * max(emission, 0.0);
     }
-    if (needsFallback && !underwater)
-        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility,
-            vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
     // Fade premultiplied color and coverage together. The residual original background
     // is exactly (1-confidence)*(1-fallbackAlpha), rather than adding it to a complete refracted source.
     vec4 combined = VgeWaterCompose(radiance, alpha, refractedRadiance, receiver.confidence);
+    // The shared camera segment is affine in radiance (T * color + S).
+    // Composing coverage first weights S by the combined alpha exactly once,
+    // including partial-confidence fallback. Underwater exit air stays above.
+    if (!underwater)
+        combined.rgb = VgeApplyAerial(combined.rgb, toWorld * vge_viewPosition, vge_skyVisibility,
+            vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
     // Display adaptation is an output boundary, never part of the optical interpolation.
     return vec4(VgeSceneOutput(combined.rgb, gl_FragCoord.xy, liquidMediumControl.w > .5), combined.a);
 }

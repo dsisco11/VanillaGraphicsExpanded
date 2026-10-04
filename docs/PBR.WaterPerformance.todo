@@ -242,18 +242,38 @@ Phase 7 — Eliminate discarded fallback shading
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 8 — Reuse atmospheric transport for the shared camera segment
-  ☐ Evaluate surface-to-camera atmospheric attenuation and scattering once when both contributions
+  ☑ Evaluate surface-to-camera atmospheric attenuation and scattering once when both contributions
     require the same segment, parameters and sky visibility.
     - Coordinate with Phase 7: do not retain a discarded contribution merely to share its samples.
     - Either reuse evaluated transport or apply it after mathematically equivalent premultiplied
       composition. Preserve coverage weighting so additive atmospheric scattering is not doubled.
     - Keep the underwater refracted air segment separate; it is not the same camera segment.
     - Preserve fog ordering and the final display adaptation boundary.
-  ☐ Verify full and partial coverage, receiver/fallback paths, sky visibility and underwater exits.
+  ☑ Verify full and partial coverage, receiver/fallback paths, sky visibility and underwater exits.
     - Confirm redundant aerial texture samples and coordinate calculations are removed where
       applicable; check optimized output before attributing additional savings.
   Completion: each identical required atmospheric segment is evaluated once without changing
   radiance or alpha. If Phase 7 already removes a duplicate path, record that coverage explicitly.
+  Implemented 2026-10-04: apply the above-water camera segment to the composed linear color
+  once, before display adaptation. The affine transport T*color+S commutes with the existing
+  premultiplied mixture because the constituent scattering weights sum to combined alpha.
+  The surface alpha floor is .001; alpha and confidence remain unchanged. Underwater outgoing
+  air still precedes water-medium transport, and sphere fog/preview/OIT ordering is unchanged.
+  Phase 7 already reduced current confidence-zero/one paths to one aerial evaluation; this
+  removes the duplicate for supported partial confidence and shares the compiled camera path.
+  Traceability: PBR.WaterRefraction.md / Shared receiver and optical evaluation documents the
+  coverage derivation; PBR.Atmosphere.AerialPerspective.md and PBR.Atmosphere.HaloSampling.md
+  define affine transport, sky gating and packed radiance. WaterMedium/Liquids and the existing
+  material/shared-display/dither contracts retain underwater, OIT and conversion ordering.
+  Fresh serial shader/Debug build passed. All 100 existing production tests passed; the new
+  optical helper passed after correcting a fixture float-upload overload (original failure
+  retained). It covers 36 confidence/alpha/sky combinations and underwater segment ordering.
+  Matched optimized production runs passed 22 cases each, with 792 six-target center comparisons
+  within 1.0001e-5 absolute / 1.2346e-7 scaled. Eight surface variants remove 100 static
+  instructions and three image-sampling operations each; 24 capture variants remain unchanged.
+  No additional timing or live-performance gain is claimed. See PBR.WaterRefraction.md and
+  artifacts/WaterLagAnalysis/shared-aerial-* for build, corrected tests and comparison receipts.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 9 — Remove unused pre-overlay composite output
   ☐ Specialize the retained capture owner to produce only the background outputs its consumers need.

@@ -442,8 +442,8 @@ of separately tone-mapped contributions without activating full-scene HDR.
 
 The surface evaluates ordinary fallback transport only when the receiver is unavailable or
 its confidence is below full replacement. A valid receiver with confidence at least one skips
-the fallback depth lookup, thickness, extinction, scattering integration and camera-segment
-aerial perspective. The unused fallback inputs are initialized to zero radiance and unit alpha;
+the fallback depth lookup, thickness, extinction and scattering integration. The unused fallback
+inputs are initialized to zero radiance and unit alpha;
 the existing clamped premultiplied composition then returns the complete refracted contribution.
 Confidence is not changed. Partial-confidence receivers retain both contributions, while disabled
 refraction, rejected coverage and total internal reflection retain the ordinary path.
@@ -454,6 +454,48 @@ the refracted photon-direction transform is likewise unnecessary for zero scatte
 shadow visibility, solar and point-light reflection remain outside these gates. Non-water body
 lighting, glow, sphere fog, preview alpha and six-target OIT output retain their existing paths.
 The underwater outgoing air segment remains separate from the submerged camera segment.
+
+Above water, the surface-to-camera atmospheric segment is evaluated once after linear
+premultiplied confidence composition, before display adaptation. Both candidate contributions
+use the same displacement, sky visibility, atmospheric parameters and sun direction. For
+transmission `T`, atmospheric scattering `S`, fallback color/alpha `F,a` and receiver color
+and confidence `R,w`, the combined alpha is `A = (1-w)*a + w`. Applying aerial perspective to
+the composed straight color yields `T*((1-w)*a*F + w*R)/A + S`. This equals composing
+`T*F+S` and `T*R+S`: their scattering weights sum to `A`, rather than adding `S` twice.
+The surface's fallback alpha is at least `.001`, so composition's normalization floor does
+not alter this equivalence. Alpha itself is unchanged.
+
+Full-confidence receivers already omitted their discarded fallback aerial evaluation;
+unavailable receivers already evaluated only fallback. Those existing endpoints still need
+one shared camera evaluation. Partial confidence now also uses one evaluation rather than two.
+Non-water liquids use that same final camera segment. An underwater receiver's outgoing air
+segment remains evaluated before submerged transport, with no atmospheric evaluation along
+the underwater camera segment. Sphere fog, preview transparency and OIT remain after the
+surface's display adapter in their existing order.
+
+Matched optimized compilation covers all 32 liquid fragment variants. Each of the eight
+surface variants removes 100 static instructions and three image-sampling instructions
+(19 to 16), corresponding to one aerial lookup site and its coordinate calculations.
+The other 24 capture variants are unchanged. Current production confidence endpoints already
+evaluate only one camera segment, so these counts do not establish additional dynamic savings
+for those pixels. Partial-confidence composition avoids a second lookup; no new GPU timing
+or live frame-time improvement is claimed. The comparison is recorded in
+`artifacts/WaterLagAnalysis/shared-aerial-optimized.csv` and its matched disassemblies.
+
+The shared-camera change passed a fresh serial shader/Debug build. All 100 existing production
+regressions passed. The expanded optical-helper test initially rejected a byte-array upload to
+a float texture before drawing; an explicit float-array fixture correction and test rebuild
+then passed that test. It checks 36 combinations of confidence (0/.25/.5/1), fallback alpha
+(.001/.25/1) and sky visibility (0/.4/1), comparing shared and separately evaluated transport
+against independent CPU expectations. It also verifies air-before-water ordering for exits.
+
+Matched optimized baseline/current production runs each passed 22 selected cases. Nonzero aerial
+textures, sky visibility 0/.4/1 and refraction enabled/disabled cover UV/ray receivers, rejection,
+underwater/TIR, non-water liquids and directional scattering. Their 792 six-target center
+readback comparisons differ by at most 1.0001e-5 absolute and 1.2346e-7 scaled. These are focused
+headless checks, not live visual acceptance or a full-frame comparison. Build, initial and
+corrected tests, output runs and comparison CSV are retained under
+`artifacts/WaterLagAnalysis/shared-aerial-*`.
 
 The fallback-work change passed a fresh serial shader/Debug build and 101/101 focused tests
 with zero failures or skips. Coverage includes all refraction tiers, full/half receivers,
