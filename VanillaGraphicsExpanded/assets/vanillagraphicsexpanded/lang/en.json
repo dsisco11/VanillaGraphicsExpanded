@@ -1,6 +1,11 @@
 {
   "config-water-refraction": "Water Refraction",
-  "config-water-refraction-tooltip": "Distort opaque backgrounds through water using bounded screen-space tracing. Adds radiance and depth snapshots; missing hits retain straight-through transmission.",
+  "config-water-refraction-tooltip": "Enable water background refraction. Disabling releases refraction-only snapshots and retains straight-through water transmission. Water lighting, waves and medium effects remain active.",
+  "config-section-water": "Water Settings",
+  "config-water-quality": "Water Quality",
+  "config-water-quality-tooltip": "0 = UV distortion, 3 = ray marching (default). Ray marching follows the visible background geometry. UV distortion approximates background bending with fewer samples. Changing quality does not change background resolution.",
+  "config-water-background-resolution": "Water background resolution",
+  "config-water-background-resolution-tooltip": "1 = half width and height, 2 = full resolution (default). Half resolution adds a reduction pass and can lose thin submerged detail. Applies independently of Water Quality; no restart is required.",
   "config-tessellation-maximum-level": "Maximum tessellation level",
   "config-tessellation-maximum-level-tooltip": "Integer 1-8 (default 5). Upper bound on adaptive terrain subdivision. Higher levels increase geometry cost.",
   "config-tessellation-target-edge-pixels": "Tessellation target edge size",

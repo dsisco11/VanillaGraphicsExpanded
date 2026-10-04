@@ -10,7 +10,7 @@
         "ingui": "vanillagraphicsexpanded:config-water-refraction",
         "comment": "vanillagraphicsexpanded:config-water-refraction-tooltip",
         "default": false,
-        "weight": 0.5
+        "weight": 0.2
       },
       "ENABLED": {
         "code": "LumOn.Enabled",
@@ -167,6 +167,26 @@
       }
     },
     "integer": {
+      "WATER_REFRACTION_QUALITY": {
+        "code": "WaterRefractionQuality",
+        "clientSide": true,
+        "name": "WaterRefractionQuality",
+        "ingui": "vanillagraphicsexpanded:config-water-quality",
+        "comment": "vanillagraphicsexpanded:config-water-quality-tooltip",
+        "default": 3,
+        "weight": 0.3,
+        "values": [0, 3]
+      },
+      "WATER_REFRACTION_BACKGROUND_SCALE": {
+        "code": "WaterRefractionBackgroundScale",
+        "clientSide": true,
+        "name": "WaterRefractionBackgroundScale",
+        "ingui": "vanillagraphicsexpanded:config-water-background-resolution",
+        "comment": "vanillagraphicsexpanded:config-water-background-resolution-tooltip",
+        "default": 2,
+        "weight": 0.4,
+        "values": [1, 2]
+      },
       "TESSELLATION_MAXIMUM_LEVEL": {
         "code": "MaterialAtlas.TerrainSubdivision.MaximumLevel",
         "clientSide": true,
@@ -648,6 +668,7 @@
     }
   },
   "formatting": [
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-water", "weight": 0.1 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-master", "weight": 0.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-probe-grid", "weight": 1.9 },
     { "type": "separator", "title": "vanillagraphicsexpanded:config-section-ray-tracing", "weight": 2.9 },

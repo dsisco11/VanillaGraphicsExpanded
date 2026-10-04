@@ -94,7 +94,12 @@ internal sealed class LiquidRenderer : IRenderer
             program.VolumeTransportEnabled = WaterVolumeRenderer.WasComposed(api);
             // Keep the compatible output adapter until scene binding owners establish an HDR frame.
             program.SceneLinear = false;
-            var refraction = ConfigModSystem.Config.WaterRefractionEnabled ? getRefractionScene() : null;
+            var waterSettings = ConfigModSystem.Config;
+            program.RefractionQuality = waterSettings.WaterRefractionQuality;
+            var refraction = waterSettings.WaterRefractionEnabled ? getRefractionScene() : null;
+            // A settings event between publication and OIT cannot reuse an old-resolution pair.
+            int backgroundScale = waterSettings.WaterRefractionBackgroundScale == 1 ? 2 : 1;
+            if (refraction?.BackgroundScale != backgroundScale) refraction = null;
             program.RefractionEnabled = refraction?.Published == true;
             program.RefractionColorTexture = refraction?.Published == true ? refraction.Color : null;
             program.RefractionDepthTexture = refraction?.Published == true ? refraction.Depth : null;

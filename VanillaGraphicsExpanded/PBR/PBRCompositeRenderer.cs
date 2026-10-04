@@ -130,8 +130,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         DirectLightingTargets? isolatedLighting = null)
     {
         var publication = capture ?? RefractionScene;
+        var waterSettings = ConfigModSystem.Config;
+        bool refractionEnabled = waterSettings.WaterRefractionEnabled;
+        // Persisted resolution increases with quality; the receiver owner consumes a size divisor.
+        int backgroundScale = capture is null ? (waterSettings.WaterRefractionBackgroundScale == 1 ? 2 : 1) : 1;
         publication.Invalidate();
-        if (!ConfigModSystem.Config.WaterRefractionEnabled) RefractionScene.Dispose();
+        if (!refractionEnabled) RefractionScene.Dispose();
         if (stage != EnumRenderStage.Opaque || quadMeshRef is null)
         {
             return;
@@ -183,8 +187,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         StateCache.Current.InvalidateAll();
         StateCache.Current.Apply(CompositePipeline);
         GpuFramebuffer? refractionTarget = null;
-        try { refractionTarget = publication.BeginFrame(ConfigModSystem.Config.WaterRefractionEnabled, compositeColorTex,
-            capture is null ? publication.BackgroundScale : 1); }
+        try { refractionTarget = publication.BeginFrame(refractionEnabled, compositeColorTex, backgroundScale); }
         catch (Exception error) { capi.Logger.Warning("[VGE] Water refraction source unavailable: {0}", error.Message); }
         (refractionTarget ?? compositeFbo!).BindWithViewport();
         shader.RefractionSourceEnabled = refractionTarget is not null;

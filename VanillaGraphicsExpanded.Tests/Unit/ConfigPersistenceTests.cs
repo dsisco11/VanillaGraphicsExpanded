@@ -76,7 +76,7 @@ public sealed class ConfigPersistenceTests
         lifetime.System.Dispose();
         var api = new Mock<ICoreAPI>();
         api.SetupGet(x => x.Logger).Returns(Mock.Of<ILogger>());
-        api.Setup(x => x.LoadModConfig<JObject>(It.IsAny<string>())).Returns(JObject.Parse("{\"LumOn\":{\"Enabled\":false}}"));
+        api.Setup(x => x.LoadModConfig<JObject>(It.IsAny<string>())).Returns(JObject.Parse("{\"LumOn\":{\"Enabled\":false},\"WaterRefractionEnabled\":true}"));
         JObject? stored = null;
         api.Setup(x => x.StoreModConfig(It.IsAny<JObject>(), It.IsAny<string>()))
             .Callback<JObject, string>((document, _) => stored = document);
@@ -85,6 +85,12 @@ public sealed class ConfigPersistenceTests
         Assert.NotNull(stored["Atmosphere"]!["SkyLutQuality"]);
         Assert.NotNull(stored["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"]);
         Assert.False(stored["LumOn"]!["Enabled"]!.Value<bool>());
+        Assert.True(stored["WaterRefractionEnabled"]!.Value<bool>());
+        Assert.Equal(3,stored["WaterRefractionQuality"]!.Value<int>());
+        Assert.Equal(2,stored["WaterRefractionBackgroundScale"]!.Value<int>());
+        Assert.True(ConfigModSystem.Config.WaterRefractionEnabled);
+        Assert.Equal(3,ConfigModSystem.Config.WaterRefractionQuality);
+        Assert.Equal(2,ConfigModSystem.Config.WaterRefractionBackgroundScale);
         api.Verify(x => x.StoreModConfig(It.IsAny<JObject>(), It.IsAny<string>()), Times.Once);
     }
 

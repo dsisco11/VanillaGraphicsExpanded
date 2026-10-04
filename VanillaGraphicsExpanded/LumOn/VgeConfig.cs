@@ -1401,6 +1401,14 @@ public class VgeConfig
     [JsonProperty]
     public bool WaterRefractionEnabled { get; set; } = false;
 
+    /// <summary>Selects UV distortion at zero or geometric refraction at three; values one and two reserve lower ray budgets.</summary>
+    [JsonProperty]
+    public int WaterRefractionQuality { get; set; } = 3;
+
+    /// <summary>Selects half-size water receiver buffers at one or full-size buffers at two, independently of quality.</summary>
+    [JsonProperty]
+    public int WaterRefractionBackgroundScale { get; set; } = 2;
+
     /// <summary>
     /// Configuration for LumOn (screen-probe gather) settings.
     /// Persisted under: LumOn
@@ -1467,6 +1475,9 @@ public class VgeConfig
     /// </summary>
     public void Sanitize()
     {
+        // Preserve the saved enable flag while restoring unsupported quality/resolution values to defaults.
+        if (WaterRefractionQuality is < 0 or > 3) WaterRefractionQuality = 3;
+        if (WaterRefractionBackgroundScale is not (1 or 2)) WaterRefractionBackgroundScale = 2;
         Debug ??= new DebugConfig();
         Debug.Sanitize();
 

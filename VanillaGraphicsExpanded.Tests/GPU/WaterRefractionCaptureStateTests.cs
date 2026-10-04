@@ -56,9 +56,12 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         caller.PrimaryScene = terrain.Color.TextureId;
         caller.PrimaryDepth = terrain.Depth.TextureId;
         bool prior = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled;
+        int priorScale = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale;
         try
         {
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;
+            // Persisted quality increases from half (1) to full (2); the owner uses a size divisor.
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale = 3 - backgroundScale;
             caller.Use();
             // Simulate engine framebuffer binds that bypass an already-primed VGE cache.
             StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, terrain.Output.FboId);
@@ -70,6 +73,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             GL.Enable(EnableCap.Blend);
             HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
             Assert.True(composite.PreOverlayScene!.Published);
+            Assert.Equal(1,composite.PreOverlayScene.BackgroundScale);
             Assert.Equal(2, draws);
             Assert.Equal(callerTarget.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(readTarget.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
@@ -88,10 +92,10 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             // final owner. Reduction must consume restored world depth, never the hand proxy.
             caller.Stop();
             terrain.UploadTerrain(gbuffer, [.01f], [.5f,.5f,1,-1], [.5f,0,0,0], [1f,0f,0f,1]);
-            composite.RefractionScene.BackgroundScale = backgroundScale;
             direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
             composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
             Assert.True(composite.RefractionScene.Published);
+            Assert.Equal(backgroundScale,composite.RefractionScene.BackgroundScale);
             Assert.Equal(backgroundScale == 2 ? 6 : 5, draws);
             Assert.Equal(.75f, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
             Assert.Equal(.75f, composite.RefractionScene.Depth!.ReadPixels()[0]);
@@ -130,6 +134,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         {
             caller.Stop();
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = prior;
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale = priorScale;
         }
     }
     #endregion

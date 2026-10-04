@@ -17,8 +17,9 @@ The early capture adds one direct-lighting draw and one composite draw, three RG
 ## Background resolution and bilateral receivers
 
 `WaterRefractionScene.BackgroundScale` selects full (`1`) or half (`2`) background storage.
-This is an internal owner control; persisted settings and ConfigLib exposure remain in the
-settings work listed in `PBR.WaterRefraction.todo`. The running default is full resolution.
+The persisted `WaterRefractionBackgroundScale` control selects quality: `1` is half size and `2`
+is full size (default). The composite converts this choice to the owner's divisor (`2` and `1`,
+respectively); ConfigLib displays both choices from lower to higher quality.
 The pre-overlay capture always remains full size. The ordinary composite restores its pixels
 at full size, completes the existing scene handoff, and then optionally reduces the restored
 receiver pair before publication. A changed divisor immediately withdraws publication. Resize,
@@ -100,10 +101,10 @@ and ownership behavior; live appearance and GPU timings remain unmeasured.
 ## UV distortion
 
 `liquids/uv_distortion.glsl` implements the approximate receiver independently of ray traversal.
-The internal typed `LiquidShaderProgram.RefractionQuality` input selects it at `0`; its constructor
-defaults to `3`, retaining the existing geometric sampler for other values. This is an algorithm
-entry point, not persisted configuration or the completed x8/x4/x2 implementation. ConfigLib and
-frame-consistent runtime selection remain settings work. It uses the same continuous material
+The typed `LiquidShaderProgram.RefractionQuality` input selects it at `0`; its constructor
+defaults to `3`, retaining the existing geometric sampler for other values. `LiquidRenderer`
+stages the current persisted quality each invocation. This does not implement x8/x4/x2 budgets.
+It uses the same continuous material
 wave normal, oriented toward the eye, and IOR 1.333 as the geometric sampler.
 
 The selected behavior is IOR-based projection rather than an arbitrary pixel-normal offset.
@@ -153,7 +154,7 @@ and `PBR.LiquidRenderer.Proposal.md` retain the owned shader, waves and six-outp
 `PBR.MaterialColorAndDisplay.md`, `PBR.SharedDisplay.md` and `PBR.OutputDithering.md` govern
 linear composition before the existing output adapter. The authoritative pipeline plan/proposal
 retain existing binding and state owners; this sampler introduces no new submission boundary.
-Full-scene HDR activation, persisted controls, live appearance and measured GPU costs remain
+Full-scene HDR activation, reduced-step ray tiers, live appearance and measured GPU costs remain
 separate work.
 
 Fresh subagent build and validation passed 156/156 checks with zero skips in 6.1424 seconds
@@ -243,20 +244,54 @@ The snapshot represents opaque receivers only. Accepted paths approximate one wa
 ## Water quality and receiver contract
 
 The following contract governs the work in [PBR.WaterRefraction.todo](PBR.WaterRefraction.todo).
-It is a design decision for subsequent implementation, not a description of settings already shipped.
-The existing Boolean remains the only implemented water-refraction setting today.
+The fields and default/validation behavior are implemented. The distinct x8/x4/x2 algorithms
+remain planned; their labels in the table describe the target contract rather than current ray budgets.
+The ConfigLib Water Settings section currently exposes enable/disable, quality `3` (existing ray
+marching) or `0` (UV distortion), and background resolution `1` (half) or `2` (full, default).
+Both menus display lower values before higher values. Numeric allowed values retain
+integer persistence without named-mapping serialization. Values `1` and `2` remain valid stored
+quality IDs and currently use the existing ray sampler; they are absent from the menu until their
+distinct algorithms are available. The original root enable property is retained, so saved choices
+do not require migration to a new nested configuration object.
+
+All three controls are client-side and grouped between the Water Settings separator and the
+existing master section. Changes use the established ConfigLib event and sanitization paths,
+without a shader reload or restart. Each composite invocation snapshots enable/divisor; pre-overlay
+capture always remains full size, and final publication uses the selected divisor. The liquid owner
+stages quality and rejects a published pair whose resolution differs from the current setting,
+so a change between opaque publication and OIT retains safe fallback until the next publication.
+Quality changes leave receiver allocations intact. Disable retains the existing capture/final
+retirement gates. These controls affect refraction; they do not disable water geometry or medium lighting.
+
+Settings validation: fresh subagent build and 117/117 focused checks passed with zero skips
+(`artifacts/PbrColor/water-settings-tests.log`). This includes twelve water configuration cases,
+sparse startup defaults preserving the old enable flag, ConfigLib event application, numeric
+round-trip/sanitization, grouped control definitions, actual capture/composite scale selection
+in both lighting modes, receiver lifecycle, and the existing liquid/UV algorithm checks.
+Direct liquid-owner quality assignment is source-reviewed; the production shader selector is
+exercised by the liquid suite. Read-only inspection of installed ConfigLib 1.10.12 confirms
+numeric allowed values pass through selection and `JsonObjectPath.Set` without named-mapping
+string serialization (`artifacts/PbrColor/water-settings-configlib-il.log`). No user configuration
+file was modified and no live GUI save/reopen or game appearance acceptance is claimed.
+
+The lower-to-higher ordering correction passed a fresh isolated build and 117/117 checks,
+zero skips (`artifacts/PbrColor/water-settings-ordering-tests.log`). The shader build verified
+417 variants. Background choice `1` selects half size and `2` selects full size; missing/invalid
+values default to `2`. The capture tests exercise the conversion to the owner's inverse divisor.
+The running client locked the normal mod DLL/shared shader cache, so verification used isolated
+assembly and SPIR-V output directories; it did not replace the running client's mod.
 
 | Persisted property | Values and default | Contract |
 | --- | --- | --- |
 | `WaterRefractionEnabled` | Existing Boolean, default `false` | Preserve existing saved values. Off is independent of quality. |
-| `WaterRefractionQuality` | Integer `3` = ray march x8 (default), `2` = x4, `1` = x2, `0` = UV distortion | Present the UI in highest-to-lowest order, labelled Water Quality. Values are stable identifiers, not loop counts. |
-| `WaterRefractionBackgroundScale` | Integer divisor `1` = full size (default), `2` = half width and height | Independent of quality; all four qualities support both resolutions. No automatic resolution reduction when changing quality. |
+| `WaterRefractionQuality` | Integer `0` = UV distortion, `1` = x2, `2` = x4, `3` = ray march x8 (default) | Present the UI in lowest-to-highest order, labelled Water Quality. Values are stable identifiers, not loop counts. |
+| `WaterRefractionBackgroundScale` | Integer resolution choice `1` = half width and height, `2` = full size (default) | Independent of quality; all four qualities support both resolutions. Convert to the inverse size divisor at receiver ownership boundaries. |
 
 Missing leaves use these defaults through the existing `ConfigModSystem` load/default-materialization
 and `VgeConfig.Sanitize` paths. Preserve the current enable flag when migrating old documents.
-Unknown integer quality values reset to `3`; unsupported divisors reset to `1`, rather than silently
-turning the feature off. Wrong JSON types follow the existing loader's error/recovery policy; add
-focused saved-settings checks when implementing the fields. Runtime changes are adopted as one
+Unknown integer quality values reset to `3`; unsupported resolution choices reset to `2`, rather than silently
+turning the feature off. Wrong JSON types follow the existing loader's error/recovery policy.
+Runtime changes are adopted as one
 frame-consistent settings snapshot; a resolution change invalidates publication before replacing
 the pair. A quality-only change does not reallocate the background. Disable withdraws publication,
 reclaims refraction-only final and pre-overlay storage, and skips traversal, distortion and reduction.
