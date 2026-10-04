@@ -119,7 +119,86 @@ Phase 6 — Capture refraction backgrounds only when needed
   ☐ Verify dry views, entering/exiting water views, underwater views and first-person overlays.
   Completion: unnecessary captures are skipped without stale or absent required receivers.
 
-Phase 7 — Review remaining bandwidth and validate the combined result
+Phase 7 — Eliminate discarded fallback shading
+  ☐ Skip ordinary fallback shading when a valid refracted receiver fully replaces its contribution.
+    - Current successful ray/UV receivers have confidence 1. Preserve the fallback for invalid
+      receivers and any supported partial-confidence path; do not force confidence to one.
+    - Avoid unused fallback scattering-source, transport and atmospheric calculations, including
+      fallback-only work inside the point-light loop. Retain shared reflection lighting.
+    - Preserve non-water liquids, total internal reflection, alpha, glow and OIT outputs.
+  ☐ Verify valid ray/UV receivers, rejected receivers, refraction disabled and underwater views.
+    - Inspect optimized variants and compare work on coherent and mixed receiver-validity regions;
+      branch divergence may affect savings.
+  Completion: fully replaced fallback contributions are not shaded, with unchanged composition.
+  Dependency: integrate with Phase 5 source-light gating rather than adding competing branches.
+
+Phase 8 — Reuse atmospheric transport for the shared camera segment
+  ☐ Evaluate surface-to-camera atmospheric attenuation and scattering once when both contributions
+    require the same segment, parameters and sky visibility.
+    - Coordinate with Phase 7: do not retain a discarded contribution merely to share its samples.
+    - Either reuse evaluated transport or apply it after mathematically equivalent premultiplied
+      composition. Preserve coverage weighting so additive atmospheric scattering is not doubled.
+    - Keep the underwater refracted air segment separate; it is not the same camera segment.
+    - Preserve fog ordering and the final display adaptation boundary.
+  ☐ Verify full and partial coverage, receiver/fallback paths, sky visibility and underwater exits.
+    - Confirm redundant aerial texture samples and coordinate calculations are removed where
+      applicable; check optimized output before attributing additional savings.
+  Completion: each identical required atmospheric segment is evaluated once without changing
+  radiance or alpha. If Phase 7 already removes a duplicate path, record that coverage explicitly.
+
+Phase 9 — Remove unused pre-overlay composite output
+  ☐ Specialize the retained capture owner to produce only the background outputs its consumers need.
+    - Trace reads of the shared composite color target before removing its capture-time write.
+    - Preserve refraction radiance/depth, validity metadata, environment fallback and hand exclusion.
+    - Remove calculations used exclusively by the unconsumed ordinary display-color output.
+    - Update output contracts, framebuffer routing and pipeline expectations together; preserve
+      ordinary composition and prevent attachment feedback or stale-resource consumption.
+    - Reuse existing shader-option and resource owners; do not reintroduce executable churn.
+  ☐ Verify capture publication, subsequent ordinary composition, resize, reload and failure paths.
+    - Compare output values and demonstrate the removed target write/unused shader work.
+  Completion: required captures avoid unused display-color production while their background
+  outputs remain equivalent. This complements Phase 6, which skips entire unneeded captures.
+  Dependency: use the separate retained composite owners established in Phase 1.
+
+Phase 10 — Share homogeneous-medium integration calculations
+  ☐ Evaluate extinction, optical depth and transmission once for each identical medium/path pair.
+    - Let transmission and scattering integration consume the shared evaluation where both are
+      needed. Preserve the optically thin series expansion and zero-extinction limit.
+    - Preserve RGB coefficients, nonnegative inputs and physical path-length conventions.
+    - Do not calculate scattering-only results on the zero-scattering path from Phase 5.
+  ☐ Verify thin/thick paths, zero extinction/scattering, colored media and underwater transport.
+    - Inspect optimized shaders first: compiler common-subexpression elimination may already
+      remove some duplicate exponentials. Record actual remaining work and measured benefit.
+  Completion: medium integration retains numerical stability and avoids demonstrated duplicate
+  calculations; do not claim savings for expressions already eliminated by the compiler.
+
+Phase 11 — Avoid unchanged shader-setting allocations
+  ☐ Audit steady-state ConfigureOptions callers and measure their allocation/preparation work.
+    - ShaderSettingsEditor copies values and creates settings/load-plan objects even when the
+      selected values are unchanged. Prioritize render-loop callers with demonstrated repetition.
+    - Apply stable selections at existing configuration boundaries or introduce a narrowly scoped
+      unchanged-value fast path in the owning API; preserve atomic edits and mutation guards.
+    - Preserve aliases, default restoration, inactive selections, reload invalidation and failed
+      preparation retry behavior. Do not bypass pending changes using only installed settings.
+  ☐ Verify repeated unchanged selections avoid unnecessary work while real edits still prepare
+    the correct variants, including edits after failed preparation and asset reload.
+  Completion: targeted unchanged settings no longer allocate/rebuild plans unnecessarily, with
+  allocation evidence kept separate from executable-lifetime improvements in Phase 1.
+
+Phase 12 — Prepare only required liquid frame inputs
+  ☐ Audit active vertex and fragment inputs for volume and surface owners before narrowing capture.
+    - The shared capture routine copies colormap rectangles, point-light arrays and fog spheres.
+      Omit only arrays proven unused by both stages of the selected volume contract.
+    - Preserve wave snapshots, transforms, material/atlas inputs and all required lighting data.
+    - Reuse the retained frame-input owner; avoid a new frame-data framework or unnecessary UBO
+      layout split. Account for whole-block upload costs as well as CPU array-copy savings.
+  ☐ Verify volume/surface alternation, changing light/fog counts, relevant shader options and reload.
+    - Ensure skipped fields cannot leave stale data visible to a consumer that requires them.
+    - Measure CPU preparation/allocation changes rather than infer them from shorter source code.
+  Completion: volume preparation omits proven unused array work while all active inputs remain
+  current and independent of surface submission. Preserve the inverse-projection input from Phase 2.
+
+Phase 13 — Review remaining bandwidth and validate the combined result
   ☐ Obtain a matched optimized-build comparison after executable-lifetime fixes.
     - Separate preparation, water-depth, volume-boundary, surface/OIT, pre-overlay capture and
       ordinary composition costs using existing profiling owners where possible.
