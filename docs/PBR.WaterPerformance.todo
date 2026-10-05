@@ -355,17 +355,43 @@ Phase 10 — Share homogeneous-medium integration calculations
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 11 — Avoid unchanged shader-setting allocations
-  ☐ Audit steady-state ConfigureOptions callers and measure their allocation/preparation work.
+  ☑ Audit steady-state ConfigureOptions callers and measure their allocation/preparation work.
     - ShaderSettingsEditor copies values and creates settings/load-plan objects even when the
       selected values are unchanged. Prioritize render-loop callers with demonstrated repetition.
     - Apply stable selections at existing configuration boundaries or introduce a narrowly scoped
       unchanged-value fast path in the owning API; preserve atomic edits and mutation guards.
     - Preserve aliases, default restoration, inactive selections, reload invalidation and failed
       preparation retry behavior. Do not bypass pending changes using only installed settings.
-  ☐ Verify repeated unchanged selections avoid unnecessary work while real edits still prepare
+  ☑ Verify repeated unchanged selections avoid unnecessary work while real edits still prepare
     the correct variants, including edits after failed preparation and asset reload.
   Completion: targeted unchanged settings no longer allocate/rebuild plans unnecessarily, with
   allocation evidence kept separate from executable-lifetime improvements in Phase 1.
+  Caller audit: LiquidRenderer.CanTakeOwnership repeats the two-option quality/resolution batch;
+  LumOnRenderer repeats mask, trace and integration batches. PBRCompositeRenderer already compares
+  requested values before batching. The owning ShaderSettingsEditor now copies on the first
+  normalized change; unchanged/reverted batches retain their original settings, and GpuProgram
+  retains the corresponding requested load plan without reprojection. Callbacks, validation and
+  nested edits remain active; installed settings are never used to discard pending requests.
+  Traceability: PBR.WaterRefraction.md / quality selection and PBR.Liquids.md / shader ownership
+  retain atomic precompiled selections and readiness; ShaderAuthoring.md controls aliases,
+  inactive selections, atomic publication, failure and reload. Water-medium/OIT physics and
+  the authoritative pipeline plan/proposal remain unchanged. Capture findings and measurement
+  policy require allocation evidence separately from executable churn or live GPU/frame cost.
+  Measured over 4096 warmed batches with GC.GetAllocatedBytesForCurrentThread: production liquid
+  quality/resolution batching falls from 11,336 to 1,320 bytes per call (88.4%); the generated
+  accessor fixture falls from 10,200 to 1,384 (86.4%). Caller-delegate construction and warmup
+  are excluded, internal call overhead is included. Residual editor/delegate/scalar-validation
+  allocation remains. This removes unchanged settings/load-plan work, not another GPU executable
+  replacement; no live frame-time or GPU performance improvement is claimed.
+  Verification: C# production/test builds passed against unchanged, previously validated shader
+  artifacts; final bounded run passed 38/38 tests with no skips. It covers snapshots, aliases,
+  defaults, inactive and nested edits, validation failures, changed variants after failed
+  preparation, asset invalidation/retry, and stable executable/interface/read counts over 128
+  unchanged readiness cycles. An earlier overly broad lifecycle filter was stopped after 106
+  passes with no observed failures; it is not counted as a completed run. Receipts:
+  artifacts/WaterLagAnalysis/unchanged-options-baseline.log/.trx, unchanged-options-build.log,
+  unchanged-options-final-test-build.log and unchanged-options-final-tests.log/.trx.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 12 — Prepare only required liquid frame inputs
   ☐ Audit active vertex and fragment inputs for volume and surface owners before narrowing capture.

@@ -85,9 +85,16 @@ public abstract partial class GpuProgram
                 update(settingsEditor);
                 // A callback cannot swallow an invalid nested edit and accidentally publish a partial batch.
                 if (settingsEditFailed) throw new InvalidOperationException("A shader option edit failed; the batch was discarded.");
-                var next = new ShaderLoadPlan(settingsEditor.Complete());
-                changed = !prior.SameInputs(next);
-                requestedPlan = next;
+                var settings = settingsEditor.Complete();
+                // The editor retains the validated snapshot for unchanged or reverted batches.
+                // Keep its requested plan too; installed state and preparation failures remain independent.
+                changed = false;
+                if (!ReferenceEquals(settings, prior.Settings))
+                {
+                    var next = new ShaderLoadPlan(settings);
+                    changed = !prior.SameInputs(next);
+                    requestedPlan = next;
+                }
             }
             finally { settingsEditor = null; settingsEditFailed = false; }
         }

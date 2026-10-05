@@ -643,6 +643,14 @@ domain `0..3` and default `3`. `RefractionBackgroundScale` declares
 resolution choices rather than the snapshot owner's inverse divisor. Both are fragment-only
 `ShaderUse` entries. `CanTakeOwnership` batches both selections with `ConfigureOptions` before
 `EnsureReady`; the ordinary OIT callback uses that existing readiness owner before binding inputs.
+Unchanged batches reuse their immutable requested settings and projected load plan through the
+existing settings editor. It copies values only when a normalized selection changes, without
+skipping callbacks, validation or readiness. A failed preparation remains suppressed until
+inputs or assets change; an unchanged batch does not erase that failure or a reload request.
+In a warmed 4096-batch CPU allocation comparison, the two liquid selections decreased from
+11,336 to 1,320 bytes per batch (88.4%). This excludes caller-delegate construction and warmup,
+but includes the configuration call's own overhead; it is not an allocation-free or game-FPS claim.
+See [shader settings publication](ShaderAuthoring.md) for atomic and inactive-option semantics.
 No quality uniform is declared or uploaded. Quality zero compiles the UV-only selector; higher
 qualities compile fixed total loop ceilings of 2/4/8 with validated UV fallback. Receiver metadata
 decoding compiles for the selected full/half convention instead of checking dimensions per tap.

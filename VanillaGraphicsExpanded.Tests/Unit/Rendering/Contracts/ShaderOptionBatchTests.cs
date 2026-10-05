@@ -1,12 +1,31 @@
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
+using VanillaGraphicsExpanded.PBR.Liquids;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 
 /// <summary>Checks atomic publication through actual generated properties and typed/name batch APIs.</summary>
-public sealed class ShaderOptionBatchTests
+public sealed class ShaderOptionBatchTests(ITestOutputHelper output)
 {
     #region Publication and failure
+    /// <summary>Measures warmed unchanged batches through production liquid and generated property owners.</summary>
+    [Fact]
+    public void RepeatedUnchangedBatchesRetainSelectionsWithoutPreparation()
+    {
+        var liquid = new LiquidShaderProgram();
+        int quality = liquid.RefractionQuality, resolution = liquid.RefractionBackgroundScale;
+        Action liquidBatch = () => { liquid.RefractionQuality = quality; liquid.RefractionBackgroundScale = resolution; };
+        MeasureUnchanged(liquid,liquidBatch,"liquid-quality");
+        Assert.Equal(quality,liquid.RefractionQuality);
+        Assert.Equal(resolution,liquid.RefractionBackgroundScale);
+        Assert.Null(liquid.InstalledSettings);
+        var generated = new GeneratedAccessorShader();
+        Action generatedBatch = () => { generated.Enabled = false; generated.Steps = 10; };
+        MeasureUnchanged(generated,generatedBatch,"generated");
+        Assert.Equal(0,generated.ReloadRequests);
+    }
+
     /// <summary>Generated properties and name updates share one publication, with no intermediate reload requests.</summary>
     [Fact]
     public void MixedConfigurationPublishesOnce()
@@ -24,7 +43,9 @@ public sealed class ShaderOptionBatchTests
         Assert.Equal(20, shader.Steps);
         Assert.Equal(1, shader.ReloadRequests);
         Assert.Null(shader.InstalledSettings);
+        var retained = shader.RequestedSettings;
         Assert.False(shader.ConfigureOptions(() => { shader.Enabled = false; shader.Enabled = true; }));
+        Assert.Same(retained,shader.RequestedSettings);
         Assert.Equal(1, shader.ReloadRequests);
     }
 
@@ -70,7 +91,12 @@ public sealed class ShaderOptionBatchTests
     public void InactiveBatchAndDefaultsRetainExistingSemantics()
     {
         var shader = new GeneratedAccessorShader();
+        var initial = shader.RequestedSettings;
         Assert.False(shader.ConfigureOptions(() => shader.Steps = 22));
+        Assert.NotSame(initial,shader.RequestedSettings);
+        var inactive = shader.RequestedSettings;
+        Assert.False(shader.ConfigureOptions(() => shader.Steps = 22));
+        Assert.Same(inactive,shader.RequestedSettings);
         Assert.Equal(22, shader.Steps);
         Assert.True(shader.SetDefines(new Dictionary<string, string?> { ["GENERATED_LEGACY"] = "1" }));
         Assert.Equal(1, shader.ReloadRequests);
@@ -78,6 +104,9 @@ public sealed class ShaderOptionBatchTests
         Assert.False(shader.Enabled);
         Assert.Equal(10, shader.Steps);
         Assert.False(shader.SetDefines(new Dictionary<string, string?>()));
+        var defaults = shader.RequestedSettings;
+        Assert.False(shader.SetDefines(new Dictionary<string, string?> { ["GENERATED_LEGACY"] = null, ["GENERATED_STEPS"] = "10" }));
+        Assert.Same(defaults,shader.RequestedSettings);
     }
 
     /// <summary>Nested configuration shares the editor and does not notify until the outer scope completes.</summary>
@@ -93,6 +122,15 @@ public sealed class ShaderOptionBatchTests
         }));
         Assert.Equal(24, shader.Steps);
         Assert.Equal(1, shader.ReloadRequests);
+        var retained = shader.RequestedSettings;
+        Assert.False(shader.ConfigureOptions(() =>
+        {
+            shader.Steps = 20;
+            Assert.False(shader.ConfigureOptions(() => shader.Steps = 24));
+        }));
+        Assert.Same(retained,shader.RequestedSettings);
+        Assert.Equal(24,shader.Steps);
+        Assert.Equal(1,shader.ReloadRequests);
     }
     /// <summary>Coupled structural choices may cross an unsupported intermediate combination within one batch.</summary>
     [Fact]
@@ -134,6 +172,23 @@ public sealed class ShaderOptionBatchTests
         }));
         Assert.Same(prior, shader.RequestedSettings);
         Assert.Equal(0, shader.ReloadRequests);
+    }
+    #endregion
+
+    #region Allocation measurement
+    /// <summary>Excludes delegate creation and warmup from thread-local allocation evidence.</summary>
+    private void MeasureUnchanged(GpuProgram shader, Action batch, string owner)
+    {
+        const int iterations = 4096;
+        for (int i = 0; i < 1024; i++) shader.ConfigureOptions(batch);
+        var prior = shader.RequestedSettings;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        int changes = 0;
+        for (int i = 0; i < iterations; i++) if (shader.ConfigureOptions(batch)) changes++;
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        output.WriteLine($"unchanged-batch owner={owner} iterations={iterations} bytes={bytes} bytesPerBatch={(double)bytes/iterations:R} snapshotRetained={ReferenceEquals(prior,shader.RequestedSettings)} changes={changes}");
+        Assert.Equal(0,changes);
+        Assert.Same(prior,shader.RequestedSettings);
     }
     #endregion
 

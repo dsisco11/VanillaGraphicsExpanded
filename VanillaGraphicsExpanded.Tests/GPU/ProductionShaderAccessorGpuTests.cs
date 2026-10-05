@@ -54,8 +54,27 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             Assert.True(GL.IsProgram(installed));
             Assert.Same(installedSettings, program.InstalledSettings);
             Assert.Same(installedLayout, program.ResourceBindings);
+            var pending = program.RequestedSettings;
+            Assert.False(program.ConfigureOptions(() => program.EnableShortRangeAo = true));
+            Assert.Same(pending,program.RequestedSettings);
+            Assert.NotSame(installedSettings,pending);
+            Assert.False(program.EnsureReady());
+            // A genuinely different requested variant can prepare even while the
+            // previously selected default binary is still unavailable.
+            program.PreOverlayOnly = true;
+            Assert.True(program.EnsureReady(),string.Join('\n',assets.Logs));
+            Assert.NotEqual(installed,program.ProgramId);
+            Assert.Same(program.RequestedSettings,program.InstalledSettings);
+            program.PreOverlayOnly = false;
+            Assert.False(program.EnsureReady());
+            pending = program.RequestedSettings;
             assets.Overrides.Clear();
-            Assert.True(program.Compile(), string.Join('\n', assets.Logs));
+            // Asset reload clears the remembered failure; identical requested
+            // options must not hide that pending readiness work.
+            program.InvalidateAssets();
+            Assert.False(program.ConfigureOptions(() => program.EnableShortRangeAo = true));
+            Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
+            Assert.Same(pending,program.InstalledSettings);
         }
         finally { program.Dispose(); }
     }
@@ -226,6 +245,20 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         }));
         Assert.Empty(assets.ScheduledTasks);
         Assert.Equal(second, program.ProgramId);
+        var stable = program.RequestedSettings;
+        var stableInterface = program.ProgramLayout.BinaryInterface;
+        int reads = assets.Reads.Count;
+        Action unchanged = () => { program.EnablePbrComposite = true; program.EnableShortRangeAo = false; };
+        for (int frame = 0; frame < 128; frame++)
+        {
+            Assert.False(program.ConfigureOptions(unchanged));
+            Assert.True(program.EnsureReady());
+            Assert.Same(stable,program.RequestedSettings);
+            Assert.Same(stable,program.InstalledSettings);
+        }
+        Assert.Equal(second,program.ProgramId);
+        Assert.Same(stableInterface,program.ProgramLayout.BinaryInterface);
+        Assert.Equal(reads,assets.Reads.Count);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

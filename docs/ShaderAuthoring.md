@@ -35,6 +35,15 @@ Shared options use attributed static get-only `ShaderOption<T>` partial properti
 
 Generated accessors validate and retain requested settings without scheduling compilation. EnsureReady, explicit preload or activation compares the latest request with the installed configuration, so writes that return to the installed values require no loading. Inactive numeric selections remain stored and become effective when their condition becomes true. Ordinary uniforms, buffer fields and per-frame values do not belong in the option contract. ConfigureOptions groups option edits atomically; runtime input batching occurs separately at submission. Resource-driven helpers may explicitly replace topology with sentinel values; conditional omission itself never discards a selected value.
 
+The settings editor borrows the immutable requested snapshot and copies values only on the
+first normalized change. Unchanged batches, including batches that restore every original
+selection, retain that snapshot and its projected load plan. Callbacks and individual write
+validation still run; nested writes compare against the pending batch, and any failed edit
+still aborts publication. Real inactive edits remain stored even when they do not require a
+new executable. This reuse does not compare against installed settings or clear preparation
+failures/reload invalidation: consumers must still call their existing readiness boundary.
+Editor, callback and scalar-validation overhead remains; unchanged batching is not allocation-free.
+
 Compatible reused stages must agree on identity, source, layout, fixed defines and setting uses; they share one immutable stage and binary per structural assignment. A different vertex pairing can reuse the same fragment declaration by repeating its exact uses and accepted groups. The generator rejects conflicting shared declarations. Use separate stage identities and binary assets for genuinely incompatible configurations.
 
 `ShaderProgram.Scope` defaults to `production`. Dedicated fixtures may use an explicit separate scope, such as `build-validation`; they are available to that scope without entering the packaged production inventory. Source-only packaged fixtures still declare their owner in the mod source tree so both compilation paths see them.
