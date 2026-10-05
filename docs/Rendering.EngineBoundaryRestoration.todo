@@ -2,7 +2,7 @@ Engine-boundary restoration through pipeline state and StateCache
 ================================================================
 
 Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
-Approval: user approved the proposal on 2026-10-05. Implementation has not started.
+Approval: user approved the proposal on 2026-10-05. Phase 1 contracts completed; runtime implementation pending.
 Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
 Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
 Project index: project.todo / Issues / Current / legacy fixed-function capture inventory.
@@ -37,36 +37,39 @@ Scope and exclusions
 Phase 1: Establish boundary coverage and implementation contracts
   Dependencies: approved source proposal and parent-plan sequencing exception.
   Outcome: a complete, reviewable contract for the first boundary and all affected entry points.
+  Completed 2026-10-05 after second source review and independent audit-stage-completion review.
+  Evidence: docs/Rendering.AuthoritativePipelineState.md / Engine-boundary restoration.
+  Source and installed-IL validation only; no runtime changes, build/test run or game launch.
 
-  ☐ Inventory the pre-overlay hook and full WaterRefractionCapture.Capture call chain.
-    ☐ Trace direct lighting, composite, allocation/resize, target setup, clears, draw helpers,
+  ✔ Inventory the pre-overlay hook and full WaterRefractionCapture.Capture call chain.
+    ✔ Trace direct lighting, composite, allocation/resize, target setup, clears, draw helpers,
       shader activation and cleanup; include exception and early-return paths.
-    ☐ Trace installed engine callers and resumed first-person draws; distinguish established
+    ✔ Trace installed engine callers and resumed first-person draws; distinguish established
       incoming state from values the engine actually resets after the interruption.
-    ☐ Inventory ordinary registered direct-lighting/composite callbacks separately from capture.
-    ☐ Classify each fixed-function, dynamic and binding effect as observed, explicitly preserved,
+    ✔ Inventory ordinary registered direct-lighting/composite callbacks separately from capture.
+    ✔ Classify each fixed-function, dynamic and binding effect as observed, explicitly preserved,
       reestablished by a verified engine contract, or excluded from the supported boundary.
-  ☐ Inventory every CaptureLegacyFixedFunctionState caller before proposing its disposition.
-    ☐ Identify independent engine boundaries, work inside an existing boundary and redundant scopes.
-    ☐ Record necessary retained callers and their migration dependencies; do not blanket-delete them.
-  ☐ Resolve the shared boundary API and source layout within existing owners.
-    ☐ Map every current fixed-function field across StateCache partial files to exactly one category,
+  ✔ Inventory every CaptureLegacyFixedFunctionState caller before proposing its disposition.
+    ✔ Identify independent engine boundaries, work inside an existing boundary and redundant scopes.
+    ✔ Record necessary retained callers and their migration dependencies; do not blanket-delete them.
+  ✔ Resolve the shared boundary API and source layout within existing owners.
+    ✔ Map every current fixed-function field across StateCache partial files to exactly one category,
       including patch size and provoking convention, plus the viewport coverage introduced here.
-    ☐ Specify category value structs and separate per-field/per-output validity metadata; retain
+    ✔ Specify category value structs and separate per-field/per-output validity metadata; retain
       partial knowledge without treating unknown values as PSO settings or native defaults.
-    ☐ Settle category placement and static/dynamic policy against the approved PSO architecture;
+    ✔ Settle category placement and static/dynamic policy against the approved PSO architecture;
       resource-binding caches and unsupported future state are outside this storage refactor.
-    ☐ Define coverage metadata derived from PSO/dynamic declarations plus documented helper effects;
+    ✔ Define coverage metadata derived from PSO/dynamic declarations plus documented helper effects;
       exclude duplicate renderer-maintained pipeline value lists.
-    ☐ Define the effective preservation set, including global/indexed aliases and all setup/cleanup effects.
-    ☐ Select a concrete context identity/generation source and loss/replacement recovery contract.
-    ☐ Specify supported dynamic state, viewport overloads and any required indexed write-mask coverage.
-    ☐ Define entry failure versus restoration failure handling, including propagation through capture's
+    ✔ Define the effective preservation set, including global/indexed aliases and all setup/cleanup effects.
+    ✔ Select a concrete context identity/generation source and loss/replacement recovery contract.
+    ✔ Specify supported dynamic state, viewport overloads and any required indexed write-mask coverage.
+    ✔ Define entry failure versus restoration failure handling, including propagation through capture's
       existing optional-failure catch; never report a failed restore as safe unchanged continuation.
-    ☐ Define non-nesting, exactly-once disposal and cleanup ordering with existing binding/shader scopes.
-  ☐ Record the coverage matrix, decisions, source links and deterministic reference cases in the
+    ✔ Define non-nesting, exactly-once disposal and cleanup ordering with existing binding/shader scopes.
+  ✔ Record the coverage matrix, decisions, source links and deterministic reference cases in the
     parent implementation evidence document. Map every proposal section to this plan's work.
-  ☐ Completion gate: coverage includes every affected entry point and helper; no unresolved context,
+  ✔ Completion gate: coverage includes every affected entry point and helper; no unresolved context,
     failure-policy or state-ownership choice blocks foundational implementation.
 
 Phase 2: Categorize state storage and establish cache-backed coverage
@@ -103,6 +106,8 @@ Phase 2: Categorize state storage and establish cache-backed coverage
     ☐ Express viewport as dynamic state, outside static PSO identity; cover required scissor/dynamic
       operations only where the boundary inventory requires them.
     ☐ Reuse exact-signature engine mappings; avoid duplicate native calls and recursive hooks.
+  ☐ Cover inventoried clear-color helper state through StateCache resource-operation storage and
+    exact-signature observation, outside static PSO identity; preserve it through boundary cleanup.
   ☐ Associate affected state knowledge/capabilities with the selected context identity/generation.
     ☐ Discard obsolete knowledge on loss/replacement/switch according to the verified context contract.
   ☐ Delegate focused transition tests against actual GL state and representative rendered output.
@@ -149,6 +154,8 @@ Phase 4: Implement restoration, cleanup and failure guarantees
   ☐ Implement exception-safe exactly-once cleanup with the declared adapter ordering.
     ☐ Coordinate shader ownership and borrowed bindings before final pipeline restoration where their
       cleanup can mutate covered state; reuse UseScope and independent read/draw framebuffer scopes.
+    ☐ Preserve the declared prepared-resource footprint, active texture unit and quad geometry bindings
+      through existing binding owners; reject unavailable foreign footprints before optional capture.
     ☐ Reject restoration into a different context generation and follow the selected recovery contract.
     ☐ Surface native restoration failures; mark affected knowledge unknown and apply the documented
       failure policy without hiding either the original operation error or restoration failure.
@@ -169,6 +176,7 @@ Phase 5: Integrate refraction and independent lighting/composite callbacks
     ☐ Remove intermediate legacy snapshots from the shared capture work; retain distinct binding and
       shader scopes that the contract still needs. Reject accidental nested engine boundaries.
     ☐ Adapt independently registered direct-lighting/composite callbacks to their own required boundaries.
+      Include composite preparation, SSAO restoration and receiver reduction in its declared coverage.
     ☐ Keep orchestration thin; isolate boundary policy from resource allocation and shading algorithms.
   ☐ Preserve refraction publication, failure, resize, reload, toggle and resource lifetime behavior.
     ☐ Failed optional entry leaves capture unpublished and does not interrupt the original engine draw.

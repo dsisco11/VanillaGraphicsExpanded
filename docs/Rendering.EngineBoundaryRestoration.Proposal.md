@@ -1,6 +1,8 @@
 # Engine-boundary restoration through pipeline state and StateCache
 
-Status: approved by the user on 2026-10-05. Implementation has not started.
+Status: approved by the user on 2026-10-05. Boundary inventory and implementation contracts are
+complete; runtime implementation remains pending. Evidence:
+[Rendering.AuthoritativePipelineState.md](Rendering.AuthoritativePipelineState.md#engine-boundary-restoration).
 
 Implementation plan: [Rendering.EngineBoundaryRestoration.todo](Rendering.EngineBoundaryRestoration.todo).
 
