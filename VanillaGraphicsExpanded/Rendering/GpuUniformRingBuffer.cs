@@ -10,27 +10,36 @@ namespace VanillaGraphicsExpanded.Rendering;
 ///
 /// Intended usage:
 /// - Call <see cref="BeginFrame"/> once per frame.
-/// - For each draw/dispatch, call <see cref="AllocateAndWrite"/> and bind the returned range via
+/// - For each new snapshot, call <see cref="AllocateAndWrite"/> and bind the returned range via
 ///   <see cref="GpuUniformBuffer.BindRange"/> (or <see cref="GpuProgramLayout.TryBindUniformBlockRange"/>).
+/// - Unchanged CPU blocks may rebind a range while <see cref="CanReuse"/> confirms its epoch.
 ///
 /// Preferred path uses persistent mapped storage (GL_ARB_buffer_storage).
 /// Fallback path uses orphan+subdata into per-page buffers.
 /// </summary>
 internal sealed class GpuUniformRingBuffer : IDisposable
 {
+    /// <summary>A borrowed immutable byte range, with allocator provenance for same-epoch reuse.</summary>
     public readonly struct Allocation
     {
         public readonly GpuUniformBuffer Buffer;
         public readonly int OffsetBytes;
         public readonly int SizeBytes;
 
-        public Allocation(GpuUniformBuffer buffer, int offsetBytes, int sizeBytes)
+        internal readonly GpuUniformRingBuffer Owner;
+        internal readonly ulong Epoch;
+
+        /// <summary>Records a freshly written range and the allocator epoch that owns it.</summary>
+        internal Allocation(GpuUniformRingBuffer owner, ulong epoch, GpuUniformBuffer buffer, int offsetBytes, int sizeBytes)
         {
+            Owner = owner;
+            Epoch = epoch;
             Buffer = buffer;
             OffsetBytes = offsetBytes;
             SizeBytes = sizeBytes;
         }
 
+        /// <summary>Reports physical buffer validity; epoch reuse additionally requires the allocator's check.</summary>
         public bool IsValid => Buffer is not null && Buffer.IsValid && OffsetBytes >= 0 && SizeBytes > 0;
     }
 
@@ -46,14 +55,21 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
     private int activePageIndex;
     private int writeOffsetBytes;
+    private ulong allocationEpoch;
+    private bool epochClosed;
+    private bool disposed;
 
     private int uniformOffsetAlignmentBytes;
 
+    #region Public API
     public int PageSizeBytes => pageSizeBytes;
     public int PageCount => pageCount;
 
     /// <summary>Counts successful copies into ring allocations independently of later resource binding.</summary>
     internal long AllocationsWritten { get; private set; }
+
+    /// <summary>Counts payload bytes copied, excluding alignment padding and resource binding.</summary>
+    internal long BytesWritten { get; private set; }
 
     public int UniformBufferOffsetAlignmentBytes
     {
@@ -70,6 +86,8 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
     public bool UsesPersistentMapping => usePersistent;
 
+    #region Frame lifecycle
+    /// <summary>Creates fixed-capacity pages using supported persistent storage or orphaned buffers.</summary>
     public GpuUniformRingBuffer(
         int pageSizeBytes = 1024 * 1024,
         int pageCount = 3,
@@ -121,8 +139,10 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         writeOffsetBytes = 0;
     }
 
+    /// <summary>Starts a fresh allocation epoch after waiting for the selected page's previous work.</summary>
     public void BeginFrame(int frameIndex)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         if (frameIndex < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(frameIndex), frameIndex, "Frame index must be >= 0.");
@@ -131,6 +151,10 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         int pageIndex = frameIndex % pageCount;
         WaitForFence(pageIndex);
 
+        // Even a repeated frame index resets the page. Old snapshots cannot be rebound
+        // in another frame: its later draws would outlive the fence that retired them.
+        unchecked { allocationEpoch++; }
+        epochClosed = false;
         activePageIndex = pageIndex;
         writeOffsetBytes = 0;
 
@@ -147,6 +171,10 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     /// </summary>
     public void EndFrame()
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        // Close reuse before fencing, including when fence creation fails.
+        unchecked { allocationEpoch++; }
+        epochClosed = true;
         fences[activePageIndex]?.Dispose();
         fences[activePageIndex] = null;
 
@@ -154,8 +182,13 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         fences[activePageIndex]!.SetDebugName($"{debugName}.Fence.Page{activePageIndex}");
     }
 
+    #endregion
+
+    #region Snapshot publication
+    /// <summary>Copies a complete immutable snapshot into a fresh aligned range of the active page.</summary>
     public Allocation AllocateAndWrite(ReadOnlySpan<byte> data, int? alignmentBytes = null)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         if (data.Length <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(data), "Data must be non-empty.");
@@ -206,9 +239,39 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
         writeOffsetBytes = endExclusive;
         AllocationsWritten++;
-        return new Allocation(page, offset, data.Length);
+        BytesWritten += data.Length;
+        return new Allocation(this, allocationEpoch, page, offset, data.Length);
     }
 
+    /// <summary>Checks provenance and current lifetime without querying GPU state.</summary>
+    internal bool CanReuse(in Allocation allocation) => !disposed && !epochClosed
+        && ReferenceEquals(allocation.Owner, this) && allocation.Epoch == allocationEpoch && allocation.IsValid;
+    #endregion
+
+    #region Retirement
+    /// <summary>Invalidates borrowed ranges and retires the ring's fences, mappings and pages.</summary>
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        for (int i = 0; i < fences.Length; i++)
+        {
+            fences[i]?.Dispose();
+            fences[i] = null;
+        }
+
+        for (int i = 0; i < pages.Length; i++)
+        {
+            try { pages[i]?.Dispose(); } catch (Exception ex) { Debug.WriteLine($"[VGE] Dispose UBO ring page failed: {ex}"); }
+            pages[i] = null!;
+            mappedBases[i] = IntPtr.Zero;
+        }
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Waits for all previously submitted references before recycling a page.</summary>
     private void WaitForFence(int pageIndex)
     {
         var fence = fences[pageIndex];
@@ -239,6 +302,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         fences[pageIndex] = null;
     }
 
+    /// <summary>Creates persistent mappings with the selected coherent or explicit-flush policy.</summary>
     private void AllocateAndMapPersistentPages()
     {
         for (int i = 0; i < pageCount; i++)
@@ -276,6 +340,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         }
     }
 
+    /// <summary>Rounds a byte offset to the allocator's power-of-two alignment.</summary>
     private static int AlignUp(int value, int alignment)
     {
         if (alignment <= 1)
@@ -287,6 +352,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         return (value + mask) & ~mask;
     }
 
+    /// <summary>Reads context alignment once, retaining the existing conservative fallback.</summary>
     private static int QueryUniformBufferOffsetAlignment()
     {
         try
@@ -300,19 +366,5 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        for (int i = 0; i < fences.Length; i++)
-        {
-            fences[i]?.Dispose();
-            fences[i] = null;
-        }
-
-        for (int i = 0; i < pages.Length; i++)
-        {
-            try { pages[i]?.Dispose(); } catch (Exception ex) { Debug.WriteLine($"[VGE] Dispose UBO ring page failed: {ex}"); }
-            pages[i] = null!;
-            mappedBases[i] = IntPtr.Zero;
-        }
-    }
+    #endregion
 }

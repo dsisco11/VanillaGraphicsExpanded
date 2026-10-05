@@ -85,11 +85,44 @@ The bent-normal spelling remains an alias of short-range AO. Passing conflicting
 
 ## Retained runtime inputs
 
-Assign shader inputs before Use, UseScope or Dispatch. Unchanged and unassigned values retain their previous value or default. Use invokes contract-generated Submit, which validates all active inputs before publishing any of them. Several CPU parameter writes produce one complete ring allocation per active block at each submission. There is no Prepare callback or CPU batch scope.
+Assign shader inputs before Use, UseScope or Dispatch. Unchanged and unassigned values retain their previous value or default. Use invokes contract-generated Submit, which validates all active inputs before publishing any of them. Each active CPU block binds a complete snapshot: changed bytes or an expired allocation require a fresh ring allocation, while an unchanged current-epoch snapshot can be rebound. There is no Prepare callback or CPU batch scope.
 
 Declare borrowed resources through ShaderBinding interfaces. Generated setters retain references; authored getters may expose existing CPU blocks or shared buffers and must perform no GPU work. Attach the owner's mutation guard to owned CPU blocks. Raw texture IDs require ShaderTextureTarget and an explicit sampler policy when the default is unsuitable. Optional non-2D managed samplers also need the declared target so an unassigned value clears the correct texture binding. CPU blocks are copied into the current frame's ring; retained GPU references do not extend resource lifetime. Every sampler and image also needs a UniformLocation declaration in its stage contract: a binding slot alone cannot identify an active uniform in name-free SPIR-V.
 
-Compute owners derive from GpuComputeShader and adopt the existing GpuComputePipeline. Use GpuStorageBufferBinding for exact SSBO ranges and GpuTextureBinding for image levels, layers, access and format. Dispatch owns activation and submission; keep work uploads, clears, barriers and readbacks explicit around it. Liquid engine pool callbacks are the specific exception to application-controlled draw ordering: they stage inputs, and LiquidPoolSubmissionHook establishes the pre-draw publication boundary. See [the submission contract](Rendering.ShaderPreparation.md).
+Compute owners derive from GpuComputeShader and adopt the existing GpuComputePipeline. Use GpuStorageBufferBinding for exact SSBO ranges and GpuTextureBinding for image levels, layers, access and format. Dispatch owns activation and submission; keep work uploads, clears, barriers and readbacks explicit around it. Liquid engine pool callbacks are the specific exception to application-controlled draw ordering: they stage inputs, and LiquidPoolSubmissionHook establishes the pre-draw publication boundary.
+
+### CPU uniform upload lifetime
+
+`CpuUniformBuffer` tracks a content revision independently of dirty flags. Typed writes advance
+it only when packed bytes change; custom writable-span or array writes must call `MarkDirty`.
+`PackedUniformBuffer.SetBytes` compares and copies the complete block before marking changes.
+Submission borrows the last successfully bound range only when its revision, ring identity,
+allocation epoch and live buffer still match. Reuse still calls the existing range-binding owner,
+so another shader or slot cannot leave an unrelated block bound. Program reload does not change
+the CPU bytes; normal executable validation and submission still apply.
+
+Every `BeginFrame`, including reuse of the same frame index, opens a new allocation epoch.
+`EndFrame` closes reuse before inserting its fence, and disposal invalidates the allocator.
+No snapshot is reused across these boundaries: a physically live page alone does not prove
+that new draws belong to the work covered by its retirement fence. A different current ring
+also requires a new upload. Changed bytes always allocate a fresh range, retaining earlier
+draw snapshots. Failed allocation or binding leaves dirty work and the previous publication
+record intact. CPU-buffer disposal releases the borrowed record without retiring ring storage.
+
+Focused validation covers both persistent and orphaned-buffer rings, same-owner and nested
+restoration, shared blocks, changed snapshots, repeated frame indices, page wrap, replacement,
+disposal, reload and failed publication. GPU binding/readback and actual draw/compute checks
+cover liquid and non-water consumers. Thirty-six distinct cases passed across the initial run
+and a targeted rerun correcting two old assertions that required an upload on every activation.
+The C# builds passed while reusing unchanged shader artifacts.
+
+A warmed sequence of 32 nested surface/volume scopes previously performed 288 whole-block
+allocations and copied 462,336 payload bytes. It now performs zero additional allocations or
+copies, while restoring each owner's distinct GPU-visible draw values. Changed blocks and new
+epochs still require their first upload. `AllocationsWritten` and `BytesWritten` count successful
+copies independently of binding; alignment padding is excluded from bytes. CPU timing varied
+between runs, so this establishes copy/allocation savings, not a CPU or GPU speedup. Receipts
+are retained in `artifacts/WaterLagAnalysis/uniform-reuse-*`.
 
 Mark a resource optional only when the shader has a valid path without it. For example, PBR composition permits an unavailable GI texture because the renderer also sets indirect intensity to zero. Optional absence clears the binding; it never borrows the previous shader's resource. Required active resources must be valid at use. Do not draw after a failed TryUse or a thrown Use/Dispatch.
 

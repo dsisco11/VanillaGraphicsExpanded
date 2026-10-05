@@ -18,6 +18,43 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Measures complete production block copies across repeated nested surface and volume activation.</summary>
+    [Fact]
+    public void RepeatedLiquidActivationReportsUploadCopies()
+    {
+        EnsureContextValid();
+        using var platform=new EngineShaderPlatformScope();
+        using var assets=new BinaryShaderApiFixture();
+        Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
+        var surface=GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api,"pbr_liquid")!;
+        var volume=GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api,LiquidShaderProgram.VolumePassName)!;
+        using var texture=Texture2D.Create(1,1,PixelInternalFormat.Rgba32f);
+        using var atmosphere=DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D);
+        AssignTextures(surface,texture,atmosphere); AssignTextures(volume,texture,atmosphere);
+        surface.Origin=new(1,2,3); volume.Origin=new(4,5,6);
+        using var ring=new GpuUniformRingBuffer(4*1024*1024,2,false);
+        ring.BeginFrame(0); GpuUniformRingSystem.SetCurrent(ring);
+        try
+        {
+            using(surface.UseScope()) { using(volume.UseScope()) { } }
+            long bytesBefore=ring.BytesWritten;
+            long before=ring.AllocationsWritten,start=System.Diagnostics.Stopwatch.GetTimestamp();
+            for(int iteration=0;iteration<32;iteration++)
+            { using(surface.UseScope()) { using(volume.UseScope()) { } } }
+            long copies=ring.AllocationsWritten-before;
+            Assert.Equal(0, copies);
+            Assert.Equal(bytesBefore, ring.BytesWritten);
+            output.WriteLine($"uniform-publication nestedPairs=32 allocations={copies} copiedBytes={ring.BytesWritten-bytesBefore} elapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds:R}");
+            using(surface.UseScope())
+            {
+                Assert.Equal(new float[] {1,2,3},ReadDraw(out _,out _).AsSpan(16,3).ToArray());
+                using(volume.UseScope()) Assert.Equal(new float[] {4,5,6},ReadDraw(out _,out _).AsSpan(16,3).ToArray());
+                Assert.Equal(new float[] {1,2,3},ReadDraw(out _,out _).AsSpan(16,3).ToArray());
+            }
+        }
+        finally { GpuUniformRingSystem.ClearCurrent(); GpuShaderPrograms.Dispose(assets.Api); }
+    }
+
     /// <summary>Measures actual frame preparation with representative and maximum authored array counts.</summary>
     [Theory]
     [InlineData(0,0,0)]

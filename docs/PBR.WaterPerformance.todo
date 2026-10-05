@@ -540,10 +540,10 @@ Phase 15 — Reject reduction candidates before color fetches
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 16 — Reuse unchanged uniform-buffer uploads safely
-  ☐ Measure repeated whole-block uploads during activation/restoration through CpuUniformBuffer.
+  ☑ Measure repeated whole-block uploads during activation/restoration through CpuUniformBuffer.
     - Reuse the existing ring allocator and binding owners; distinguish this upload work from
       Phase 12's CPU input preparation and Phase 11's shader-setting allocations.
-  ☐ Retain and rebind an uploaded range only while both contents and allocation remain valid.
+  ☑ Retain and rebind an uploaded range only while both contents and allocation remain valid.
     - Track content revision and the allocator's actual lifetime/generation contract. IsDirty alone
       cannot establish validity after ring reuse, reset, disposal or a different active ring.
     - Preserve immutable earlier draw snapshots when contents change; allocate a fresh range
@@ -551,11 +551,41 @@ Phase 16 — Reuse unchanged uniform-buffer uploads safely
     - Rebind the correct slot/range even when upload is skipped. Preserve mutation guards,
       failed-publication behavior, program reload, alignment and block-size validation.
     - Audit existing writable-span/MarkDirty paths so every supported mutation invalidates reuse.
-  ☐ Verify unchanged reactivation, changed data, alternating owners, shared blocks, ring rollover,
+  ☑ Verify unchanged reactivation, changed data, alternating owners, shared blocks, ring rollover,
     allocator replacement and disposal. Include actual GPU-observed contents and upload counts.
     - Check affected non-water consumers because this is a shared rendering-infrastructure change.
   Completion: identical data reuses valid uploaded storage without stale bindings or premature
   allocation reuse; record allocation/copy savings separately from GPU rendering performance.
+  Implementation: CPU blocks retain content revision and the last successful borrowed range.
+  Reuse requires unchanged revision, the same current ring, a live buffer and the same open
+  allocation epoch. BeginFrame always advances the epoch; EndFrame closes it before fencing;
+  disposed allocators reject publication. Every submission still binds its range through the
+  existing binding owners. Changed contents allocate fresh storage; failed publication does not
+  commit the new range or clear dirty state. No cross-frame or cross-ring reuse is attempted.
+  Traceability: ShaderAuthoring.md / CPU uniform upload lifetime governs current submission,
+  mutation guards and borrowed storage. Its retired Rendering.ShaderPreparation.md reference
+  was resolved at 4f11243d^; this task explicitly supersedes that historical exclusion of reuse,
+  while retaining validation-before-publication, fail-closed activation and restoration behavior.
+  Water/liquid documents retain independent frame/draw/wave owners and unchanged HDR/OIT;
+  authoritative-state documents retain range binding and resource-lifetime authority. Capture
+  findings and measurement policy separate allocation/copy savings from CPU/GPU frame timings.
+  Mutation audit: all 18 production CPU-block types use base typed writes except the packed
+  adapter, which compares/copies and calls MarkDirty. No production caller retains writable
+  Data/DataWritable storage. Nonempty MarkDirty advances revision independently of dirty flags;
+  caller-authored direct writes retain their existing obligation to mark the changed bytes.
+  Verification: C# builds passed using unchanged shader artifacts. Thirty-six distinct focused
+  cases pass across the initial 33 passing cases and the targeted five-case rerun, which corrects
+  two stale per-activation allocation expectations and adds the persistent lifecycle variant.
+  Actual GPU bindings/contents and draw/compute checks cover water, LumOn, shared blocks, changed
+  snapshots, required-input failure/retry, reload, persistent/orphaned storage, EndFrame closure,
+  repeated frame index, page rollover/wrap, ring replacement/disposal and CPU cache retirement.
+  The matched warmed 32-pair liquid activation/restoration sequence drops from 288 allocations
+  and 462,336 copied bytes to zero additional allocations/bytes, with distinct surface/volume
+  values restored correctly. First uploads and changed data remain required; no cross-frame
+  benefit is claimed. CPU durations vary, and GPU timing is unmeasured. ShaderAuthoring.md records
+  the contract and limits; artifacts/WaterLagAnalysis/uniform-reuse-* retains baseline/build/test
+  receipts, including the initial stale-assertion failures and their passing corrections.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 17 — Review remaining bandwidth and validate the combined result
   ☐ Obtain a matched optimized-build comparison after executable-lifetime fixes.

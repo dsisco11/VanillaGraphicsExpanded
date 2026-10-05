@@ -17,6 +17,94 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     public ShaderInputSubmissionTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Public API
+    /// <summary>Shared CPU contents rebind across programs while ring boundaries and edits require fresh snapshots.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SharedBlockReuseRespectsPublicationAndAllocatorLifetime(bool persistent)
+    {
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        var first = programs.Create<LumOnUpsampleShaderProgram>();
+        var second = programs.Create<LumOnUpsampleShaderProgram>();
+        using var block = new PackedUniformBuffer(32);
+        GpuSupport.Initialize();
+        using var ring = new GpuUniformRingBuffer(4096, 2, persistent);
+        Assert.SkipWhen(persistent && !ring.UsesPersistentMapping, "Persistent uniform mapping unavailable.");
+        Assert.Equal(persistent, ring.UsesPersistentMapping);
+        using var replacement = new GpuUniformRingBuffer(4096, 1, false);
+        byte[] bytes = new byte[32];
+        BitConverter.GetBytes(0.25f).CopyTo(bytes, 0);
+        block.SetBytes(bytes);
+        ring.BeginFrame(0);
+        GpuUniformRingSystem.SetCurrent(ring);
+        try
+        {
+            // A failed named binding must neither consume dirty state nor retain an unsuccessful upload.
+            Assert.False(block.TryBindTo(first, "MissingUniformBlock", "Tests.SharedBlock"));
+            Assert.True(block.IsDirty);
+            Assert.True(block.TryBindTo(first, LumOnUpsampleParamsUbo.BlockName, "Tests.SharedBlock"));
+            Assert.False(block.IsDirty);
+            Assert.Equal(2, ring.AllocationsWritten);
+            Assert.True(block.TryBindTo(second, LumOnUpsampleParamsUbo.BlockName, "Tests.SharedBlock"));
+            Assert.Equal(2, ring.AllocationsWritten);
+            Assert.Equal(0.25f, SubmittedDepthSigma());
+            GL.GetInteger((GetIndexedPName)All.UniformBufferStart, 14, out int originalOffset);
+            GL.GetInteger((GetIndexedPName)All.UniformBufferBinding, 14, out int originalBuffer);
+
+            // A competing slot publication must not prevent the unchanged owner from restoring its range.
+            using var competing = new PackedUniformBuffer(32);
+            BitConverter.GetBytes(0.75f).CopyTo(bytes, 0);
+            competing.SetBytes(bytes);
+            Assert.True(competing.TryBindToSlot(14));
+            Assert.Equal(0.75f, SubmittedDepthSigma());
+            Assert.True(block.TryBindToSlot(14));
+            Assert.Equal(0.25f, SubmittedDepthSigma());
+            Assert.Equal(3, ring.AllocationsWritten);
+            block.SetBytes(bytes);
+            Assert.True(block.TryBindToSlot(14));
+            Assert.Equal(0.75f, SubmittedDepthSigma());
+            Assert.Equal(4, ring.AllocationsWritten);
+            // Earlier submitted snapshots remain intact after a changed publication.
+            GL.BindBuffer(BufferTarget.UniformBuffer, originalBuffer);
+            float[] original = new float[1];
+            GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)originalOffset, sizeof(float), original);
+            Assert.Equal(0.25f, original[0]);
+
+            first.InvalidateAssets();
+            first.EnsureReady();
+            Assert.True(block.TryBindTo(first, LumOnUpsampleParamsUbo.BlockName, "Tests.SharedBlock"));
+            Assert.Equal(4, ring.AllocationsWritten);
+            ring.EndFrame();
+            Assert.True(block.TryBindToSlot(14));
+            Assert.Equal(5, ring.AllocationsWritten);
+            // Both another page and wraparound invalidate the borrowed range even when bytes are unchanged.
+            for (int frame = 1; frame <= 2; frame++)
+            {
+                ring.BeginFrame(frame);
+                Assert.True(block.TryBindToSlot(14));
+                Assert.Equal(0.75f, SubmittedDepthSigma());
+                Assert.Equal(5 + frame, ring.AllocationsWritten);
+                ring.EndFrame();
+            }
+            ring.BeginFrame(2);
+            Assert.True(block.TryBindToSlot(14));
+            Assert.Equal(8, ring.AllocationsWritten);
+            Assert.Equal(0.75f, SubmittedDepthSigma());
+            replacement.BeginFrame(0);
+            GpuUniformRingSystem.SetCurrent(replacement);
+            Assert.True(block.TryBindToSlot(14));
+            Assert.Equal(1, replacement.AllocationsWritten);
+            block.Dispose();
+            Assert.True(block.TryBindToSlot(14));
+            Assert.Equal(2, replacement.AllocationsWritten);
+            Assert.Equal(64, replacement.BytesWritten);
+            Assert.Equal(0.75f, SubmittedDepthSigma());
+            replacement.Dispose();
+            Assert.Throws<ObjectDisposedException>(() => block.TryBindToSlot(14));
+        }
+        finally { GpuUniformRingSystem.ClearCurrent(); }
+    }
     /// <summary>Generated validation leaves all bindings and CPU dirty work untouched until a missing required input is corrected.</summary>
     [Fact]
     public void RequiredInputFailureRetainsPendingBlockForRetry()
@@ -136,7 +224,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 Assert.Equal(0f, SubmittedDepthSigma(8));
                 Assert.Equal(0f, SubmittedDepthSigma(16));
             }
-            Assert.Equal(3, ring.AllocationsWritten);
+            Assert.Equal(2, ring.AllocationsWritten);
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }
@@ -232,7 +320,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(1, ring.AllocationsWritten);
             Assert.Equal(0.75f, SubmittedDepthSigma(48));
             shader.Use();
-            Assert.Equal(2, ring.AllocationsWritten);
+            Assert.Equal(1, ring.AllocationsWritten);
             Assert.Equal(0.75f, SubmittedDepthSigma(48));
             shader.Stop();
             Assert.Equal(ErrorCode.NoError, GL.GetError());

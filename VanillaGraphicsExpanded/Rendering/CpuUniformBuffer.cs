@@ -6,8 +6,8 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// CPU-side std140-packed uniform-block data.
 ///
-/// This type is intentionally CPU-only: it owns no GL resources and performs no GL calls.
-/// Upload/binding is handled by external systems (e.g., a per-frame UBO ring allocator).
+/// Owns CPU bytes and borrows its last published range from the active UBO ring.
+/// GPU allocation and binding remain with the ring and uniform-buffer owners.
 ///
 /// Assignments remain CPU-only; the shader activation boundary publishes the complete block.
 /// </summary>
@@ -18,6 +18,10 @@ public abstract class CpuUniformBuffer : IDisposable
     private int dirtyStartBytes;
     private int dirtyEndExclusiveBytes;
     private Action? writeGuard;
+    private ulong contentRevision;
+    private ulong uploadedRevision;
+    private GpuUniformRingBuffer? uploadedRing;
+    private GpuUniformRingBuffer.Allocation uploadedAllocation;
 
     /// <summary>Attaches an owning shader's edit contract without affecting standalone packed buffers.</summary>
     internal void SetWriteGuard(Action guard) => writeGuard = guard ?? throw new ArgumentNullException(nameof(guard));
@@ -178,6 +182,7 @@ public abstract class CpuUniformBuffer : IDisposable
         }
 
         isDirty = true;
+        unchecked { contentRevision++; }
         if (byteOffset < dirtyStartBytes) dirtyStartBytes = byteOffset;
         if (endExclusive > dirtyEndExclusiveBytes) dirtyEndExclusiveBytes = endExclusive;
     }
@@ -212,33 +217,53 @@ public abstract class CpuUniformBuffer : IDisposable
             return false;
         }
 
-        if (GpuUniformRingSystem.TryBind(program, blockName, Bytes, debugName, clearDirty: true))
-        {
-            isDirty = false;
-            dirtyStartBytes = int.MaxValue;
-            dirtyEndExclusiveBytes = 0;
-            return true;
-        }
-        return false;
+        if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) return false;
+        var allocation = GetUpload(ring);
+        if (!program.ProgramLayout.TryBindUniformBlockRange(program.ProgramId, blockName,
+            allocation.Buffer, allocation.OffsetBytes, allocation.SizeBytes, warn: null)) return false;
+        CommitUpload(ring, allocation);
+        return true;
     }
 
     /// <summary>Uploads through the existing ring to a preparation-validated slot, committing dirty work only on success.</summary>
     internal bool TryBindToSlot(int slot)
     {
         if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) return false;
-        var allocation = ring.AllocateAndWrite(Bytes);
+        var allocation = GetUpload(ring);
         allocation.Buffer.BindRange(slot, allocation.OffsetBytes, allocation.SizeBytes);
-        isDirty = false;
-        dirtyStartBytes = int.MaxValue;
-        dirtyEndExclusiveBytes = 0;
+        CommitUpload(ring, allocation);
         return true;
     }
 
     /// <summary>Releases the CPU-only buffer contract; no GPU resources are owned.</summary>
     public void Dispose()
     {
-        // CPU-only: nothing to dispose.
-        // Derived classes may override if they add managed/unmanaged resources.
+        // The ring owns the allocation; release only this borrowed publication record.
+        uploadedRing = null;
+        uploadedAllocation = default;
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Reuses only unchanged bytes in the same allocator's still-open allocation epoch.</summary>
+    private GpuUniformRingBuffer.Allocation GetUpload(GpuUniformRingBuffer ring)
+    {
+        // A live GL buffer alone does not prove that its range still belongs to this draw epoch.
+        // Changed contents always receive a fresh snapshot, preserving earlier submitted draws.
+        if (ReferenceEquals(uploadedRing, ring) && uploadedRevision == contentRevision
+            && ring.CanReuse(uploadedAllocation)) return uploadedAllocation;
+        return ring.AllocateAndWrite(Bytes);
+    }
+
+    /// <summary>Retains the successful publication without consuming dirty work on failed binding.</summary>
+    private void CommitUpload(GpuUniformRingBuffer ring, GpuUniformRingBuffer.Allocation allocation)
+    {
+        uploadedRing = ring;
+        uploadedAllocation = allocation;
+        uploadedRevision = contentRevision;
+        isDirty = false;
+        dirtyStartBytes = int.MaxValue;
+        dirtyEndExclusiveBytes = 0;
     }
     #endregion
 }
