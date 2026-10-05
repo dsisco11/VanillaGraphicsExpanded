@@ -537,7 +537,9 @@ refraction, rejected coverage and total internal reflection retain the ordinary 
 
 Source illumination uses the same positive-effective-scattering rule as boundary capture.
 Solar and point-light phase terms are evaluated only for required fallback/refracted sources;
-the refracted photon-direction transform is likewise unnecessary for zero scattering. Shared
+the refracted photon-direction transform is likewise unnecessary for zero scattering or exactly
+isotropic scattering. Isotropic sources use `1/(4*pi)` without forming a phase cosine;
+every nonzero anisotropy retains its directional response (see `PBR.WaterMedium.md`). Shared
 shadow visibility, solar and point-light reflection remain outside these gates. Non-water body
 lighting, glow, sphere fog, preview alpha and six-target OIT output retain their existing paths.
 The underwater outgoing air segment remains separate from the submerged camera segment.

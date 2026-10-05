@@ -463,17 +463,40 @@ Phase 13 — Stop redundant endpoint probes
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 14 — Simplify isotropic scattering evaluation
-  ☐ Use the constant 1/(4*pi) phase value when effective anisotropy is exactly zero.
+  ☑ Use the constant 1/(4*pi) phase value when effective anisotropy is exactly zero.
     - This applies to nonzero isotropic scattering, independently of Phase 5's zero-scattering path.
     - Omit directional calculations only when they serve that phase evaluation exclusively;
       preserve reflection, refraction and other consumers of the same directions.
     - Preserve positive/negative anisotropy and existing clamping; do not approximate small
       nonzero anisotropy as zero without a separately justified accuracy change.
-  ☐ Verify isotropic and anisotropic media under sun and point lighting, above and below water.
+  ☑ Verify isotropic and anisotropic media under sun and point lighting, above and below water.
     - Inspect optimized variants and measure coherent/mixed-material cases; a dynamic branch
       must not be assumed faster than compiler simplification or the original expression.
   Completion: isotropic phase evaluation retains its exact physical value while demonstrated
   redundant phase arithmetic is removed, without undermining earlier shading-work reductions.
+  Implementation: exact-zero scalar/directional phase paths use 1/(4*pi), skipping the cosine
+  and bounded HG expression. Surface source evaluation omits only its refracted outgoing-direction
+  transform; volume source evaluation omits only its world-eye transform and sun normalization.
+  Shared reflection directions, boundary orientation, positive-scattering gates and signed outputs
+  remain unchanged. No epsilon, material threshold or quality/setting change is introduced.
+  Traceability: PBR.WaterMedium.md / evaluation and ownership governs HG normalization, anisotropy
+  bounds, source lighting and signed transport; PBR.WaterRefraction.md / scattering and conditional
+  source work governs outgoing photon directions and fallback eligibility. Liquid/display and
+  authoritative-state documents retain shared reflection, HDR/OIT and existing owners. Original
+  capture findings and measurement policy require optimized matched binaries and separate GPU
+  draw timings; focused fixtures cannot establish a live-frame improvement.
+  Verification: final serial shader/Debug build passed (zero errors, 101 existing warnings),
+  and 16/16 focused GPU cases passed without skips. All 32 optimized final binaries match the
+  measured candidates byte-for-byte. Exact zero, signed/tiny/clamped anisotropy, transport and
+  boundary checks pass; 672 production lighting output vectors retain exact alpha and scaled
+  differences below 2.34e-7. Forty-two full-MRT comparisons likewise retain exact alpha.
+  Optimized surface variants add 43 static instructions and boundary variants seven, but bypass
+  phase-only arithmetic/directions on isotropic paths; 16 other capture variants are unchanged.
+  Coherent isotropic/anisotropic and mixed-material ABBA timings show unchanged boundary medians.
+  Surface timing trends reverse between short and longer batches with broad overlapping ranges;
+  no stable GPU speedup/regression or live-frame gain is established. PBR.WaterMedium.md records
+  both comparisons and limitations; artifacts/WaterLagAnalysis/isotropic-* retains receipts.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 15 — Reject reduction candidates before color fetches
   ☐ Reorder half-resolution background reduction to reject unusable depth candidates first.

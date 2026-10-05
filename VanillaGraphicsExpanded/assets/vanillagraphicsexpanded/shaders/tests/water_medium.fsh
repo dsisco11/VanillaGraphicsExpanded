@@ -40,4 +40,12 @@ void main()
         }
         result = vec4(VgeWaterTransport(medium,distanceMetres,vec3(8,4,2),source),1);
     }
+    if (row >= 10)
+    {
+        float values[7] = float[7](0.0,.7,-.7,.0000001,-.0000001,2.0,-2.0);
+        float cosine = float(column) * .5 - 1.0;
+        vec3 incoming = vec3(sqrt(max(0.0,1.0-cosine*cosine)),0,cosine);
+        result = vec4(VgeWaterPhase(cosine,values[row-10]),
+            VgeWaterPhase(incoming,vec3(0,0,1),values[row-10]),0,1);
+    }
 }

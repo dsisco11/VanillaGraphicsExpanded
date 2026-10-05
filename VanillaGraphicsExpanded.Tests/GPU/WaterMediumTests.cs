@@ -17,7 +17,7 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<WaterMediumShaderProgram>();
-        using var target = CreateRenderTarget(5, 10, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(5, 17, PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         var pixels = target[0].ReadPixels();
         double[] distances = [0, .000001, 1, 10, 100];
@@ -55,6 +55,33 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
             double integral = sigma == 0 ? distance : (1 - transmission) / sigma;
             AssertClose(background[channel] * transmission + source * scatter * integral,
                 pixels[(row * 5 + x) * 4 + channel]);
+        }
+        double[] anisotropies=[0,.7,-.7,1e-7,-1e-7,2,-2];
+        for(int row=0;row<anisotropies.Length;row++)
+        for(int x=0;x<5;x++)
+        {
+            double g=Math.Clamp(anisotropies[row],-.95,.95), cosine=x*.5-1;
+            double denominator=Math.Max(1+g*g-2*g*cosine,.0025);
+            double expected=(1-g*g)/(4*Math.PI*denominator*Math.Sqrt(denominator));
+            float actual=pixels[((row+10)*5+x)*4];
+            // Near the clamped forward peak, float cancellation in 1+g*g-2*g
+            // amplifies rounding; retain the tighter bound everywhere else.
+            if(Math.Abs(g)==.95 && g*cosine>0 && Math.Abs(cosine)==1)
+            {
+                Assert.InRange((double)actual,expected*(1-5e-5),expected*(1+5e-5));
+                Assert.InRange((double)pixels[((row+10)*5+x)*4+1],expected*(1-5e-5),expected*(1+5e-5));
+            }
+            else
+            {
+                AssertClose(expected,actual);
+                AssertClose(expected,pixels[((row+10)*5+x)*4+1]);
+            }
+            if(row==0)
+            {
+                Assert.Equal(1f/12.56637061436f,actual);
+                Assert.Equal(actual,pixels[((row+10)*5+x)*4+1]);
+            }
+            if(row is 3 or 4 && x is 0 or 4) Assert.NotEqual(1f/12.56637061436f,actual);
         }
     }
     #endregion

@@ -94,6 +94,51 @@ Final receipts: `shared-medium-final-build.log`, `shared-medium-final-tests.log/
 
 The current liquid consumer supplies shadow-visible solar irradiance, bounded surface-local environment/block lighting and distance-attenuated engine point lights. Environment/block source is isotropic; direct sources use the phase function. Sunlight does not enter this source when the receiver's existing shadow/sky visibility is zero. This is a constant local illumination approximation, not light transport integrated along the volume. Dynamic lights remain unshadowed as in the existing surface path; terrain rejection along their paths remains necessary.
 
+Exactly zero anisotropy uses the constant `1/(4*pi)`, including media with nonzero scattering.
+Nonzero anisotropy retains the bounded Henyey-Greenstein expression, even arbitrarily close
+to zero; the existing `[-.95,.95]` clamp is unchanged. The direction overload skips the cosine
+for isotropic scattering. Surface lighting also skips the refracted outgoing-direction transform
+when it serves only that phase evaluation, while retaining the view, solar and point-light
+directions used by reflection. Boundary lighting skips its phase-only world-space eye transform
+and solar normalization. Boundary orientation, solar/shadow illumination, signed accumulation,
+and the separate zero-scattering gate remain unchanged.
+
+Optimized inspection confirms that the isotropic branch bypasses the angular formula and
+phase-only directions. The shared nonzero helper avoids nested zero tests that the compiler
+retained in an initial implementation. Relative to the previous binaries, the eight surface
+variants add 43 static instructions and eight boundary variants add seven; the sixteen other
+capture variants are unchanged. This is a dynamic-work reduction, not smaller shader code.
+
+Matched optimized draws on an RTX 4090 (driver 591.86) use 512x512 targets, the existing timer,
+and baseline/current/current/baseline ordering. Both materials have nonzero scattering; the
+checker alternates isotropic and anisotropic records and verifies both responses occur.
+Boundary medians are identical at 0.295936 ms per 16 draws across all three material patterns.
+Surface timings remain inconclusive: short batches appeared slower, but a bounded repeat with
+128 draws, five warmup batches and ten measured batches per run reversed that trend. Its
+combined medians (20 samples per version, milliseconds per 128 draws) are:
+
+| Medium pattern | UV baseline / current | x8 baseline / current |
+| --- | ---: | ---: |
+| Isotropic | 27.291648 / 20.153856 | 50.464768 / 42.229248 |
+| Anisotropic | 27.564032 / 20.686848 | 64.713728 / 42.242048 |
+| Spatial checker | 27.912192 / 20.643328 | 60.040704 / 44.796928 |
+
+Ranges overlap broadly: x8 isotropic spans 25.616384–74.984448 ms before and
+38.582272–58.620928 ms after. Neither attempt establishes a stable surface speedup or regression,
+and neither measures live frame performance. Both attempts and full ranges are retained in
+`artifacts/WaterLagAnalysis/isotropic-gpu-*` and `isotropic-stable-gpu-*`.
+Forty-two matched full-MRT output pairs retain exact alpha; maximum scaled differences are
+`5.94e-7` for boundary lighting and `2.37e-7` for surfaces. Analytic checks cover exact zero,
+signed `.7`, signed `1e-7` and out-of-range anisotropy at five angles. Only the clamped forward
+peak needs a `5e-5` relative tolerance, independently reproduced by float32 denominator rounding;
+exact isotropic equality and the distinction from tiny nonzero anisotropy remain strict.
+The final supported serial shader/Debug build passed with zero errors (101 existing warnings),
+and all 16 focused GPU cases passed without skips. The 32 optimized final binaries match the
+measured candidates byte-for-byte. Across 672 production output vectors covering sun and point
+lights, above/below water, UV/x8 and enabled/disabled refraction, alpha is exact and maximum
+scaled difference is `2.34e-7`. Build, tests, binary identity and output receipts are retained as
+`artifacts/WaterLagAnalysis/isotropic-final-*`.
+
 For accepted refracted receivers, solar and point-light phase evaluation uses the outgoing photon
 direction within water. Above water this is the reverse refracted interface-to-receiver ray,
 transformed from view to world space. Underwater it is the interface-to-camera direction; the

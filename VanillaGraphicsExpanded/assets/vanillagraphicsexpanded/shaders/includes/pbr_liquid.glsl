@@ -77,12 +77,14 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     vec3 mediumSource = vec3(0);
     vec3 refractedSource = vec3(0);
     if (fallbackSourceNeeded)
-        mediumSource = solar * VgeWaterPhase(dot(-L, V), medium.anisotropy)
+        mediumSource = solar * VgeWaterPhase(-L, V, medium.anisotropy)
             + max(bodyLight, vec3(0)) / 12.56637061436;
     if (refractedSourceNeeded)
     {
-        waterOutgoing = VgeWaterOutgoingDirection(vge_viewPosition, receiver.refractedDirectionVS, underwater, toWorld);
-        refractedSource = solar * VgeWaterPhase(dot(-L, waterOutgoing), medium.anisotropy)
+        // This outgoing direction serves scattering only; reflection retains V.
+        if (medium.anisotropy != 0.0)
+            waterOutgoing = VgeWaterOutgoingDirection(vge_viewPosition, receiver.refractedDirectionVS, underwater, toWorld);
+        refractedSource = solar * VgeWaterPhase(-L, waterOutgoing, medium.anisotropy)
             + max(bodyLight, vec3(0)) / 12.56637061436;
     }
     vec3 diffuse = tint * solar * max(dot(N,L), 0.0) / 3.14159265359;
@@ -95,9 +97,9 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
         vec3 light = pointLightColors[i] * min(1.0 / d2, 1.0);
         // Local lights retain the existing unshadowed engine approximation.
         if (fallbackSourceNeeded)
-            mediumSource += max(light, vec3(0)) * VgeWaterPhase(dot(-direction, V), medium.anisotropy);
+            mediumSource += max(light, vec3(0)) * VgeWaterPhase(-direction, V, medium.anisotropy);
         if (refractedSourceNeeded)
-            refractedSource += max(light, vec3(0)) * VgeWaterPhase(dot(-direction, waterOutgoing), medium.anisotropy);
+            refractedSource += max(light, vec3(0)) * VgeWaterPhase(-direction, waterOutgoing, medium.anisotropy);
         reflected += cookTorranceBRDF(N,V,direction,F0,roughness) * light * max(dot(N,direction),0.0);
         diffuse += tint * light * max(dot(N,direction),0.0);
     }

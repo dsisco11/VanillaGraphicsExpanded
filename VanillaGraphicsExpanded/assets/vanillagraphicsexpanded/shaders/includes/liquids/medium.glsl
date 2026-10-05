@@ -29,12 +29,29 @@ VgeWaterPath VgeWaterEvaluatePath(VgeWaterMedium medium, float lengthMetres)
     return path;
 }
 
-/** Bounded directional scattering, normalized over solid angle; cosine compares incoming and outgoing photon directions. */
-float VgeWaterPhase(float cosine, float anisotropy)
+/** Evaluates bounded Henyey-Greenstein scattering after the caller selects nonzero anisotropy. */
+float VgeWaterAnisotropicPhase(float cosine, float anisotropy)
 {
     float g = clamp(anisotropy, -.95, .95);
     float denominator = max(1.0 + g * g - 2.0 * g * clamp(cosine, -1.0, 1.0), .0025);
     return (1.0 - g * g) / (12.56637061436 * denominator * sqrt(denominator));
+}
+
+/** Normalized scattering; cosine compares incoming and outgoing photon directions. */
+float VgeWaterPhase(float cosine, float anisotropy)
+{
+    // Isotropic scattering has no angular dependence; retain every nonzero g.
+    return anisotropy == 0.0
+        ? 1.0 / 12.56637061436
+        : VgeWaterAnisotropicPhase(cosine, anisotropy);
+}
+
+/** Evaluates directional scattering without forming an unused isotropic cosine. */
+float VgeWaterPhase(vec3 incoming, vec3 outgoing, float anisotropy)
+{
+    return anisotropy == 0.0
+        ? 1.0 / 12.56637061436
+        : VgeWaterAnisotropicPhase(dot(incoming, outgoing), anisotropy);
 }
 
 /** Evaluates Beer-Lambert transmission for a supplied submerged path length in metres, independent of the ray-selection policy. */

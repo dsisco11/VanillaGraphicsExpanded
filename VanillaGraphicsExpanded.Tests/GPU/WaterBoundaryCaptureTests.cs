@@ -146,7 +146,10 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             using var recordsTexture = Texture2D.Create(4,1,PixelInternalFormat.Rgba32f);
             using var shadow = new DepthTexture(1,1,PixelInternalFormat.DepthComponent32f);
             measuredDepth.UploadDataImmediate(Enumerable.Repeat(deviceDepth,size * size).ToArray());
+            bool phaseMeasurement=Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE")=="1";
             recordsTexture.UploadDataImmediate([.1f,.2f,.3f,0, 0,0,0,0, .1f,.2f,.3f,0, .25f,0,0,0]);
+            if(phaseMeasurement)
+                recordsTexture.UploadDataImmediate([.1f,.2f,.3f,0, .25f,0,0,0, .1f,.2f,.3f,.7f, .25f,0,0,0]);
             shadow.UploadDataImmediate([1f]);
             program.ShadowMapNear = shadow.TextureId; program.ShadowMapFar = shadow.TextureId;
             program.ShadowRanges = new(100,100,0,0);
@@ -157,10 +160,11 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             program.WaterMediumIndicesTexture = indicesTexture; program.WaterMediumRecordsTexture = recordsTexture;
             program.DepthRangeAndFrameSize = new(near,far,size,size);
             measuredTarget.BindWithViewport(); measuring = true;
-            foreach (string workload in new[] { "clear", "scattering", "checker" })
+            float[]? isotropicPixels=null, anisotropicPixels=null;
+            foreach (string workload in phaseMeasurement ? new[] { "isotropic", "anisotropic", "checker" } : new[] { "clear", "scattering", "checker" })
             {
                 indicesTexture.UploadDataImmediate(Enumerable.Range(0,size * size).Select(pixel =>
-                    workload == "clear" ? 1f : workload == "scattering" ? 2f : 1f + ((pixel % size + pixel / size) & 1)).ToArray());
+                    workload is "clear" or "isotropic" ? 1f : workload is "scattering" or "anisotropic" ? 2f : 1f + ((pixel % size + pixel / size) & 1)).ToArray());
                 for (int sample = -2; sample < 5; sample++)
                 {
                     DrawBoundary(2,true);
@@ -176,8 +180,37 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
                 float[] measuredSource = measuredTarget[1].ReadPixels();
                 float[] red = Enumerable.Range(0,size * size).Select(pixel => measuredSource[pixel * 4]).ToArray();
                 Assert.All(red,value => Assert.True(float.IsFinite(value)));
-                if (workload == "checker") { Assert.Contains(0f,red); Assert.Contains(red,value => value > 0); }
+                if (workload == "checker" && !phaseMeasurement) { Assert.Contains(0f,red); Assert.Contains(red,value => value > 0); }
+                if(phaseMeasurement) Assert.All(red,value=>Assert.True(value>0));
+                if(phaseMeasurement)
+                {
+                    if(workload=="isotropic") isotropicPixels=red;
+                    else if(workload=="anisotropic") anisotropicPixels=red;
+                    else
+                    {
+                        int iso=0,aniso=0;
+                        for(int pixel=0;pixel<red.Length;pixel++)
+                        {
+                            float first=MathF.Abs(red[pixel]-isotropicPixels![pixel]);
+                            float second=MathF.Abs(red[pixel]-anisotropicPixels![pixel]);
+                            Assert.InRange(MathF.Min(first,second),0,1e-5f*MathF.Max(1,MathF.Abs(red[pixel])));
+                            if(first<second) iso++; else if(second<first) aniso++;
+                        }
+                        Assert.True(iso>0 && aniso>0,$"Mixed phase pixels: isotropic={iso}, anisotropic={aniso}");
+                    }
+                }
                 output.WriteLine($"boundary-output workload={workload} redSum={red.Sum(value => (double)value):R} zeroPixels={red.Count(value => value == 0)}");
+                string? outputDirectory=Environment.GetEnvironmentVariable("VGE_WATER_BOUNDARY_OUTPUTS");
+                if(!string.IsNullOrEmpty(outputDirectory))
+                {
+                    Directory.CreateDirectory(outputDirectory);
+                    for(int attachment=0;attachment<2;attachment++)
+                    {
+                        float[] values=measuredTarget[attachment].ReadPixels();
+                        File.WriteAllBytes(Path.Combine(outputDirectory,$"{workload}-mrt{attachment}.f32"),
+                            System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()).ToArray());
+                    }
+                }
                 measuredTarget.BindWithViewport();
             }
         }

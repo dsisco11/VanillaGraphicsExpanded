@@ -109,9 +109,16 @@ void main()
     // illumination or shadow samples when every scattering channel is zero.
     if (any(greaterThan(medium.scattering, vec3(0))))
     {
-        vec3 eyeWorld = transpose(mat3(modelViewMatrix)) * toEye;
+        float phase = 1.0 / 12.56637061436;
+        // Boundary orientation still needs toEye, but isotropic illumination
+        // needs neither its world transform nor a normalized solar direction.
+        if (medium.anisotropy != 0.0)
+        {
+            vec3 eyeWorld = transpose(mat3(modelViewMatrix)) * toEye;
+            phase = VgeWaterAnisotropicPhase(dot(-normalize(vge_atmosphereSunDirection), eyeWorld), medium.anisotropy);
+        }
         source = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility()
-            * VgeWaterPhase(dot(-normalize(vge_atmosphereSunDirection), eyeWorld), medium.anisotropy)
+            * phase
             + max(vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility, vec3(0)) / 12.56637061436;
     }
     outWaterOpticalDepth = vec4((medium.absorption + medium.scattering) * remaining, remaining) * orientation;
