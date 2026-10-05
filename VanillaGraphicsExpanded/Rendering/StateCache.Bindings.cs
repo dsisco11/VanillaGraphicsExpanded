@@ -154,8 +154,10 @@ internal sealed partial class StateCache
         return true;
     }
 
+    /// <summary>Selects an executable only when its binding is unknown or different.</summary>
     public void UseProgram(int programId)
     {
+        if (currentProgram == programId) return;
         try
         {
             GL.UseProgram(programId);
@@ -214,8 +216,10 @@ internal sealed partial class StateCache
         return currentVao.Value;
     }
 
+    /// <summary>Selects a VAO without discarding its retained element-buffer association.</summary>
     public void BindVertexArray(int vaoId)
     {
+        if (currentVao == vaoId) return;
         try
         {
             GL.BindVertexArray(vaoId);
@@ -288,8 +292,18 @@ internal sealed partial class StateCache
         return GetCurrentFramebuffer(target);
     }
 
+    /// <summary>Skips a framebuffer bind only when every affected direction already matches.</summary>
     public void BindFramebuffer(FramebufferTarget target, int fboId)
     {
+        // A combined bind changes both directions, even when the draw alias already matches.
+        bool unchanged = target switch
+        {
+            FramebufferTarget.Framebuffer => currentReadFramebuffer == fboId && currentDrawFramebuffer == fboId,
+            FramebufferTarget.ReadFramebuffer => currentReadFramebuffer == fboId,
+            FramebufferTarget.DrawFramebuffer => currentDrawFramebuffer == fboId,
+            _ => false
+        };
+        if (unchanged) return;
         try
         {
             GL.BindFramebuffer(target, fboId);
@@ -567,9 +581,11 @@ internal sealed partial class StateCache
         return activeTextureUnit.Value;
     }
 
+    /// <summary>Selects the texture unit only when its cached selection differs or is unknown.</summary>
     public void ActiveTexture(int unit)
     {
         if (unit < 0) throw new ArgumentOutOfRangeException(nameof(unit));
+        if (activeTextureUnit == unit) return;
 
         try
         {
@@ -617,6 +633,9 @@ internal sealed partial class StateCache
     /// <summary>Binds on the native active unit without querying or changing that unit.</summary>
     internal void BindTextureOnActiveUnit(TextureTarget target, int textureId)
     {
+        // An unknown active unit must still reach GL; never guess or query it for suppression.
+        if (activeTextureUnit is int knownUnit &&
+            TryGetCachedBoundTexture(target, knownUnit, out int cached) && cached == textureId) return;
         GL.BindTexture(target, textureId);
         TextureBindCount++;
 
@@ -634,6 +653,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Selects the requested unit and changes its texture binding only when necessary.</summary>
     public void BindTexture(TextureTarget target, int unit, int textureId)
     {
         EnsureTextureUnitCapacity(unit);
@@ -642,6 +662,8 @@ internal sealed partial class StateCache
         try
         {
             ActiveTexture(unit);
+            // Selecting the unit is an observable side effect even when its texture matches.
+            if (dict.TryGetValue(target, out int cached) && cached == textureId) return;
             GL.BindTexture(target, textureId);
             TextureBindCount++;
             dict[target] = textureId;
@@ -731,9 +753,11 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Binds a sampler only when the selected slot is unknown or different.</summary>
     public void BindSampler(int unit, int samplerId)
     {
         EnsureTextureUnitCapacity(unit);
+        if (samplerBindingByUnit![unit] == samplerId) return;
 
         try
         {
@@ -746,9 +770,11 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Binds an owned sampler only when the selected slot is unknown or different.</summary>
     public void BindSampler(int unit, GpuSampler sampler)
     {
         EnsureTextureUnitCapacity(unit);
+        if (samplerBindingByUnit![unit] == sampler.SamplerId) return;
 
         try
         {
@@ -862,8 +888,10 @@ internal sealed partial class StateCache
         return false;
     }
 
+    /// <summary>Skips known buffer bindings while keeping element bindings specific to their VAO.</summary>
     public void BindBuffer(BufferTarget target, int bufferId)
     {
+        if (TryGetCachedBoundBuffer(target, out int cached) && cached == bufferId) return;
         if (target == BufferTarget.ElementArrayBuffer)
         {
             try

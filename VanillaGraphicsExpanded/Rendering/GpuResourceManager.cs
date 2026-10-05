@@ -155,13 +155,13 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                         StateCache.Current.DeleteBuffer((int)command.Id);
                         break;
                     case GpuDeletionKind.VertexArray:
-                        GL.DeleteVertexArray((int)command.Id);
+                        StateCache.Current.DeleteVertexArray((int)command.Id);
                         break;
                     case GpuDeletionKind.Texture:
                         StateCache.Current.DeleteTexture((int)command.Id);
                         break;
                     case GpuDeletionKind.Framebuffer:
-                        GL.DeleteFramebuffer((int)command.Id);
+                        StateCache.Current.DeleteFramebuffer((int)command.Id);
                         break;
                     case GpuDeletionKind.Renderbuffer:
                         GL.DeleteRenderbuffer((int)command.Id);
@@ -170,13 +170,13 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                         GL.DeleteQuery((int)command.Id);
                         break;
                     case GpuDeletionKind.Program:
-                        GL.DeleteProgram((int)command.Id);
+                        StateCache.Current.DeleteProgram((int)command.Id);
                         break;
                     case GpuDeletionKind.TransformFeedback:
                         GL.DeleteTransformFeedback((int)command.Id);
                         break;
                     case GpuDeletionKind.Sampler:
-                        GL.DeleteSampler((int)command.Id);
+                        StateCache.Current.DeleteSampler((int)command.Id);
                         break;
                     case GpuDeletionKind.ProgramPipeline:
                         GL.DeleteProgramPipeline((int)command.Id);

@@ -164,8 +164,8 @@ public static partial class VgeBuiltInDebugViews
                 StateCache.Current.InvalidateAll();
                 StateCache.Current.Apply(OverlayPso);
 
-                GL.ActiveTexture(TextureUnit.Texture0);
-                GL.BindTexture(TextureTarget.Texture2D, textureId);
+                StateCache.Current.ActiveTexture(0);
+                StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, textureId);
                 blitShader.BindTexture2D("scene", textureId, 0);
                 GpuSamplers.NearestClamp.Bind(0);
 
@@ -175,7 +175,7 @@ public static partial class VgeBuiltInDebugViews
             {
                 blitShader.Stop();
 
-                GL.ActiveTexture((TextureUnit)prevActiveTexture);
+                StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
                 StateCache.Current.InvalidateAll();
             }
         }

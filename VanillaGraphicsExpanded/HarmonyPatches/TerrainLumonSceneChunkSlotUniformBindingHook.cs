@@ -105,11 +105,11 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             int texId = LumonSceneChunkSlotUniformState.GenerationTextureId;
             if (genLoc >= 0 && texId != 0)
             {
-                GL.ActiveTexture(TextureUnit.Texture0 + LumonSceneChunkSlotUniformState.GenerationTextureUnit);
-                GL.BindTexture(TextureTarget.Texture2D, texId);
+                StateCache.Current.ActiveTexture(LumonSceneChunkSlotUniformState.GenerationTextureUnit);
+                StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, texId);
 
                 // Restore to unit 0 (engine code generally assumes this).
-                GL.ActiveTexture(TextureUnit.Texture0);
+                StateCache.Current.ActiveTexture(0);
             }
 
             if (blockIndex >= 0)

@@ -227,7 +227,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb != null)
         {
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
+            StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         }
         StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = capi.Render.FrameWidth, Height = capi.Render.FrameHeight });
     }

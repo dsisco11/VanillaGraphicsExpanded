@@ -142,13 +142,13 @@ public abstract class GpuResource : IDisposable
                     StateCache.Current.DeleteBuffer((int)id);
                     break;
                 case GpuResourceKind.VertexArray:
-                    GL.DeleteVertexArray((int)id);
+                    StateCache.Current.DeleteVertexArray((int)id);
                     break;
                 case GpuResourceKind.Texture:
                     StateCache.Current.DeleteTexture((int)id);
                     break;
                 case GpuResourceKind.Framebuffer:
-                    GL.DeleteFramebuffer((int)id);
+                    StateCache.Current.DeleteFramebuffer((int)id);
                     break;
                 case GpuResourceKind.Renderbuffer:
                     GL.DeleteRenderbuffer((int)id);
@@ -157,13 +157,13 @@ public abstract class GpuResource : IDisposable
                     GL.DeleteQuery((int)id);
                     break;
                 case GpuResourceKind.Program:
-                    GL.DeleteProgram((int)id);
+                    StateCache.Current.DeleteProgram((int)id);
                     break;
                 case GpuResourceKind.TransformFeedback:
                     GL.DeleteTransformFeedback((int)id);
                     break;
                 case GpuResourceKind.Sampler:
-                    GL.DeleteSampler((int)id);
+                    StateCache.Current.DeleteSampler((int)id);
                     break;
                 case GpuResourceKind.ProgramPipeline:
                     GL.DeleteProgramPipeline((int)id);

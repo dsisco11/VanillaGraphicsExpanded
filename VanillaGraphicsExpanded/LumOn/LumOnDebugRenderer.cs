@@ -733,7 +733,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     RenderWorldProbeClipmapBoundsLive();
                     RenderWorldProbeQueuedTraceRaysLive();
                     RenderWorldProbeOrbsPointsLive();
-                    GL.ActiveTexture((TextureUnit)prevOitActiveTexture);
+                    StateCache.Current.ActiveTexture(prevOitActiveTexture - (int)TextureUnit.Texture0);
                 }
 
                 StateCache.Current.InvalidateAll();
@@ -1124,7 +1124,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 shader.Stop();
             }
 
-            GL.ActiveTexture((TextureUnit)prevActiveTexture);
+            StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
 
             try
             {
@@ -1363,7 +1363,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
                 StateCache.Current.SetLineWidth(1f);
 
-                GL.BindVertexArray(0);
+                StateCache.Current.BindVertexArray(0);
             }
             finally
             {
@@ -1372,7 +1372,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                     shader.Stop();
                 }
 
-                GL.ActiveTexture((TextureUnit)prevActiveTexture);
+                StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
 
                 StateCache.Current.InvalidateAll();
             }
@@ -1429,7 +1429,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 GL.DrawArrays(PrimitiveType.Lines, 0, clipmapBoundsCount);
                 StateCache.Current.SetLineWidth(1f);
 
-                GL.BindVertexArray(0);
+                StateCache.Current.BindVertexArray(0);
 
                 if (clipmapProbePointsCount > 0 && clipmapProbePointsVao is not null && clipmapProbePointsVao.IsValid)
                 {
@@ -1437,7 +1437,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                     clipmapProbePointsVao.Bind();
                     GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbePointsCount);
-                    GL.BindVertexArray(0);
+                    StateCache.Current.BindVertexArray(0);
                 }
 
                 if (hasClosestProbeMarker
@@ -1449,7 +1449,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                     closestProbeMarkerVao.Bind();
                     GL.DrawArrays(PrimitiveType.Points, 0, 1);
-                    GL.BindVertexArray(0);
+                    StateCache.Current.BindVertexArray(0);
                 }
             }
             finally
@@ -1548,7 +1548,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             clipmapQueuedTraceRaysVao.Bind();
             GL.DrawArrays(PrimitiveType.Lines, 0, clipmapQueuedTraceRayVertexCount);
             StateCache.Current.SetLineWidth(1f);
-            GL.BindVertexArray(0);
+            StateCache.Current.BindVertexArray(0);
         }
         finally
         {
@@ -2050,7 +2050,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
                 GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbeOrbsCount);
 
-                GL.BindVertexArray(0);
+                StateCache.Current.BindVertexArray(0);
 
                 // Draw a cyan point at the closest probe center (always visible).
                 if (hasClosestProbeMarker
@@ -2072,7 +2072,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                         GL.PointSize(12.0f);
                         closestProbeMarkerVao.Bind();
                         GL.DrawArrays(PrimitiveType.Points, 0, 1);
-                        GL.BindVertexArray(0);
+                        StateCache.Current.BindVertexArray(0);
 
                         markerShader.Stop();
                     }
@@ -2570,8 +2570,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             StateCache.Current.InvalidateAll();
             StateCache.Current.Apply(FullscreenOverlayPso);
 
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, texId);
+            StateCache.Current.ActiveTexture(0);
+            StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, texId);
             blitShader.BindTexture2D("scene", texId, 0);
             GpuSamplers.NearestClamp.Bind(0);
 
@@ -2585,7 +2585,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         {
             blitShader.Stop();
 
-            GL.ActiveTexture((TextureUnit)prevActiveTexture);
+            StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
             StateCache.Current.InvalidateAll();
         }
     }

@@ -1509,7 +1509,7 @@ internal sealed class TextureStreamingManager : IDisposable
         try
         {
             TextureUploadRequest request = prepared.Request;
-            GL.BindTexture(request.Target.BindTarget, request.TextureId);
+            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
 
             using System.Buffers.MemoryHandle handle = owned.Memory.Pin();
             UploadSubImage(prepared, (IntPtr)handle.Pointer);
@@ -1521,7 +1521,7 @@ internal sealed class TextureStreamingManager : IDisposable
         }
         finally
         {
-            GL.BindTexture(prepared.Request.Target.BindTarget, 0);
+            StateCache.Current.BindTextureOnActiveUnit(prepared.Request.Target.BindTarget, 0);
             ResetPixelStore(prepared);
         }
     }
@@ -1856,8 +1856,8 @@ internal sealed class TextureStreamingManager : IDisposable
     {
         TextureUploadRequest request = prepared.Request;
 
-        GL.BindTexture(request.Target.BindTarget, request.TextureId);
-        GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pboUpload.BufferId);
+        StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
+        StateCache.Current.BindBuffer(BufferTarget.PixelUnpackBuffer, pboUpload.BufferId);
 
         ApplyPixelStore(prepared);
         try
@@ -1867,8 +1867,8 @@ internal sealed class TextureStreamingManager : IDisposable
         finally
         {
             ResetPixelStore(prepared);
-            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
-            GL.BindTexture(request.Target.BindTarget, 0);
+            StateCache.Current.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, 0);
         }
     }
 
@@ -1892,7 +1892,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
         try
         {
-            GL.BindTexture(request.Target.BindTarget, request.TextureId);
+            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
 
             switch (request.Data.Kind)
             {
@@ -1938,7 +1938,7 @@ internal sealed class TextureStreamingManager : IDisposable
         }
         finally
         {
-            GL.BindTexture(request.Target.BindTarget, 0);
+            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, 0);
             ResetPixelStore(prepared);
         }
     }

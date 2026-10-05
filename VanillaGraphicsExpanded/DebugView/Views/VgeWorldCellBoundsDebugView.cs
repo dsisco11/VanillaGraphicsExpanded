@@ -303,7 +303,7 @@ public static partial class VgeBuiltInDebugViews
                 GL.DrawArrays(PrimitiveType.Lines, 0, written);
                 StateCache.Current.SetLineWidth(1f);
 
-                GL.BindVertexArray(0);
+                StateCache.Current.BindVertexArray(0);
             }
             finally
             {
@@ -312,7 +312,7 @@ public static partial class VgeBuiltInDebugViews
                     shader.Stop();
                 }
 
-                GL.ActiveTexture((TextureUnit)prevActiveTexture);
+                StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
 
                 StateCache.Current.InvalidateAll();
             }
