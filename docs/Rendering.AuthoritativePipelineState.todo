@@ -30,6 +30,17 @@ Scope boundaries
   No blanket engine-wide authority claim or removal of all invalidation/restoration scopes.
   Rename types as they migrate; a repository-wide unrelated resource rename is outside this plan.
 
+Approved sequencing exception — engine-boundary restoration (2026-10-05)
+  Source: docs/Rendering.EngineBoundaryRestoration.Proposal.md, approved by the user.
+  Bring forward the shared StateCache restoration mechanism and pre-overlay refraction adapter
+  before complete graphics submission and the normal production-consumer migration sequence.
+  First establish the affected boundary inventory, context policy, state coverage and validation.
+  This permits the bounded restoration work without completing all of Phases 1–2; broader
+  Phase 3 coverage and the remaining pipeline/submission prerequisites retain their dependencies.
+  Reuse this mechanism when GraphicsCommandContext and complete pipelines are introduced.
+  Keep all completion markers unchecked until their full contracts and verification are satisfied.
+  Approval records the design and sequencing; implementation has not started.
+
 Phase 1: Establish state and consumer contracts
   Dependencies: approved proposal.
   Outcome: explicit supported state inventory and migration boundaries that later work can implement.
