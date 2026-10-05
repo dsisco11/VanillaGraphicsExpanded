@@ -8,6 +8,7 @@ internal sealed partial class StateCache
     /// <summary>Preserves fixed-function state, optionally including viewport for draws that resize it.</summary>
     public LegacyFixedFunctionScope CaptureLegacyFixedFunctionState(bool preserveViewport = false)
     {
+        RejectUnsupportedBoundaryMutation();
         var snapshot = LegacyFixedFunctionSnapshot.CaptureBestEffort();
         return new LegacyFixedFunctionScope(this, snapshot, preserveViewport);
     }

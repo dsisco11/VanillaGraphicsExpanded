@@ -14,6 +14,7 @@ internal sealed partial class StateCache
         switch (capability)
         {
             case EnableCap.DepthTest:
+                ValidateBoundaryMutation(depth: DepthStateKnowledge.TestEnabled);
                 if (depthKnown.HasFlag(DepthStateKnowledge.TestEnabled) && depth.TestEnabled == enabled) return;
                 // Withdraw only this field before native work; failures leave it unknown.
                 depthKnown &= ~DepthStateKnowledge.TestEnabled;
@@ -22,6 +23,7 @@ internal sealed partial class StateCache
                 depthKnown |= DepthStateKnowledge.TestEnabled;
                 break;
             case EnableCap.CullFace:
+                ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.CullEnabled);
                 if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.CullEnabled) && rasterizer.CullEnabled == enabled) return;
                 // Withdraw only this field before native work; failures leave it unknown.
                 rasterizerKnown &= ~RasterizerStateKnowledge.CullEnabled;
@@ -30,6 +32,7 @@ internal sealed partial class StateCache
                 rasterizerKnown |= RasterizerStateKnowledge.CullEnabled;
                 break;
             case EnableCap.ScissorTest:
+                ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ScissorEnabled);
                 if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ScissorEnabled) && rasterizer.ScissorEnabled == enabled) return;
                 // Withdraw only this field before native work; failures leave it unknown.
                 rasterizerKnown &= ~RasterizerStateKnowledge.ScissorEnabled;
@@ -39,6 +42,7 @@ internal sealed partial class StateCache
                 break;
             case EnableCap.Blend: SetBlendEnabled(enabled); break;
             default:
+                RejectUnsupportedBoundaryMutation();
                 if (enabled) GL.Enable(capability); else GL.Disable(capability);
                 break;
         }
@@ -48,8 +52,11 @@ internal sealed partial class StateCache
     internal void SetIndexedCapability(IndexedEnableCap capability, int index, bool enabled)
     {
         if (capability == IndexedEnableCap.Blend) SetBlendEnabledIndexed(index, enabled);
-        else if (enabled) GL.Enable(capability, index);
-        else GL.Disable(capability, index);
+        else
+        {
+            RejectUnsupportedBoundaryMutation();
+            if (enabled) GL.Enable(capability, index); else GL.Disable(capability, index);
+        }
     }
 
     /// <summary>Forwards a single pixel-store change and invalidates the aggregate pack snapshot.</summary>

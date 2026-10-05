@@ -7,6 +7,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes Comparison, suppressing a known identical transition.</summary>
     public void SetDepthFunc(DepthFunction function)
     {
+        ValidateBoundaryMutation(depth: DepthStateKnowledge.Comparison);
         if (!System.Enum.IsDefined(function)) throw new System.ArgumentOutOfRangeException(nameof(function));
         SynchronizeContext();
         if (depthKnown.HasFlag(DepthStateKnowledge.Comparison) && depth.Comparison == function) return;
@@ -19,6 +20,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes WriteEnabled, suppressing a known identical transition.</summary>
     public void SetDepthWriteMask(bool enabled)
     {
+        ValidateBoundaryMutation(depth: DepthStateKnowledge.WriteEnabled);
         SynchronizeContext();
         if (depthKnown.HasFlag(DepthStateKnowledge.WriteEnabled) && depth.WriteEnabled == enabled) return;
         depthKnown &= ~DepthStateKnowledge.WriteEnabled;

@@ -10,6 +10,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes clear color, retaining the native floating-point value without clamping.</summary>
     internal void SetClearColor(float red, float green, float blue, float alpha)
     {
+        ValidateBoundaryMutation(clearColor: true);
         SynchronizeContext();
         var value = new Vector4(red, green, blue, alpha);
         if (clearColorKnown && clearColor == value) return;

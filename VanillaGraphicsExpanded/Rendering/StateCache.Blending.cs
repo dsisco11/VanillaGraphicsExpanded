@@ -16,7 +16,7 @@ internal sealed partial class StateCache
             SynchronizeContext();
             if (maxDrawBuffers == 0)
             {
-                int count = GL.GetInteger(GetPName.MaxDrawBuffers);
+                int count = QueryCapability(() => GL.GetInteger(GetPName.MaxDrawBuffers));
                 if (count <= 0) throw new InvalidOperationException("No current draw-buffer capability.");
                 maxDrawBuffers = count;
                 blend = new BlendState[count];
@@ -41,6 +41,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes Enabled on every supported draw output, preserving alias knowledge.</summary>
     public void SetBlendEnabled(bool enabled)
     {
+        ValidateBoundaryMutation(blend: BlendStateKnowledge.Enabled);
         int count = MaxDrawBuffers;
         bool equal = true;
         for (int i = 0; i < count; i++) equal &= blendKnown[i].HasFlag(BlendStateKnowledge.Enabled) && blend[i].Enabled == enabled;
@@ -54,6 +55,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes Enabled for one draw output; uniformity is always derived from all outputs.</summary>
     public void SetBlendEnabledIndexed(int index, bool enabled)
     {
+        ValidateBoundaryMutation(blend: BlendStateKnowledge.Enabled, index: index);
         ValidateDrawOutput(index);
         if (blendKnown[index].HasFlag(BlendStateKnowledge.Enabled) && blend[index].Enabled == enabled) return;
         blendKnown[index] &= ~BlendStateKnowledge.Enabled;
@@ -67,6 +69,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes Factors on every supported draw output, preserving alias knowledge.</summary>
     public void SetBlendFunc(GlBlendFunc func)
     {
+        ValidateBoundaryMutation(blend: BlendStateKnowledge.Factors);
         ValidateBlendFactors(func);
         int count = MaxDrawBuffers;
         bool equal = true;
@@ -81,6 +84,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes Factors for one draw output; uniformity is always derived from all outputs.</summary>
     public void SetBlendFuncIndexed(int index, GlBlendFunc func)
     {
+        ValidateBoundaryMutation(blend: BlendStateKnowledge.Factors, index: index);
         ValidateBlendFactors(func);
         ValidateDrawOutput(index);
         if (blendKnown[index].HasFlag(BlendStateKnowledge.Factors) && blend[index].Factors == func) return;
@@ -95,6 +99,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes WriteMask on every supported draw output, preserving alias knowledge.</summary>
     public void SetColorMask(GlColorMask mask)
     {
+        ValidateBoundaryMutation(blend: BlendStateKnowledge.WriteMask);
         int count = MaxDrawBuffers;
         bool equal = true;
         for (int i = 0; i < count; i++) equal &= blendKnown[i].HasFlag(BlendStateKnowledge.WriteMask) && blend[i].WriteMask == mask;
@@ -108,6 +113,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes WriteMask for one draw output; uniformity is always derived from all outputs.</summary>
     public void SetColorMaskIndexed(int index, GlColorMask mask)
     {
+        ValidateBoundaryMutation(blend: BlendStateKnowledge.WriteMask, index: index);
         ValidateDrawOutput(index);
         if (blendKnown[index].HasFlag(BlendStateKnowledge.WriteMask) && blend[index].WriteMask == mask) return;
         blendKnown[index] &= ~BlendStateKnowledge.WriteMask;

@@ -2,7 +2,7 @@ Engine-boundary restoration through pipeline state and StateCache
 ================================================================
 
 Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
-Approval: user approved the proposal on 2026-10-05. Phases 1–2 completed; boundary snapshots, restoration and integration remain pending.
+Approval: user approved the proposal on 2026-10-05. Phases 1–3 completed; restoration and integration remain pending.
 Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
 Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
 Project index: project.todo / Issues / Current / legacy fixed-function capture inventory.
@@ -124,26 +124,31 @@ Phase 2: Categorize state storage and establish cache-backed coverage
 Phase 3: Implement declared boundary entry and resolved snapshots
   Dependencies: Phases 1–2.
   Outcome: the boundary can establish its restoration contract before optional VGE work starts.
+  Completed 2026-10-05 after second source review and independent audit-stage-completion reconciliation.
+  Evidence: docs/Rendering.AuthoritativePipelineState.md / Declared boundary entry and resolved snapshots.
+  Delegated Release/Debug builds passed; 76 focused tests passed with no failures or skips.
+  EngineBoundaryScope is an entry-only token; Phase 4 adds disposable restoration and cleanup.
+  No production consumer uses the new API before that restoration contract is implemented.
 
-  ☐ Add focused boundary declarations and internal resolved-state snapshots within the chosen owners.
-    ☐ Derive pipeline coverage from descriptors/dynamic declarations and union declared helper effects.
-    ☐ Expand global-operation coverage to every native field/index that the operation can change.
-    ☐ Keep resolved incoming values separate from authored PSOs, pipeline keys and shader/resource identity.
-    ☐ Compose snapshots from categorized concrete values and explicit coverage; require resolution of
+  ✔ Add focused boundary declarations and internal resolved-state snapshots within the chosen owners.
+    ✔ Derive pipeline coverage from descriptors/dynamic declarations and union declared helper effects.
+    ✔ Expand global-operation coverage to every native field/index that the operation can change.
+    ✔ Keep resolved incoming values separate from authored PSOs, pipeline keys and shader/resource identity.
+    ✔ Compose snapshots from categorized concrete values and explicit coverage; require resolution of
       every covered field and retain no mutable alias to live indexed cache payloads.
-  ☐ Resolve incoming coverage at entry using valid cached values and queries only for missing values.
-    ☐ Complete resolution before drawing-state mutation; use known-state contracts only with evidence.
-    ☐ Failed queries do not substitute defaults or publish a usable scope; entry failure prevents
+  ✔ Resolve incoming coverage at entry using valid cached values and queries only for missing values.
+    ✔ Complete resolution before drawing-state mutation; use known-state contracts only with evidence.
+    ✔ Failed queries do not substitute defaults or publish a usable scope; entry failure prevents
       the optional operation and leaves its publication unavailable and native state unchanged.
-    ☐ Retain the snapshot independently of later cache invalidation and bind it to its context generation.
-  ☐ Validate covered managed mutations before native operations, including backend/integration entry points.
-    ☐ Reject out-of-coverage operations before mutation; require contract expansion before execution.
-    ☐ Reject nested boundaries and avoid introducing query work inside steady-state managed draws.
-  ☐ Delegate tests for known/unknown/partially invalidated entry state, alias coverage, failed queries,
+    ✔ Retain the snapshot independently of later cache invalidation and bind it to its context generation.
+  ✔ Validate covered managed mutations before native operations, including backend/integration entry points.
+    ✔ Reject out-of-coverage operations before mutation; require contract expansion before execution.
+    ✔ Reject nested boundaries and avoid introducing query work inside steady-state managed draws.
+  ✔ Delegate tests for known/unknown/partially invalidated entry state, alias coverage, failed queries,
     undeclared mutations, snapshot independence and nested-entry rejection.
-    ☐ Mutate indexed cache payloads after capture and verify saved values remain unchanged; unknown
+    ✔ Mutate indexed cache payloads after capture and verify saved values remain unchanged; unknown
       uncaptured fields must not become implicitly captured defaults through category aggregation.
-  ☐ Completion gate: entry either produces a complete context-bound snapshot or makes no drawing-state
+  ✔ Completion gate: entry either produces a complete context-bound snapshot or makes no drawing-state
     change; all scoped mutation paths enforce the declared coverage.
 
 Phase 4: Implement restoration, cleanup and failure guarantees

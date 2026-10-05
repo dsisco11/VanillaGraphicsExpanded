@@ -2,8 +2,9 @@
 
 ## Engine-boundary restoration
 
-Inventory and implementation contracts established on 2026-10-05. Runtime implementation
-and fix acceptance remain pending. This section implements the inventory contract in
+Inventory and implementation contracts established on 2026-10-05. Categorized cache storage
+and declared boundary entry are implemented; restoration, consumer migration and fix acceptance
+remain pending. This section records implementation against
 [the restoration plan](Rendering.EngineBoundaryRestoration.todo), under
 [the approved proposal](Rendering.EngineBoundaryRestoration.Proposal.md) and the
 [parent sequencing exception](Rendering.AuthoritativePipelineState.todo).
@@ -274,8 +275,8 @@ boundary implementation, not a guarantee supplied by the retained legacy scopes.
 
 The installed 1.22.7 engine and OpenTK 4.9.4 metadata were checked again for the public platform/window
 fields and the protected `NativeWindow.Dispose(bool)` signature. Automated evidence does not launch
-Vintage Story or establish live refraction correctness. Boundary declaration, capture, restoration,
-and refraction adapter integration remain pending.
+Vintage Story or establish live refraction correctness. Declared boundary entry is recorded below;
+restoration and refraction adapter integration remain pending.
 
 | Restoration plan task group | Controlling source | Implementation and verification |
 | --- | --- | --- |
@@ -313,4 +314,88 @@ Delegated Debug compilation also passed (zero errors, 106 warnings), including t
 debug-group branch: `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
 -c Debug --no-restore -v quiet`, with the same package-cache environment. Receipt:
 `artifacts/phase2-debug-build-validation.log`. Final source review and the independent contract audit
-found no remaining foundational coverage issues; snapshot/restoration and live acceptance remain open.
+found no remaining foundational coverage issues. The later entry work is recorded below;
+restoration and live acceptance remain open.
+
+### Declared boundary entry and resolved snapshots
+
+`Rendering/Pipeline/PipelineStateCoverage.cs` derives field coverage from both descriptor intent
+masks and copies indexed output identifiers. Declarations union that coverage with explicit dynamic
+and helper effects in `Rendering/Integration/EngineBoundaryDeclaration.cs`. They retain no pipeline
+values, executable identity or resource ownership. Global blend enable/factors and write-mask effects
+cover all supported draw outputs. Indexed declarations are validated against the context limit,
+independently of framebuffer attachments. Category flag enums identify covered fields here; their
+values describe the contract, not a copy of the cache's current validity flags.
+
+`StateCache.BoundaryEntry.cs` resolves missing covered state before publishing a token. It requires
+a live registered context and checks the handle/generation again after resolution. Nested entry,
+including reentrant entry during resolution, is rejected. Missing registration, unsupported output
+indices and query failures return no scope, retain a diagnostic exception and issue no drawing-state
+transition. Earlier successful queries may leave truthful partial knowledge; no default is substituted
+for a failed read. Native error status is checked around cold reads and may be consumed on rejected
+entry; this does not change native drawing state.
+
+`StateCache.BoundaryQueries.cs` owns those reads. Depth, rasterizer, assembly, viewport, clear color,
+and each output's enable/factors/mask are independently resolved only when required and unknown.
+Factor knowledge is published after all four component queries succeed. Viewport and patch limits
+are resolved at entry when needed, preventing first-use capability queries in managed draws.
+`PipelineStateSnapshot` copies category values, retains explicit immutable coverage and the context
+token, and privately clones indexed storage. Its output accessor returns a value copy. Uncovered
+fields are not captured values even when they share a category struct with covered fields.
+
+`StateCache.BoundaryValidation.cs` enforces coverage before setters issue native operations or
+suppress identical known requests. `Apply` checks the whole descriptor before its first transition;
+an undeclared later field cannot leave earlier pipeline fields changed. Scalar/global/indexed backend
+setters, dynamic application, clear-color helpers and the engine adapters use the same guard.
+Unsupported capability/patch forwarding is rejected while a boundary is active. Legacy capture and
+unknown patch/provoking getters cannot introduce nested capture or draw-time state queries.
+Resource-binding owners remain separate; this work does not claim a complete borrowed-binding handoff.
+
+`EngineBoundaryScope` is currently an internal entry token, deliberately not an `IDisposable`
+restoration adapter. `ReleaseEngineBoundary` is a cache-owner primitive that only releases the
+active-entry registration; it does not restore state. Tests use it to end entry-only exercises.
+Production rendering has no callers of the new entry API. The planned exactly-once disposable
+scope, restoration/failure policy and ordered binding/shader cleanup must be implemented before
+production adapters use it. Existing legacy consumers remain in place, and the refraction defect
+is not claimed fixed.
+
+| Restoration plan task group | Controlling source | Implementation and evidence |
+| --- | --- | --- |
+| Descriptor/dynamic/helper coverage and global aliases | Restoration proposal / Boundary declaration and entry; Global and indexed state; inventory / Boundary API, coverage and failures | PipelineStateCoverage, EngineBoundaryDeclaration; PipelineStateCoverageTests verify both intent masks, all descriptor fields, alias containment and copied declaration payloads. |
+| Complete resolved incoming snapshot, selective queries and no defaults | Restoration proposal / Categorized state representation; Boundary declaration and entry | BoundaryEntry/BoundaryQueries and PipelineStateSnapshot; EngineBoundaryEntryTests verify cold/warm/partial depth entry, all categories, mixed indexed values, query-error rejection and native-state agreement. |
+| Independent indexed ownership and explicit coverage | Restoration proposal / Categorized state representation; parent architecture / Complete descriptions and partial overrides | Private cloned snapshot payload; tests mutate live arrays through global setters, invalidate knowledge and verify retained mixed values; narrow coverage leaves unrelated depth fields unknown. |
+| Context-bound entry and nesting | Restoration proposal / Authority, invalidation, and lifetime; inventory / Context identity and recovery | Registered-context checks and active/resolving guards; tests cover missing current context, absent registration, replacement generation and nested entry. |
+| Validate every supported drawing-state mutation before native work | Restoration proposal / Architectural contract; Authority, invalidation, and lifetime; parent architecture / Engine integration and cache authority | BoundaryValidation and shared setter guards; tests reject whole PSOs, global aliases, unlisted outputs, unsupported capabilities and identical known out-of-contract requests without native transitions. |
+
+Operation counts distinguish state/capability value reads from the native error-status checks around
+each cold read. With output capability already cached, complete cold depth entry performs three value
+reads, warm re-entry performs zero, and invalidating depth then reestablishing only comparison leaves
+two reads. Cold enable/factors/mask capture performs six value reads per supported output. Entry issues
+zero drawing-state transitions. Covered viewport/patch application adds no capability or state reads.
+These are deterministic operation-count assertions, not CPU/GPU performance measurements.
+
+Delegated validation passed on 2026-10-05: Release build completed with zero errors and 101 warnings;
+76 focused tests passed with zero failures or skips. This includes the 17 new coverage/entry cases
+and the existing categorized state, invalidation, engine mapping, framebuffer/blending, resource
+retirement, unbinding, scissor and refraction compatibility regressions. The real failed-query case
+checks rejection of a GL query's default return when it also reports a native error; the separate
+entry-failure case proves no token or drawing-state transition is published.
+
+Commands used `NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages`, with shader receipts enabled:
+
+- `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-restore -v quiet`
+- `dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~EngineBoundaryEntryTests|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~EngineState|FullyQualifiedName~GpuFramebufferBlendStateIntegrationTests|FullyQualifiedName~FramebufferBindingStateTests|FullyQualifiedName~StateCacheResourceDeletionTests|FullyQualifiedName~GlStateCacheUnbindIntegrationTests|FullyQualifiedName~ScissorStateScopeTests|FullyQualifiedName~WaterRefractionCaptureStateTests' --logger 'trx;LogFileName=phase3-state-validation.trx'`
+- `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore -v quiet`
+
+Receipts: `artifacts/phase3-build-validation.log`, `artifacts/phase3-test-validation.log`, and
+`VanillaGraphicsExpanded.Tests/TestResults/phase3-state-validation.trx`. The initial Debug build
+encountered a shader-cache atomic-write access failure, recorded in
+`artifacts/phase3-debug-build-validation.log`. A retry passed with zero errors and 106 warnings,
+without source or shader-setting changes: `artifacts/phase3-debug-build-retry.log`.
+
+The second source review checked all native mutation sites, separated validation from entry
+orchestration, and added explicit registration/replacement and real native query-failure evidence.
+The independent audit-stage-completion pass reconsulted the restoration contract, parent authority
+rules and inventory decisions, then reconciled each entry requirement against source and final
+receipts. No required entry/snapshot finding remains. Disposable restoration, cleanup failure
+guarantees, production adapters and live acceptance remain unimplemented; no game was launched.

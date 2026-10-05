@@ -7,6 +7,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes LineWidth, suppressing a known identical transition.</summary>
     public void SetLineWidth(float width)
     {
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.LineWidth);
         if (!float.IsFinite(width) || width <= 0) throw new System.ArgumentOutOfRangeException(nameof(width));
         SynchronizeContext();
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineWidth) && rasterizer.LineWidth == width) return;
@@ -19,6 +20,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes PointSize, suppressing a known identical transition.</summary>
     public void SetPointSize(float size)
     {
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PointSize);
         if (!float.IsFinite(size) || size <= 0) throw new System.ArgumentOutOfRangeException(nameof(size));
         SynchronizeContext();
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PointSize) && rasterizer.PointSize == size) return;
@@ -31,6 +33,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes ProvokingVertex, suppressing a known identical transition.</summary>
     public void SetProvokingVertex(ProvokingVertexMode mode)
     {
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ProvokingVertex);
         if (!System.Enum.IsDefined(mode)) throw new System.ArgumentOutOfRangeException(nameof(mode));
         SynchronizeContext();
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProvokingVertex) && rasterizer.ProvokingVertex == mode) return;

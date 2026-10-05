@@ -60,7 +60,11 @@ internal static class EngineStateCalls
     public static void PatchParameter(PatchParameterInt parameter, int value)
     {
         if (parameter == PatchParameterInt.PatchVertices) StateCache.Current.SetPatchVertices(value);
-        else GL.PatchParameter(parameter, value);
+        else
+        {
+            StateCache.Current.RejectUnsupportedBoundaryMutation();
+            GL.PatchParameter(parameter, value);
+        }
     }
     /// <summary>Updates the provoking convention used by cached tessellation checks.</summary>
     public static void ProvokingVertex(ProvokingVertexMode mode) => StateCache.Current.SetProvokingVertex(mode);

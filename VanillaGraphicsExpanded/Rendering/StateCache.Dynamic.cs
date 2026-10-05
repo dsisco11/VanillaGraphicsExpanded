@@ -9,6 +9,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes the declared viewport through the cached dynamic-state backend.</summary>
     internal void ApplyDynamic(in DynamicDrawState state)
     {
+        ValidateBoundaryMutation(dynamic: DynamicDrawStateKnowledge.Viewport);
         SynchronizeContext();
         if (state.Width < 0 || state.Height < 0) throw new ArgumentOutOfRangeException(nameof(state));
         EnsureViewportLimits();
@@ -31,8 +32,12 @@ internal sealed partial class StateCache
     private void EnsureViewportLimits()
     {
         if (maxViewportWidth != 0) return;
-        int[] dimensions = new int[2];
-        GL.GetInteger(GetPName.MaxViewportDims, dimensions);
+        int[] dimensions = QueryCapability(() =>
+        {
+            int[] value = new int[2];
+            GL.GetInteger(GetPName.MaxViewportDims, value);
+            return value;
+        });
         if (dimensions[0] <= 0 || dimensions[1] <= 0) throw new InvalidOperationException("No current viewport capability.");
         maxViewportWidth = dimensions[0]; maxViewportHeight = dimensions[1];
         CapabilityQueries++;

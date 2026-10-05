@@ -12,6 +12,7 @@ internal sealed partial class StateCache
             SynchronizeContext();
             if (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProvokingVertex))
             {
+                RejectUnsupportedBoundaryMutation();
                 rasterizer.ProvokingVertex = (ProvokingVertexMode)GL.GetInteger(GetPName.ProvokingVertex);
                 rasterizerKnown |= RasterizerStateKnowledge.ProvokingVertex;
             }
@@ -26,6 +27,7 @@ internal sealed partial class StateCache
             SynchronizeContext();
             if (!assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices))
             {
+                RejectUnsupportedBoundaryMutation();
                 assembly.PatchVertices = GL.GetInteger(GetPName.PatchVertices);
                 assemblyKnown |= PrimitiveAssemblyStateKnowledge.PatchVertices;
             }

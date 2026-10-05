@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Implementation has not started.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; no parent phase is complete.
 Project index: project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -40,8 +40,8 @@ Approved sequencing exception — engine-boundary restoration (2026-10-05)
   Phase 3 coverage and the remaining pipeline/submission prerequisites retain their dependencies.
   Reuse this mechanism when GraphicsCommandContext and complete pipelines are introduced.
   Keep all completion markers unchecked until their full contracts and verification are satisfied.
-  Inventory and categorized cache foundation are complete under the linked restoration plan.
-  Boundary snapshots/restoration and consumer integration remain pending; no parent phase is complete.
+  Inventory, categorized cache foundation and declared entry/resolved snapshots are complete under
+  the linked restoration plan. Restoration and consumer integration remain pending; no parent phase is complete.
 
 Phase 1: Establish state and consumer contracts
   Dependencies: approved proposal.

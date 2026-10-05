@@ -13,6 +13,7 @@ internal sealed partial class StateCache
     public void Apply(in GlPipelineDesc desc)
     {
         SynchronizeContext();
+        if (activeBoundary is not null || resolvingBoundary) ValidateBoundaryMutation(Pipeline.PipelineStateCoverage.From(desc));
 #if DEBUG
         if (!string.IsNullOrWhiteSpace(desc.Name))
         {
