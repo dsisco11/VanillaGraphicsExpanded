@@ -587,26 +587,7 @@ Phase 16 — Reuse unchanged uniform-buffer uploads safely
   receipts, including the initial stale-assertion failures and their passing corrections.
   Second review and independent completion audit passed; no remaining findings.
 
-Phase 17 — Review remaining bandwidth and validate the combined result
-  ☐ Obtain a matched optimized-build comparison after executable-lifetime fixes.
-    - Separate preparation, water-depth, volume-boundary, surface/OIT, pre-overlay capture and
-      ordinary composition costs using existing profiling owners where possible.
-    - Compare affected quality/resolution selections and at least a water-heavy and dry view;
-      retain build/settings details alongside results. No fixed FPS target is assumed.
-  ☐ Investigate remaining volume-target and composition bandwidth only if measurements justify it.
-    - Two full-resolution RGBA32F volume targets remain a known cost; storage size is not bandwidth.
-    - Evaluate coverage restriction or compatible pass/resource reuse before changing precision.
-    - Do not blindly switch signed accumulation to RGBA16F, remove required backfaces, or enable
-      depth rejection that loses valid entry/exit boundaries. Any such change needs a separate
-      documented numerical/visibility justification and focused regression coverage.
-    - Keep measured findings with no justified implementation explicitly documented as such.
-  ☐ Review focused regressions, linked documentation and user-run visual/performance feedback.
-    - Preserve shallow-wall continuity, x2 stability, receiver rejection and underwater transitions.
-    - Record measured improvements, remaining bottlenecks and any unmeasured acceptance items.
-  Completion: implemented optimizations have applicable correctness evidence and an honest
-  performance record; speculative bandwidth redesign is not an automatic completion requirement.
-
-Phase 18 — Plan and implement explicit uniform-buffer lifetimes
+Phase 17 — Plan and implement explicit uniform-buffer lifetimes
   Reference: docs/Rendering.UniformBufferLifetime.Proposal.md, including its linked contracts.
   ☐ Convert the proposal into docs/Rendering.UniformBufferLifetime.todo.
     - Organize dependency-ordered phases with actionable tasks, verification and completion criteria.
@@ -634,3 +615,22 @@ Phase 18 — Plan and implement explicit uniform-buffer lifetimes
   and verified, and the proposal's completion criteria are satisfied. Producing the plan alone
   does not complete this phase; further optional consumer tuning may remain only as allowed by
   the proposal, with no required lifetime or retirement work deferred.
+
+Phase 18 — Review remaining bandwidth and validate the combined result
+  ☐ Obtain a matched optimized-build comparison after executable-lifetime fixes.
+    - Separate preparation, water-depth, volume-boundary, surface/OIT, pre-overlay capture and
+      ordinary composition costs using existing profiling owners where possible.
+    - Compare affected quality/resolution selections and at least a water-heavy and dry view;
+      retain build/settings details alongside results. No fixed FPS target is assumed.
+  ☐ Investigate remaining volume-target and composition bandwidth only if measurements justify it.
+    - Two full-resolution RGBA32F volume targets remain a known cost; storage size is not bandwidth.
+    - Evaluate coverage restriction or compatible pass/resource reuse before changing precision.
+    - Do not blindly switch signed accumulation to RGBA16F, remove required backfaces, or enable
+      depth rejection that loses valid entry/exit boundaries. Any such change needs a separate
+      documented numerical/visibility justification and focused regression coverage.
+    - Keep measured findings with no justified implementation explicitly documented as such.
+  ☐ Review focused regressions, linked documentation and user-run visual/performance feedback.
+    - Preserve shallow-wall continuity, x2 stability, receiver rejection and underwater transitions.
+    - Record measured improvements, remaining bottlenecks and any unmeasured acceptance items.
+  Completion: implemented optimizations have applicable correctness evidence and an honest
+  performance record; speculative bandwidth redesign is not an automatic completion requirement.
