@@ -431,17 +431,36 @@ Phase 12 — Prepare only required liquid frame inputs
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 13 — Stop redundant endpoint probes
-  ☐ Detect traversal paths whose next probe cannot advance after clamping to the visible extent.
+  ☑ Detect traversal paths whose next probe cannot advance after clamping to the visible extent.
     - Evaluate the endpoint before terminating; retain any proposal that can move to a different
       supported position. Do not confuse revisiting a texture footprint with identical ray state.
     - Route exhausted progress through the existing validated UV fallback, preserving the seed
       handoff from Phase 4, total internal reflection and x2/x4/x8 maximum probe budgets.
     - Do not accept an unsupported receiver or introduce a tolerance that discards useful movement.
-  ☐ Verify invalid endpoint support, failed patch intersections, short extents and screen edges.
+  ☑ Verify invalid endpoint support, failed patch intersections, short extents and screen edges.
     - Compare receiver/fallback results and instrument probe counts in focused fixtures to show
       that repeated identical endpoint evaluations are removed without losing valid hits.
   Completion: unchanged endpoint state does not consume the remaining traversal budget repeatedly;
   useful probes and the existing distortion behavior are preserved.
+  Implementation: compare the next clamped distance with the just-sampled distance using exact
+  equality. Invalid support stops only after its endpoint lookup; valid support first tests the
+  patch and considers a plane proposal, including movement back from the endpoint. No texel/UV
+  equality shortcut or new tolerance is introduced. Exhaustion retains the original seed/UV path.
+  Traceability: PBR.WaterRefraction.md / bounded traversal and seed handoff controls coverage,
+  budgets, physical support, provenance and fallback; water-medium/liquid/display documents
+  retain metre units, photon direction, HDR/OIT and wave/mesh ownership. The authoritative state
+  plan/proposal and capture findings remain unchanged: no draw, resource or activation changes,
+  and removed probe work alone is not a measured GPU or live-frame improvement.
+  Verification: serial shader/Debug build passed; 36/36 focused GPU cases passed, then a test-only
+  build and 2/2 additional tiny-extent cases passed. Baseline reproduction passed six cases.
+  Full/half short endpoints retain two probes and identical UV results: x8 depth reads18→6,
+  x4 reads10→6, x2 unchanged. Valid endpoint hits remain accepted on probe two; sub-.0005-metre
+  movement within one texture footprint still receives its own endpoint probe. TIR, seed reuse,
+  cached patches, moving x2 transitions and dense tier references pass. Only six ray-surface
+  variants change (+12 static instructions); UV-only and all capture variants are opcode-identical.
+  PBR.WaterRefraction.md records results and limits; artifacts/WaterLagAnalysis/endpoint-* holds
+  baseline, build, optimized, 36-case and two-case receipts. No live GPU timing is claimed.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 14 — Simplify isotropic scattering evaluation
   ☐ Use the constant 1/(4*pi) phase value when effective anisotropy is exactly zero.

@@ -16,6 +16,99 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     private const int Size = 128;
 
     #region Public API
+    /// <summary>Evaluates a short visible endpoint before stopping, without changing validated fallback.</summary>
+    [Theory]
+    [InlineData(1,false,false)]
+    [InlineData(2,false,false)]
+    [InlineData(3,false,false)]
+    [InlineData(1,true,false)]
+    [InlineData(2,true,false)]
+    [InlineData(3,true,false)]
+    [InlineData(3,false,true)]
+    [InlineData(3,true,true)]
+    public void ClippedEndpointPreservesFallback(int quality, bool half, bool tiny)
+    {
+        EnsureShaderTestAvailable();
+        using var color = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.Rgba32f);
+        using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
+        using var halfColor = half ? DynamicTexture2D.Create(Size/2,Size/2,PixelInternalFormat.Rgba32f) : null;
+        using var halfDepth = half ? DynamicTexture2D.Create(Size/2,Size/2,PixelInternalFormat.Rgba32f) : null;
+        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
+        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        var inputs = (IWaterRefractionDiagnosticBindings)program;
+        SetProjection(inputs);
+        inputs.Scenario=12; inputs.Budget=1<<quality; inputs.Quality=quality;
+        float seedU=tiny?.9999f:.99f;
+        inputs.FrameSize=new(Size); inputs.Surface=AtDepth(new(seedU,.5f),2);
+        Vector3 direction=Vector3.Normalize(new Vector3(.9f,0,-.435f));
+        inputs.Normal=Vector3.Normalize(Vector3.Normalize(inputs.Surface)/1.333f-direction);
+        if(tiny)
+        {
+            float extent=(-inputs.Surface.Z-MathF.Sqrt(3)*inputs.Surface.X)
+                /(MathF.Sqrt(3)*direction.X+direction.Z)-.0001f;
+            Assert.InRange(extent,float.Epsilon,.0005f);
+        }
+        inputs.Color=halfColor??color; inputs.Depth=halfDepth??depth;
+        using var target=CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        foreach(bool valid in new[] {false,true})
+        {
+            // A distant plane has eligible support but its actual intersection lies outside screen coverage.
+            var colors=new float[Size*Size*4];
+            for(int pixel=0;pixel<Size*Size;pixel++)
+            { colors[pixel*4]=4; colors[pixel*4+1]=2; colors[pixel*4+3]=1; }
+            color.UploadDataImmediate(colors);
+            depth.UploadDataImmediate(Enumerable.Repeat(valid?.5f*(1+(100.1f-2)/99.9f):1,Size*Size).ToArray());
+            if(half)
+            { reduction!.SourceColor=color; reduction.SourceDepth=depth; TestFramework.RenderQuadTo(reduction,reduced!); }
+            inputs.SelectReceiver=0;
+            TestFramework.RenderQuadTo(program,target);
+            float[] raw=target[0].ReadPixels(), sample=target[1].ReadPixels(), work=target[6].ReadPixels();
+            output.WriteLine($"endpoint quality={quality} half={half} valid={valid} probes={raw[2]} lastDepth={sample[2]} depthReads={work[0]}");
+            Assert.Equal(0,raw[0]);
+            Assert.Equal(2,raw[2]);
+            Assert.Equal(valid, sample[2]>0);
+            Assert.InRange(sample[0],.999f,1);
+            if(tiny)
+            {
+                Assert.True(sample[0]>seedU,"A positive sub-millimetre extent must still evaluate its distinct endpoint.");
+                Assert.Equal(MathF.Floor(seedU*(half?Size/2:Size)-.5f),
+                    MathF.Floor(sample[0]*(half?Size/2:Size)-.5f));
+            }
+            inputs.SelectReceiver=1;
+            TestFramework.RenderQuadTo(program,target);
+            float[] selected=target[0].ReadPixels(), receiver=target[4].ReadPixels(), radiance=target[5].ReadPixels();
+            inputs.SelectReceiver=2;
+            TestFramework.RenderQuadTo(program,target);
+            Assert.Equal(selected[0],target[0].ReadPixels()[0]);
+            Assert.Equal(receiver,target[4].ReadPixels());
+            Assert.Equal(radiance,target[5].ReadPixels());
+        }
+        // The first plane proposes the maximum extent. A different represented
+        // plane there intersects the ray: an upfront endpoint exit would lose it.
+        inputs.Surface=new(0,0,-2);
+        direction=Vector3.Normalize(new Vector3(.1f,0,-1));
+        inputs.Normal=Vector3.Normalize(Vector3.Normalize(inputs.Surface)/1.333f-direction);
+        var hitColors=new float[Size*Size*4]; var hitDepths=new float[Size*Size];
+        float endpointDepth=2-direction.Z*31.999f;
+        for(int pixel=0;pixel<hitDepths.Length;pixel++)
+        {
+            float metres=pixel%Size<68?80:endpointDepth;
+            hitDepths[pixel]=.5f*(1+(100.1f-20/metres)/99.9f);
+            hitColors[pixel*4]=4; hitColors[pixel*4+3]=1;
+        }
+        color.UploadDataImmediate(hitColors); depth.UploadDataImmediate(hitDepths);
+        if(half)
+        { reduction!.SourceColor=color; reduction.SourceDepth=depth; TestFramework.RenderQuadTo(reduction,reduced!); }
+        inputs.SelectReceiver=0;
+        TestFramework.RenderQuadTo(program,target);
+        var hitDecision=target[0].ReadPixels();
+        Assert.Equal(1,hitDecision[0]); Assert.Equal(2,hitDecision[2]);
+        Assert.InRange(target[4].ReadPixels()[2],-endpointDepth-.002f,-endpointDepth+.002f);
+    }
+
     /// <summary>Actual ray/UV switches retain associated HDR radiance and bounded receiver motion on one smooth plane.</summary>
     [Theory]
     [InlineData(false,4f)]
@@ -166,7 +259,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         }
     }
 
-    /// <summary>Exhaustion reaches the exact ceiling; TIR performs neither ray nor UV receiver reads.</summary>
+    /// <summary>Exhaustion respects the ceiling and stops at the evaluated endpoint; TIR performs no receiver reads.</summary>
     [Theory]
     [InlineData(1,false)]
     [InlineData(2,false)]
@@ -193,7 +286,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         TestFramework.RenderQuadTo(program,target);
         var decision = target[0].ReadPixels(); var selected = target[3].ReadPixels();
         Assert.Equal(0,decision[0]); Assert.Equal(0,selected[0]);
-        Assert.Equal(tir ? 0 : 1 << quality,decision[2]);
+        Assert.Equal(tir ? 0 : Math.Min(1 << quality,6),decision[2]);
         Assert.Equal(0,selected[1]);
     }
 
@@ -264,7 +357,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
                 continue;
             }
             Assert.Equal(0,ray[0][0]);
-            Assert.Equal(1 << quality,ray[0][2]);
+            // Recovery at 0,.125,.5,2 reaches the far plane, which proposes the endpoint.
+            int expectedProbes=scene=="invalid-seed" ? Math.Min(1<<quality,5) : 2;
+            Assert.Equal(expectedProbes,ray[0][2]);
             if (scene == "invalid-seed" && quality == 3) Assert.InRange(ray[1][2],79.9f,80.1f);
             if (scene == "invalid-later") Assert.Equal(0,ray[1][2]);
             Assert.Equal(uv[0][0],selected[0][0]);

@@ -95,6 +95,7 @@ VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater
     float recoveryDistance = .125;
     for (int step = 0; step < limit; ++step)
     {
+        float sampledDistance = distance;
         vec2 sampleUv;
         if (!VgeRefractionProject(surface + direction * distance, sampleUv)) return result;
         VgeRefractionSupport support;
@@ -110,6 +111,9 @@ VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater
             // No crossing bracket spans a gap. A later lookup must independently
             // prove a locally supported receiver using its own compatible taps.
             distance = min(extent, max(distance + .125, recoveryDistance));
+            // The clamped endpoint was just evaluated. Repeating its identical
+            // unsupported position cannot reveal new coverage or repair the seed.
+            if (distance == sampledDistance) break;
             recoveryDistance = min(extent, max(recoveryDistance * 4.0, distance * 2.0));
             continue;
         }
@@ -133,6 +137,10 @@ VgeWaterReceiver VgeWaterRefraction(vec3 surface, vec3 normalVS, bool underwater
             distance = min(extent, max(distance + .125, recoveryDistance));
             recoveryDistance = min(extent, max(recoveryDistance * 4.0, distance * 2.0));
         }
+        // Check only after testing this patch and considering its plane proposal:
+        // even an endpoint can lead back to a different, useful ray position.
+        // Exact equality avoids discarding small motion or revisited texture footprints.
+        if (distance == sampledDistance) break;
     }
     // Exhaustion is a search limit, never a license to accept the last receiver.
     return result;

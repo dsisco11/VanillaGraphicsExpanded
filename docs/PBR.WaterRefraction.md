@@ -403,6 +403,38 @@ can establish a hit. Later coverage must independently prove its own local inter
 Partial edge footprints are validated by the filter; the old two-pixel/half-texel guard is gone.
 The physical interface test, metadata checks and associated-color filtering remain required.
 
+After evaluating a probe, traversal stops if its next clamped ray distance is exactly unchanged.
+This removes repeated endpoint lookups when support is unavailable or a represented patch
+cannot establish a hit. The current endpoint is always evaluated first; valid patch hits and
+plane proposals that move back to another position remain eligible. Equality compares ray
+distance, not texture coordinates or texel footprints, and adds no movement tolerance.
+The existing proposal-selection tolerance is unchanged. Exhausted progress returns the ordinary
+unavailable ray result, letting the existing selector use the original validated seed for UV
+fallback. It never promotes the last unsupported patch to a hit or changes the x2/x4/x8 ceilings.
+
+Matched optimized inspection changes only the six ray-marching surface variants, adding 12
+static instructions for the equality/exit bookkeeping. Both UV-only variants and all 24 capture
+variants retain identical opcode sequences. This is a reduction in repeated dynamic sampling,
+not a claim that total static instruction count or measured GPU frame time decreases.
+
+Executed full/half-resolution edge fixtures cover unavailable support and supported patches
+whose intersection cannot be accepted. Their short visible paths now use two probes (seed and
+endpoint): x8 decreases from eight probes/18 depth reads to two/six, x4 from four/ten to two/six,
+and x2 remains two/six. Selected validity, position and HDR radiance match independently seeded
+UV selection. A different represented plane at the maximum extent still produces its valid ray
+hit on the second probe. Positive extents below `.0005` metres retain two distinct probes even
+within the same texture footprint; those partial-edge footprints use four total depth reads.
+An entirely unavailable 32-metre path visits distances 0, .125, .5, 2, 8 and the endpoint once;
+x8 therefore stops at six probes while lower tiers retain their ceilings. The invalid-seed
+recovery fixture finds support at two metres and jumps to the endpoint, completing in five.
+
+The serial shader/Debug build passed. The focused run passed 36/36 cases without skips, including
+TIR, cached patch coverage, seed reuse, full/half tier reference comparisons, moving x2 ray/UV
+transitions and range exhaustion. A subsequent test-only build and two-case run passed the
+additional tiny-extent checks; all 38 distinct cases have passing evidence, not a single 38-case
+run. The six-case baseline reproduction, optimized comparison and final receipts are in
+`artifacts/WaterLagAnalysis/endpoint-*`. Live GPU/frame-time improvement remains unmeasured.
+
 Every supported geometric result has confidence one. Unconditional interface-edge, receiver-edge,
 range and residual fades are removed. `refraction_selection.glsl` prefers that result and otherwise
 invokes the bounded validated UV sampler, keeping provenance `UV` rather than `RAY`. Only failure

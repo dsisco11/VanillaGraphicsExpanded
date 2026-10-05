@@ -105,7 +105,7 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             if (scenario == 5)
             {
                 Assert.Equal(9, decision[1]);
-                Assert.Equal(budget, decision[2]);
+                Assert.Equal(2, decision[2]);
                 Assert.Equal(0, work[2] + work[3]);
             }
             if (scenario == 6)
