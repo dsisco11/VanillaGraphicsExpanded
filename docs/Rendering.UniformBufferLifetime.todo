@@ -56,13 +56,13 @@ Phase 4: Consumer ownership and adoption
 
 Phase 5: Behavioral verification and measurements
   Dependencies: Phases 2–4.
-  ☐ Delegate Debug/Release builds with normal shader receipts and focused unit/headless suites.
-  ☐ Observe actual GPU snapshots across draws/dispatches, same-frame edits, nested restoration, sharing,
+  ✔ Delegate Debug/Release builds with normal shader receipts and focused unit/headless suites. @done(26-10-05 14:17)
+  ✔ Observe actual GPU snapshots across draws/dispatches, same-frame edits, nested restoration, sharing, @done(26-10-05 14:17)
     different slots, reload, incompatible layouts and disposal.
-  ☐ Verify zero unchanged cross-frame copies, transient rollover/repeated indices, pool reuse,
+  ✔ Verify zero unchanged cross-frame copies, transient rollover/repeated indices, pool reuse, @done(26-10-05 14:17)
     delayed completion and replacement after an old version was rebound in a later frame.
-  ☐ Exercise failed allocation/upload/bind and retry, mapping/flush/fallback, alignment and overflow.
-  ☐ Compare matched changed/per-frame/stable workloads, including water and non-water consumers;
+  ✔ Exercise failed allocation/upload/bind and retry, mapping/flush/fallback, alignment and overflow. @done(26-10-05 14:17)
+  ✔ Compare matched changed/per-frame/stable workloads, including water and non-water consumers; @done(26-10-05 14:17)
     report allocations/copies/binds, resident storage, pending retirement and waits separately.
   Gate: no source-text substitute for behavior; CPU/GPU/live costs explicitly unmeasured unless measured.
 

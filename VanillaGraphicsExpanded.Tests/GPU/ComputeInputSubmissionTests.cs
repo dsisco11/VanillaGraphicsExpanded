@@ -60,7 +60,12 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         outer.Dispose();
         try
         {
-            Assert.Throws<ObjectDisposedException>(inner.Dispose);
+            if (innerGraphics)
+            {
+                var failure = Assert.Throws<VanillaGraphicsExpanded.Rendering.Shaders.ShaderOwnershipRestoreException>(inner.Dispose);
+                Assert.IsType<ObjectDisposedException>(failure.InnerException);
+            }
+            else Assert.Throws<ObjectDisposedException>(inner.Dispose);
             Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
