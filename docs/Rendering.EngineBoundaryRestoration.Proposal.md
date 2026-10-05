@@ -3,7 +3,8 @@
 Status: approved by the user on 2026-10-05. Boundary inventory and implementation contracts are
 complete. Categorized storage/cache-backed coverage, declared boundary entry and resolved snapshots
 and scoped restoration/cleanup are implemented. Refraction and independent lighting/composite callbacks
-are integrated and headless-tested. Remaining caller reconciliation and live acceptance are pending. Evidence:
+are integrated and headless-tested. Caller reconciliation is complete; 11 source invocations remain
+with explicit parent-plan prerequisites, including one dormant helper. Live acceptance is pending. Evidence:
 [Rendering.AuthoritativePipelineState.md](Rendering.AuthoritativePipelineState.md#engine-boundary-restoration).
 
 Implementation plan: [Rendering.EngineBoundaryRestoration.todo](Rendering.EngineBoundaryRestoration.todo).
@@ -263,7 +264,14 @@ passes, and external handoff. The cache restoration implementation survives; ren
 compatibility wiring is removed. Full pipelines remain authoritative within VGE. Partial overrides
 remain explicitly identified compatibility operations outside complete submissions or at declared
 boundaries. Framebuffer blend policy moves into complete pipeline descriptions as its consumers
-migrate, preserving one owner of that policy.
+migrate, preserving one owner of that policy. Viewport remains dynamic.
+
+The [current caller dispositions](Rendering.AuthoritativePipelineState.md#legacy-scope-inventory-and-disposition)
+assign lighting callback wiring to its parent consumer migration and composite/capture coordination
+to theirs. GraphicsCommandContext reuses EngineBoundaryExecution/EngineBoundaryScope and ordered
+existing-owner cleanup. FullscreenBoundary remains until its final caller has equivalent submission
+coverage. Debug, bake, upload/resolve and water-volume consumers require their own adapters and
+validation; legacy helper retirement follows the last proven caller migration or removal.
 
 ## Source organization
 

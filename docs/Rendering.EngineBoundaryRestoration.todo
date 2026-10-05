@@ -2,10 +2,10 @@ Engine-boundary restoration through pipeline state and StateCache
 ================================================================
 
 Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
-Approval: user approved the proposal on 2026-10-05. Phases 1–5 completed; remaining caller reconciliation and live acceptance are pending.
+Approval: user approved the proposal on 2026-10-05. Phases 1–6 completed; acceptance consolidation and supplied live validation remain pending.
 Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
 Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
-Project index: project.todo / Issues / Current / legacy fixed-function capture inventory.
+Project index: project.todo / Issues / Current / legacy fixed-function helper retirement.
 
 Goal and execution contract
   Restore interrupted engine state through the existing StateCache/PSO transition machinery,
@@ -211,23 +211,23 @@ Phase 6: Review legacy callers and reconcile future PSO adoption
   Dependencies: Phase 5 integration evidence and Phase 1 caller inventory.
   Outcome: each legacy caller has an evidenced disposition and the shared mechanism has one future owner.
 
-  ☐ Reconcile every inventoried legacy caller against the proven mechanism.
-    ☐ Migrate only callers with established boundary coverage and focused validation; remove scopes
+  ✔ Reconcile every inventoried legacy caller against the proven mechanism.
+    ✔ Migrate only callers with established boundary coverage and focused validation; remove scopes
       proven redundant inside an existing boundary or unnecessary for their actual mutations.
-    ☐ Retain necessary unconverted callers with explicit reasons and linked parent-plan prerequisites;
+    ✔ Retain necessary unconverted callers with explicit reasons and linked parent-plan prerequisites;
       do not imply that the immediate refraction correction converts every graphics consumer.
-    ☐ Retire the legacy helper only when no necessary caller remains; otherwise retain a tracked removal task.
-  ☐ Perform a second source review against the approved proposal, actual entry points and test evidence.
-    ☐ Check one owner per state policy, cleanup ordering, unknown mutation handling and PSO-only VGE state.
-    ☐ Confirm the category inventory is complete, knowledge stays separate from reusable values,
+    ✔ Retire the legacy helper only when no necessary caller remains; otherwise retain a tracked removal task.
+  ✔ Perform a second source review against the approved proposal, actual entry points and test evidence.
+    ✔ Check one owner per state policy, cleanup ordering, unknown mutation handling and PSO-only VGE state.
+    ✔ Confirm the category inventory is complete, knowledge stays separate from reusable values,
       and no resource-binding ownership or lifetime rules moved into fixed-function structs.
-    ☐ Resolve confirmed discrepancies before marking migration work complete.
-  ☐ Update proposal/parent-plan/project links and implementation evidence without checking unrelated work.
-    ☐ Record how GraphicsCommandContext will consume the boundary mechanism during complete submission.
-    ☐ Assign renderer compatibility-wiring removal to the corresponding parent consumer migrations.
-    ☐ Retain partial overrides only at declared compatibility boundaries; keep viewport dynamic and
+    ✔ Resolve confirmed discrepancies before marking migration work complete.
+  ✔ Update proposal/parent-plan/project links and implementation evidence without checking unrelated work.
+    ✔ Record how GraphicsCommandContext will consume the boundary mechanism during complete submission.
+    ✔ Assign renderer compatibility-wiring removal to the corresponding parent consumer migrations.
+    ✔ Retain partial overrides only at declared compatibility boundaries; keep viewport dynamic and
       framebuffer blend-policy migration with the parent plan's complete-pipeline consumers.
-  ☐ Completion gate: no caller or temporary path has an unexplained disposition; retained migration work
+  ✔ Completion gate: no caller or temporary path has an unexplained disposition; retained migration work
     is traceable and the bounded sequencing exception does not weaken broader completion requirements.
 
 Phase 7: Consolidate acceptance evidence and supplied live validation

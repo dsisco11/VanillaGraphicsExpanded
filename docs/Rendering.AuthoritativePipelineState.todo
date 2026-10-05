@@ -42,7 +42,8 @@ Approved sequencing exception — engine-boundary restoration (2026-10-05)
   Keep all completion markers unchecked until their full contracts and verification are satisfied.
   Inventory, categorized cache foundation and declared entry/resolved snapshots are complete under
   the linked restoration plan. Scoped restoration/cleanup and refraction/lighting/composite integration
-  are also complete; remaining caller reconciliation and live acceptance are pending. No parent phase is complete.
+  are also complete. Caller reconciliation is recorded in the implementation evidence; live acceptance
+  remains pending. No parent phase is complete.
 
 Phase 1: Establish state and consumer contracts
   Dependencies: approved proposal.
@@ -166,6 +167,9 @@ Phase 6: Immediate graphics submission
     ☐ Establish all required state before issuing the draw; failure must emit no draw.
     ☐ Document and observe engine geometry helper mutations; prohibit untracked operations inside a pass.
     ☐ End/suspend authority at declared external boundaries and dirty affected categories before resuming.
+    ☐ Coordinate EngineBoundaryExecution/EngineBoundaryScope around sequential complete passes using
+      the existing StateCache snapshots/transitions. Preserve shader, borrowed-binding/framebuffer,
+      then drawing-state cleanup; do not create another restoration cache. Keep viewport dynamic.
   ☐ Delegate integration tests for missing dynamics/resources, invalid geometry, no-draw failures,
     changed inputs on the same pipeline, external operations, nesting rejection and exception cleanup.
   ☐ Completion gate: deterministic fixture draws use the full submission path with no hidden ambient
@@ -179,6 +183,8 @@ Phase 7: Direct-lighting production migration
     ☐ Preserve shader inputs, image formats, output routing, clear behavior and engine restoration.
     ☐ Preserve resource lifetimes, resize handling and readiness/failure behavior.
     ☐ Remove redundant local state setup only after the new owner covers it.
+    ☐ Replace RenderLighting callback compatibility wiring only after complete submission supplies
+      equivalent boundary coverage and failure cleanup through the existing shader lifecycle.
   ☐ Delegate deterministic old/reference-versus-migrated output tests and focused consumer regressions.
     ☐ Exercise first use, repeated draws, target resize, shader failure/reload and external state changes.
     ☐ Record state calls, steady-state queries and preparation/submission costs separately.
@@ -193,9 +199,18 @@ Phase 8: Remaining VGE consumers and compatibility cleanup
 
   ☐ Migrate composite and capture passes, then indexed-blend/MRT consumers.
     ☐ Extend per-consumer boundary adapters and metadata before migrating each caller.
+    ☐ Replace RenderComposite and WaterRefractionCapture compatibility coordination only after complete
+      submission covers preparation, SSAO, reduction, allocation and failure publication. Retain
+      FullscreenBoundary descriptor/resource unions until the final caller has equivalent coverage.
+    ☐ Cover WaterVolumeRenderer terrain pools, indexed blending, viewport and UseSsbo bookkeeping.
+    ☐ Migrate MaterialAtlasNormalDepthGpuBuilder's three independent entries and UploadCpu's two-pass
+      world-probe resolve with target, clear, shader/resource, geometry and exception regressions.
     ☐ Move framebuffer blend policy to pipeline descriptions as its consumers migrate.
     ☐ Add output, lifetime, routing and restoration regression evidence for each consumer family.
   ☐ Migrate VGE-owned debug/tessellation/terrain-related draws using the required specialized adapters.
+    ☐ Follow docs/Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition for
+      both DebugView consumers and LumOn's OIT, AfterBlit and atlas-overlay entries. Remove the dormant
+      RenderWorldProbeClipmapBoundsFrozen method or validate its independent adapter before reuse.
     ☐ Preserve engine-owned rendering behind explicit compatibility boundaries; do not claim ownership
       solely because a shader or draw helper is shared with VGE.
     ☐ Record any unconverted in-scope consumer as incomplete; require explicit scope agreement to defer it.
@@ -203,6 +218,9 @@ Phase 8: Remaining VGE consumers and compatibility cleanup
     ☐ Retain partial changes only outside complete submissions or through declared boundaries.
     ☐ Remove obsolete migrated blend storage/setup and temporary adapters only after caller/tests prove safety.
     ☐ Retain necessary capture/invalidation; remove individual scopes only with tracking/restoration evidence.
+    ☐ Retire CaptureLegacyFixedFunctionState after all 11 remaining source invocations are migrated or
+      removed with evidence. Consumer inventory, boundary coverage, prepared pipelines, target/pass and
+      submission/geometry contracts remain prerequisites; retained consumers are not complete.
     ☐ Complete migrated type renames and references without unrelated hierarchy or ownership changes.
   ☐ Reconcile project.todo binding/hook items with the coverage matrix; do not mark unobserved paths done.
   ☐ Delegate focused consumer regressions and compute/shared-binding regressions affected by common changes.

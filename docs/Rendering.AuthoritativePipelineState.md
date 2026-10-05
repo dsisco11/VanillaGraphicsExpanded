@@ -74,27 +74,35 @@ not a new resource hierarchy or resource cache.
 
 ### Legacy scope inventory and disposition
 
-Repository search found 14 invocations plus the declaration. Each retained family needs its own
+Initial repository search found 14 invocations plus the declaration. Three have since migrated;
+11 source invocations remain, including one dormant helper. Each retained family needs its own
 effect inventory and regressions before migration; presence of observed engine calls is insufficient.
 
 | Source and invocation lines at inventory | Disposition / dependency |
 | --- | --- |
-| `PBR/Liquids/WaterRefractionCapture.cs:100` | Replace by pre-overlay boundary; remove duplicate CapturePipeline after child draws establish state. |
-| `PBR/DirectLightingRenderer.cs:98` | Redundant inside capture; ordinary callback still requires its independent adapter. Separate adapter from shared draw implementation first. |
-| `PBR/PBRCompositeRenderer.cs:189` | Redundant inside capture; ordinary adapter must include preparation, SSAO restoration and reduction before removal. |
+| `PBR/Liquids/WaterRefractionCapture.cs` | Migrated to one pre-overlay boundary; duplicate CapturePipeline removed, actual child draw descriptors retained. |
+| `PBR/DirectLightingRenderer.cs` | Migrated to independent callback adapter and shared in-boundary draw implementation. |
+| `PBR/PBRCompositeRenderer.cs` | Migrated to independent callback adapter covering preparation, SSAO restoration and reduction. |
 | `DebugView/Views/VgeWorldCellBoundsDebugView.cs:285` | Retain independent debug boundary; line geometry, shader and binding policy require parent debug-consumer migration. |
 | `DebugView/Views/VgeGBufferOverlayDebugView.cs:157` | Retain independent overlay boundary; indexed outputs and engine blit ownership require debug adapter. |
-| `LumOn/LumOnDebugRenderer.cs:730` | OIT debug group contains calls into bounds/rays/orbs; possible nested scopes. Retain until shared outer debug contract and child effects are established. |
-| `LumOn/LumOnDebugRenderer.cs:893` | Independent AfterBlit/debug fullscreen path; manual viewport/scissor and active-texture restoration must migrate together. |
-| `LumOn/LumOnDebugRenderer.cs:1345` | Bounds helper can run under OIT group; retain until parent adapter removes nested preservation and covers line width/VAO/raw mutations. |
-| `LumOn/LumOnDebugRenderer.cs:2562` | Independent normal-depth atlas overlay, engine blit program and sampler inputs; retain pending debug shader/binding contract. |
-| `LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapGpuUploader.cs:229` | Resolve operation with multiple draws; retain until upload/resolve adapter covers target/viewport/geometry and shader cleanup. |
-| `PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs:146,508,592` | Three offscreen bake/solver entry scopes; retain until allocation/viewport/scissor/program/binding and iterative solver contracts are independently migrated. |
+| `LumOn/LumOnDebugRenderer.cs:731` | Retain OIT outer scope around live bounds/rays/orbs until shared debug contract and child effects are established. It does not call the frozen helper below. |
+| `LumOn/LumOnDebugRenderer.cs:894` | Independent AfterBlit/debug fullscreen path; manual viewport/scissor and active-texture restoration must migrate together. |
+| `LumOn/LumOnDebugRenderer.cs:1346` | Dormant private RenderWorldProbeClipmapBoundsFrozen helper; search finds only its declaration. Retain its protective scope with the method. Parent debug migration must remove the entire dead helper or validate an independent line/VAO/shader adapter before reuse. This is not nested live-bounds preservation. |
+| `LumOn/LumOnDebugRenderer.cs:2563` | Independent normal-depth atlas overlay, engine blit program and sampler inputs; retain pending debug shader/binding contract. |
+| `LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapGpuUploader.cs:230` | UploadCpu performs two resolve draws; retain until upload/resolve adapter covers both targets/viewports, point geometry and shader cleanup. |
+| `PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs:147,509,593` | BakePerTexture, ClearAtlasPage and BakePerRect are separate public entries. Retain each until allocation/clear/viewport/scissor/program/binding and iterative solver contracts are independently migrated. ClearAtlasPage is called independently, not a redundant nested scope. |
 | `PBR/Liquids/WaterVolumeRenderer.cs:108` | Independent liquid pool boundary; viewport, indexed additive blending, UseSsbo bookkeeping and terrain helper effects require volume-specific adapter. |
 
 No retained caller is approved for blanket removal. The legacy helper cannot be retired while
 these consumers require it. Their current scopes are compatibility fallbacks, not proof of complete
 indexed preservation or context safety.
+
+All retained families are assigned to the [parent plan](Rendering.AuthoritativePipelineState.todo),
+remaining-consumer migration and compatibility cleanup. Consumer inventory, cache/boundary coverage,
+prepared pipelines, target/pass and submission/geometry contracts remain prerequisites. Existing
+manual cleanup in those consumers is migration work, not permission to add it to migrated passes.
+No remaining scope has validated replacement coverage. Removing only the dormant helper's scope
+would leave unsafe code if reconnected; track whole-method disposition with its debug consumer.
 
 ### State representation and source layout decisions
 
@@ -573,3 +581,37 @@ ownership rules, entry/helper inventory and final source/receipts. All required 
 are satisfied. Legacy-caller reconciliation and broader PSO adoption retain their own plan gates.
 Live appearance, first-person source cleanliness in a new capture and the separate screen-bottom
 UV fallback remain outside the automated acceptance claim. No game is launched by this work.
+
+### Legacy reconciliation and future submission ownership
+
+Reconciliation on 2026-10-05 changes documentation only. Actual GlPipelineDesc applications remain
+with the draws. GraphicsCommandContext will coordinate the existing boundary mechanism around
+sequential complete passes, preserving engine-aware shader cleanup, borrowed bindings/framebuffers,
+then StateCache drawing-state restoration. Unknown external mutations require an explicit handoff
+and affected-category invalidation; engine hooks do not prove arbitrary raw GL coverage.
+
+Direct-lighting adoption owns removal of its callback compatibility wiring. Composite/capture
+adoption owns theirs and the FullscreenBoundary unions once complete submission covers the same
+operation. Keep any still-used adapter until its final caller migrates. Partial descriptors remain
+restricted to declared compatibility operations outside complete submission or at explicit boundaries.
+Viewport remains dynamic; framebuffer blend policy moves with complete consumer pipelines, with
+one policy owner throughout. No renderer restore PSO or second cache is introduced.
+
+| Reconciliation task | Controlling source | Evidence |
+| --- | --- | --- |
+| Caller dispositions and helper retirement | Restoration proposal / Refraction integration and compatibility; original caller inventory | Updated table accounts for three migrated and 11 retained source invocations; parent remaining-consumer tasks own every family and final helper retirement. |
+| State ownership, cleanup, unknown mutations and category separation | Restoration proposal / Dynamic state, bindings, and shader ownership; Authority, invalidation, and lifetime; Source organization | StateCache category/knowledge partials, BoundaryValidation, EngineBoundaryScope and FullscreenBoundary source review; existing boundary/cache/callback regressions above. |
+| Future adoption and bounded scope | Parent proposal / Submission contract, Engine integration and cache authority, Adoption strategy | Parent submission, direct-lighting and remaining-consumer tasks explicitly own reuse and compatibility removal; proposal and project index agree. |
+
+Second source review reconfirmed the complete fixed-function category inventory: depth, effective
+per-output blend/masks, rasterizer, primitive assembly and dynamic viewport. Knowledge stays separate
+from reusable values; clear-operation state has its separate owner. Binding caches, capabilities,
+context identity and resource lifetimes remain outside fixed-function value structs. The review
+corrected the frozen/live bounds inventory discrepancy and checked retained entry mutations and
+caller context. No remaining scope has evidence supporting isolated deletion or fullscreen substitution.
+
+No runtime files changed, so the 213 passing tests and Debug/Release receipts above remain applicable.
+No new build/test run or live acceptance is claimed for this reconciliation. The completion audit
+reconsulted the restoration contract and linked proposal/parent adoption requirements; retained
+consumers are explicitly allowed here and remain incomplete under the parent plan. Supplied live
+validation and the broader parent completion gates remain outstanding.
