@@ -22,6 +22,8 @@ Goal and execution contract
 Scope and exclusions
   Bring forward only the shared restoration mechanism, necessary state coverage and refraction
   integration under the approved sequencing exception. Do not claim completion of the parent plan.
+  Categorize all existing fixed-function tracking values into data structs as a foundation for
+  snapshots and future PSOs; keep cache knowledge separate and resource-binding caches unchanged.
   VGE passes use PSO application or declared dynamic state; native setters are backend/integration APIs.
   Preserve existing shader preparation/input publication, engine-aware activation, resource ownership,
   framebuffer binding scopes and deferred resource retirement. Do not create duplicate implementations.
@@ -48,6 +50,12 @@ Phase 1: Establish boundary coverage and implementation contracts
     ☐ Identify independent engine boundaries, work inside an existing boundary and redundant scopes.
     ☐ Record necessary retained callers and their migration dependencies; do not blanket-delete them.
   ☐ Resolve the shared boundary API and source layout within existing owners.
+    ☐ Map every current fixed-function field across StateCache partial files to exactly one category,
+      including patch size and provoking convention, plus the viewport coverage introduced here.
+    ☐ Specify category value structs and separate per-field/per-output validity metadata; retain
+      partial knowledge without treating unknown values as PSO settings or native defaults.
+    ☐ Settle category placement and static/dynamic policy against the approved PSO architecture;
+      resource-binding caches and unsupported future state are outside this storage refactor.
     ☐ Define coverage metadata derived from PSO/dynamic declarations plus documented helper effects;
       exclude duplicate renderer-maintained pipeline value lists.
     ☐ Define the effective preservation set, including global/indexed aliases and all setup/cleanup effects.
@@ -61,10 +69,26 @@ Phase 1: Establish boundary coverage and implementation contracts
   ☐ Completion gate: coverage includes every affected entry point and helper; no unresolved context,
     failure-policy or state-ownership choice blocks foundational implementation.
 
-Phase 2: Establish cache-backed state coverage and alias correctness
+Phase 2: Categorize state storage and establish cache-backed coverage
   Dependencies: Phase 1 inventory and state/context decisions.
-  Outcome: all native state the first boundary can overwrite has truthful cache-owned transitions.
+  Outcome: categorized fixed-function storage supports truthful cache-owned transitions before snapshots.
 
+  ☐ Replace loose fixed-function tracking fields with the inventoried category structs.
+    ☐ Introduce focused concrete value types for depth, output blending/write masks, rasterization,
+      primitive assembly and dynamic state as established in Phase 1; one responsibility per file.
+    ☐ Maintain separate cache-validity metadata at field/index granularity; preserve partially known state.
+    ☐ Migrate existing setters, readers, engine adapters and selective invalidation together; remove
+      duplicate authoritative fields rather than maintaining a second cache during normal operation.
+    ☐ Keep native queries/transitions, alias handling and restoration in StateCache; value structs
+      must not issue GL calls or own independent state caches.
+    ☐ Reuse existing value types where suitable; expose reusable category values for snapshots and
+      future PSO composition without requiring the complete future descriptor implementation.
+    ☐ Define independent ownership/copying for indexed payloads; a struct containing an array must
+      not let snapshots or published descriptors alias mutable cache storage.
+    ☐ Preserve resource-binding caches, VAO associations, resource retirement and native-name reuse rules.
+  ☐ Delegate storage-refactor regression checks before boundary snapshots depend on the new layout.
+    ☐ Verify full field-to-category coverage, independent field/index validity and selective invalidation.
+    ☐ Verify existing transition behavior/call suppression and unaffected resource-binding lifetimes.
   ☐ Extend the existing StateCache application backend only for inventoried missing coverage.
     ☐ Model blend enables/factors per draw-output index; retain a uniform fast path only when proven.
     ☐ Global mutations update or invalidate every overlapping indexed entry; indexed mutations
@@ -85,7 +109,8 @@ Phase 2: Establish cache-backed state coverage and alias correctness
     ☐ Cover global-to-indexed, indexed-to-global and mixed enables/factors/write masks.
     ☐ Cover viewport observation/application, repeated-operation suppression and context changes.
   ☐ Completion gate: actual native state and cache knowledge agree for all affected operations;
-    required coverage exists before preservation scopes or consumers rely on it.
+    all existing fixed-function values use categorized storage with separate validity and no duplicate
+    authority; required coverage exists before preservation scopes or consumers rely on it.
 
 Phase 3: Implement declared boundary entry and resolved snapshots
   Dependencies: Phases 1–2.
@@ -95,6 +120,8 @@ Phase 3: Implement declared boundary entry and resolved snapshots
     ☐ Derive pipeline coverage from descriptors/dynamic declarations and union declared helper effects.
     ☐ Expand global-operation coverage to every native field/index that the operation can change.
     ☐ Keep resolved incoming values separate from authored PSOs, pipeline keys and shader/resource identity.
+    ☐ Compose snapshots from categorized concrete values and explicit coverage; require resolution of
+      every covered field and retain no mutable alias to live indexed cache payloads.
   ☐ Resolve incoming coverage at entry using valid cached values and queries only for missing values.
     ☐ Complete resolution before drawing-state mutation; use known-state contracts only with evidence.
     ☐ Failed queries do not substitute defaults or publish a usable scope; entry failure prevents
@@ -105,6 +132,8 @@ Phase 3: Implement declared boundary entry and resolved snapshots
     ☐ Reject nested boundaries and avoid introducing query work inside steady-state managed draws.
   ☐ Delegate tests for known/unknown/partially invalidated entry state, alias coverage, failed queries,
     undeclared mutations, snapshot independence and nested-entry rejection.
+    ☐ Mutate indexed cache payloads after capture and verify saved values remain unchanged; unknown
+      uncaptured fields must not become implicitly captured defaults through category aggregation.
   ☐ Completion gate: entry either produces a complete context-bound snapshot or makes no drawing-state
     change; all scoped mutation paths enforce the declared coverage.
 
@@ -166,6 +195,8 @@ Phase 6: Review legacy callers and reconcile future PSO adoption
     ☐ Retire the legacy helper only when no necessary caller remains; otherwise retain a tracked removal task.
   ☐ Perform a second source review against the approved proposal, actual entry points and test evidence.
     ☐ Check one owner per state policy, cleanup ordering, unknown mutation handling and PSO-only VGE state.
+    ☐ Confirm the category inventory is complete, knowledge stays separate from reusable values,
+      and no resource-binding ownership or lifetime rules moved into fixed-function structs.
     ☐ Resolve confirmed discrepancies before marking migration work complete.
   ☐ Update proposal/parent-plan/project links and implementation evidence without checking unrelated work.
     ☐ Record how GraphicsCommandContext will consume the boundary mechanism during complete submission.
@@ -195,6 +226,8 @@ Phase 7: Consolidate acceptance evidence and supplied live validation
 
 Open design choices and assumptions
   API spellings in the proposal are illustrative; Phase 1 selects concrete names and layout.
+  Category names and validity-metadata representation are design choices; categorized structs,
+  separate field/index knowledge and StateCache's single transition ownership are requirements.
   Context identity/generation and recovery must use an established owner where available; existing
   thread-local access alone does not prove context identity. Resolve this before snapshots are usable.
   The precise helper/resource-binding effects and required indexed mask/dynamic coverage come from

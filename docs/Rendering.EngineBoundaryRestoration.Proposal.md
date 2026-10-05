@@ -62,6 +62,42 @@ native-state cache, or separate shader activation implementation. The boundary a
 policy; StateCache owns the mechanism. All drawing-state mutations in VGE passes use pipeline
 application or declared dynamic state. Native setters remain backend/integration operations.
 
+## Categorized state representation
+
+Separate all currently tracked fixed-function pipeline values into categorized structs before
+building boundary snapshots. This includes fields spread across StateCache partial files, such
+as patch control-point count and provoking-vertex convention, as well as the dynamic viewport
+coverage added here. It is an explicit architectural prerequisite, not optional file cleanup.
+
+Use focused data categories such as depth, output blending/write masks, rasterization, primitive
+assembly and dynamic state. Names such as `DepthState`, `BlendState`, `RasterizerState`,
+`PrimitiveAssemblyState` and `DynamicState` are illustrative. Inventory assigns every existing
+field to exactly one category and settles the static/dynamic policy for line width, point size
+and related values against the approved PSO architecture. Do not add unsupported stencil,
+sampling or other future state merely to populate a category.
+
+Keep state values separate from cache knowledge. Category value structs contain concrete values;
+StateCache retains corresponding per-field validity metadata, including per-output validity for
+indexed state. Partial knowledge must remain representable: knowing a depth comparison does not
+imply that depth-test enable or write mask is known. Invalidation withdraws knowledge without
+turning unknown fields into native defaults. Unknown is neither an authored PSO value nor a valid
+captured value for any field included in a successfully established boundary.
+
+StateCache remains the single owner of native transitions, queries, alias handling, invalidation
+and restoration. Category structs contain data; they do not issue GL calls or become independent
+caches. Migrate existing readers, setters, engine adapters and invalidation paths to the categorized
+storage together, without parallel authoritative copies of the old fields.
+
+Reuse category value representations in boundary snapshots and future pipeline descriptions where
+their semantics match. A snapshot retains explicit coverage and concrete resolved values; it does
+not copy cache-validity metadata into a PSO or acquire complete-pipeline identity. Indexed payloads
+must not expose mutable cache storage: snapshots and published descriptor values remain independent
+of subsequent cache updates, including when a struct contains reference-backed storage.
+
+Resource-binding caches are excluded from this representation change. Texture, sampler, buffer,
+VAO, framebuffer and program bindings retain their existing owners, associations and retirement
+rules. Do not fold them into fixed-function category structs or duplicate their tracking.
+
 ## Proposed boundary mechanism
 
 Add a cache-owned restoration scope for an explicitly described engine boundary. Names such as
@@ -231,6 +267,9 @@ Keep native knowledge, transition application and snapshot mechanics within the 
 StateCache implementation, split into focused partial files where needed. Boundary declarations
 and adapters belong in a dedicated rendering integration directory/namespace. Dynamic value
 types and PSO coverage metadata belong with their respective pipeline responsibilities.
+Place each category value type in its own responsibility-focused file within the pipeline/state
+domain; keep category validity bookkeeping with StateCache. Grouping fields into partial files
+alone does not satisfy the categorized-struct requirement.
 
 Use responsibility-based type names without new Gl/GL/Gpu prefixes. Keep public composition
 entry points thin. Do not combine state querying, engine policy, pipeline preparation, shader
@@ -260,6 +299,10 @@ launch is required or authorized by this proposal. Implementation acceptance req
    and unchanged target ownership.
 7. Review against the approved architecture and every affected entry point before removing old
    scopes. Update linked plans and implementation evidence without marking unrelated work complete.
+8. Complete mapping of existing fixed-function fields to categorized storage, with no duplicate
+   authoritative fields. Verify independent per-field/index knowledge, selective invalidation,
+   unchanged native behavior and call suppression, and snapshot independence from mutable indexed
+   payloads. Resource-binding associations and retirement behavior must remain unchanged.
 
 User-supplied live rendering or a new RenderDoc capture must separately confirm first-person
 appearance and refraction-source cleanliness. Existing capture evidence establishes the defect,
