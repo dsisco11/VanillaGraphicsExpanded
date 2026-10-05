@@ -11,12 +11,15 @@ internal sealed partial class StateCache
     private bool resolvingBoundary;
     /// <summary>Retains the last optional entry failure for the adapter's diagnostics.</summary>
     internal Exception? BoundaryEntryFailure { get; private set; }
-    /// <summary>Counts boundary state/capability value reads; native error-status checks are excluded.</summary>
+    /// <summary>Counts boundary mutable-state value reads; native error-status checks are excluded.</summary>
     internal long BoundaryQueries { get; private set; }
+    /// <summary>Counts native error-status checks separately from state reads and mutation calls.</summary>
+    internal long BoundaryErrorChecks { get; private set; }
 
     #region Public API
     /// <summary>Returns no token when incoming state cannot be resolved; never changes native drawing state.</summary>
-    internal bool TryBeginEngineBoundary(EngineBoundaryDeclaration declaration, out EngineBoundaryScope? scope)
+    internal bool TryBeginEngineBoundary(EngineBoundaryDeclaration declaration, out EngineBoundaryScope? scope,
+        EngineBoundaryResources? resources = null)
     {
         ArgumentNullException.ThrowIfNull(declaration);
         scope = null;
@@ -39,14 +42,18 @@ internal sealed partial class StateCache
                 throw new InvalidOperationException("Context changed during boundary resolution.");
             var snapshot = new PipelineStateSnapshot(declaration.Coverage, incomingContext,
                 depth, rasterizer, assembly, dynamicState, clearColor, blend);
-            scope = new EngineBoundaryScope(snapshot);
+            scope = new EngineBoundaryScope(this, snapshot);
+            if (resources is not null) CaptureBoundaryBindings(scope, resources);
+            if (RenderContextRegistry.Current() != incomingContext)
+                throw new InvalidOperationException("Context changed during binding resolution.");
             activeBoundary = scope;
             return true;
         }
-        catch (Exception error) when (error is not OutOfMemoryException)
+        catch (Exception error) when (error is not OutOfMemoryException && !EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
             // A failed query may have resolved earlier fields, but no partial token escapes.
             BoundaryEntryFailure = error;
+            scope = null;
             return false;
         }
         finally { resolvingBoundary = false; }
@@ -59,6 +66,7 @@ internal sealed partial class StateCache
         ArgumentNullException.ThrowIfNull(scope);
         if (!ReferenceEquals(activeBoundary, scope)) throw new InvalidOperationException("Boundary is not active on this cache.");
         activeBoundary = null;
+        boundaryRetiredResources.Clear();
     }
 
     #endregion

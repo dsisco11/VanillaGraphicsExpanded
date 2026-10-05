@@ -18,6 +18,28 @@ public static class GpuSupport
 
     private static bool isInitialized;
     private static string? cachedContextKey;
+    private static (nint Handle, long Generation) cachedRegistration;
+
+    #region Public API
+    /// <summary>Counts complete capability captures independently of mutable state reads.</summary>
+    internal static long CaptureCount { get; private set; }
+
+    /// <summary>Reuses registered context capabilities without polling native strings on the draw path.</summary>
+    internal static void EnsureCurrentContext()
+    {
+        var current = Integration.RenderContextRegistry.Current();
+        if (current.Generation == 0) throw new InvalidOperationException("A registered current context is required.");
+        if (!isInitialized || cachedRegistration != current)
+        {
+            // Do not erase an outstanding native failure while refreshing boundary capabilities.
+            if (GL.GetError() != ErrorCode.NoError)
+                throw new InvalidOperationException("Native error before capability capture.");
+            Initialize();
+        }
+    }
+
+
+    #endregion
 
     #region Initialization
 
@@ -44,7 +66,8 @@ public static class GpuSupport
             }
 
             string? snapshot = Volatile.Read(ref cachedContextKey);
-            return string.Equals(snapshot, contextKey, StringComparison.Ordinal);
+            return cachedRegistration == Integration.RenderContextRegistry.Current()
+                && string.Equals(snapshot, contextKey, StringComparison.Ordinal);
         }
     }
 
@@ -60,13 +83,16 @@ public static class GpuSupport
             throw new InvalidOperationException("No current OpenGL context available to query GPU support.");
         }
 
+        var registration = Integration.RenderContextRegistry.Current();
         lock (Sync)
         {
-            if (!force && isInitialized && string.Equals(cachedContextKey, contextKey, StringComparison.Ordinal))
+            if (!force && isInitialized && cachedRegistration == registration && string.Equals(cachedContextKey, contextKey, StringComparison.Ordinal))
             {
                 return;
             }
 
+            // A failed refresh must not leave a partially replaced snapshot marked usable.
+            Volatile.Write(ref isInitialized, false);
             // Ensure the shared extension cache is populated for this context.
             GlExtensions.TryLoadExtensions();
 
@@ -75,6 +101,8 @@ public static class GpuSupport
             CaptureContextFlagsAndProfile();
             CaptureLimits();
 
+            cachedRegistration = registration;
+            CaptureCount++;
             Volatile.Write(ref cachedContextKey, contextKey);
             Volatile.Write(ref isInitialized, true);
         }
@@ -315,10 +343,17 @@ public static class GpuSupport
     public static int MaxAtomicCounterBufferBindings { get; private set; }
 
     public static int MaxImageUnits { get; private set; }
+    /// <summary>Maximum combined image uniforms across shader stages (GL_MAX_COMBINED_IMAGE_UNIFORMS).</summary>
     public static int MaxCombinedImageUnits { get; private set; }
 
     public static int MaxColorAttachments { get; private set; }
     public static int MaxDrawBuffers { get; private set; }
+    /// <summary>Maximum effective viewport width for the current context.</summary>
+    public static int MaxViewportWidth { get; private set; }
+    /// <summary>Maximum effective viewport height for the current context.</summary>
+    public static int MaxViewportHeight { get; private set; }
+    /// <summary>Required shader-storage range alignment, or zero when unsupported.</summary>
+    public static int ShaderStorageBufferOffsetAlignment { get; private set; }
     public static int MaxSamples { get; private set; }
 
     public static int MaxVertexAttribs { get; private set; }
@@ -337,9 +372,16 @@ public static class GpuSupport
     public static int MaxComputeWorkGroupInvocations { get; private set; }
     public static int MaxComputeSharedMemorySize { get; private set; }
 
+    /// <summary>Captures implementation limits for the current capability lifetime.</summary>
     private static void CaptureLimits()
     {
         GlDebug.ClearErrors();
+        int[] viewport = new int[2];
+        GL.GetInteger(GetPName.MaxViewportDims, viewport);
+        MaxViewportWidth = viewport[0];
+        MaxViewportHeight = viewport[1];
+        ShaderStorageBufferOffsetAlignment = SupportsArbShaderStorageBufferObject
+            ? SafeGetInt(GetPName.ShaderStorageBufferOffsetAlignment) : 0;
         MaxTextureSize = SafeGetInt(GetPName.MaxTextureSize);
         Max3DTextureSize = SafeGetInt(GetPName.Max3DTextureSize);
         MaxCubeMapTextureSize = SafeGetInt(GetPName.MaxCubeMapTextureSize);
@@ -382,9 +424,9 @@ public static class GpuSupport
 
         if (SupportsArbShaderImageLoadStore)
         {
-            // Some OpenTK builds used by VS don't expose these enums; keep numeric fallbacks.
-            MaxImageUnits = SafeGetInt(GetPName.MaxTextureImageUnits /* (GetPName)0x8F38 GL_MAX_IMAGE_UNITS */);
-            MaxCombinedImageUnits = SafeGetInt(GetPName.MaxCombinedTextureImageUnits /* (GetPName)0x8F39 GL_MAX_COMBINED_IMAGE_UNITS */);
+            // Image uniforms have distinct limits from sampler texture units.
+            MaxImageUnits = SafeGetInt((GetPName)All.MaxImageUnits);
+            MaxCombinedImageUnits = SafeGetInt((GetPName)All.MaxCombinedImageUniforms);
         }
         else
         {

@@ -14,8 +14,8 @@ internal sealed partial class StateCache
         if (state.Width < 0 || state.Height < 0) throw new ArgumentOutOfRangeException(nameof(state));
         EnsureViewportLimits();
         var effective = state;
-        effective.Width = Math.Min(state.Width, maxViewportWidth);
-        effective.Height = Math.Min(state.Height, maxViewportHeight);
+        effective.Width = Math.Min(state.Width, GpuSupport.MaxViewportWidth);
+        effective.Height = Math.Min(state.Height, GpuSupport.MaxViewportHeight);
         if (dynamicKnown.HasFlag(DynamicDrawStateKnowledge.Viewport) && dynamicState.X == effective.X && dynamicState.Y == effective.Y
             && dynamicState.Width == effective.Width && dynamicState.Height == effective.Height) return;
         dynamicKnown &= ~DynamicDrawStateKnowledge.Viewport;
@@ -27,20 +27,12 @@ internal sealed partial class StateCache
     }
     #endregion
     #region Private
-    private int maxViewportWidth, maxViewportHeight;
-    /// <summary>Resolves immutable viewport limits once per context generation.</summary>
-    private void EnsureViewportLimits()
+    /// <summary>Requires valid viewport limits from the shared capability owner.</summary>
+    private static void EnsureViewportLimits()
     {
-        if (maxViewportWidth != 0) return;
-        int[] dimensions = QueryCapability(() =>
-        {
-            int[] value = new int[2];
-            GL.GetInteger(GetPName.MaxViewportDims, value);
-            return value;
-        });
-        if (dimensions[0] <= 0 || dimensions[1] <= 0) throw new InvalidOperationException("No current viewport capability.");
-        maxViewportWidth = dimensions[0]; maxViewportHeight = dimensions[1];
-        CapabilityQueries++;
+        GpuSupport.EnsureCurrentContext();
+        if (GpuSupport.MaxViewportWidth <= 0 || GpuSupport.MaxViewportHeight <= 0)
+            throw new InvalidOperationException("No current viewport capability.");
     }
     #endregion
 }

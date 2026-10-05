@@ -34,6 +34,7 @@ internal sealed partial class StateCache
     internal void DeleteSampler(int sampler)
     {
         GL.DeleteSampler(sampler);
+        RecordBoundaryRetirement(EPipelineState.SamplerBindings, sampler);
         if (sampler == 0 || samplerBindingByUnit is null) return;
         for (int unit = 0; unit < samplerBindingByUnit.Length; unit++)
             if (samplerBindingByUnit[unit] == sampler) samplerBindingByUnit[unit] = 0;
@@ -43,6 +44,7 @@ internal sealed partial class StateCache
     internal void DeleteFramebuffer(int framebuffer)
     {
         GL.DeleteFramebuffer(framebuffer);
+        RecordBoundaryRetirement(EPipelineState.FramebufferBindings, framebuffer);
         if (framebuffer == 0) return;
         if (currentReadFramebuffer == framebuffer) currentReadFramebuffer = 0;
         if (currentDrawFramebuffer == framebuffer) currentDrawFramebuffer = 0;
@@ -53,6 +55,7 @@ internal sealed partial class StateCache
     internal void DeleteVertexArray(int array)
     {
         GL.DeleteVertexArray(array);
+        RecordBoundaryRetirement(EPipelineState.VertexArray, array);
         if (array == 0) return;
         elementArrayBufferByVao.Remove(array);
         if (currentVao == array) currentVao = 0;
@@ -64,6 +67,7 @@ internal sealed partial class StateCache
         // A current program remains bound until a later UseProgram; deletion alone changes
         // neither the current executable nor the selected program-pipeline object.
         GL.DeleteProgram(program);
+        RecordBoundaryRetirement(EPipelineState.Program, program);
     }
     #endregion
     #endregion
@@ -72,6 +76,7 @@ internal sealed partial class StateCache
     /// <summary>Forgets only references to a deleted buffer; other VAOs may retain attached storage.</summary>
     private void ForgetDeletedBuffer(int buffer)
     {
+        RecordBoundaryRetirement(EPipelineState.BufferBindings, buffer);
         if (buffer == 0) return;
         foreach (var key in indexedBufferBindings.Where(pair => pair.Value.Buffer == buffer).Select(pair => pair.Key).ToArray())
             indexedBufferBindings.Remove(key);

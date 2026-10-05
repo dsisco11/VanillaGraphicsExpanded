@@ -41,7 +41,8 @@ Approved sequencing exception — engine-boundary restoration (2026-10-05)
   Reuse this mechanism when GraphicsCommandContext and complete pipelines are introduced.
   Keep all completion markers unchecked until their full contracts and verification are satisfied.
   Inventory, categorized cache foundation and declared entry/resolved snapshots are complete under
-  the linked restoration plan. Restoration and consumer integration remain pending; no parent phase is complete.
+  the linked restoration plan. Scoped restoration/cleanup are also complete; production consumer
+  integration remains pending and no parent phase is complete.
 
 Phase 1: Establish state and consumer contracts
   Dependencies: approved proposal.

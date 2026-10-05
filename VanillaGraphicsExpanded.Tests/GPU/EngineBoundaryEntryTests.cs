@@ -73,11 +73,11 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
             Assert.Equal(7, saved.Dynamic.X); Assert.Equal(9, saved.Dynamic.Y);
             Assert.Equal(31, saved.Dynamic.Width); Assert.Equal(37, saved.Dynamic.Height);
             Assert.Equal(new Vector4(.2f, .4f, .6f, .8f), saved.ClearColor);
-            long queries = cache.BoundaryQueries, capabilities = cache.CapabilityQueries;
+            long queries = cache.BoundaryQueries, capabilities = GpuSupport.CaptureCount;
             cache.ApplyDynamic(new DynamicDrawState { Width = 11, Height = 13 });
             cache.SetPatchVertices(3);
             Assert.Equal(queries, cache.BoundaryQueries);
-            Assert.Equal(capabilities, cache.CapabilityQueries);
+            Assert.Equal(capabilities, GpuSupport.CaptureCount);
         }
         finally { cache.ReleaseEngineBoundary(scope!); GL.Disable(EnableCap.ScissorTest); cache.InvalidateAll(); }
     }

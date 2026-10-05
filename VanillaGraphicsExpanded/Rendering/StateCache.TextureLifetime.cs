@@ -10,6 +10,7 @@ internal sealed partial class StateCache
     public void DeleteTexture(int textureId)
     {
         GL.DeleteTexture(textureId);
+        RecordBoundaryRetirement(EPipelineState.TextureBindings, textureId);
         InvalidateImageTexture(textureId);
         if (textureId == 0 || textureBindingsByUnit == null) return;
 

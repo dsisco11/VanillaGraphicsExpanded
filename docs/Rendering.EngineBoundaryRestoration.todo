@@ -2,7 +2,7 @@ Engine-boundary restoration through pipeline state and StateCache
 ================================================================
 
 Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
-Approval: user approved the proposal on 2026-10-05. Phases 1–3 completed; restoration and integration remain pending.
+Approval: user approved the proposal on 2026-10-05. Phases 1–4 completed; production integration remains pending.
 Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
 Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
 Project index: project.todo / Issues / Current / legacy fixed-function capture inventory.
@@ -127,8 +127,7 @@ Phase 3: Implement declared boundary entry and resolved snapshots
   Completed 2026-10-05 after second source review and independent audit-stage-completion reconciliation.
   Evidence: docs/Rendering.AuthoritativePipelineState.md / Declared boundary entry and resolved snapshots.
   Delegated Release/Debug builds passed; 76 focused tests passed with no failures or skips.
-  EngineBoundaryScope is an entry-only token; Phase 4 adds disposable restoration and cleanup.
-  No production consumer uses the new API before that restoration contract is implemented.
+  This phase established the entry token; Phase 4 below adds its disposable restoration contract.
 
   ✔ Add focused boundary declarations and internal resolved-state snapshots within the chosen owners.
     ✔ Derive pipeline coverage from descriptors/dynamic declarations and union declared helper effects.
@@ -154,26 +153,30 @@ Phase 3: Implement declared boundary entry and resolved snapshots
 Phase 4: Implement restoration, cleanup and failure guarantees
   Dependencies: Phase 3 snapshots and Phase 2 transition backend.
   Outcome: success and supported failure paths return required native state with truthful cache knowledge.
+  Completed 2026-10-05 after second source review and independent audit-stage-completion reconciliation.
+  Evidence: docs/Rendering.AuthoritativePipelineState.md / Scoped restoration, borrowed bindings and failure guarantees.
+  Delegated Release/Debug builds passed; 105 focused tests passed with no failures or skips.
+  Production refraction/lighting/composite migration remains Phase 5; no live fix claim.
 
-  ☐ Restore the effective preservation set through the existing cached transition backend.
-    ☐ Compare against known current state and suppress redundant calls; restore saved values even
+  ✔ Restore the effective preservation set through the existing cached transition backend.
+    ✔ Compare against known current state and suppress redundant calls; restore saved values even
       when current knowledge is invalidated, without erasing the incoming snapshot or inventing defaults.
-    ☐ Preserve mixed indexed values; never restore a global value afterward that overwrites them.
-    ☐ Do not use InvalidateAll merely to force restoration; leave unrelated state alone.
-  ☐ Implement exception-safe exactly-once cleanup with the declared adapter ordering.
-    ☐ Coordinate shader ownership and borrowed bindings before final pipeline restoration where their
+    ✔ Preserve mixed indexed values; never restore a global value afterward that overwrites them.
+    ✔ Do not use InvalidateAll merely to force restoration; leave unrelated state alone.
+  ✔ Implement exception-safe exactly-once cleanup with the declared adapter ordering.
+    ✔ Coordinate shader ownership and borrowed bindings before final pipeline restoration where their
       cleanup can mutate covered state; reuse UseScope and independent read/draw framebuffer scopes.
-    ☐ Preserve the declared prepared-resource footprint, active texture unit and quad geometry bindings
+    ✔ Preserve the declared prepared-resource footprint, active texture unit and quad geometry bindings
       through existing binding owners; reject unavailable foreign footprints before optional capture.
-    ☐ Reject restoration into a different context generation and follow the selected recovery contract.
-    ☐ Surface native restoration failures; mark affected knowledge unknown and apply the documented
+    ✔ Reject restoration into a different context generation and follow the selected recovery contract.
+    ✔ Surface native restoration failures; mark affected knowledge unknown and apply the documented
       failure policy without hiding either the original operation error or restoration failure.
-    ☐ Preserve explicit external-operation boundaries and affected-category invalidation for unknown calls.
-  ☐ Delegate tests for no-op and A-to-B-to-A transitions, invalidation during a scope, setup/draw/cleanup
+    ✔ Preserve explicit external-operation boundaries and affected-category invalidation for unknown calls.
+  ✔ Delegate tests for no-op and A-to-B-to-A transitions, invalidation during a scope, setup/draw/cleanup
     failures, context mismatch, exactly-once disposal and restoration failure reporting.
-    ☐ Assert engine shader ownership and actual native state as well as cache fields.
-    ☐ Record query/native-call counts for cold entry, partially known entry and unchanged warm operation.
-  ☐ Completion gate: scoped restoration and failure guarantees pass before production capture migration;
+    ✔ Assert engine shader ownership and actual native state as well as cache fields.
+    ✔ Record query/native-call counts for cold entry, partially known entry and unchanged warm operation.
+  ✔ Completion gate: scoped restoration and failure guarantees pass before production capture migration;
     the mechanism requires no renderer-owned state queries or restoration sequences.
 
 Phase 5: Integrate refraction and independent lighting/composite callbacks

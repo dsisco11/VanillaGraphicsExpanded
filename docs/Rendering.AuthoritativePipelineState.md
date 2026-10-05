@@ -3,8 +3,8 @@
 ## Engine-boundary restoration
 
 Inventory and implementation contracts established on 2026-10-05. Categorized cache storage
-and declared boundary entry are implemented; restoration, consumer migration and fix acceptance
-remain pending. This section records implementation against
+and declared boundary entry/restoration are implemented; production consumer migration and fix
+acceptance remain pending. This section records implementation against
 [the restoration plan](Rendering.EngineBoundaryRestoration.todo), under
 [the approved proposal](Rendering.EngineBoundaryRestoration.Proposal.md) and the
 [parent sequencing exception](Rendering.AuthoritativePipelineState.todo).
@@ -181,8 +181,8 @@ headless fixtures register their own NativeWindow owner. Retire registration on 
 and allocate a new generation when initialization supplies a different owner/context. At boundary
 entry and exit require the registered live owner and current handle to match; missing registration,
 zero handle, changed handle or disposed owner rejects entry. A context switch makes cache knowledge
-unknown; returning does not revive old knowledge. Context identity changes also reset cached
-capabilities, without resetting diagnostic totals. Mismatch at exit consumes the snapshot without
+unknown; returning does not revive old knowledge. GpuSupport refreshes immutable capabilities when its
+registered context identity changes, without resetting diagnostic totals. Mismatch at exit consumes the snapshot without
 issuing GL into the replacement context, invalidates old knowledge and propagates restore failure.
 Resources must follow existing shutdown/reinitialization ownership; this mechanism never deletes
 old-context names in a new context or attempts automatic resource recreation. Same-owner context
@@ -265,18 +265,19 @@ The existing headless fixture owns a raw GLFW window rather than an OpenTK Nativ
 so it registers the fixture as that window's owner and explicitly retires before destruction.
 This preserves the same pointer/owner/generation contract without replacing the established fixture.
 
-Context changes withdraw mutable knowledge and reset draw-buffer, viewport, patch and buffer
-alignment capabilities without resetting diagnostic totals. Returning to an earlier context starts
-with unknown state. Missing registration also prevents reuse of authoritative knowledge; future
+Context changes withdraw mutable knowledge. GpuSupport owns draw-buffer, viewport, patch, binding-slot
+and buffer-alignment limits and refreshes them when its registered context generation changes. A
+temporary detach and return to the same live context can reuse immutable capabilities; mutable state
+remains unknown. Missing registration also prevents reuse of authoritative knowledge; future
 boundary entry must reject it. Resource names are neither deleted nor recreated by this mechanism.
 Scalar setters reject invalid enum/size inputs before native mutation and publish knowledge only
-after the native call returns. Native restoration failure handling remains part of the upcoming
-boundary implementation, not a guarantee supplied by the retained legacy scopes.
+after the native call returns. Native restoration failure handling is supplied by the new scoped
+mechanism below, not by the retained legacy scopes.
 
 The installed 1.22.7 engine and OpenTK 4.9.4 metadata were checked again for the public platform/window
 fields and the protected `NativeWindow.Dispose(bool)` signature. Automated evidence does not launch
 Vintage Story or establish live refraction correctness. Declared boundary entry is recorded below;
-restoration and refraction adapter integration remain pending.
+restoration is documented below and production refraction adapter integration remains pending.
 
 | Restoration plan task group | Controlling source | Implementation and verification |
 | --- | --- | --- |
@@ -315,7 +316,7 @@ debug-group branch: `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsE
 -c Debug --no-restore -v quiet`, with the same package-cache environment. Receipt:
 `artifacts/phase2-debug-build-validation.log`. Final source review and the independent contract audit
 found no remaining foundational coverage issues. The later entry work is recorded below;
-restoration and live acceptance remain open.
+production consumer migration and live acceptance remain open.
 
 ### Declared boundary entry and resolved snapshots
 
@@ -351,13 +352,11 @@ Unsupported capability/patch forwarding is rejected while a boundary is active. 
 unknown patch/provoking getters cannot introduce nested capture or draw-time state queries.
 Resource-binding owners remain separate; this work does not claim a complete borrowed-binding handoff.
 
-`EngineBoundaryScope` is currently an internal entry token, deliberately not an `IDisposable`
-restoration adapter. `ReleaseEngineBoundary` is a cache-owner primitive that only releases the
-active-entry registration; it does not restore state. Tests use it to end entry-only exercises.
-Production rendering has no callers of the new entry API. The planned exactly-once disposable
-scope, restoration/failure policy and ordered binding/shader cleanup must be implemented before
-production adapters use it. Existing legacy consumers remain in place, and the refraction defect
-is not claimed fixed.
+The initial `EngineBoundaryScope` entry token is now extended by the disposable restoration mechanism
+documented below. `ReleaseEngineBoundary` remains a cache-owner primitive which only releases active
+registration; entry-only tests use it, while restoration owners call it after cleanup. Production
+renderers have not migrated to the new API. Existing legacy consumers remain in place, and the
+refraction defect is not claimed fixed.
 
 | Restoration plan task group | Controlling source | Implementation and evidence |
 | --- | --- | --- |
@@ -397,5 +396,104 @@ The second source review checked all native mutation sites, separated validation
 orchestration, and added explicit registration/replacement and real native query-failure evidence.
 The independent audit-stage-completion pass reconsulted the restoration contract, parent authority
 rules and inventory decisions, then reconciled each entry requirement against source and final
-receipts. No required entry/snapshot finding remains. Disposable restoration, cleanup failure
-guarantees, production adapters and live acceptance remain unimplemented; no game was launched.
+receipts. No required entry/snapshot finding remains. Restoration evidence follows below; production
+consumer adapters and live acceptance remain pending. No game was launched.
+
+### Scoped restoration, borrowed bindings and failure guarantees
+
+`EngineBoundaryScope` now implements exactly-once disposal. Its `Run` method retains the operation
+exception, consumes the scope before cleanup, and attempts registered shader scopes, borrowed bindings,
+independent framebuffer scopes, then fixed-function/dynamic/helper restoration in that order. Cleanup
+within each owner group is reversed. Operation code cannot dispose the boundary early or nest `Run`.
+Adapters register existing `GpuProgram.UseScope()` owners with `AddCleanup`; registration transfers
+cleanup responsibility to the boundary, not ownership of the underlying shader or resources.
+
+`StateCache.BoundaryRestoration.cs` restores only snapshot coverage through existing setters. It
+compares valid current knowledge, reapplies unknown values without queries, and restores mixed enables,
+factors and masks by output index without a trailing global overwrite. It never uses blanket
+invalidation to force restoration. Native errors and thrown transitions leave the affected field
+unknown and are collected while independent fields continue. Context identity/generation is checked
+before operation and cleanup owners. A mismatch consumes the boundary, discards obsolete knowledge
+through the existing context owner, and issues no old-context cleanup into the replacement context.
+
+`EngineBoundaryRestoreException` distinguishes an unsafe handoff from an ordinary operation failure.
+`Run` aggregates both when cleanup fails; it rethrows the original operation exception when cleanup
+succeeds. The existing shader `UseScope` owner now also retains failed activation and failed rollback
+together. `ShaderOwnershipRestoreException` identifies that failure even when it occurs before a
+shader scope can be registered. `IsRestorationFailure` recognizes both kinds inside aggregates.
+Binding APIs retain compatibility behavior outside boundaries but no longer swallow native exceptions
+under active entry/restoration authority. Failed shader cleanup withdraws program knowledge.
+
+`Rendering/Integration/EngineBoundaryResources.cs` derives active texture/sampler, image and indexed
+buffer footprints from `GpuPreparedBindings`, unions participating/helper effects and copies payloads.
+`EngineBoundaryExecution.TryRun` includes the incoming prepared VGE shader footprint. It rejects
+foreign engine owners, unowned raw/compute programs and incoming owners requiring preparation before
+optional work; those paths need an independently verified adapter before they can be supported.
+Shader preparation and footprint declaration precede entry. Arbitrary callbacks or shader reloads
+which expand the declared footprint mid-operation are not supported.
+
+`StateCache.BoundaryBindings.cs` resolves missing slots in the existing binding cache. It captures all
+image-view parameters and indexed buffer offsets/sizes, preserves generic buffer aliases after indexed
+restoration, restores the active texture unit, incoming VAO and generic array buffer, and reuses separate
+read/draw `FramebufferScope` owners. VAO-owned element-buffer associations are not rewritten. Texture
+queries may temporarily select another unit; entry restores that selector in a checked finally block.
+A selector-restoration failure is surfaced as a failed handoff, never reported as unchanged optional
+entry. Unsupported slot limits fail before cache-array allocation or native selection, using the
+GpuSupport capability snapshot rather than a separate StateCache limit cache. Unknown incoming
+buffer bindings preserve the queried effective range; resizing borrowed storage during the interruption
+is outside the supported resource contract.
+
+Borrowed snapshots hold copied binding values, not a second live cache or resource ownership. Existing
+tracked deletion paths record retired names for the active boundary. Cleanup rejects those names even
+if a numeric name could subsequently be reused. Resource deletion, deferred retirement and unrelated
+binding knowledge retain their existing owners. No renderer performs native capture or manual restore.
+`ExecuteExternal` requires managed boundaries to have ended and invalidates only its declared affected
+categories in a finally block, including when external work throws.
+
+| Restoration contract item | Controlling source | Implementation and verification |
+| --- | --- | --- |
+| Effective-set restoration, mixed aliases, invalidation and no-op suppression | Restoration proposal / Application and restoration; Global and indexed state | BoundaryRestoration; native mixed output and all-category restoration tests, with and without invalidated knowledge. |
+| Ordered, exactly-once cleanup and retained operation errors | Restoration proposal / Dynamic state, bindings, and shader ownership; inventory / Boundary API, coverage and failures | EngineBoundaryScope, cleanup ordering, real UseScope ownership, draw/setup failure, multiple-owner failure and repeat-disposal tests. |
+| Declared prepared footprint, bindings and retirement | Inventory / Complete operation and effect matrix; parent architecture / resource ownership and engine integration | EngineBoundaryResources, BoundaryBindings and existing binding/deletion owners; native texture/sampler/image/UBO/SSBO, active unit, geometry, independent FBO and retired-name tests. |
+| Context mismatch and truthful failure state | Restoration proposal / Authority, invalidation, and lifetime; inventory / Context identity and recovery | Per-owner context checks, checked transitions and targeted unknown flags; context replacement, native error and real shader rollback failure tests. |
+| Explicit unknown/external boundaries | Restoration proposal / Authority, invalidation, and lifetime; parent architecture / Submission contract | ExecuteExternal and conservative foreign-owner rejection; active-boundary rejection, targeted finally invalidation and no-operation tests. |
+
+Delegated validation passed on 2026-10-05: Release build had zero errors and 107 warnings; Debug had
+zero errors and 106 warnings. All 105 focused cases passed, with zero failures or skips. The suite
+includes entry, coverage, restoration/binding tests and existing cache, engine mapping, resource
+retirement, framebuffer, shader ownership, generated resource/image binding and refraction regressions.
+Shader build receipts stayed enabled and no game was launched. Commands used
+`NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages`:
+
+- `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-restore -v quiet`
+- `dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~EngineBoundary|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~EngineState|FullyQualifiedName~GpuFramebufferBlendStateIntegrationTests|FullyQualifiedName~FramebufferBindingStateTests|FullyQualifiedName~StateCacheResourceDeletionTests|FullyQualifiedName~GlStateCacheUnbindIntegrationTests|FullyQualifiedName~ScissorStateScopeTests|FullyQualifiedName~WaterRefractionCaptureStateTests|FullyQualifiedName~GpuProgramUseScopeTests|FullyQualifiedName~GeneratedResourceBindingTests|FullyQualifiedName~GpuImageUnitBindingIntegrationTests' --logger 'trx;LogFileName=phase4-state-validation.trx'`
+- `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore -v quiet`
+
+Receipts: `artifacts/phase4-build-validation.log`, `artifacts/phase4-test-validation.log`,
+`artifacts/phase4-debug-build-validation.log`, and
+`VanillaGraphicsExpanded.Tests/TestResults/phase4-state-validation.trx`.
+
+Measured counters distinguish state/capability value reads, state transitions, resource binds and
+error-status polling. Cold depth entry uses three value reads; partially known entry uses two;
+unchanged warm entry/restoration uses zero value reads and zero fixed-function transitions, with six
+native error-status checks for its three restored fields. Warm borrowed-slot restoration adds no
+texture/image/indexed-buffer binds in the tested footprint. These counts do not establish CPU/GPU
+speedups or live appearance. The second source review addressed failed shader activation/rollback
+exception preservation and late context invalidation. The independent completion audit reconciled
+all restoration tasks against the linked proposal, parent architecture, inventory and final receipts;
+no required mechanism finding remains. Production refraction/lighting/composite migration and live
+acceptance remain pending.
+
+### Shared capability ownership
+
+StateCache retains mutable GPU state only. All implementation limits it consumes come from
+GpuSupport: output counts, viewport dimensions, patch size, texture/image/indexed-buffer slot counts
+and shader-storage buffer range alignment. GpuSupport.EnsureCurrentContext uses the registered
+handle/generation for warm reads without native string or limit polling. Replacement generations
+refresh the shared snapshot; state invalidation does not. Capability capture counts belong to
+GpuSupport.CaptureCount, while StateCache.BoundaryQueries counts mutable state reads.
+
+Image limits use GL_MAX_IMAGE_UNITS and GL_MAX_COMBINED_IMAGE_UNIFORMS rather than texture-unit
+limits. GpuSupportLimitsTests checks the shared values against native queries and verifies warm
+reuse without consuming pending native errors. CategorizedStateCacheTests verifies same-lifetime
+reuse and capability refresh after explicit context retirement/re-registration.

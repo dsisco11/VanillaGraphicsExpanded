@@ -200,7 +200,7 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         Assert.True(first > 0);
         cache.SetDepthFunc(DepthFunction.Greater);
         int limit = cache.MaxDrawBuffers;
-        long queries = cache.CapabilityQueries;
+        long queries = GpuSupport.CaptureCount;
         GLFW.MakeContextCurrent(null);
         try
         {
@@ -211,12 +211,14 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         Assert.Equal(first, cache.ContextGeneration);
         Assert.False(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
         Assert.Equal(limit, cache.MaxDrawBuffers);
-        Assert.Equal(queries + 1, cache.CapabilityQueries);
+        Assert.Equal(queries, GpuSupport.CaptureCount);
         RenderContextRegistry.Retire(fixture);
         Assert.Equal(0, cache.ContextGeneration);
         long replacement = RenderContextRegistry.RegisterCurrent(fixture, static owner => ((HeadlessGLFixture)owner).IsContextValid);
         Assert.True(replacement > first);
         Assert.Equal(replacement, cache.ContextGeneration);
+        Assert.Equal(limit, cache.MaxDrawBuffers);
+        Assert.Equal(queries + 1, GpuSupport.CaptureCount);
         cache.SetDepthFunc(DepthFunction.Less);
         Assert.Equal((int)DepthFunction.Less, GL.GetInteger(GetPName.DepthFunc));
         cache.InvalidateAll();

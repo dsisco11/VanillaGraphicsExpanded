@@ -5,7 +5,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Tracks effective state by draw-output index, including all global aliases.</summary>
 internal sealed partial class StateCache
 {
-    private int maxDrawBuffers;
     #region Public API
     #region Capabilities and invalidation
     /// <summary>Returns the current context's supported output count, independently of target routing.</summary>
@@ -14,16 +13,15 @@ internal sealed partial class StateCache
         get
         {
             SynchronizeContext();
-            if (maxDrawBuffers == 0)
+            GpuSupport.EnsureCurrentContext();
+            int count = GpuSupport.MaxDrawBuffers;
+            if (count <= 0) throw new InvalidOperationException("No current draw-buffer capability.");
+            if (blend.Length != count)
             {
-                int count = QueryCapability(() => GL.GetInteger(GetPName.MaxDrawBuffers));
-                if (count <= 0) throw new InvalidOperationException("No current draw-buffer capability.");
-                maxDrawBuffers = count;
                 blend = new BlendState[count];
                 blendKnown = new BlendStateKnowledge[count];
-                CapabilityQueries++;
             }
-            return maxDrawBuffers;
+            return count;
         }
     }
     /// <summary>Forgets factor knowledge without changing native output state.</summary>

@@ -127,9 +127,6 @@ internal sealed partial class StateCache
     #endregion
 
     #region Native reads
-    /// <summary>Checks cold capability reads when resolving entry; compatibility callers retain their existing behavior.</summary>
-    private T QueryCapability<T>(Func<T> read) => resolvingBoundary ? QueryBoundary(read) : read();
-
     /// <summary>Reads an indexed integer through the checked query path.</summary>
     private int QueryBoundaryIndexed(GetPName name, int index) => QueryBoundary(() =>
     {
@@ -140,11 +137,18 @@ internal sealed partial class StateCache
     /// <summary>Rejects pending/native errors instead of promoting a failed read's default return value.</summary>
     private T QueryBoundary<T>(Func<T> read)
     {
-        if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Native error before boundary query.");
+        if (ReadBoundaryError() != ErrorCode.NoError) throw new InvalidOperationException("Native error before boundary query.");
         BoundaryQueries++;
         T value = read();
-        if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Native boundary query failed.");
+        if (ReadBoundaryError() != ErrorCode.NoError) throw new InvalidOperationException("Native boundary query failed.");
         return value;
+    }
+
+    /// <summary>Measures native error polling without conflating it with saved-value resolution.</summary>
+    private ErrorCode ReadBoundaryError()
+    {
+        BoundaryErrorChecks++;
+        return GL.GetError();
     }
     #endregion
     #endregion

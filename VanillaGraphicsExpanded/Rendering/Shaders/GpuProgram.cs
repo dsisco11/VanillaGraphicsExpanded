@@ -168,10 +168,11 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
             StateCache.Current.NotifyProgramBound(ProgramId);
             return new ProgramUseScope(previous, previousId, previousCompute, this);
         }
-        catch
+        catch (Exception activationFailure)
         {
             // Restore the caller's ownership if activation failed during shutdown/reload.
-            RestoreProgram(previous, previousId, previousCompute);
+            try { RestoreProgram(previous, previousId, previousCompute); }
+            catch (Exception restorationFailure) { throw new AggregateException(activationFailure, restorationFailure); }
             throw;
         }
     }
@@ -202,10 +203,15 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
             else StateCache.Current.UseProgram(previousId);
             StateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousCompute?.ProgramId ?? previousId);
         }
-        catch
+        catch (Exception restorationFailure)
         {
-            StateCache.Current.UnbindProgram();
-            throw;
+            try { StateCache.Current.UnbindProgram(); }
+            catch (Exception unbindFailure)
+            {
+                throw new ShaderOwnershipRestoreException(new AggregateException(restorationFailure, unbindFailure));
+            }
+            finally { StateCache.Current.Invalidate(EPipelineState.Program); }
+            throw new ShaderOwnershipRestoreException(restorationFailure);
         }
     }
 

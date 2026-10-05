@@ -44,7 +44,8 @@ internal sealed partial class StateCache
         if (currentProgram.HasValue) return currentProgram.Value;
 
         try { currentProgram = GL.GetInteger(GetPName.CurrentProgram); }
-        catch { currentProgram = 0; }
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
+        { currentProgram = 0; }
 
         return currentProgram.Value;
     }
@@ -160,7 +161,7 @@ internal sealed partial class StateCache
             GL.UseProgram(programId);
             currentProgram = programId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -205,7 +206,7 @@ internal sealed partial class StateCache
             GL.GetInteger(GetPName.VertexArrayBinding, out int vao);
             currentVao = vao;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
             currentVao = 0;
         }
@@ -223,7 +224,7 @@ internal sealed partial class StateCache
             // A borrowed VAO may already own an EBO. Leave unknown associations uncached
             // until queried or observed through BindBuffer rather than inventing a zero binding.
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -279,7 +280,7 @@ internal sealed partial class StateCache
             // overwrite a distinct read binding as a combined-target bind would.
             SetFramebufferCache(target == FramebufferTarget.Framebuffer ? FramebufferTarget.DrawFramebuffer : target, value);
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
             SetFramebufferCache(target == FramebufferTarget.Framebuffer ? FramebufferTarget.DrawFramebuffer : target, 0);
         }
@@ -294,7 +295,7 @@ internal sealed partial class StateCache
             GL.BindFramebuffer(target, fboId);
             SetFramebufferCache(target, fboId);
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -372,7 +373,8 @@ internal sealed partial class StateCache
         if (currentProgramPipeline.HasValue) return currentProgramPipeline.Value;
 
         try { currentProgramPipeline = GL.GetInteger(GetPName.ProgramPipelineBinding); }
-        catch { currentProgramPipeline = 0; }
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
+        { currentProgramPipeline = 0; }
 
         return currentProgramPipeline.Value;
     }
@@ -384,7 +386,7 @@ internal sealed partial class StateCache
             GL.BindProgramPipeline(pipelineId);
             currentProgramPipeline = pipelineId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -420,7 +422,8 @@ internal sealed partial class StateCache
         if (currentRenderbuffer.HasValue) return currentRenderbuffer.Value;
 
         try { currentRenderbuffer = GL.GetInteger(GetPName.RenderbufferBinding); }
-        catch { currentRenderbuffer = 0; }
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
+        { currentRenderbuffer = 0; }
 
         return currentRenderbuffer.Value;
     }
@@ -432,7 +435,7 @@ internal sealed partial class StateCache
             GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferId);
             currentRenderbuffer = renderbufferId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -468,7 +471,8 @@ internal sealed partial class StateCache
         if (currentTransformFeedback.HasValue) return currentTransformFeedback.Value;
 
         try { currentTransformFeedback = GL.GetInteger(GetPName.TransformFeedbackBinding); }
-        catch { currentTransformFeedback = 0; }
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
+        { currentTransformFeedback = 0; }
 
         return currentTransformFeedback.Value;
     }
@@ -480,7 +484,7 @@ internal sealed partial class StateCache
             GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, transformFeedbackId);
             currentTransformFeedback = transformFeedbackId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -555,7 +559,7 @@ internal sealed partial class StateCache
             int enumValue = GL.GetInteger(GetPName.ActiveTexture);
             activeTextureUnit = enumValue - (int)TextureUnit.Texture0;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
             activeTextureUnit = 0;
         }
@@ -572,7 +576,7 @@ internal sealed partial class StateCache
             GL.ActiveTexture(TextureUnit.Texture0 + unit);
             activeTextureUnit = unit;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -598,7 +602,7 @@ internal sealed partial class StateCache
                 return id;
             }
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
         finally
@@ -642,7 +646,7 @@ internal sealed partial class StateCache
             TextureBindCount++;
             dict[target] = textureId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -716,7 +720,7 @@ internal sealed partial class StateCache
             samplerBindingByUnit[unit] = sampler;
             return sampler;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
             samplerBindingByUnit[unit] = 0;
             return 0;
@@ -737,7 +741,7 @@ internal sealed partial class StateCache
             SamplerBindCount++;
             samplerBindingByUnit![unit] = samplerId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -752,7 +756,7 @@ internal sealed partial class StateCache
             SamplerBindCount++;
             samplerBindingByUnit![unit] = sampler.SamplerId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -806,8 +810,8 @@ internal sealed partial class StateCache
                 elementArrayBufferByVao[vaoId] = value;
                 return value;
             }
-            catch
-            {
+            catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
+        {
                 elementArrayBufferByVao[vaoId] = 0;
                 return 0;
             }
@@ -827,7 +831,7 @@ internal sealed partial class StateCache
                 return value;
             }
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
 
@@ -870,8 +874,8 @@ internal sealed partial class StateCache
                 int vaoId = currentVao ?? GetCurrentVao();
                 elementArrayBufferByVao[vaoId] = bufferId;
             }
-            catch
-            {
+            catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
+        {
             }
             return;
         }
@@ -881,7 +885,7 @@ internal sealed partial class StateCache
             GL.BindBuffer(target, bufferId);
             bufferBindingByTarget[target] = bufferId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -904,7 +908,7 @@ internal sealed partial class StateCache
             indexedBufferBindings[(target, index)] = binding;
             bufferBindingByTarget[(BufferTarget)target] = bufferId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
@@ -927,7 +931,7 @@ internal sealed partial class StateCache
             indexedBufferBindings[(target, index)] = binding;
             bufferBindingByTarget[(BufferTarget)target] = bufferId;
         }
-        catch
+        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
