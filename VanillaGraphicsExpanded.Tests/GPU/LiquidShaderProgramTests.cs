@@ -15,9 +15,47 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises actual SPIR-V blocks through the same interface calls made by engine mesh pools.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Measures actual frame preparation with representative and maximum authored array counts.</summary>
+    [Theory]
+    [InlineData(0,0,0)]
+    [InlineData(3,0,0)]
+    [InlineData(0,4,1)]
+    [InlineData(3,4,1)]
+    [InlineData(0,100,3)]
+    [InlineData(3,100,3)]
+    public void FrameCaptureRetainsCommonInputsAcrossArrayLoads(int mode,int lights,int spheres)
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        var uniforms = new DefaultShaderUniforms
+        {
+            PointLightsCount=lights, FogSphereQuantity=spheres,
+            ColorMapRects4=Enumerable.Range(0,160).Select(value=>(float)value).ToArray(),
+            ZNear=.1f,ZFar=100,WaterStillCounter=2,WaterFlowCounter=3,WindWaveCounter=4
+        };
+        float[] projection = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        var api = CreateFrameCaptureApi(uniforms,projection);
+        var program = new LiquidShaderProgram { CaptureMode=mode };
+        var tile = new Vec2f(.125f,.125f);
+        for(int frame=0;frame<8192;frame++) program.CaptureFrameInputs(api,tile);
+        const int iterations=2048;
+        for(int sample=0;sample<5;sample++)
+        {
+            long before=GC.GetAllocatedBytesForCurrentThread(), start=System.Diagnostics.Stopwatch.GetTimestamp();
+            for(int frame=0;frame<iterations;frame++) program.CaptureFrameInputs(api,tile);
+            long elapsed=System.Diagnostics.Stopwatch.GetTimestamp()-start;
+            long bytes=GC.GetAllocatedBytesForCurrentThread()-before;
+            output.WriteLine($"frame-capture mode={mode} lights={lights} spheres={spheres} sample={sample} iterations={iterations} bytes={bytes} elapsedMs={elapsed*1000.0/System.Diagnostics.Stopwatch.Frequency:R}");
+        }
+        var frameBytes=((ILiquidShaderProgramBindings)program).FrameParameters.Bytes;
+        Assert.Equal(new Vector4(2,3,0,4),MemoryMarshal.Read<Vector4>(frameBytes.Slice(192,16)));
+        Assert.Equal(new Vector4(156,157,158,159),MemoryMarshal.Read<Vector4>(frameBytes.Slice(1024,16)));
+        Assert.Equal(Matrix4x4.Identity,MemoryMarshal.Read<Matrix4x4>(frameBytes.Slice(4640,64)));
+    }
+
     /// <summary>Projection changes publish a coherent GPU matrix pair and reject singular updates atomically.</summary>
     [Fact]
     public void ProjectionUpdatesPublishMatchingInverseForAsymmetricCamera()
@@ -93,6 +131,9 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         AssignTextures(surface, texture, atmosphere);
         AssignTextures(volume, texture, atmosphere);
+        var uniforms = new DefaultShaderUniforms { ColorMapRects4 = new float[160] };
+        float[] projection = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        var captureApi = CreateFrameCaptureApi(uniforms,projection);
         AssertStableSubmissions();
 
         // A user quality change replaces only the surface executable. The volume
@@ -119,6 +160,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
         Assert.Equal(0, surface.CaptureMode);
         Assert.Equal(3, volume.CaptureMode);
         AssertStableSubmissions();
+        // An owner whose requested contract changes must refresh arrays before
+        // any stage that consumes them, even after several volume-only frames.
+        foreach(int mode in new[] { 0,1,3 })
+        {
+            volume.CaptureMode=mode;
+            CaptureAndVerify(volume,2,1,37);
+        }
         surfaceId = surface.ProgramId;
         volumeId = volume.ProgramId;
         GpuShaderPrograms.Dispose(assets.Api);
@@ -135,14 +183,51 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
             for (int frame = 0; frame < 3; frame++)
             foreach (var program in new[] { volume, surface })
             {
-                Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
-                using var activation = program.UseScope();
-                Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-                Assert.False(program.RequiresPreparation);
+                CaptureAndVerify(program,frame==0?100:frame==1?1:0,frame==0?3:frame==1?1:0,frame+11);
             }
             Assert.Equal(retainedSurface, surface.ProgramId);
             Assert.Equal(retainedVolume, volume.ProgramId);
             Assert.Equal(reads, assets.Reads.Count);
+        }
+
+        /// <summary>Checks the actual uploaded frame after changed counts, values and owner selection.</summary>
+        void CaptureAndVerify(LiquidShaderProgram program,int lights,int spheres,float value)
+        {
+            uniforms.PointLightsCount=lights; uniforms.FogSphereQuantity=spheres;
+            Array.Fill(uniforms.PointLights3,value); Array.Fill(uniforms.PointLightColors3,value+1);
+            Array.Fill(uniforms.FogSpheres,value+2); Array.Fill(uniforms.ColorMapRects4,value+3);
+            uniforms.WaterStillCounter=value+4;
+            program.ModelViewMatrix=projection;
+            program.Origin=new(value,value+1,value+2);
+            program.WaveFrame=new(new Vector4(value),.5f);
+            byte[] retainedArrays=((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(1040,3584).ToArray();
+            program.CaptureFrameInputs(captureApi,new Vec2f(.125f,.125f));
+            Assert.True(program.EnsureReady(),string.Join('\n',assets.Logs));
+            using var activation=program.UseScope();
+            GL.GetInteger(GetIndexedPName.UniformBufferBinding,GpuBindingRegistry.Ubo.Frame,out int buffer);
+            GL.GetInteger(GetIndexedPName.UniformBufferStart,GpuBindingRegistry.Ubo.Frame,out int offset);
+            byte[] bytes=new byte[LiquidFrameParamsUbo.BlockSize];
+            using var binding=StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer,buffer);
+            GL.GetBufferSubData(BufferTarget.UniformBuffer,(IntPtr)offset,bytes.Length,bytes);
+            bool boundary=program.CaptureMode==3;
+            Assert.Equal(boundary?0:lights,MemoryMarshal.Read<int>(bytes.AsSpan(352)));
+            Assert.Equal(boundary?0:spheres,MemoryMarshal.Read<int>(bytes.AsSpan(356)));
+            Assert.Equal(value+3,MemoryMarshal.Read<float>(bytes.AsSpan(400)));
+            Assert.Equal(value+4,MemoryMarshal.Read<float>(bytes.AsSpan(192)));
+            Assert.Equal(Matrix4x4.Identity,MemoryMarshal.Read<Matrix4x4>(bytes.AsSpan(4640,64)));
+            if(boundary) Assert.Equal(retainedArrays,bytes.AsSpan(1040,3584).ToArray());
+            if(!boundary && lights>0)
+            {
+                Assert.Equal(value,MemoryMarshal.Read<float>(bytes.AsSpan(1040+(lights-1)*16)));
+                Assert.Equal(value+1,MemoryMarshal.Read<float>(bytes.AsSpan(2640+(lights-1)*16)));
+            }
+            if(!boundary && spheres>0) Assert.Equal(value+2,MemoryMarshal.Read<float>(bytes.AsSpan(4240+(spheres*8-1)*16)));
+            Assert.Equal(new Vector4(value),MemoryMarshal.Read<Vector4>(((ILiquidShaderProgramBindings)program).WaveParameters.Bytes));
+            float[] draw=ReadDraw(out _,out _);
+            Assert.Equal(projection,draw.AsSpan(0,16).ToArray());
+            Assert.Equal(new float[] {value,value+1,value+2},draw.AsSpan(16,3).ToArray());
+            Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
+            Assert.False(program.RequiresPreparation);
         }
     }
 
@@ -378,6 +463,27 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture) : Render
     #endregion
 
     #region Private
+    /// <summary>Adapts the existing engine API edge without allocating frame inputs inside capture.</summary>
+    private static ICoreClientAPI CreateFrameCaptureApi(DefaultShaderUniforms uniforms,float[] projection)
+    {
+        var render = RuntimeRenderEvents.Adapt<IRenderAPI>((method,_) => method.Name switch
+        {
+            "get_ShaderUniforms" => uniforms, "get_CurrentProjectionMatrix" => projection,
+            "get_FrameWidth" => 512, "get_FrameHeight" => 512,
+            _ => throw new NotSupportedException(method.Name)
+        });
+        var size = new Size2i(1024,1024);
+        var atlas = RuntimeRenderEvents.Adapt<IBlockTextureAtlasAPI>((method,_) => method.Name == "get_Size"
+            ? size : throw new NotSupportedException(method.Name));
+        var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method,_) => method.Name switch
+        {
+            "get_Render" => render, "get_BlockTextureAtlas" => atlas,
+            _ => throw new NotSupportedException(method.Name)
+        });
+        return api;
+    }
+
+
     /// <summary>Supplies required borrowed textures for buffer-only tests that issue no draw.</summary>
     private static void AssignTextures(LiquidShaderProgram program, Texture2D texture, DynamicTexture3D volume)
     {

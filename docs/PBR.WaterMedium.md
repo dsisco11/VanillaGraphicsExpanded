@@ -118,6 +118,46 @@ calculations also supply reflection and non-water body lighting. Those evaluatio
 unchanged, as does the camera-medium contribution. Skipping the volume source is not a
 reason to suppress the surface reflection or a submerged camera's absorption.
 
+Frame capture follows the selected liquid contract: boundary mode stages zero point-light and
+fog-sphere counts and omits those array copies, since neither stage consumes them. The shared
+vertex executable still evaluates climate/season colormap coordinates, so all 40 colormap
+rectangles remain current in boundary mode. Camera projection/inverse, shadow transforms,
+animation, atlas metadata and solar/environment inputs keep their common capture path; wave
+and draw transforms retain their existing caller-owned staging. Surface capture refreshes its
+active point-light/fog prefixes and counts, including after a mode change. The production
+volume and surface programs retain independent frame storage. Submission still uploads the
+complete 4704-byte frame block; this optimization reduces CPU preparation, not upload bandwidth.
+The capture owner caches its mode classification against the existing immutable requested
+settings snapshot. Real settings changes refresh it before capture; unchanged batches and
+shader reload retain the same valid classification. This avoids the generated option getter's
+per-call validation/allocation overhead without changing that shared accessor API.
+
+Optimized-stage inspection confirms that volume fragments do not access frame counts, light
+positions/colors or fog arrays, and the shared vertex stage accesses only the colormap array
+among these candidates. The unchanged frame declaration and shader binaries retain full uploads.
+Focused validation passed 25/25 checks after C# builds, reusing the previously validated shader
+artifacts. Actual GPU buffer readback covers independent owners, counts changing from 100 lights/
+three spheres to one and zero, changed contents, quality/reload and boundary-to-surface recapture.
+Colormaps, animation and the matching projection inverse remain current throughout.
+
+A baseline/current/current/baseline CPU comparison measures the actual capture method through
+the same controlled engine API adapter, with 8192 warmup calls and five 2048-call samples per
+run. Median microseconds per call (ten samples per version) are:
+
+| Lights / fog spheres | Surface baseline / current | Boundary baseline / current |
+| --- | ---: | ---: |
+| 0 / 0 | 6.269 / 6.309 | 9.079 / 9.150 |
+| 4 / 1 | 7.216 / 7.240 | 7.080 / 6.341 |
+| 100 / 3 | 22.781 / 23.289 | 22.245 / 6.375 |
+
+The populated boundary workloads have separated sample ranges; surface and empty-boundary
+ranges overlap. Cross-case timing differences are not an engine workload model. Warm allocation
+remains 320 bytes per call in both versions, including the adapter's dispatch overhead. The
+initial uncached getter version added 520 bytes per call and was replaced before completion.
+These results establish reduced CPU copying for populated volume inputs, not lower GPU upload
+cost or a game-frame improvement. Stage inspection, build/test receipts, ABBA logs and complete
+sample ranges are under `artifacts/WaterLagAnalysis/frame-input-*`.
+
 The zero-scattering gate passed a fresh isolated Debug build and 12/12 focused boundary and
 transport checks. Production boundary draws cover clear water, a positive red-only scattering
 coefficient with solar/environment illumination, zero effective density and different entry/exit

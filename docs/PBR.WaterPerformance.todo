@@ -394,17 +394,41 @@ Phase 11 — Avoid unchanged shader-setting allocations
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 12 — Prepare only required liquid frame inputs
-  ☐ Audit active vertex and fragment inputs for volume and surface owners before narrowing capture.
+  ☑ Audit active vertex and fragment inputs for volume and surface owners before narrowing capture.
     - The shared capture routine copies colormap rectangles, point-light arrays and fog spheres.
       Omit only arrays proven unused by both stages of the selected volume contract.
     - Preserve wave snapshots, transforms, material/atlas inputs and all required lighting data.
     - Reuse the retained frame-input owner; avoid a new frame-data framework or unnecessary UBO
       layout split. Account for whole-block upload costs as well as CPU array-copy savings.
-  ☐ Verify volume/surface alternation, changing light/fog counts, relevant shader options and reload.
+  ☑ Verify volume/surface alternation, changing light/fog counts, relevant shader options and reload.
     - Ensure skipped fields cannot leave stale data visible to a consumer that requires them.
     - Measure CPU preparation/allocation changes rather than infer them from shorter source code.
   Completion: volume preparation omits proven unused array work while all active inputs remain
   current and independent of surface submission. Preserve the inverse-projection input from Phase 2.
+  Stage audit: the shared vertex executable reads colormap rectangles for climate/season outputs,
+  so those 40 entries remain captured. Boundary-mode fragments and the shared vertex stage do
+  not consume point-light positions/colors or fog-sphere arrays. CaptureFrameInputs sets their
+  counts to zero only for mode 3 and omits the corresponding loops; other modes retain capture.
+  The shared 4704-byte frame block and its full upload remain unchanged. Common camera/inverse,
+  shadow, material/atlas, animation and illumination inputs stay current; wave/draw staging stays
+  with the existing callers. A surface recapture refreshes its active prefixes after mode changes.
+  The mode classification is retained with the immutable requested-settings reference; any real
+  option edit refreshes it from that exact snapshot. This avoids a measured 520-byte-per-call
+  generated-getter overhead from the initial implementation without changing shared accessors.
+  Traceability: PBR.WaterMedium.md / boundary capture controls required source/geometry inputs;
+  PBR.Liquids.md and its renderer proposal preserve shared vertex, wave, mesh/OIT and UBO ownership;
+  PBR.WaterRefraction.md preserves projection/inverse and precompiled quality/resolution contracts.
+  The authoritative pipeline plan/proposal and capture findings retain state/lifecycle ownership
+  and distinguish CPU preparation evidence from GPU/upload or live-frame claims.
+  Verification: C# production/test builds passed using unchanged shader artifacts; 25/25 focused
+  GPU checks passed, including uploaded data, count shrink, owner alternation, quality changes,
+  reload and mode 3→0→1→3 recapture. Optimized shared vertex and mode-3 fragment member accesses
+  confirm the array-use boundary. ABBA measurements passed all four six-case runs: boundary
+  capture medians improve 7.080→6.341 us for 4 lights/1 sphere and 22.245→6.375 us for 100/3.
+  Empty-boundary and surface ranges overlap. Warm allocations remain 320 bytes/call including
+  adapter overhead; no GPU/upload saving is claimed. PBR.WaterMedium.md records full results;
+  artifacts/WaterLagAnalysis/frame-input-* retains stage, build, final-test and measurement receipts.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 13 — Stop redundant endpoint probes
   ☐ Detect traversal paths whose next probe cannot advance after clamping to the visible extent.

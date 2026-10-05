@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
@@ -10,6 +11,9 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 /// <summary>Exposes typed frame inputs independently of their packed storage.</summary>
 internal sealed partial class LiquidShaderProgram
 {
+    private ShaderSettings? frameCaptureSettings;
+    private bool boundaryCapture;
+
     #region Frame inputs
     /// <summary>Stages a coherent column-major projection/inverse pair; Use submits the completed frame.</summary>
     internal ReadOnlySpan<float> ProjectionMatrix
@@ -69,7 +73,7 @@ internal sealed partial class LiquidShaderProgram
     internal void SetPointLightColor(int index, Vector3 value) => frame.SetPointLightColor(index, value);
     /// <summary>Stages one FogSphereComponent array element.</summary>
     internal void SetFogSphereComponent(int index, float value) => frame.SetFogSphereComponent(index, value);
-    /// <summary>Copies one coherent render-frame snapshot; arrays use std140 sixteen-byte strides.</summary>
+    /// <summary>Copies the selected liquid pass's coherent frame inputs; arrays use std140 sixteen-byte strides.</summary>
     internal void CaptureFrameInputs(ICoreClientAPI api, Vec2f tileSize)
     {
         var render = api.Render;
@@ -89,11 +93,22 @@ internal sealed partial class LiquidShaderProgram
         SolarIrradiance = new(atmosphere?.Solar ?? Vector3.Zero, 0);
         EnvironmentIrradiance = new(atmosphere?.Environment ?? Vector3.Zero, 0);
         AerialParameters = new(atmosphere?.Altitude ?? 0, atmosphere?.HorizonElevation ?? 0, u.CameraUnderwater, 0);
-        int lights = Math.Clamp(u.PointLightsCount, 0, Math.Min(100, Math.Min(u.PointLights3.Length, u.PointLightColors3.Length) / 3));
-        int spheres = Math.Clamp(u.FogSphereQuantity, 0, Math.Min(3, u.FogSpheres.Length / 8));
+        // Boundary capture consumes neither array in either stage. Keep zero counts so retained
+        // array bytes are never advertised as current; surface recapture refreshes its active prefix.
+        var settings = RequestedSettings;
+        if (!ReferenceEquals(frameCaptureSettings, settings))
+        {
+            // Resolve from this exact immutable snapshot, only when requested options change.
+            // Reload does not change its meaning; mode transitions invalidate the reference naturally.
+            boundaryCapture = ShaderOptionAccess.Get(settings, CaptureModeOption) == 3;
+            frameCaptureSettings = settings;
+        }
+        int lights = boundaryCapture ? 0 : Math.Clamp(u.PointLightsCount, 0, Math.Min(100, Math.Min(u.PointLights3.Length, u.PointLightColors3.Length) / 3));
+        int spheres = boundaryCapture ? 0 : Math.Clamp(u.FogSphereQuantity, 0, Math.Min(3, u.FogSpheres.Length / 8));
         SetCounts(lights, spheres);
         Perception = new(0, u.PsychedelicStrength, 0, 0);
         PerceptionPosition = new(u.PlayerPosForFoam.X, u.PlayerPosForFoam.Y, u.PlayerPosForFoam.Z, 0);
+        // The shared vertex executable still evaluates climate/season coordinates in every mode.
         for (int i = 0; i < 40; i++)
             SetColorMapRect(i, new(u.ColorMapRects4[i * 4], u.ColorMapRects4[i * 4 + 1], u.ColorMapRects4[i * 4 + 2], u.ColorMapRects4[i * 4 + 3]));
         for (int i = 0; i < lights; i++)
