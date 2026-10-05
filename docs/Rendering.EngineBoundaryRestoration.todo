@@ -2,7 +2,7 @@ Engine-boundary restoration through pipeline state and StateCache
 ================================================================
 
 Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
-Approval: user approved the proposal on 2026-10-05. Phases 1–6 completed; Phase 7 automated consolidation completed, supplied live validation and final acceptance remain pending.
+Approval: user approved the proposal on 2026-10-05. Phases 1–7 completed; user live confirmation received on 2026-10-05 after the startup registration correction. Evidence: docs/Rendering.AuthoritativePipelineState.md / Consolidated acceptance status.
 Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
 Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
 Project index: project.todo / Issues / Current / legacy fixed-function helper retirement.
@@ -241,11 +241,11 @@ Phase 7: Consolidate acceptance evidence and supplied live validation
     ✔ Include shared cache, engine mapping, shader ownership and unaffected-binding regression coverage.
   ✔ Consolidate measured boundary query/native-transition counts and distinguish them from performance
     expectations; make no unmeasured CPU/GPU improvement claim.
-  ☐ Obtain user-supplied live observations or a new RenderDoc capture without launching the game.
-    ☐ Confirm first-person appearance, indexed metadata state and refraction-source cleanliness.
-    ☐ Record remaining bottom-cutoff behavior separately; do not treat this plan as a UV-fallback fix.
+  ✔ Obtain user-supplied live observations or a new RenderDoc capture without launching the game.
+    ✔ Confirm first-person appearance, indexed metadata state and refraction-source cleanliness.
+    ✔ Record remaining bottom-cutoff behavior separately; do not treat this plan as a UV-fallback fix.
     ✔ If evidence is unavailable, report automated completion separately and leave live acceptance pending.
-  ☐ Final acceptance: required implementation/review/tests pass, caller dispositions and parent links
+  ✔ Final acceptance: required implementation/review/tests pass, caller dispositions and parent links
     are current, supplied live acceptance is recorded, and no scope/performance claim exceeds evidence.
 
 Open design choices and assumptions

@@ -4,8 +4,10 @@
 
 Inventory and implementation contracts established on 2026-10-05. Categorized cache storage
 and declared boundary entry/restoration are implemented. Refraction and independent fullscreen
-callbacks are integrated with headless correction evidence; remaining caller reconciliation and live
-acceptance remain pending. This section records implementation against
+callbacks are integrated with headless correction evidence. Caller reconciliation and user live
+acceptance after the startup correction are complete. Earlier pending statements below describe
+the evidence available at those implementation checkpoints; Consolidated acceptance status records
+the final disposition. This section records implementation against
 [the restoration plan](Rendering.EngineBoundaryRestoration.todo), under
 [the approved proposal](Rendering.EngineBoundaryRestoration.Proposal.md) and the
 [parent sequencing exception](Rendering.AuthoritativePipelineState.todo).
@@ -235,7 +237,7 @@ and performance measurements remain pending; never launch the game. UV cutoff re
 | Authority, invalidation, lifetime | RenderContextRegistry, boundary context validation, ExecuteExternal and targeted resource retirement; context, external-mutation, deletion and unaffected-binding regressions. |
 | Refraction integration and compatibility | One capture boundary and independent lighting/composite adapters; actual marker/publication regressions; all 11 retained source invocations assigned parent prerequisites above. |
 | Relationship to approved PSO work | Parent exception governs this bounded work; future command context reuses cache mechanism, complete pipeline adoption remains parent work. |
-| Verification and acceptance | Delegated Debug/Release builds and 213 distinct passing tests recorded below; measured fixture counters consolidated below. Supplied post-change live evidence remains pending. |
+| Verification and acceptance | Baseline 213 passing tests plus 97 fresh affected tests after the startup correction; delegated builds and measured fixture counters below. User live confirmation received on 2026-10-05; no new RenderDoc inspection claimed. |
 
 The approved parent architecture's ownership, static/dynamic policy, engine restoration and context
 generation requirements govern these decisions. Complete descriptors, target signatures, preparation
@@ -649,18 +651,19 @@ and is not hidden by the zero-query claim. CPU/GPU speedup, representative frame
 submission/preparation measurements have not been established; broader measurements remain in
 the parent plan.
 
-Live acceptance is pending. The user supplied a startup crash at 11:49:47 PDT on 2026-10-05 in
+The user supplied a startup crash at 11:49:47 PDT on 2026-10-05 in
 Vintage Story 1.22.7: the engine's LoadFrameBuffer viewport call reached GpuSupport before context
-registration. This is failed live validation, not acceptance. No post-fix visual observation or new
-RenderDoc capture has been supplied, and Vintage Story was not launched by the agent. The original refraction-cutoff.rdc
-establishes the old defect only. Required supplied evidence must identify the tested build and show
-first-person/held-item appearance, preserved mixed indexed metadata state and negative normal-alpha
-markers, and clean world color/depth in refraction publication. Report remaining screen-bottom
-cutoff behavior separately; this restoration work does not claim a UV-fallback fix.
+registration. After the startup correction below, the user confirmed on 2026-10-05: "okay, its all
+working". This supplies live acceptance of the corrected build in the current rendering task.
+No new RenderDoc capture was supplied: indexed state, negative markers and clean world publication
+retain the native/headless evidence recorded above rather than a claimed live texture inspection.
+No remaining bottom-cutoff problem was separately reported in this confirmation; its UV-fallback
+cause was not isolated and no UV-fallback fix is claimed. Vintage Story was not launched by the agent.
 
 Second review and completion audit reconciled the source/test evidence, proposal section mapping,
 caller dispositions and parent prerequisites. Automated consolidation is satisfied. The live-evidence
-task and final acceptance gate remain unchecked; no completion claim is made for the entire plan.
+task and final acceptance gate are now satisfied by the supplied confirmation together with the
+automated evidence. This completes the bounded restoration plan, not the parent PSO migration.
 
 ### Early engine context registration correction
 
@@ -684,8 +687,8 @@ operation with no engine platform. Test-owned wrappers borrow the fixture contex
 The second source review checked every engine adapter's cache access, provider handle/liveness guards,
 disposal retirement, unchanged direct boundary rejection and test cleanup. The correction adds no
 native drawing-state restoration outside StateCache. The earlier 213-test receipts remain historical
-baseline evidence; fresh affected validation is recorded below. Successful in-game startup and visual
-acceptance must still be supplied separately.
+baseline evidence; fresh affected validation is recorded below. Subsequent user confirmation supplies
+successful live acceptance as recorded above.
 
 Fresh delegated validation passed: Debug test-project build, zero errors/101 warnings; Release
 production build with shader compilation enabled, zero errors/6 warnings. The three new TRX files
