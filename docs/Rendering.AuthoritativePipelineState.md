@@ -3,7 +3,8 @@
 ## Engine-boundary restoration
 
 Inventory and implementation contracts established on 2026-10-05. Categorized cache storage
-and declared boundary entry/restoration are implemented; production consumer migration and fix
+and declared boundary entry/restoration are implemented. Refraction and independent fullscreen
+callbacks are integrated with headless correction evidence; remaining caller reconciliation and live
 acceptance remain pending. This section records implementation against
 [the restoration plan](Rendering.EngineBoundaryRestoration.todo), under
 [the approved proposal](Rendering.EngineBoundaryRestoration.Proposal.md) and the
@@ -355,8 +356,8 @@ Resource-binding owners remain separate; this work does not claim a complete bor
 The initial `EngineBoundaryScope` entry token is now extended by the disposable restoration mechanism
 documented below. `ReleaseEngineBoundary` remains a cache-owner primitive which only releases active
 registration; entry-only tests use it, while restoration owners call it after cleanup. Production
-renderers have not migrated to the new API. Existing legacy consumers remain in place, and the
-refraction defect is not claimed fixed.
+renderers had not migrated when entry validation was recorded. The subsequent integration and
+headless refraction correction are documented below; unrelated legacy consumers remain in place.
 
 | Restoration plan task group | Controlling source | Implementation and evidence |
 | --- | --- | --- |
@@ -481,8 +482,8 @@ texture/image/indexed-buffer binds in the tested footprint. These counts do not 
 speedups or live appearance. The second source review addressed failed shader activation/rollback
 exception preservation and late context invalidation. The independent completion audit reconciled
 all restoration tasks against the linked proposal, parent architecture, inventory and final receipts;
-no required mechanism finding remains. Production refraction/lighting/composite migration and live
-acceptance remain pending.
+no required mechanism finding remains. Production integration is recorded below; live acceptance
+remains pending.
 
 ### Shared capability ownership
 
@@ -497,3 +498,78 @@ Image limits use GL_MAX_IMAGE_UNITS and GL_MAX_COMBINED_IMAGE_UNIFORMS rather th
 limits. GpuSupportLimitsTests checks the shared values against native queries and verifies warm
 reuse without consuming pending native errors. CategorizedStateCacheTests verifies same-lifetime
 reuse and capability refresh after explicit context retirement/re-registration.
+
+### Refraction and fullscreen callback integration
+
+FullscreenBoundary composes descriptor-derived coverage with viewport/clear helper effects and
+prepared shader footprints, including texture unit zero used by allocation helpers. The capture
+adapter resolves one boundary before target allocation and runs direct lighting and pre-overlay
+composition inside it. The shared draw methods require the active scope. Their independently
+registered callbacks establish separate boundaries; ordinary composite includes display resolve,
+SSAO restoration and receiver reduction. Shader readiness is established before footprint capture;
+the shared draw methods do not compile variants inside the boundary.
+
+The duplicate CapturePipeline and the three legacy snapshots have been removed from these entry
+points. Capture and composite no longer invalidate all cache knowledge: supported native changes
+are observed by the existing owners and engine adapters, while boundary snapshots restore the
+actual mixed indexed state. Other legacy consumers retain their existing contracts for their own
+migration review. Resource allocation, resize, borrowing and disposal remain with existing target
+owners. Standalone preparation and standalone SSAO callers retain their distinct binding scopes.
+
+EngineBoundaryScope.Activate registers the existing UseScope owner for ordered cleanup after all
+sequential passes. It does not introduce another shader activation implementation. This preserves
+both operation and cleanup exceptions before borrowed slots/framebuffers and drawing state are
+restored. Capture and ordinary composite withdraw publication on an escaping error; optional
+allocation/reduction and BeforeOverlay catches cannot swallow classified restoration failures.
+Entry rejection skips optional capture without drawing; ordinary callbacks surface unsupported
+entry contracts. Shared work and outer callbacks reject nested boundaries.
+
+Incoming active foreign engine owners and unowned raw/compute programs remain rejected because
+this adapter cannot establish their resource reactivation footprint. Headless fixtures model engine
+Stop observation with targeted program-cache invalidation; they do not force an extra native unbind
+to satisfy boundary entry.
+
+| Integration task group | Controlling source | Implementation and evidence |
+| --- | --- | --- |
+| One capture boundary and independent callbacks | Restoration proposal / Refraction integration and compatibility; inventory / Entry points and Complete operation and effect matrix | FullscreenBoundary, shared lighting/composite methods and capture adapter; actual callback/capture GPU regressions. |
+| Preparation, helpers, shader cleanup and coverage | Restoration proposal / Boundary declaration and entry; Dynamic state, bindings, and shader ownership; parent proposal / Submission contract | Prepared resource unions, descriptor-derived coverage, deferred UseScope ownership, SSAO and reduction composition; native viewport and independent framebuffer checks. |
+| Publication, failure and resource lifetime | Restoration proposal / Application and restoration; Authority, invalidation, and lifetime; inventory / Boundary API, coverage and failures | Capture/composite withdrawal and restoration-failure filters; existing scene/target owners; rejection, draw failure, resize, reload, toggle and teardown regressions. |
+| Mixed-index corruption and coherent world publication | Restoration proposal / Problem and evidence; Verification and acceptance; inventory / Deterministic reference cases | Legacy negative control and real MRT marker rasterization followed by actual capture/ordinary callbacks; negative normal-alpha and clean world color/depth assertions. |
+
+Final delegated validation passed on 2026-10-05. Release build: zero errors and 107 warnings.
+Final Debug incremental build: zero errors and zero warnings (the preceding full Debug build
+reported 106 warnings). TRX inspection confirms 213 distinct tests passed, with no failures or skips:
+38 boundary/capture/SSAO cases, 71 cache/resource/shader cases and 104 relevant rendering cases.
+The marker regression first reproduces nonnegative alpha with the legacy scope, then verifies -1
+after the actual capture and restores the coherent world pair through ordinary composition. Cases
+also cover first use, repeated frames, actual 3x3 resize, reload, disabled/dry capture, failed entry,
+failed draws and retiring the incoming shader during cleanup. SSAO restoration and receiver
+reduction execute together through the real ordinary composite callback.
+
+Commands used NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages, with shader receipts enabled:
+
+- dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-restore -v quiet
+- dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore -v quiet
+- dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-build --no-restore --filter '<selection below>' --logger 'trx;LogFileName=phase5-<group>-validation.trx'
+
+Selections (separate runs, with distinct test IDs):
+
+~~~text
+boundary: FullyQualifiedName~EngineBoundary|FullyQualifiedName~WaterRefractionCaptureStateTests|FullyQualifiedName~SceneColorParticlePublicationTests
+cache: FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~EngineState|FullyQualifiedName~GpuFramebufferBlendStateIntegrationTests|FullyQualifiedName~FramebufferBindingStateTests|FullyQualifiedName~StateCacheResourceDeletionTests|FullyQualifiedName~GlStateCacheUnbindIntegrationTests|FullyQualifiedName~ScissorStateScopeTests|FullyQualifiedName~GpuProgramUseScopeTests|FullyQualifiedName~GeneratedResourceBindingTests|FullyQualifiedName~GpuImageUnitBindingIntegrationTests|FullyQualifiedName~GpuSupportLimitsTests
+render: FullyQualifiedName~WaterRefractionLifecycleTests|FullyQualifiedName~WaterRefractionOverlayCompositionTests|FullyQualifiedName~WaterRefractionReductionTests|FullyQualifiedName~WaterRefractionResolutionTests|FullyQualifiedName~PbrCompositeHdrTests|FullyQualifiedName~PbrDirectLighting|FullyQualifiedName~DirectLightingBufferOwnershipTests|FullyQualifiedName~SceneColorParticle&FullyQualifiedName!~SceneColorParticlePublicationTests
+~~~
+
+Receipts: artifacts/phase5-build-validation.log, artifacts/phase5-debug-build-validation.log,
+artifacts/phase5-{boundary,cache,render}-tests.log and
+VanillaGraphicsExpanded.Tests/TestResults/phase5-{boundary,cache,render}-validation.trx.
+Earlier commands that tested stale binaries after a failed build were withdrawn; cancelled broader
+runs are not completion evidence. Final builds succeeded before their corresponding test runs.
+
+The second source review corrected helper-scope validation, kept disabled-option retirement inside
+the callback boundary and verified that real GlPipelineDesc application remains with every draw.
+The independent completion audit reconsulted the selected contract, proposal, parent submission and
+ownership rules, entry/helper inventory and final source/receipts. All required integration items
+are satisfied. Legacy-caller reconciliation and broader PSO adoption retain their own plan gates.
+Live appearance, first-person source cleanliness in a new capture and the separate screen-bottom
+UV fallback remain outside the automated acceptance claim. No game is launched by this work.

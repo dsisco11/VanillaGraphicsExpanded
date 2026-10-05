@@ -7,6 +7,21 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Public API
+    /// <summary>Rejects a second engine entry before shader preparation or other setup can run.</summary>
+    internal void RequireOutsideEngineBoundary()
+    {
+        if (activeBoundary is not null || resolvingBoundary)
+            throw new InvalidOperationException("Nested engine boundaries are unsupported.");
+    }
+
+    /// <summary>Requires shared pass work to execute under its caller's active restoration contract.</summary>
+    internal void RequireEngineBoundary(EngineBoundaryScope scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        if (!ReferenceEquals(activeBoundary, scope)) throw new InvalidOperationException("An active engine boundary is required.");
+        RequireBoundaryContext(scope.Snapshot);
+    }
+
     /// <summary>Rejects unsupported drawing-state commands while managed boundary authority is active.</summary>
     internal void RejectUnsupportedBoundaryMutation()
     {

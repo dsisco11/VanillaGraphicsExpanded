@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using VanillaGraphicsExpanded.Rendering.Integration;
 using HarmonyLib;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
@@ -11,12 +13,6 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class WaterRefractionCapture : IRenderer
 {
     private static WaterRefractionCapture? active;
-    private static readonly GlPipelineDesc CapturePipeline = new(
-        defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask),
-        depthWriteMask: false, name: "WaterRefraction.PreOverlayCapture");
     private static readonly AccessTools.FieldRef<EntityPlayerShapeRenderer, RenderMode> ReadMode =
         AccessTools.FieldRefAccess<EntityPlayerShapeRenderer, RenderMode>("renderMode");
     private static readonly Func<EntityPlayerShapeRenderer, bool> IsSelf =
@@ -56,6 +52,7 @@ internal sealed class WaterRefractionCapture : IRenderer
         catch (Exception error)
         {
             capture.scene.Invalidate();
+            if (EngineBoundaryRestoreException.IsRestorationFailure(error)) throw;
             if (!capture.warned) capture.api.Logger.Warning("[VGE] Pre-overlay refraction capture unavailable: {0}", error.Message);
             capture.warned = true;
         }
@@ -88,6 +85,7 @@ internal sealed class WaterRefractionCapture : IRenderer
     /// <summary>Evaluates the existing PBR passes into owned storage, restoring the caller's draw state even on failure.</summary>
     private void Capture()
     {
+        StateCache.Current.RequireOutsideEngineBoundary();
         attempted = true;
         scene.Invalidate();
         // Unknown resources retain capture. Only current, entirely empty liquid
@@ -96,18 +94,26 @@ internal sealed class WaterRefractionCapture : IRenderer
         if (LiquidMeshSource.TryGet(api, out var source) && !source.MayHaveLiquidGeometry()) return;
         int width = api.Render.FrameWidth, height = api.Render.FrameHeight;
         if (width <= 0 || height <= 0) return;
-        // Each lighting/composite draw restores shader ownership through its own UseScope.
-        using var fixedState = StateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
-        using var bindings = StateCache.Current.BindFramebufferScope();
-        StateCache.Current.InvalidateAll();
-        StateCache.Current.Apply(CapturePipeline);
-        if (lighting?.IsValid != true || lighting.DirectDiffuse.Width != width || lighting.DirectDiffuse.Height != height)
+        var directProgram = direct.PrepareBoundaryProgram();
+        var compositePrograms = composite.PrepareBoundaryPrograms(capture: true);
+        if (directProgram is null || compositePrograms is null) return;
+        try
         {
-            scene.Dispose();
-            lighting?.Dispose();
-            lighting = new DirectLightingTargets(width, height);
+            FullscreenBoundary.TryRun("WaterRefraction.PreOverlay", [DirectLightingRenderer.LightingPipeline, PBRCompositeRenderer.CompositePipeline],
+                compositePrograms.Append(directProgram), scope =>
+                {
+                    // Allocation belongs inside the same preservation contract as both draws.
+                    if (lighting?.IsValid != true || lighting.DirectDiffuse.Width != width || lighting.DirectDiffuse.Height != height)
+                    {
+                        scene.Dispose();
+                        lighting?.Dispose();
+                        lighting = new DirectLightingTargets(width, height);
+                    }
+                    if (direct.RenderLightingWithinBoundary(scope, lighting))
+                        composite.RenderCompositeWithinBoundary(scope, EnumRenderStage.Opaque, scene, lighting);
+                });
         }
-        if (direct.RenderLighting(lighting)) composite.RenderComposite(EnumRenderStage.Opaque, scene, lighting);
+        catch { scene.Invalidate(); throw; }
     }
 
     /// <summary>Retires the color/depth pair and its lighting scratch together on world or option boundaries.</summary>

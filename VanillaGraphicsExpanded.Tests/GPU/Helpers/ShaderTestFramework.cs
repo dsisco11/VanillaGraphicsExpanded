@@ -207,6 +207,14 @@ public sealed class ShaderTestFramework : IDisposable
         StateCache.Current.UnbindProgram();
     }
 
+    /// <summary>Models engine mesh submission while the production caller owns program and pipeline state.</summary>
+    public void RenderGeometry()
+    {
+        EnsureQuadInitialized();
+        using var geometry = _quadVao!.BindScope();
+        _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
+    }
+
     /// <summary>Draws an isolated pass using its production activation and state handling.</summary>
     public void RenderQuad(GpuProgram program)
     {

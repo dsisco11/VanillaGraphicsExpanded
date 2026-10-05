@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using VanillaGraphicsExpanded.Rendering.Integration;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -27,7 +29,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     private const int RenderRangeValue = 1;
 
     // Neither fullscreen draw may test or overwrite the primary terrain depth.
-    private static readonly GlPipelineDesc CompositePipeline = new(
+    internal static readonly GlPipelineDesc CompositePipeline = new(
         defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
             .With(GlPipelineStateId.BlendEnable)
             .With(GlPipelineStateId.CullFaceEnable)
@@ -70,6 +72,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     public int RenderRange => RenderRangeValue;
 
     #region Public API
+    #region Initialization
     /// <summary>Creates the fullscreen mesh and registers composition after direct and indirect lighting.</summary>
     public PBRCompositeRenderer(
         ICoreClientAPI capi,
@@ -121,6 +124,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         return PrepareCompositeProgram(readLightingMode(), preOverlay: false) is not null && display?.EnsureReady() == true;
     }
 
+    #endregion
+    #region Rendering
     /// <summary>Combines lighting and hands it to primary using the prepared frame's color convention.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
         => RenderComposite(stage);
@@ -129,6 +134,55 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
     internal void RenderComposite(EnumRenderStage stage, Liquids.WaterRefractionScene? capture = null,
         DirectLightingTargets? isolatedLighting = null)
     {
+        StateCache.Current.RequireOutsideEngineBoundary();
+        var publication = capture ?? RefractionScene;
+        publication.Invalidate();
+        bool disabled = !ConfigModSystem.Config.WaterRefractionEnabled;
+        bool canRender = stage == EnumRenderStage.Opaque && quadMeshRef is not null
+            && capi.Render.FrameWidth > 0 && capi.Render.FrameHeight > 0;
+        try
+        {
+            var programs = canRender ? PrepareBoundaryPrograms(capture is not null) : null;
+            if (programs is null && !disabled) return;
+            if (!FullscreenBoundary.TryRun("PBR.Composite", [CompositePipeline, SceneColor.SceneColorParticleCapture.ResolvePipeline],
+                programs ?? [], scope =>
+                {
+                    // Option retirement is also part of the handoff, even when no shader can draw.
+                    if (disabled) RefractionScene.Dispose();
+                    if (programs is not null) RenderCompositeWithinBoundary(scope, stage, capture, isolatedLighting);
+                }))
+                throw new InvalidOperationException("Composite engine boundary unavailable.");
+        }
+        catch { publication.Invalidate(); throw; }
+    }
+
+    /// <summary>Prepares every executable that can contribute to this callback's borrowed footprint.</summary>
+    internal GpuProgram[]? PrepareBoundaryPrograms(bool capture)
+    {
+        var shader = PrepareCompositeProgram(!capture && readLightingMode(), capture);
+        if (shader is null) return null;
+        var programs = new List<GpuProgram> { shader };
+        if (!capture)
+        {
+            var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
+            if (display?.EnsureReady() != true) return null;
+            programs.Add(display);
+            var ssao = SceneColor.SceneColorParticleCapture.PrepareSsaoBoundary(capi);
+            if (ssao is not null) programs.Add(ssao);
+            if (ConfigModSystem.Config.WaterRefractionEnabled && ConfigModSystem.Config.WaterRefractionBackgroundScale == 1)
+            {
+                var reduction = GpuShaderPrograms.Get<Liquids.WaterRefractionReductionShaderProgram>(capi, "water_refraction_reduce");
+                if (reduction?.EnsureReady() == true) programs.Add(reduction);
+            }
+        }
+        return programs.ToArray();
+    }
+
+    /// <summary>Executes composition and its helper passes under an established engine boundary.</summary>
+    internal void RenderCompositeWithinBoundary(EngineBoundaryScope scope, EnumRenderStage stage,
+        Liquids.WaterRefractionScene? capture = null, DirectLightingTargets? isolatedLighting = null)
+    {
+        StateCache.Current.RequireEngineBoundary(scope);
         var publication = capture ?? RefractionScene;
         var waterSettings = ConfigModSystem.Config;
         bool refractionEnabled = waterSettings.WaterRefractionEnabled;
@@ -154,8 +208,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Allocation, preparation and early exits share the same owner-backed restoration boundary.
-        using var framebufferBindings = StateCache.Current.BindFramebufferScope();
+        // Allocation and early exits remain inside the caller's restoration boundary.
 
         // Need direct pass outputs.
         if (isolatedLighting is null && (directLightingBuffers.DirectDiffuseTex is null
@@ -176,9 +229,11 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         var indirectTex = capture is null && currentBuffers?.HasPublishedIndirect == true ? currentBuffers.IndirectFullTex : null;
         if (indirectTex?.IsValid != true) indirectTex = null;
 
-        var shader = PrepareCompositeProgram(lumOnEnabled, preOverlay: capture is not null);
+        var shader = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi,
+            capture is not null ? PBRCompositeShaderProgram.PreOverlayPassName : "pbr_composite");
         var display = capture is null ? GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve") : null;
-        if (shader is null || (capture is null && (display is null || !display.EnsureReady()))) return;
+        if (shader is null || shader.RequiresPreparation || shader.IsRetired
+            || (capture is null && (display is null || display.RequiresPreparation || display.IsRetired))) return;
 
         // Matrices for optional PBR composite mode
         MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
@@ -186,8 +241,6 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
-        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState(preserveViewport: true);
-        StateCache.Current.InvalidateAll();
         StateCache.Current.Apply(CompositePipeline);
         GpuFramebuffer? refractionTarget = null;
         try
@@ -196,7 +249,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
                 ? publication.BeginFrame(refractionEnabled, compositeColorTex, backgroundScale)
                 : publication.BeginCapture(screenW, screenH);
         }
-        catch (Exception error) { capi.Logger.Warning("[VGE] Water refraction source unavailable: {0}", error.Message); }
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error)) { capi.Logger.Warning("[VGE] Water refraction source unavailable: {0}", error.Message); }
         // A failed optional capture must not draw its receiver-only shader into ordinary color.
         if (capture is not null && refractionTarget is null) return;
         (refractionTarget ?? compositeFbo!).BindWithViewport();
@@ -246,7 +299,7 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         shader.PreOverlaySourceEnabled = cleanSource is not null;
 
         using var cpuScope = Profiler.BeginScope("PBR.Composite", "Render");
-        using (shader.UseScope())
+        scope.Activate(shader);
         using (GlGpuProfiler.Instance.Scope("PBR.Composite"))
         {
             capi.Render.RenderMesh(quadMeshRef);
@@ -270,18 +323,20 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         var particleLayer = SceneColor.SceneColorParticleCapture.Layer(capi);
         display.ParticleLayer = particleLayer;
         display.ParticleLayerEnabled = particleLayer is null ? 0 : 1;
-        using (display.UseScope())
+        scope.Activate(display);
         using (GlGpuProfiler.Instance.Scope("PBR.DisplayResolve"))
         {
             capi.Render.RenderMesh(quadMeshRef);
         }
         // Deferred receivers are no longer needed this frame. Publish the original
         // particle normal/position values before engine SSAO consumes its attachments.
-        SceneColor.SceneColorParticleCapture.RestoreSsao(capi);
+        SceneColor.SceneColorParticleCapture.RestoreSsao(capi, scope);
         Liquids.WaterVolumeRenderer.MarkComposed(capi);
-        if (refractionTarget is not null) PublishRefractionScene();
+        if (refractionTarget is not null) PublishRefractionScene(scope);
     }
 
+    #endregion
+    #region Lifetime
     /// <summary>Releases owned fullscreen resources and unregisters the renderer.</summary>
     public void Dispose()
     {
@@ -299,9 +354,12 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
 
     #endregion
 
+    #endregion
+
     #region Private
+    #region Publication
     /// <summary>Publishes restored receivers only after an optional geometry-aware reduction completes.</summary>
-    private void PublishRefractionScene()
+    private void PublishRefractionScene(EngineBoundaryScope scope)
     {
         // Reduction consumes the final restored pair, after the ordinary scene handoff.
         // Optional publication failure retains ordinary straight-through liquid rendering.
@@ -311,26 +369,28 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
             else
             {
                 var reduction = GpuShaderPrograms.Get<Liquids.WaterRefractionReductionShaderProgram>(capi, "water_refraction_reduce");
-                if (reduction?.EnsureReady() == true)
+                if (reduction is { RequiresPreparation: false, IsRetired: false })
                     RefractionScene.Publish((target, color, depth) =>
                     {
                         StateCache.Current.Apply(CompositePipeline);
                         target.BindWithViewport();
                         reduction.SourceColor = color;
                         reduction.SourceDepth = depth;
-                        using (reduction.UseScope())
+                        scope.Activate(reduction);
                         using (GlGpuProfiler.Instance.Scope("PBR.WaterReceiverReduction"))
                             capi.Render.RenderMesh(quadMeshRef!);
                     });
             }
         }
-        catch (Exception error)
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
             RefractionScene.Invalidate();
             capi.Logger.Warning("[VGE] Water receiver reduction unavailable: {0}", error.Message);
         }
     }
 
+    #endregion
+    #region Preparation
     /// <summary>Prepares the selected retained owner, adopting ordinary lighting changes before readiness.</summary>
     private PBRCompositeShaderProgram? PrepareCompositeProgram(bool lumOnEnabled, bool preOverlay)
     {
@@ -391,6 +451,8 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         return primaryResolveFbo.IsValid;
     }
 
+    #endregion
+    #region Lifetime
     /// <summary>Retires snapshots before resizing their borrowed composite attachment.</summary>
     private void OnScreenResized()
     {
@@ -431,5 +493,6 @@ public sealed class PBRCompositeRenderer : IRenderer, IDisposable
         primaryResolveSourceId = 0;
         primaryResolveColorId = 0;
     }
+    #endregion
     #endregion
 }

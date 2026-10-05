@@ -2,7 +2,7 @@ Engine-boundary restoration through pipeline state and StateCache
 ================================================================
 
 Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
-Approval: user approved the proposal on 2026-10-05. Phases 1–4 completed; production integration remains pending.
+Approval: user approved the proposal on 2026-10-05. Phases 1–5 completed; remaining caller reconciliation and live acceptance are pending.
 Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
 Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
 Project index: project.todo / Issues / Current / legacy fixed-function capture inventory.
@@ -182,25 +182,29 @@ Phase 4: Implement restoration, cleanup and failure guarantees
 Phase 5: Integrate refraction and independent lighting/composite callbacks
   Dependencies: Phase 4 restoration evidence and Phase 1 entry-point contracts.
   Outcome: the complete pre-overlay interruption uses one proven engine boundary.
+  Completed 2026-10-05 after second source review and independent audit-stage-completion review.
+  Evidence: docs/Rendering.AuthoritativePipelineState.md / Refraction and fullscreen callback integration.
+  Delegated Release/Debug builds passed; 213 distinct tests passed with no failures or skips.
+  Headless mixed-index correction verified; live appearance and separate UV cutoff remain pending.
 
-  ☐ Place the boundary adapter around capture setup, direct lighting, composite and cleanup.
-    ☐ Remove redundant outer CapturePipeline setup after confirming each pass establishes its requirements.
-    ☐ Remove intermediate legacy snapshots from the shared capture work; retain distinct binding and
+  ✔ Place the boundary adapter around capture setup, direct lighting, composite and cleanup.
+    ✔ Remove redundant outer CapturePipeline setup after confirming each pass establishes its requirements.
+    ✔ Remove intermediate legacy snapshots from the shared capture work; retain distinct binding and
       shader scopes that the contract still needs. Reject accidental nested engine boundaries.
-    ☐ Adapt independently registered direct-lighting/composite callbacks to their own required boundaries.
+    ✔ Adapt independently registered direct-lighting/composite callbacks to their own required boundaries.
       Include composite preparation, SSAO restoration and receiver reduction in its declared coverage.
-    ☐ Keep orchestration thin; isolate boundary policy from resource allocation and shading algorithms.
-  ☐ Preserve refraction publication, failure, resize, reload, toggle and resource lifetime behavior.
-    ☐ Failed optional entry leaves capture unpublished and does not interrupt the original engine draw.
-    ☐ Keep restoration-failure handling distinct from recoverable capture failure.
-    ☐ Review each local blanket invalidation against tracked coverage; remove only proven redundancy.
-  ☐ Delegate the regression reproducing the supplied capture's mixed indexed state.
-    ☐ Enter with engine-like depth state, blend enabled for outputs 0–2 and disabled for metadata.
-    ☐ Execute actual capture then real first-person marker-writing draws; verify negative markers survive.
-    ☐ Verify final refraction publication restores the coherent world color/depth pair behind the overlay.
-  ☐ Delegate ordinary/isolated lighting and composite regressions for output equivalence, viewport,
+    ✔ Keep orchestration thin; isolate boundary policy from resource allocation and shading algorithms.
+  ✔ Preserve refraction publication, failure, resize, reload, toggle and resource lifetime behavior.
+    ✔ Failed optional entry leaves capture unpublished and does not interrupt the original engine draw.
+    ✔ Keep restoration-failure handling distinct from recoverable capture failure.
+    ✔ Review each local blanket invalidation against tracked coverage; remove only proven redundancy.
+  ✔ Delegate the regression reproducing the supplied capture's mixed indexed state.
+    ✔ Enter with engine-like depth state, blend enabled for outputs 0–2 and disabled for metadata.
+    ✔ Execute actual capture then real first-person marker-writing draws; verify negative markers survive.
+    ✔ Verify final refraction publication restores the coherent world color/depth pair behind the overlay.
+  ✔ Delegate ordinary/isolated lighting and composite regressions for output equivalence, viewport,
     independent read/draw bindings, first use, repeated frames, resize, reload, failures and disabled refraction.
-  ☐ Completion gate: capture and independent callbacks preserve their verified engine contracts and
+  ✔ Completion gate: capture and independent callbacks preserve their verified engine contracts and
     resource ownership; headless evidence reproduces the old defect and verifies its correction.
 
 Phase 6: Review legacy callers and reconcile future PSO adoption

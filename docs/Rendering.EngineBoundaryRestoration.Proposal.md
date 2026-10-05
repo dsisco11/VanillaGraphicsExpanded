@@ -2,7 +2,8 @@
 
 Status: approved by the user on 2026-10-05. Boundary inventory and implementation contracts are
 complete. Categorized storage/cache-backed coverage, declared boundary entry and resolved snapshots
-and scoped restoration/cleanup are implemented. Production consumer integration remains pending. Evidence:
+and scoped restoration/cleanup are implemented. Refraction and independent lighting/composite callbacks
+are integrated and headless-tested. Remaining caller reconciliation and live acceptance are pending. Evidence:
 [Rendering.AuthoritativePipelineState.md](Rendering.AuthoritativePipelineState.md#engine-boundary-restoration).
 
 Implementation plan: [Rendering.EngineBoundaryRestoration.todo](Rendering.EngineBoundaryRestoration.todo).

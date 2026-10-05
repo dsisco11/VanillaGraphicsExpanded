@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.PBR.SceneColor;
 internal sealed class SceneColorParticleCapture : IRenderer
 {
     private static SceneColorParticleCapture? active;
-    private static readonly GlPipelineDesc ResolvePipeline = new(
+    internal static readonly GlPipelineDesc ResolvePipeline = new(
         defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
             .With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable)
             .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
@@ -132,12 +132,22 @@ internal sealed class SceneColorParticleCapture : IRenderer
         => active is { published: true, targets: { IsCurrent: true } } capture && ReferenceEquals(capture.api, api)
             ? capture.targets.ResolveTarget[1] : null;
 
-    /// <summary>Returns original particle metadata to engine SSAO only after deferred material composition finishes.</summary>
-    internal static void RestoreSsao(ICoreClientAPI api)
+    /// <summary>Resolves the active SSAO helper before the composite captures its resource footprint.</summary>
+    internal static GpuProgram? PrepareSsaoBoundary(ICoreClientAPI api)
     {
         if (active is not { published: true, targets: { IsCurrent: true, HasSsao: true }, ssaoRestore: { } shader } capture
+            || !ReferenceEquals(capture.api, api)) return null;
+        if (!shader.EnsureReady()) throw new InvalidOperationException("SSAO restoration shader unavailable.");
+        return shader;
+    }
+
+    /// <summary>Returns original particle metadata to engine SSAO only after deferred material composition finishes.</summary>
+    internal static void RestoreSsao(ICoreClientAPI api, EngineBoundaryScope? scope = null)
+    {
+        if (scope is not null) StateCache.Current.RequireEngineBoundary(scope);
+        if (active is not { published: true, targets: { IsCurrent: true, HasSsao: true }, ssaoRestore: { } shader } capture
             || !ReferenceEquals(capture.api, api)) return;
-        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var bindings = scope is null ? StateCache.Current.BindFramebufferScope() : (StateCache.FramebufferScope?)null;
         capture.targets.SsaoTarget!.BindWithViewport();
         StateCache.Current.Apply(ResolvePipeline);
         shader.VisibilityDepth = capture.targets.VisibilityDepth;
@@ -145,7 +155,8 @@ internal sealed class SceneColorParticleCapture : IRenderer
         shader.AfterDepth = capture.targets.AfterDepth;
         shader.ParticleNormal = capture.targets.DrawTarget[2];
         shader.ParticlePosition = capture.targets.DrawTarget[3];
-        using (shader.UseScope())
+        using var activation = scope is null ? shader.UseScope() : default;
+        if (scope is not null) scope.Activate(shader);
         {
             if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, shader)) return;
             api.Render.RenderMesh(capture.quad);

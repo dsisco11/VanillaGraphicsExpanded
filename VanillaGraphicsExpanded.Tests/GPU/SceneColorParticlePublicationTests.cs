@@ -44,7 +44,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         float[] identity = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
         int resolveDraws = 0;
         var render = RuntimeEngineServices.Render(2, frames, () => identity, () => identity,
-            () => { resolveDraws++; drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); });
+            () => { resolveDraws++; drawing.RenderGeometry(); });
         var renderMock = Mock.Get(render);
         renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
         renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
@@ -57,6 +57,15 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         using var gbuffer = new GBufferManager(api);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var capture = new SceneColorParticleCapture(api, gbuffer);
+        using var directBuffers = new DirectLightingBufferManager(api);
+        using var direct = new DirectLightingRenderer(api, gbuffer, directBuffers);
+        var config = new VanillaGraphicsExpanded.LumOn.VgeConfig(); config.LumOn.Enabled = false;
+        using var composite = new PBRCompositeRenderer(api, gbuffer, directBuffers, config, () => null);
+        using var separateRead = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba16f);
+        bool previousRefraction = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled;
+        int previousScale = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale;
+        VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;
+        VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale = 1;
         Assert.Equal(8.5, capture.RenderOrder);
         Assert.Contains(events.Registrations, value => ReferenceEquals(value.Renderer, capture) && value.Stage == EnumRenderStage.Before);
         Assert.Contains(events.Registrations, value => ReferenceEquals(value.Renderer, capture) && value.Stage == EnumRenderStage.Opaque);
@@ -117,7 +126,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     scope.Complete();
                 }
                 Assert.Null(SceneColorParticleCapture.Layer(api));
-                events.Render(EnumRenderStage.Opaque);
+                capture.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                 var layer = SceneColorParticleCapture.Layer(api);
                 Assert.NotNull(layer);
                 Assert.Null(SceneColorParticleCapture.Layer(assets.Api));
@@ -125,14 +134,33 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 Assert.All(layer.ReadPixels(), value => Assert.Equal(0, value));
                 int receiver = SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId);
                 Assert.NotEqual(depth.TextureId, receiver);
-                int perCycle = ssao ? 2 : 1;
+                int perCycle = ssao ? 6 : 1;
                 Assert.Equal(cycle * perCycle + 1, resolveDraws);
                 if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadPixels()[..4]);
                 SceneColorParticleCapture.RestoreSsao(assets.Api);
                 Assert.Equal(cycle * perCycle + 1, resolveDraws);
                 // Model the compositor's later boundary explicitly: receiver separation
                 // above must not restore metadata before deferred material lighting.
-                SceneColorParticleCapture.RestoreSsao(api);
+                if (ssao)
+                {
+                    // The real independent compositor owns SSAO restoration and receiver
+                    // reduction in one boundary, including first-use target preparation.
+                    ShaderProgramBase.CurrentShaderProgram = null;
+                    StateCache.Current.UnbindProgram();
+                    StateCache.Current.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.Viewport);
+                    StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, engine.FboId);
+                    StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, separateRead.FboId);
+                    StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X=1, Y=1, Width=1, Height=1 });
+                    direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                    composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                    Assert.True(composite.RefractionScene.Published);
+                    Assert.Equal(2, composite.RefractionScene.BackgroundScale);
+                    Assert.Equal(engine.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
+                    Assert.Equal(separateRead.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
+                    int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport);
+                    Assert.Equal(new[] { 1, 1, 1, 1 }, viewport);
+                }
+                else SceneColorParticleCapture.RestoreSsao(api);
                 Assert.Equal((cycle + 1) * perCycle, resolveDraws);
                 if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadPixels()[..4]);
                 if (cycle == 0) capture.OnRenderFrame(.016f, EnumRenderStage.Before);
@@ -151,6 +179,8 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         }
         finally
         {
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = previousRefraction;
+            VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale = previousScale;
             ShaderProgramBase.CurrentShaderProgram = null;
             ShaderCapabilities.Forget(cube);
             ShaderPrograms.Particlescube = previousCube;
