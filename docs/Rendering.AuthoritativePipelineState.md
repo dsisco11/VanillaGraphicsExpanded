@@ -185,7 +185,9 @@ uses NativeWindow.Context. Installed OpenTK 4.9.4 exposes GetCurrentContext, Mak
 and DestroyWindow. Do not use `GlExtensions.TryGetContextKey`: vendor/version/renderer strings
 are device characteristics and can coincide across replacement contexts.
 
-At renderer initialization register the actual owner/current handle through a focused provider;
+Before the first routed engine state call, register the actual owner/current handle through the
+engine adapter's focused provider. Hooks installed in StartPre can run during menu rendering before
+StartClientSide; renderer initialization alone is too late. Later initialization reuses the registration;
 headless fixtures register their own NativeWindow owner. Retire registration on owner disposal,
 and allocate a new generation when initialization supplies a different owner/context. At boundary
 entry and exit require the registered live owner and current handle to match; missing registration,
@@ -226,14 +228,14 @@ and performance measurements remain pending; never launch the game. UV cutoff re
 
 | Restoration proposal section | Plan work / inventory evidence |
 | --- | --- |
-| Problem and Architectural contract | Inventory and entry/effect matrix above; storage/coverage work and adapter integration follow. |
-| Categorized state representation / Source organization | Complete field table and layout decisions above; categorized migration and regression gate follow. |
-| Proposed boundary mechanism (entry/application/global-indexed) | API, alias closure and failure decisions above; snapshot and restoration implementation gates follow. |
-| Dynamic state, bindings, shader ownership | Effect matrix and cleanup ordering above; cache coverage and integration tests follow. |
-| Authority, invalidation, lifetime | Context/recovery and external exclusions above; context and selective restoration tests follow. |
-| Refraction integration and compatibility | Entry/caller inventory above; single capture adapter plus ordinary adapters and retained-family reconciliation follow. |
+| Problem and Architectural contract | Historical capture establishes the defect; FullscreenBoundary and actual capture/callback marker tests establish automated correction, not live appearance. |
+| Categorized state representation / Source organization | Complete field table; categorized values and separate knowledge partials; CategorizedStateCacheTests and PipelineStateCoverageTests. Resource owners remain separate. |
+| Proposed boundary mechanism (entry/application/global-indexed) | BoundaryEntry, PipelineStateSnapshot and BoundaryRestoration; EngineBoundaryEntryTests and EngineBoundaryRestorationTests cover resolved values, alias closure, invalidation, context and failures. |
+| Dynamic state, bindings, shader ownership | StateCache.Dynamic, EngineBoundaryScope and BoundaryBindings; EngineBoundaryBindingTests, GpuProgramUseScopeTests and real callback/viewport/FBO regressions. |
+| Authority, invalidation, lifetime | RenderContextRegistry, boundary context validation, ExecuteExternal and targeted resource retirement; context, external-mutation, deletion and unaffected-binding regressions. |
+| Refraction integration and compatibility | One capture boundary and independent lighting/composite adapters; actual marker/publication regressions; all 11 retained source invocations assigned parent prerequisites above. |
 | Relationship to approved PSO work | Parent exception governs this bounded work; future command context reuses cache mechanism, complete pipeline adoption remains parent work. |
-| Verification and acceptance | Deterministic cases above define later tests and final evidence gate; current capture cannot validate a future fix. |
+| Verification and acceptance | Delegated Debug/Release builds and 213 distinct passing tests recorded below; measured fixture counters consolidated below. Supplied post-change live evidence remains pending. |
 
 The approved parent architecture's ownership, static/dynamic policy, engine restoration and context
 generation requirements govern these decisions. Complete descriptors, target signatures, preparation
@@ -615,3 +617,93 @@ No new build/test run or live acceptance is claimed for this reconciliation. The
 reconsulted the restoration contract and linked proposal/parent adoption requirements; retained
 consumers are explicitly allowed here and remain incomplete under the parent plan. Supplied live
 validation and the broader parent completion gates remain outstanding.
+
+### Consolidated acceptance status
+
+Automated acceptance evidence was reconciled on 2026-10-05 against the restoration proposal's
+Verification and acceptance items 1–8 and the section mapping above. The delegated receipt review
+confirmed that commit 421e64c9's runtime implementation is unchanged by the documentation-only
+reconciliation in 79394b44. The three retained TRX receipts contain 213 distinct passing test IDs,
+zero failures and zero not-executed tests. Their runs followed the successful Release build.
+Release reported zero errors/107 warnings; the final Debug incremental build reported zero errors/
+zero warnings. No rerun was needed or claimed. Commands, filters and receipt paths remain recorded
+under Refraction and fullscreen callback integration.
+
+Coverage includes mixed global/indexed state and masks, partial knowledge, snapshot independence,
+context replacement, unsupported mutation rejection, exactly-once cleanup, setup/draw/shader failure,
+actual marker rasterization and publication, independent callbacks, resize/reload, disabled capture,
+engine mappings, shader ownership, resource retirement and unaffected borrowed bindings. This is
+bounded unit/headless evidence, not an engine-wide authority or installed-build claim.
+
+| Measured fixture operation | Value queries | Native transitions / other calls | Evidence |
+| --- | --- | --- | --- |
+| Cold depth entry, unchanged restoration | 3 | 0 fixed-function transitions | EngineBoundaryRestorationTests |
+| Depth entry with comparison already known | 2 | Queries resolve only missing enable/write values | EngineBoundaryEntryTests, EngineBoundaryRestorationTests |
+| Unchanged warm depth entry/restoration | 0 | 0 fixed-function transitions; 6 native error-status checks during restoration | EngineBoundaryRestorationTests |
+| Cold enable/factors/write-mask coverage | 6 per supported draw output | Entry emits no fixed-function mutation | EngineBoundaryEntryTests |
+| Unchanged warm borrowed-slot footprint | 0 additional | 0 additional texture/resource-slot binds | EngineBoundaryBindingTests |
+
+These are passing counter assertions for named fixtures, not timings or whole-frame totals.
+Capability reads have their separate GpuSupport counter. Error polling is not a state-value query
+and is not hidden by the zero-query claim. CPU/GPU speedup, representative frame cost and full
+submission/preparation measurements have not been established; broader measurements remain in
+the parent plan.
+
+Live acceptance is pending. The user supplied a startup crash at 11:49:47 PDT on 2026-10-05 in
+Vintage Story 1.22.7: the engine's LoadFrameBuffer viewport call reached GpuSupport before context
+registration. This is failed live validation, not acceptance. No post-fix visual observation or new
+RenderDoc capture has been supplied, and Vintage Story was not launched by the agent. The original refraction-cutoff.rdc
+establishes the old defect only. Required supplied evidence must identify the tested build and show
+first-person/held-item appearance, preserved mixed indexed metadata state and negative normal-alpha
+markers, and clean world color/depth in refraction publication. Report remaining screen-bottom
+cutoff behavior separately; this restoration work does not claim a UV-fallback fix.
+
+Second review and completion audit reconciled the source/test evidence, proposal section mapping,
+caller dispositions and parent prerequisites. Automated consolidation is satisfied. The live-evidence
+task and final acceptance gate remain unchecked; no completion claim is made for the entire plan.
+
+### Early engine context registration correction
+
+StartPre installs engine state hooks before StartClientSide registers the render context. Menu
+rendering can call LoadFrameBuffer between these events. Previously its routed Viewport command
+requested shared viewport limits with no registered context and threw before rendering.
+
+EngineStateCalls now obtains its cache through one engine-adapter accessor. If current registration
+is absent, it registers the actual ScreenManager platform window through EngineRenderContext before
+using the cache. The provider still verifies the current native handle and live window owner. Existing
+registrations are reused; StartClientSide registration stays idempotent and disposal retains the
+existing retirement hook. GpuSupport remains the capability owner, and direct boundary entry still
+rejects unregistered contexts. No device-string identity, fabricated owner or unchecked fallback is added.
+
+EngineStartupContextTests reproduces the reported exception through the former direct ApplyDynamic
+path, then invokes the real engine Viewport adapter against an unregistered native fixture context
+and an engine window owner. It checks native viewport values, idempotent registration, warm capability
+and transition suppression, retirement/new generation, wrong-window rejection and existing context
+operation with no engine platform. Test-owned wrappers borrow the fixture context and cannot destroy it.
+
+The second source review checked every engine adapter's cache access, provider handle/liveness guards,
+disposal retirement, unchanged direct boundary rejection and test cleanup. The correction adds no
+native drawing-state restoration outside StateCache. The earlier 213-test receipts remain historical
+baseline evidence; fresh affected validation is recorded below. Successful in-game startup and visual
+acceptance must still be supplied separately.
+
+Fresh delegated validation passed: Debug test-project build, zero errors/101 warnings; Release
+production build with shader compilation enabled, zero errors/6 warnings. The three new TRX files
+contain 97 distinct passing test IDs, zero failures/skips: 84 startup/engine/cache/boundary/publication
+cases, four capture cases and nine shader ownership/generated-resource/image-binding cases.
+Receipts: artifacts/startup-context-debug-build.log, artifacts/startup-context-release-build.log,
+artifacts/startup-context-{focused,refraction,resources}.log and
+TestResults/startup-context-{focused,refraction,resources}.trx. The final Debug build includes the
+completed test cleanup changes; preliminary receipts are not substituted for these results.
+
+Commands used NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages with no shader-build overrides:
+
+~~~text
+dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore
+dotnet build VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj -c Release --no-restore
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-build --no-restore --filter '<selection>' --logger 'trx;LogFileName=startup-context-<group>.trx' --results-directory TestResults
+
+focused: FullyQualifiedName~EngineStartupContextTests|FullyQualifiedName~EngineState|FullyQualifiedName~EngineBoundary|FullyQualifiedName~Categorized|FullyQualifiedName~GpuSupport|FullyQualifiedName~StateCacheResourceDeletion|FullyQualifiedName~ShaderScope|FullyQualifiedName~ShaderUniformState|FullyQualifiedName~GlStateCacheInvalidation|FullyQualifiedName~SceneColorParticlePublication
+refraction: FullyQualifiedName~WaterRefractionCaptureStateTests
+resources: FullyQualifiedName~GpuProgramUseScopeTests|FullyQualifiedName~GeneratedResourceBindingTests|FullyQualifiedName~GpuImageUnitBindingIntegrationTests
+~~~
