@@ -46,12 +46,12 @@ Phase 3: Persistent storage and last-use retirement
 
 Phase 4: Consumer ownership and adoption
   Dependencies: Phase 3.
-  ☐ Assign verified persistent candidates from the water/non-water inventory; retain frequently changed
+  ✔ Assign verified persistent candidates from the water/non-water inventory; retain frequently changed @done(26-10-05 14:14)
     data as SingleFrame rather than inventing persistent consumers without stable contents.
-  ☐ Keep independent surface/volume inputs and explicit shared instance ownership.
-  ☐ Preserve shader reload/slot changes; reject incompatible layouts, retain compatible CPU contents on executable reload.
-  ☐ Release owned versions with their owner; borrowing shader disposal must not retire shared data.
-  ☐ Remove duplicated upload caches after named/prepared paths share authority; retain raw GPU paths.
+  ✔ Keep independent surface/volume inputs and explicit shared instance ownership. @done(26-10-05 14:14)
+  ✔ Preserve shader reload/slot changes; reject incompatible layouts, retain compatible CPU contents on executable reload. @done(26-10-05 14:14)
+  ✔ Release owned versions with their owner; borrowing shader disposal must not retire shared data. @done(26-10-05 14:14)
+  ✔ Remove duplicated upload caches after named/prepared paths share authority; retain raw GPU paths. @done(26-10-05 14:14)
   Gate: consumer write/lifetime table identifies every migrated and compatibility family with reasons.
 
 Phase 5: Behavioral verification and measurements

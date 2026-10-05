@@ -11,7 +11,7 @@ internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
     internal const int BlockSize = 4704;
     #region Frame parameters
     /// <summary>Allocates the block declared by liquids/params.glsl.</summary>
-    internal LiquidFrameParamsUbo() : base(BlockSize) { }
+    internal LiquidFrameParamsUbo() : base(BlockSize, Rendering.Uniforms.UniformBufferUsage.SingleFrame) { }
     /// <summary>Stages the ProjectionMatrix field.</summary>
     internal ReadOnlySpan<float> ProjectionMatrix { set => WriteMatrix4(0, value); }
     /// <summary>Stages the matching column-major inverse used by every receiver reconstruction.</summary>

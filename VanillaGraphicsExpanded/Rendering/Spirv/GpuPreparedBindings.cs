@@ -13,10 +13,11 @@ internal sealed class GpuPreparedBindings
     private readonly Dictionary<ulong, Entry> entriesByIdentity = new();
     private readonly Dictionary<int, int> uniformResourceLocations = new();
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> blockIndices = new();
+    private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> blockSizes = new();
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> textureLocations = new();
     /// <summary>Describes one contract entry without exposing reflection uniform locations.</summary>
     internal readonly record struct Entry(GpuBindingEntry Contract, bool Active, ActiveUniformType Type,
-        IReadOnlyList<bool> ActiveElements);
+        IReadOnlyList<bool> ActiveElements, int MinimumSize = 0);
 
     /// <summary>Provides deterministic contract indices independent of GPU binding slots.</summary>
     internal IReadOnlyList<Entry> Entries { get; }
@@ -103,7 +104,7 @@ internal sealed class GpuPreparedBindings
                 if (entry.Binding.TextureTarget != 0 && CompatibleTextureTarget(type) != entry.Binding.TextureTarget)
                     throw new InvalidOperationException($"Incompatible linked texture target for '{entry.Name}': {type}.");
             }
-            entries.Add(new(entry, active, type, Array.AsReadOnly(elements)));
+            entries.Add(new(entry, active, type, Array.AsReadOnly(elements), blockSizes.GetValueOrDefault((entry.Kind, entry.Binding.Slot))));
         }
         foreach (var resource in linked.Keys)
             if (!matched.Contains(resource))
@@ -224,6 +225,7 @@ internal sealed class GpuPreparedBindings
                 throw new InvalidOperationException($"Ambiguous linked {kind} binding {slot}.");
             // Diagnostic adapters retain one representative; submission binds by slot.
             blockIndices.Add((kind, slot), resource);
+            blockSizes.Add((kind, slot), values[1]);
         }
     }
 

@@ -10,7 +10,7 @@ internal sealed class LiquidDepthFrameParamsUbo : CpuUniformBuffer
 
     #region Frame inputs
     /// <summary>Allocates one column-major projection matrix.</summary>
-    internal LiquidDepthFrameParamsUbo() : base(64) { }
+    internal LiquidDepthFrameParamsUbo() : base(64, Rendering.Uniforms.UniformBufferUsage.SingleFrame) { }
 
     /// <summary>Copies the engine's current projection matrix.</summary>
     internal ReadOnlySpan<float> ProjectionMatrix { set => WriteMatrix4(0, value); }

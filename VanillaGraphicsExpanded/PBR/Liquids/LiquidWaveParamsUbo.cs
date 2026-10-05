@@ -10,7 +10,7 @@ internal sealed class LiquidWaveParamsUbo : CpuUniformBuffer
 
     #region Frame inputs
     /// <summary>Allocates std140 phase and weather vectors.</summary>
-    internal LiquidWaveParamsUbo() : base(32) { }
+    internal LiquidWaveParamsUbo() : base(32, Rendering.Uniforms.UniformBufferUsage.SingleFrame) { }
 
     /// <summary>Writes four world-anchored wave phases in radians.</summary>
     internal Vector4 Phases { set => WriteVector4(0, value); }

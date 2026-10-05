@@ -220,6 +220,12 @@ public abstract class CpuUniformBuffer : IDisposable
             return false;
         }
 
+        // Prepared interface extents survive reload with the executable; never infer layout from a block name alone.
+        if (program.ProgramLayout.BinaryInterface is { } binary)
+            foreach (var binding in binary.PreparedBindings.Entries)
+                if (binding.Contract.Kind == Contracts.ShaderBindingKind.UniformBlock && binding.Contract.Name == blockName)
+                    ShaderPreparedSubmission.ValidateUniformBlock(binding, this);
+
         return Publish(null, program, blockName);
     }
 

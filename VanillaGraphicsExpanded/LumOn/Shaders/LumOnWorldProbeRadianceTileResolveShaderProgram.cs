@@ -35,8 +35,7 @@ public sealed partial class LumOnWorldProbeRadianceTileResolveShaderProgram : Gp
     {
         get
         {
-            var parameters = paramsUbo ??= new LumOnWorldProbeResolveParamsUbo();
-            parameters.SetWriteGuard(RequireInputMutation);
+            var parameters = paramsUbo ??= OwnUniformBuffer(new LumOnWorldProbeResolveParamsUbo());
             return parameters;
         }
     }

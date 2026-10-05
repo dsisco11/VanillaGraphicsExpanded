@@ -126,6 +126,7 @@ public abstract partial class GpuProgram
     public new void Dispose()
     {
         retired = true;
+        ReleaseOwnedUniforms();
         if (ProgramId == 0)
         {
             VertexShader = null;
@@ -139,4 +140,3 @@ public abstract partial class GpuProgram
     }
     #endregion
 }
-

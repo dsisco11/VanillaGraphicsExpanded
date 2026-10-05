@@ -110,6 +110,8 @@ internal static class ShaderPreparedSubmission
     internal static void ValidateUniformBlock(GpuPreparedBindings.Entry binding, CpuUniformBuffer? buffer)
     {
         Require(binding, buffer != null);
+        if (binding.Active && buffer != null && buffer.SizeBytes < binding.MinimumSize)
+            throw new InvalidOperationException($"CPU uniform block is too small for {binding.Contract.Name}.");
         if (binding.Active && buffer != null && !GpuUniformRingSystem.TryGetCurrent(out _))
             throw new InvalidOperationException("An active CPU uniform block requires a uniform ring.");
     }

@@ -12,7 +12,8 @@ public sealed class LumOnWorldProbeResolveParamsUbo : CpuUniformBuffer
     public const string BlockName = "VgeLumOnWorldProbeResolveParamsUBO";
     public const int UboSizeBytes = 16;
 
-    public LumOnWorldProbeResolveParamsUbo() : base(UboSizeBytes)
+    /// <summary>Retains atlas dimensions across frames until the owning resolve target changes.</summary>
+    public LumOnWorldProbeResolveParamsUbo() : base(UboSizeBytes, Rendering.Uniforms.UniformBufferUsage.MultiFrame)
     {
     }
 

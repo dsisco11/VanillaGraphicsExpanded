@@ -15,7 +15,7 @@ internal sealed class LiquidDrawParamsUbo : CpuUniformBuffer
 
     #region Draw parameters
     /// <summary>Allocates a std140 matrix followed by origin and preview transparency.</summary>
-    internal LiquidDrawParamsUbo() : base(80) { }
+    internal LiquidDrawParamsUbo() : base(80, Rendering.Uniforms.UniformBufferUsage.SingleFrame) { }
 
     /// <summary>Copies engine column-major storage without performing engine matrix arithmetic.</summary>
     internal void SetModelView(float[] matrix)
