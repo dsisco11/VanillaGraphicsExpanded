@@ -589,6 +589,7 @@ Phase 16 — Reuse unchanged uniform-buffer uploads safely
 
 Phase 17 — Plan and implement explicit uniform-buffer lifetimes
   Reference: docs/Rendering.UniformBufferLifetime.Proposal.md, including its linked contracts.
+  Implementation plan: docs/Rendering.UniformBufferLifetime.todo.
   ☐ Convert the proposal into docs/Rendering.UniformBufferLifetime.todo.
     - Organize dependency-ordered phases with actionable tasks, verification and completion criteria.
     - Map every proposal requirement to the plan, including lifetime declarations, logical versus

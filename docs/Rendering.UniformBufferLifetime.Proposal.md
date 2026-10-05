@@ -1,6 +1,7 @@
 # Uniform-buffer lifetime and storage ownership
 
-Status: proposed. This document defines a design; it does not change runtime behavior.
+Status: design proposal; implementation changes are undergoing user review one phase at a time.
+Implementation plan: [Rendering.UniformBufferLifetime.todo](Rendering.UniformBufferLifetime.todo).
 
 ## Intent
 
