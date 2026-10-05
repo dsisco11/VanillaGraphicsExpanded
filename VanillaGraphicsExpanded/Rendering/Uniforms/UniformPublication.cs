@@ -8,15 +8,16 @@ internal sealed class UniformPublication : IDisposable
     private readonly UniformBufferUsage usage;
     private GpuUniformRingBuffer? allocator;
     private GpuUniformRingBuffer.Allocation transient;
+    private UniformStorageVersion? retained;
     private ulong revision;
     private bool disposed;
 
     /// <summary>Describes one candidate without committing ownership or dirty CPU work.</summary>
-    internal readonly record struct Candidate(GpuUniformRingBuffer.Allocation Transient)
+    internal readonly record struct Candidate(GpuUniformRingBuffer.Allocation Transient, UniformStorageVersion? Retained)
     {
-        internal GpuUniformBuffer Buffer => Transient.Buffer;
-        internal int Offset => Transient.OffsetBytes;
-        internal int Size => Transient.SizeBytes;
+        internal GpuUniformBuffer Buffer => Retained?.Page.Buffer ?? Transient.Buffer;
+        internal int Offset => Retained?.Offset ?? Transient.OffsetBytes;
+        internal int Size => Retained?.Size ?? Transient.SizeBytes;
     }
 
     #region Public API
@@ -34,30 +35,39 @@ internal sealed class UniformPublication : IDisposable
         ring.RequireOpenPublication();
         bool unchanged = ReferenceEquals(allocator, ring) && revision == contentRevision;
         if (usage == UniformBufferUsage.MultiFrame)
-            throw new NotSupportedException("Retained uniform storage is not available.");
-        if (usage == UniformBufferUsage.SingleFrame && unchanged && ring.CanReuse(transient)) return new(transient);
-        return new(ring.AllocateAndWrite(bytes));
+        {
+            var pool = ring.PersistentStorage;
+            if (unchanged && retained is not null && pool.IsCurrent(retained)) return new(default, retained);
+            return new(default, pool.Allocate(bytes));
+        }
+        if (usage == UniformBufferUsage.SingleFrame && unchanged && ring.CanReuse(transient)) return new(transient, null);
+        return new(ring.AllocateAndWrite(bytes), null);
     }
 
-    /// <summary>Commits only after binding succeeds, retaining the successfully bound immutable range.</summary>
+    /// <summary>Commits only after binding succeeds, recording even unchanged persistent rebindings.</summary>
     internal void Commit(GpuUniformRingBuffer ring, in Candidate candidate, ulong contentRevision)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        allocator = ring; transient = candidate.Transient; revision = contentRevision;
+        candidate.Retained?.Owner.MarkUsed(candidate.Retained);
+        if (retained is not null && !ReferenceEquals(retained, candidate.Retained)) retained.Owner.Release(retained);
+        allocator = ring; transient = candidate.Transient; retained = candidate.Retained; revision = contentRevision;
     }
 
-    /// <summary>Abandons a candidate without replacing the previous successful publication.</summary>
+    /// <summary>Releases only a newly reserved candidate; failed publication preserves the previous version.</summary>
     internal void Abort(in Candidate candidate)
     {
+        if (candidate.Retained is not null && !ReferenceEquals(candidate.Retained, retained))
+            candidate.Retained.Owner.Release(candidate.Retained);
         // Ring reservations remain immutable until their epoch ends, including failed publications.
     }
 
-    /// <summary>Terminates this logical publication; the ring retains physical storage until epoch retirement.</summary>
+    /// <summary>Terminates this logical publication and queues its retained range for safe retirement.</summary>
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
-        allocator = null; transient = default;
+        retained?.Owner.Release(retained);
+        retained = null; allocator = null; transient = default;
     }
     #endregion
 }

@@ -58,6 +58,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     private ulong allocationEpoch;
     private bool epochClosed;
     private bool disposed;
+    private Uniforms.PersistentUniformStorage? persistentStorage;
 
     private int uniformOffsetAlignmentBytes;
 
@@ -70,7 +71,8 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
     /// <summary>Counts payload bytes copied, excluding alignment padding and resource binding.</summary>
     internal long BytesWritten { get; private set; }
-
+    /// <summary>Counts blocking waits for transient page reuse, independently of copied bytes.</summary>
+    internal long FenceWaits { get; private set; }
     public int UniformBufferOffsetAlignmentBytes
     {
         get
@@ -86,10 +88,26 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
     public bool UsesPersistentMapping => usePersistent;
 
-    /// <summary>Requires an open epoch so later GPU uses cannot escape its completion fence.</summary>
-    internal void RequireOpenPublication()
+    /// <summary>Creates retained storage lazily under this frame allocator's context and disposal owner.</summary>
+    internal Uniforms.PersistentUniformStorage PersistentStorage
+    {
+        get
+        {
+            RequireAlive();
+            return persistentStorage ??= new(UniformBufferOffsetAlignmentBytes, usePersistent, coherent);
+        }
+    }
+
+    /// <summary>Rejects publication after the renderer-owned allocator is disposed.</summary>
+    internal void RequireAlive()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+    }
+
+    /// <summary>Requires an open epoch so later GPU uses cannot escape the frame's completion fence.</summary>
+    internal void RequireOpenPublication()
+    {
+        RequireAlive();
         if (epochClosed) throw new InvalidOperationException("Uniform publication requires an open frame.");
     }
 
@@ -117,6 +135,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         this.coherent = coherent;
         this.debugName = debugName;
 
+        GpuSupport.EnsureCurrentContext();
         usePersistent = preferPersistent && GpuSupport.SupportsArbBufferStorage;
 
         pages = new GpuUniformBuffer[pageCount];
@@ -149,15 +168,16 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     /// <summary>Starts a fresh allocation epoch after waiting for the selected page's previous work.</summary>
     public void BeginFrame(int frameIndex)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        RequireAlive();
         if (frameIndex < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(frameIndex), frameIndex, "Frame index must be >= 0.");
         }
 
         int pageIndex = frameIndex % pageCount;
-        // Seal pending snapshots before a repeated begin resets their page.
+        // A repeated begin must also fence earlier submitted snapshots before resetting their page.
         if (!epochClosed && writeOffsetBytes > 0) EndFrame();
+        persistentStorage?.SealFrame();
         WaitForFence(pageIndex);
 
         // Even a repeated frame index resets the page. Old snapshots cannot be rebound
@@ -180,10 +200,11 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     /// </summary>
     public void EndFrame()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        RequireAlive();
         // Close reuse before fencing, including when fence creation fails.
         unchecked { allocationEpoch++; }
         epochClosed = true;
+        persistentStorage?.SealFrame();
         fences[activePageIndex]?.Dispose();
         fences[activePageIndex] = null;
 
@@ -246,7 +267,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
             page.UploadSubData<byte>(data, dstOffsetBytes: offset, byteCount: data.Length);
         }
 
-        // Failed copies never become publications or successful-copy counter entries.
+        // Failed native copies never become publications or successful-copy counter entries.
         if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Transient uniform upload failed.");
         writeOffsetBytes = endExclusive;
         AllocationsWritten++;
@@ -265,6 +286,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        persistentStorage?.Dispose();
         for (int i = 0; i < fences.Length; i++)
         {
             fences[i]?.Dispose();
@@ -292,10 +314,13 @@ internal sealed class GpuUniformRingBuffer : IDisposable
             return;
         }
 
-        // Flush the command stream when waiting; polling alone cannot guarantee submission.
+        // Flush the command stream when waiting; a zero-timeout poll alone cannot guarantee submission.
         var status = fence.Poll();
         while (status == WaitSyncStatus.TimeoutExpired)
+        {
+            FenceWaits++;
             status = fence.Wait(TimeSpan.FromMilliseconds(1));
+        }
         if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Uniform page fence failed.");
         fence.Dispose();
         fences[pageIndex] = null;

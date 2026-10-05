@@ -40,7 +40,7 @@ Phase 3: Persistent storage and last-use retirement
   ☐ Support persistent coherent/explicit-flush mappings and conventional uploads without orphaning live data.
   ☐ Track every bind including unchanged versions and scope restoration; group retirement behind fences.
   ☐ Reclaim released versions only after latest use completes; never recycle a current owned version.
-  ☐ Reject stale allocator/context/page generations; handle overflow, failure, replacement and teardown.
+  ☐ Reject stale allocator/page generations; handle overflow, failure and renderer-owned teardown.
   ☐ Count allocations, payload copies, binds, resident/pending bytes and waits independently.
   Gate: immutable snapshots and cross-frame reuse work with both backends; elapsed frames never prove safety.
 
@@ -49,7 +49,7 @@ Phase 4: Consumer ownership and adoption
   ☐ Assign verified persistent candidates from the water/non-water inventory; retain frequently changed
     data as SingleFrame rather than inventing persistent consumers without stable contents.
   ☐ Keep independent surface/volume inputs and explicit shared instance ownership.
-  ☐ Preserve shader reload/slot changes; reject incompatible layouts, retain CPU contents on context changes.
+  ☐ Preserve shader reload/slot changes; reject incompatible layouts, retain compatible CPU contents on executable reload.
   ☐ Release owned versions with their owner; borrowing shader disposal must not retire shared data.
   ☐ Remove duplicated upload caches after named/prepared paths share authority; retain raw GPU paths.
   Gate: consumer write/lifetime table identifies every migrated and compatibility family with reasons.
@@ -58,7 +58,7 @@ Phase 5: Behavioral verification and measurements
   Dependencies: Phases 2–4.
   ☐ Delegate Debug/Release builds with normal shader receipts and focused unit/headless suites.
   ☐ Observe actual GPU snapshots across draws/dispatches, same-frame edits, nested restoration, sharing,
-    different slots, reload, incompatible layouts, context replacement and disposal.
+    different slots, reload, incompatible layouts and disposal.
   ☐ Verify zero unchanged cross-frame copies, transient rollover/repeated indices, pool reuse,
     delayed completion and replacement after an old version was rebound in a later frame.
   ☐ Exercise failed allocation/upload/bind and retry, mapping/flush/fallback, alignment and overflow.

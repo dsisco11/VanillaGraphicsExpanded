@@ -22,10 +22,7 @@ or explicit flushes. Record every successful bind, including unchanged rebinding
 Group latest uses behind frame fences. Reclaim only released versions whose latest use completed;
 never reclaim a still-owned current version. Poll retirement without blocking; report pressure failures.
 
-Tie physical provenance to the registered context generation. Replace lost-context allocators
-through the existing frame controller, preserving CPU contents for republication. Existing
-GpuUniformBuffer, GpuFence, capability and StateCache owners retain native responsibilities.
-Live independent contexts require separate owners; context replacement is not live migration.
+Tie allocators to one renderer/context lifetime and dispose them while that context is current, before teardown. Automatic context replacement is outside this work; StateCache replacement policy will be handled separately. Existing GpuUniformBuffer, GpuFence, capability and StateCache owners retain native responsibilities.
 
 Keep CpuUniformBuffer.Dispose reset compatibility distinct from terminal logical-publication
 and shader-owner disposal. Borrowing shaders must not retire shared data. Executable reload

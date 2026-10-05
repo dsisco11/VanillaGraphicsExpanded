@@ -22,6 +22,8 @@ public sealed class GpuUniformRingModSystem : ModSystem
     {
         capi = api;
 
+        // This mod system may initialize before other renderer owners; register before allocating context storage.
+        Rendering.Integration.EngineRenderContext.RegisterCurrent();
         // Conservative defaults; can be made configurable later.
         var ring = new GpuUniformRingBuffer(
             pageSizeBytes: 2 * 1024 * 1024,

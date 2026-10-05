@@ -6,12 +6,103 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Observes immutable transient uniform versions and allocation epochs on real storage backends.</summary>
+/// <summary>Observes immutable uniform versions and their last-use retirement on real storage backends.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Unchanged cross-frame publications retain one range while changed bytes preserve earlier GPU snapshots.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public void PersistentVersionsReuseAcrossFramesAndPreserveSnapshots(bool mapped, bool coherent)
+    {
+        EnsureContextValid();
+        using var ring = new GpuUniformRingBuffer(65536, 3, mapped, coherent);
+        using var publication = new UniformPublication(UniformBufferUsage.MultiFrame);
+        ring.BeginFrame(0);
+        var original = Publish(publication, ring, 123, 1);
+        for (int frame = 1; frame < 5; frame++)
+        {
+            ring.EndFrame();
+            ring.BeginFrame(frame);
+            var reused = Publish(publication, ring, 123, 1);
+            Assert.Same(original.Retained, reused.Retained);
+            Assert.Equal(123u, Observe(reused));
+        }
+        var changed = Publish(publication, ring, 456, 2);
+        Assert.NotSame(original.Retained, changed.Retained);
+        Assert.Equal(123u, Observe(original));
+        Assert.Equal(456u, Observe(changed));
+        Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
+        Assert.Equal(32, ring.PersistentStorage.BytesWritten);
+        Assert.Equal(6, ring.PersistentStorage.Bindings);
+        ring.EndFrame();
+    }
+
+    /// <summary>A later unchanged bind extends retirement beyond the original upload's completed frame.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public void RetirementFollowsLatestUseAndNeverReclaimsCurrentVersions(bool mapped, bool coherent)
+    {
+        EnsureContextValid();
+        using var ring = new GpuUniformRingBuffer(65536, 3, mapped, coherent);
+        var pool = ring.PersistentStorage;
+        var original = pool.Allocate(Bytes(17));
+        pool.MarkUsed(original);
+        pool.SealFrame();
+        GL.Finish();
+        pool.Collect();
+        Assert.Same(original, original.Page.Slots[original.Slot]);
+        Assert.True(pool.IsCurrent(original));
+        // The old fence has completed, but the new last-use interval has not even been sealed.
+        pool.MarkUsed(original);
+        pool.Release(original);
+        pool.Collect();
+        Assert.Same(original, original.Page.Slots[original.Slot]);
+        Assert.True(pool.PendingBytes > 0);
+        var other = pool.Allocate(Bytes(29));
+        Assert.NotEqual(original.Offset, other.Offset);
+        pool.SealFrame();
+        GL.Finish();
+        pool.Collect();
+        Assert.Null(original.Page.Slots[original.Slot]);
+        var recycled = pool.Allocate(Bytes(41));
+        Assert.Equal(original.Offset, recycled.Offset);
+        Assert.True(recycled.Generation > original.Generation);
+        Assert.False(pool.IsCurrent(original));
+        Assert.True(pool.IsCurrent(other));
+        Assert.True(pool.IsCurrent(recycled));
+        Assert.Equal(0, pool.PendingBytes);
+    }
+
+    /// <summary>Unpublished candidates release their reservation without replacing the successful logical publication.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedCandidateRetainsSuccessfulVersionAndCanRetry(bool mapped)
+    {
+        EnsureContextValid();
+        using var ring = new GpuUniformRingBuffer(65536, 3, mapped);
+        using var publication = new UniformPublication(UniformBufferUsage.MultiFrame);
+        ring.BeginFrame(0);
+        var original = Publish(publication, ring, 7, 1);
+        var rejected = publication.Prepare(ring, Bytes(8), 2);
+        Assert.Throws<ArgumentOutOfRangeException>(() => rejected.Buffer.BindRange(-1, rejected.Offset, rejected.Size));
+        publication.Abort(rejected);
+        Assert.Null(rejected.Retained!.Page.Slots[rejected.Retained.Slot]);
+        Assert.Same(original.Retained, publication.Prepare(ring, Bytes(7), 1).Retained);
+        var retry = Publish(publication, ring, 8, 2);
+        Assert.Equal(8u, Observe(retry));
+        publication.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => publication.Prepare(ring, Bytes(9), 3));
+        ring.EndFrame();
+    }
+
     /// <summary>Transient usage preserves same-frame reuse only for frame lifetime and invalidates repeated frame indices.</summary>
     [Theory]
     [InlineData(false)]
@@ -38,6 +129,33 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
         ring.EndFrame();
     }
 
+    /// <summary>Capacity failure does not reclaim owned slots; released unused slots recycle with a new generation.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public void PoolBudgetAndAlignmentPreserveOwnedRanges(bool mapped, bool coherent)
+    {
+        EnsureContextValid();
+        using var ring = new GpuUniformRingBuffer(65536, 3, mapped, coherent);
+        int alignment = ring.UniformBufferOffsetAlignmentBytes;
+        using var pool = new PersistentUniformStorage(alignment, ring.UsesPersistentMapping, coherent, 65536);
+        var versions = new List<UniformStorageVersion>();
+        for (int slot = 0; slot < 65536 / alignment; slot++)
+        {
+            var version = pool.Allocate(Bytes((uint)slot));
+            Assert.Equal(0, version.Offset % alignment);
+            versions.Add(version);
+        }
+        Assert.Throws<InvalidOperationException>(() => pool.Allocate(Bytes(99)));
+        Assert.All(versions, version => Assert.True(pool.IsCurrent(version)));
+        pool.Release(versions[0]);
+        var replacement = pool.Allocate(Bytes(99));
+        Assert.Equal(versions[0].Offset, replacement.Offset);
+        Assert.True(replacement.Generation > versions[0].Generation);
+        Assert.Equal(65536, pool.ResidentBytes);
+        Assert.Equal(0, pool.PendingBytes);
+    }
     #endregion
 
     #region Private

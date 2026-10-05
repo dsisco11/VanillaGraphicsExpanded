@@ -603,7 +603,7 @@ Phase 17 — Plan and implement explicit uniform-buffer lifetimes
     - Inventory actual consumer writes and ownership before assigning policies; migrate verified
       water and non-water consumers through the existing shader submission and state owners.
     - Preserve std140 layouts, shared-instance ownership, mutation guards, failure/retry behavior,
-      reload, context replacement, disposal and both mapped and conventional upload paths.
+      reload, renderer teardown, disposal and both mapped and conventional upload paths.
     - Keep lifetime separate from write frequency; SingleFrame does not forbid same-frame updates.
   ☐ Verify the completed overhaul and reconcile its documentation and performance evidence.
     - Satisfy all proposal and implementation-plan checks, including GPU-observed snapshots,

@@ -50,7 +50,7 @@ Keep three concepts separate:
 
 1. **Layout:** std140 member packing, total byte size and executable compatibility.
 2. **Logical instance:** retained CPU contents, content revision, usage and ownership.
-3. **Physical version:** a complete uploaded range, allocator/context identity, storage generation and retirement state.
+3. **Physical version:** a complete uploaded range, allocator identity, storage generation and retirement state.
 
 Two shaders may bind the same logical instance only when they intentionally share its contents and have compatible layouts. Identical block names or layouts alone do not establish shared ownership. Separate instances with identical bytes remain separate unless their owning system explicitly shares them; do not introduce global byte hashing or deduplication.
 
@@ -62,7 +62,7 @@ Keep named compatibility publication and prepared numeric-slot publication conne
 
 Assignments continue to modify CPU storage only. Generated submission validates the complete active input set before publishing resources. It then resolves each logical instance as follows:
 
-- Reuse a published version when the content revision is unchanged and its allocator, context, generation and declared lifetime remain valid.
+- Reuse a published version when the content revision is unchanged and its allocator, storage generation and declared lifetime remain valid.
 - Otherwise allocate a fresh compatible range and copy the complete block. Preserve alignment and block-size checks before binding.
 - Bind the selected range through the existing uniform-buffer and state-cache owners, even when no upload was needed.
 - Commit the instance's published revision/range and consume dirty work only after its publication succeeds.
@@ -93,7 +93,7 @@ Its required behavior is:
 - Every successful binding records that the physical version participates in the current submission/frame, including unchanged rebindings and scope restoration.
 - Replaced or released versions become reclaimable only after all GPU work referencing them has completed.
 - A current version is never returned to the free pool merely because its previous fence has signaled; the logical instance still owns that version.
-- Storage generations invalidate stale range records when a pool page is recycled or replaced. Allocator and context identities prevent reuse across unrelated owners.
+- Storage generations invalidate stale range records when a pool page is recycled or replaced. Allocator identities prevent reuse across unrelated owners.
 
 Use the existing fence and rendering submission boundaries to establish completion. A fixed number of elapsed frames is not sufficient proof of retirement. Group retirement behind submission/frame fences where possible instead of inserting a new fence per UBO update.
 
@@ -122,7 +122,7 @@ Shared instances have one explicit data/lifetime owner. Shaders borrow them; dis
 
 Executable reload retains compatible CPU contents and logical instances. Revalidate binding compatibility with the new prepared interface. Reuse backing storage only if the layout and rendering context remain compatible; a slot change requires rebinding, not necessarily uploading. A changed layout requires an explicitly repacked or replaced instance.
 
-Context replacement invalidates all physical versions. CPU contents can survive and be republished through the new context's allocators. Context teardown owns native cleanup and must not leave callbacks or fences attached to retired resources.
+Uniform allocators belong to one renderer/context lifetime and must be disposed while that context is current, before its teardown. Automatic context replacement and recovery are outside this work; StateCache context-replacement policy is deferred to separate work.
 
 Disposing a logical instance prevents future publication and queues its owned physical versions for safe retirement. Keep the current CPU-packing type's compatibility behavior separate during migration: introducing terminal disposal on a new logical resource must not silently change existing `CpuUniformBuffer.Dispose` callers. Update those callers and tests explicitly before removing the compatibility adapter.
 
@@ -164,7 +164,7 @@ Required focused verification includes:
 - Shared ownership, different binding slots, incompatible layouts and shader reload.
 - Transient rollover, repeated frame indices, persistent-pool reuse and delayed GPU completion.
 - Replacement after an unchanged version was used again in a later frame, proving retirement follows last use.
-- Failed allocation/upload/binding, retry, disposal, context replacement and teardown without stale publications or leaks.
+- Failed allocation/upload/binding, retry, disposal, renderer teardown without stale publications or leaks.
 - Persistent-mapped and conventional upload paths, alignment, block sizes and allocator overflow.
 - Existing CPU write guards and direct-write/MarkDirty paths; no source-text tests as a substitute for behavior.
 
