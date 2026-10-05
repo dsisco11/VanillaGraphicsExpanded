@@ -1,9 +1,5 @@
 Issues:
   Current:
-    ✔ Add debug label scopes for the remaining unlabeled base-game rendering passes. See docs/GPU.EngineRenderScopes.md; Debug build and 16 focused tests passed. Live RenderDoc confirmation remains user-run.
-    ✔ Extract FBO blitting into dedicated `GpuFramebufferBlitter` class. Constructor-configured targets, attachment notifications and persistent primary wrapper implemented; validation receipts in docs/PBR.WaterRefraction.md.
-    ✔ Create proper abstraction for FBO attachments.
-    ☐ Held items rendering as partially transparent, this is some type of OIT related bug, likely some render pass is leaving one of the OIT MRT attachment buffers bound to an incorrect slot on accident or is otherwise accidentally rendering into one of them.
     ☐ Retire `StateCache.CaptureLegacyFixedFunctionState()` after the remaining 11 source invocations are migrated or removed with evidence. Dispositions: docs/Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition. Prerequisites/removal owner: docs/Rendering.AuthoritativePipelineState.todo / Phase 8. Approved mechanism: docs/Rendering.EngineBoundaryRestoration.Proposal.md; execution plan: docs/Rendering.EngineBoundaryRestoration.todo. Engine observation does not replace restoration.
     ☐ Normal maps not loading from material atlas baking system?
     ☐ Tessellation not working (possibly due to the normal maps not loading?).
