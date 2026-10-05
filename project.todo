@@ -4,6 +4,7 @@ Issues:
     ✔ Extract FBO blitting into dedicated `GpuFramebufferBlitter` class. Constructor-configured targets, attachment notifications and persistent primary wrapper implemented; validation receipts in docs/PBR.WaterRefraction.md.
     ✔ Create proper abstraction for FBO attachments.
     ☐ Held items rendering as partially transparent, this is some type of OIT related bug, likely some render pass is leaving one of the OIT MRT attachment buffers bound to an incorrect slot on accident or is otherwise accidentally rendering into one of them.
+    ☐ Analyze the codebase and cataloge all instances of `StateCache.CaptureLegacyFixedFunctionState()`, then evaluate each instance and determine whether it is still needed now that we have the engine hooks which push all base-game gpu state cahnges through the StateCache, meaning that now the StateCache should be fully aware of the active engine state stack.
     ☐ Normal maps not loading from material atlas baking system?
     ☐ Tessellation not working (possibly due to the normal maps not loading?).
     ☐ Add edge beveling for geometry normals prior to direct lighting so that lighting appears smoother along edges and corners.
