@@ -125,10 +125,50 @@ frames reuse their textures and framebuffers. Quality selection does not own the
 and copies the selected HDR radiance without averaging. The reduced RGBA32F depth image stores
 hardware depth, original source UV and validity; RGBA16F color keeps the receiver metadata.
 Odd dimensions round up, and incomplete edge footprints read only existing source pixels.
+Depth is fetched first. A candidate must be strictly farther than the current validated
+selection and below `.999999` before its color is read. The selection starts at zero, so
+these ordered comparisons also reject nonpositive, nonfinite and sky depths. Equal depths
+retain the first valid texel in row-major order. Surviving candidates pass the shared color
+publication validator before changing the selection: invalid color cannot replace
+a valid receiver or prevent a later, nearer valid candidate from being considered.
+The complete pair validator uses that same color predicate after its depth checks; reduction
+does not repeat depth validation already established by its ordered selection guard.
 Retaining the original UV avoids reconstructing a selected silhouette at the reduced cell center.
 The reducer has no water-interface geometry: a footprint containing only foreground can retain
 that texel, which the subsequent interface test rejects. Farthest selection favors background
 coverage and can discard thin nearer submerged surfaces; full resolution remains the baseline.
+
+Matched optimized SPIR-V retains two static fetch sites, with the depth-selection branch now
+dominating the color fetch. Per complete footprint, source-level color reads fall from four
+to zero for all-invalid depth and to one for descending or equal valid depths; ascending
+valid depths still require four. Depth reads and outputs are unchanged. Total static reducer
+instructions fall from 167 to 154. All sixteen current composite variants retain their instruction
+totals; helper inlining changes ordering, so their opcode sequences are not claimed identical.
+
+The initial reorder still called the complete pair validator and retained redundant depth
+checks in optimized code. It increased the ascending workload's median GPU time; splitting
+out the shared color predicate removed those checks before finalization. The final bounded
+baseline/current/current/baseline comparison uses an RTX 4090, NVIDIA 591.86, 512x512 RGBA16F/R32F
+sources and 256x256 RGBA16F/RGBA32F outputs. Queries cover 128 warmed draws without preparation
+or uploads; five warmup and ten measured batches per run yield twenty samples per version.
+
+| Depth pattern | Baseline median (ms) | Current median (ms) |
+| --- | ---: | ---: |
+| Invalid | 0.123904 | 0.118784 |
+| Descending | 0.126976 | 0.120832 |
+| Ascending | 0.130048 | 0.125952 |
+| Mixed invalid/background | 0.128000 | 0.120832 |
+
+Ascending ranges touch at 0.128 ms; the other three measured ranges separate. These small
+results apply only to the warmed fixture, not live frame time or arbitrary material coverage.
+Full samples/ranges are in `artifacts/WaterLagAnalysis/reduction-candidate-gpu-*`; the earlier
+guard-only attempt is retained in `reduction-gpu-*`.
+The final supported shader/Debug build passed with zero warnings/errors, and all nine focused
+GPU cases passed without skips, including odd edges, malformed pairs, half-float limits,
+publication lifecycle and both composite publication paths. All 24 explicit receiver cases
+match the original shader exactly, including color, depth and provenance. The reducer and
+sixteen composite optimized binaries match the measured candidates byte-for-byte. Final
+receipts are retained in `artifacts/WaterLagAnalysis/reduction-final-*`.
 
 `liquids/receiver.glsl` supplies the shared four-tap receiver filter. Spatial bilinear weights
 are eligible only for finite physical receivers more than 0.5 mm behind the oriented local interface.
@@ -210,7 +250,8 @@ Storage and work counts are format-derived bounds, not measured GPU costs. Full 
 retain 12 bytes per full pixel. Half backgrounds add 24 bytes per reduced pixel to that restoration
 storage, about 11.9 MiB extra at 1920x1080 (about 35.6 MiB total final snapshot storage).
 Existing pre-overlay storage remains independently required. Half publication adds one fullscreen
-draw, at most four paired full-source taps and two output writes per reduced pixel. Each receiver
+draw, at most four full-source depth reads, up to four surviving color reads and two output
+writes per reduced pixel. Each receiver
 evaluation reads four depth taps, plus at most two depth-only continuity neighbors on a steep
 coplanar footprint. Only selected radiance adds three triangle-color reads or up to four spatial
 color reads. Six depth taps correspond to 24 bytes at full resolution or 96 bytes at half

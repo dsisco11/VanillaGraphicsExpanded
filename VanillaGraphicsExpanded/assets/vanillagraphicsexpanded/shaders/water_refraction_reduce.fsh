@@ -21,8 +21,11 @@ void main()
         ivec2 pixel = origin + ivec2(x, y);
         if (any(greaterThanEqual(pixel, size))) continue;
         float depth = texelFetch(sourceDepth, pixel, 0).r;
+        // Selected starts at zero and advances only after pair validation. Ordered
+        // comparisons reject invalid depth and ties before reading unused color.
+        if (!(depth > selected && depth < .999999)) continue;
         vec4 color = texelFetch(sourceColor, pixel, 0);
-        if (!VgeWaterReceiverPairValid(color, depth) || depth <= selected) continue;
+        if (!VgeWaterReceiverColorValid(color)) continue;
         selected = depth;
         outColor = color;
         outDepth = vec4(depth, (vec2(pixel) + .5) / vec2(size), 1.0);

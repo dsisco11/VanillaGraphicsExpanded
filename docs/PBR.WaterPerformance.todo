@@ -499,17 +499,45 @@ Phase 14 — Simplify isotropic scattering evaluation
   Second review and independent completion audit passed; no remaining findings.
 
 Phase 15 — Reject reduction candidates before color fetches
-  ☐ Reorder half-resolution background reduction to reject unusable depth candidates first.
+  ☑ Reorder half-resolution background reduction to reject unusable depth candidates first.
     - Reject invalid/out-of-range depth and candidates that cannot beat the current selected depth
       before fetching their color. Preserve bounds handling for odd source dimensions.
     - Fetch and validate color for surviving candidates before updating the selected receiver.
     - Preserve color-alpha validity, finite-value checks, tie ordering, original source UV metadata
       and the farthest-valid-receiver policy; invalid color must not displace a valid selection.
-  ☐ Verify all-invalid blocks, mixed valid/invalid colors, equal depths, silhouettes and odd sizes.
+  ☑ Verify all-invalid blocks, mixed valid/invalid colors, equal depths, silhouettes and odd sizes.
     - Compare reduced outputs with the prior algorithm and confirm reduced color sampling for
       rejected candidates. Measure actual GPU effects separately from source-level fetch counts.
   Completion: reduction produces equivalent receiver pairs with unnecessary color reads avoided.
   Dependency: reconcile any validity representation changes made in Phase 3 before finalizing checks.
+  Implementation: retain bounds checks, then require depth > selected and depth < .999999
+  before fetching color. Selected starts at zero and advances only after the shared receiver
+  color validator accepts the candidate. Ordered comparisons reject nonfinite/nonpositive depth,
+  sky, ties and nearer candidates; rejected colors never advance selection. Outputs and original
+  source-UV metadata retain the same farthest-valid, first-valid-tie policy.
+  The complete pair validator retains its depth predicate and reuses the same color validator;
+  reduction avoids checking depth twice after the ordered guard has already established validity.
+  Traceability: PBR.WaterRefraction.md / coherent reduction and receiver publication governs
+  the depth sentinel, finite half-float color/alpha validity, odd bounds and exact paired output.
+  Water-medium/liquid/display documents preserve unattenuated HDR and subsequent transport/OIT;
+  authoritative-state references retain existing reduction/binding/resource owners. Original
+  capture evidence and measurement policy distinguish skipped fetches from measured GPU costs.
+  Verification: final supported shader/Debug build passed with zero warnings/errors; 9/9 focused
+  GPU cases passed without skips, including malformed color/depth, alpha threshold, ties, invalid
+  far candidates, silhouettes, odd edges, half-float limits, lifecycle and both composite paths.
+  All 24 explicit receiver outputs match the original shader exactly. The reducer and 16 current
+  composite optimized binaries match measured candidates byte-for-byte. Reducer instructions
+  fall 167→154; two static fetch sites remain, with color dominated by the depth-selection guard.
+  Complete-footprint color reads fall 4→0 for invalid depth and 4→1 for descending/tied valid
+  depth; ascending valid depth remains four. No input/output format or resource changes occur.
+  The initial full-pair revalidation retained redundant depth checks and slowed the ascending
+  benchmark. Shared color validation removes that duplication. Final warmed ABBA medians per
+  128 draws improve .123904→.118784 ms invalid, .126976→.120832 descending, .130048→.125952 ascending,
+  and .128000→.120832 mixed. Ascending ranges touch; the other three separate in this bounded run.
+  These small fixture gains are not a live-frame result. PBR.WaterRefraction.md records details;
+  artifacts/WaterLagAnalysis/reduction-candidate-* and reduction-final-* retain final evidence,
+  while reduction-gpu-* retains the earlier guard-only comparison.
+  Second review and independent completion audit passed; no remaining findings.
 
 Phase 16 — Reuse unchanged uniform-buffer uploads safely
   ☐ Measure repeated whole-block uploads during activation/restoration through CpuUniformBuffer.
