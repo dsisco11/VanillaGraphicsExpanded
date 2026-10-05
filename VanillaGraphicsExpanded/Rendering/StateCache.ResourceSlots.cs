@@ -39,6 +39,12 @@ internal sealed partial class StateCache
     private readonly record struct IndexedBufferBinding(int Buffer, nint Offset, nint Size, bool Range);
 
     #region Public API
+    /// <summary>Withdraws only the generic and indexed associations touched by a failed uniform-range bind.</summary>
+    internal void InvalidateUniformRange(int slot)
+    {
+        indexedBufferBindings.Remove((BufferRangeTarget.UniformBuffer, slot));
+        bufferBindingByTarget.Remove(BufferTarget.UniformBuffer);
+    }
     /// <summary>Publishes an image view only when the current context assignment differs.</summary>
     internal void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format)
     {

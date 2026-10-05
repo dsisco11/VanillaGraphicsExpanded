@@ -7,7 +7,7 @@ internal sealed class PackedUniformBuffer : CpuUniformBuffer
 {
     #region Public API
     /// <summary>Creates fixed-size zero-initialized uniform storage.</summary>
-    public PackedUniformBuffer(int size) : base(size) { }
+    public PackedUniformBuffer(int size, Uniforms.UniformBufferUsage usage = Uniforms.UniformBufferUsage.SingleFrame) : base(size, usage) { }
 
     /// <summary>Copies a complete packed block without uploading or losing prior dirty state.</summary>
     public void SetBytes(ReadOnlySpan<byte> bytes)

@@ -86,6 +86,13 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
     public bool UsesPersistentMapping => usePersistent;
 
+    /// <summary>Requires an open epoch so later GPU uses cannot escape its completion fence.</summary>
+    internal void RequireOpenPublication()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (epochClosed) throw new InvalidOperationException("Uniform publication requires an open frame.");
+    }
+
     #region Frame lifecycle
     /// <summary>Creates fixed-capacity pages using supported persistent storage or orphaned buffers.</summary>
     public GpuUniformRingBuffer(
@@ -149,6 +156,8 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         }
 
         int pageIndex = frameIndex % pageCount;
+        // Seal pending snapshots before a repeated begin resets their page.
+        if (!epochClosed && writeOffsetBytes > 0) EndFrame();
         WaitForFence(pageIndex);
 
         // Even a repeated frame index resets the page. Old snapshots cannot be rebound
@@ -188,7 +197,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     /// <summary>Copies a complete immutable snapshot into a fresh aligned range of the active page.</summary>
     public Allocation AllocateAndWrite(ReadOnlySpan<byte> data, int? alignmentBytes = null)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        RequireOpenPublication();
         if (data.Length <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(data), "Data must be non-empty.");
@@ -237,6 +246,8 @@ internal sealed class GpuUniformRingBuffer : IDisposable
             page.UploadSubData<byte>(data, dstOffsetBytes: offset, byteCount: data.Length);
         }
 
+        // Failed copies never become publications or successful-copy counter entries.
+        if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Transient uniform upload failed.");
         writeOffsetBytes = endExclusive;
         AllocationsWritten++;
         BytesWritten += data.Length;
@@ -281,24 +292,12 @@ internal sealed class GpuUniformRingBuffer : IDisposable
             return;
         }
 
-        // Poll with small yields to avoid long blocking; in practice with 3 pages this should be rare.
-        for (int i = 0; i < 10_000; i++)
-        {
-            if (fence.TryConsumeIfSignaled())
-            {
-                fences[pageIndex] = null;
-                return;
-            }
-
-            System.Threading.Thread.Yield();
-        }
-
-        // Last resort: sleep until signaled.
-        while (!fence.TryConsumeIfSignaled())
-        {
-            System.Threading.Thread.Sleep(0);
-        }
-
+        // Flush the command stream when waiting; polling alone cannot guarantee submission.
+        var status = fence.Poll();
+        while (status == WaitSyncStatus.TimeoutExpired)
+            status = fence.Wait(TimeSpan.FromMilliseconds(1));
+        if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Uniform page fence failed.");
+        fence.Dispose();
         fences[pageIndex] = null;
     }
 

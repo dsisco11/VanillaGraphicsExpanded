@@ -76,20 +76,20 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.True(block.TryBindTo(first, LumOnUpsampleParamsUbo.BlockName, "Tests.SharedBlock"));
             Assert.Equal(4, ring.AllocationsWritten);
             ring.EndFrame();
-            Assert.True(block.TryBindToSlot(14));
-            Assert.Equal(5, ring.AllocationsWritten);
+            Assert.Throws<InvalidOperationException>(() => block.TryBindToSlot(14));
+            Assert.Equal(4, ring.AllocationsWritten);
             // Both another page and wraparound invalidate the borrowed range even when bytes are unchanged.
             for (int frame = 1; frame <= 2; frame++)
             {
                 ring.BeginFrame(frame);
                 Assert.True(block.TryBindToSlot(14));
                 Assert.Equal(0.75f, SubmittedDepthSigma());
-                Assert.Equal(5 + frame, ring.AllocationsWritten);
+                Assert.Equal(4 + frame, ring.AllocationsWritten);
                 ring.EndFrame();
             }
             ring.BeginFrame(2);
             Assert.True(block.TryBindToSlot(14));
-            Assert.Equal(8, ring.AllocationsWritten);
+            Assert.Equal(7, ring.AllocationsWritten);
             Assert.Equal(0.75f, SubmittedDepthSigma());
             replacement.BeginFrame(0);
             GpuUniformRingSystem.SetCurrent(replacement);

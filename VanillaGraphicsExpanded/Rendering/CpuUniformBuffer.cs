@@ -1,13 +1,14 @@
 using System;
 using System.Numerics;
+using VanillaGraphicsExpanded.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
 /// CPU-side std140-packed uniform-block data.
 ///
-/// Owns CPU bytes and borrows its last published range from the active UBO ring.
-/// GPU allocation and binding remain with the ring and uniform-buffer owners.
+/// Owns CPU bytes and delegates publication to its logical lifetime owner.
+/// Physical allocation and binding remain with the context allocators and uniform-buffer owners.
 ///
 /// Assignments remain CPU-only; the shader activation boundary publishes the complete block.
 /// </summary>
@@ -19,22 +20,24 @@ public abstract class CpuUniformBuffer : IDisposable
     private int dirtyEndExclusiveBytes;
     private Action? writeGuard;
     private ulong contentRevision;
-    private ulong uploadedRevision;
-    private GpuUniformRingBuffer? uploadedRing;
-    private GpuUniformRingBuffer.Allocation uploadedAllocation;
+    private UniformPublication? publication;
 
     /// <summary>Attaches an owning shader's edit contract without affecting standalone packed buffers.</summary>
     internal void SetWriteGuard(Action guard) => writeGuard = guard ?? throw new ArgumentNullException(nameof(guard));
 
     #region Public API
+    /// <summary>Fixed publication lifetime; replacement requires a new logical instance.</summary>
+    public UniformBufferUsage Usage { get; }
     /// <summary>Allocates zero-initialized packed bytes with no pending changes.</summary>
-    protected CpuUniformBuffer(int sizeBytes)
+    protected CpuUniformBuffer(int sizeBytes, UniformBufferUsage usage = UniformBufferUsage.SingleFrame)
     {
         if (sizeBytes <= 0 || sizeBytes > 65536)
         {
             throw new ArgumentOutOfRangeException(nameof(sizeBytes), "UBO size must be between 1 and 65536 bytes");
         }
 
+        if (!Enum.IsDefined(usage)) throw new ArgumentOutOfRangeException(nameof(usage));
+        Usage = usage;
         data = new byte[sizeBytes];
         isDirty = false;
         dirtyStartBytes = int.MaxValue;
@@ -217,53 +220,44 @@ public abstract class CpuUniformBuffer : IDisposable
             return false;
         }
 
-        if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) return false;
-        var allocation = GetUpload(ring);
-        if (!program.ProgramLayout.TryBindUniformBlockRange(program.ProgramId, blockName,
-            allocation.Buffer, allocation.OffsetBytes, allocation.SizeBytes, warn: null)) return false;
-        CommitUpload(ring, allocation);
-        return true;
+        return Publish(null, program, blockName);
     }
 
-    /// <summary>Uploads through the existing ring to a preparation-validated slot, committing dirty work only on success.</summary>
-    internal bool TryBindToSlot(int slot)
-    {
-        if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) return false;
-        var allocation = GetUpload(ring);
-        allocation.Buffer.BindRange(slot, allocation.OffsetBytes, allocation.SizeBytes);
-        CommitUpload(ring, allocation);
-        return true;
-    }
+    /// <summary>Publishes to a preparation-validated slot through the same logical version owner.</summary>
+    internal bool TryBindToSlot(int slot) => Publish(slot, null, null);
 
-    /// <summary>Releases the CPU-only buffer contract; no GPU resources are owned.</summary>
+    /// <summary>Resets compatibility publication without making the CPU packing object terminal.</summary>
     public void Dispose()
     {
-        // The ring owns the allocation; release only this borrowed publication record.
-        uploadedRing = null;
-        uploadedAllocation = default;
+        publication?.Dispose();
+        publication = null;
     }
     #endregion
 
     #region Private
-    /// <summary>Reuses only unchanged bytes in the same allocator's still-open allocation epoch.</summary>
-    private GpuUniformRingBuffer.Allocation GetUpload(GpuUniformRingBuffer ring)
+    /// <summary>Commits complete contents only after a successful bind and releases failed reservations.</summary>
+    private bool Publish(int? slot, IShaderSubmissionTarget? program, string? blockName)
     {
-        // A live GL buffer alone does not prove that its range still belongs to this draw epoch.
-        // Changed contents always receive a fresh snapshot, preserving earlier submitted draws.
-        if (ReferenceEquals(uploadedRing, ring) && uploadedRevision == contentRevision
-            && ring.CanReuse(uploadedAllocation)) return uploadedAllocation;
-        return ring.AllocateAndWrite(Bytes);
-    }
-
-    /// <summary>Retains the successful publication without consuming dirty work on failed binding.</summary>
-    private void CommitUpload(GpuUniformRingBuffer ring, GpuUniformRingBuffer.Allocation allocation)
-    {
-        uploadedRing = ring;
-        uploadedAllocation = allocation;
-        uploadedRevision = contentRevision;
-        isDirty = false;
-        dirtyStartBytes = int.MaxValue;
-        dirtyEndExclusiveBytes = 0;
+        if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) return false;
+        var owner = publication ??= new UniformPublication(Usage);
+        var candidate = owner.Prepare(ring, Bytes, contentRevision);
+        try
+        {
+            if (!candidate.Buffer.IsValid) throw new InvalidOperationException("Uniform storage was retired before binding.");
+            if (slot.HasValue) candidate.Buffer.BindPublicationRange(slot.Value, candidate.Offset, candidate.Size);
+            else if (!program!.ProgramLayout.TryBindUniformBlockRange(program.ProgramId, blockName!,
+                candidate.Buffer, candidate.Offset, candidate.Size, warn: null))
+            {
+                owner.Abort(candidate);
+                return false;
+            }
+            owner.Commit(ring, candidate, contentRevision);
+            isDirty = false;
+            dirtyStartBytes = int.MaxValue;
+            dirtyEndExclusiveBytes = 0;
+            return true;
+        }
+        catch { owner.Abort(candidate); throw; }
     }
     #endregion
 }

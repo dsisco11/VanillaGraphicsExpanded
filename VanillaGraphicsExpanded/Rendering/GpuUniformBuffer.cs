@@ -74,6 +74,23 @@ public sealed class GpuUniformBuffer : GpuBufferObject
         StateCache.Current.BindBufferRange(BufferRangeTarget.UniformBuffer, bindingIndex, bufferId, offsetBytes, sizeBytes);
     }
 
+    /// <summary>Publishes a logical version with capability validation and truthful failure bookkeeping.</summary>
+    internal void BindPublicationRange(int bindingIndex, int offsetBytes, int sizeBytes)
+    {
+        GpuSupport.EnsureCurrentContext();
+        if (!IsValid) throw new ObjectDisposedException(nameof(GpuUniformBuffer));
+        if (bindingIndex < 0 || bindingIndex >= GpuSupport.MaxUniformBufferBindings)
+            throw new ArgumentOutOfRangeException(nameof(bindingIndex));
+        if (sizeBytes <= 0 || sizeBytes > GpuSupport.MaxUniformBlockSize)
+            throw new ArgumentOutOfRangeException(nameof(sizeBytes));
+        BindRange(bindingIndex, offsetBytes, sizeBytes);
+        if (GL.GetError() != ErrorCode.NoError)
+        {
+            StateCache.Current.InvalidateUniformRange(bindingIndex);
+            throw new InvalidOperationException("Uniform range publication failed.");
+        }
+    }
+
     /// <summary>
     /// Unbinds any UBO from a binding point.
     /// </summary>

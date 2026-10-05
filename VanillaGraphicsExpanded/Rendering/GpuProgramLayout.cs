@@ -1203,7 +1203,7 @@ public class GpuProgramLayout
             return false;
         }
 
-        buffer.BindRange(binding, offsetBytes, sizeBytes);
+        buffer.BindPublicationRange(binding, checked((int)offsetBytes), checked((int)sizeBytes));
         return true;
     }
 
