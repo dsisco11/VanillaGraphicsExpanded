@@ -41,6 +41,25 @@ public sealed class ShaderCompilerProcessTests
         Assert.Contains("--shader-stage=compute", failure.Message);
         Assert.Contains("fixture.glsl", failure.Message);
         Assert.Contains("fixture.spv", failure.Message);
+        Assert.Contains("\"-O\"", failure.Message);
+        Assert.DoesNotContain("\"-O0\"", failure.Message);
+#if DEBUG
+        Assert.Contains("\"-g\"", failure.Message);
+#else
+        Assert.DoesNotContain("\"-g\"", failure.Message);
+#endif
+    }
+
+    /// <summary>The production entry point compiles isolated stages and reuses a matching compiler-policy receipt.</summary>
+    [Fact]
+    public void OptimizedConfigurationPublishesReusableBuildReceipt()
+    {
+        using var fixture = new ShaderBuildFixture();
+        Assert.Equal(0, fixture.Build(1));
+        var before = fixture.ContentSnapshot();
+        Assert.NotEmpty(before);
+        Assert.Equal(0, fixture.Build(1, clean: false, incremental: true));
+        Assert.Equal(before, fixture.ContentSnapshot());
     }
 
     /// <summary>Large simultaneous stdout/stderr streams cannot deadlock; a nonzero exit remains observable.</summary>

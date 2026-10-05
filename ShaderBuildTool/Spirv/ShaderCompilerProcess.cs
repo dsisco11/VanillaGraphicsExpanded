@@ -5,12 +5,8 @@ namespace ShaderBuildTool.Spirv;
 /// <summary>Owns one compiler process tree and captures both diagnostic streams without pipe deadlocks.</summary>
 internal static class ShaderCompilerProcess
 {
-    /// <summary>Matches shader optimization to the build tool configuration used by the owning MSBuild project.</summary>
-#if DEBUG
-    internal const string OptimizationArgument = "-O0";
-#else
+    /// <summary>Enables performance optimization in every build configuration.</summary>
     internal const string OptimizationArgument = "-O";
-#endif
 
     /// <summary>Emits source-level debug information only in Debug builds.</summary>
 #if DEBUG
@@ -20,7 +16,7 @@ internal static class ShaderCompilerProcess
 #endif
 
     #region Public API
-    /// <summary>Runs the pinned shader compiler with configuration-specific optimization and debug information.</summary>
+    /// <summary>Runs the pinned shader compiler with optimization and configuration-specific debug information.</summary>
     public static async Task<ShaderCompilerResult> CompileAsync(string workingDirectory, string input, string output,
         string stage, string target, bool warningsAsErrors, string entryPoint, CancellationToken cancellationToken)
     {

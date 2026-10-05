@@ -1,5 +1,9 @@
 # Declaring owned shaders
 
+Shader compilation uses performance optimization (`-O`) in both Debug and Release builds.
+Debug additionally requests debug information (`-g`); Release omits it. The build receipt
+includes both settings, so a change in optimization policy invalidates previous shader outputs.
+
 Declare a shader's immutable contract on its owning partial class. The generator automatically includes it in the shared build/runtime catalog; no registration list or special declaration filename is needed.
 
 ```csharp
