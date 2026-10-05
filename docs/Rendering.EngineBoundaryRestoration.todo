@@ -1,0 +1,205 @@
+Engine-boundary restoration through pipeline state and StateCache
+================================================================
+
+Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
+Approval: user approved the proposal on 2026-10-05. Implementation has not started.
+Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
+Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
+Project index: project.todo / Issues / Current / legacy fixed-function capture inventory.
+
+Goal and execution contract
+  Restore interrupted engine state through the existing StateCache/PSO transition machinery,
+  correcting refraction capture without adding manual state management to VGE renderers.
+  The source proposal is authoritative; this plan sequences its bounded implementation.
+  Keep all new tasks unchecked until their complete requirements and verification are satisfied.
+  Delegate every build and test run to subagents. Never launch Vintage Story.
+  Record source, unit, headless integration, supplied live evidence and measured costs separately.
+  Reuse the parent plan's implementation evidence document, docs/Rendering.AuthoritativePipelineState.md
+  (create during implementation if absent), with a distinct engine-boundary restoration section.
+  Follow XML comments, visibility regions and nontrivial-method comments; use responsibility-based
+  names without new Gl/GL/Gpu prefixes. Keep boundary composition thin and files responsibility-focused.
+
+Scope and exclusions
+  Bring forward only the shared restoration mechanism, necessary state coverage and refraction
+  integration under the approved sequencing exception. Do not claim completion of the parent plan.
+  VGE passes use PSO application or declared dynamic state; native setters are backend/integration APIs.
+  Preserve existing shader preparation/input publication, engine-aware activation, resource ownership,
+  framebuffer binding scopes and deferred resource retirement. Do not create duplicate implementations.
+  No renderer-specific restore PSO, second native-state cache, hand-coded renderer restore sequence,
+  complete-pipeline/submission implementation, render graph or new resource hierarchy.
+  No nested engine boundaries or nested graphics passes. Sequential VGE passes share one boundary.
+  Engine hooks cover supported paths, not arbitrary mods/raw GL. Retain justified external fallbacks.
+  Refraction UV fallback, ray algorithms, aesthetic fading and the separate bottom-cutoff diagnosis
+  are out of scope. Existing RenderDoc evidence proves the defect, not a future fix.
+
+Phase 1: Establish boundary coverage and implementation contracts
+  Dependencies: approved source proposal and parent-plan sequencing exception.
+  Outcome: a complete, reviewable contract for the first boundary and all affected entry points.
+
+  ☐ Inventory the pre-overlay hook and full WaterRefractionCapture.Capture call chain.
+    ☐ Trace direct lighting, composite, allocation/resize, target setup, clears, draw helpers,
+      shader activation and cleanup; include exception and early-return paths.
+    ☐ Trace installed engine callers and resumed first-person draws; distinguish established
+      incoming state from values the engine actually resets after the interruption.
+    ☐ Inventory ordinary registered direct-lighting/composite callbacks separately from capture.
+    ☐ Classify each fixed-function, dynamic and binding effect as observed, explicitly preserved,
+      reestablished by a verified engine contract, or excluded from the supported boundary.
+  ☐ Inventory every CaptureLegacyFixedFunctionState caller before proposing its disposition.
+    ☐ Identify independent engine boundaries, work inside an existing boundary and redundant scopes.
+    ☐ Record necessary retained callers and their migration dependencies; do not blanket-delete them.
+  ☐ Resolve the shared boundary API and source layout within existing owners.
+    ☐ Define coverage metadata derived from PSO/dynamic declarations plus documented helper effects;
+      exclude duplicate renderer-maintained pipeline value lists.
+    ☐ Define the effective preservation set, including global/indexed aliases and all setup/cleanup effects.
+    ☐ Select a concrete context identity/generation source and loss/replacement recovery contract.
+    ☐ Specify supported dynamic state, viewport overloads and any required indexed write-mask coverage.
+    ☐ Define entry failure versus restoration failure handling, including propagation through capture's
+      existing optional-failure catch; never report a failed restore as safe unchanged continuation.
+    ☐ Define non-nesting, exactly-once disposal and cleanup ordering with existing binding/shader scopes.
+  ☐ Record the coverage matrix, decisions, source links and deterministic reference cases in the
+    parent implementation evidence document. Map every proposal section to this plan's work.
+  ☐ Completion gate: coverage includes every affected entry point and helper; no unresolved context,
+    failure-policy or state-ownership choice blocks foundational implementation.
+
+Phase 2: Establish cache-backed state coverage and alias correctness
+  Dependencies: Phase 1 inventory and state/context decisions.
+  Outcome: all native state the first boundary can overwrite has truthful cache-owned transitions.
+
+  ☐ Extend the existing StateCache application backend only for inventoried missing coverage.
+    ☐ Model blend enables/factors per draw-output index; retain a uniform fast path only when proven.
+    ☐ Global mutations update or invalidate every overlapping indexed entry; indexed mutations
+      withdraw any assertion that all indices have the same global value.
+    ☐ Use the context's cached supported draw-buffer limit; preserve indices beyond the temporary
+      target's routing and distinguish draw-output indices from attachment numbers.
+    ☐ Apply equivalent alias handling to global/indexed write masks and other affected operations.
+      Do not flatten unsupported incoming state; expand required coverage or reject before mutation.
+    ☐ Preserve unrelated cache knowledge and existing resource-specific lifetime handling.
+  ☐ Add cache-backed viewport application and required engine-call observation.
+    ☐ Route GpuFramebuffer.BindWithViewport through the cache owner, retaining compatibility behavior.
+    ☐ Express viewport as dynamic state, outside static PSO identity; cover required scissor/dynamic
+      operations only where the boundary inventory requires them.
+    ☐ Reuse exact-signature engine mappings; avoid duplicate native calls and recursive hooks.
+  ☐ Associate affected state knowledge/capabilities with the selected context identity/generation.
+    ☐ Discard obsolete knowledge on loss/replacement/switch according to the verified context contract.
+  ☐ Delegate focused transition tests against actual GL state and representative rendered output.
+    ☐ Cover global-to-indexed, indexed-to-global and mixed enables/factors/write masks.
+    ☐ Cover viewport observation/application, repeated-operation suppression and context changes.
+  ☐ Completion gate: actual native state and cache knowledge agree for all affected operations;
+    required coverage exists before preservation scopes or consumers rely on it.
+
+Phase 3: Implement declared boundary entry and resolved snapshots
+  Dependencies: Phases 1–2.
+  Outcome: the boundary can establish its restoration contract before optional VGE work starts.
+
+  ☐ Add focused boundary declarations and internal resolved-state snapshots within the chosen owners.
+    ☐ Derive pipeline coverage from descriptors/dynamic declarations and union declared helper effects.
+    ☐ Expand global-operation coverage to every native field/index that the operation can change.
+    ☐ Keep resolved incoming values separate from authored PSOs, pipeline keys and shader/resource identity.
+  ☐ Resolve incoming coverage at entry using valid cached values and queries only for missing values.
+    ☐ Complete resolution before drawing-state mutation; use known-state contracts only with evidence.
+    ☐ Failed queries do not substitute defaults or publish a usable scope; entry failure prevents
+      the optional operation and leaves its publication unavailable and native state unchanged.
+    ☐ Retain the snapshot independently of later cache invalidation and bind it to its context generation.
+  ☐ Validate covered managed mutations before native operations, including backend/integration entry points.
+    ☐ Reject out-of-coverage operations before mutation; require contract expansion before execution.
+    ☐ Reject nested boundaries and avoid introducing query work inside steady-state managed draws.
+  ☐ Delegate tests for known/unknown/partially invalidated entry state, alias coverage, failed queries,
+    undeclared mutations, snapshot independence and nested-entry rejection.
+  ☐ Completion gate: entry either produces a complete context-bound snapshot or makes no drawing-state
+    change; all scoped mutation paths enforce the declared coverage.
+
+Phase 4: Implement restoration, cleanup and failure guarantees
+  Dependencies: Phase 3 snapshots and Phase 2 transition backend.
+  Outcome: success and supported failure paths return required native state with truthful cache knowledge.
+
+  ☐ Restore the effective preservation set through the existing cached transition backend.
+    ☐ Compare against known current state and suppress redundant calls; restore saved values even
+      when current knowledge is invalidated, without erasing the incoming snapshot or inventing defaults.
+    ☐ Preserve mixed indexed values; never restore a global value afterward that overwrites them.
+    ☐ Do not use InvalidateAll merely to force restoration; leave unrelated state alone.
+  ☐ Implement exception-safe exactly-once cleanup with the declared adapter ordering.
+    ☐ Coordinate shader ownership and borrowed bindings before final pipeline restoration where their
+      cleanup can mutate covered state; reuse UseScope and independent read/draw framebuffer scopes.
+    ☐ Reject restoration into a different context generation and follow the selected recovery contract.
+    ☐ Surface native restoration failures; mark affected knowledge unknown and apply the documented
+      failure policy without hiding either the original operation error or restoration failure.
+    ☐ Preserve explicit external-operation boundaries and affected-category invalidation for unknown calls.
+  ☐ Delegate tests for no-op and A-to-B-to-A transitions, invalidation during a scope, setup/draw/cleanup
+    failures, context mismatch, exactly-once disposal and restoration failure reporting.
+    ☐ Assert engine shader ownership and actual native state as well as cache fields.
+    ☐ Record query/native-call counts for cold entry, partially known entry and unchanged warm operation.
+  ☐ Completion gate: scoped restoration and failure guarantees pass before production capture migration;
+    the mechanism requires no renderer-owned state queries or restoration sequences.
+
+Phase 5: Integrate refraction and independent lighting/composite callbacks
+  Dependencies: Phase 4 restoration evidence and Phase 1 entry-point contracts.
+  Outcome: the complete pre-overlay interruption uses one proven engine boundary.
+
+  ☐ Place the boundary adapter around capture setup, direct lighting, composite and cleanup.
+    ☐ Remove redundant outer CapturePipeline setup after confirming each pass establishes its requirements.
+    ☐ Remove intermediate legacy snapshots from the shared capture work; retain distinct binding and
+      shader scopes that the contract still needs. Reject accidental nested engine boundaries.
+    ☐ Adapt independently registered direct-lighting/composite callbacks to their own required boundaries.
+    ☐ Keep orchestration thin; isolate boundary policy from resource allocation and shading algorithms.
+  ☐ Preserve refraction publication, failure, resize, reload, toggle and resource lifetime behavior.
+    ☐ Failed optional entry leaves capture unpublished and does not interrupt the original engine draw.
+    ☐ Keep restoration-failure handling distinct from recoverable capture failure.
+    ☐ Review each local blanket invalidation against tracked coverage; remove only proven redundancy.
+  ☐ Delegate the regression reproducing the supplied capture's mixed indexed state.
+    ☐ Enter with engine-like depth state, blend enabled for outputs 0–2 and disabled for metadata.
+    ☐ Execute actual capture then real first-person marker-writing draws; verify negative markers survive.
+    ☐ Verify final refraction publication restores the coherent world color/depth pair behind the overlay.
+  ☐ Delegate ordinary/isolated lighting and composite regressions for output equivalence, viewport,
+    independent read/draw bindings, first use, repeated frames, resize, reload, failures and disabled refraction.
+  ☐ Completion gate: capture and independent callbacks preserve their verified engine contracts and
+    resource ownership; headless evidence reproduces the old defect and verifies its correction.
+
+Phase 6: Review legacy callers and reconcile future PSO adoption
+  Dependencies: Phase 5 integration evidence and Phase 1 caller inventory.
+  Outcome: each legacy caller has an evidenced disposition and the shared mechanism has one future owner.
+
+  ☐ Reconcile every inventoried legacy caller against the proven mechanism.
+    ☐ Migrate only callers with established boundary coverage and focused validation; remove scopes
+      proven redundant inside an existing boundary or unnecessary for their actual mutations.
+    ☐ Retain necessary unconverted callers with explicit reasons and linked parent-plan prerequisites;
+      do not imply that the immediate refraction correction converts every graphics consumer.
+    ☐ Retire the legacy helper only when no necessary caller remains; otherwise retain a tracked removal task.
+  ☐ Perform a second source review against the approved proposal, actual entry points and test evidence.
+    ☐ Check one owner per state policy, cleanup ordering, unknown mutation handling and PSO-only VGE state.
+    ☐ Resolve confirmed discrepancies before marking migration work complete.
+  ☐ Update proposal/parent-plan/project links and implementation evidence without checking unrelated work.
+    ☐ Record how GraphicsCommandContext will consume the boundary mechanism during complete submission.
+    ☐ Assign renderer compatibility-wiring removal to the corresponding parent consumer migrations.
+    ☐ Retain partial overrides only at declared compatibility boundaries; keep viewport dynamic and
+      framebuffer blend-policy migration with the parent plan's complete-pipeline consumers.
+  ☐ Completion gate: no caller or temporary path has an unexplained disposition; retained migration work
+    is traceable and the bounded sequencing exception does not weaken broader completion requirements.
+
+Phase 7: Consolidate acceptance evidence and supplied live validation
+  Dependencies: Phases 1–6.
+  Outcome: correctness, implementation scope and live status are reported without overstated claims.
+
+  ☐ Reconcile each proposal section with implemented source, verification or an explicitly justified
+    retained parent-plan dependency. No unresolved in-scope defect may be labeled complete.
+  ☐ Delegate affected builds and focused unit/headless suites using repository configurations.
+    ☐ Reuse valid focused receipts; rerun checks affected by subsequent changes and report failures/skips.
+    ☐ Include shared cache, engine mapping, shader ownership and unaffected-binding regression coverage.
+  ☐ Consolidate measured boundary query/native-transition counts and distinguish them from performance
+    expectations; make no unmeasured CPU/GPU improvement claim.
+  ☐ Obtain user-supplied live observations or a new RenderDoc capture without launching the game.
+    ☐ Confirm first-person appearance, indexed metadata state and refraction-source cleanliness.
+    ☐ Record remaining bottom-cutoff behavior separately; do not treat this plan as a UV-fallback fix.
+    ☐ If evidence is unavailable, report automated completion separately and leave live acceptance pending.
+  ☐ Final acceptance: required implementation/review/tests pass, caller dispositions and parent links
+    are current, supplied live acceptance is recorded, and no scope/performance claim exceeds evidence.
+
+Open design choices and assumptions
+  API spellings in the proposal are illustrative; Phase 1 selects concrete names and layout.
+  Context identity/generation and recovery must use an established owner where available; existing
+  thread-local access alone does not prove context identity. Resolve this before snapshots are usable.
+  The precise helper/resource-binding effects and required indexed mask/dynamic coverage come from
+  inventory, not from assuming that all state is already observed by engine hooks.
+  Restoration failure behavior must be chosen explicitly; optional-capture fallback is valid for failed
+  entry, not a guarantee after failed cleanup. Existing broad catch paths need review accordingly.
+  Known-state entry contracts and broader legacy-caller migration require individual evidence.
+  User-supplied live evidence may remain pending after automated checks; it is not replaced by them.

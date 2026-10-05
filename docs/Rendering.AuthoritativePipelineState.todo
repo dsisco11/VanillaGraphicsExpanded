@@ -32,6 +32,7 @@ Scope boundaries
 
 Approved sequencing exception — engine-boundary restoration (2026-10-05)
   Source: docs/Rendering.EngineBoundaryRestoration.Proposal.md, approved by the user.
+  Execution plan: docs/Rendering.EngineBoundaryRestoration.todo.
   Bring forward the shared StateCache restoration mechanism and pre-overlay refraction adapter
   before complete graphics submission and the normal production-consumer migration sequence.
   First establish the affected boundary inventory, context policy, state coverage and validation.

@@ -2,6 +2,8 @@
 
 Status: approved by the user on 2026-10-05. Implementation has not started.
 
+Implementation plan: [Rendering.EngineBoundaryRestoration.todo](Rendering.EngineBoundaryRestoration.todo).
+
 This proposal refines the engine-restoration mechanism in the approved
 [authoritative graphics pipeline proposal](Rendering.AuthoritativePipelineState.Proposal.md)
 and its [implementation plan](Rendering.AuthoritativePipelineState.todo). It approves a bounded
