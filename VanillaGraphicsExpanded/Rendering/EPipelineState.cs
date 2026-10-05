@@ -51,11 +51,15 @@ public enum EPipelineState : ulong
     ImageBindings = 1UL << 19,
     /// <summary>Pixel-pack layout.</summary>
     PixelPack = 1UL << 20,
+    /// <summary>Dynamic viewport rectangle.</summary>
+    Viewport = 1UL << 21,
+    /// <summary>Resource clear-operation color.</summary>
+    ClearColor = 1UL << 22,
     /// <summary>All tracked fixed-function drawing state.</summary>
     FixedFunction = Depth | Blend | CullFace | ScissorTest | ColorMask | LineWidth | PointSize | PatchVertices | ProvokingVertex,
     /// <summary>All tracked resource bindings and active texture-unit selection.</summary>
     Bindings = Program | ProgramPipeline | VertexArray | FramebufferBindings | RenderbufferBinding
         | TransformFeedback | ActiveTextureUnit | TextureBindings | SamplerBindings | BufferBindings | ImageBindings,
     /// <summary>All mutable state tracked by the cache.</summary>
-    All = FixedFunction | Bindings | PixelPack
+    All = FixedFunction | Bindings | PixelPack | Viewport | ClearColor
 }

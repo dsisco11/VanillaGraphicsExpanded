@@ -10,16 +10,34 @@ internal sealed partial class StateCache
     /// <summary>Tracks supported capabilities and preserves native behavior for all other capabilities.</summary>
     internal void SetCapability(EnableCap capability, bool enabled)
     {
+        SynchronizeContext();
         switch (capability)
         {
-            case EnableCap.DepthTest: SetEnable(capability, enabled, ref depthTestEnabled); break;
-            case EnableCap.CullFace: SetEnable(capability, enabled, ref cullFaceEnabled); break;
-            case EnableCap.ScissorTest: SetEnable(capability, enabled, ref scissorTestEnabled); break;
-            case EnableCap.Blend:
-                SetEnable(capability, enabled, ref blendEnabled);
-                // Global enable affects every draw buffer, not just index zero.
-                DirtyIndexedBlendEnable();
+            case EnableCap.DepthTest:
+                if (depthKnown.HasFlag(DepthStateKnowledge.TestEnabled) && depth.TestEnabled == enabled) return;
+                // Withdraw only this field before native work; failures leave it unknown.
+                depthKnown &= ~DepthStateKnowledge.TestEnabled;
+                SetEnable(capability, enabled);
+                depth.TestEnabled = enabled;
+                depthKnown |= DepthStateKnowledge.TestEnabled;
                 break;
+            case EnableCap.CullFace:
+                if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.CullEnabled) && rasterizer.CullEnabled == enabled) return;
+                // Withdraw only this field before native work; failures leave it unknown.
+                rasterizerKnown &= ~RasterizerStateKnowledge.CullEnabled;
+                SetEnable(capability, enabled);
+                rasterizer.CullEnabled = enabled;
+                rasterizerKnown |= RasterizerStateKnowledge.CullEnabled;
+                break;
+            case EnableCap.ScissorTest:
+                if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ScissorEnabled) && rasterizer.ScissorEnabled == enabled) return;
+                // Withdraw only this field before native work; failures leave it unknown.
+                rasterizerKnown &= ~RasterizerStateKnowledge.ScissorEnabled;
+                SetEnable(capability, enabled);
+                rasterizer.ScissorEnabled = enabled;
+                rasterizerKnown |= RasterizerStateKnowledge.ScissorEnabled;
+                break;
+            case EnableCap.Blend: SetBlendEnabled(enabled); break;
             default:
                 if (enabled) GL.Enable(capability); else GL.Disable(capability);
                 break;
@@ -51,13 +69,15 @@ internal sealed partial class StateCache
         DirtyPixelPackState();
     }
 
-    /// <summary>Updates the provoking convention observed by tessellated draw adapters.</summary>
-    internal void SetProvokingVertex(ProvokingVertexMode mode)
-    {
-        GL.ProvokingVertex(mode);
-        provokingVertex = mode;
-    }
     #endregion
 
+    #endregion
+    #region Private
+    /// <summary>Issues a native capability transition and records its diagnostic count.</summary>
+    private void SetEnable(EnableCap cap, bool enabled)
+    {
+        if (enabled) GL.Enable(cap); else GL.Disable(cap);
+        FixedFunctionCalls++;
+    }
     #endregion
 }

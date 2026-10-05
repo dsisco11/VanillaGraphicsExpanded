@@ -144,7 +144,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     public void BindWithViewport()
     {
         Bind();
-        GL.Viewport(0, 0, Width, Height);
+        StateCache.Current.ApplyDynamic(new Pipeline.State.DynamicDrawState { Width = Width, Height = Height });
     }
     /// <summary>Clears the currently bound framebuffer with the requested aspects.</summary>
     public void Clear(ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
@@ -156,7 +156,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     public void Clear(float r, float g, float b, float a, ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        GL.ClearColor(r, g, b, a);
+        StateCache.Current.SetClearColor(r, g, b, a);
         GL.Clear(mask);
     }
     /// <summary>Binds and clears this framebuffer, leaving it bound for subsequent drawing.</summary>

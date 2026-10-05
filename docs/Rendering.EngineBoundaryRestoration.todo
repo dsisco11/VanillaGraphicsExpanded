@@ -2,7 +2,7 @@ Engine-boundary restoration through pipeline state and StateCache
 ================================================================
 
 Source proposal: docs/Rendering.EngineBoundaryRestoration.Proposal.md
-Approval: user approved the proposal on 2026-10-05. Phase 1 contracts completed; runtime implementation pending.
+Approval: user approved the proposal on 2026-10-05. Phases 1–2 completed; boundary snapshots, restoration and integration remain pending.
 Architecture: docs/Rendering.AuthoritativePipelineState.Proposal.md
 Parent plan: docs/Rendering.AuthoritativePipelineState.todo / Approved sequencing exception.
 Project index: project.todo / Issues / Current / legacy fixed-function capture inventory.
@@ -75,45 +75,49 @@ Phase 1: Establish boundary coverage and implementation contracts
 Phase 2: Categorize state storage and establish cache-backed coverage
   Dependencies: Phase 1 inventory and state/context decisions.
   Outcome: categorized fixed-function storage supports truthful cache-owned transitions before snapshots.
+  Completed 2026-10-05 after second source review and audit-stage-completion reconciliation.
+  Evidence: docs/Rendering.AuthoritativePipelineState.md / Categorized storage and cache-backed coverage.
+  Delegated Release/Debug builds passed; 59 focused tests passed with no failures or skips.
 
-  ☐ Replace loose fixed-function tracking fields with the inventoried category structs.
-    ☐ Introduce focused concrete value types for depth, output blending/write masks, rasterization,
+  ✔ Replace loose fixed-function tracking fields with the inventoried category structs.
+    ✔ Introduce focused concrete value types for depth, output blending/write masks, rasterization,
       primitive assembly and dynamic state as established in Phase 1; one responsibility per file.
-    ☐ Maintain separate cache-validity metadata at field/index granularity; preserve partially known state.
-    ☐ Migrate existing setters, readers, engine adapters and selective invalidation together; remove
+    ✔ Maintain separate cache-validity metadata at field/index granularity; preserve partially known state.
+    ✔ Migrate existing setters, readers, engine adapters and selective invalidation together; remove
       duplicate authoritative fields rather than maintaining a second cache during normal operation.
-    ☐ Keep native queries/transitions, alias handling and restoration in StateCache; value structs
+    ✔ Keep native queries/transitions, alias handling and restoration in StateCache; value structs
       must not issue GL calls or own independent state caches.
-    ☐ Reuse existing value types where suitable; expose reusable category values for snapshots and
+    ✔ Reuse existing value types where suitable; expose reusable category values for snapshots and
       future PSO composition without requiring the complete future descriptor implementation.
-    ☐ Define independent ownership/copying for indexed payloads; a struct containing an array must
+    ✔ Define independent ownership/copying for indexed payloads; a struct containing an array must
       not let snapshots or published descriptors alias mutable cache storage.
-    ☐ Preserve resource-binding caches, VAO associations, resource retirement and native-name reuse rules.
-  ☐ Delegate storage-refactor regression checks before boundary snapshots depend on the new layout.
-    ☐ Verify full field-to-category coverage, independent field/index validity and selective invalidation.
-    ☐ Verify existing transition behavior/call suppression and unaffected resource-binding lifetimes.
-  ☐ Extend the existing StateCache application backend only for inventoried missing coverage.
-    ☐ Model blend enables/factors per draw-output index; retain a uniform fast path only when proven.
-    ☐ Global mutations update or invalidate every overlapping indexed entry; indexed mutations
+    ✔ Preserve resource-binding caches, VAO associations, resource retirement and native-name reuse rules.
+  ✔ Delegate storage-refactor regression checks before boundary snapshots depend on the new layout.
+    ✔ Verify full field-to-category coverage, independent field/index validity and selective invalidation.
+    ✔ Verify existing transition behavior/call suppression and unaffected resource-binding lifetimes.
+  ✔ Extend the existing StateCache application backend only for inventoried missing coverage.
+    ✔ Model blend enables/factors per draw-output index; retain a uniform fast path only when proven.
+    ✔ Global mutations update or invalidate every overlapping indexed entry; indexed mutations
       withdraw any assertion that all indices have the same global value.
-    ☐ Use the context's cached supported draw-buffer limit; preserve indices beyond the temporary
+    ✔ Use the context's cached supported draw-buffer limit; preserve indices beyond the temporary
       target's routing and distinguish draw-output indices from attachment numbers.
-    ☐ Apply equivalent alias handling to global/indexed write masks and other affected operations.
+    ✔ Apply equivalent alias handling to global/indexed write masks and other affected operations.
       Do not flatten unsupported incoming state; expand required coverage or reject before mutation.
-    ☐ Preserve unrelated cache knowledge and existing resource-specific lifetime handling.
-  ☐ Add cache-backed viewport application and required engine-call observation.
-    ☐ Route GpuFramebuffer.BindWithViewport through the cache owner, retaining compatibility behavior.
-    ☐ Express viewport as dynamic state, outside static PSO identity; cover required scissor/dynamic
+    ✔ Preserve unrelated cache knowledge and existing resource-specific lifetime handling.
+  ✔ Add cache-backed viewport application and required engine-call observation.
+    ✔ Route GpuFramebuffer.BindWithViewport through the cache owner, retaining compatibility behavior.
+    ✔ Express viewport as dynamic state, outside static PSO identity; cover required scissor/dynamic
       operations only where the boundary inventory requires them.
-    ☐ Reuse exact-signature engine mappings; avoid duplicate native calls and recursive hooks.
-  ☐ Cover inventoried clear-color helper state through StateCache resource-operation storage and
-    exact-signature observation, outside static PSO identity; preserve it through boundary cleanup.
-  ☐ Associate affected state knowledge/capabilities with the selected context identity/generation.
-    ☐ Discard obsolete knowledge on loss/replacement/switch according to the verified context contract.
-  ☐ Delegate focused transition tests against actual GL state and representative rendered output.
-    ☐ Cover global-to-indexed, indexed-to-global and mixed enables/factors/write masks.
-    ☐ Cover viewport observation/application, repeated-operation suppression and context changes.
-  ☐ Completion gate: actual native state and cache knowledge agree for all affected operations;
+    ✔ Reuse exact-signature engine mappings; avoid duplicate native calls and recursive hooks.
+  ✔ Cover inventoried clear-color helper state through StateCache resource-operation storage and
+    exact-signature observation, outside static PSO identity. Boundary cleanup uses this same backend;
+    resolved capture and restoration of the helper value follow in Phases 3–4.
+  ✔ Associate affected state knowledge/capabilities with the selected context identity/generation.
+    ✔ Discard obsolete knowledge on loss/replacement/switch according to the verified context contract.
+  ✔ Delegate focused transition tests against actual GL state and representative rendered output.
+    ✔ Cover global-to-indexed, indexed-to-global and mixed enables/factors/write masks.
+    ✔ Cover viewport observation/application, repeated-operation suppression and context changes.
+  ✔ Completion gate: actual native state and cache knowledge agree for all affected operations;
     all existing fixed-function values use categorized storage with separate validity and no duplicate
     authority; required coverage exists before preservation scopes or consumers rely on it.
 

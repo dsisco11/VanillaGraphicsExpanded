@@ -172,6 +172,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             
             // Store window handle for cleanup
             _glfwWindow = windowHandle;
+            Rendering.Integration.RenderContextRegistry.RegisterCurrent(this, static target => ((HeadlessGLFixture)target)._glfwWindow != null);
             
             // Query OpenGL info
             GLVersion = GL.GetString(StringName.Version);
@@ -216,6 +217,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             TestUniformRing.Dispose();
             VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();
             CleanupGpuResources();
+            Rendering.Integration.RenderContextRegistry.Retire(this);
             GLFW.DestroyWindow(_glfwWindow);
             _glfwWindow = null;
         }

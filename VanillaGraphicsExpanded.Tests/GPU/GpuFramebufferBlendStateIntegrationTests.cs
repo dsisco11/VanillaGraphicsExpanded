@@ -23,6 +23,28 @@ public class GpuFramebufferBlendStateIntegrationTests
         this.fixture = fixture;
     }
 
+    /// <summary>An indexed write mask preserves disabled destination channels during a real draw.</summary>
+    [Fact]
+    public void IndexedWriteMaskPreservesRenderedChannels()
+    {
+        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Mask.Att0");
+        using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Mask.Att1");
+        using var fbo = GpuFramebuffer.CreateMRT([t0, t1], debugName: "Mask.Fbo")!;
+        fbo.BindWithViewport(); cache.SetColorMask(GlColorMask.All); cache.SetBlendEnabled(false);
+        cache.SetCapability(EnableCap.DepthTest, false); cache.SetCapability(EnableCap.ScissorTest, false); cache.SetCapability(EnableCap.CullFace, false);
+        ClearColorAttachments(fbo.FboId, 2, 0, 0, 255, 255); UseMrtDrawBuffers(2);
+        cache.SetColorMaskIndexed(0, GlColorMask.FromRgba(true, false, false, false));
+        using var program = SimpleMrtProgram.Create(debugName: "Mask.Program"); int vao = GL.GenVertexArray();
+        try
+        {
+            GL.BindVertexArray(vao); GL.UseProgram(program.ProgramId); GL.DrawArrays(PrimitiveType.Triangles, 0, 3); GL.Finish();
+            var c0 = ReadRgba8(fbo.FboId, 0); var c1 = ReadRgba8(fbo.FboId, 1);
+            Assert.InRange(c0.R, 245, 255); Assert.Equal((byte)255, c0.B); Assert.Equal((byte)255, c0.A);
+            Assert.InRange(c1.R, 245, 255); Assert.Equal((byte)0, c1.B);
+        }
+        finally { GL.BindVertexArray(0); GL.DeleteVertexArray(vao); cache.SetColorMask(GlColorMask.All); cache.InvalidateAll(); }
+    }
     [Fact]
     public void AttachmentBlendEnable_OverridesGlobalBlendDisable()
     {

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -31,7 +32,7 @@ internal sealed partial class StateCache
         public void Dispose()
         {
             snapshot.Restore(cache);
-            if (viewport is not null) GL.Viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+            if (viewport is not null) StateCache.Current.ApplyDynamic(new DynamicDrawState { X = viewport[0], Y = viewport[1], Width = viewport[2], Height = viewport[3] });
         }
     }
 
@@ -123,27 +124,18 @@ internal sealed partial class StateCache
 
         public void Restore(StateCache cache)
         {
-            // Force the cache to re-emit on restore.
-            cache.depthTestEnabled = null;
-            cache.blendEnabled = null;
-            cache.cullFaceEnabled = null;
-            cache.scissorTestEnabled = null;
-            cache.depthFunc = null;
-            cache.depthWriteMask = null;
-            cache.blendFunc = null;
-            cache.colorMask = null;
-            cache.lineWidth = null;
-            cache.pointSize = null;
-
-            SetEnable(EnableCap.DepthTest, DepthTest, ref cache.depthTestEnabled);
+            // Retained compatibility adapter; its consumers migrate with established boundary contracts.
+            cache.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.CullFace
+                | EPipelineState.ScissorTest | EPipelineState.ColorMask | EPipelineState.LineWidth | EPipelineState.PointSize);
+            cache.SetCapability(EnableCap.DepthTest, DepthTest);
             cache.SetDepthFunc(DepthFunc);
             cache.SetDepthWriteMask(DepthMask);
 
-            SetEnable(EnableCap.Blend, Blend, ref cache.blendEnabled);
+            cache.SetCapability(EnableCap.Blend, Blend);
             cache.SetBlendFunc(BlendFunc);
 
-            SetEnable(EnableCap.CullFace, Cull, ref cache.cullFaceEnabled);
-            SetEnable(EnableCap.ScissorTest, Scissor, ref cache.scissorTestEnabled);
+            cache.SetCapability(EnableCap.CullFace, Cull);
+            cache.SetCapability(EnableCap.ScissorTest, Scissor);
 
             cache.SetColorMask(ColorMask);
             cache.SetLineWidth(LineWidth);

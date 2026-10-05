@@ -1,7 +1,8 @@
 # Engine-boundary restoration through pipeline state and StateCache
 
 Status: approved by the user on 2026-10-05. Boundary inventory and implementation contracts are
-complete; runtime implementation remains pending. Evidence:
+complete, and categorized storage/cache-backed coverage is implemented. Boundary snapshots,
+restoration and consumer integration remain pending. Evidence:
 [Rendering.AuthoritativePipelineState.md](Rendering.AuthoritativePipelineState.md#engine-boundary-restoration).
 
 Implementation plan: [Rendering.EngineBoundaryRestoration.todo](Rendering.EngineBoundaryRestoration.todo).

@@ -228,3 +228,89 @@ and performance measurements remain pending; never launch the game. UV cutoff re
 The approved parent architecture's ownership, static/dynamic policy, engine restoration and context
 generation requirements govern these decisions. Complete descriptors, target signatures, preparation
 and full submission are future parent-plan obligations, not inventory completion criteria here.
+
+### Categorized storage and cache-backed coverage
+
+The fixed-function foundation now lives in `Rendering/Pipeline/State/`: `DepthState`,
+`BlendState` (one draw output), `RasterizerState`, `PrimitiveAssemblyState` and
+`DynamicDrawState`. `StateCache.FixedFunctionStorage.cs` owns their values and separate
+field/index knowledge, represented by byte-backed `[Flags]` enums. Knowledge checks use .NET
+`HasFlag`; setting and clearing use enum bitwise operators, preserving unrelated flags. The former nullable fixed-function fields are removed, including the
+patch/provoking fields and the scissor preservation reader. Bindings, VAO element associations,
+resource retirement and shader ownership retain their existing implementations.
+
+`StateCache.Blending.cs` uses the current context's `MaxDrawBuffers`, independently of bound
+framebuffer routing. Global operations establish every output; indexed operations update only
+that output. A global operation is suppressed only when every affected output is known and equal.
+Enables, factors and masks have independent validity. `CopyBlendValues` copies an array of value
+structs, so subsequent live cache mutation cannot alter the copy. It does not implicitly resolve
+unknown fields or provide a usable boundary snapshot; explicit snapshot coverage remains required.
+
+`StateCache.Dynamic.cs` applies integer viewports outside static pipeline identity, normalizing
+sizes to cached implementation limits. `GpuFramebuffer.BindWithViewport`, existing VGE viewport
+calls and legacy viewport cleanup use this owner. Routing the remaining known VGE callers is
+necessary to prevent the newly cached state from becoming stale; it does not migrate their
+restoration contracts. `StateCache.ClearOperations.cs` tracks the native clear-color value as
+resource-operation state. Existing VGE clear-color calls and exact engine signatures now use it.
+`EngineStateCalls` adds the integer viewport, indexed mask and four-float clear-color mappings;
+the existing startup discovery performs observation without a second native call or recursive hook.
+
+`RenderContextRegistry` combines the current GLFW pointer, weak owner identity and monotonically
+allocated registration generation. `EngineRenderContext` registers the actual
+`ScreenManager.Platform.window` at renderer initialization after checking its pointer is current.
+`RenderContextLifetimeHook` retires that owner before `NativeWindow.Dispose(bool)`; owner liveness
+is checked as an additional fallback. World leave, resize and shader reload do not retire it.
+The existing headless fixture owns a raw GLFW window rather than an OpenTK NativeWindow wrapper,
+so it registers the fixture as that window's owner and explicitly retires before destruction.
+This preserves the same pointer/owner/generation contract without replacing the established fixture.
+
+Context changes withdraw mutable knowledge and reset draw-buffer, viewport, patch and buffer
+alignment capabilities without resetting diagnostic totals. Returning to an earlier context starts
+with unknown state. Missing registration also prevents reuse of authoritative knowledge; future
+boundary entry must reject it. Resource names are neither deleted nor recreated by this mechanism.
+Scalar setters reject invalid enum/size inputs before native mutation and publish knowledge only
+after the native call returns. Native restoration failure handling remains part of the upcoming
+boundary implementation, not a guarantee supplied by the retained legacy scopes.
+
+The installed 1.22.7 engine and OpenTK 4.9.4 metadata were checked again for the public platform/window
+fields and the protected `NativeWindow.Dispose(bool)` signature. Automated evidence does not launch
+Vintage Story or establish live refraction correctness. Boundary declaration, capture, restoration,
+and refraction adapter integration remain pending.
+
+| Restoration plan task group | Controlling source | Implementation and verification |
+| --- | --- | --- |
+| Complete categorized storage, separate knowledge, copies | Restoration proposal / Categorized state representation; inventory / State representation and source layout decisions | Category value files, StateCache storage and scalar/patch/scissor partials; categorized native-state and invalidation tests. |
+| Global/indexed aliases and supported output extent | Restoration proposal / Global and indexed state | StateCache.Blending; native mixed enables/factors/masks, highest supported index, independent copies, suppression and MRT rendered output tests. |
+| Viewport and clear helper coverage | Restoration proposal / Dynamic state, bindings, and shader ownership; inventory effect matrix | StateCache dynamic/clear owners, engine mappings, framebuffer and existing caller routing; native viewport/clear values, clamping, repeated calls and selective validity tests. |
+| Context knowledge and capability lifetime | Parent architecture / Engine integration and cache authority; inventory / Context identity and recovery | Context registry, engine initialization/retirement and fixture lifecycle; actual context switch/replacement, missing/dead registration, re-registration and capability refresh tests. |
+| Unaffected resource ownership and transition behavior | Restoration proposal / Authority, invalidation, and lifetime; parent architecture / resource retirement | Existing engine-state, resource-deletion, VAO/buffer, framebuffer, unbind and scissor regressions retained. |
+
+Delegated Release validation passed on 2026-10-05: 59 tests, zero failures or skips; build
+completed with zero errors and 101 warnings. The run includes the water-refraction
+compatibility regression and successful installation/removal of the native-window disposal hook.
+Shader build receipts remained enabled. Commands used the installed package cache via
+`NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages`:
+
+- `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-restore -v quiet`
+- `dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~EngineState|FullyQualifiedName~GpuFramebufferBlendStateIntegrationTests|FullyQualifiedName~FramebufferBindingStateTests|FullyQualifiedName~StateCacheResourceDeletionTests|FullyQualifiedName~GlStateCacheUnbindIntegrationTests|FullyQualifiedName~ScissorStateScopeTests|FullyQualifiedName~WaterRefractionCaptureStateTests' --logger 'trx;LogFileName=phase2-state-validation.trx'`
+
+Receipts: `artifacts/phase2-build-validation.log` and
+`VanillaGraphicsExpanded.Tests/TestResults/phase2-state-validation.trx`.
+Tests measure zero additional native calls for repeated known scalar/global/indexed/dynamic/helper
+operations, and reapplication only for selectively invalidated scalar fields. Capability resolution
+is repeated after a context switch. These are operation-count checks, not CPU/GPU speedup claims.
+
+The second source review retained Debug PSO labels, migrated the old scissor reader, narrowed legacy
+invalidation to its existing footprint, routed remaining viewport/clear mutations, and added invalid
+input checks. The separate audit-stage-completion pass reconciled storage, transitions, context
+lifetime, exact engine signatures, copy independence and resource regression evidence against the
+restoration proposal and parent architecture. Actual boundary capture/cleanup guarantees belong to
+the subsequent snapshot/restoration work; the plan now states that dependency explicitly for clear
+color. No scope has been removed and the original mixed-state refraction restoration defect is not
+claimed fixed by this foundation.
+
+Delegated Debug compilation also passed (zero errors, 106 warnings), including the retained PSO
+debug-group branch: `dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
+-c Debug --no-restore -v quiet`, with the same package-cache environment. Receipt:
+`artifacts/phase2-debug-build-validation.log`. Final source review and the independent contract audit
+found no remaining foundational coverage issues; snapshot/restoration and live acceptance remain open.

@@ -65,6 +65,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        Rendering.Integration.EngineRenderContext.RegisterCurrent();
         // Menu framebuffers can predate mod hook installation; name the currently published table once.
         Rendering.Diagnostics.EngineFramebufferDebugLabels.ApplyDefaults(api.Render.FrameBuffers);
         PBR.HeldLighting.HeldLightSystem.Start(api, message => api.Logger.Error(message));

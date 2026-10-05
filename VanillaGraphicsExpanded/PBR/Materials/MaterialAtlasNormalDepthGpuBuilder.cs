@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -466,7 +467,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             gl.UseProgram(prevProgram);
             gl.BindVertexArray(prevVao);
             GpuFramebuffer.RestoreBinding(prevFbo);
-            GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
 
             gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
@@ -531,7 +532,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             gl.UseProgram(prevProgram);
             gl.BindVertexArray(prevVao);
             GpuFramebuffer.RestoreBinding(prevFbo);
-            GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
 
             gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
@@ -684,7 +685,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             gl.UseProgram(prevProgram);
             gl.BindVertexArray(prevVao);
             GpuFramebuffer.RestoreBinding(prevFbo);
-            GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
 
             gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
         }
@@ -694,7 +695,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     {
         BindAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
         // Identity defaults: flat normal and neutral height (0.5 encoded).
-        GL.ClearColor(0.5f, 0.5f, 1.0f, 0.5f);
+        StateCache.Current.SetClearColor(0.5f, 0.5f, 1.0f, 0.5f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
     }
 
@@ -832,13 +833,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     private static void BindTarget(DynamicTexture2D dst)
     {
         scratchFbo!.Attach(dst);
-        GL.Viewport(0, 0, dst.Width, dst.Height);
+        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = dst.Width, Height = dst.Height });
     }
 
     private static void BindAtlasTarget(int atlasTexId, int x, int y, int w, int h)
     {
         scratchFbo!.Attach(atlasTexId);
-        GL.Viewport(x, y, w, h);
+        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = x, Y = y, Width = w, Height = h });
     }
 
 
@@ -1406,7 +1407,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         private static void ClearR32f(DynamicTexture2D tex, float v)
         {
             BindTarget(tex);
-            GL.ClearColor(v, 0f, 0f, 0f);
+            StateCache.Current.SetClearColor(v, 0f, 0f, 0f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
         }
 

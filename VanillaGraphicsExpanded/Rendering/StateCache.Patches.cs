@@ -1,34 +1,36 @@
 using OpenTK.Graphics.OpenGL;
-
 namespace VanillaGraphicsExpanded.Rendering;
-
-/// <summary>Owns fixed-function patch size for scoped tessellated draws.</summary>
+/// <summary>Resolves primitive and provoking values for tessellation adapters.</summary>
 internal sealed partial class StateCache
 {
-    private int? patchVertices;
-    private ProvokingVertexMode? provokingVertex;
-
-    #region Patch state
-    /// <summary>Reads the current provoking convention, which is mutable draw state rather than a GPU capability.</summary>
-    internal ProvokingVertexMode ProvokingVertex => provokingVertex ??=
-        (ProvokingVertexMode)GL.GetInteger(GetPName.ProvokingVertex);
-
-    /// <summary>Reads the initial external state once after invalidation.</summary>
+    #region Public API
+    /// <summary>Resolves provoking convention only while unknown.</summary>
+    internal ProvokingVertexMode ProvokingVertex
+    {
+        get
+        {
+            SynchronizeContext();
+            if (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProvokingVertex))
+            {
+                rasterizer.ProvokingVertex = (ProvokingVertexMode)GL.GetInteger(GetPName.ProvokingVertex);
+                rasterizerKnown |= RasterizerStateKnowledge.ProvokingVertex;
+            }
+            return rasterizer.ProvokingVertex;
+        }
+    }
+    /// <summary>Resolves patch size only while unknown.</summary>
     internal int PatchVertices
     {
         get
         {
-            if (patchVertices is null) { GL.GetInteger(GetPName.PatchVertices, out int value); patchVertices = value; }
-            return patchVertices.Value;
+            SynchronizeContext();
+            if (!assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices))
+            {
+                assembly.PatchVertices = GL.GetInteger(GetPName.PatchVertices);
+                assemblyKnown |= PrimitiveAssemblyStateKnowledge.PatchVertices;
+            }
+            return assembly.PatchVertices;
         }
-    }
-
-    /// <summary>Changes patch size only when necessary; callers restore their saved value on exit.</summary>
-    internal void SetPatchVertices(int count)
-    {
-        if (PatchVertices == count) return;
-        GL.PatchParameter(PatchParameterInt.PatchVertices, count);
-        patchVertices = count;
     }
     #endregion
 }

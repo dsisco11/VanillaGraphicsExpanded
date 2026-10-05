@@ -1,88 +1,43 @@
-using System;
 using OpenTK.Graphics.OpenGL;
-
 namespace VanillaGraphicsExpanded.Rendering;
-
-/// <summary>
-/// Caches OpenGL state to avoid redundant driver calls.
-/// </summary>
-/// <remarks>
-/// Best-effort: correctness assumes state changes flow through this cache.
-/// When external code changes state, callers should use <see cref="Invalidate"/> for known categories
-/// or <see cref="InvalidateAll"/> when the affected state is unknown.
-/// </remarks>
+/// <summary>Applies pipeline declarations through the shared transition backend.</summary>
 internal sealed partial class StateCache
 {
-    [ThreadStatic]
-    private static StateCache? current;
-
-    public static StateCache Current => current ??= new StateCache();
-
-    private StateCache()
-    {
-    }
-
-    // Fixed-function knobs (tracked by PSO masks)
-    private bool? depthTestEnabled;
-    private DepthFunction? depthFunc;
-    private bool? depthWriteMask;
-
-    private bool? blendEnabled;
-    private GlBlendFunc? blendFunc;
-
-    private bool? cullFaceEnabled;
-    private bool? scissorTestEnabled;
-    private GlColorMask? colorMask;
-    private float? lineWidth;
-    private float? pointSize;
-
-    // Indexed blend cache. Entries are null when unknown/dirty.
-    private bool?[]? blendEnabledIndexed;
-    private GlBlendFunc?[]? blendFuncIndexed;
-
-    /// <summary>Forgets all mutable state while preserving diagnostic counters and capability limits.</summary>
+    [System.ThreadStatic] private static StateCache? current;
+    #region Public API
+    /// <summary>Returns this thread's cache after checking native context identity.</summary>
+    public static StateCache Current { get { var cache = current ??= new StateCache(); cache.SynchronizeContext(); return cache; } }
+    /// <summary>Forgets mutable knowledge without changing native state or diagnostic totals.</summary>
     public void InvalidateAll() => Invalidate(EPipelineState.All);
-
-    public void DirtyIndexedBlendFunc()
-    {
-        if (blendFuncIndexed is not null)
-        {
-            Array.Fill(blendFuncIndexed, null);
-        }
-    }
-
-    public void DirtyIndexedBlendEnable()
-    {
-        if (blendEnabledIndexed is not null)
-        {
-            Array.Fill(blendEnabledIndexed, null);
-        }
-    }
-
-    #region PSO Apply
-
+    /// <summary>Applies the fixed-function intents supplied by a compatibility pipeline.</summary>
     public void Apply(in GlPipelineDesc desc)
     {
+        SynchronizeContext();
 #if DEBUG
         if (!string.IsNullOrWhiteSpace(desc.Name))
         {
-            using var _ = GlDebug.Group($"PSO.Apply: {desc.Name}");
+            using var group = GlDebug.Group($"PSO.Apply: {desc.Name}");
             ApplyInternal(desc);
             return;
         }
 #endif
-
         ApplyInternal(desc);
     }
+    #endregion
+    #region Private
+    /// <summary>Creates an initially unknown cache.</summary>
+    private StateCache() { }
 
+    #region Pipeline application
+    /// <summary>Applies global intents before indexed overrides through the shared backend.</summary>
     private void ApplyInternal(in GlPipelineDesc desc)
     {
         // Apply order: enables/disables first, then funcs/masks, and global blend before per-RT blend.
-        ApplyEnableBit(desc, GlPipelineStateId.DepthTestEnable, EnableCap.DepthTest, ref depthTestEnabled);
-        ApplyEnableBit(desc, GlPipelineStateId.CullFaceEnable, EnableCap.CullFace, ref cullFaceEnabled);
-        ApplyEnableBit(desc, GlPipelineStateId.ScissorTestEnable, EnableCap.ScissorTest, ref scissorTestEnabled);
+        ApplyEnableBit(desc, GlPipelineStateId.DepthTestEnable, EnableCap.DepthTest);
+        ApplyEnableBit(desc, GlPipelineStateId.CullFaceEnable, EnableCap.CullFace);
+        ApplyEnableBit(desc, GlPipelineStateId.ScissorTestEnable, EnableCap.ScissorTest);
 
-        ApplyEnableBit(desc, GlPipelineStateId.BlendEnable, EnableCap.Blend, ref blendEnabled, dirtiesIndexedBlendEnable: true);
+        ApplyEnableBit(desc, GlPipelineStateId.BlendEnable, EnableCap.Blend);
 
         ApplyDepthFunc(desc);
         ApplyDepthWriteMask(desc);
@@ -96,27 +51,14 @@ internal sealed partial class StateCache
         ApplyPointSize(desc);
     }
 
-    private void ApplyEnableBit(
-        in GlPipelineDesc desc,
-        GlPipelineStateId id,
-        EnableCap cap,
-        ref bool? cache,
-        bool dirtiesIndexedBlendEnable = false)
+    /// <summary>Applies a capability only when its descriptor bit declares intent.</summary>
+    private void ApplyEnableBit(in GlPipelineDesc desc, GlPipelineStateId id, EnableCap cap)
     {
-        if (desc.DefaultMask.Contains(id))
-        {
-            SetEnable(cap, enabled: false, ref cache);
-            if (dirtiesIndexedBlendEnable) DirtyIndexedBlendEnable();
-            return;
-        }
-
-        if (desc.NonDefaultMask.Contains(id))
-        {
-            SetEnable(cap, enabled: true, ref cache);
-            if (dirtiesIndexedBlendEnable) DirtyIndexedBlendEnable();
-        }
+        if (desc.DefaultMask.Contains(id)) SetCapability(cap, false);
+        else if (desc.NonDefaultMask.Contains(id)) SetCapability(cap, true);
     }
 
+    /// <summary>Applies the declared default or explicit depth comparison.</summary>
     private void ApplyDepthFunc(in GlPipelineDesc desc)
     {
         if (desc.DefaultMask.Contains(GlPipelineStateId.DepthFunc))
@@ -131,6 +73,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Applies the declared default or explicit depth write mask.</summary>
     private void ApplyDepthWriteMask(in GlPipelineDesc desc)
     {
         if (desc.DefaultMask.Contains(GlPipelineStateId.DepthWriteMask))
@@ -145,6 +88,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Applies declared factors to all draw outputs.</summary>
     private void ApplyBlendFunc(in GlPipelineDesc desc)
     {
         if (desc.DefaultMask.Contains(GlPipelineStateId.BlendFunc))
@@ -159,6 +103,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Applies enable overrides to the descriptor's output indices.</summary>
     private void ApplyBlendEnableIndexed(in GlPipelineDesc desc)
     {
         bool hasIntent =
@@ -182,6 +127,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Applies factor overrides to the descriptor's output indices.</summary>
     private void ApplyBlendFuncIndexed(in GlPipelineDesc desc)
     {
         bool hasIntent =
@@ -213,6 +159,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Applies the declared global color write mask.</summary>
     private void ApplyColorMask(in GlPipelineDesc desc)
     {
         if (desc.DefaultMask.Contains(GlPipelineStateId.ColorMask))
@@ -227,6 +174,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Applies the declared static line width.</summary>
     private void ApplyLineWidth(in GlPipelineDesc desc)
     {
         if (desc.DefaultMask.Contains(GlPipelineStateId.LineWidth))
@@ -241,6 +189,7 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Applies the declared static point size.</summary>
     private void ApplyPointSize(in GlPipelineDesc desc)
     {
         if (desc.DefaultMask.Contains(GlPipelineStateId.PointSize))
@@ -256,205 +205,5 @@ internal sealed partial class StateCache
     }
 
     #endregion
-
-    #region Fixed-Function Cached Setters
-
-    private static void SetEnable(EnableCap cap, bool enabled, ref bool? cache)
-    {
-        if (cache.HasValue && cache.Value == enabled)
-        {
-            return;
-        }
-
-        try
-        {
-            if (enabled) GL.Enable(cap);
-            else GL.Disable(cap);
-            cache = enabled;
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetDepthFunc(DepthFunction function)
-    {
-        if (depthFunc.HasValue && depthFunc.Value == function)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.DepthFunc(function);
-            depthFunc = function;
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetDepthWriteMask(bool enabled)
-    {
-        if (depthWriteMask.HasValue && depthWriteMask.Value == enabled)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.DepthMask(enabled);
-            depthWriteMask = enabled;
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetBlendFunc(GlBlendFunc func)
-    {
-        if (blendFunc.HasValue && blendFunc.Value == func)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.BlendFuncSeparate(func.SrcRgb, func.DstRgb, func.SrcAlpha, func.DstAlpha);
-            blendFunc = func;
-
-            // glBlendFunc updates the blend func for all draw buffers; indexed cache is now stale.
-            DirtyIndexedBlendFunc();
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetBlendEnabledIndexed(int attachmentIndex, bool enabled)
-    {
-        if (attachmentIndex < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(attachmentIndex), attachmentIndex, "Attachment index must be >= 0.");
-        }
-
-        EnsureIndexedBlendCapacity(attachmentIndex);
-
-        bool? cached = blendEnabledIndexed![attachmentIndex];
-        if (cached.HasValue && cached.Value == enabled)
-        {
-            return;
-        }
-
-        try
-        {
-            if (enabled) GL.Enable(IndexedEnableCap.Blend, attachmentIndex);
-            else GL.Disable(IndexedEnableCap.Blend, attachmentIndex);
-            blendEnabledIndexed[attachmentIndex] = enabled;
-            // An indexed change invalidates the assertion that every output has the global value.
-            blendEnabled = null;
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetBlendFuncIndexed(int attachmentIndex, GlBlendFunc func)
-    {
-        if (attachmentIndex < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(attachmentIndex), attachmentIndex, "Attachment index must be >= 0.");
-        }
-
-        EnsureIndexedBlendCapacity(attachmentIndex);
-
-        GlBlendFunc? cached = blendFuncIndexed![attachmentIndex];
-        if (cached.HasValue && cached.Value == func)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.BlendFuncSeparate(attachmentIndex, func.SrcRgb, func.DstRgb, func.SrcAlpha, func.DstAlpha);
-            blendFuncIndexed[attachmentIndex] = func;
-            blendFunc = null;
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetColorMask(GlColorMask mask)
-    {
-        if (colorMask.HasValue && colorMask.Value == mask)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.ColorMask(mask.R, mask.G, mask.B, mask.A);
-            colorMask = mask;
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetLineWidth(float width)
-    {
-        if (lineWidth.HasValue && lineWidth.Value == width)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.LineWidth(width);
-            lineWidth = width;
-        }
-        catch
-        {
-        }
-    }
-
-    public void SetPointSize(float size)
-    {
-        if (pointSize.HasValue && pointSize.Value == size)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.PointSize(size);
-            pointSize = size;
-        }
-        catch
-        {
-        }
-    }
-
-    private void EnsureIndexedBlendCapacity(int attachmentIndex)
-    {
-        int needed = attachmentIndex + 1;
-        if (blendEnabledIndexed is null || blendEnabledIndexed.Length < needed)
-        {
-            int newSize = Math.Max(needed, blendEnabledIndexed?.Length ?? 0);
-            newSize = Math.Max(newSize, 8);
-            newSize = Math.Max(newSize, (blendEnabledIndexed?.Length ?? 0) * 2);
-
-            var newEnabled = new bool?[newSize];
-            var newFunc = new GlBlendFunc?[newSize];
-
-            if (blendEnabledIndexed is not null) Array.Copy(blendEnabledIndexed, newEnabled, blendEnabledIndexed.Length);
-            if (blendFuncIndexed is not null) Array.Copy(blendFuncIndexed, newFunc, blendFuncIndexed.Length);
-
-            blendEnabledIndexed = newEnabled;
-            blendFuncIndexed = newFunc;
-        }
-    }
-
     #endregion
 }

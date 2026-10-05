@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Collections.Generic;
@@ -228,7 +229,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         {
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
         }
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = capi.Render.FrameWidth, Height = capi.Render.FrameHeight });
     }
 
     private bool TryRenderFrame(float deltaTime, EnumRenderStage stage)
@@ -876,7 +877,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Copy mip 0 from the primary depth texture.
         fbo.Bind();
         fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: 0);
-        GL.Viewport(0, 0, hzb.Width, hzb.Height);
+        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = hzb.Width, Height = hzb.Height });
 
         using (GlGpuProfiler.Instance.Scope(copy.PassName))
         {
@@ -898,7 +899,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
                 fbo.Bind();
                 fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
-                GL.Viewport(0, 0, dstW, dstH);
+                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = dstW, Height = dstH });
 
                 down.SrcMip = dstMip - 1;
                 if (!down.TryUse()) { lightingPassesComplete = false; return; }
@@ -909,7 +910,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         Rendering.GpuFramebuffer.RestoreBinding(previousFbo);
-        GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = capi.Render.FrameWidth, Height = capi.Render.FrameHeight });
     }
 
     /// <summary>

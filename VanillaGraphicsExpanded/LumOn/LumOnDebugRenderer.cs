@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
@@ -919,7 +920,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             StateCache.Current.InvalidateAll();
             StateCache.Current.Apply(FullscreenOverlayPso);
 
-            GL.Viewport(0, 0, capi.Render.FrameWidth, capi.Render.FrameHeight);
+            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = capi.Render.FrameWidth, Height = capi.Render.FrameHeight });
 
 
             if (usesNearFieldVisibility) shader.NearFieldVisibility.Stage(shader, nearFieldVisibilityScene);
@@ -1128,7 +1129,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             try
             {
                 GL.Scissor(prevScissorBox[0], prevScissorBox[1], prevScissorBox[2], prevScissorBox[3]);
-                GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
             }
             catch
             {

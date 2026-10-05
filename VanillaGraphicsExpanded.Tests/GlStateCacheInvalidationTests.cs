@@ -2,6 +2,7 @@ using System.Collections;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -32,8 +33,6 @@ public sealed class GlStateCacheInvalidationTests
     [InlineData(EPipelineState.ActiveTextureUnit, "activeTextureUnit", "textureBindingsByUnit", "samplerBindingByUnit")]
     [InlineData(EPipelineState.TextureBindings, "textureBindingsByUnit", "activeTextureUnit", "samplerBindingByUnit")]
     [InlineData(EPipelineState.SamplerBindings, "samplerBindingByUnit", "activeTextureUnit", "textureBindingsByUnit")]
-    [InlineData(EPipelineState.Depth, "depthFunc", "blendFunc", "currentProgram")]
-    [InlineData(EPipelineState.Blend, "blendFunc", "depthFunc", "currentProgram")]
     [InlineData(EPipelineState.Program, "currentProgram", "currentProgramPipeline", "activeTextureUnit")]
     [InlineData(EPipelineState.FramebufferBindings, "currentReadFramebuffer", "currentRenderbuffer", "activeTextureUnit")]
     [InlineData(EPipelineState.RenderbufferBinding, "currentRenderbuffer", "currentDrawFramebuffer", "activeTextureUnit")]
@@ -48,6 +47,26 @@ public sealed class GlStateCacheInvalidationTests
         Assert.Equal(b, Read(cache, keptB));
     }
 
+    /// <summary>Fixed-function invalidation forgets only selected knowledge and preserves concrete values.</summary>
+    [Theory]
+    [InlineData(EPipelineState.Depth)]
+    [InlineData(EPipelineState.Blend)]
+    public void FixedFunctionCategoriesPreserveIndependentKnowledge(EPipelineState state)
+    {
+        var cache = CreateSeeded();
+        cache.Invalidate(state);
+        Assert.Equal(state != EPipelineState.Depth, ((DepthStateKnowledge)Read(cache, "depthKnown")!).HasFlag(DepthStateKnowledge.Comparison));
+        Assert.All((BlendStateKnowledge[])Read(cache, "blendKnown")!, value =>
+        {
+            Assert.Equal(state != EPipelineState.Blend, value.HasFlag(BlendStateKnowledge.Enabled));
+            Assert.Equal(state != EPipelineState.Blend, value.HasFlag(BlendStateKnowledge.Factors));
+            Assert.True(value.HasFlag(BlendStateKnowledge.WriteMask));
+        });
+        Assert.Equal(DepthFunction.Less, ((DepthState)Read(cache, "depth")!).Comparison);
+        Assert.Equal(3, Read(cache, "activeTextureUnit"));
+        Assert.NotNull(Read(cache, "currentProgram"));
+    }
+
     /// <summary>Empty and invalid masks cannot partially destroy known state.</summary>
     [Fact]
     public void NoneAndInvalidMasksPreserveKnowledge()
@@ -56,7 +75,8 @@ public sealed class GlStateCacheInvalidationTests
         cache.Invalidate(EPipelineState.None);
         Assert.Equal(3, Read(cache, "activeTextureUnit"));
         Assert.Throws<ArgumentOutOfRangeException>(() => cache.Invalidate(EPipelineState.Depth | (EPipelineState)(1UL << 63)));
-        Assert.Equal(DepthFunction.Less, Read(cache, "depthFunc"));
+        Assert.Equal(DepthFunction.Less, ((DepthState)Read(cache, "depth")!).Comparison);
+        Assert.True(((DepthStateKnowledge)Read(cache, "depthKnown")!).HasFlag(DepthStateKnowledge.Comparison));
         Assert.Equal(3, Read(cache, "activeTextureUnit"));
     }
 
@@ -66,10 +86,10 @@ public sealed class GlStateCacheInvalidationTests
     {
         var cache = CreateSeeded();
         cache.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.FramebufferBindings);
-        foreach (string name in new[] { "depthFunc", "depthTestEnabled", "depthWriteMask", "blendEnabled", "blendFunc", "currentFramebuffer", "currentReadFramebuffer", "currentDrawFramebuffer" })
+        foreach (string name in new[] { "currentFramebuffer", "currentReadFramebuffer", "currentDrawFramebuffer" })
             Assert.Null(Read(cache, name));
-        Assert.All((bool?[])Read(cache, "blendEnabledIndexed")!, value => Assert.Null(value));
-        Assert.All((GlBlendFunc?[])Read(cache, "blendFuncIndexed")!, value => Assert.Null(value));
+        Assert.Equal(default, (DepthStateKnowledge)Read(cache, "depthKnown")!);
+        Assert.All((BlendStateKnowledge[])Read(cache, "blendKnown")!, value => { Assert.False(value.HasFlag(BlendStateKnowledge.Enabled)); Assert.False(value.HasFlag(BlendStateKnowledge.Factors)); Assert.True(value.HasFlag(BlendStateKnowledge.WriteMask)); });
         Assert.Equal(3, Read(cache, "activeTextureUnit"));
     }
 
@@ -102,6 +122,8 @@ public sealed class GlStateCacheInvalidationTests
         }
         Assert.Null(Read(cache, "textureBindingsByUnit"));
         Assert.Null(Read(cache, "samplerBindingByUnit"));
+        Assert.Equal(default, (DepthStateKnowledge)Read(cache, "depthKnown")!);
+        Assert.All((BlendStateKnowledge[])Read(cache, "blendKnown")!, value => Assert.Equal(default, value));
     }
     #endregion
 
@@ -117,11 +139,12 @@ public sealed class GlStateCacheInvalidationTests
         }
         Set(cache, "activeTextureUnit", 3);
         Set(cache, "currentVao", 7);
-        Set(cache, "depthFunc", DepthFunction.Less);
+        Set(cache, "depth", new DepthState { Comparison = DepthFunction.Less });
+        Set(cache, "depthKnown", DepthStateKnowledge.All);
         Set(cache, "textureBindingsByUnit", new Dictionary<TextureTarget, int>[] { new() { [TextureTarget.Texture2D] = 5 } });
         Set(cache, "samplerBindingByUnit", new int?[] { 6 });
-        Set(cache, "blendEnabledIndexed", new bool?[] { true, false });
-        Set(cache, "blendFuncIndexed", new GlBlendFunc?[] { GlBlendFunc.Default });
+        Set(cache, "blend", new BlendState[] { new() { Enabled = true, Factors = GlBlendFunc.Default }, new() { Enabled = false, Factors = GlBlendFunc.Default } });
+        Set(cache, "blendKnown", new BlendStateKnowledge[] { BlendStateKnowledge.All, BlendStateKnowledge.All });
         ((Dictionary<int, int>)Read(cache, "elementArrayBufferByVao")!)[7] = 8;
         return cache;
     }

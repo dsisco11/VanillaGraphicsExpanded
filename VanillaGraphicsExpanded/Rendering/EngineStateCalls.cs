@@ -39,6 +39,15 @@ internal static class EngineStateCalls
     /// <summary>Publishes the global color write mask.</summary>
     public static void ColorMask(bool red, bool green, bool blue, bool alpha) =>
         StateCache.Current.SetColorMask(GlColorMask.FromRgba(red, green, blue, alpha));
+    /// <summary>Publishes one draw output's write mask.</summary>
+    public static void ColorMask(int index, bool red, bool green, bool blue, bool alpha) =>
+        StateCache.Current.SetColorMaskIndexed(index, GlColorMask.FromRgba(red, green, blue, alpha));
+    /// <summary>Adapts the engine integer viewport signature to declared dynamic state.</summary>
+    public static void Viewport(int x, int y, int width, int height) =>
+        StateCache.Current.ApplyDynamic(new Pipeline.State.DynamicDrawState { X = x, Y = y, Width = width, Height = height });
+    /// <summary>Publishes the clear-operation color without treating it as pipeline state.</summary>
+    public static void ClearColor(float red, float green, float blue, float alpha) =>
+        StateCache.Current.SetClearColor(red, green, blue, alpha);
     /// <summary>Publishes line width without approximate-value suppression.</summary>
     public static void LineWidth(float width) => StateCache.Current.SetLineWidth(width);
     /// <summary>Publishes point size without approximate-value suppression.</summary>

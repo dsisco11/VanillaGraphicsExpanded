@@ -11,7 +11,14 @@ internal sealed partial class StateCache
     private readonly Dictionary<(BufferRangeTarget Target, int Slot), IndexedBufferBinding> indexedBufferBindings = new();
     private int? storageBufferOffsetAlignment;
     /// <summary>Retains the context's immutable range alignment limit after its first validation query.</summary>
-    internal int StorageBufferOffsetAlignment => storageBufferOffsetAlignment ??= System.Math.Max(1, GL.GetInteger(GetPName.ShaderStorageBufferOffsetAlignment));
+    internal int StorageBufferOffsetAlignment
+    {
+        get
+        {
+            SynchronizeContext();
+            return storageBufferOffsetAlignment ??= System.Math.Max(1, GL.GetInteger(GetPName.ShaderStorageBufferOffsetAlignment));
+        }
+    }
     /// <summary>Counts actual image and indexed-buffer binds, independently of cache comparisons.</summary>
     internal long ResourceSlotBindCount { get; private set; }
     /// <summary>Counts texture cache observations separately from actual driver texture binds.</summary>

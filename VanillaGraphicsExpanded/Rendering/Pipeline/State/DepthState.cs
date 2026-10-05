@@ -1,0 +1,12 @@
+using OpenTK.Graphics.OpenGL;
+namespace VanillaGraphicsExpanded.Rendering.Pipeline.State;
+/// <summary>Concrete DepthState values independent of cache knowledge and native operations.</summary>
+internal struct DepthState
+{
+    /// <summary>Declared TestEnabled value.</summary>
+    public bool TestEnabled;
+    /// <summary>Declared Comparison value.</summary>
+    public DepthFunction Comparison;
+    /// <summary>Declared WriteEnabled value.</summary>
+    public bool WriteEnabled;
+}

@@ -15,27 +15,18 @@ internal sealed partial class StateCache
     {
         if (!EPipelineState.All.HasFlag(states)) throw new ArgumentOutOfRangeException(nameof(states));
 
-        if (states.HasFlag(EPipelineState.Depth))
-        {
-            depthTestEnabled = null;
-            depthFunc = null;
-            depthWriteMask = null;
-        }
-        if (states.HasFlag(EPipelineState.Blend))
-        {
-            // Global and indexed values describe overlapping native state, so forget them together.
-            blendEnabled = null;
-            blendFunc = null;
-            DirtyIndexedBlendEnable();
-            DirtyIndexedBlendFunc();
-        }
-        if (states.HasFlag(EPipelineState.CullFace)) cullFaceEnabled = null;
-        if (states.HasFlag(EPipelineState.ScissorTest)) scissorTestEnabled = null;
-        if (states.HasFlag(EPipelineState.ColorMask)) colorMask = null;
-        if (states.HasFlag(EPipelineState.LineWidth)) lineWidth = null;
-        if (states.HasFlag(EPipelineState.PointSize)) pointSize = null;
-        if (states.HasFlag(EPipelineState.PatchVertices)) patchVertices = null;
-        if (states.HasFlag(EPipelineState.ProvokingVertex)) provokingVertex = null;
+        if (states.HasFlag(EPipelineState.Depth)) depthKnown = default;
+        if (states.HasFlag(EPipelineState.Blend)) { DirtyIndexedBlendEnable(); DirtyIndexedBlendFunc(); }
+        if (states.HasFlag(EPipelineState.CullFace)) rasterizerKnown &= ~RasterizerStateKnowledge.CullEnabled;
+        if (states.HasFlag(EPipelineState.ScissorTest)) rasterizerKnown &= ~RasterizerStateKnowledge.ScissorEnabled;
+        if (states.HasFlag(EPipelineState.ColorMask))
+            for (int i = 0; i < blendKnown.Length; i++) blendKnown[i] &= ~BlendStateKnowledge.WriteMask;
+        if (states.HasFlag(EPipelineState.LineWidth)) rasterizerKnown &= ~RasterizerStateKnowledge.LineWidth;
+        if (states.HasFlag(EPipelineState.PointSize)) rasterizerKnown &= ~RasterizerStateKnowledge.PointSize;
+        if (states.HasFlag(EPipelineState.PatchVertices)) assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PatchVertices;
+        if (states.HasFlag(EPipelineState.ProvokingVertex)) rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex;
+        if (states.HasFlag(EPipelineState.Viewport)) dynamicKnown = default;
+        if (states.HasFlag(EPipelineState.ClearColor)) clearColorKnown = false;
         if (states.HasFlag(EPipelineState.Program)) currentProgram = null;
         if (states.HasFlag(EPipelineState.ProgramPipeline)) currentProgramPipeline = null;
         if (states.HasFlag(EPipelineState.VertexArray))

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -242,7 +243,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
 
                 var rfbo = resources.GetRadianceFbo();
                 rfbo.Bind();
-                GL.Viewport(0, 0, resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
+                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = resources.RadianceAtlasWidth, Height = resources.RadianceAtlasHeight });
 
                 ReadOnlySpan<TileResolveVertex> tileData = CollectionsMarshal.AsSpan(tileVertices);
                 tileVbo.UploadData(tileData);
@@ -263,7 +264,7 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
             {
                 var fbo = resources.GetFbo();
                 fbo.Bind();
-                GL.Viewport(0, 0, resources.AtlasWidth, resources.AtlasHeight);
+                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = resources.AtlasWidth, Height = resources.AtlasHeight });
 
                 ReadOnlySpan<ProbeResolveVertex> probeData = CollectionsMarshal.AsSpan(probeVertices);
                 probeVbo.UploadData(probeData);
