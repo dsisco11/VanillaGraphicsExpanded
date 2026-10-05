@@ -3,7 +3,7 @@ Explicit uniform-buffer lifetime and storage ownership
 
 Source: docs/Rendering.UniformBufferLifetime.Proposal.md.
 Parent: docs/PBR.WaterPerformance.todo / Phase 17.
-Review status: Phases 1–3 complete following user review; Phases 4–6 remain pending.
+Review status: Phases 1–6 complete; final second review and completion audit passed on 2026-10-05.
 Contracts: docs/ShaderAuthoring.md; docs/GPU.ShaderDemandLoading.md;
   docs/GPU.UniformContractValidation.md; docs/Rendering.AuthoritativePipelineState.Proposal.md.
 Evidence belongs in docs/Rendering.UniformBufferLifetime.md.
@@ -68,10 +68,10 @@ Phase 5: Behavioral verification and measurements
 
 Phase 6: Documentation, second review and completion audit
   Dependencies: Phase 5.
-  ☐ Update authoring, proposal, evidence and parent links with usage/sharing/disposal/reload contracts.
-  ☐ Map every proposal section to source, tests and measured results; identify compatibility paths.
-  ☐ Perform second source review and independent audit against the full proposal and linked contracts.
-  ☐ Resolve all lifetime/retirement findings; optional later consumer tuning does not defer correctness.
+  ☑ Update authoring, proposal, evidence and parent links with usage/sharing/disposal/reload contracts.
+  ☑ Map every proposal section to source, tests and measured results; identify compatibility paths.
+  ☑ Perform second source review and independent audit against the full proposal and linked contracts.
+  ☑ Resolve all lifetime/retirement findings; optional later consumer tuning does not defer correctness.
   Gate: all required work and validation complete; parent Phase 17 may then be marked complete.
 
 Proposal mapping
@@ -79,3 +79,7 @@ Proposal mapping
   Transient storage -> Phase 2; persistent storage/retirement/OpenGL -> Phase 3.
   Sharing/reload/disposal -> Phases 2–4; integration/source layout -> Phases 2–4, 6.
   Consumer migration -> Phases 1, 4; verification/measurements/completion -> Phases 5–6.
+
+Completion evidence: docs/Rendering.UniformBufferLifetime.md; Debug and Release 80/80 each,
+  zero skips. Audit added four direct-write/MarkDirty and transient-exhaustion cases.
+  Context replacement remains explicitly excluded; CPU/GPU/live timing is unmeasured.

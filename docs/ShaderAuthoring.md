@@ -89,9 +89,9 @@ The bent-normal spelling remains an alias of short-range AO. Passing conflicting
 
 ## Retained runtime inputs
 
-Assign shader inputs before Use, UseScope or Dispatch. Unchanged and unassigned values retain their previous value or default. Use invokes contract-generated Submit, which validates all active inputs before publishing any of them. Each active CPU block binds a complete snapshot: changed bytes or an expired allocation require a fresh ring allocation, while an unchanged current-epoch snapshot can be rebound. There is no Prepare callback or CPU batch scope.
+Assign shader inputs before Use, UseScope or Dispatch. Unchanged and unassigned values retain their previous value or default. Use invokes contract-generated Submit, which validates all active inputs before publishing any of them. Each active CPU block binds a complete snapshot: changed bytes or an expired allocation require a fresh version, while unchanged contents reuse storage permitted by their declared lifetime. There is no Prepare callback or CPU batch scope.
 
-Declare borrowed resources through ShaderBinding interfaces. Generated setters retain references; authored getters may expose existing CPU blocks or shared buffers and must perform no GPU work. Attach the owner's mutation guard to owned CPU blocks. Raw texture IDs require ShaderTextureTarget and an explicit sampler policy when the default is unsuitable. Optional non-2D managed samplers also need the declared target so an unassigned value clears the correct texture binding. CPU blocks are copied into the current frame's ring; retained GPU references do not extend resource lifetime. Every sampler and image also needs a UniformLocation declaration in its stage contract: a binding slot alone cannot identify an active uniform in name-free SPIR-V.
+Declare borrowed resources through ShaderBinding interfaces. Generated setters retain references; authored getters may expose existing CPU blocks or shared buffers and must perform no GPU work. Attach the owner's mutation guard to owned CPU blocks. Raw texture IDs require ShaderTextureTarget and an explicit sampler policy when the default is unsuitable. Optional non-2D managed samplers also need the declared target so an unassigned value clears the correct texture binding. CPU block publication follows its instance lifetime policy; retained GPU references do not transfer resource ownership. Every sampler and image also needs a UniformLocation declaration in its stage contract: a binding slot alone cannot identify an active uniform in name-free SPIR-V.
 
 Compute owners derive from GpuComputeShader and adopt the existing GpuComputePipeline. Use GpuStorageBufferBinding for exact SSBO ranges and GpuTextureBinding for image levels, layers, access and format. Dispatch owns activation and submission; keep work uploads, clears, barriers and readbacks explicit around it. Liquid engine pool callbacks are the specific exception to application-controlled draw ordering: they stage inputs, and LiquidPoolSubmissionHook establishes the pre-draw publication boundary.
 
@@ -100,20 +100,35 @@ Compute owners derive from GpuComputeShader and adopt the existing GpuComputePip
 `CpuUniformBuffer` tracks a content revision independently of dirty flags. Typed writes advance
 it only when packed bytes change; custom writable-span or array writes must call `MarkDirty`.
 `PackedUniformBuffer.SetBytes` compares and copies the complete block before marking changes.
-Submission borrows the last successfully bound range only when its revision, ring identity,
-allocation epoch and live buffer still match. Reuse still calls the existing range-binding owner,
+`UniformBufferUsage` is fixed at construction: `SingleDraw` allocates per independent publication,
+`SingleFrame` (the compatibility default) reuses within an open epoch, and `MultiFrame` retains
+unchanged versions across frames. Usage never prohibits multiple writes within a frame.
+UniformPublication separates logical publication from physical allocation. Reuse requires matching
+revision, allocator identity and storage generation. It still calls the existing range-binding owner,
 so another shader or slot cannot leave an unrelated block bound. Program reload does not change
 the CPU bytes; normal executable validation and submission still apply.
 
 Every `BeginFrame`, including reuse of the same frame index, opens a new allocation epoch.
-`EndFrame` closes reuse before inserting its fence, and disposal invalidates the allocator.
-No snapshot is reused across these boundaries: a physically live page alone does not prove
+`EndFrame` closes publication before inserting its fence; another `BeginFrame` is required to publish.
+Repeated begin calls fence pending work before resetting a page, and disposal invalidates the allocator.
+No transient snapshot is reused across these boundaries: a physically live page alone does not prove
 that new draws belong to the work covered by its retirement fence. A different current ring
 also requires a new upload. Changed bytes always allocate a fresh range, retaining earlier
 draw snapshots. Failed allocation or binding leaves dirty work and the previous publication
-record intact. CPU-buffer disposal releases the borrowed record without retiring ring storage.
+record intact. CPU-buffer disposal resets publication and queues any retained version for safe retirement;
+CPU bytes remain publishable for compatibility. The internal logical publication owner has terminal disposal.
+Persistent pages are pooled and never orphaned while live. Each successful rebind, including scope
+restoration, extends last use; only released versions behind completed frame fences can be recycled.
 
-Focused validation covers both persistent and orphaned-buffer rings, same-owner and nested
+Use `OwnUniformBuffer` for shader-owned retained blocks. Shared blocks have one explicit external
+owner; borrowing shaders do not own their storage. Engine executable reload preserves owned blocks.
+A compatible slot change rebinds; an incompatible layout requires explicit repacking or replacement.
+Uniform allocators belong to one renderer/context lifetime and must be disposed while that context
+is current, before teardown. They do not detect or recover from context replacement.
+Lifetime creates no shader variants or implicit same-name sharing. See
+[uniform lifetime implementation](Rendering.UniformBufferLifetime.md) for policies and measurements.
+
+Historical same-frame validation covered both persistent and orphaned-buffer rings, same-owner and nested
 restoration, shared blocks, changed snapshots, repeated frame indices, page wrap, replacement,
 disposal, reload and failed publication. GPU binding/readback and actual draw/compute checks
 cover liquid and non-water consumers. Thirty-six distinct cases passed across the initial run

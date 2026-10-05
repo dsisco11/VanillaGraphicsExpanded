@@ -1,6 +1,6 @@
 # Uniform-buffer lifetime and storage ownership
 
-Status: design proposal; implementation changes are undergoing user review one phase at a time.
+Status: implemented and verified on 2026-10-05. See [implementation and evidence](Rendering.UniformBufferLifetime.md).
 Implementation plan: [Rendering.UniformBufferLifetime.todo](Rendering.UniformBufferLifetime.todo).
 
 ## Intent
@@ -11,7 +11,7 @@ Preserve existing shader declarations, std140 packing, generated submission, mut
 
 Expected benefits are fewer uploads of unchanged long-lived data and allocation policies appropriate to actual lifetimes. CPU time, GPU time, memory consumption and driver synchronization must be measured separately. This proposal makes no frame-rate claim.
 
-## Current implementation
+## Baseline before this implementation
 
 | Existing owner | Current responsibility | Proposed evolution |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ Expected benefits are fewer uploads of unchanged long-lived data and allocation 
 | [ShaderPreparedSubmission](../VanillaGraphicsExpanded/Rendering/ShaderPreparedSubmission.cs) | Validate retained inputs, then publish through prepared binding slots | Resolve the logical buffer's current physical range without changing validation or binding authority |
 | [GpuUniformBuffer](../VanillaGraphicsExpanded/Rendering/GpuUniformBuffer.cs) | Native uniform-buffer resource and range binding | Continue to represent physical storage, not logical lifetime policy |
 
-Current reuse requires identical CPU revision, ring identity, a live allocation and the same open allocation epoch. Every frame boundary invalidates reuse. This safely eliminates repeated copies within a frame, but unchanged data must still be copied in subsequent frames.
+Baseline reuse required identical CPU revision, ring identity, a live allocation and the same open allocation epoch. Every frame boundary invalidated reuse. This eliminated repeated copies within a frame, but unchanged data still had to be copied in subsequent frames.
 
 The existing warmed liquid activation fixture removes 288 repeated allocations and 462,336 copied bytes across 32 nested surface/volume scopes. That result concerns unchanged same-frame submissions; it does not establish the benefit of persistent storage. See [ShaderAuthoring.md](ShaderAuthoring.md) and the existing `artifacts/WaterLagAnalysis/uniform-reuse-*` receipts.
 

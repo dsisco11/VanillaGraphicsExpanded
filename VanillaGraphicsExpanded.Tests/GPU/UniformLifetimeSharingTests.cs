@@ -13,6 +13,63 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Manual byte edits with MarkDirty publish fresh bytes without overwriting the earlier range.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DirectWritesPublishNewSnapshot(bool mapped)
+    {
+        EnsureContextValid();
+        using var ring = new GpuUniformRingBuffer(65536, 3, mapped);
+        using var block = new DirectWriteBlock();
+        ring.BeginFrame(0);
+        GpuUniformRingSystem.SetCurrent(ring);
+        try
+        {
+            block.Write(3f);
+            Assert.True(block.TryBindToSlot(13));
+            block.Write(7f);
+            Assert.True(block.IsDirty);
+            Assert.True(block.TryBindToSlot(14));
+            Assert.Equal(3f, ReadSlot(13));
+            Assert.Equal(7f, ReadSlot(14));
+            Assert.False(block.IsDirty);
+            Assert.Equal(2, ring.AllocationsWritten);
+            ring.EndFrame();
+        }
+        finally { GpuUniformRingSystem.ClearCurrent(); }
+    }
+
+    /// <summary>Ring exhaustion preserves the last publication and dirty work until the next frame can retry.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TransientExhaustionPreservesPublicationAndRetries(bool mapped)
+    {
+        EnsureContextValid();
+        using var ring = new GpuUniformRingBuffer(16, 3, mapped);
+        using var block = new DirectWriteBlock();
+        ring.BeginFrame(0);
+        GpuUniformRingSystem.SetCurrent(ring);
+        try
+        {
+            block.Write(3f);
+            Assert.True(block.TryBindToSlot(13));
+            block.Write(7f);
+            Assert.Throws<InvalidOperationException>(() => block.TryBindToSlot(13));
+            Assert.True(block.IsDirty);
+            Assert.Equal(3f, ReadSlot(13));
+            Assert.Equal(1, ring.AllocationsWritten);
+            ring.EndFrame();
+            ring.BeginFrame(1);
+            Assert.True(block.TryBindToSlot(13));
+            Assert.Equal(7f, ReadSlot(13));
+            Assert.False(block.IsDirty);
+            ring.EndFrame();
+        }
+        finally { GpuUniformRingSystem.ClearCurrent(); }
+    }
+
     /// <summary>Nested persistent owners restore their distinct retained ranges and record the restoring bind.</summary>
     [Fact]
     public void NestedResolveScopesRestorePersistentContentsWithoutCopying()
@@ -158,6 +215,20 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
     #endregion
 
     #region Private
+    /// <summary>Exercises the supported direct-write path without typed packing setters.</summary>
+    private sealed class DirectWriteBlock() : CpuUniformBuffer(16)
+    {
+        #region Public API
+        /// <summary>Writes CPU bytes directly and explicitly advances the publication revision.</summary>
+        public void Write(float value)
+        {
+            BitConverter.TryWriteBytes(DataWritable, value);
+            MarkDirty();
+        }
+        #endregion
+    }
+
+
     /// <summary>Reads the driver's actual selected range, preserving the generic buffer binding.</summary>
     private static float ReadSlot(int slot)
     {
