@@ -3,7 +3,7 @@ Explicit uniform-buffer lifetime and storage ownership
 
 Source: docs/Rendering.UniformBufferLifetime.Proposal.md.
 Parent: docs/PBR.WaterPerformance.todo / Phase 17.
-Review status: staged one phase at a time for user review; completion markers remain pending.
+Review status: Phases 1–3 complete following user review; Phases 4–6 remain pending.
 Contracts: docs/ShaderAuthoring.md; docs/GPU.ShaderDemandLoading.md;
   docs/GPU.UniformContractValidation.md; docs/Rendering.AuthoritativePipelineState.Proposal.md.
 Evidence belongs in docs/Rendering.UniformBufferLifetime.md.
@@ -17,31 +17,31 @@ Execution contract
   Review twice and audit completion before checking tasks. Retained compatibility must be explicit.
 
 Phase 1: Inventory and storage decisions
-  ☐ Inventory CPU blocks, writes, sizes, sharing and disposal; choose water and non-water consumers.
-  ☐ Establish mapped/conventional pool policy, capacity/overflow, alignment, context and frame owner.
-  ☐ Record reference transient allocations/copies, binds, resident bytes, retirement and fence waits.
+  ☑ Inventory CPU blocks, writes, sizes, sharing and disposal; choose water and non-water consumers.
+  ☑ Establish mapped/conventional pool policy, capacity/overflow, alignment, context and frame owner.
+  ☑ Record reference transient allocations/copies, binds, resident bytes, retirement and fence waits.
   Gate: allocation/lifecycle choices follow actual consumers; all linked contracts are reconciled.
 
 Phase 2: Logical publication and transient compatibility
   Dependencies: Phase 1.
-  ☐ Add fixed SingleDraw/SingleFrame/MultiFrame usage and separate logical/physical publication owners.
-  ☐ Keep CpuUniformBuffer packing/revisions; common named/prepared publication commits only on success.
-  ☐ Preserve SingleFrame compatibility default, multiple same-frame updates, full copies, guards,
+  ☑ Add fixed SingleDraw/SingleFrame/MultiFrame usage and separate logical/physical publication owners.
+  ☑ Keep CpuUniformBuffer packing/revisions; common named/prepared publication commits only on success.
+  ☑ Preserve SingleFrame compatibility default, multiple same-frame updates, full copies, guards,
     repeated BeginFrame epochs, EndFrame closure, ring exhaustion and mapped/conventional paths.
-  ☐ SingleDraw gets a new range per independent publication; retain current liquid draw usage until
+  ☑ SingleDraw gets a new range per independent publication; retain current liquid draw usage until
     an owned draw/dispatch boundary proves that stronger promise. Restoration does not count draws.
-  ☐ Failed publication retains previous successful version/dirty data; release unpublished reservations.
-  ☐ Keep legacy CpuUniformBuffer.Dispose reset behavior explicit; logical resource disposal is terminal.
+  ☑ Failed publication retains previous successful version/dirty data; release unpublished reservations.
+  ☑ Keep legacy CpuUniformBuffer.Dispose reset behavior explicit; logical resource disposal is terminal.
   Gate: existing same-frame savings and failure/retry semantics survive both publication entry points.
 
 Phase 3: Persistent storage and last-use retirement
   Dependencies: Phase 2.
-  ☐ Add pooled aligned retained ranges beside the ring, under the same frame/context owner.
-  ☐ Support persistent coherent/explicit-flush mappings and conventional uploads without orphaning live data.
-  ☐ Track every bind including unchanged versions and scope restoration; group retirement behind fences.
-  ☐ Reclaim released versions only after latest use completes; never recycle a current owned version.
-  ☐ Reject stale allocator/page generations; handle overflow, failure and renderer-owned teardown.
-  ☐ Count allocations, payload copies, binds, resident/pending bytes and waits independently.
+  ☑ Add pooled aligned retained ranges beside the ring, under the same frame/context owner.
+  ☑ Support persistent coherent/explicit-flush mappings and conventional uploads without orphaning live data.
+  ☑ Track every bind including unchanged versions and scope restoration; group retirement behind fences.
+  ☑ Reclaim released versions only after latest use completes; never recycle a current owned version.
+  ☑ Reject stale allocator/page generations; handle overflow, failure and renderer-owned teardown.
+  ☑ Count allocations, payload copies, binds, resident/pending bytes and waits independently.
   Gate: immutable snapshots and cross-frame reuse work with both backends; elapsed frames never prove safety.
 
 Phase 4: Consumer ownership and adoption
