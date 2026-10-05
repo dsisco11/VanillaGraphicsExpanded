@@ -9,7 +9,6 @@ internal sealed partial class StateCache
     {
         ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.LineWidth);
         if (!float.IsFinite(width) || width <= 0) throw new System.ArgumentOutOfRangeException(nameof(width));
-        SynchronizeContext();
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineWidth) && rasterizer.LineWidth == width) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.LineWidth;
         GL.LineWidth(width);
@@ -22,7 +21,6 @@ internal sealed partial class StateCache
     {
         ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PointSize);
         if (!float.IsFinite(size) || size <= 0) throw new System.ArgumentOutOfRangeException(nameof(size));
-        SynchronizeContext();
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PointSize) && rasterizer.PointSize == size) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.PointSize;
         GL.PointSize(size);
@@ -35,7 +33,6 @@ internal sealed partial class StateCache
     {
         ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ProvokingVertex);
         if (!System.Enum.IsDefined(mode)) throw new System.ArgumentOutOfRangeException(nameof(mode));
-        SynchronizeContext();
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProvokingVertex) && rasterizer.ProvokingVertex == mode) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex;
         GL.ProvokingVertex(mode);

@@ -19,7 +19,6 @@ internal sealed partial class StateCache
     {
         ArgumentNullException.ThrowIfNull(scope);
         if (!ReferenceEquals(activeBoundary, scope)) throw new InvalidOperationException("An active engine boundary is required.");
-        RequireBoundaryContext(scope.Snapshot);
     }
 
     /// <summary>Rejects unsupported drawing-state commands while managed boundary authority is active.</summary>
@@ -39,10 +38,8 @@ internal sealed partial class StateCache
     {
         if (resolvingBoundary) throw new InvalidOperationException("Drawing state cannot change during boundary resolution.");
         if (activeBoundary is null) return;
-        SynchronizeContext();
         var snapshot = activeBoundary.Snapshot;
         var coverage = snapshot.Coverage;
-        if (context != snapshot.Context) throw new InvalidOperationException("Engine boundary context changed.");
         bool permitted = coverage.Depth.HasFlag(depth) && coverage.Rasterizer.HasFlag(rasterizer)
             && coverage.Assembly.HasFlag(assembly) && coverage.Dynamic.HasFlag(dynamic)
             && (!clearColor || coverage.ClearColor);
@@ -61,9 +58,7 @@ internal sealed partial class StateCache
     {
         if (resolvingBoundary) throw new InvalidOperationException("Drawing state cannot change during boundary resolution.");
         if (activeBoundary is null) return;
-        SynchronizeContext();
         var snapshot = activeBoundary.Snapshot;
-        if (context != snapshot.Context) throw new InvalidOperationException("Engine boundary context changed.");
         if (!snapshot.Coverage.Contains(operation, snapshot.OutputCount))
             throw new InvalidOperationException("Managed operation exceeds the declared engine-boundary coverage.");
     }

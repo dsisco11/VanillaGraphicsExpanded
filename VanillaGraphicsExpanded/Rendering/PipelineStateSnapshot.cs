@@ -9,7 +9,6 @@ internal sealed class PipelineStateSnapshot
 {
     private readonly BlendState[] blend;
     internal PipelineStateCoverage Coverage { get; }
-    internal (nint Handle, long Generation) Context { get; }
     internal DepthState Depth { get; }
     internal RasterizerState Rasterizer { get; }
     internal PrimitiveAssemblyState Assembly { get; }
@@ -19,11 +18,11 @@ internal sealed class PipelineStateSnapshot
 
     #region Public API
     /// <summary>Copies resolved category values; coverage alone determines which fields are meaningful.</summary>
-    internal PipelineStateSnapshot(PipelineStateCoverage coverage, (nint Handle, long Generation) context,
+    internal PipelineStateSnapshot(PipelineStateCoverage coverage,
         DepthState depth, RasterizerState rasterizer, PrimitiveAssemblyState assembly,
         DynamicDrawState dynamic, Vector4 clearColor, BlendState[] blend)
     {
-        Coverage = coverage; Context = context; Depth = depth; Rasterizer = rasterizer;
+        Coverage = coverage; Depth = depth; Rasterizer = rasterizer;
         Assembly = assembly; Dynamic = dynamic; ClearColor = clearColor;
         this.blend = (BlendState[])blend.Clone();
     }

@@ -1,8 +1,6 @@
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
-using OpenTK.Windowing.GraphicsLibraryFramework;
 using VanillaGraphicsExpanded.Rendering;
-using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -188,87 +186,27 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
 
     #endregion
 
-    #region Context lifetime
-    /// <summary>A native context switch and explicit same-handle retirement both withdraw prior knowledge.</summary>
+    #region Cache lifetime
+    /// <summary>Repeated cache access preserves knowledge until the owner explicitly invalidates it.</summary>
     [Fact]
-    public unsafe void ContextSwitchAndHandleReregistrationResetKnowledge()
+    public void ExplicitInvalidationResolvesKnowledgeAgain()
     {
         fixture.MakeCurrent();
         var cache = StateCache.Current;
-        var original = GLFW.GetCurrentContext();
-        long first = cache.ContextGeneration;
-        Assert.True(first > 0);
+        cache.InvalidateAll();
         cache.SetDepthFunc(DepthFunction.Greater);
-        int limit = cache.MaxDrawBuffers;
-        long queries = GpuSupport.CaptureCount;
-        GLFW.MakeContextCurrent(null);
-        try
-        {
-            Assert.Equal(0, cache.ContextGeneration);
-            Assert.False(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
-        }
-        finally { GLFW.MakeContextCurrent(original); }
-        Assert.Equal(first, cache.ContextGeneration);
+        long calls = cache.FixedFunctionCalls;
+        Assert.Same(cache, StateCache.Current);
+        StateCache.Current.SetDepthFunc(DepthFunction.Greater);
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+        Assert.True(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
+        cache.InvalidateAll();
         Assert.False(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
-        Assert.Equal(limit, cache.MaxDrawBuffers);
-        Assert.Equal(queries, GpuSupport.CaptureCount);
-        RenderContextRegistry.Retire(fixture);
-        Assert.Equal(0, cache.ContextGeneration);
-        long replacement = RenderContextRegistry.RegisterCurrent(fixture, static owner => ((HeadlessGLFixture)owner).IsContextValid);
-        Assert.True(replacement > first);
-        Assert.Equal(replacement, cache.ContextGeneration);
-        Assert.Equal(limit, cache.MaxDrawBuffers);
-        Assert.Equal(queries + 1, GpuSupport.CaptureCount);
+        cache.SetDepthFunc(DepthFunction.Greater);
+        Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+        Assert.Equal((int)DepthFunction.Greater, GL.GetInteger(GetPName.DepthFunc));
         cache.SetDepthFunc(DepthFunction.Less);
-        Assert.Equal((int)DepthFunction.Less, GL.GetInteger(GetPName.DepthFunc));
         cache.InvalidateAll();
-    }
-    /// <summary>A disposed owner withdraws authority while its native handle remains current.</summary>
-    [Fact]
-    public void DisposedOwnerWithdrawsRegistration()
-    {
-        fixture.MakeCurrent();
-        var cache = StateCache.Current; object owner = new(); bool alive = true;
-        RenderContextRegistry.RegisterCurrent(owner, _ => alive);
-        cache.SetDepthFunc(DepthFunction.Greater); alive = false;
-        try { Assert.Equal(0, cache.ContextGeneration);
-        Assert.False(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison)); }
-        finally
-        {
-            RenderContextRegistry.Retire(owner); RenderContextRegistry.RegisterCurrent(fixture, static target => ((HeadlessGLFixture)target).IsContextValid);
-            cache.SetDepthFunc(DepthFunction.Less);
-        cache.InvalidateAll();
-        }
-    }
-    /// <summary>A genuinely different native context cannot inherit prior scalar knowledge or limits.</summary>
-    [Fact]
-    public unsafe void ReplacementNativeContextResolvesItsOwnKnowledge()
-    {
-        fixture.MakeCurrent();
-        var cache = StateCache.Current;
-        var original = GLFW.GetCurrentContext();
-        GLFW.WindowHint(WindowHintBool.Visible, false);
-        var replacement = GLFW.CreateWindow(1, 1, "State replacement test", null, null);
-        Assert.True(replacement != null); object owner = new();
-        long previous = cache.ContextGeneration;
-        try
-        {
-            cache.SetDepthFunc(DepthFunction.Greater);
-            GLFW.MakeContextCurrent(replacement);
-            long generation = RenderContextRegistry.RegisterCurrent(owner, static _ => true);
-            Assert.True(generation > previous);
-        Assert.Equal(generation, cache.ContextGeneration);
-            Assert.False(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
-            Assert.Equal(GL.GetInteger(GetPName.MaxDrawBuffers), cache.MaxDrawBuffers);
-            cache.SetDepthFunc(DepthFunction.Less);
-        Assert.Equal((int)DepthFunction.Less, GL.GetInteger(GetPName.DepthFunc));
-        }
-        finally
-        {
-            RenderContextRegistry.Retire(owner); GLFW.MakeContextCurrent(original); GLFW.DestroyWindow(replacement);
-            cache.SetDepthFunc(DepthFunction.Less);
-        cache.InvalidateAll();
-        }
     }
     #endregion
 

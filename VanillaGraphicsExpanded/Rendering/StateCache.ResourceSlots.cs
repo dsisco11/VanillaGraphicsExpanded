@@ -14,7 +14,6 @@ internal sealed partial class StateCache
     {
         get
         {
-            SynchronizeContext();
             GpuSupport.EnsureCurrentContext();
             return System.Math.Max(1, GpuSupport.ShaderStorageBufferOffsetAlignment);
         }

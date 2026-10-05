@@ -4,15 +4,17 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     [System.ThreadStatic] private static StateCache? current;
+    /// <summary>Counts successful native fixed-function, dynamic and clear-value transitions.</summary>
+    internal long FixedFunctionCalls { get; private set; }
+
     #region Public API
-    /// <summary>Returns this thread's cache after checking native context identity.</summary>
-    public static StateCache Current { get { var cache = current ??= new StateCache(); cache.SynchronizeContext(); return cache; } }
+    /// <summary>Returns the rendering thread's cache; renderer lifecycle and external mutations own invalidation.</summary>
+    public static StateCache Current => current ??= new StateCache();
     /// <summary>Forgets mutable knowledge without changing native state or diagnostic totals.</summary>
     public void InvalidateAll() => Invalidate(EPipelineState.All);
     /// <summary>Applies the fixed-function intents supplied by a compatibility pipeline.</summary>
     public void Apply(in GlPipelineDesc desc)
     {
-        SynchronizeContext();
         if (activeBoundary is not null || resolvingBoundary) ValidateBoundaryMutation(Pipeline.PipelineStateCoverage.From(desc));
 #if DEBUG
         if (!string.IsNullOrWhiteSpace(desc.Name))

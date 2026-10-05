@@ -8,7 +8,6 @@ internal sealed partial class StateCache
     public void SetPatchVertices(int count)
     {
         ValidateBoundaryMutation(assembly: PrimitiveAssemblyStateKnowledge.PatchVertices);
-        SynchronizeContext();
         // Invalid patch sizes must not be published as known state after a native error.
         EnsurePatchLimit();
         if (count <= 0 || count > GpuSupport.MaxPatchVertices) throw new System.ArgumentOutOfRangeException(nameof(count));

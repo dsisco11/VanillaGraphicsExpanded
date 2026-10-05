@@ -66,6 +66,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         capi = api;
         Rendering.Integration.EngineRenderContext.RegisterCurrent();
+        // Begin renderer ownership with unknown state; later external mutations invalidate their affected categories.
+        StateCache.Current.InvalidateAll();
         // Menu framebuffers can predate mod hook installation; name the currently published table once.
         Rendering.Diagnostics.EngineFramebufferDebugLabels.ApplyDefaults(api.Render.FrameBuffers);
         PBR.HeldLighting.HeldLightSystem.Start(api, message => api.Logger.Error(message));

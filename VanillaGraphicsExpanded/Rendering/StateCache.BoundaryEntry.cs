@@ -25,27 +25,21 @@ internal sealed partial class StateCache
         scope = null;
         // Nesting is a programming error, not an optional-rendering readiness failure.
         if (activeBoundary is not null || resolvingBoundary) throw new InvalidOperationException("Nested engine boundaries are unsupported.");
-        SynchronizeContext();
         BoundaryEntryFailure = null;
         resolvingBoundary = true;
         try
         {
-            if (context.Generation == 0) throw new InvalidOperationException("A registered current context is required.");
-            var incomingContext = context;
+            GpuSupport.EnsureCurrentContext();
             int count = MaxDrawBuffers;
             declaration.Coverage.ValidateOutputCount(count);
             ResolveBoundaryState(declaration.Coverage, count);
             // Resolve immutable limits here, not during the managed draw's first setter.
             if (declaration.Coverage.Dynamic.HasFlag(DynamicDrawStateKnowledge.Viewport)) EnsureViewportLimits();
             if (declaration.Coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices)) EnsurePatchLimit();
-            if (RenderContextRegistry.Current() != incomingContext)
-                throw new InvalidOperationException("Context changed during boundary resolution.");
-            var snapshot = new PipelineStateSnapshot(declaration.Coverage, incomingContext,
+            var snapshot = new PipelineStateSnapshot(declaration.Coverage,
                 depth, rasterizer, assembly, dynamicState, clearColor, blend);
             scope = new EngineBoundaryScope(this, snapshot);
             if (resources is not null) CaptureBoundaryBindings(scope, resources);
-            if (RenderContextRegistry.Current() != incomingContext)
-                throw new InvalidOperationException("Context changed during binding resolution.");
             activeBoundary = scope;
             return true;
         }

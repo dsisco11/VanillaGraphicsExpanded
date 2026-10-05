@@ -11,7 +11,6 @@ internal sealed partial class StateCache
     internal void SetClearColor(float red, float green, float blue, float alpha)
     {
         ValidateBoundaryMutation(clearColor: true);
-        SynchronizeContext();
         var value = new Vector4(red, green, blue, alpha);
         if (clearColorKnown && clearColor == value) return;
         clearColorKnown = false;

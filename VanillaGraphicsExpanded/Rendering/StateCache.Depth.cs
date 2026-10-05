@@ -9,7 +9,6 @@ internal sealed partial class StateCache
     {
         ValidateBoundaryMutation(depth: DepthStateKnowledge.Comparison);
         if (!System.Enum.IsDefined(function)) throw new System.ArgumentOutOfRangeException(nameof(function));
-        SynchronizeContext();
         if (depthKnown.HasFlag(DepthStateKnowledge.Comparison) && depth.Comparison == function) return;
         depthKnown &= ~DepthStateKnowledge.Comparison;
         GL.DepthFunc(function);
@@ -21,7 +20,6 @@ internal sealed partial class StateCache
     public void SetDepthWriteMask(bool enabled)
     {
         ValidateBoundaryMutation(depth: DepthStateKnowledge.WriteEnabled);
-        SynchronizeContext();
         if (depthKnown.HasFlag(DepthStateKnowledge.WriteEnabled) && depth.WriteEnabled == enabled) return;
         depthKnown &= ~DepthStateKnowledge.WriteEnabled;
         GL.DepthMask(enabled);

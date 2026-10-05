@@ -8,21 +8,12 @@ internal sealed partial class StateCache
 {
     private bool restoringBoundary;
     #region Public API
-    /// <summary>Checks context lifetime before any cleanup owner can touch native state.</summary>
-    internal void RequireBoundaryContext(PipelineStateSnapshot snapshot)
-    {
-        SynchronizeContext();
-        if (context != snapshot.Context || context.Generation == 0)
-            throw new InvalidOperationException("Cannot restore an engine boundary into another context generation.");
-    }
-
     /// <summary>Attempts an independent cleanup owner without hiding failures from later owners.</summary>
-    internal void AttemptBoundaryCleanup(PipelineStateSnapshot snapshot, Action cleanup, List<Exception> failures,
+    internal void AttemptBoundaryCleanup(Action cleanup, List<Exception> failures,
         bool shaderOwnership = false)
     {
         try
         {
-            RequireBoundaryContext(snapshot);
             restoringBoundary = true;
             CheckBoundaryNativeError();
             cleanup();
@@ -39,31 +30,29 @@ internal sealed partial class StateCache
     /// <summary>Restores only explicitly covered values, preserving mixed output state and unrelated knowledge.</summary>
     internal void RestoreBoundaryState(PipelineStateSnapshot snapshot, List<Exception> failures)
     {
-        try { RequireBoundaryContext(snapshot); }
-        catch (Exception error) { failures.Add(error); return; }
         var coverage = snapshot.Coverage;
         if (coverage.Depth.HasFlag(DepthStateKnowledge.TestEnabled))
-            RestoreBoundaryField(snapshot, () => SetCapability(EnableCap.DepthTest, snapshot.Depth.TestEnabled), () => depthKnown &= ~DepthStateKnowledge.TestEnabled, failures);
+            RestoreBoundaryField(() => SetCapability(EnableCap.DepthTest, snapshot.Depth.TestEnabled), () => depthKnown &= ~DepthStateKnowledge.TestEnabled, failures);
         if (coverage.Depth.HasFlag(DepthStateKnowledge.Comparison))
-            RestoreBoundaryField(snapshot, () => SetDepthFunc(snapshot.Depth.Comparison), () => depthKnown &= ~DepthStateKnowledge.Comparison, failures);
+            RestoreBoundaryField(() => SetDepthFunc(snapshot.Depth.Comparison), () => depthKnown &= ~DepthStateKnowledge.Comparison, failures);
         if (coverage.Depth.HasFlag(DepthStateKnowledge.WriteEnabled))
-            RestoreBoundaryField(snapshot, () => SetDepthWriteMask(snapshot.Depth.WriteEnabled), () => depthKnown &= ~DepthStateKnowledge.WriteEnabled, failures);
+            RestoreBoundaryField(() => SetDepthWriteMask(snapshot.Depth.WriteEnabled), () => depthKnown &= ~DepthStateKnowledge.WriteEnabled, failures);
         if (coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.CullEnabled))
-            RestoreBoundaryField(snapshot, () => SetCapability(EnableCap.CullFace, snapshot.Rasterizer.CullEnabled), () => rasterizerKnown &= ~RasterizerStateKnowledge.CullEnabled, failures);
+            RestoreBoundaryField(() => SetCapability(EnableCap.CullFace, snapshot.Rasterizer.CullEnabled), () => rasterizerKnown &= ~RasterizerStateKnowledge.CullEnabled, failures);
         if (coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.ScissorEnabled))
-            RestoreBoundaryField(snapshot, () => SetCapability(EnableCap.ScissorTest, snapshot.Rasterizer.ScissorEnabled), () => rasterizerKnown &= ~RasterizerStateKnowledge.ScissorEnabled, failures);
+            RestoreBoundaryField(() => SetCapability(EnableCap.ScissorTest, snapshot.Rasterizer.ScissorEnabled), () => rasterizerKnown &= ~RasterizerStateKnowledge.ScissorEnabled, failures);
         if (coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth))
-            RestoreBoundaryField(snapshot, () => SetLineWidth(snapshot.Rasterizer.LineWidth), () => rasterizerKnown &= ~RasterizerStateKnowledge.LineWidth, failures);
+            RestoreBoundaryField(() => SetLineWidth(snapshot.Rasterizer.LineWidth), () => rasterizerKnown &= ~RasterizerStateKnowledge.LineWidth, failures);
         if (coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.PointSize))
-            RestoreBoundaryField(snapshot, () => SetPointSize(snapshot.Rasterizer.PointSize), () => rasterizerKnown &= ~RasterizerStateKnowledge.PointSize, failures);
+            RestoreBoundaryField(() => SetPointSize(snapshot.Rasterizer.PointSize), () => rasterizerKnown &= ~RasterizerStateKnowledge.PointSize, failures);
         if (coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.ProvokingVertex))
-            RestoreBoundaryField(snapshot, () => SetProvokingVertex(snapshot.Rasterizer.ProvokingVertex), () => rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex, failures);
+            RestoreBoundaryField(() => SetProvokingVertex(snapshot.Rasterizer.ProvokingVertex), () => rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex, failures);
         if (coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices))
-            RestoreBoundaryField(snapshot, () => SetPatchVertices(snapshot.Assembly.PatchVertices), () => assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PatchVertices, failures);
+            RestoreBoundaryField(() => SetPatchVertices(snapshot.Assembly.PatchVertices), () => assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PatchVertices, failures);
         if (coverage.Dynamic.HasFlag(DynamicDrawStateKnowledge.Viewport))
-            RestoreBoundaryField(snapshot, () => ApplyDynamic(snapshot.Dynamic), () => dynamicKnown &= ~DynamicDrawStateKnowledge.Viewport, failures);
+            RestoreBoundaryField(() => ApplyDynamic(snapshot.Dynamic), () => dynamicKnown &= ~DynamicDrawStateKnowledge.Viewport, failures);
         if (coverage.ClearColor)
-            RestoreBoundaryField(snapshot, () => SetClearColor(snapshot.ClearColor.X, snapshot.ClearColor.Y,
+            RestoreBoundaryField(() => SetClearColor(snapshot.ClearColor.X, snapshot.ClearColor.Y,
                 snapshot.ClearColor.Z, snapshot.ClearColor.W), () => clearColorKnown = false, failures);
         // Indexed restoration has no trailing global operation that could overwrite mixed values.
         for (int output = 0; output < snapshot.OutputCount; output++)
@@ -72,11 +61,11 @@ internal sealed partial class StateCache
             var saved = snapshot.BlendAt(index);
             var covered = coverage.BlendAt(index);
             if (covered.HasFlag(BlendStateKnowledge.Enabled))
-                RestoreBoundaryField(snapshot, () => SetBlendEnabledIndexed(index, saved.Enabled), () => blendKnown[index] &= ~BlendStateKnowledge.Enabled, failures);
+                RestoreBoundaryField(() => SetBlendEnabledIndexed(index, saved.Enabled), () => blendKnown[index] &= ~BlendStateKnowledge.Enabled, failures);
             if (covered.HasFlag(BlendStateKnowledge.Factors))
-                RestoreBoundaryField(snapshot, () => SetBlendFuncIndexed(index, saved.Factors), () => blendKnown[index] &= ~BlendStateKnowledge.Factors, failures);
+                RestoreBoundaryField(() => SetBlendFuncIndexed(index, saved.Factors), () => blendKnown[index] &= ~BlendStateKnowledge.Factors, failures);
             if (covered.HasFlag(BlendStateKnowledge.WriteMask))
-                RestoreBoundaryField(snapshot, () => SetColorMaskIndexed(index, saved.WriteMask), () => blendKnown[index] &= ~BlendStateKnowledge.WriteMask, failures);
+                RestoreBoundaryField(() => SetColorMaskIndexed(index, saved.WriteMask), () => blendKnown[index] &= ~BlendStateKnowledge.WriteMask, failures);
         }
     }
 
@@ -94,11 +83,10 @@ internal sealed partial class StateCache
 
     #region Private
     /// <summary>Leaves exactly the failed field unknown, including errors reported by native GL rather than exceptions.</summary>
-    private void RestoreBoundaryField(PipelineStateSnapshot snapshot, Action restore, Action forget, List<Exception> failures)
+    private void RestoreBoundaryField(Action restore, Action forget, List<Exception> failures)
     {
         try
         {
-            RequireBoundaryContext(snapshot);
             restoringBoundary = true;
             CheckBoundaryNativeError();
             restore();
@@ -107,7 +95,7 @@ internal sealed partial class StateCache
         catch (Exception error)
         {
             failures.Add(error);
-            // A context switch may already have discarded the payload being invalidated.
+            // Independent restoration failures must not prevent the remaining fields from being attempted.
             try { forget(); }
             catch (Exception invalidationFailure) { failures.Add(invalidationFailure); }
         }

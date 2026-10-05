@@ -16,8 +16,7 @@ internal sealed partial class StateCache
         program = 0;
         try
         {
-            SynchronizeContext();
-            if (context.Generation == 0) return false;
+            GpuSupport.EnsureCurrentContext();
             currentProgram ??= QueryBoundary(() => GL.GetInteger(GetPName.CurrentProgram));
             program = currentProgram.Value;
             return true;
@@ -56,7 +55,7 @@ internal sealed partial class StateCache
     private void CaptureBoundaryBindings(EngineBoundaryScope scope, EngineBoundaryResources footprint)
     {
         ValidateBoundaryResourceLimits(footprint);
-        var bindings = new BoundaryBindingRestoration(this, scope.Snapshot);
+        var bindings = new BoundaryBindingRestoration(this);
         activeTextureUnit ??= QueryBoundary(() => GL.GetInteger(GetPName.ActiveTexture) - (int)TextureUnit.Texture0);
         int active = activeTextureUnit.Value;
         currentVao ??= QueryBoundary(() => GL.GetInteger(GetPName.VertexArrayBinding));
@@ -73,7 +72,7 @@ internal sealed partial class StateCache
         finally
         {
             // Texture queries select a unit temporarily. Failed entry must restore that selector too.
-            try { RequireBoundaryContext(scope.Snapshot); if (activeTextureUnit != active) { ActiveTexture(active); CheckBoundaryNativeError(); } }
+            try { if (activeTextureUnit != active) { ActiveTexture(active); CheckBoundaryNativeError(); } }
             catch (Exception error)
             {
                 activeTextureUnit = null;
@@ -98,7 +97,7 @@ internal sealed partial class StateCache
         currentReadFramebuffer ??= QueryBoundary(() => GL.GetInteger(GetPName.ReadFramebufferBinding));
         currentDrawFramebuffer ??= QueryBoundary(() => GL.GetInteger(GetPName.DrawFramebufferBinding));
         int read = currentReadFramebuffer.Value, draw = currentDrawFramebuffer.Value;
-        var framebuffers = new BoundaryBindingRestoration(this, scope.Snapshot);
+        var framebuffers = new BoundaryBindingRestoration(this);
         var readScope = new FramebufferScope(this, FramebufferTarget.ReadFramebuffer, read, draw);
         var drawScope = new FramebufferScope(this, FramebufferTarget.DrawFramebuffer, read, draw);
         framebuffers.Add(() => { RequireBoundaryResource(EPipelineState.FramebufferBindings, read); if (currentReadFramebuffer != read) readScope.Dispose(); },
@@ -206,7 +205,7 @@ internal sealed partial class StateCache
     #endregion
 
     /// <summary>Retains independent binding restoration actions without adding a second live binding cache.</summary>
-    private sealed class BoundaryBindingRestoration(StateCache cache, PipelineStateSnapshot snapshot) : IDisposable
+    private sealed class BoundaryBindingRestoration(StateCache cache) : IDisposable
     {
         private readonly List<(Action Restore, Action Forget)> fields = new();
         #region Public API
@@ -217,7 +216,7 @@ internal sealed partial class StateCache
         public void Dispose()
         {
             var failures = new List<Exception>();
-            foreach (var field in fields) cache.RestoreBoundaryField(snapshot, field.Restore, field.Forget, failures);
+            foreach (var field in fields) cache.RestoreBoundaryField(field.Restore, field.Forget, failures);
             if (failures.Count != 0) throw new AggregateException(failures);
         }
         #endregion

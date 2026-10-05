@@ -43,7 +43,7 @@ internal sealed class EngineBoundaryScope : IDisposable
         if (executing) throw new InvalidOperationException("Boundary execution cannot be nested.");
         Exception? failure = null;
         executing = true;
-        try { cache.RequireBoundaryContext(Snapshot); operation(); }
+        try { operation(); }
         catch (Exception error) { failure = error; }
         finally { executing = false; }
         Complete(failure);
@@ -70,11 +70,11 @@ internal sealed class EngineBoundaryScope : IDisposable
         var failures = new List<Exception>();
         try
         {
-            // Context checks precede every owner: never bind old names into a replacement context.
+            // Attempt each independent owner before restoring drawing state.
             foreach (var order in Enum.GetValues<EngineBoundaryCleanup>())
                 for (int i = cleanup.Count - 1; i >= 0; i--)
                     if (cleanup[i].Order == order)
-                        cache.AttemptBoundaryCleanup(Snapshot, cleanup[i].Owner.Dispose, failures,
+                        cache.AttemptBoundaryCleanup(cleanup[i].Owner.Dispose, failures,
                             order == EngineBoundaryCleanup.Shader);
             cache.RestoreBoundaryState(Snapshot, failures);
         }

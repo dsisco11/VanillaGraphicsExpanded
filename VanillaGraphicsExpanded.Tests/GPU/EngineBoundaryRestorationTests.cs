@@ -188,21 +188,22 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         scope!.Dispose(); Assert.Equal(calls + 1, cache.FixedFunctionCalls);
     }
 
-    /// <summary>Context replacement consumes the scope without running any old-context cleanup.</summary>
+    /// <summary>Explicit invalidation does not cancel an active scope or skip its cleanup owners.</summary>
     [Fact]
-    public void ContextMismatchSkipsEveryCleanupOwner()
+    public void InvalidationPreservesCleanupAndRestoration()
     {
         var cache = Prepare();
-        Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Context"), out var scope));
+        Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Invalidation"), out var scope));
         int cleaned = 0;
         scope!.AddCleanup(EngineBoundaryCleanup.Shader, new Cleanup(() => cleaned++));
-        RenderContextRegistry.Retire(fixture);
-        RenderContextRegistry.RegisterCurrent(fixture, static owner => ((HeadlessGLFixture)owner).IsContextValid);
-        long calls = cache.FixedFunctionCalls;
-        Assert.Throws<EngineBoundaryRestoreException>(() => scope.Dispose());
-        Assert.Equal(0, cleaned); Assert.Equal(calls, cache.FixedFunctionCalls);
+        cache.InvalidateAll();
+        Assert.Same(cache, StateCache.Current);
         scope.Dispose();
-        Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Next"), out var next)); next!.Dispose();
+        Assert.Equal(1, cleaned);
+        scope.Dispose();
+        Assert.Equal(1, cleaned);
+        Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Next"), out var next));
+        next!.Dispose();
     }
     #endregion
     #endregion

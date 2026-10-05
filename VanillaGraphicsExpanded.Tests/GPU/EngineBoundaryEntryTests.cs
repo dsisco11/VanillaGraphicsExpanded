@@ -35,7 +35,6 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         Assert.True(first!.Snapshot.Depth.TestEnabled);
         Assert.Equal(DepthFunction.Greater, first.Snapshot.Depth.Comparison);
         Assert.False(first.Snapshot.Depth.WriteEnabled);
-        Assert.Equal(cache.ContextGeneration, first.Snapshot.Context.Generation);
         cache.ReleaseEngineBoundary(first);
         queries = cache.BoundaryQueries;
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var warm));
@@ -267,30 +266,26 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         Assert.Null(failed);
     }
 
-    /// <summary>A missing current context cannot publish a snapshot or permit scoped mutations.</summary>
+    /// <summary>Entry requires a live registered context before any state queries or mutations begin.</summary>
     [Fact]
-    public unsafe void ContextLossRejectsEntryAndActiveMutations()
+    public unsafe void MissingCurrentContextRejectsEntry()
     {
         var cache = Prepare();
         var declaration = new EngineBoundaryDeclaration("Context", new PipelineStateCoverage(depth: DepthStateKnowledge.WriteEnabled));
-        Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope));
         try
         {
             GLFW.MakeContextCurrent(null);
-            Assert.Throws<InvalidOperationException>(() => cache.SetDepthWriteMask(true));
-        }
-        finally { fixture.MakeCurrent(); cache.ReleaseEngineBoundary(scope!); }
-        try
-        {
-            GLFW.MakeContextCurrent(null);
-            Assert.False(cache.TryBeginEngineBoundary(declaration, out var failed)); Assert.Null(failed);
+            long queries = cache.BoundaryQueries;
+            Assert.False(cache.TryBeginEngineBoundary(declaration, out var failed));
+            Assert.Null(failed);
+            Assert.Equal(queries, cache.BoundaryQueries);
         }
         finally { fixture.MakeCurrent(); cache.InvalidateAll(); }
     }
 
-    /// <summary>Registration is required even with a live native context; replacement cannot reuse an old token.</summary>
+    /// <summary>Capability registration readiness is checked at entry without storing a replacement token.</summary>
     [Fact]
-    public void UnregisteredAndReplacementContextsRejectAuthority()
+    public void UnregisteredContextRejectsEntry()
     {
         var cache = Prepare();
         var declaration = new EngineBoundaryDeclaration("Registered", new PipelineStateCoverage(depth: DepthStateKnowledge.WriteEnabled));
@@ -299,21 +294,12 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         {
             long queries = cache.BoundaryQueries;
             Assert.False(cache.TryBeginEngineBoundary(declaration, out var missing));
-            Assert.Null(missing); Assert.Equal(queries, cache.BoundaryQueries);
+            Assert.Null(missing);
+            Assert.Equal(queries, cache.BoundaryQueries);
         }
         finally { RenderContextRegistry.RegisterCurrent(fixture, static owner => ((HeadlessGLFixture)owner).IsContextValid); }
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope));
-        try
-        {
-            long generation = scope!.Snapshot.Context.Generation;
-            RenderContextRegistry.Retire(fixture);
-            RenderContextRegistry.RegisterCurrent(fixture, static owner => ((HeadlessGLFixture)owner).IsContextValid);
-            Assert.NotEqual(generation, cache.ContextGeneration);
-            long calls = cache.FixedFunctionCalls;
-            Assert.Throws<InvalidOperationException>(() => cache.SetDepthWriteMask(true));
-            Assert.Equal(calls, cache.FixedFunctionCalls);
-        }
-        finally { cache.ReleaseEngineBoundary(scope!); }
+        cache.ReleaseEngineBoundary(scope!);
     }
     #endregion
     #endregion

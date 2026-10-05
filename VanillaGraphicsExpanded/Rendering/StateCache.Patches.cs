@@ -9,7 +9,6 @@ internal sealed partial class StateCache
     {
         get
         {
-            SynchronizeContext();
             if (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProvokingVertex))
             {
                 RejectUnsupportedBoundaryMutation();
@@ -24,7 +23,6 @@ internal sealed partial class StateCache
     {
         get
         {
-            SynchronizeContext();
             if (!assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices))
             {
                 RejectUnsupportedBoundaryMutation();

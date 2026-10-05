@@ -10,7 +10,6 @@ internal sealed partial class StateCache
     internal void ApplyDynamic(in DynamicDrawState state)
     {
         ValidateBoundaryMutation(dynamic: DynamicDrawStateKnowledge.Viewport);
-        SynchronizeContext();
         if (state.Width < 0 || state.Height < 0) throw new ArgumentOutOfRangeException(nameof(state));
         EnsureViewportLimits();
         var effective = state;

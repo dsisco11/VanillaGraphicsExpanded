@@ -10,7 +10,6 @@ internal sealed partial class StateCache
     /// <exception cref="InvalidOperationException">Scissor state was never established or has been invalidated.</exception>
     public ScissorStateScope PreserveScissorState()
     {
-        SynchronizeContext();
         if (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.ScissorEnabled))
             throw new InvalidOperationException("Establish scissor state through the pipeline state cache before preserving it.");
         return new ScissorStateScope(this, rasterizer.ScissorEnabled);

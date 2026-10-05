@@ -10,7 +10,6 @@ internal sealed partial class StateCache
     /// <summary>Tracks supported capabilities and preserves native behavior for all other capabilities.</summary>
     internal void SetCapability(EnableCap capability, bool enabled)
     {
-        SynchronizeContext();
         switch (capability)
         {
             case EnableCap.DepthTest:

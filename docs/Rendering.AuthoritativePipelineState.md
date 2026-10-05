@@ -1,5 +1,29 @@
 # Authoritative pipeline state implementation evidence
 
+## State cache lifetime
+
+StateCache retains knowledge for the rendering thread and relies on explicit invalidation at
+renderer lifecycle and external-mutation boundaries. It does not track context handles or
+registration generations, automatically invalidate on context changes, or validate context identity
+inside boundary snapshots. Engine scopes must finish on the same live rendering context.
+
+GpuSupport remains the owner of capability capture and its existing registration lifecycle.
+Capability-dependent boundary entry still checks readiness through that owner. Native-error handling,
+declared mutation coverage, targeted resource retirement and ordered boundary restoration remain in place.
+The context-switch/replacement checks described in the historical records below no longer apply to
+StateCache; future context recovery is separate work.
+
+The expanded regression selection exposed two existing SurfaceLightingDisplayBoundaryTests failures:
+their engine mesh fixture applies an additional fullscreen pipeline beyond the production boundary's
+coverage. Both failures reproduced on HEAD with the same shader assets. They are excluded from the
+focused cache validation; the fixture has not been changed as part of this lifetime removal.
+
+Final shader-enabled Debug and Release builds passed, and the focused cache/boundary/startup/resource
+selection passed 93/93 tests in each configuration with no skips. Receipts: artifacts/
+statecache-context-removal-{debug,release}-{build,tests}.log and matching TRX files under
+artifacts/TestResults. Baseline failures are recorded in artifacts/statecache-context-baseline-tests.log.
+No live-game acceptance or performance measurement was performed.
+
 ## Engine-boundary restoration
 
 Inventory and implementation contracts established on 2026-10-05. Categorized cache storage

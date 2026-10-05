@@ -12,7 +12,6 @@ internal sealed partial class StateCache
     {
         get
         {
-            SynchronizeContext();
             GpuSupport.EnsureCurrentContext();
             int count = GpuSupport.MaxDrawBuffers;
             if (count <= 0) throw new InvalidOperationException("No current draw-buffer capability.");

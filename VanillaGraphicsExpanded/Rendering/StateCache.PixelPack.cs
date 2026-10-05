@@ -9,7 +9,7 @@ internal sealed partial class StateCache
     private PixelPackState? pixelPackState;
 
     #region Pixel pack state
-    /// <summary>Forgets pack state after external GL changes or a context change.</summary>
+    /// <summary>Forgets pack state after explicitly reported external GL changes.</summary>
     public void DirtyPixelPackState() => pixelPackState = null;
 
     /// <summary>Gets the cached layout, querying GL only when the state is unknown.</summary>
