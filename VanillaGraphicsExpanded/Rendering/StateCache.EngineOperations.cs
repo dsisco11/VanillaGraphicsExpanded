@@ -18,6 +18,25 @@ internal sealed partial class StateCache
         }
         switch (capability)
         {
+            case EnableCap.StencilTest:
+            case EnableCap.DepthClamp:
+            case EnableCap.RasterizerDiscard:
+            case EnableCap.PolygonOffsetFill:
+            case EnableCap.PolygonOffsetLine:
+            case EnableCap.PolygonOffsetPoint:
+            case EnableCap.ProgramPointSize:
+            case EnableCap.Multisample:
+            case EnableCap.SampleCoverage:
+            case EnableCap.SampleMask:
+            case EnableCap.SampleAlphaToCoverage:
+            case EnableCap.SampleAlphaToOne:
+            case EnableCap.SampleShading:
+            case EnableCap.FramebufferSrgb:
+            case EnableCap.Dither:
+            case EnableCap.ColorLogicOp:
+            case EnableCap.PrimitiveRestart:
+            case EnableCap.PrimitiveRestartFixedIndex:
+                SetCompleteEnable(capability, enabled); break;
             case EnableCap.AlphaTest: SetAlphaTest(enabled); break;
             case EnableCap.PointSmooth: SetPointSmooth(enabled); break;
             case EnableCap.LineSmooth: SetLineSmooth(enabled); break;
@@ -91,7 +110,7 @@ internal sealed partial class StateCache
     /// <summary>Forgets only layout fields that the specified native pixel-store command can change.</summary>
     private void InvalidatePixelTransferLayout(PixelStoreParameter parameter)
     {
-        // Image-height/image-skip values do not participate in these two-dimensional bitmap transfers.
+        // Pack owns the readback layout; unpack additionally owns image strides for layered uploads.
         if (parameter is PixelStoreParameter.PackAlignment or PixelStoreParameter.PackRowLength
             or PixelStoreParameter.PackSkipRows or PixelStoreParameter.PackSkipPixels
             or PixelStoreParameter.PackSwapBytes or PixelStoreParameter.PackLsbFirst) DirtyPixelPackState();

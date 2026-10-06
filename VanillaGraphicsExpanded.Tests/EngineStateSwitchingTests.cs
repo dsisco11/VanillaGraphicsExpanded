@@ -99,7 +99,7 @@ public sealed class EngineStateSwitchingTests
         var original = new CodeInstruction(OpCodes.Call, native);
         original.labels.Add(generator.DefineLabel());
         original.blocks.Add(new ExceptionBlock(ExceptionBlockType.BeginExceptionBlock));
-        var unsupported = new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(GL), nameof(GL.CullFace), [typeof(TriangleFace)]));
+        var unsupported = new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(GL), nameof(GL.Clear), [typeof(ClearBufferMask)]));
         var rewritten = EngineStateSwitchingHook.Transpiler([original, unsupported]).ToArray();
         Assert.Equal(EngineStateCallMap.Replacements[native], rewritten[0].operand);
         Assert.Equal(original.labels, rewritten[0].labels);

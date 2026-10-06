@@ -34,6 +34,7 @@ internal sealed partial class StateCache
     internal void RestoreBoundaryState(PipelineStateSnapshot snapshot, List<Exception> failures)
     {
         var coverage = snapshot.Coverage;
+        if (snapshot.Coverage.CompleteGraphics) RestoreCompleteGraphics(snapshot, failures);
         if ((coverage.Rasterizer & RasterizerStateKnowledge.ConfigurableRaster) != 0) RestoreConfigurableRaster(snapshot, failures);
         if (coverage.Depth.HasFlag(DepthStateKnowledge.TestEnabled) && (!depthKnown.HasFlag(DepthStateKnowledge.TestEnabled) || depth.TestEnabled != snapshot.Depth.TestEnabled))
             RestoreBoundaryField(() => SetCapability(EnableCap.DepthTest, snapshot.Depth.TestEnabled), () => depthKnown &= ~DepthStateKnowledge.TestEnabled, failures);
@@ -51,7 +52,7 @@ internal sealed partial class StateCache
             RestoreBoundaryField(() => SetPointSize(snapshot.Rasterizer.PointSize), () => rasterizerKnown &= ~RasterizerStateKnowledge.PointSize, failures);
         if (coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.ProvokingVertex) && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProvokingVertex) || rasterizer.ProvokingVertex != snapshot.Rasterizer.ProvokingVertex))
             RestoreBoundaryField(() => SetProvokingVertex(snapshot.Rasterizer.ProvokingVertex), () => rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex, failures);
-        if (coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) && (!assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) || assembly.PatchVertices != snapshot.Assembly.PatchVertices))
+        if (coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) && GpuSupport.Graphics.Tessellation && (!assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) || assembly.PatchVertices != snapshot.Assembly.PatchVertices))
             RestoreBoundaryField(() => SetPatchVertices(snapshot.Assembly.PatchVertices), () => assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PatchVertices, failures);
         if (coverage.Dynamic.HasFlag(DynamicDrawStateKnowledge.Viewport) && (!dynamicKnown.HasFlag(DynamicDrawStateKnowledge.Viewport)
             || dynamicState.X != snapshot.Dynamic.X || dynamicState.Y != snapshot.Dynamic.Y
@@ -69,7 +70,19 @@ internal sealed partial class StateCache
             if (covered.HasFlag(BlendStateKnowledge.Enabled) && (!blendKnown[index].HasFlag(BlendStateKnowledge.Enabled) || blend[index].Enabled != saved.Enabled))
                 RestoreBoundaryField(() => SetBlendEnabledIndexed(index, saved.Enabled), () => blendKnown[index] &= ~BlendStateKnowledge.Enabled, failures);
             if (covered.HasFlag(BlendStateKnowledge.Factors) && (!blendKnown[index].HasFlag(BlendStateKnowledge.Factors) || blend[index].Factors != saved.Factors))
-                RestoreBoundaryField(() => SetBlendFuncIndexed(index, saved.Factors), () => blendKnown[index] &= ~BlendStateKnowledge.Factors, failures);
+            {
+                if (GpuSupport.Graphics.IndependentBlend)
+                    RestoreBoundaryField(() => SetBlendFuncIndexed(index, saved.Factors), () => blendKnown[index] &= ~BlendStateKnowledge.Factors, failures);
+                else
+                    RestoreBoundaryField(() => SetBlendFunc(saved.Factors), DirtyIndexedBlendFunc, failures);
+            }
+            if (covered.HasFlag(BlendStateKnowledge.Equations) && (!blendKnown[index].HasFlag(BlendStateKnowledge.Equations) || blend[index].Equations != saved.Equations))
+            {
+                if (GpuSupport.Graphics.IndependentBlend)
+                    RestoreBoundaryField(() => SetBlendEquationIndexed(index, saved.Equations.Rgb, saved.Equations.Alpha), () => ForgetBlendEquation(index), failures);
+                else
+                    RestoreBoundaryField(() => SetBlendEquation(saved.Equations.Rgb, saved.Equations.Alpha), ForgetBlendEquations, failures);
+            }
             if (covered.HasFlag(BlendStateKnowledge.WriteMask) && (!blendKnown[index].HasFlag(BlendStateKnowledge.WriteMask) || blend[index].WriteMask != saved.WriteMask))
                 RestoreBoundaryField(() => SetColorMaskIndexed(index, saved.WriteMask), () => blendKnown[index] &= ~BlendStateKnowledge.WriteMask, failures);
         }

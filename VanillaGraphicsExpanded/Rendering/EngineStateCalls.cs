@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Provides signature-compatible replacements for engine OpenGL state calls.</summary>
 /// <remarks>Only engine callers are transpiled; these adapters and cache native calls are never patched.</remarks>
-internal static class EngineStateCalls
+internal static partial class EngineStateCalls
 {
     #region Public API
     #region Fixed function

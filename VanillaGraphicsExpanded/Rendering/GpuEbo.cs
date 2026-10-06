@@ -184,6 +184,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         GL.DrawElements(primitiveType, count, indexType, (IntPtr)offsetBytes);
+        StateCache.Current.RecordDrawSubmission();
     }
 
     public void DrawElementsInstanced(PrimitiveType primitiveType, int instanceCount, int indexCount = 0, int offsetBytes = 0)
@@ -210,6 +211,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         GL.DrawElementsInstanced(primitiveType, count, indexType, (IntPtr)offsetBytes, instanceCount);
+        StateCache.Current.RecordDrawSubmission();
     }
 
     protected override void OnDetached(nint id)

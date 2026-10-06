@@ -30,6 +30,14 @@ internal sealed partial class StateCache
     #endregion
 
     #region Private
+    /// <summary>Requires complete drawing-state coverage before supplemental state can change.</summary>
+    private void ValidateCompleteMutation()
+    {
+        if (resolvingBoundary) throw new InvalidOperationException("Drawing state cannot change during boundary resolution.");
+        if (activeBoundary is not null && !activeBoundary.Snapshot.Coverage.CompleteGraphics)
+            throw new InvalidOperationException("Managed operation exceeds the declared complete graphics coverage.");
+    }
+
     /// <summary>Checks a scalar or indexed setter without allocating coverage objects in managed draws.</summary>
     private void ValidateBoundaryMutation(DepthStateKnowledge depth = default,
         RasterizerStateKnowledge rasterizer = default, PrimitiveAssemblyStateKnowledge assembly = default,

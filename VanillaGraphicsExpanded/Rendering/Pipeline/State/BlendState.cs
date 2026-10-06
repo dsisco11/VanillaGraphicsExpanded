@@ -9,4 +9,6 @@ internal struct BlendState
     public GlBlendFunc Factors;
     /// <summary>Declared WriteMask value.</summary>
     public GlColorMask WriteMask;
+    /// <summary>Effective separate RGB and alpha equations for this draw-output slot.</summary>
+    public (BlendEquationMode Rgb, BlendEquationMode Alpha) Equations;
 }

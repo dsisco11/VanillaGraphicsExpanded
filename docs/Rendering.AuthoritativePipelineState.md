@@ -1215,9 +1215,10 @@ to its command; the affected field becomes unknown and independent cleanup conti
 reported after a grouped command invalidates the entire affected group, not a guessed individual
 component. Cleanup failure remains an unsafe handoff and propagates with the original operation error.
 
-Pixel-transfer buffer changes and changed pack/unpack layouts remain checked safety operations:
-setup must succeed before native code can interpret a managed pointer using those bindings/layouts.
-Known-equal bindings/layouts do not poll. Polygon-stipple transfer reuses those checked owners and
+Pixel pack/unpack layouts validate their inputs before mutation and use optional transition diagnostics.
+Changed layouts and scope restoration do not poll errors by default; checked boundary restoration owns
+its checks. Pixel-transfer buffer changes remain checked safety operations before native code interprets
+a managed pointer using those bindings. Known-equal bindings/layouts do not poll. Polygon-stipple transfer reuses those checked owners and
 checks the transfer itself; restoration does not repeat checks already owned by a checked transfer.
 Cold state reads retain native error checks so a failed query cannot publish a default as known state.
 Unavoidable safety checks and optional diagnostics are accounted separately from state-value reads
@@ -1263,3 +1264,105 @@ measured frame-time or GPU savings. Live game validation was not performed.
 
 Independent audit-stage-completion review passed after the second review and both final test receipts;
 no unresolved implementation, contract or verification gaps remain for this correction.
+
+## Complete state application and engine boundary (2026-10-06)
+
+Complete descriptor application remains below prepared executable submission: StateCache applies
+validated fixed-function intent and explicit GraphicsDynamicState values. Shader preparation,
+render-pass compatibility, geometry validation and production consumer migration retain their later
+implementation dependencies. Existing partial GlPipelineDesc behavior remains available.
+
+The cache reuses its categorized values and knowledge for depth, rasterizer, primitive assembly,
+dynamic state and indexed blending, adding stencil, sampling and output interpretation ownership.
+PipelineStateSnapshot retains copies of these same category structs and their embedded knowledge
+masks. Indexed sample-mask values are copied once into private snapshot storage; callers can enumerate
+values without accessing the mutable dictionary. Missing incoming fields are queried directly into
+the live category and become known only after their complete native query group succeeds. Restoration
+compares saved category values and knowledge with the live cache, avoiding a second flattened state
+representation and preserving independent failure invalidation.
+
+Complete application establishes disabled parameters as well as enables, all supported sample-mask
+words and native output slots, depth range, restart policy and explicit output encoding. Shared
+GpuSupport capabilities gate native operations; no cache-owned limits or context replacement model
+is introduced. Global blend equations update indexed aliases; independent native equations/factors
+are used only where supported. Ordinary unchanged application avoids native state calls and queries.
+Optional transition diagnostics and checked restoration retain the native error policy above.
+
+CompleteGraphicsBoundary borrows the existing EngineBoundaryExecution shader/resource lifetimes.
+It requires an explicit inactive conditional-rendering contract and verifies transform feedback is
+inactive before changing rendering state. Complete coverage captures missing values, including
+inactive parameters, and restores independent changed fields on success and exceptions. It rejects
+unknown shader ownership through the existing adapter. This is the adapter foundation for the
+first fullscreen consumer; it does not replace the production renderer or assert authority over
+arbitrary engine/mod calls. Unobserved operations still require ExecuteExternal or explicit targeted
+invalidation before subsequent managed use. Existing retirement and VAO-owned EBO rules remain intact.
+
+Exact native signatures in EngineStateCalls now route additional stencil, raster, sample, depth-range,
+blend-equation and dynamic commands through cache owners; EngineStateCallMap validates signatures and
+patches engine callers only. This observes the routed calls without recursively patching cache GL calls.
+Unsupported overloads and external callbacks are outside that observation contract.
+
+FixedFunctionCalls, BoundaryQueries and BoundaryErrorChecks retain separate scalar counters.
+DrawSubmissions counts commands issued by owned GpuVao/GpuEbo draw helpers, with no history allocation;
+it is not an engine-wide draw counter. Native engine RenderMesh paths remain outside that count.
+
+| Plan requirement -> controlling contract | Implementation and required evidence |
+| --- | --- |
+| Complete transitions -> Proposal / Static and dynamic state coverage; Supported state and defaults | ApplyGraphicsState, explicit dynamics and categorized setters; hostile native state, A-to-B-to-A, disabled parameters and unchanged-call tests. |
+| Alias and lifetime -> Proposal / Engine integration and cache authority; Restoration decisions by boundary | Global/indexed blend coherence, existing targeted resource retirement and VAO tracking; alias, invalidation and retirement regression suites. |
+| First-consumer boundary -> Supported state and defaults; Boundary API, coverage and failures | CompleteGraphicsBoundary, complete coverage/resolved snapshots and independent restoration; excluded-operation guards, callback exceptions, shader/resource-owner regressions. |
+| Instrumentation and verification -> Proposal / Validation and acceptance; Native error-checking policy | Separate bounded counters; actual three-target fullscreen draw and pixel checks, native state comparisons, delegated shader-enabled Debug/Release receipts. |
+
+
+The installed-driver tests use a three-color-target 8-by-8 fullscreen fixture with explicit state,
+verify every output pixel, and exercise success/exception restoration. This is state-application proof,
+not the later frozen production-lighting shader comparison. Native probe evidence on the test driver
+showed negative stencil references stored as zero and 257 retained as 257 even on an eight-bit stencil
+target; the cache normalizes only the negative native input, while managed complete draw values obey
+the supported target's reference range.
+
+The actual driver exposes independent blending and transform-feedback activity queries. The absent
+independent-blending global fallback and unavailable activity-query rejection are source-reviewed;
+these runs do not establish native coverage on hardware lacking those features. One remaining raw
+scissor restoration in LumOnDebugRenderer is followed by its existing explicit InvalidateAll boundary;
+its renderer migration remains outside this adapter's authority.
+
+Verification commands use NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages, with shader compilation enabled:
+
+~~~powershell
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~CompleteGraphics|FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~GraphicsPipelineDescriptionTests|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~EngineBoundary|FullyQualifiedName~EngineStateSwitchingTests|FullyQualifiedName~EngineStateInventoryTests|FullyQualifiedName~StateCacheResourceDeletionTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~GpuVaoIntegrationTests|FullyQualifiedName~GpuResourceManagerDeletionQueueIntegrationTests|FullyQualifiedName~StateTransitionDiagnosticsTests|FullyQualifiedName~PixelUnpackStateTests|FullyQualifiedName~PixelPackStateTests' --logger 'console;verbosity=normal'
+~~~
+
+Repeat with -c Release. Receipts: artifacts/complete-graphics-debug-tests.log and
+artifacts/complete-graphics-release-tests.log. The selection includes twelve new complete-state/draw
+cases and existing descriptor, engine-boundary, shader-ownership, retirement/name-reuse, VAO/EBO,
+pixel-transfer and diagnostic regressions. Initial runs exposed the core polygon-mode query shape,
+an unhandled installed-engine CullFace(TriangleFace) signature and obsolete coverage/count/sentinel
+expectations. Those were corrected before final validation. A Release attempt hit a transient
+ShaderVariantCache atomic file-replacement failure and was retried unchanged.
+
+Second source review covered complete preflight-before-mutation, disabled-state values, global/indexed
+aliases, categorized invalidation, viewport updates preserving other dynamics, snapshot detachment,
+independent restoration failures and engine adapter signatures. No production renderer migration,
+live-game appearance validation or frame-time improvement is claimed.
+
+Final delegated results on 2026-10-06: Debug **171/171 passed** and Release **171/171 passed**,
+zero failures or skips, shader compilation enabled. Existing compiler/analyzer and NU1900 warnings
+remain. Repeated identical complete application adds zero fixed-function calls, zero state reads and
+zero error-status checks with diagnostics disabled. The fullscreen fixture records one owned draw
+per successful callback and checks exact output pixels across all three attachments.
+
+Independent audit-stage-completion reviewed the linked contracts, implementation, source-layout
+corrections and both final receipts after the second review. It found no unresolved requirements or
+evidence gaps for complete state application and the first-consumer boundary foundation.
+
+Categorized snapshot refactor verification (2026-10-06): shader-enabled Debug and Release each passed
+85/85 focused tests, zero failures/skips. The two added warm/cold snapshot tests mutate and invalidate
+live categories and indexed sample masks, verify saved values/knowledge remain unchanged, and verify
+native restoration. Existing query-failure and exceptional-cleanup regressions also passed.
+Receipts: artifacts/categorized-snapshot-debug-tests.log and artifacts/categorized-snapshot-release-tests.log.
+Command (repeat with -c Release; NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages):
+
+~~~powershell
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~CompleteGraphics|FullyQualifiedName~EngineBoundary|FullyQualifiedName~StateTransitionDiagnostics|FullyQualifiedName~PixelPack|FullyQualifiedName~PixelUnpack|FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~PipelineStateCoverage' -v quiet
+~~~

@@ -274,6 +274,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
 
         Bind();
         GL.DrawElements(primitiveType, indexCount, indexType, (IntPtr)offsetBytes);
+        StateCache.Current.RecordDrawSubmission();
     }
 
     public void DrawElements(PrimitiveType primitiveType, GpuEbo ebo, int indexCount = 0, int offsetBytes = 0)
@@ -299,6 +300,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         Bind();
         StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElements(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes);
+        StateCache.Current.RecordDrawSubmission();
     }
 
     public void DrawElementsInstanced(
@@ -325,6 +327,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
 
         Bind();
         GL.DrawElementsInstanced(primitiveType, indexCount, indexType, (IntPtr)offsetBytes, instanceCount);
+        StateCache.Current.RecordDrawSubmission();
     }
 
     public void DrawElementsInstanced(
@@ -355,6 +358,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         Bind();
         StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElementsInstanced(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes, instanceCount);
+        StateCache.Current.RecordDrawSubmission();
     }
 
     public override string ToString()

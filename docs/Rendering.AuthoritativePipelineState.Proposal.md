@@ -194,9 +194,10 @@ to its command; the affected field becomes unknown and independent cleanup conti
 reported after a grouped command invalidates the entire affected group, not a guessed individual
 component. Cleanup failure remains an unsafe handoff and propagates with the original operation error.
 
-Pixel-transfer buffer changes and changed pack/unpack layouts remain checked safety operations:
-setup must succeed before native code can interpret a managed pointer using those bindings/layouts.
-Known-equal bindings/layouts do not poll. Polygon-stipple transfer reuses those checked owners and
+Pixel pack/unpack layouts validate their inputs before mutation and use optional transition diagnostics.
+Changed layouts and scope restoration do not poll errors by default; checked boundary restoration owns
+its checks. Pixel-transfer buffer changes remain checked safety operations before native code interprets
+a managed pointer using those bindings. Known-equal bindings/layouts do not poll. Polygon-stipple transfer reuses those checked owners and
 checks the transfer itself; restoration does not repeat checks already owned by a checked transfer.
 Cold state reads retain native error checks so a failed query cannot publish a default as known state.
 Unavoidable safety checks and optional diagnostics are accounted separately from state-value reads

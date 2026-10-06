@@ -34,10 +34,11 @@ internal sealed partial class StateCache
         if (state.RowLength < 0 || state.SkipRows < 0 || state.SkipPixels < 0 || state.ImageHeight < 0 || state.SkipImages < 0) throw new ArgumentOutOfRangeException(nameof(state));
         // A known identical layout is a pure cache hit, including its error state.
         if (pixelUnpackState == state) return;
-        CheckBoundaryNativeError();
         var previous = pixelUnpackState;
         // Leave the cache unknown if a driver call throws partway through the update.
         pixelUnpackState = null;
+        // Optional diagnostics share the ordinary transition policy; boundary restoration owns its checks.
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (previous?.Alignment != state.Alignment) GL.PixelStore(PixelStoreParameter.UnpackAlignment, state.Alignment);
         if (previous?.RowLength != state.RowLength) GL.PixelStore(PixelStoreParameter.UnpackRowLength, state.RowLength);
         if (previous?.SkipRows != state.SkipRows) GL.PixelStore(PixelStoreParameter.UnpackSkipRows, state.SkipRows);
@@ -46,7 +47,7 @@ internal sealed partial class StateCache
         if (previous?.LsbFirst != state.LsbFirst) GL.PixelStore(PixelStoreParameter.UnpackLsbFirst, state.LsbFirst ? 1 : 0);
         if (previous?.ImageHeight != state.ImageHeight) GL.PixelStore(PixelStoreParameter.UnpackImageHeight, state.ImageHeight);
         if (previous?.SkipImages != state.SkipImages) GL.PixelStore(PixelStoreParameter.UnpackSkipImages, state.SkipImages);
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         pixelUnpackState = state;
     }
 

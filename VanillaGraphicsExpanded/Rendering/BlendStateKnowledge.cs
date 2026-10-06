@@ -14,6 +14,8 @@ internal enum BlendStateKnowledge : byte
     Factors = 1 << 1,
     /// <summary>The cached WriteMask value is known.</summary>
     WriteMask = 1 << 2,
+    /// <summary>The separate blend equations are known.</summary>
+    Equations = 1 << 3,
     /// <summary>Every field in this category is known.</summary>
-    All = Enabled | Factors | WriteMask
+    All = Enabled | Factors | WriteMask | Equations
 }

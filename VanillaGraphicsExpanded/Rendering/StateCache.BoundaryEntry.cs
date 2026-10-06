@@ -35,9 +35,11 @@ internal sealed partial class StateCache
             ResolveBoundaryState(declaration.Coverage, count);
             // Resolve immutable limits here, not during the managed draw's first setter.
             if (declaration.Coverage.Dynamic.HasFlag(DynamicDrawStateKnowledge.Viewport)) EnsureViewportLimits();
-            if (declaration.Coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices)) EnsurePatchLimit();
+            if (declaration.Coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) && GpuSupport.Graphics.Tessellation) EnsurePatchLimit();
             var snapshot = new PipelineStateSnapshot(declaration.Coverage,
-                depth, rasterizer, assembly, dynamicState, clearColor, blend);
+                depth, rasterizer, assembly, dynamicState, clearColor, blend,
+                completeSampling, completeStencil, completeOutput,
+                declaration.Coverage.CompleteGraphics ? completeSampleMasks : null);
             scope = new EngineBoundaryScope(this, snapshot);
             if (resources is not null) CaptureBoundaryBindings(scope, resources);
             activeBoundary = scope;

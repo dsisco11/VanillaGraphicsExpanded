@@ -59,8 +59,26 @@ public enum EPipelineState : ulong
     ConfigurableRaster = 1UL << 23,
     /// <summary>Pixel-unpack layout.</summary>
     PixelUnpack = 1UL << 24,
+    /// <summary>Front/back stencil functions, operations, masks and enable.</summary>
+    Stencil = 1UL << 25,
+    /// <summary>Multisampling, coverage, masks and sample shading.</summary>
+    Sampling = 1UL << 26,
+    /// <summary>Framebuffer encoding, dithering and logic operations.</summary>
+    OutputInterpretation = 1UL << 27,
+    /// <summary>Explicit and fixed primitive restart configuration.</summary>
+    PrimitiveRestart = 1UL << 28,
+    /// <summary>Cull winding, polygon interpretation, offsets, clamp, discard and programmable points.</summary>
+    RasterParameters = 1UL << 29,
+    /// <summary>Dynamic scissor rectangle, independently of the test enable.</summary>
+    ScissorRectangle = 1UL << 30,
+    /// <summary>Dynamic blend constant.</summary>
+    BlendConstant = 1UL << 31,
+    /// <summary>Depth-range mapping.</summary>
+    DepthRange = 1UL << 32,
+    /// <summary>Supplemental complete-pipeline state categories.</summary>
+    CompleteGraphics = Stencil | Sampling | OutputInterpretation | PrimitiveRestart | RasterParameters | ScissorRectangle | BlendConstant | DepthRange,
     /// <summary>All tracked fixed-function drawing state.</summary>
-    FixedFunction = ConfigurableRaster | Depth | Blend | CullFace | ScissorTest | ColorMask | LineWidth | PointSize | PatchVertices | ProvokingVertex,
+    FixedFunction = CompleteGraphics | ConfigurableRaster | Depth | Blend | CullFace | ScissorTest | ColorMask | LineWidth | PointSize | PatchVertices | ProvokingVertex,
     /// <summary>All tracked resource bindings and active texture-unit selection.</summary>
     Bindings = Program | ProgramPipeline | VertexArray | FramebufferBindings | RenderbufferBinding
         | TransformFeedback | ActiveTextureUnit | TextureBindings | SamplerBindings | BufferBindings | ImageBindings,

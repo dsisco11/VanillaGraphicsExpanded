@@ -15,6 +15,7 @@ internal sealed partial class StateCache
     {
         if (!EPipelineState.All.HasFlag(states)) throw new ArgumentOutOfRangeException(nameof(states));
 
+        InvalidateSupplementalGraphics(states);
         if (states.HasFlag(EPipelineState.ConfigurableRaster))
         {
             rasterizerKnown &= ~RasterizerStateKnowledge.ConfigurableRaster;

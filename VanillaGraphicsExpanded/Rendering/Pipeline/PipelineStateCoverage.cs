@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 
@@ -13,6 +14,8 @@ internal sealed class PipelineStateCoverage
     internal DynamicDrawStateKnowledge Dynamic { get; }
     internal BlendStateKnowledge GlobalBlend { get; }
     internal bool ClearColor { get; }
+    /// <summary>Includes every supplemental complete graphics field, including inactive parameters.</summary>
+    internal bool CompleteGraphics { get; }
     internal static PipelineStateCoverage Empty { get; } = new();
 
     #region Public API
@@ -21,13 +24,14 @@ internal sealed class PipelineStateCoverage
     internal PipelineStateCoverage(DepthStateKnowledge depth = default,
         RasterizerStateKnowledge rasterizer = default, PrimitiveAssemblyStateKnowledge assembly = default,
         DynamicDrawStateKnowledge dynamic = default, BlendStateKnowledge globalBlend = default,
-        bool clearColor = false, IReadOnlyDictionary<int, BlendStateKnowledge>? indexedBlend = null)
+        bool clearColor = false, IReadOnlyDictionary<int, BlendStateKnowledge>? indexedBlend = null,
+        bool completeGraphics = false)
     {
         if (!DepthStateKnowledge.All.HasFlag(depth) || !RasterizerStateKnowledge.All.HasFlag(rasterizer)
             || !PrimitiveAssemblyStateKnowledge.All.HasFlag(assembly) || !DynamicDrawStateKnowledge.All.HasFlag(dynamic)
             || !BlendStateKnowledge.All.HasFlag(globalBlend)) throw new ArgumentOutOfRangeException(nameof(depth));
         Depth = depth; Rasterizer = rasterizer; Assembly = assembly; Dynamic = dynamic;
-        GlobalBlend = globalBlend; ClearColor = clearColor;
+        GlobalBlend = globalBlend; ClearColor = clearColor; CompleteGraphics = completeGraphics;
         outputs = new();
         if (indexedBlend is null) return;
         foreach (var entry in indexedBlend)
@@ -69,6 +73,15 @@ internal sealed class PipelineStateCoverage
         return new(depth, rasterizer, globalBlend: global, indexedBlend: indexed);
     }
 
+    /// <summary>Preserves all drawing fields affected by a complete graphics application.</summary>
+    internal static PipelineStateCoverage From(GraphicsPipelineDesc descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        return new(DepthStateKnowledge.All, RasterizerStateKnowledge.All,
+            PrimitiveAssemblyStateKnowledge.All, DynamicDrawStateKnowledge.All,
+            BlendStateKnowledge.All, completeGraphics: true);
+    }
+
     /// <summary>Combines independent descriptor, dynamic and helper effects without sharing mutable payloads.</summary>
     internal PipelineStateCoverage Union(PipelineStateCoverage other)
     {
@@ -80,7 +93,7 @@ internal sealed class PipelineStateCoverage
             combined[entry.Key] = previous | entry.Value;
         }
         return new(Depth | other.Depth, Rasterizer | other.Rasterizer, Assembly | other.Assembly,
-            Dynamic | other.Dynamic, GlobalBlend | other.GlobalBlend, ClearColor || other.ClearColor, combined);
+            Dynamic | other.Dynamic, GlobalBlend | other.GlobalBlend, ClearColor || other.ClearColor, combined, CompleteGraphics || other.CompleteGraphics);
     }
 
     #endregion
@@ -100,7 +113,7 @@ internal sealed class PipelineStateCoverage
     {
         if (!Depth.HasFlag(operation.Depth) || !Rasterizer.HasFlag(operation.Rasterizer)
             || !Assembly.HasFlag(operation.Assembly) || !Dynamic.HasFlag(operation.Dynamic)
-            || (operation.ClearColor && !ClearColor)) return false;
+            || (operation.ClearColor && !ClearColor) || (operation.CompleteGraphics && !CompleteGraphics)) return false;
         operation.ValidateOutputCount(outputCount);
         for (int i = 0; i < outputCount; i++)
             if (!BlendAt(i).HasFlag(operation.BlendAt(i))) return false;

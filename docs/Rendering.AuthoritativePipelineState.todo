@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–2 and Subphases 2.1–2.2 are complete; Phases 3–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–3 and Subphases 2.1–2.2 are complete; Subphase 3.1 and Phases 4–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -216,6 +216,7 @@ Phase 2.2: Correct native error polling and checked-operation ownership
     ☑ Remove unconditional native error polling from ordinary rasterizer transitions; preserve managed
       validation, per-field knowledge, external invalidation and necessary native state changes.
     ☑ Return from known unchanged pack/unpack layout updates without native calls or error polling.
+      Changed layouts use optional transition diagnostics, including borrowed scope restoration.
     ☑ Make detailed per-command checking explicitly optional through existing diagnostic ownership;
       normal execution must not accidentally retain the same polling cost through nested helpers.
   ☑ Consolidate required checks at explicit operation boundaries.
@@ -223,7 +224,7 @@ Phase 2.2: Correct native error polling and checked-operation ownership
       after a failure and preserving operation plus cleanup exceptions.
     ☑ Define checked-group granularity and invalidate all affected knowledge when a group fails;
       do not claim exact per-field failure attribution from a batch-level error result.
-    ☑ Preserve verified pixel-buffer binding/layout setup before host-pointer transfers, borrowed
+    ☑ Preserve checked pixel-buffer bindings and managed layout validation before host-pointer transfers, borrowed
       pack/unpack state restoration and propagation of unsafe restoration failures.
     ☑ Keep checks required by cold queries and native safety; do not replace targeted invalidation
       with blanket cache invalidation or consume errors on ordinary unchanged transitions.
@@ -241,28 +242,134 @@ Phase 2.2: Correct native error polling and checked-operation ownership
 
 Phase 3: Complete state application and engine boundaries
   Dependencies: Phases 1–2 and Subphases 2.1–2.2.
+  Completed 2026-10-06: shader-enabled Debug/Release 171/171 each, zero failures/skips;
+  second source review and independent audit passed. Evidence and commands:
+  Rendering.AuthoritativePipelineState.md / Complete state application and engine boundary (2026-10-06).
   Outcome: complete descriptions can be applied independently of prior state and safely restored.
 
-  ☐ Extend the existing categorized StateCache; its rename and storage foundation are already complete.
-    ☐ Implement all supported static/dynamic transitions while preserving existing binding caches.
-    ☐ Handle global/indexed blend interactions, write masks and disabled-to-enabled transitions.
-    ☐ Preserve explicit lifecycle/external invalidation and same-live-context scope lifetime; do not add context replacement tracking.
-    ☐ Invalidate affected resource bindings on retirement and native-name reuse; preserve VAO-aware EBO tracking.
-  ☐ Implement focused engine boundary adapters for the first consumer and shared mechanisms.
-    ☐ Capture or obtain required incoming state; restore native state and engine shader ownership.
-    ☐ Observe successful known engine mutations without duplicate native calls or recursive hooks.
-    ☐ Retain invalidation for unobserved paths; document explicit external-operation boundaries.
-    ☐ Ensure exception paths restore the boundary and leave cache knowledge truthful.
-  ☐ Add bounded instrumentation for state calls, queries and draw submission verification.
-  ☐ Delegate headless transition tests after deliberately hostile prior state and A-to-B-to-A changes.
-    ☐ Verify indexed blend/masks, sampling, stencil and rasterizer results, not only cached fields.
-    ☐ Verify redundant-call suppression, explicit lifecycle invalidation, retirement and name reuse.
-    ☐ Verify boundary restoration and unknown external mutation handling on success and exceptions.
-  ☐ Completion gate: first-consumer state application and restoration are proven before production
+  ☑ Extend the existing categorized StateCache; its rename and storage foundation are already complete.
+    ☑ Implement all supported static/dynamic transitions while preserving existing binding caches.
+    ☑ Handle global/indexed blend interactions, write masks and disabled-to-enabled transitions.
+    ☑ Preserve explicit lifecycle/external invalidation and same-live-context scope lifetime; do not add context replacement tracking.
+    ☑ Invalidate affected resource bindings on retirement and native-name reuse; preserve VAO-aware EBO tracking.
+  ☑ Implement focused engine boundary adapters for the first consumer and shared mechanisms.
+    ☑ Capture or obtain required incoming state; restore native state and engine shader ownership.
+    ☑ Observe successful known engine mutations without duplicate native calls or recursive hooks.
+    ☑ Retain invalidation for unobserved paths; document explicit external-operation boundaries.
+    ☑ Ensure exception paths restore the boundary and leave cache knowledge truthful.
+  ☑ Add bounded instrumentation for state calls, queries and draw submission verification.
+  ☑ Delegate headless transition tests after deliberately hostile prior state and A-to-B-to-A changes.
+    ☑ Verify indexed blend/masks, sampling, stencil and rasterizer results, not only cached fields.
+    ☑ Verify redundant-call suppression, explicit lifecycle invalidation, retirement and name reuse.
+    ☑ Verify boundary restoration and unknown external mutation handling on success and exceptions.
+  ☑ Completion gate: first-consumer state application and restoration are proven before production
     migration; unverified engine paths remain explicitly outside authority.
 
+Subphase 3.1: Unify categorized state values and knowledge
+  Dependencies: Phase 3 state application and engine-boundary implementation.
+  Sources: Rendering.AuthoritativePipelineState.Proposal.md / complete state and existing cache ownership;
+    Rendering.AuthoritativePipelineState.md / Complete state application and engine boundary (2026-10-06).
+  Outcome: one consistent category model supplies live cache storage and detached boundary snapshots,
+    without a separate complete/supplemental storage layer or changes to native rendering behavior.
+
+  ☐ Inventory every supplemental value, enable and knowledge bit and map it to its owning category.
+    ☐ Preserve distinctions between authored immutable PSO descriptions and observed native state;
+      retain engine values that authored pipeline policy does not expose.
+  ☐ Reconcile this explicit affected-item inventory before implementation and again before completion.
+    Paths below are relative to VanillaGraphicsExpanded/Rendering unless prefixed otherwise.
+    Each item requires migration or an explicit reviewed no-change disposition; this is not a mandate
+    to rename whole-pipeline operations merely because their names contain Complete.
+    ☐ Value types: Pipeline/State/{DepthState,RasterizerState,PrimitiveAssemblyState,DynamicDrawState,
+      BlendState,CompleteSamplingState,CompleteStencilState,CompleteOutputState}.cs.
+      Review GraphicsDynamicState.cs as the distinct authored dynamic payload; do not merge it with
+      cached DynamicDrawState or change its submission contract.
+    ☐ Existing masks: {DepthStateKnowledge,RasterizerStateKnowledge,PrimitiveAssemblyStateKnowledge,
+      DynamicDrawStateKnowledge,BlendStateKnowledge}.cs; review every None/All/composite mask and user.
+    ☐ Retire/merge CompleteDepthKnowledge, CompleteRasterKnowledge, CompleteAssemblyKnowledge,
+      CompleteDynamicKnowledge, CompleteSamplingKnowledge, CompleteStencilKnowledge and
+      CompleteOutputKnowledge; replace CompleteEnableState and CompleteEnableFlags.
+    ☐ Depth mapping: DepthRange; remove embedded SupplementalKnown and SupplementalEnables,
+      including unused storage, while preserving TestEnabled, Comparison and WriteEnabled.
+    ☐ Raster mapping: CullMode, FrontFace, front/back PolygonModes and PolygonOffset factor/units;
+      DepthClamp, RasterizerDiscard, PolygonOffsetFill/Line/Point and ProgramPointSize enables.
+      Retain all existing clipping, alpha, point/line/polygon smoothing and stipple values/knowledge.
+    ☐ Assembly mapping: RestartIndex, PrimitiveRestart and PrimitiveRestartFixedIndex; preserve
+      existing patch parameters. Dynamic mapping: Scissor rectangle and BlendConstant; preserve viewport.
+    ☐ Sampling mapping: SampleCoverage value/invert, MinimumSampleShading, Multisample,
+      SampleCoverage/Mask/Shading enables, SampleAlphaToCoverage and SampleAlphaToOne;
+      completeSampleMasks indexed values and per-word knowledge in live storage and snapshots.
+    ☐ Stencil mapping: StencilTest; front/back function/reference/read mask, write mask and
+      fail/depth-fail/pass operations. Output mapping: FramebufferSrgb, Dither, ColorLogicOp and
+      LogicOperation. Blend mapping: existing per-output factors, enables, write masks and Equations.
+    ☐ Storage/application: StateCache.cs and StateCache.{FixedFunctionStorage,CompleteStorage,
+      CompleteApplication,CompleteEnables,CompleteParameters,CompleteIndexed,CompleteStencil}.cs;
+      completeSampling/completeStencil/completeOutput fields and InvalidateSupplementalGraphics.
+    ☐ Category consumers: StateCache.{Depth,Rasterizer,RasterEnables,RasterParameters,
+      PipelineRasterizer,PrimitiveAssembly,Patches,Dynamic,Blending,ScissorScope,ClearOperations,
+      Legacy,Invalidation}.cs; check full-struct assignments do not erase unrelated category values.
+    ☐ Boundary consumers: PipelineStateSnapshot.cs; StateCache.{BoundaryEntry,BoundaryQueries,
+      BoundaryCompleteQueries,BoundaryRestoration,BoundaryCompleteRestoration,BoundaryRasterizer,
+      BoundaryValidation,BoundaryActivity,BoundaryBindings}.cs; EngineBoundaryScope.cs and
+      Integration/{EngineBoundaryDeclaration,EngineBoundaryExecution,CompleteGraphicsBoundary,
+      FullscreenBoundary}.cs. Preserve checked cleanup and partial snapshot semantics.
+    ☐ Coverage/engine routing: EPipelineState.cs, Pipeline/PipelineStateCoverage.cs,
+      EngineStateCalls.cs, EngineStateCalls.Complete.cs, StateCache.EngineOperations.cs and the
+      existing EngineStateCallMap exact-signature routing; retain external mutation ownership.
+    ☐ Diagnostic/transfer regression review: StateCache.{PixelPack,PixelUnpack,PixelTransferBindings,
+      PolygonStipple}.cs and GlDebug.CheckStateTransitions; preserve current polling boundaries.
+    ☐ Direct and contract tests in VanillaGraphicsExpanded.Tests: EngineStateSwitchingTests,
+      EngineStateInventoryTests, PipelineStateCoverageTests, GlStateCacheInvalidationTests,
+      GraphicsPipelineDescriptionTests, ConfigurableRasterizerDescriptionTests and
+      Unit/Rendering/GlPipelineStateMaskTests.
+    ☐ GPU regression fixtures: CompleteGraphicsStateTests, CompleteGraphicsDrawTests,
+      CategorizedStateCacheTests, ConfigurableRasterizerGpuTests, EngineStateSwitchingGpuTests,
+      EngineBoundaryEntryTests, EngineBoundaryRestorationTests, EngineBoundaryBindingTests,
+      StateTransitionDiagnosticsTests, PixelPackStateTests, PixelUnpackStateTests,
+      DepthStencilTextureTests, ScissorStateScopeTests, GpuFramebufferBlendStateIntegrationTests
+      and StateCacheResourceDeletionTests; update assertions for unified masks and detached snapshots.
+    ☐ Documentation: Rendering.AuthoritativePipelineState.Proposal.md,
+      Rendering.AuthoritativePipelineState.md, this plan and affected project.todo references;
+      reconcile current contracts without rewriting historical verification receipts as new evidence.
+    ☐ Run a repository-wide reference sweep for every retired symbol, supplemental field/helper,
+      old namespace and altered All mask; include any additional discovered consumers in this inventory.
+
+  ☐ Normalize category value structs and knowledge masks.
+    ☐ Rename CompleteSamplingState, CompleteStencilState and CompleteOutputState to SamplingState,
+      StencilState and OutputState in the existing Pipeline.State namespace.
+    ☐ Keep category structs value-only; store category knowledge masks separately in StateCache.
+    ☐ Fold supplemental depth, rasterizer, primitive-assembly and dynamic knowledge into their
+      existing category enums; add ordinary sampling, stencil and output category knowledge enums.
+    ☐ Replace CompleteEnableState/CompleteEnableFlags with enable values in their owning categories
+      and corresponding category knowledge flags; remove obsolete complete/supplemental fields/types.
+    ☐ Preserve independently known indexed sample-mask words and their existing sparse ownership;
+      do not collapse partial knowledge into a category-wide known flag.
+  ☐ Update all consumers of the category model together.
+    ☐ Update transitions, engine adapters, cold queries, coverage validation, targeted invalidation
+      and restoration to use the same values and masks without duplicate live representations.
+    ☐ Preserve partial boundary coverage, global/indexed aliases and selective failure invalidation;
+      merging knowledge enums must not silently broaden existing coverage or invalidation contracts.
+    ☐ Have PipelineStateSnapshot retain detached category values and knowledge masks, including
+      independently owned sample-mask storage; prevent mutable collection aliasing with the live cache.
+    ☐ Preserve managed validation, known-equal suppression, optional transition diagnostics and
+      separately owned boundary/transfer safety checks; introduce no additional native queries/polls.
+  ☐ Organize source by steady-state responsibility.
+    ☐ Move supplemental setters/storage helpers into owning category partials; keep whole-pipeline
+      application and boundary orchestration separate, reusing existing ownership and public APIs.
+    ☐ Update comments, architecture documentation and references to describe the unified model;
+      leave immutable pipeline descriptions and production migration scope unchanged.
+  ☐ Delegate shader-enabled Debug and Release regression tests.
+    ☐ Verify hostile prior state and A-to-B-to-A application against native state and fixture output.
+    ☐ Verify independent category/field invalidation, partial coverage and global/indexed aliases.
+    ☐ Verify detached snapshots and native restoration on success, exceptions and diagnostic failure.
+    ☐ Verify repeated known state emits no mutations/queries/error polls and ordinary changed
+      transitions, including pixel layouts and scope restoration, retain zero default error polling.
+  ☐ Perform second source review and independent completion audit against the category mapping,
+    proposal and focused receipts; resolve discrepancies before marking this subphase complete.
+  ☐ Completion gate: no complete/supplemental category storage or parallel knowledge model remains;
+    native behavior, restoration coverage and diagnostic policy are preserved. Phase 4 depends on this gate.
+
 Phase 4: Prepared graphics pipelines and executable compatibility
-  Dependencies: Phases 1–3 including Subphases 2.1–2.2, executable revision and same-live-context lifetime policy.
+  Dependencies: Phases 1–3 including Subphases 2.1–2.2 and 3.1, executable revision and same-live-context lifetime policy.
   Outcome: validated GraphicsPipeline realizations usable by submission without per-draw reflection.
 
   ☐ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.

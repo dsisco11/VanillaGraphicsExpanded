@@ -14,10 +14,11 @@ internal sealed partial class StateCache
     /// <summary>Resolves scalar categories and all effective output aliases before optional work begins.</summary>
     private void ResolveBoundaryState(PipelineStateCoverage coverage, int count)
     {
+        if (coverage.CompleteGraphics) ResolveCompleteGraphics();
         ResolveBoundaryDepth(coverage.Depth);
         ResolveBoundaryRasterizer(coverage.Rasterizer);
         if ((coverage.Rasterizer & RasterizerStateKnowledge.ConfigurableRaster) != 0) ResolveConfigurableRaster(coverage.Rasterizer);
-        if (coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices)
+        if (coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) && GpuSupport.Graphics.Tessellation
             && !assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices))
         {
             assembly.PatchVertices = QueryBoundary(() => GL.GetInteger(GetPName.PatchVertices));
@@ -25,12 +26,14 @@ internal sealed partial class StateCache
         }
         if (coverage.Dynamic.HasFlag(DynamicDrawStateKnowledge.Viewport) && !dynamicKnown.HasFlag(DynamicDrawStateKnowledge.Viewport))
         {
-            dynamicState = QueryBoundary(() =>
+            var viewport = QueryBoundary(() =>
             {
                 int[] value = new int[4];
                 GL.GetInteger(GetPName.Viewport, value);
                 return new DynamicDrawState { X = value[0], Y = value[1], Width = value[2], Height = value[3] };
             });
+            dynamicState.X = viewport.X; dynamicState.Y = viewport.Y;
+            dynamicState.Width = viewport.Width; dynamicState.Height = viewport.Height;
             dynamicKnown |= DynamicDrawStateKnowledge.Viewport;
         }
         if (coverage.ClearColor && !clearColorKnown)
@@ -107,12 +110,42 @@ internal sealed partial class StateCache
         if (coverage.HasFlag(BlendStateKnowledge.Factors) && !blendKnown[index].HasFlag(BlendStateKnowledge.Factors))
         {
             // Publish the aggregate only after all four independent native reads succeed.
-            var factors = new GlBlendFunc((BlendingFactorSrc)QueryBoundaryIndexed(GetPName.BlendSrcRgb, index),
-                (BlendingFactorDest)QueryBoundaryIndexed(GetPName.BlendDstRgb, index),
-                (BlendingFactorSrc)QueryBoundaryIndexed(GetPName.BlendSrcAlpha, index),
-                (BlendingFactorDest)QueryBoundaryIndexed(GetPName.BlendDstAlpha, index));
-            blend[index].Factors = factors;
-            blendKnown[index] |= BlendStateKnowledge.Factors;
+            var factors = new GlBlendFunc((BlendingFactorSrc)QueryBoundaryBlendParameter(GetPName.BlendSrcRgb, index),
+                (BlendingFactorDest)QueryBoundaryBlendParameter(GetPName.BlendDstRgb, index),
+                (BlendingFactorSrc)QueryBoundaryBlendParameter(GetPName.BlendSrcAlpha, index),
+                (BlendingFactorDest)QueryBoundaryBlendParameter(GetPName.BlendDstAlpha, index));
+            if (GpuSupport.Graphics.IndependentBlend)
+            {
+                blend[index].Factors = factors;
+                blendKnown[index] |= BlendStateKnowledge.Factors;
+            }
+            else
+            {
+                // Without independent factors, the global value is authoritative for every output.
+                for (int output = 0; output < blend.Length; output++)
+                {
+                    blend[output].Factors = factors;
+                    blendKnown[output] |= BlendStateKnowledge.Factors;
+                }
+            }
+        }
+        if (coverage.HasFlag(BlendStateKnowledge.Equations) && !blendKnown[index].HasFlag(BlendStateKnowledge.Equations))
+        {
+            var equations = ((BlendEquationMode)QueryBoundaryBlendParameter(GetPName.BlendEquationRgb, index),
+                (BlendEquationMode)QueryBoundaryBlendParameter(GetPName.BlendEquationAlpha, index));
+            if (GpuSupport.Graphics.IndependentBlend)
+            {
+                blend[index].Equations = equations;
+                blendKnown[index] |= BlendStateKnowledge.Equations;
+            }
+            else
+            {
+                for (int output = 0; output < blend.Length; output++)
+                {
+                    blend[output].Equations = equations;
+                    blendKnown[output] |= BlendStateKnowledge.Equations;
+                }
+            }
         }
         if (coverage.HasFlag(BlendStateKnowledge.WriteMask) && !blendKnown[index].HasFlag(BlendStateKnowledge.WriteMask))
         {
@@ -128,6 +161,10 @@ internal sealed partial class StateCache
     #endregion
 
     #region Native reads
+    /// <summary>Uses global factor/equation queries where indexed blending is unavailable.</summary>
+    private int QueryBoundaryBlendParameter(GetPName name, int index) => GpuSupport.Graphics.IndependentBlend
+        ? QueryBoundaryIndexed(name, index) : QueryBoundary(() => GL.GetInteger(name));
+
     /// <summary>Reads an indexed integer through the checked query path.</summary>
     private int QueryBoundaryIndexed(GetPName name, int index) => QueryBoundary(() =>
     {

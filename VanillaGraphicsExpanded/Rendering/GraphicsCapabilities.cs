@@ -20,6 +20,8 @@ public sealed record GraphicsCapabilities
     public bool SampleShading { get; init; }
     /// <summary>Whether tessellation shader stages and patch primitives are supported.</summary>
     public bool Tessellation { get; init; }
+    /// <summary>Whether core 4.0 or ARB_transform_feedback2 exposes transform-feedback activity queries.</summary>
+    public bool TransformFeedbackActivityQueries { get; init; }
     /// <summary>Whether primitive restart can use the fixed maximum index value for the index type.</summary>
     public bool FixedIndexRestart { get; init; }
     /// <summary>Whether vertex attributes can supply double-precision values.</summary>

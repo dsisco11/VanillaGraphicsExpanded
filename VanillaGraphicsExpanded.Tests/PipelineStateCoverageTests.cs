@@ -26,7 +26,7 @@ public sealed class PipelineStateCoverageTests
         Assert.Equal(PrimitiveAssemblyStateKnowledge.None, coverage.Assembly);
         Assert.Equal(DynamicDrawStateKnowledge.None, coverage.Dynamic);
         Assert.False(coverage.ClearColor);
-        for (int i = 0; i < 8; i++) Assert.Equal(BlendStateKnowledge.All, coverage.BlendAt(i));
+        for (int i = 0; i < 8; i++) Assert.Equal(BlendStateKnowledge.Enabled | BlendStateKnowledge.Factors | BlendStateKnowledge.WriteMask, coverage.BlendAt(i));
     }
 
     /// <summary>Declarations union dynamic/helper coverage and copy indexed intents before exposed source arrays change.</summary>

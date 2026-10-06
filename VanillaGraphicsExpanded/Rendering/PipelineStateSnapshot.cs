@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using OpenTK.Mathematics;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
@@ -8,6 +9,19 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class PipelineStateSnapshot
 {
     private readonly BlendState[] blend;
+    private readonly Dictionary<int, uint>? sampleMasks;
+    /// <summary>Enumerates saved indexed values without exposing the mutable container.</summary>
+    internal IEnumerable<KeyValuePair<int, uint>> SampleMasks
+    {
+        get
+        {
+            if (sampleMasks is null) yield break;
+            foreach (var entry in sampleMasks) yield return entry;
+        }
+    }
+    internal CompleteSamplingState Sampling { get; }
+    internal CompleteStencilState Stencil { get; }
+    internal CompleteOutputState Output { get; }
     internal PipelineStateCoverage Coverage { get; }
     internal DepthState Depth { get; }
     internal RasterizerState Rasterizer { get; }
@@ -20,9 +34,13 @@ internal sealed class PipelineStateSnapshot
     /// <summary>Copies resolved category values; coverage alone determines which fields are meaningful.</summary>
     internal PipelineStateSnapshot(PipelineStateCoverage coverage,
         DepthState depth, RasterizerState rasterizer, PrimitiveAssemblyState assembly,
-        DynamicDrawState dynamic, Vector4 clearColor, BlendState[] blend)
+        DynamicDrawState dynamic, Vector4 clearColor, BlendState[] blend, CompleteSamplingState sampling = default,
+        CompleteStencilState stencil = default, CompleteOutputState output = default,
+        IReadOnlyDictionary<int, uint>? sampleMasks = null)
     {
         Coverage = coverage; Depth = depth; Rasterizer = rasterizer;
+        Sampling = sampling; Stencil = stencil; Output = output;
+        this.sampleMasks = sampleMasks is null ? null : new(sampleMasks);
         Assembly = assembly; Dynamic = dynamic; ClearColor = clearColor;
         this.blend = (BlendState[])blend.Clone();
     }

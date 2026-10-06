@@ -100,7 +100,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope), cache.BoundaryEntryFailure?.ToString());
         try
         {
-            Assert.Equal(count * 6, cache.BoundaryQueries - queries);
+            Assert.Equal(count * 8, cache.BoundaryQueries - queries);
             cache.SetBlendEnabled(false); cache.SetBlendFunc(GlBlendFunc.Default); cache.SetColorMask(GlColorMask.All);
             cache.Invalidate(EPipelineState.Blend | EPipelineState.ColorMask);
             for (int i = 0; i < count; i++)

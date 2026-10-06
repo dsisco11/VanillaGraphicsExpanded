@@ -21,7 +21,8 @@ internal sealed partial class StateCache
         GL.Viewport(effective.X, effective.Y, effective.Width, effective.Height);
         FixedFunctionCalls++;
         // Store effective native dimensions rather than the potentially clamped request.
-        dynamicState = effective;
+        dynamicState.X = effective.X; dynamicState.Y = effective.Y;
+        dynamicState.Width = effective.Width; dynamicState.Height = effective.Height;
         dynamicKnown |= DynamicDrawStateKnowledge.Viewport;
     }
     #endregion

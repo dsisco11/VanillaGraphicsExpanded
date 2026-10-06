@@ -43,4 +43,16 @@ internal struct RasterizerState
     public ushort LineStipplePattern;
     /// <summary>Cached native PolygonStipplePattern value, meaningful only when its knowledge flag is set.</summary>
     public Pipeline.Descriptions.PipelineValues<byte>? PolygonStipplePattern;
+    /// <summary>Independent knowledge for observed native values.</summary>
+    public CompleteRasterKnowledge SupplementalKnown;
+    /// <summary>Supplemental native enable values and their validity.</summary>
+    public CompleteEnableState SupplementalEnables;
+    /// <summary>Declared or observed CullFaceMode CullMode value.</summary>
+    public CullFaceMode CullMode;
+    /// <summary>Declared or observed FrontFaceDirection FrontFace value.</summary>
+    public FrontFaceDirection FrontFace;
+    /// <summary>Observed PolygonModes value, valid only when corresponding knowledge is established.</summary>
+    public (PolygonMode Front, PolygonMode Back) PolygonModes;
+    /// <summary>Observed PolygonOffset value, valid only when corresponding knowledge is established.</summary>
+    public (float Factor, float Units) PolygonOffset;
 }
