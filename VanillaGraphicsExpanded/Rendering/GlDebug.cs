@@ -13,70 +13,11 @@ internal static class GlDebug
     private const bool DebugGroupsEnabled = false;
 #endif
 
-    private static volatile int cachedContextFlags;
-    private static volatile bool cachedContextFlagsValid;
-
-    private static volatile int cachedMaxLabelLength;
-    private static volatile string? cachedMaxLabelLengthContextKey;
-
+    /// <summary>Checks optional labeling support without letting diagnostic setup fail rendering.</summary>
     private static bool SupportsKhrDebug()
     {
-        try
-        {
-            return GlExtensions.Supports("GL_KHR_debug");
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static int GetMaxLabelLengthCached()
-    {
-        if (!GlExtensions.TryGetContextKey(out string contextKey))
-        {
-            return 0;
-        }
-
-        string? keySnapshot = cachedMaxLabelLengthContextKey;
-        if (string.Equals(keySnapshot, contextKey, StringComparison.Ordinal))
-        {
-            return cachedMaxLabelLength;
-        }
-
-        int value = 0;
-        try
-        {
-            value = GL.GetInteger(GetPName.MaxLabelLength);
-        }
-        catch
-        {
-            value = 0;
-        }
-
-        cachedMaxLabelLength = value;
-        cachedMaxLabelLengthContextKey = contextKey;
-        return value;
-    }
-
-    private static bool IsDebugContext()
-    {
-        if (cachedContextFlagsValid)
-        {
-            return ((ContextFlagMask)cachedContextFlags & ContextFlagMask.ContextFlagDebugBit) != 0;
-        }
-
-        try
-        {
-            int flags = GL.GetInteger(GetPName.ContextFlags);
-            cachedContextFlags = flags;
-            cachedContextFlagsValid = true;
-            return ((ContextFlagMask)flags & ContextFlagMask.ContextFlagDebugBit) != 0;
-        }
-        catch
-        {
-            return false;
-        }
+        try { return GpuSupport.Graphics.SupportsKhrDebug; }
+        catch { return false; }
     }
 
     public static void TrySuppressGroupDebugMessages()
@@ -145,7 +86,7 @@ internal static class GlDebug
             return;
         }
 
-        int maxLabelLength = GetMaxLabelLengthCached();
+        int maxLabelLength = GpuSupport.Graphics.MaxLabelLength;
 
         string label = name;
         if (maxLabelLength > 0 && label.Length >= maxLabelLength)

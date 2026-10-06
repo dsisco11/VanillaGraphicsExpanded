@@ -12,7 +12,7 @@ internal static class GpuSparseBuffer
     /// <summary>
     /// Returns <c>true</c> when the current OpenGL context reports ARB sparse buffer support.
     /// </summary>
-    public static bool IsSupported => GlExtensions.Supports("GL_ARB_sparse_buffer");
+    public static bool IsSupported => GpuSupport.Graphics.SupportsSparseBuffer;
 
     /// <summary>
     /// Commits or decommits a range of pages for a sparse buffer via <c>glNamedBufferPageCommitmentARB</c>.
@@ -63,4 +63,3 @@ internal static class GpuSparseBuffer
         }
     }
 }
-

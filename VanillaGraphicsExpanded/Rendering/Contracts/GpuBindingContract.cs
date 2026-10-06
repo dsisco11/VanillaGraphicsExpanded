@@ -102,6 +102,32 @@ public sealed class GpuBindingContract
         Same(UniformLocations, other.UniformLocations) && Same(VaryingLocations, other.VaryingLocations) &&
         Same(FragmentOutputLocations, other.FragmentOutputLocations);
 
+    /// <summary>Hashes the same resource and interface declarations compared by Equivalent.</summary>
+    internal int StructuralHashCode()
+    {
+        // Keep resource namespaces separate while allowing independent declaration insertion order.
+        // This contract is also compiled by the netstandard generator, which has no System.HashCode.
+        int hash = 17;
+        foreach (var map in ResourceMaps())
+        {
+            hash = unchecked(hash * 31 + (int)map.Kind);
+            hash = unchecked(hash * 31 + MapHash(map.Values));
+        }
+        hash = unchecked(hash * 31 + MapHash(UniformLocations));
+        hash = unchecked(hash * 31 + MapHash(VaryingLocations));
+        return unchecked(hash * 31 + MapHash(FragmentOutputLocations));
+    }
+
+    /// <summary>Hashes a declaration map independently of insertion order.</summary>
+    private static int MapHash<T>(IDictionary<string, T> values)
+    {
+        int entries = 0;
+        foreach (var pair in values)
+            entries = unchecked(entries + (StringComparer.Ordinal.GetHashCode(pair.Key) * 31
+                + (pair.Value is null ? 0 : EqualityComparer<T>.Default.GetHashCode(pair.Value))));
+        return unchecked(values.Count * 31 + entries);
+    }
+
     /// <summary>Compares maps without relying on declaration order.</summary>
     private static bool Same<T>(IDictionary<string, T> first, IDictionary<string, T> second) =>
         first.Count == second.Count && first.All(p => second.TryGetValue(p.Key, out var value) && EqualityComparer<T>.Default.Equals(p.Value, value));

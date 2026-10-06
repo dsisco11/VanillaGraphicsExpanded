@@ -81,7 +81,7 @@ public sealed class GpuBufferTexture : GpuBufferView
             throw new ArgumentOutOfRangeException(nameof(offsetBytes), "Offset must be >= 0 and size must be > 0.");
         }
 
-        if (!GlExtensions.Supports("GL_ARB_texture_buffer_range"))
+        if (!GpuSupport.Graphics.SupportsTextureBufferRange)
         {
             throw new NotSupportedException("Texture buffer ranges require GL_ARB_texture_buffer_range.");
         }

@@ -2,13 +2,14 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phase 1 contracts are complete, Phases 2–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–2 are complete, Subphase 2.1 and Phases 3–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
   Establish explicit state ownership for VGE-owned graphics draws, preserving shader activation,
   framebuffer attachment ownership, engine restoration, and redundant native-call suppression.
-  The proposal is authoritative. This plan sequences implementation; it does not broaden scope.
+  The proposal is authoritative, subject to the explicit user-approved contract amendments below.
+  This plan sequences implementation; other scope expansion requires a documented decision.
   New types and migrated types use responsibility-based names without Gl/GL/Gpu prefixes.
   Existing source names below locate current implementations, not prescribed final names.
   Keep files focused, dependencies directional, and GraphicsCommandContext a thin composition root.
@@ -84,28 +85,110 @@ Phase 1: Establish state and consumer contracts
 Phase 2: Complete immutable descriptions
   Dependencies: Phase 1 state, layout, target and naming decisions.
   Outcome: complete pipeline inputs with stable structural identity and release-build validation.
+  Sources: Rendering.AuthoritativePipelineState.Proposal.md / Complete descriptions and partial overrides,
+  Static and dynamic state coverage, Target signatures, Prepared pipelines/identity;
+  Rendering.AuthoritativePipelineState.md / Supported state and defaults, Geometry/target/executable contracts.
+  Evidence mapping: state/defaults -> Descriptions value types and PipelineCanonicalization;
+  identity/immutability -> GraphicsPipelineDesc, PipelineValues, shader/layout/target identities;
+  validation -> PipelineDescriptionValidation and GpuSupport.Graphics; tests -> GraphicsPipelineDescriptionTests.
+  Implementation evidence: Rendering.AuthoritativePipelineState.md / Immutable graphics descriptions.
+  Completed 2026-10-05 after second source review and independent audit-stage-completion: no unresolved findings.
+  Delegated shader-enabled Debug/Release builds and focused tests: 39/39 each, zero skips. Diff checks passed.
+  Application/preparation/migration and visual/performance validation remain in their later phases.
 
-  ☐ Introduce GraphicsPipelineDesc and focused state value types.
-    ☐ Represent shader variant/layout identity, vertex layout, topology, target signature and dynamics.
-    ☐ Cover rasterizer cull/mode/winding, polygon mode, bias, clamp/clip, discard and provoking convention.
-    ☐ Cover depth comparison/write policy and front/back stencil comparisons, operations and masks.
-    ☐ Cover per-output blend enables, RGB/alpha factors/equations and write masks.
-    ☐ Cover supported multisample, mask/coverage, alpha-to-coverage and sRGB settings.
-    ☐ Include restart and tessellation control-point configuration and other inventoried relevant state.
-  ☐ Resolve construction omissions against explicit defaults; never inherit live GL state.
-    ☐ Require explicit dynamic declarations; canonicalize inactive values without losing re-enable behavior.
-    ☐ Separate partial override identity from complete descriptions; retain stable legacy mask numbering.
-  ☐ Implement deep immutability, structural equality and hashing.
-    ☐ Include every behavior-affecting field; exclude debug labels, actual FBO IDs and dimensions.
-    ☐ Separate reusable description identity from live executable revision and renderer lifetime identity.
-    ☐ Reject invalid combinations and unsupported capabilities in all builds.
-  ☐ Delegate focused unit tests in Debug and Release for immutability, equivalent copied arrays,
+  ☑ Introduce GraphicsPipelineDesc and focused state value types.
+    ☑ Represent shader variant/layout identity, vertex layout, topology, target signature and dynamics.
+    ☑ Cover rasterizer cull/mode/winding, polygon mode, bias, clamp/clip, discard and provoking convention.
+    ☑ Cover depth comparison/write policy and front/back stencil comparisons, operations and masks.
+    ☑ Cover per-output blend enables, RGB/alpha factors/equations and write masks.
+    ☑ Cover supported multisample, mask/coverage, alpha-to-coverage and sRGB settings.
+    ☑ Include restart and tessellation control-point configuration and other inventoried relevant state.
+  ☑ Resolve construction omissions against explicit defaults; never inherit live GL state.
+    ☑ Require explicit dynamic declarations; canonicalize inactive values without losing re-enable behavior.
+    ☑ Separate partial override identity from complete descriptions; retain stable legacy mask numbering.
+  ☑ Implement deep immutability, structural equality and hashing.
+    ☑ Include every behavior-affecting field; exclude debug labels, actual FBO IDs and dimensions.
+    ☑ Separate reusable description identity from live executable revision and renderer lifetime identity.
+    ☑ Reject invalid combinations and unsupported capabilities in all builds.
+  ☑ Delegate focused unit tests in Debug and Release for immutability, equivalent copied arrays,
     field-sensitive identity, defaults, dynamic requirements and invalid combinations.
-  ☐ Completion gate: published descriptions cannot be mutated; supported state has explicit ownership;
+  ☑ Completion gate: published descriptions cannot be mutated; supported state has explicit ownership;
     complete and partial descriptions cannot be accidentally interchanged.
 
+Subphase 2.1: Configurable clipping and compatibility raster state
+  Dependencies: completed Phases 1–2 and existing categorized StateCache/engine-boundary foundation.
+  Authorization: user requested this subphase after approving support for the settings previously
+  represented by fixed RasterizerDesc properties. This is a planning amendment, not an implementation receipt.
+  Outcome: these settings are configurable complete-pipeline state, with explicit defaults, validated
+  capabilities, cache-backed application and faithful engine-boundary restoration.
+  Sources: Rendering.AuthoritativePipelineState.Proposal.md / Static and dynamic state coverage;
+  Rendering.AuthoritativePipelineState.md / Supported state and defaults, Immutable graphics descriptions;
+  RasterizerDesc, PipelineCanonicalization, PipelineFixedFunctionValidation and existing boundary coverage.
+  Contract amendment: supersede the initial exclusions for user clip distances, alternate clip origin/depth
+  conventions, alpha test, point/line/polygon smoothing, line/polygon stipple and point-sprite origin.
+  Preserve current fixed values as construction defaults and explicit first-consumer choices, not restrictions.
+  Other exclusions (including logic operations, viewport arrays and fixed-function lighting) remain unchanged.
+  This subphase brings forward only the application/restoration work needed for these settings; it does
+  not complete Phase 3's general application, instrumentation or consumer-boundary acceptance gates.
+
+  ☐ Reconcile the supported-state contract and inventory reusable coverage before implementation.
+    ☐ Update the proposal/evidence contract, coverage matrix and dependent tasks to distinguish defaults
+      from supported alternatives; remove contradictory rejection rules and misleading compatibility labels.
+    ☐ Inventory descriptor, capability, native transition, engine observation, snapshot and restoration
+      coverage for each setting. Reuse existing owners rather than introducing parallel state management.
+    ☐ Resolve static versus explicitly declared dynamic ownership for added parameters; define defaults,
+      inactive canonicalization and shader/projection obligations without inheriting ambient values.
+  ☐ Extend immutable descriptions and structural identity for every added setting and parameter.
+    ☐ Replace the user-clip-distance boolean with an individual enable mask; define mask width and reject
+      bits beyond the implementation limit rather than silently truncating them.
+    ☐ Represent clip origin, clip-depth convention and point-sprite coordinate origin with named enums.
+      Keep window depth-range ownership explicit; do not infer reversed-Z from a clip-depth selection.
+    ☐ Add alpha-test enable, comparison function and reference value with documented validation semantics.
+    ☐ Add independent point, line and polygon smoothing enables.
+    ☐ Add line-stipple enable, repeat factor and 16-bit pattern with native range validation.
+    ☐ Add polygon-stipple enable and a deeply immutable 32-by-32-bit pattern with an explicit all-ones
+      default, structural equality/hashing, exact length validation and documented bit/row ordering.
+    ☐ Include active behavior in equality/hashing; validate authored inactive values before canonicalization
+      and preserve disabled-to-enabled behavior. Maintain complete-versus-partial description separation.
+  ☐ Extend shared capability and shader-contract validation.
+    ☐ Capture missing clip-distance limits and clip-control support in GraphicsCapabilities/GpuSupport;
+      use named GL enums and core-version/extension gates, with no StateCache-owned capability cache.
+    ☐ Validate each setting against actual core/compatibility availability; do not classify every item
+      as compatibility-only. Unsupported requested behavior must reject in Debug and Release.
+    ☐ Define the required gl_ClipDistance outputs for each enabled bit using existing shader contracts
+      and reflection where reliable; carry checks requiring a linked executable into Phase 4 preparation.
+      Reject unverifiable enabled configurations rather than accepting undefined shader output.
+    ☐ Document matching projection, depth reconstruction, viewport-origin and front-face interpretation
+      obligations for alternate clip conventions; preserve current production consumer conventions.
+  ☐ Implement categorized StateCache transitions and complete-description application for these settings.
+    ☐ Track values and per-field knowledge, including individual clip enables and complete stipple payloads;
+      apply unknown/different values and suppress redundant native calls through existing cache APIs.
+    ☐ Establish explicit disabled/default values as well as enabled alternatives; avoid invalid native
+      calls for unavailable state and do not add manual state management in VGE consumers.
+    ☐ Reuse pixel-transfer state ownership for polygon-stipple upload/readback, including pack/unpack
+      settings and buffer bindings where applicable; restore temporary transfer state on exceptions.
+  ☐ Extend engine-boundary coverage and observation for the added state.
+    ☐ Expand declarations, coverage resolution, selective queries, immutable snapshots and restoration
+      to include enables and dependent parameters; snapshot arrays must not alias mutable storage.
+    ☐ Route known engine mutations through existing observation mechanisms; invalidate affected knowledge
+      for unobserved mutations and retain truthful knowledge after native failures.
+    ☐ Restore hostile incoming values on success and exceptions, including disabled-state parameters;
+      keep the existing same-live-context policy without adding context replacement support.
+  ☐ Delegate focused verification in shader-enabled Debug and Release.
+    ☐ Unit tests: defaults, each field's identity, copied stipple-pattern equality and immutability,
+      mask/range/enum rejection, inactive canonicalization and synthetic capability combinations.
+    ☐ GPU tests: supported core and compatibility cases, native state agreement, hostile prior state,
+      A-to-B-to-A transitions, repeated-call suppression, selective invalidation and boundary restoration.
+    ☐ Verify pixel-transfer state preservation and clipping/alpha/stipple behavior with deterministic
+      shader/geometry fixtures; check alternate clip conventions with matching fixture projections.
+    ☐ Record unavailable profile/extension cases explicitly; synthetic rejection tests do not establish
+      native feature support. Do not claim live-game appearance or performance from headless tests.
+  ☐ Completion gate: every listed setting has descriptor/validation/application/restoration evidence,
+    linked contracts agree, and second review plus independent completion audit find no unresolved gaps.
+    Executable-dependent validation remains an explicit Phase 4 prerequisite before production use.
+
 Phase 3: Complete state application and engine boundaries
-  Dependencies: Phases 1–2.
+  Dependencies: Phases 1–2 and Subphase 2.1.
   Outcome: complete descriptions can be applied independently of prior state and safely restored.
 
   ☐ Extend the existing categorized StateCache; its rename and storage foundation are already complete.
@@ -127,13 +210,15 @@ Phase 3: Complete state application and engine boundaries
     migration; unverified engine paths remain explicitly outside authority.
 
 Phase 4: Prepared graphics pipelines and executable compatibility
-  Dependencies: Phases 1–3, including executable revision and same-live-context lifetime policy.
+  Dependencies: Phases 1–3 including Subphase 2.1, executable revision and same-live-context lifetime policy.
   Outcome: validated GraphicsPipeline realizations usable by submission without per-draw reflection.
 
   ☐ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.
     ☐ Validate active stages, vertex attributes/scalar interpretation/components/divisors, fragment output
       locations/scalar classes, resource layout, static state, target signature and capabilities.
     ☐ Add missing interface validation at preparation time; do not build parallel reflection/binding systems.
+    ☐ Enforce Subphase 2.1's enabled clip-distance output contract against the prepared executable;
+      reject missing or unverifiable required outputs before publishing a usable pipeline.
   ☐ Publish prepared objects only after successful validation.
     ☐ Retain needed dependency references without acquiring ownership of externally owned shader resources.
     ☐ Reject retired dependencies and obsolete executable revisions; confine use to the owning renderer lifetime.

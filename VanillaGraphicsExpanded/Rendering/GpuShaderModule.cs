@@ -58,11 +58,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     /// </summary>
     public static bool SupportsSpirv()
     {
-        if (GlExtensions.Supports("GL_ARB_gl_spirv")) return true;
-        if (!GlExtensions.TryGetContextKey(out _)) return false;
-        GL.GetInteger(GetPName.MajorVersion, out int major);
-        GL.GetInteger(GetPName.MinorVersion, out int minor);
-        return major > 4 || (major == 4 && minor >= 6);
+        return GpuSupport.Graphics.SupportsArbGlSpirv;
     }
 
     /// <summary>

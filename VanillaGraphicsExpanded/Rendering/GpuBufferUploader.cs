@@ -49,7 +49,7 @@ internal static class GpuBufferUploader
 
         if (dsaEnabledState == 0)
         {
-            dsaEnabledState = GlExtensions.Supports("GL_ARB_direct_state_access") ? 1 : -1;
+            dsaEnabledState = GpuSupport.Graphics.SupportsArbDirectStateAccess ? 1 : -1;
         }
 
         if (dsaEnabledState == -1)
@@ -79,7 +79,7 @@ internal static class GpuBufferUploader
 
         if (dsaEnabledState == 0)
         {
-            dsaEnabledState = GlExtensions.Supports("GL_ARB_direct_state_access") ? 1 : -1;
+            dsaEnabledState = GpuSupport.Graphics.SupportsArbDirectStateAccess ? 1 : -1;
         }
 
         if (dsaEnabledState == -1)

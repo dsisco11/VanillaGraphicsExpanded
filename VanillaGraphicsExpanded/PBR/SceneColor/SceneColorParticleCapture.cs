@@ -74,7 +74,7 @@ internal sealed class SceneColorParticleCapture : IRenderer
         targets?.ResetCapture();
         if (!enabled) { Retire(); return false; }
         if (targets is { IsCurrent: false }) Retire();
-        if (!GlExtensions.Supports("GL_ARB_clear_texture")) return false;
+        if (!GpuSupport.Graphics.SupportsClearTexture) return false;
         var particleProgram = ShaderPrograms.Particlescube;
         if (particleProgram is null
             || !ShaderCapabilities.Has(particleProgram, ShaderCapability.SceneColorConvention)

@@ -30,13 +30,14 @@ internal static class DriverProgramCache
             GlDebug.ThrowIfErrors("Before program binary capability query");
             try
             {
-                GL.GetInteger(GetPName.NumProgramBinaryFormats, out int formats);
+                var capabilities = GpuSupport.Graphics;
+                int formats = capabilities.ProgramBinaryFormats.Length;
                 if (formats > 0)
                 {
                     store = currentOverride != null ? currentOverride.Store : DefaultStore.Value;
-                    driver = string.Join("\n", GL.GetString(StringName.Vendor), GL.GetString(StringName.Renderer),
-                        GL.GetString(StringName.Version), GL.GetString(StringName.ShadingLanguageVersion),
-                        GL.GetInteger(GetPName.ContextProfileMask), GL.GetInteger(GetPName.ContextFlags),
+                    driver = string.Join("\n", capabilities.VendorString, capabilities.RendererString,
+                        capabilities.VersionString, capabilities.ShadingLanguageVersionString,
+                        capabilities.ContextProfileMaskValue, capabilities.ContextFlags,
                         RuntimeInformation.OSDescription, RuntimeInformation.ProcessArchitecture);
                 }
             }
@@ -54,10 +55,8 @@ internal static class DriverProgramCache
         try
         {
             // Reject unavailable formats before calling the driver, avoiding GL_INVALID_ENUM on stale metadata.
-            GL.GetInteger(GetPName.NumProgramBinaryFormats, out int count);
-            int[] formats = new int[count];
-            GL.GetInteger(GetPName.ProgramBinaryFormats, formats);
-            if (Array.IndexOf(formats, format) < 0) { inputs.Store.Remove(inputs.Key); return false; }
+            var formats = GpuSupport.Graphics.ProgramBinaryFormats;
+            if (formats.IndexOf(format) < 0) { inputs.Store.Remove(inputs.Key); return false; }
             unsafe
             {
                 fixed (byte* pointer = bytes) GL.ProgramBinary(program, (BinaryFormat)format, (IntPtr)pointer, bytes.Length);

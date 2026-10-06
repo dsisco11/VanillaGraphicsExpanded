@@ -24,7 +24,7 @@ internal sealed class GpuSemaphore : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the current OpenGL context reports EXT semaphore support.
     /// </summary>
-    public static bool IsSupported => GlExtensions.Supports("GL_EXT_semaphore");
+    public static bool IsSupported => GpuSupport.Graphics.SupportsExtSemaphore;
 
     /// <summary>
     /// Gets the underlying OpenGL semaphore id.
@@ -130,4 +130,3 @@ internal sealed class GpuSemaphore : GpuResource, IDisposable
         GL.Ext.ImportSemaphoreF(semaphoreId, handleType, fd);
     }
 }
-

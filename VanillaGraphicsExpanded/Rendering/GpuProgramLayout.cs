@@ -401,7 +401,7 @@ public class GpuProgramLayout
             return;
         }
 
-        if (!SupportsProgramInterfaceQueries())
+        if (!GpuSupport.Graphics.SupportsArbProgramInterfaceQuery)
         {
             WarnOnce(
                 key: "validate:piq",
@@ -510,19 +510,6 @@ public class GpuProgramLayout
         }
     }
 
-    private static bool SupportsProgramInterfaceQueries()
-    {
-        // Prefer cached support when available, but keep this method safe for unit tests
-        // that create their own headless contexts without initializing GpuSupport.
-        if (GpuSupport.IsInitialized)
-        {
-            return GpuSupport.SupportsArbProgramInterfaceQuery;
-        }
-
-        // Best-effort: query extensions directly.
-        return GlExtensions.Supports("GL_ARB_program_interface_query");
-    }
-
     /// <summary>
     /// Rebuilds the active binding snapshot for a linked program.
     /// </summary>
@@ -545,7 +532,7 @@ public class GpuProgramLayout
             return;
         }
 
-        if (!SupportsProgramInterfaceQueries())
+        if (!GpuSupport.Graphics.SupportsArbProgramInterfaceQuery)
         {
             // Reflection snapshot relies on program interface queries; keep the cache empty
             // and let contract-based fallback (by name) handle binding where needed.
@@ -779,7 +766,7 @@ public class GpuProgramLayout
             return new ResolutionBool(ResolutionState.Unknown, false);
         }
 
-        if (!SupportsProgramInterfaceQueries())
+        if (!GpuSupport.Graphics.SupportsArbProgramInterfaceQuery)
         {
             return new ResolutionBool(ResolutionState.Unknown, false);
         }

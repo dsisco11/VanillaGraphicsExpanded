@@ -1078,7 +1078,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             return false;
         }
 
-        if (!GlExtensions.Supports("GL_ARB_clear_texture"))
+        if (!GpuSupport.Graphics.SupportsClearTexture)
         {
             return false;
         }

@@ -50,8 +50,8 @@ internal sealed class ShaderLinkBatch : IDisposable
         // Nested creation must not add a second submission window over unfinished outer work.
         previous?.WaitForSubmitted();
         disable |= forceSynchronous;
-        bool arb = !disable && GlExtensions.Supports("GL_ARB_parallel_shader_compile");
-        Enabled = arb || (!disable && GlExtensions.Supports("GL_KHR_parallel_shader_compile"));
+        bool arb = !disable && GpuSupport.Graphics.SupportsArbParallelShaderCompile;
+        Enabled = arb || (!disable && GpuSupport.Graphics.SupportsKhrParallelShaderCompile);
         completionQuery = arb ? (GetProgramParameterName)ArbParallelShaderCompile.CompletionStatusArb
             : (GetProgramParameterName)KhrParallelShaderCompile.CompletionStatusKhr;
         current = this;

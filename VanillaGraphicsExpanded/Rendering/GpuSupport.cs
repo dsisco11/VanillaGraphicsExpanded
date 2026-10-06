@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Immutable;
-using System.Globalization;
 using System.Threading;
 
 using OpenTK.Graphics.OpenGL;
@@ -12,7 +11,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Call <see cref="Initialize"/> (or <see cref="TryInitialize"/>) once on a thread with a current GL context,
 /// then read cached properties without incurring additional GL queries.
 /// </summary>
-public static class GpuSupport
+public static partial class GpuSupport
 {
     private static readonly object Sync = new();
 
@@ -37,9 +36,6 @@ public static class GpuSupport
             Initialize();
         }
     }
-
-
-    #endregion
 
     #region Initialization
 
@@ -96,10 +92,15 @@ public static class GpuSupport
             // Ensure the shared extension cache is populated for this context.
             GlExtensions.TryLoadExtensions();
 
-            CaptureContextStrings();
-            CaptureExtensionFlags();
-            CaptureContextFlagsAndProfile();
-            CaptureLimits();
+            // Build privately so failed queries cannot expose partially initialized capabilities.
+            var capabilities = CaptureContextStrings(new GraphicsCapabilities());
+            capabilities = CaptureExtensionFlags(capabilities);
+            capabilities = CaptureContextFlagsAndProfile(capabilities);
+            capabilities = CaptureLimits(capabilities);
+            capabilities = CaptureGraphicsLimits(capabilities);
+            GlDebug.ThrowIfErrors("Capability initialization");
+            Volatile.Write(ref graphics, capabilities);
+            formatCapabilities.Clear();
 
             cachedRegistration = registration;
             CaptureCount++;
@@ -124,14 +125,6 @@ public static class GpuSupport
         }
     }
 
-    private static void ThrowIfNotInitialized()
-    {
-        if (!isInitialized)
-        {
-            throw new InvalidOperationException("GpuSupport.Initialize() must be called on a thread with a current GL context before reading cached values.");
-        }
-    }
-
     #endregion
 
     #region Context Strings
@@ -145,401 +138,108 @@ public static class GpuSupport
         }
     }
 
-    public static string VersionString { get; private set; } = string.Empty;
-    public static string VendorString { get; private set; } = string.Empty;
-    public static string RendererString { get; private set; } = string.Empty;
-    public static string ShadingLanguageVersionString { get; private set; } = string.Empty;
+    public static string VersionString => graphics.VersionString;
+    public static string VendorString => graphics.VendorString;
+    public static string RendererString => graphics.RendererString;
+    public static string ShadingLanguageVersionString => graphics.ShadingLanguageVersionString;
 
-    public static Version? ApiVersion { get; private set; }
-    public static Version? ShadingLanguageVersion { get; private set; }
+    public static Version? ApiVersion => graphics.ApiVersion;
+    public static Version? ShadingLanguageVersion => graphics.ShadingLanguageVersion;
 
-    public static bool IsOpenGles { get; private set; }
+    public static bool IsOpenGles => graphics.IsOpenGles;
 
-    public static bool? IsSharedContext { get; private set; }
-
-    private static void CaptureContextStrings()
-    {
-        GlDebug.ClearErrors();
-        VersionString = SafeGetString(StringName.Version);
-        VendorString = SafeGetString(StringName.Vendor);
-        RendererString = SafeGetString(StringName.Renderer);
-        ShadingLanguageVersionString = SafeGetString(StringName.ShadingLanguageVersion);
-
-        IsOpenGles = VersionString.Contains("OpenGL ES", StringComparison.OrdinalIgnoreCase)
-            || RendererString.Contains("OpenGL ES", StringComparison.OrdinalIgnoreCase);
-
-        ApiVersion = TryParseLeadingVersion(VersionString);
-        ShadingLanguageVersion = TryParseLeadingVersion(ShadingLanguageVersionString);
-
-        IsSharedContext = TryGetSharedContextFlag();
-        GlDebug.ThrowIfErrors();
-    }
-
-    private static string SafeGetString(StringName name)
-    {
-        try
-        {
-            return GL.GetString(name) ?? string.Empty;
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    private static Version? TryParseLeadingVersion(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
-
-        // Typical GL strings: "4.6.0 NVIDIA 552.25", "3.3.0", "OpenGL ES 3.2 ..."
-        ReadOnlySpan<char> span = text.AsSpan().TrimStart();
-
-        if (span.StartsWith("OpenGL ES".AsSpan(), StringComparison.OrdinalIgnoreCase))
-        {
-            int idx = span.IndexOf(' ');
-            if (idx >= 0)
-            {
-                span = span.Slice(idx).TrimStart();
-                idx = span.IndexOf(' ');
-                if (idx >= 0)
-                {
-                    span = span.Slice(idx).TrimStart();
-                }
-            }
-        }
-
-        int end = 0;
-        while (end < span.Length)
-        {
-            char c = span[end];
-            if ((uint)(c - '0') <= 9u || c == '.')
-            {
-                end++;
-                continue;
-            }
-
-            break;
-        }
-
-        if (end == 0)
-        {
-            return null;
-        }
-
-        string versionText = span.Slice(0, end).ToString();
-        string[] parts = versionText.Split('.', StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length < 2)
-        {
-            return null;
-        }
-
-        if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int major))
-        {
-            return null;
-        }
-
-        if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int minor))
-        {
-            return null;
-        }
-
-        int build = 0;
-        if (parts.Length >= 3)
-        {
-            _ = int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out build);
-        }
-
-        return new Version(major, minor, build);
-    }
-
-    private static bool? TryGetSharedContextFlag()
-    {
-        // OpenGL has no standard "shared context" query.
-        // Vintage Story ships OpenTK 4 split assemblies (OpenTK.Graphics + OpenTK.Windowing.*).
-        // The public OpenTK context interfaces available to mods do not expose a shared-context flag.
-        // Keep this as "unknown" rather than guessing.
-        return null;
-    }
+    public static bool? IsSharedContext => graphics.IsSharedContext;
 
     #endregion
 
     #region Context Flags / Profile
 
-    public static int ContextFlags { get; private set; }
-    public static int ContextProfileMaskValue { get; private set; }
+    public static int ContextFlags => graphics.ContextFlags;
+    public static int ContextProfileMaskValue => graphics.ContextProfileMaskValue;
 
-    public static bool IsDebugContext { get; private set; }
-    public static bool IsForwardCompatibleContext { get; private set; }
-    public static bool IsRobustAccessContext { get; private set; }
+    public static bool IsDebugContext => graphics.IsDebugContext;
+    public static bool IsForwardCompatibleContext => graphics.IsForwardCompatibleContext;
+    public static bool IsRobustAccessContext => graphics.IsRobustAccessContext;
 
-    public static bool IsCoreProfile { get; private set; }
-    public static bool IsCompatibilityProfile { get; private set; }
-
-    private static void CaptureContextFlagsAndProfile()
-    {
-        GlDebug.ClearErrors();
-        // Many context queries were introduced in GL 3.x; avoid emitting GL errors on older contexts.
-        if (!IsAtLeast(ApiVersion, 3, 0))
-        {
-            ContextFlags = 0;
-            ContextProfileMaskValue = 0;
-            IsDebugContext = false;
-            IsForwardCompatibleContext = false;
-            IsRobustAccessContext = false;
-            IsCoreProfile = false;
-            IsCompatibilityProfile = false;
-            return;
-        }
-
-        ContextFlags = SafeGetInt(GetPName.ContextFlags);
-
-        // GL_CONTEXT_PROFILE_MASK is GL 3.2+.
-        ContextProfileMaskValue = IsAtLeast(ApiVersion, 3, 2)
-            ? SafeGetInt(GetPName.ContextProfileMask)
-            : 0;
-
-        IsDebugContext = (((ContextFlagMask)ContextFlags) & ContextFlagMask.ContextFlagDebugBit) != 0;
-        IsForwardCompatibleContext = (((ContextFlagMask)ContextFlags) & ContextFlagMask.ContextFlagForwardCompatibleBit) != 0;
-
-        // Some drivers report robust access via ARB enum; keep this best-effort.
-        IsRobustAccessContext = (((ContextFlagMask)ContextFlags) & (ContextFlagMask)0x00000004) != 0;
-
-        if (ContextProfileMaskValue != 0)
-        {
-            IsCoreProfile = (((ContextProfileMask)ContextProfileMaskValue) & ContextProfileMask.ContextCoreProfileBit) != 0;
-            IsCompatibilityProfile = (((ContextProfileMask)ContextProfileMaskValue) & ContextProfileMask.ContextCompatibilityProfileBit) != 0;
-        }
-        else
-        {
-            IsCoreProfile = false;
-            IsCompatibilityProfile = false;
-        }
-        GlDebug.ThrowIfErrors();
-    }
+    public static bool IsCoreProfile => graphics.CoreProfile;
+    public static bool IsCompatibilityProfile => graphics.IsCompatibilityProfile;
 
     #endregion
 
     #region Limits
 
-    public static int MaxTextureSize { get; private set; }
-    public static int Max3DTextureSize { get; private set; }
-    public static int MaxCubeMapTextureSize { get; private set; }
-    public static int MaxArrayTextureLayers { get; private set; }
+    public static int MaxTextureSize => graphics.MaxTextureSize;
+    public static int Max3DTextureSize => graphics.Max3DTextureSize;
+    public static int MaxCubeMapTextureSize => graphics.MaxCubeMapTextureSize;
+    public static int MaxArrayTextureLayers => graphics.MaxArrayTextureLayers;
 
-    public static int MaxTextureImageUnits { get; private set; }
-    public static int MaxCombinedTextureImageUnits { get; private set; }
-    public static int MaxVertexTextureImageUnits { get; private set; }
+    public static int MaxTextureImageUnits => graphics.MaxTextureImageUnits;
+    public static int MaxCombinedTextureImageUnits => graphics.MaxCombinedTextureImageUnits;
+    public static int MaxVertexTextureImageUnits => graphics.MaxVertexTextureImageUnits;
 
-    public static int MaxUniformBufferBindings { get; private set; }
-    public static int MaxUniformBlockSize { get; private set; }
+    public static int MaxUniformBufferBindings => graphics.MaxUniformBufferBindings;
+    public static int MaxUniformBlockSize => graphics.MaxUniformBlockSize;
 
-    public static int MaxShaderStorageBufferBindings { get; private set; }
-    public static long MaxShaderStorageBlockSize { get; private set; }
+    public static int MaxShaderStorageBufferBindings => graphics.MaxShaderStorageBufferBindings;
+    public static long MaxShaderStorageBlockSize => graphics.MaxShaderStorageBlockSize;
 
-    public static int MaxAtomicCounterBufferBindings { get; private set; }
+    public static int MaxAtomicCounterBufferBindings => graphics.MaxAtomicCounterBufferBindings;
 
-    public static int MaxImageUnits { get; private set; }
+    public static int MaxImageUnits => graphics.MaxImageUnits;
     /// <summary>Maximum combined image uniforms across shader stages (GL_MAX_COMBINED_IMAGE_UNIFORMS).</summary>
-    public static int MaxCombinedImageUnits { get; private set; }
+    public static int MaxCombinedImageUnits => graphics.MaxCombinedImageUnits;
 
-    public static int MaxColorAttachments { get; private set; }
-    public static int MaxDrawBuffers { get; private set; }
+    public static int MaxColorAttachments => graphics.MaxColorAttachments;
+    public static int MaxDrawBuffers => graphics.MaxDrawBuffers;
     /// <summary>Maximum effective viewport width for the current context.</summary>
-    public static int MaxViewportWidth { get; private set; }
+    public static int MaxViewportWidth => graphics.MaxViewportWidth;
     /// <summary>Maximum effective viewport height for the current context.</summary>
-    public static int MaxViewportHeight { get; private set; }
+    public static int MaxViewportHeight => graphics.MaxViewportHeight;
     /// <summary>Required shader-storage range alignment, or zero when unsupported.</summary>
-    public static int ShaderStorageBufferOffsetAlignment { get; private set; }
-    public static int MaxSamples { get; private set; }
+    public static int ShaderStorageBufferOffsetAlignment => graphics.ShaderStorageBufferOffsetAlignment;
+    public static int MaxSamples => graphics.MaxSamples;
 
-    public static int MaxVertexAttribs { get; private set; }
+    public static int MaxVertexAttribs => graphics.MaxVertexAttributes;
 
     /// <summary>Maximum input vertices per tessellation patch, or zero when unsupported.</summary>
-    public static int MaxPatchVertices { get; private set; }
+    public static int MaxPatchVertices => graphics.MaxPatchVertices;
     /// <summary>Maximum tessellation subdivision level, or zero when unsupported.</summary>
-    public static int MaxTessGenLevel { get; private set; }
-    public static int MaxTessControlTextureImageUnits { get; private set; }
-    public static int MaxTessEvaluationTextureImageUnits { get; private set; }
+    public static int MaxTessGenLevel => graphics.MaxTessGenLevel;
+    public static int MaxTessControlTextureImageUnits => graphics.MaxTessControlTextureImageUnits;
+    public static int MaxTessEvaluationTextureImageUnits => graphics.MaxTessEvaluationTextureImageUnits;
 
-    public static int MaxUniformLocations { get; private set; }
+    public static int MaxUniformLocations => graphics.MaxUniformLocations;
 
-    public static ImmutableArray<int> MaxComputeWorkGroupCount { get; private set; } = ImmutableArray<int>.Empty;
-    public static ImmutableArray<int> MaxComputeWorkGroupSize { get; private set; } = ImmutableArray<int>.Empty;
-    public static int MaxComputeWorkGroupInvocations { get; private set; }
-    public static int MaxComputeSharedMemorySize { get; private set; }
-
-    /// <summary>Captures implementation limits for the current capability lifetime.</summary>
-    private static void CaptureLimits()
-    {
-        GlDebug.ClearErrors();
-        int[] viewport = new int[2];
-        GL.GetInteger(GetPName.MaxViewportDims, viewport);
-        MaxViewportWidth = viewport[0];
-        MaxViewportHeight = viewport[1];
-        ShaderStorageBufferOffsetAlignment = SupportsArbShaderStorageBufferObject
-            ? SafeGetInt(GetPName.ShaderStorageBufferOffsetAlignment) : 0;
-        MaxTextureSize = SafeGetInt(GetPName.MaxTextureSize);
-        Max3DTextureSize = SafeGetInt(GetPName.Max3DTextureSize);
-        MaxCubeMapTextureSize = SafeGetInt(GetPName.MaxCubeMapTextureSize);
-        MaxArrayTextureLayers = IsAtLeast(ApiVersion, 3, 0) ? SafeGetInt(GetPName.MaxArrayTextureLayers) : 0;
-
-        MaxTextureImageUnits = SafeGetInt(GetPName.MaxTextureImageUnits);
-        MaxCombinedTextureImageUnits = SafeGetInt(GetPName.MaxCombinedTextureImageUnits);
-        MaxVertexTextureImageUnits = SafeGetInt(GetPName.MaxVertexTextureImageUnits);
-
-        if (IsAtLeast(ApiVersion, 3, 1))
-        {
-            MaxUniformBufferBindings = SafeGetInt(GetPName.MaxUniformBufferBindings);
-            MaxUniformBlockSize = SafeGetInt(GetPName.MaxUniformBlockSize);
-        }
-        else
-        {
-            MaxUniformBufferBindings = 0;
-            MaxUniformBlockSize = 0;
-        }
-
-        if (SupportsArbShaderStorageBufferObject)
-        {
-            MaxShaderStorageBufferBindings = SafeGetInt((GetPName)All.MaxShaderStorageBufferBindings);
-            MaxShaderStorageBlockSize = SafeGetLong((GetPName)All.MaxShaderStorageBlockSize);
-        }
-        else
-        {
-            MaxShaderStorageBufferBindings = 0;
-            MaxShaderStorageBlockSize = 0;
-        }
-
-        if (SupportsArbShaderAtomicCounters)
-        {
-            MaxAtomicCounterBufferBindings = SafeGetInt((GetPName)All.MaxAtomicCounterBufferBindings);
-        }
-        else
-        {
-            MaxAtomicCounterBufferBindings = 0;
-        }
-
-        if (SupportsArbShaderImageLoadStore)
-        {
-            // Image uniforms have distinct limits from sampler texture units.
-            MaxImageUnits = SafeGetInt((GetPName)All.MaxImageUnits);
-            MaxCombinedImageUnits = SafeGetInt((GetPName)All.MaxCombinedImageUniforms);
-        }
-        else
-        {
-            MaxImageUnits = 0;
-            MaxCombinedImageUnits = 0;
-        }
-
-        MaxColorAttachments = IsAtLeast(ApiVersion, 3, 0) ? SafeGetInt(GetPName.MaxColorAttachments) : 0;
-        MaxDrawBuffers = IsAtLeast(ApiVersion, 2, 0) ? SafeGetInt(GetPName.MaxDrawBuffers) : 0;
-        MaxSamples = IsAtLeast(ApiVersion, 3, 0) ? SafeGetInt(GetPName.MaxSamples) : 0;
-
-        MaxVertexAttribs = SafeGetInt(GetPName.MaxVertexAttribs);
-        bool tessellation = IsAtLeast(ApiVersion, 4, 0) || GlExtensions.Supports("GL_ARB_tessellation_shader");
-        MaxPatchVertices = tessellation ? SafeGetInt(GetPName.MaxPatchVertices) : 0;
-        MaxTessGenLevel = tessellation ? SafeGetInt(GetPName.MaxTessGenLevel) : 0;
-        MaxTessControlTextureImageUnits = tessellation ? SafeGetInt(GetPName.MaxTessControlTextureImageUnits) : 0;
-        MaxTessEvaluationTextureImageUnits = tessellation ? SafeGetInt(GetPName.MaxTessEvaluationTextureImageUnits) : 0;
-        MaxUniformLocations = SupportsArbExplicitUniformLocation
-            ? SafeGetInt((GetPName)All.MaxUniformLocations)
-            : 0;
-
-        if (SupportsArbComputeShader)
-        {
-            MaxComputeWorkGroupCount = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupCount);
-            MaxComputeWorkGroupSize = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupSize);
-            MaxComputeWorkGroupInvocations = SafeGetInt(GetPName.MaxComputeWorkGroupInvocations);
-            // MaxComputeSharedMemorySize = SafeGetInt((GetPName)0x8262 /* GL_MAX_COMPUTE_SHARED_MEMORY_SIZE */);
-        }
-        else
-        {
-            MaxComputeWorkGroupCount = ImmutableArray<int>.Empty;
-            MaxComputeWorkGroupSize = ImmutableArray<int>.Empty;
-            MaxComputeWorkGroupInvocations = 0;
-            MaxComputeSharedMemorySize = 0;
-        }
-        GlDebug.ThrowIfErrors();
-    }
-
-    private static int SafeGetInt(GetPName pname)
-    {
-        try
-        {
-            return GL.GetInteger(pname);
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private static long SafeGetLong(GetPName pname)
-    {
-        try
-        {
-            // Prefer the 64-bit query when available.
-            GL.GetInteger64(pname, out long value);
-            return value;
-        }
-        catch
-        {
-            try
-            {
-                return SafeGetInt(pname);
-            }
-            catch
-            {
-                return 0;
-            }
-        }
-    }
-
-    /// <summary>Captures the three independent axes of an indexed compute limit.</summary>
-    private static ImmutableArray<int> SafeGetInt3(GetIndexedPName pname)
-    {
-        try
-        {
-            int[] values = new int[3];
-            // Compute axis limits require indexed queries; the unindexed overload generates InvalidEnum.
-            for (int axis = 0; axis < values.Length; axis++)
-                GL.GetInteger(pname, axis, out values[axis]);
-            return ImmutableArray.Create(values[0], values[1], values[2]);
-        }
-        catch
-        {
-            return ImmutableArray<int>.Empty;
-        }
-    }
+    public static ImmutableArray<int> MaxComputeWorkGroupCount => graphics.MaxComputeWorkGroupCount;
+    public static ImmutableArray<int> MaxComputeWorkGroupSize => graphics.MaxComputeWorkGroupSize;
+    public static int MaxComputeWorkGroupInvocations => graphics.MaxComputeWorkGroupInvocations;
+    public static int MaxComputeSharedMemorySize => graphics.MaxComputeSharedMemorySize;
 
     #endregion
 
     #region Extension Flags
 
-    public static bool SupportsKhrDebug { get; private set; }
-    public static bool SupportsArbDirectStateAccess { get; private set; }
-    public static bool SupportsArbMultiBind { get; private set; }
-    public static bool SupportsArbBindlessTexture { get; private set; }
+    public static bool SupportsKhrDebug => graphics.SupportsKhrDebug;
+    public static bool SupportsArbDirectStateAccess => graphics.SupportsArbDirectStateAccess;
+    public static bool SupportsArbMultiBind => graphics.SupportsArbMultiBind;
+    public static bool SupportsArbBindlessTexture => graphics.SupportsArbBindlessTexture;
 
-    public static bool SupportsArbComputeShader { get; private set; }
-    public static bool SupportsArbShaderStorageBufferObject { get; private set; }
-    public static bool SupportsArbShaderImageLoadStore { get; private set; }
-    public static bool SupportsArbShaderAtomicCounters { get; private set; }
-    public static bool SupportsArbExplicitUniformLocation { get; private set; }
-    public static bool SupportsArbBufferStorage { get; private set; }
+    public static bool SupportsArbComputeShader => graphics.SupportsArbComputeShader;
+    public static bool SupportsArbShaderStorageBufferObject => graphics.SupportsArbShaderStorageBufferObject;
+    public static bool SupportsArbShaderImageLoadStore => graphics.SupportsArbShaderImageLoadStore;
+    public static bool SupportsArbShaderAtomicCounters => graphics.SupportsArbShaderAtomicCounters;
+    public static bool SupportsArbExplicitUniformLocation => graphics.SupportsArbExplicitUniformLocation;
+    public static bool SupportsArbBufferStorage => graphics.SupportsArbBufferStorage;
 
-    public static bool SupportsArbShadingLanguage420Pack { get; private set; }
-    public static bool SupportsArbProgramInterfaceQuery { get; private set; }
+    public static bool SupportsArbShadingLanguage420Pack => graphics.SupportsArbShadingLanguage420Pack;
+    public static bool SupportsArbProgramInterfaceQuery => graphics.SupportsArbProgramInterfaceQuery;
 
-    public static bool SupportsArbGlSpirv { get; private set; }
+    public static bool SupportsArbGlSpirv => graphics.SupportsArbGlSpirv;
 
-    public static bool SupportsExtSemaphore { get; private set; }
-    public static bool SupportsExtSemaphoreFd { get; private set; }
-    public static bool SupportsExtMemoryObject { get; private set; }
-    public static bool SupportsExtMemoryObjectFd { get; private set; }
+    public static bool SupportsExtSemaphore => graphics.SupportsExtSemaphore;
+    public static bool SupportsExtSemaphoreFd => graphics.SupportsExtSemaphoreFd;
+    public static bool SupportsExtMemoryObject => graphics.SupportsExtMemoryObject;
+    public static bool SupportsExtMemoryObjectFd => graphics.SupportsExtMemoryObjectFd;
 
     /// <summary>
     /// Delegates to <see cref="GlExtensions.Supports"/> for ad-hoc checks.
@@ -550,50 +250,17 @@ public static class GpuSupport
         return GlExtensions.Supports(extension);
     }
 
-    private static void CaptureExtensionFlags()
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Rejects capability access before successful initialization.</summary>
+    private static void ThrowIfNotInitialized()
     {
-        GlDebug.ClearErrors();
-        SupportsKhrDebug = GlExtensions.Supports("GL_KHR_debug");
-        SupportsArbDirectStateAccess = GlExtensions.Supports("GL_ARB_direct_state_access");
-        SupportsArbMultiBind = GlExtensions.Supports("GL_ARB_multi_bind");
-        SupportsArbBindlessTexture = GlExtensions.Supports("GL_ARB_bindless_texture");
-
-        SupportsArbComputeShader = GlExtensions.Supports("GL_ARB_compute_shader") || IsAtLeast(ApiVersion, 4, 3);
-        SupportsArbShaderStorageBufferObject = GlExtensions.Supports("GL_ARB_shader_storage_buffer_object") || IsAtLeast(ApiVersion, 4, 3);
-        SupportsArbShaderImageLoadStore = GlExtensions.Supports("GL_ARB_shader_image_load_store") || IsAtLeast(ApiVersion, 4, 2);
-        SupportsArbShaderAtomicCounters = GlExtensions.Supports("GL_ARB_shader_atomic_counters") || IsAtLeast(ApiVersion, 4, 2);
-        SupportsArbExplicitUniformLocation = GlExtensions.Supports("GL_ARB_explicit_uniform_location") || IsAtLeast(ApiVersion, 4, 3);
-        SupportsArbBufferStorage = GlExtensions.Supports("GL_ARB_buffer_storage") || IsAtLeast(ApiVersion, 4, 4);
-
-        // Enables layout(binding=...) in older GLSL (e.g., #version 330) when supported by the driver.
-        SupportsArbShadingLanguage420Pack = GlExtensions.Supports("GL_ARB_shading_language_420pack") || IsAtLeast(ApiVersion, 4, 2);
-
-        // Required for glGetProgramResource* and friends.
-        SupportsArbProgramInterfaceQuery = GlExtensions.Supports("GL_ARB_program_interface_query") || IsAtLeast(ApiVersion, 4, 3);
-
-        SupportsArbGlSpirv = GlExtensions.Supports("GL_ARB_gl_spirv") || IsAtLeast(ApiVersion, 4, 6);
-
-        SupportsExtSemaphore = GlExtensions.Supports("GL_EXT_semaphore");
-        SupportsExtSemaphoreFd = GlExtensions.Supports("GL_EXT_semaphore_fd");
-        SupportsExtMemoryObject = GlExtensions.Supports("GL_EXT_memory_object");
-        SupportsExtMemoryObjectFd = GlExtensions.Supports("GL_EXT_memory_object_fd");
-        GlDebug.ThrowIfErrors();
-    }
-
-    private static bool IsAtLeast(Version? version, int major, int minor)
-    {
-        if (version is null)
+        if (!isInitialized)
         {
-            return false;
+            throw new InvalidOperationException("GpuSupport.Initialize() must be called on a thread with a current GL context before reading cached values.");
         }
-
-        if (version.Major != major)
-        {
-            return version.Major > major;
-        }
-
-        return version.Minor >= minor;
     }
-
     #endregion
 }

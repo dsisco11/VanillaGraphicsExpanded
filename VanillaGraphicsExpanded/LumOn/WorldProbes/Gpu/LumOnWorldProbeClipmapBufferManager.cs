@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering;
 using System.Numerics;
 
 using OpenTK.Graphics.OpenGL;
@@ -320,7 +321,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
     {
         try
         {
-            return GL.GetInteger(GetPName.MaxTextureSize);
+            return GpuSupport.Graphics.MaxTextureSize;
         }
         catch
         {

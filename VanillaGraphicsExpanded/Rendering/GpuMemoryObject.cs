@@ -24,7 +24,7 @@ internal sealed class GpuMemoryObject : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the current OpenGL context reports EXT memory object support.
     /// </summary>
-    public static bool IsSupported => GlExtensions.Supports("GL_EXT_memory_object");
+    public static bool IsSupported => GpuSupport.Graphics.SupportsExtMemoryObject;
 
     /// <summary>
     /// Gets the underlying OpenGL memory object id.
@@ -94,4 +94,3 @@ internal sealed class GpuMemoryObject : GpuResource, IDisposable
         GL.Ext.ImportMemoryF(memoryObjectId, unchecked((long)sizeBytes), handleType, fd);
     }
 }
-

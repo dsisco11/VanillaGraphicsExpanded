@@ -147,7 +147,7 @@ public class GpuBufferView : GpuResource, IDisposable
         }
 
         // Best-effort capability check (some drivers expose this in core without the extension string).
-        if (!GlExtensions.Supports("GL_ARB_texture_buffer_range"))
+        if (!GpuSupport.Graphics.SupportsTextureBufferRange)
         {
             throw new NotSupportedException("Texture buffer ranges require GL_ARB_texture_buffer_range.");
         }

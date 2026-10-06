@@ -12,7 +12,7 @@ internal static class GpuSparseTexture
     /// <summary>
     /// Returns <c>true</c> when the current OpenGL context reports ARB sparse texture support.
     /// </summary>
-    public static bool IsSupported => GlExtensions.Supports("GL_ARB_sparse_texture");
+    public static bool IsSupported => GpuSupport.Graphics.SupportsSparseTexture;
 
     /// <summary>
     /// Commits or decommits a region of pages for a sparse texture via <c>glTexPageCommitmentARB</c>.
@@ -85,4 +85,3 @@ internal static class GpuSparseTexture
         }
     }
 }
-

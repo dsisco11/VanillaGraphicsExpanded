@@ -4,11 +4,12 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// Phase 2 PSO descriptor: intent bitsets plus compact value payloads for non-default knobs.
+/// Legacy partial state override: intent masks and compact payloads for compatibility boundaries.
 /// </summary>
 /// <remarks>
 /// This intentionally stores only values needed for the bits present in the intent masks.
 /// (Some knobs, like indexed blend, also require attachment indices when forcing baseline defaults.)
+/// This type is not a complete GraphicsPipelineDesc and has no implicit conversion to one.
 /// </remarks>
 internal readonly partial struct GlPipelineDesc
 {

@@ -222,6 +222,150 @@ baseline, performance measurement or live acceptance. Existing receipts below va
 bounded restoration. Fresh reference-versus-migrated results are required before production migration
 is complete.
 
+## Immutable graphics descriptions
+
+Complete descriptions now live in `Rendering/Pipeline/Descriptions`. The construction boundary is
+[GraphicsPipelineDesc](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/GraphicsPipelineDesc.cs):
+required shader/layout/target identities, an explicit dynamic declaration and shared capabilities,
+plus optional state values resolved against the design defaults above. The result has only read-only
+properties. Existing mutable categorized StateCache storage continues to record native knowledge;
+it is not reused as immutable configuration storage.
+
+`DepthStencilDesc`, `StencilFaceDesc`, `RasterizerDesc`, `ColorBlendDesc`, `SamplingDesc`,
+`PrimitiveAssemblyDesc` and `OutputDesc` own separate state families. `PipelineValues<T>` copies
+sequences and compares elements structurally; every element used by descriptions is itself immutable.
+Record value equality composes these fields, while complete descriptor equality and hashing exclude
+labels and capability objects. No native object name, framebuffer dimensions, executable revision or
+context registration is stored in this reusable key. Future prepared realizations supply executable
+revision and renderer-lifetime checks separately.
+
+[ShaderPipelineIdentity](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/ShaderPipelineIdentity.cs)
+retains the existing immutable ShaderStageSelection objects from ShaderLoadPlan in canonical stage order.
+ShaderStageSelectionComparer in the shader-contract layer compares effective paths, entry points,
+structural variants, typed specialization bits, fixed defines and existing resource/interface declarations.
+GpuBindingContract supplies matching structural hashing and equivalence without allocating resource-entry
+copies. Independently created equivalent selections compare equal regardless of map insertion order.
+The whole-program identity caches its hash, but exact equality remains authoritative; it includes the
+asset domain and does not introduce GUIDs or an interning registry. Unused option declarations remain
+outside effective pipeline identity, while existing reload SameInputs semantics remain unchanged.
+Native executable/interface validation remains preparation work; a description is not a prepared or
+submittable object.
+
+Shader-selection reuse validation: shader-enabled Debug and Release builds succeeded, and each focused
+identity/load-plan/settings/ownership selection passed 31/31 tests with zero skips. Five added cases
+cover retained selection references, insertion-order-independent equality/hashing, changed effective
+inputs, unused declaration domains and caller mutation isolation. Broader contract selections each
+passed 113/116 with three catalog/baseline mismatches: GeneratedCatalogContainsEveryPackagedProgram
+(138 expected, 147 actual), ShaderBindingMigrationTests and ShaderMigrationBaselineTests. Source review
+locates those assertions in catalog declarations and saved baselines outside the changed identity path;
+an older checkout was not executed to establish a reproduced baseline. No baseline files were altered.
+Receipts: artifacts/shader-identity-{debug,release}.log and
+artifacts/shader-identity-focused-{debug,release}.log.
+
+[VertexLayoutDesc](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/VertexLayoutDesc.cs)
+validates and sorts copied attributes by location, rejects duplicate locations/unsupported packing,
+and requires shared binding strides/divisors to agree. Instance buffers and index ranges remain draw
+arguments. [RenderTargetSignature](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/RenderTargetSignature.cs)
+retains sparse output slots and explicit discard policy, exact sized formats, depth/stencil aspects
+and normalized sample count. Its bounded sized-color whitelist is in TargetFormatPolicy; unknown,
+unsized and compressed formats reject. Actual attachment metadata/routing and linked shader output
+compatibility still belong to preparation/pass setup.
+
+Validation runs unconditionally before canonicalization, including invalid inactive enum/float values.
+Enabled scissor/stencil/constant blending requires the corresponding declared dynamics; viewport is
+always explicit. Depth/stencil enables require matching aspects; integer blending, dual-source factors,
+unsupported topology/stage combinations, device-limit violations and unavailable optional features
+reject. Polygon mode applies equally to both faces. Unsupported clip/compatibility/logic-operation
+modes are fixed neutral policy, not inherited values or publicly configurable alternatives.
+
+Inactive culling, stencil, blending, bias, restart, patch size and sampling values resolve to explicit
+canonical values. Enabled configurations retain their full authored behavior; constructing another
+enabled description validates and retains its supplied settings. Color masks remain significant with
+blending disabled. Sample masks have an explicit all-ones suffix: `SamplingDesc.GetMaskWord(index)`
+resolves every native word, so a future state applier must visit all supported words, including omitted
+ones. Trailing all-ones words do not distinguish identities. This avoids device-dependent defaults and
+never permits stale native mask words to survive application.
+
+[GpuSupport.Graphics](../VanillaGraphicsExpanded/Rendering/GpuSupport.Graphics.cs) extends the existing
+capability capture with vertex binding/stride/offset limits, sample-mask words, line/point ranges and
+optional graphics features alongside its existing resource limits. GpuSupport owns one immutable
+`GraphicsCapabilities` instance, exposed through `GpuSupport.Graphics`; all cached context characteristics,
+extension flags, graphics limits and resource/compute limits reside in this immutable record. Existing
+properties forward to that same storage, including immutable compute-axis arrays. Initialization builds
+the complete value privately and publishes it only after all query groups succeed; initialization status,
+registration bookkeeping and diagnostic counters remain on GpuSupport. Ordinary reads neither copy the
+record nor query GL. GraphicsPipelineDesc uses that shared instance by default; tests may supply
+synthetic capabilities of the same type. There is no pipeline-specific capability cache or snapshot
+operation. The complete-description baseline is OpenGL 3.3, with optional features checked individually.
+Capabilities do not participate in equality or add StateCache context tracking.
+
+Shared coverage also includes UBO and texture-buffer offset alignment, texture-buffer size, label
+length and immutable program-binary format lists. Buffer/texture wrappers, shader preparation,
+parallel linking and executable caching consume these shared values rather than issuing independent
+capability queries. Core-promoted debug, direct-state-access, multi-bind, texture-buffer-range and
+clear-texture features accept the corresponding API version as well as extension advertisement.
+
+Target-dependent format support resides in GpuSupport.GetInternalFormatCapabilities, keyed by image
+target and sized internal format. It caches immutable support, framebuffer-renderability and sample-count
+results on demand; successful capability reinitialization clears that cache. Failed queries are not
+cached, and warm reads do not consume pending native errors. This optional query API requires OpenGL
+4.3 or ARB_internalformat_query2 and does not impose that requirement on ordinary pipeline descriptions.
+
+Legacy `GlPipelineDesc` is explicitly documented as a partial compatibility override. Its stable mask
+numbering and consumers remain unchanged; there is no implicit conversion or shared base/interface
+allowing it to masquerade as GraphicsPipelineDesc. Full state application, pass setup and production
+consumer migration remain pending. These changes do not establish rendering or performance improvements.
+
+Validation on 2026-10-05: shader-enabled Debug and Release test builds succeeded; the focused selection
+passed **39/39 in each configuration, zero skips**. It covers copied/read-only storage, structural
+identity and operators, field-sensitive state, inactive canonicalization and re-enable behavior,
+shader specialization/layout identity, sparse exact targets, explicit dynamics, invalid/capability
+rejection, stable legacy masks, and native GpuSupport limit capture. Second source review found no
+remaining discrepancies; completion audit is recorded in the implementation plan.
+
+Shared capability ownership validation on 2026-10-06 passed **41/41 in both Debug and Release,
+zero skips**, with shader compilation enabled. Additional integration checks verify that snapshots
+copy shared cached values without recapture or native queries, and that default descriptor validation
+uses shared native limits. Receipts: `artifacts/shared-support-{debug,release}.log` and
+`artifacts/TestResults/shared-support-{debug,release}.trx`.
+
+The subsequent immutable ownership correction passed **41/41 in both Debug and Release, zero skips**,
+with shader compilation enabled. Repeated reads now assert reference identity, preserving the pending
+native-error and no-recapture checks. Receipts: `artifacts/immutable-support-{debug,release}.log`.
+
+Complete capability consolidation passed **44/44 in both Debug and Release, zero skips**, with shader
+compilation enabled. Coverage includes startup behavior, native context/resource/extension values,
+immutable compute collections and retained values across explicit reinitialization. The previously
+omitted compute shared-memory query now populates its limit using the named OpenTK enum.
+Receipts: `artifacts/all-capabilities-{debug,release}.log`.
+
+Expanded shared capability coverage and consumer migration passed **176/176 in both Debug and Release,
+zero skips**, with shader compilation enabled. Seven added cases check native global limits/features,
+program-binary formats, target-specific format support and sample counts, cache key isolation,
+warm error preservation, cache reset and rejection of repeated invalid queries. The selection also
+covers startup, UBO submission, shader linking, program-binary caching and texture/buffer consumers.
+Receipts: `artifacts/capability-consumers-{debug,release}.log`.
+
+Delegated command (substitute Debug/debug or Release/release):
+
+```powershell
+$env:NUGET_PACKAGES = 'C:\Users\Sisco\.nuget\packages'
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c <Configuration> --no-restore --filter 'FullyQualifiedName~GraphicsPipelineDescriptionTests|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~GpuSupportLimitsTests|FullyQualifiedName~GlPipelineDescValidationTests|FullyQualifiedName~GlPipelineStateMaskTests|FullyQualifiedName~GlPipelineDescDebugTests' --logger 'trx;LogFileName=pso-descriptions-<configuration>.trx' --results-directory artifacts/TestResults
+```
+
+Receipts: `artifacts/pso-descriptions-{debug,release}-tests.log` and
+`artifacts/TestResults/pso-descriptions-{debug,release}.trx`. The initial sandbox profile selected an
+unavailable shader compiler package path; using the installed owner package cache resolved it. Release
+also encountered a transient shader-cache WriteAtomic access failure before C# tests; the unchanged
+retry succeeded (`artifacts/pso-descriptions-release-initial.log` retains the failed attempt).
+Offline NU1900 vulnerability-audit warnings and existing analyzer warnings remain. A redundant static
+type-pattern test warning was removed afterward without changing test behavior.
+
+The native stride check was corrected to honor its introduction in OpenGL 4.4, instead of relying on
+a 4.3 driver's acceptance of the query; see [Khronos OpenGL 4.4, Appendix G.1](https://registry.khronos.org/OpenGL/specs/gl/glspec44.core.pdf).
+No production draw was migrated, no new rendered-output comparison or performance measurement was
+made, and Vintage Story was not launched. Native capability checks do not establish live rendering acceptance.
+
 ## Engine-boundary restoration
 
 Inventory and implementation contracts established on 2026-10-05. Categorized cache storage

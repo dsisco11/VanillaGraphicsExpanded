@@ -43,7 +43,7 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
     protected static int CreateBufferId(string? debugName)
     {
         int id = 0;
-        bool supportsDsa = GlExtensions.Supports("GL_ARB_direct_state_access");
+        bool supportsDsa = GpuSupport.Graphics.SupportsArbDirectStateAccess;
 
         if (supportsDsa)
         {

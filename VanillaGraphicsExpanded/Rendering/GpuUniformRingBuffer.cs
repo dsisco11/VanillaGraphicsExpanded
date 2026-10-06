@@ -381,7 +381,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     {
         try
         {
-            GL.GetInteger(GetPName.UniformBufferOffsetAlignment, out int align);
+            int align = GpuSupport.Graphics.UniformBufferOffsetAlignment;
             return Math.Max(1, align);
         }
         catch

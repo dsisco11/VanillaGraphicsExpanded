@@ -2702,7 +2702,7 @@ internal static class TextureStreamingUtils
 {
     public static bool SupportsBufferStorage()
     {
-        return GlExtensions.Supports("GL_ARB_buffer_storage");
+        return GpuSupport.Graphics.SupportsArbBufferStorage;
     }
 
     public static UploadDimension GetUploadDimension(TextureTarget target)

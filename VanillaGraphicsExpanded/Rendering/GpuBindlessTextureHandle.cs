@@ -15,7 +15,7 @@ internal sealed class GpuBindlessTextureHandle : IDisposable
     /// <summary>
     /// Returns <c>true</c> when the current OpenGL context reports ARB bindless texture support.
     /// </summary>
-    public static bool IsSupported => GlExtensions.Supports("GL_ARB_bindless_texture");
+    public static bool IsSupported => GpuSupport.Graphics.SupportsArbBindlessTexture;
 
     /// <summary>
     /// Gets the 64-bit handle value.

@@ -34,6 +34,7 @@ Issues:
     ☐ Ensure PBR shader system can operate independently of LumOn and still produce nice lighting.
         ☐ Ensure PBr shader system is split into two halves, first half does the material properties setup and albedo maps and such, second half does final compositing to produce a direct-lighting result. 
         when LumOn is enabled, the PBR compositor stage would be disabled, which prevents its lighting from interfering with the LumOn lighting results which become the authoritive lighting representation when enabled.
+    ☐ Implement Virtual-Shadow-Maps using GpuSparseTextures.
 
   WorldProbes:
     ☐ Rename world-probe classes to remove `LumOn` prefix.

@@ -28,8 +28,8 @@ internal sealed class GpuPreparedBindings
     /// <summary>Validates fixed resource assignments once before the candidate executable is published.</summary>
     internal GpuPreparedBindings(int program, GpuBindingContract contract)
     {
-        GL.GetInteger(GetPName.MaxCombinedTextureImageUnits, out int textureUnits);
-        GL.GetInteger((GetPName)All.MaxImageUnits, out int imageUnits);
+        int textureUnits = GpuSupport.Graphics.MaxCombinedTextureImageUnits;
+        int imageUnits = GpuSupport.Graphics.MaxImageUnits;
         var linked = new Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)>();
         GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
         ReflectionQueries++;
