@@ -5,6 +5,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Owns optional OpenGL diagnostics, labels and debug groups.</summary>
 internal static class GlDebug
 {
 #if DEBUG
@@ -12,6 +13,12 @@ internal static class GlDebug
 #else
     private const bool DebugGroupsEnabled = false;
 #endif
+
+    #region Public API
+    /// <summary>Enables per-command raster state error checks; disabled by default in every build.</summary>
+    /// <remarks>Checked boundary restoration owns its checks independently and suppresses nested diagnostics.</remarks>
+    public static bool CheckStateTransitions { get; set; }
+    #endregion
 
     /// <summary>Checks optional labeling support without letting diagnostic setup fail rendering.</summary>
     private static bool SupportsKhrDebug()

@@ -17,9 +17,9 @@ internal sealed partial class StateCache
         }
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ClipControl) && rasterizer.ClipOrigin == origin && rasterizer.ClipDepth == depth) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.ClipControl;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.ClipControl(origin, depth); FixedFunctionCalls++;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.ClipOrigin = origin; rasterizer.ClipDepth = depth;
         rasterizerKnown |= RasterizerStateKnowledge.ClipControl;
     }
@@ -30,9 +30,9 @@ internal sealed partial class StateCache
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin) && rasterizer.PointSpriteOrigin == value) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.PointSpriteOrigin;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.PointParameter(PointParameterName.PointSpriteCoordOrigin, (int)value); FixedFunctionCalls++;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PointSpriteOrigin = value; rasterizerKnown |= RasterizerStateKnowledge.PointSpriteOrigin;
     }
     /// <summary>Sets a comparison and native-clamped reference, including parameters while the alpha test is disabled.</summary>
@@ -44,9 +44,9 @@ internal sealed partial class StateCache
         reference = Math.Clamp(reference, 0, 1);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.AlphaFunction) && rasterizer.AlphaComparison == comparison && rasterizer.AlphaReference == reference) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.AlphaFunction;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.AlphaFunc(comparison, reference); FixedFunctionCalls++;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.AlphaComparison = comparison; rasterizer.AlphaReference = reference;
         rasterizerKnown |= RasterizerStateKnowledge.AlphaFunction;
     }
@@ -58,9 +58,9 @@ internal sealed partial class StateCache
         factor = Math.Clamp(factor, 1, 256);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineStippleParameters) && rasterizer.LineStippleFactor == factor && rasterizer.LineStipplePattern == pattern) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.LineStippleParameters;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.LineStipple(factor, pattern); FixedFunctionCalls++;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.LineStippleFactor = factor; rasterizer.LineStipplePattern = pattern;
         rasterizerKnown |= RasterizerStateKnowledge.LineStippleParameters;
     }
@@ -74,9 +74,9 @@ internal sealed partial class StateCache
         uint bit = 1u << index;
         if ((clipDistancesKnown & bit) != 0 && ((rasterizer.ClipDistances & bit) != 0) == enabled) return;
         clipDistancesKnown &= ~bit; rasterizerKnown &= ~RasterizerStateKnowledge.ClipDistances;
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         SetEnable((EnableCap)((int)EnableCap.ClipDistance0 + index), enabled);
-        CheckBoundaryNativeError();
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) rasterizer.ClipDistances |= bit; else rasterizer.ClipDistances &= ~bit;
         clipDistancesKnown |= bit;
         uint complete = count == 32 ? uint.MaxValue : (1u << count) - 1;

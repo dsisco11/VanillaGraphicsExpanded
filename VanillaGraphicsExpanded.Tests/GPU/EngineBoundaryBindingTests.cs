@@ -74,9 +74,11 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
             GL.ActiveTexture(TextureUnit.Texture5);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             long reads = cache.BoundaryQueries, textureCalls = cache.TextureBindCount, resourceCalls = cache.ResourceSlotBindCount;
+            long checks = cache.BoundaryErrorChecks;
             Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Warm"), out var warm, footprint)); warm!.Dispose();
             Assert.Equal(reads, cache.BoundaryQueries); Assert.Equal(textureCalls, cache.TextureBindCount);
             Assert.Equal(resourceCalls, cache.ResourceSlotBindCount);
+            Assert.Equal(checks, cache.BoundaryErrorChecks);
         }
         finally
         {

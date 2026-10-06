@@ -32,6 +32,8 @@ internal sealed partial class StateCache
     {
         if (state.Alignment is not (1 or 2 or 4 or 8)) throw new ArgumentOutOfRangeException(nameof(state));
         if (state.RowLength < 0 || state.SkipRows < 0 || state.SkipPixels < 0 || state.ImageHeight < 0 || state.SkipImages < 0) throw new ArgumentOutOfRangeException(nameof(state));
+        // A known identical layout is a pure cache hit, including its error state.
+        if (pixelUnpackState == state) return;
         CheckBoundaryNativeError();
         var previous = pixelUnpackState;
         // Leave the cache unknown if a driver call throws partway through the update.

@@ -50,10 +50,10 @@ internal sealed partial class StateCache
         bool restorationFailed = false;
         try
         {
-            CheckBoundaryNativeError();
             BindBuffer(target, 0);
-            CheckBoundaryNativeError();
             if (pack) SetPixelPackState(new(1)); else SetPixelUnpackState(new(1));
+            // Binding and layout owners verify setup before any managed pointer is submitted.
+            CheckBoundaryNativeError();
             operation();
             CheckBoundaryNativeError();
         }
@@ -62,7 +62,7 @@ internal sealed partial class StateCache
         {
             try { if (pack) SetPixelPackState(packed); else SetPixelUnpackState(unpacked); }
             catch (Exception error) { restorationFailed = true; failures.Add(error); }
-            try { BindBuffer(target, buffer); CheckBoundaryNativeError(); }
+            try { BindBuffer(target, buffer); }
             catch (Exception error) { restorationFailed = true; bufferBindingByTarget.Remove(target); failures.Add(error); }
         }
         if (restorationFailed)

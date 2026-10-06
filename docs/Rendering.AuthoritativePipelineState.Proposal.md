@@ -174,6 +174,34 @@ Untracked GL calls inside an authoritative pass are prohibited. A deliberate ext
 
 Preparation/setup failure prevents submission and exits through exception-safe cleanup. EndPass applies store intentions and the documented external restoration policy; it does not dispose borrowed resources.
 
+## Native error-checking policy
+
+Ordinary cached raster transitions validate managed inputs and capability support, suppress known
+unchanged values, and issue the necessary native commands without unconditional error polling.
+They do not promise immediate detection of every driver error. Explicit external mutation and
+resource-lifetime invalidation remain necessary for truthful cache authority.
+
+Detailed raster-transition checks are opt-in through GlDebug.CheckStateTransitions, disabled by
+default in both Debug and Release. A changed transition checks before and after its native command
+when enabled, withholding affected knowledge on failure. Boundary restoration owns its checks
+instead of repeating this diagnostic pair inside each setter. Known-equal transitions consume no
+native errors even when diagnostics are enabled.
+
+Checked restoration retains independent field-level attempts and targeted invalidation. Known-equal
+fields require no native work or per-field error polls; changed or unknown fields are checked before
+and after restoration. A pre-existing error rejects that checked attempt rather than being attributed
+to its command; the affected field becomes unknown and independent cleanup continues. A native error
+reported after a grouped command invalidates the entire affected group, not a guessed individual
+component. Cleanup failure remains an unsafe handoff and propagates with the original operation error.
+
+Pixel-transfer buffer changes and changed pack/unpack layouts remain checked safety operations:
+setup must succeed before native code can interpret a managed pointer using those bindings/layouts.
+Known-equal bindings/layouts do not poll. Polygon-stipple transfer reuses those checked owners and
+checks the transfer itself; restoration does not repeat checks already owned by a checked transfer.
+Cold state reads retain native error checks so a failed query cannot publish a default as known state.
+Unavoidable safety checks and optional diagnostics are accounted separately from state-value reads
+and native mutations. Reduced call counts alone do not establish CPU or GPU timing improvements.
+
 ## Engine integration and cache authority
 
 There are three separate concerns:

@@ -1194,3 +1194,72 @@ focused: FullyQualifiedName~EngineStartupContextTests|FullyQualifiedName~EngineS
 refraction: FullyQualifiedName~WaterRefractionCaptureStateTests
 resources: FullyQualifiedName~GpuProgramUseScopeTests|FullyQualifiedName~GeneratedResourceBindingTests|FullyQualifiedName~GpuImageUnitBindingIntegrationTests
 ~~~
+
+## Native error-checking correction (2026-10-06)
+
+Ordinary cached raster transitions validate managed inputs and capability support, suppress known
+unchanged values, and issue the necessary native commands without unconditional error polling.
+They do not promise immediate detection of every driver error. Explicit external mutation and
+resource-lifetime invalidation remain necessary for truthful cache authority.
+
+Detailed raster-transition checks are opt-in through GlDebug.CheckStateTransitions, disabled by
+default in both Debug and Release. A changed transition checks before and after its native command
+when enabled, withholding affected knowledge on failure. Boundary restoration owns its checks
+instead of repeating this diagnostic pair inside each setter. Known-equal transitions consume no
+native errors even when diagnostics are enabled.
+
+Checked restoration retains independent field-level attempts and targeted invalidation. Known-equal
+fields require no native work or per-field error polls; changed or unknown fields are checked before
+and after restoration. A pre-existing error rejects that checked attempt rather than being attributed
+to its command; the affected field becomes unknown and independent cleanup continues. A native error
+reported after a grouped command invalidates the entire affected group, not a guessed individual
+component. Cleanup failure remains an unsafe handoff and propagates with the original operation error.
+
+Pixel-transfer buffer changes and changed pack/unpack layouts remain checked safety operations:
+setup must succeed before native code can interpret a managed pointer using those bindings/layouts.
+Known-equal bindings/layouts do not poll. Polygon-stipple transfer reuses those checked owners and
+checks the transfer itself; restoration does not repeat checks already owned by a checked transfer.
+Cold state reads retain native error checks so a failed query cannot publish a default as known state.
+Unavoidable safety checks and optional diagnostics are accounted separately from state-value reads
+and native mutations. Reduced call counts alone do not establish CPU or GPU timing improvements.
+
+This policy supersedes the historical per-field polling counts recorded earlier and the earlier blanket
+promise of immediate native-error detection on ordinary transitions. Existing completion receipts
+remain historical evidence for their tested revisions. Current verification is recorded below.
+
+Traceability for this correction:
+
+| Requirement and controlling source | Implementation and verification |
+| --- | --- |
+| Proposal / Native error-checking policy; plan / Correct native error polling and checked-operation ownership | GlDebug.CheckStateTransitions; RasterEnables/RasterParameters; StateTransitionDiagnosticsTests distinguishes normal calls, optional diagnostics and inherited errors. |
+| Proposal / Engine integration and cache authority; retained Boundary API, coverage and failures | BoundaryRestoration, BoundaryRasterizer and BoundaryBindings skip known-equal fields, independently check changed fields and preserve targeted invalidation; boundary restoration/entry suites retain failure and lifecycle cases. |
+| Proposal / Native error-checking policy; retained configurable raster transfer ownership | PixelPack/PixelUnpack no-op suppression; PixelTransferBindings and PolygonStipple retain checked safety setup/transfer/cleanup; pixel layout and configurable raster GPU suites verify native state and exception restoration. |
+| Proposal / Validation and acceptance | Delegated shader-enabled Debug/Release tests; operation counters distinguish native mutations, value reads and error polling. No live-game or timing acceptance is inferred. |
+
+Delegated shader-enabled verification passed on 2026-10-06: Debug 74/74 and Release 74/74,
+zero failures or skips in both final runs. Commands used NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages:
+
+~~~powershell
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~StateTransitionDiagnosticsTests|FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~EngineBoundary|FullyQualifiedName~PixelPackStateTests|FullyQualifiedName~PixelUnpackStateTests|FullyQualifiedName~DepthStencilTextureTests|FullyQualifiedName~PipelineStateCoverageTests' -v quiet
+~~~
+
+Repeat with -c Release. Receipts: artifacts/polling-debug-tests.log and
+artifacts/polling-release-tests.log. Shader compilation remained enabled. An initial shader-cache
+atomic replacement failed transiently; a later test run exposed one test still assuming unconditional
+diagnostics. The corrected explicit opt-in test is included in both final passing runs. Existing
+compiler/analyzer and NU1900 feed-access warnings remain.
+
+| Verified operation | Native mutations | State-value reads | Error-status checks |
+| --- | ---: | ---: | ---: |
+| Two ordinary raster enable changes plus point-origin change, with repeated identical requests | 3 | 0 | 0 |
+| Known identical pack/unpack layouts | 0 | 0 | 0 |
+| Diagnostic retry of unknown raster field | 1 | 0 | 2 |
+| Changed raster restoration with diagnostics enabled | 1 | 0 | 2 |
+| Unchanged warm depth and borrowed binding restoration | 0 | 0 | 0 |
+
+Second source review verified checked-owner nesting, alias invalidation, retired-resource rejection,
+independent cleanup and native query/transfer safety. These counts establish suppressed calls, not
+measured frame-time or GPU savings. Live game validation was not performed.
+
+Independent audit-stage-completion review passed after the second review and both final test receipts;
+no unresolved implementation, contract or verification gaps remain for this correction.

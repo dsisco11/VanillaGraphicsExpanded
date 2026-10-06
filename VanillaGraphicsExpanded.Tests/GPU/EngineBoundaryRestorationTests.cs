@@ -98,7 +98,7 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         long checks = cache.BoundaryErrorChecks;
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var warm)); warm!.Dispose();
         Assert.Equal(reads, cache.BoundaryQueries); Assert.Equal(calls, cache.FixedFunctionCalls);
-        Assert.Equal(6, cache.BoundaryErrorChecks - checks);
+        Assert.Equal(0, cache.BoundaryErrorChecks - checks);
         cache.Invalidate(EPipelineState.Depth); cache.SetDepthFunc(DepthFunction.Less);
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var partial)); partial!.Dispose();
         Assert.Equal(2, cache.BoundaryQueries - reads);

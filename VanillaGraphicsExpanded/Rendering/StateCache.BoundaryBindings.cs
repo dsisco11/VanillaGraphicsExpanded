@@ -62,9 +62,11 @@ internal sealed partial class StateCache
         int vao = currentVao.Value;
         int arrayBuffer = ResolveBoundaryBuffer(BufferTarget.ArrayBuffer);
         // Quad helpers rebind geometry; EBO associations stay with their original VAO owner.
-        bindings.Add(() => { RequireBoundaryResource(EPipelineState.VertexArray, vao); if (currentVao != vao) BindVertexArray(vao); }, () => currentVao = null);
+        bindings.Add(() => { RequireBoundaryResource(EPipelineState.VertexArray, vao); if (currentVao != vao) BindVertexArray(vao); }, () => currentVao = null,
+            () => currentVao != vao || boundaryRetiredResources.Contains((EPipelineState.VertexArray, vao)));
         bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, arrayBuffer); if (bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer) BindBuffer(BufferTarget.ArrayBuffer, arrayBuffer); },
-            () => bufferBindingByTarget.Remove(BufferTarget.ArrayBuffer));
+            () => bufferBindingByTarget.Remove(BufferTarget.ArrayBuffer),
+            () => bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, arrayBuffer)));
         try
         {
             foreach (var slot in footprint.Textures) CaptureBoundaryTexture(slot.Unit, slot.Target, bindings);
@@ -90,8 +92,9 @@ internal sealed partial class StateCache
         // Indexed buffer binds also alter the generic target, so restore that alias last.
         foreach (var value in generic)
             bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, value.Value); if (bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value) BindBuffer(value.Key, value.Value); },
-                () => bufferBindingByTarget.Remove(value.Key));
-        bindings.Add(() => { if (activeTextureUnit != active) ActiveTexture(active); }, () => activeTextureUnit = null);
+                () => bufferBindingByTarget.Remove(value.Key),
+                () => bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, value.Value)));
+        bindings.Add(() => { if (activeTextureUnit != active) ActiveTexture(active); }, () => activeTextureUnit = null, () => activeTextureUnit != active);
         scope.AddCleanup(EngineBoundaryCleanup.Bindings, bindings);
 
         currentReadFramebuffer ??= QueryBoundary(() => GL.GetInteger(GetPName.ReadFramebufferBinding));
@@ -101,9 +104,11 @@ internal sealed partial class StateCache
         var readScope = new FramebufferScope(this, FramebufferTarget.ReadFramebuffer, read, draw);
         var drawScope = new FramebufferScope(this, FramebufferTarget.DrawFramebuffer, read, draw);
         framebuffers.Add(() => { RequireBoundaryResource(EPipelineState.FramebufferBindings, read); if (currentReadFramebuffer != read) readScope.Dispose(); },
-            () => currentReadFramebuffer = null);
+            () => currentReadFramebuffer = null,
+            () => currentReadFramebuffer != read || boundaryRetiredResources.Contains((EPipelineState.FramebufferBindings, read)));
         framebuffers.Add(() => { RequireBoundaryResource(EPipelineState.FramebufferBindings, draw); if (currentDrawFramebuffer != draw) drawScope.Dispose(); },
-            () => { currentDrawFramebuffer = null; currentFramebuffer = null; });
+            () => { currentDrawFramebuffer = null; currentFramebuffer = null; },
+            () => currentDrawFramebuffer != draw || boundaryRetiredResources.Contains((EPipelineState.FramebufferBindings, draw)));
         scope.AddCleanup(EngineBoundaryCleanup.Framebuffers, framebuffers);
     }
 
@@ -126,9 +131,12 @@ internal sealed partial class StateCache
         }
         int sampler = samplerBindingByUnit[unit]!.Value;
         restore.Add(() => { RequireBoundaryResource(EPipelineState.TextureBindings, texture); if (!TryGetCachedBoundTexture(target, unit, out int current) || current != texture) BindTexture(target, unit, texture); },
-            () => textureBindingsByUnit?[unit]?.Remove(target));
+            // Texture binding also selects the active unit; neither result is trusted on failure.
+            () => { textureBindingsByUnit?[unit]?.Remove(target); activeTextureUnit = null; },
+            () => !TryGetCachedBoundTexture(target, unit, out int current) || current != texture || boundaryRetiredResources.Contains((EPipelineState.TextureBindings, texture)));
         restore.Add(() => { RequireBoundaryResource(EPipelineState.SamplerBindings, sampler); if (!TryGetCachedBoundSampler(unit, out int current) || current != sampler) BindSampler(unit, sampler); },
-            () => { if (samplerBindingByUnit is { } values && unit < values.Length) values[unit] = null; });
+            () => { if (samplerBindingByUnit is { } values && unit < values.Length) values[unit] = null; },
+            () => !TryGetCachedBoundSampler(unit, out int current) || current != sampler || boundaryRetiredResources.Contains((EPipelineState.SamplerBindings, sampler)));
     }
 
     /// <summary>Captures all image-view parameters, including layered selection and format.</summary>
@@ -146,7 +154,8 @@ internal sealed partial class StateCache
         }
         restore.Add(() => { RequireBoundaryResource(EPipelineState.TextureBindings, saved.Texture);
             BindImageTexture(unit, saved.Texture, saved.Level, saved.Layered, saved.Layer, saved.Access, saved.Format); },
-            () => imageBindings.Remove(unit));
+            () => imageBindings.Remove(unit),
+            () => !imageBindings.TryGetValue(unit, out var current) || current != saved || boundaryRetiredResources.Contains((EPipelineState.TextureBindings, saved.Texture)));
     }
 
     /// <summary>Captures indexed buffers with exact 64-bit offsets and sizes, retaining known base/range semantics.</summary>
@@ -173,7 +182,8 @@ internal sealed partial class StateCache
             if (indexedBufferBindings.TryGetValue((target, slot), out var current) && current == saved) return;
             if (saved.Range) BindBufferRange(target, slot, saved.Buffer, saved.Offset, saved.Size);
             else BindBufferBase(target, slot, saved.Buffer);
-        }, () => { indexedBufferBindings.Remove((target, slot)); bufferBindingByTarget.Remove((BufferTarget)target); });
+        }, () => { indexedBufferBindings.Remove((target, slot)); bufferBindingByTarget.Remove((BufferTarget)target); },
+            () => !indexedBufferBindings.TryGetValue((target, slot), out var current) || current != saved || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, saved.Buffer)));
     }
 
     /// <summary>Resolves generic buffer bindings without compatibility getters that substitute zero on failure.</summary>
@@ -207,16 +217,18 @@ internal sealed partial class StateCache
     /// <summary>Retains independent binding restoration actions without adding a second live binding cache.</summary>
     private sealed class BoundaryBindingRestoration(StateCache cache) : IDisposable
     {
-        private readonly List<(Action Restore, Action Forget)> fields = new();
+        private readonly List<(Action Restore, Action Forget, Func<bool> NeedsRestore)> fields = new();
         #region Public API
         /// <summary>Appends one borrowed field in dependency order.</summary>
-        internal void Add(Action restore, Action forget) => fields.Add((restore, forget));
+        internal void Add(Action restore, Action forget, Func<bool> needsRestore) => fields.Add((restore, forget, needsRestore));
 
         /// <summary>Attempts all independent borrowed fields and reports the complete failure set.</summary>
         public void Dispose()
         {
             var failures = new List<Exception>();
-            foreach (var field in fields) cache.RestoreBoundaryField(field.Restore, field.Forget, failures);
+            // Predicates read live cache knowledge after earlier dependent restores.
+            foreach (var field in fields)
+                if (field.NeedsRestore()) cache.RestoreBoundaryField(field.Restore, field.Forget, failures);
             if (failures.Count != 0) throw new AggregateException(failures);
         }
         #endregion

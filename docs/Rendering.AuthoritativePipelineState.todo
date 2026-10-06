@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–2 and Subphase 2.1 are complete; Subphase 2.2 and Phases 3–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–2 and Subphases 2.1–2.2 are complete; Phases 3–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -199,45 +199,48 @@ Phase 2.2: Correct native error polling and checked-operation ownership
   Dependencies: Phases 1–2 and Subphase 2.1; existing engine-boundary restoration foundation.
   Outcome: ordinary cached transitions avoid unconditional native error polling, while checked
   boundaries and pixel transfers retain explicit failure and safe-restoration guarantees.
+  Completed 2026-10-06: shader-enabled Debug/Release 74/74 each, zero failures/skips;
+  second source review and independent completion audit passed. Receipts and counts:
+  Rendering.AuthoritativePipelineState.md / Native error-checking correction (2026-10-06).
   Scope: corrective error-checking policy within existing StateCache owners; no PSO identity,
   capability-model, renderer-side state-management or context-lifetime redesign.
 
-  ☐ Reconcile the proposal and implementation contract before changing polling behavior.
-    ☐ Distinguish managed input/capability validation, optional per-command diagnostics and required
+  ☑ Reconcile the proposal and implementation contract before changing polling behavior.
+    ☑ Distinguish managed input/capability validation, optional per-command diagnostics and required
       checked operations. Ordinary transitions do not promise immediate detection of every native error.
-    ☐ Define responsibility for pre-existing errors, post-operation checks and cache publication;
+    ☑ Define responsibility for pre-existing errors, post-operation checks and cache publication;
       retain failed-query rejection and prevent unsafe handoff from being reported as successful.
-    ☐ Inventory nested checks in rasterizer setters, restoration, pack/unpack layouts, pixel-buffer
+    ☑ Inventory nested checks in rasterizer setters, restoration, pack/unpack layouts, pixel-buffer
       bindings and polygon-stipple transfers; identify every required check and its owning operation.
-  ☐ Correct ordinary transitions and unchanged-state paths through existing cache APIs.
-    ☐ Remove unconditional native error polling from ordinary rasterizer transitions; preserve managed
+  ☑ Correct ordinary transitions and unchanged-state paths through existing cache APIs.
+    ☑ Remove unconditional native error polling from ordinary rasterizer transitions; preserve managed
       validation, per-field knowledge, external invalidation and necessary native state changes.
-    ☐ Return from known unchanged pack/unpack layout updates without native calls or error polling.
-    ☐ Make detailed per-command checking explicitly optional through existing diagnostic ownership;
+    ☑ Return from known unchanged pack/unpack layout updates without native calls or error polling.
+    ☑ Make detailed per-command checking explicitly optional through existing diagnostic ownership;
       normal execution must not accidentally retain the same polling cost through nested helpers.
-  ☐ Consolidate required checks at explicit operation boundaries.
-    ☐ Avoid duplicate outer/inner checks during restoration while attempting independent restores
+  ☑ Consolidate required checks at explicit operation boundaries.
+    ☑ Avoid duplicate outer/inner checks during restoration while attempting independent restores
       after a failure and preserving operation plus cleanup exceptions.
-    ☐ Define checked-group granularity and invalidate all affected knowledge when a group fails;
+    ☑ Define checked-group granularity and invalidate all affected knowledge when a group fails;
       do not claim exact per-field failure attribution from a batch-level error result.
-    ☐ Preserve verified pixel-buffer binding/layout setup before host-pointer transfers, borrowed
+    ☑ Preserve verified pixel-buffer binding/layout setup before host-pointer transfers, borrowed
       pack/unpack state restoration and propagation of unsafe restoration failures.
-    ☐ Keep checks required by cold queries and native safety; do not replace targeted invalidation
+    ☑ Keep checks required by cold queries and native safety; do not replace targeted invalidation
       with blanket cache invalidation or consume errors on ordinary unchanged transitions.
-  ☐ Delegate focused verification in shader-enabled Debug and Release.
-    ☐ Assert zero native error polling for ordinary changed and unchanged transitions with detailed
+  ☑ Delegate focused verification in shader-enabled Debug and Release.
+    ☑ Assert zero native error polling for ordinary changed and unchanged transitions with detailed
       diagnostics disabled; separately verify optional diagnostics and required checked operations.
-    ☐ Replace tests that require redundant polling, including unchanged boundary restoration counts,
+    ☑ Replace tests that require redundant polling, including unchanged boundary restoration counts,
       with assertions matching the documented check ownership and native mutation suppression.
-    ☐ Retain real native-failure, failed-query, hostile incoming state, independent cleanup, exception
+    ☑ Retain real native-failure, failed-query, hostile incoming state, independent cleanup, exception
       aggregation and pixel-transfer safety tests; verify native state and cache knowledge agree.
-    ☐ Record state mutations, value queries and error checks separately; update implementation
+    ☑ Record state mutations, value queries and error checks separately; update implementation
       evidence with fresh receipts. Reduced call counts alone do not establish frame-time savings.
-  ☐ Completion gate: proposal, plan and implementation contracts agree; focused verification,
+  ☑ Completion gate: proposal, plan and implementation contracts agree; focused verification,
     second source review and independent completion audit find no unresolved failure-contract gaps.
 
 Phase 3: Complete state application and engine boundaries
-  Dependencies: Phases 1–2 and Subphase 2.1.
+  Dependencies: Phases 1–2 and Subphases 2.1–2.2.
   Outcome: complete descriptions can be applied independently of prior state and safely restored.
 
   ☐ Extend the existing categorized StateCache; its rename and storage foundation are already complete.

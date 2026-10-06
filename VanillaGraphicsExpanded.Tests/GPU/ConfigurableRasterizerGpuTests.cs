@@ -60,13 +60,14 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             Assert.True(GL.IsEnabled(EnableCap.ClipDistance0));
             Assert.True(GL.IsEnabled(EnableCap.PolygonSmooth)); Assert.False(GL.IsEnabled(EnableCap.ClipDistance1));
             Assert.Equal((int)PointSpriteCoordOriginParameter.LowerLeft, GL.GetInteger((GetPName)All.PointSpriteCoordOrigin));
+            GlDebug.CheckStateTransitions = true;
             GL.Enable((EnableCap)(-1));
             Assert.Throws<InvalidOperationException>(() => cache.SetLineSmooth(false));
             calls = cache.FixedFunctionCalls; cache.SetLineSmooth(false);
             Assert.Equal(calls + 1, cache.FixedFunctionCalls); Assert.False(GL.IsEnabled(EnableCap.LineSmooth));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { cache.ApplyConfigurableRaster(second); }
+        finally { GlDebug.CheckStateTransitions = false; cache.ApplyConfigurableRaster(second); }
     }
 
     /// <summary>Compatibility snapshots preserve disabled parameters and canonical masks across hostile pixel layouts.</summary>

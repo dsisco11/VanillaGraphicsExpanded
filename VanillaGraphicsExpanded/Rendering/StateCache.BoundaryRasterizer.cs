@@ -109,32 +109,33 @@ internal sealed partial class StateCache
         var coverage = snapshot.Coverage.Rasterizer;
         var saved = snapshot.Rasterizer;
         var caps = GpuSupport.Graphics;
-        if (coverage.HasFlag(RasterizerStateKnowledge.AlphaTest) && !caps.CoreProfile)
+        if (coverage.HasFlag(RasterizerStateKnowledge.AlphaTest) && !caps.CoreProfile && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.AlphaTest) || rasterizer.AlphaTest != saved.AlphaTest))
             RestoreBoundaryField(() => SetAlphaTest(saved.AlphaTest), () => rasterizerKnown &= ~RasterizerStateKnowledge.AlphaTest, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.PointSmooth) && !caps.CoreProfile)
+        if (coverage.HasFlag(RasterizerStateKnowledge.PointSmooth) && !caps.CoreProfile && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.PointSmooth) || rasterizer.PointSmooth != saved.PointSmooth))
             RestoreBoundaryField(() => SetPointSmooth(saved.PointSmooth), () => rasterizerKnown &= ~RasterizerStateKnowledge.PointSmooth, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.LineSmooth))
+        if (coverage.HasFlag(RasterizerStateKnowledge.LineSmooth) && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineSmooth) || rasterizer.LineSmooth != saved.LineSmooth))
             RestoreBoundaryField(() => SetLineSmooth(saved.LineSmooth), () => rasterizerKnown &= ~RasterizerStateKnowledge.LineSmooth, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.PolygonSmooth))
+        if (coverage.HasFlag(RasterizerStateKnowledge.PolygonSmooth) && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonSmooth) || rasterizer.PolygonSmooth != saved.PolygonSmooth))
             RestoreBoundaryField(() => SetPolygonSmooth(saved.PolygonSmooth), () => rasterizerKnown &= ~RasterizerStateKnowledge.PolygonSmooth, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.LineStipple) && !caps.CoreProfile)
+        if (coverage.HasFlag(RasterizerStateKnowledge.LineStipple) && !caps.CoreProfile && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineStipple) || rasterizer.LineStipple != saved.LineStipple))
             RestoreBoundaryField(() => SetLineStipple(saved.LineStipple), () => rasterizerKnown &= ~RasterizerStateKnowledge.LineStipple, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.PolygonStipple) && !caps.CoreProfile)
+        if (coverage.HasFlag(RasterizerStateKnowledge.PolygonStipple) && !caps.CoreProfile && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonStipple) || rasterizer.PolygonStipple != saved.PolygonStipple))
             RestoreBoundaryField(() => SetPolygonStipple(saved.PolygonStipple), () => rasterizerKnown &= ~RasterizerStateKnowledge.PolygonStipple, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.ClipControl) && caps.ClipControl)
+        if (coverage.HasFlag(RasterizerStateKnowledge.ClipControl) && caps.ClipControl && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.ClipControl) || rasterizer.ClipOrigin != saved.ClipOrigin || rasterizer.ClipDepth != saved.ClipDepth))
             RestoreBoundaryField(() => SetClipControl(saved.ClipOrigin, saved.ClipDepth), () => rasterizerKnown &= ~RasterizerStateKnowledge.ClipControl, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin))
+        if (coverage.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin) && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin) || rasterizer.PointSpriteOrigin != saved.PointSpriteOrigin))
             RestoreBoundaryField(() => SetPointSpriteOrigin(saved.PointSpriteOrigin), () => rasterizerKnown &= ~RasterizerStateKnowledge.PointSpriteOrigin, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.AlphaFunction) && !caps.CoreProfile)
+        if (coverage.HasFlag(RasterizerStateKnowledge.AlphaFunction) && !caps.CoreProfile && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.AlphaFunction) || rasterizer.AlphaComparison != saved.AlphaComparison || rasterizer.AlphaReference != saved.AlphaReference))
             RestoreBoundaryField(() => SetAlphaFunction(saved.AlphaComparison, saved.AlphaReference), () => rasterizerKnown &= ~RasterizerStateKnowledge.AlphaFunction, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.LineStippleParameters) && !caps.CoreProfile)
+        if (coverage.HasFlag(RasterizerStateKnowledge.LineStippleParameters) && !caps.CoreProfile && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineStippleParameters) || rasterizer.LineStippleFactor != saved.LineStippleFactor || rasterizer.LineStipplePattern != saved.LineStipplePattern))
             RestoreBoundaryField(() => SetLineStipple(saved.LineStippleFactor, saved.LineStipplePattern), () => rasterizerKnown &= ~RasterizerStateKnowledge.LineStippleParameters, failures);
-        if (coverage.HasFlag(RasterizerStateKnowledge.PolygonStipplePattern) && !caps.CoreProfile)
-            RestoreBoundaryField(() => SetPolygonStipplePattern(saved.PolygonStipplePattern!), () => rasterizerKnown &= ~RasterizerStateKnowledge.PolygonStipplePattern, failures);
+        if (coverage.HasFlag(RasterizerStateKnowledge.PolygonStipplePattern) && !caps.CoreProfile && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonStipplePattern) || !Equals(rasterizer.PolygonStipplePattern, saved.PolygonStipplePattern)))
+            RestoreBoundaryField(() => SetPolygonStipplePattern(saved.PolygonStipplePattern!), () => rasterizerKnown &= ~RasterizerStateKnowledge.PolygonStipplePattern, failures, nativeChecks: false);
         if (coverage.HasFlag(RasterizerStateKnowledge.ClipDistances))
             for (int i = 0; i < caps.MaxClipDistances; i++)
             {
                 int index = i; uint bit = 1u << i;
+                if ((clipDistancesKnown & bit) != 0 && (rasterizer.ClipDistances & bit) == (saved.ClipDistances & bit)) continue;
                 RestoreBoundaryField(() => SetClipDistance(index, (saved.ClipDistances & bit) != 0),
                     () => { clipDistancesKnown &= ~bit; rasterizerKnown &= ~RasterizerStateKnowledge.ClipDistances; }, failures);
             }
