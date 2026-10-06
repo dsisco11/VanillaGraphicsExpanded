@@ -463,6 +463,8 @@ Phase 4: Prepared graphics pipelines and executable compatibility
     ☐ Add compiled-shader/preparation fixtures for absent/present outputs, out-of-range enabled bits,
       variant-dependent outputs and final vertex/geometry/tessellation-evaluation stage selection.
       Cover Debug/Release reflection, failed publication and unchanged-input metadata reuse.
+  ☐ Preserve immutable description-based pipeline identity; cached category values, packed boolean
+    storage and knowledge masks are mutable implementation state, never pipeline keys.
   ☐ Publish prepared objects only after successful validation.
     ☐ Retain needed dependency references without acquiring ownership of externally owned shader resources.
     ☐ Reject retired dependencies and obsolete executable revisions; confine use to the owning renderer lifetime.
@@ -485,6 +487,8 @@ Phase 5: Render passes and target lifetime
     ☐ Reject mutation during an active pass or require end/rebegin; refresh viewport/render area after resize.
   ☐ Implement preserve, typed per-attachment clear and discard intentions where meaningful.
     ☐ Establish clear masks/scissor/render-area behavior independently of draw write masks.
+    ☐ Reuse existing StateCache category transitions and boundary restoration ownership for setup
+      and clears; preserve unrelated values and independent knowledge instead of adding local caches.
     ☐ Preserve unrequested aspects; keep resolve/blit/readback/barriers explicit.
     ☐ End passes without disposing borrowed targets; clean up on setup failure.
   ☐ Delegate headless tests for sparse targets, packed depth/stencil aspects, typed clears, preservation,
@@ -496,7 +500,12 @@ Phase 6: Immediate graphics submission
   Dependencies: Phases 3–5.
   Outcome: one authoritative entry point validates and establishes the full draw contract.
 
-  ☐ Implement DynamicDrawState, geometry adapters and a thin GraphicsCommandContext.
+  ☐ Compose existing GraphicsDynamicState inputs with geometry adapters and a thin GraphicsCommandContext.
+    ☐ Reuse GraphicsDynamicState as authored draw inputs and DynamicDrawState as cached native values;
+      neither requires a replacement type or a parallel dynamic-state representation.
+    ☐ Establish graphics state through existing ApplyGraphicsState and category transitions, and
+      restore through existing coverage-filtered PipelineStateSnapshot ownership. Preserve the
+      separation between packed boolean values and knowledge masks.
     ☐ Support BeginPass, pipeline/dynamic selection, existing shader-input assignment, Draw and EndPass.
     ☐ Reject accidental nesting and draws outside a valid pass.
     ☐ Validate current target/executable revision, geometry layout/topology, required dynamics and resources.
@@ -522,6 +531,8 @@ Phase 7: Direct-lighting production migration
     ☐ Preserve shader inputs, image formats, output routing, clear behavior and engine restoration.
     ☐ Preserve resource lifetimes, resize handling and readiness/failure behavior.
     ☐ Remove redundant local state setup only after the new owner covers it.
+    ☐ Use the unified category owners through pipeline/submission APIs; do not introduce renderer-side
+      native-state copies or manipulate packed backing flags. Preserve explicitly partial boundary coverage.
     ☐ Replace RenderLighting callback compatibility wiring only after complete submission supplies
       equivalent boundary coverage and failure cleanup through the existing shader lifecycle.
   ☐ Delegate deterministic old/reference-versus-migrated output tests and focused consumer regressions.
@@ -538,6 +549,8 @@ Phase 8: Remaining VGE consumers and compatibility cleanup
 
   ☐ Migrate composite and capture passes, then indexed-blend/MRT consumers.
     ☐ Extend per-consumer boundary adapters and metadata before migrating each caller.
+    ☐ Route migrated state through unified category owners via pipeline/submission APIs; retain
+      partial-boundary semantics without renderer-side native-state copies or packed-flag manipulation.
     ☐ Replace RenderComposite and WaterRefractionCapture compatibility coordination only after complete
       submission covers preparation, SSAO, reduction, allocation and failure publication. Retain
       FullscreenBoundary descriptor/resource unions until the final caller has equivalent coverage.
@@ -575,10 +588,16 @@ Phase 9: Acceptance evidence and measurements
       preparation, submission, engine boundaries and adoption; record limitations and follow-up exclusions.
   ☐ Delegate required Debug/Release builds and focused unit/headless integration suites.
     ☐ Consolidate prior valid receipts; rerun where later edits affect previously verified behavior.
+    ☐ Retain packed-value independence, known-false versus unknown, selective invalidation,
+      detached snapshot and partial-coverage regressions from Subphases 3.1–3.2.
+    ☐ Verify ordinary transitions and scope restoration retain their established diagnostic costs;
+      unchanged-state suppression must not conceal added queries or unconditional error polling.
     ☐ Record context, commands, pass/failure/skip counts and outstanding failures without hiding skips.
   ☐ Record comparable-workload state-call/query counts, CPU submission and preparation cost,
     prepared-object/cache retention, and representative GPU timing with instrumentation/environment details.
     ☐ Separate measured results from expected benefits; do not require an invented speedup threshold.
+    ☐ Report managed layout reductions separately from CPU submission and GPU timings; smaller
+      structs do not establish faster transitions or improved frame time.
   ☐ Provide user-run live game/RenderDoc cases for migrated passes, engine handoff, resize and reload.
     ☐ Record supplied visual/runtime results separately from headless evidence; leave live acceptance
       pending if unavailable and do not launch the game to obtain it.

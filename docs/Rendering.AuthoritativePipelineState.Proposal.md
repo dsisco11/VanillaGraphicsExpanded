@@ -43,7 +43,7 @@ Pipeline interning, prewarming, and asynchronous preparation are separate capabi
 
 Use responsibility-based type names without `Gl`, `GL`, or `Gpu` prefixes. Namespaces already identify the rendering domain; namespace qualification or aliases can resolve ambiguity where necessary.
 
-Proposed types use names such as `GraphicsPipeline`, `GraphicsPipelineDesc`, `RenderPassDesc`, `DynamicDrawState`, `GraphicsCommandContext`, and `StateCache`. Preserve meaningful distinctions such as graphics versus compute rather than encoding the backend or execution device in every name.
+Proposed types use names such as `GraphicsPipeline`, `GraphicsPipelineDesc`, `RenderPassDesc`, `GraphicsDynamicState`, `GraphicsCommandContext`, and `StateCache`. Preserve meaningful distinctions such as graphics versus compute rather than encoding the backend or execution device in every name.
 
 References to existing prefixed types in this document identify the current source accurately. As those types are migrated, use unprefixed names and update their references together. Naming changes preserve their behavior and ownership contracts; they do not require replacement resource hierarchies. New types follow this convention from the outset.
 
@@ -64,13 +64,18 @@ The following type names are illustrative. Their responsibility boundaries are t
 | `GraphicsPipelineDesc` | Complete static configuration, shader/vertex interface identity, topology, target signature, dynamic-state declaration | Actual framebuffer and resource instances |
 | `GraphicsPipeline` | Prepared and validated pipeline realization for a shader executable revision within one live rendering-context lifetime | Render-target allocation and application resource ownership |
 | `RenderPassDesc` | Concrete target, output routing, attachment load/store intentions, clear values, render area | Shader and blend policy |
-| `DynamicDrawState` | Declared dynamic values such as viewport, scissor rectangle, stencil reference, blend constant | Implicit inheritance from arbitrary GL state |
+| `GraphicsDynamicState` | Declared dynamic values such as viewport, scissor rectangle, stencil reference, blend constant | Implicit inheritance from arbitrary GL state |
 | Existing shader input/binding infrastructure | Actual shader resources and uniform values, validated against the executable contract | Fixed-function pipeline policy |
 | Geometry binding description/adapter | Vertex/index buffer instances, offsets, index type, draw range, compatible vertex layout | Shader preparation |
 | `GraphicsCommandContext` | Pass lifetime, pipeline selection, draw validation, submission ordering, external-state boundaries | Resource allocation algorithms and a second shader binding implementation |
 | `StateCache` | Known native state and minimal state transitions | Pass policy, pipeline registry, resource ownership |
 
 Dependencies flow from renderers into pass/pipeline/submission APIs, then into existing resource and shader abstractions and the state cache. The command context is a thin composition root. Compatibility validation, pipeline keys, pass descriptions, and engine adapters each belong in separate files with one clear responsibility.
+
+GraphicsDynamicState is the existing authored draw-input record. DynamicDrawState is the existing
+cached native-value category, including viewport, scissor rectangle and blend constant; its knowledge
+is stored separately by StateCache. Submission composes these contracts with ApplyGraphicsState and
+coverage-filtered PipelineStateSnapshot restoration rather than adding another state representation.
 
 ## Categorized cache storage
 
