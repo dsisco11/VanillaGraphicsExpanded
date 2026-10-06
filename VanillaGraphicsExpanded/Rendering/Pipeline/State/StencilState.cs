@@ -3,6 +3,9 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline.State;
 /// <summary>Concrete stencil values independent of cache knowledge and native operations.</summary>
 internal struct StencilState
 {
+    // Only boolean value bits are stored here; cache validity remains a separate category mask.
+    private StencilStateKnowledge booleanValues;
+
     /// <summary>Observed FrontStencilFunction value, valid only when corresponding knowledge is established.</summary>
     public (StencilFunction Function, int Reference, uint Mask) FrontStencilFunction;
     /// <summary>Observed BackStencilFunction value, valid only when corresponding knowledge is established.</summary>
@@ -15,6 +18,16 @@ internal struct StencilState
     public (StencilOp Fail, StencilOp DepthFail, StencilOp Pass) FrontStencilOperation;
     /// <summary>Observed BackStencilOperation value, valid only when corresponding knowledge is established.</summary>
     public (StencilOp Fail, StencilOp DepthFail, StencilOp Pass) BackStencilOperation;
+    #region Public API
     /// <summary>Cached native TestEnabled enable value.</summary>
-    public bool TestEnabled;
+    public bool TestEnabled
+    {
+        readonly get => booleanValues.HasFlag(StencilStateKnowledge.TestEnabled);
+        set
+        {
+            if (value) booleanValues |= StencilStateKnowledge.TestEnabled;
+            else booleanValues &= ~StencilStateKnowledge.TestEnabled;
+        }
+    }
+    #endregion
 }

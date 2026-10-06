@@ -83,6 +83,13 @@ Boundary snapshots copy these same values and masks, restrict knowledge to decla
 privately copy indexed payloads. Storage consolidation must preserve partial-boundary authority,
 selective invalidation, native transitions, error-checking policy and same-live-context lifetime.
 
+Suitable category structs pack boolean values into a private field of the existing category flag
+enum, using only bits that already represent those individual booleans. Named boolean accessors
+preserve readable callers. Value bits and the cache's knowledge mask are independent instances:
+a clear value bit can be known false or unknown. Grouped parameter-validity bits must never encode
+individual components. Preserve flag assignments, select a width that fits the entire enum, and
+measure actual managed layouts rather than inferring savings from boolean counts.
+
 ## Complete descriptions and partial overrides
 
 Preserve partial state descriptions for engine overlays and compatibility adapters where “change only these settings” is intentional. Give that behavior an explicit override/patch identity so it cannot be confused with a complete PSO.

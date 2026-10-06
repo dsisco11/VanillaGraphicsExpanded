@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–3 and Subphases 2.1–2.2 and 3.1 are complete; Subphase 3.2 and Phases 4–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–3 and Subphases 2.1–2.2 and 3.1–3.2 are complete; Phases 4–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -375,69 +375,72 @@ Subphase 3.2: Audit and pack boolean state values
   Dependencies: Subphase 3.1 unified category values, masks and snapshot ownership.
   Sources: Rendering.AuthoritativePipelineState.Proposal.md / Categorized cache storage and Native
     error-checking policy; Rendering.AuthoritativePipelineState.md / Unified category storage (2026-10-06).
+  Completed 2026-10-06: shader-enabled Debug/Release 170/170 each, zero failures/skips;
+  second source review and independent audit-stage-completion passed with no unresolved findings.
+  Inventory, managed sizes and receipts: Rendering.AuthoritativePipelineState.md / Packed boolean category values (2026-10-06).
   Outcome: suitable state structs store boolean values in a compact category flag field, reusing
     existing enums where their bit meanings fit, while validity remains independently tracked.
 
-  ☐ Audit all ...State structs and record a migration or justified no-change disposition per type.
-    ☐ Inventory declarations repository-wide, including nested structs and positional record structs;
+  ☑ Audit all ...State structs and record a migration or justified no-change disposition per type.
+    ☑ Inventory declarations repository-wide, including nested structs and positional record structs;
       distinguish rendering cache values from unrelated simulation state and authored descriptions.
-    ☐ Explicitly inspect Pipeline/State/{DepthState,BlendState,RasterizerState,PrimitiveAssemblyState,
+    ☑ Explicitly inspect Pipeline/State/{DepthState,BlendState,RasterizerState,PrimitiveAssemblyState,
       DynamicDrawState,SamplingState,StencilState,OutputState}.cs and GraphicsDynamicState.cs.
       GraphicsDynamicState is an authored record, not cached storage; review without conflating roles.
-    ☐ Inspect StateCache.PixelPack.cs / PixelPackState and StateCache.PixelUnpack.cs / PixelUnpackState,
+    ☑ Inspect StateCache.PixelPack.cs / PixelPackState and StateCache.PixelUnpack.cs / PixelUnpackState,
       including positional booleans, equality, with-expressions and scope restoration.
-    ☐ Inventory other discovered ...State structs, including LumOnCameraState and
+    ☑ Inventory other discovered ...State structs, including LumOnCameraState and
       LumOnWorldProbeScheduler.LevelState; document applicability rather than extending cache enums
       into unrelated domains or silently excluding declarations.
-    ☐ Enumerate every boolean, including nested tuple/record values: depth test/write; blend enable
+    ☑ Enumerate every boolean, including nested tuple/record values: depth test/write; blend enable
       and nested color masks; all raster enables; both restart enables; sampling enables and coverage
       invert; stencil test; output sRGB/dither/logic enable; pixel-store byte-swap and bit-order values.
-    ☐ Map each candidate boolean to an existing flag bit, documenting missing or incompatible bits.
+    ☑ Map each candidate boolean to an existing flag bit, documenting missing or incompatible bits.
       Audit DepthStateKnowledge, BlendStateKnowledge, RasterizerStateKnowledge,
       PrimitiveAssemblyStateKnowledge, DynamicDrawStateKnowledge, SamplingStateKnowledge,
       StencilStateKnowledge and OutputStateKnowledge, plus any existing nested-value flag types.
-    ☐ Record actual managed struct sizes and enum underlying widths before/after candidate layouts;
+    ☑ Record actual managed struct sizes and enum underlying widths before/after candidate layouts;
       account for padding/alignment and reference-containing structs. Smaller flag payload alone
       does not prove a smaller struct, faster transitions or reduced GPU cost.
-  ☐ Define and implement compact value storage for suitable candidates.
-    ☐ Reuse existing category enums as the value bitset where their boolean bits match; keep the
+  ☑ Define and implement compact value storage for suitable candidates.
+    ☑ Reuse existing category enums as the value bitset where their boolean bits match; keep the
       value field distinct from StateCache knowledge masks. Known-false and unknown remain distinct.
-    ☐ Use only the boolean subset in value storage; parameter-validity bits and All knowledge masks
+    ☑ Use only the boolean subset in value storage; parameter-validity bits and All knowledge masks
       must not be interpreted as boolean values. Never use one grouped-validity bit to encode several
       independent values (for example coverage value/invert or a multi-channel write mask).
-    ☐ For missing mappings, document the smallest compatible representation or a no-change decision;
+    ☑ For missing mappings, document the smallest compatible representation or a no-change decision;
       do not invent false knowledge semantics or restore a parallel complete/supplemental model.
-    ☐ Preserve existing stable bit assignments and public invalidation groups. Choose enum widths
+    ☑ Preserve existing stable bit assignments and public invalidation groups. Choose enum widths
       that fit every defined bit; avoid narrowing a shared knowledge enum to fit only its value subset.
-    ☐ Replace redundant boolean backing fields with flags. Preserve useful named boolean properties
+    ☑ Replace redundant boolean backing fields with flags. Preserve useful named boolean properties
       as accessors where this keeps call sites clear; those properties must have no separate storage.
       Use Enum.HasFlag for reads and typed bitwise OR/AND-complement for setting/clearing bits.
-    ☐ Preserve default values, constructor/object-initializer behavior, tuple/group semantics,
+    ☑ Preserve default values, constructor/object-initializer behavior, tuple/group semantics,
       equality and hash behavior where applicable, and independently owned indexed payloads.
-  ☐ Update and review all affected consumers using the audit's exact reference inventory.
-    ☐ Review category setters, capability routing, engine adapters, native queries, partial/full
+  ☑ Update and review all affected consumers using the audit's exact reference inventory.
+    ☑ Review category setters, capability routing, engine adapters, native queries, partial/full
       application, invalidation, coverage masks, snapshots and restoration; preserve native calls,
       publication on success, failure invalidation and optional diagnostics without extra polling.
-    ☐ Preserve detached snapshots and copied arrays; toggling a value bit must neither change
+    ☑ Preserve detached snapshots and copied arrays; toggling a value bit must neither change
       knowledge nor overwrite another boolean or non-boolean value in the category.
-    ☐ Review tests that use reflection, field names, struct initialization, equality or native
+    ☑ Review tests that use reflection, field names, struct initialization, equality or native
       assertions; update representations without weakening behavioral checks.
-    ☐ Update current proposal/implementation documentation and this inventory with the selected
+    ☑ Update current proposal/implementation documentation and this inventory with the selected
       layouts, measured sizes and no-change reasons; preserve historical verification receipts.
-    ☐ Sweep references to every removed field and changed enum/mask, including generated-source
+    ☑ Sweep references to every removed field and changed enum/mask, including generated-source
       inputs if affected; add newly discovered consumers before declaring the inventory complete.
-  ☐ Delegate focused shader-enabled Debug and Release verification.
-    ☐ Verify independent set/clear combinations, false defaults and preservation of other bits/data;
+  ☑ Delegate focused shader-enabled Debug and Release verification.
+    ☑ Verify independent set/clear combinations, false defaults and preservation of other bits/data;
       verify known-false versus unknown behavior and selective invalidation.
-    ☐ Exercise native hostile-state and A-to-B-to-A transitions, redundant-call suppression,
+    ☑ Exercise native hostile-state and A-to-B-to-A transitions, redundant-call suppression,
       global/indexed aliases, partial coverage and detached snapshot restoration on success/failure.
-    ☐ Retain pixel pack/unpack restoration and diagnostic-policy regressions for affected layouts;
+    ☑ Retain pixel pack/unpack restoration and diagnostic-policy regressions for affected layouts;
       unchanged state and ordinary transitions must retain their existing native-call/query costs.
-    ☐ Record actual size results and test commands/counts; report any performance benefit as
+    ☑ Record actual size results and test commands/counts; report any performance benefit as
       unmeasured unless separately established by a representative measurement.
-  ☐ Perform a second source review and independent completion audit against the exhaustive type/field
+  ☑ Perform a second source review and independent completion audit against the exhaustive type/field
     inventory and linked contracts; resolve all required findings before checking completion.
-  ☐ Completion gate: every discovered state struct has a disposition, suitable boolean storage is
+  ☑ Completion gate: every discovered state struct has a disposition, suitable boolean storage is
     packed without duplicate backing fields or conflated knowledge, and behavioral regressions pass.
     Phase 4 depends on this gate.
 

@@ -1432,3 +1432,104 @@ include unchanged consumers; existing test names describing complete graphics be
 Independent audit-stage-completion consulted the governing documents, full affected-item inventory,
 implementation and both final receipts after the second review. It passed with no unresolved
 implementation, contract or evidence findings for the unified category correction.
+
+
+## Packed boolean category values (2026-10-06)
+
+Category structs now retain boolean values in a private booleanValues field of their existing
+category knowledge enum type. The type supplies stable bit identities; this field contains values,
+not knowledge. Cache and snapshot knowledge remain separate masks. Public named boolean properties
+use readonly Enum.HasFlag getters and typed bitwise set/clear operations, with no boolean backing
+fields. False defaults, object initializers and value-copy semantics are preserved. Setters cannot
+introduce non-boolean parameter bits into the private value field. No transition, query, restoration,
+engine-routing, invalidation or native error policy changes are required at callers.
+
+Exhaustive source inventory and dispositions:
+
+| Type | Boolean audit and selected representation |
+| --- | --- |
+| DepthState | TestEnabled and WriteEnabled share the existing byte DepthStateKnowledge bits. Comparison and DepthRange remain scalar/tuple values. |
+| BlendState | Enabled uses its existing byte BlendStateKnowledge bit. Nested GlColorMask already packs R/G/B/A into one byte; preserve it and its equality. Factors and equations are not booleans. |
+| RasterizerState | CullEnabled, ScissorEnabled, AlphaTest, PointSmooth, LineSmooth, PolygonSmooth, LineStipple, PolygonStipple, DepthClamp, RasterizerDiscard, PolygonOffsetFill/Line/Point and ProgramPointSize use their existing uint RasterizerStateKnowledge bits. ClipDistances is already a per-distance uint bitset. Preserve all other parameters and the immutable stipple-pattern reference. |
+| PrimitiveAssemblyState | PrimitiveRestart and PrimitiveRestartFixedIndex use their existing byte knowledge-enum bits. PatchVertices and RestartIndex remain scalar. |
+| SamplingState | Multisample, SampleCoverageEnabled, SampleMask, SampleAlphaToCoverage, SampleAlphaToOne and SampleShading use the matching SamplingStateKnowledge bits. SampleCoverage.Invert stays in its value/invert tuple: the existing SampleCoverage knowledge bit describes a whole query group, not the invert value. Reusing it would conflate parameter validity with a component value. No new enum or fake knowledge bit is introduced for one unmatched boolean. |
+| StencilState | TestEnabled uses the existing StencilStateKnowledge bit. Front/back function/reference/read masks, write masks and operation tuples contain no boolean values. |
+| OutputState | FramebufferSrgb, Dither and ColorLogicOp use existing OutputStateKnowledge bits; LogicOperation remains separate. |
+| DynamicDrawState | No booleans: viewport/scissor coordinates and blend constant only. No change. |
+| GraphicsDynamicState | Authored reference record, not a cache value struct. Nullable declarations remain separate from native knowledge; no boolean packing applies. |
+| PixelPackState / PixelUnpackState | SwapBytes and LsbFirst lack an existing matching flags enum. Keep positional readonly-record semantics, with-expressions and equality. Replacing two bytes with one would not reduce these int-aligned layouts; a new transfer enum and record rewrite have no demonstrated storage benefit here. |
+| LumOnCameraState | Coordinates/dimension only, no booleans. No change. |
+| LumOnWorldProbeScheduler.LevelState | No scalar boolean fields; dirtyAfterInFlight and disableAfterInFlight are per-probe arrays. Importance flags have unrelated importance semantics. Array/lifecycle redesign is outside graphics state packing; preserve scheduler ownership. |
+| Generated shader-owner ...State structs | RuntimeSubmissionEmitter emits retained non-UBO shader input fields, not graphics category state. No matching category value enum; preserve generated input/revision/publication ownership. No generator input changes required. |
+
+SamplingStateKnowledge, StencilStateKnowledge and OutputStateKnowledge use byte underlying storage;
+all defined bits, including non-boolean validity bits, fit (highest bits 7, 6 and 3 respectively).
+Existing numeric assignments and All masks are unchanged. Depth, blend, primitive assembly and dynamic
+knowledge already use bytes; RasterizerStateKnowledge remains uint because its highest bit is 26.
+No serialized/native ABI layout consumer of these internal category structs was found.
+
+The reference sweep includes category transitions, queries, snapshot copies, boundary restoration,
+full and partial application, engine signatures, invalidation, coverage masks and reflective tests.
+Named accessors preserve these consumers without changing native-call or error-checking behavior.
+The earlier unified-category inventory remains the owning-file map. No resource lifetime or generated
+shader ownership changes are required. project.todo continues to point to the governing plan.
+
+Traceability: plan audit/storage tasks -> Proposal / Categorized cache storage -> the inventory and
+value properties above; consumer tasks -> Unified category storage and Proposal / Engine integration
+and cache authority -> unchanged category consumers and snapshot/coverage regressions; verification
+-> Proposal / Native error-checking policy -> existing diagnostics/transfer suites plus
+StateBooleanValueTests (independent set/clear pairs, false defaults, copies, grouped parameter and
+equality preservation) and StateValueLayoutTests (Unsafe.SizeOf, including reference-containing state).
+
+Measured managed x64 layouts using Unsafe.SizeOf<T>:
+
+| Type | Before (bytes) | After (bytes) |
+| --- | ---: | ---: |
+| DepthState | 32 | 24 |
+| BlendState | 32 | 32 |
+| RasterizerState (contains a reference) | 88 | 80 |
+| PrimitiveAssemblyState | 12 | 12 |
+| DynamicDrawState | 48 | 48 |
+| SamplingState | 24 | 16 |
+| StencilState | 80 | 80 |
+| OutputState | 8 | 8 |
+| PixelPackState | 20 | 20 |
+| PixelUnpackState | 28 | 28 |
+| LumOnCameraState | 56 | 56 |
+| GlColorMask | 1 | 1 |
+
+Sampling's flag field follows its parameters to avoid leading alignment padding; merely replacing
+its booleans while placing the flag first retained the original 24-byte size. The final 16-byte layout
+is measured, not inferred. Some structs retain their sizes despite smaller boolean payloads because
+of alignment. Sampling/Stencil/Output knowledge enums shrink from 4 to 1 byte; the other widths remain
+Depth/Blend/PrimitiveAssembly/Dynamic 1 byte and Rasterizer 4 bytes. Only field representation and
+these internal enum widths changed; bit numbers, masks and consumer APIs remain intact.
+
+Baseline receipt: artifacts/boolean-layout-before.log, one measurement case passed. The first attempt
+hit a transient shader-build infrastructure failure; the unchanged retry progressed and the measurement
+fixture's xUnit namespace was corrected before collecting the successful baseline. Baseline was
+collected before modifying production layouts. Earlier implementation receipts are historical. Size measurements are managed x64 layouts, not marshaling sizes or evidence
+of faster transitions, frame-time improvement or GPU savings. Live game acceptance remains user-run.
+
+
+Final delegated shader-enabled Debug and Release verification each passed **170/170**, with zero
+failures or skips. Both final logs report the corrected 16-byte SamplingState layout. Receipts:
+artifacts/boolean-packing-debug-tests.log and artifacts/boolean-packing-release-tests.log.
+The selection includes all 161 prior category/coverage/engine/native-state regression cases, seven
+independent packed-value cases, grouped sampling/equality preservation, and the managed-size fixture.
+Existing compiler/analyzer warnings remain; no build errors in the final runs.
+
+With NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages, run (repeat with -c Release):
+
+~~~powershell
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~CompleteGraphics|FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~GraphicsPipelineDescriptionTests|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~EngineBoundary|FullyQualifiedName~EngineStateSwitching|FullyQualifiedName~EngineStateInventoryTests|FullyQualifiedName~StateCacheResourceDeletionTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~StateTransitionDiagnosticsTests|FullyQualifiedName~PixelUnpackStateTests|FullyQualifiedName~PixelPackStateTests|FullyQualifiedName~DepthStencilTextureTests|FullyQualifiedName~ScissorStateScopeTests|FullyQualifiedName~GpuFramebufferBlendStateIntegrationTests|FullyQualifiedName~GlPipelineStateMaskTests|FullyQualifiedName~StateValueLayoutTests|FullyQualifiedName~StateBooleanValueTests' --logger 'console;verbosity=detailed'
+~~~
+
+The second source review verified all 29 direct boolean mappings, valid enum widths, false defaults,
+independent set/clear behavior, tuple preservation and the absence of raw-layout/native ABI consumers.
+Native transitions and knowledge owners remain unchanged; existing native regressions establish
+known-false suppression, invalidation, detached snapshots, partial authority and exception restoration.
+
+Independent audit-stage-completion reviewed the exhaustive inventory, linked contracts, implementation,
+final layouts and both final test receipts after the second review. It passed with no unresolved
+requirements or evidence gaps for the packed boolean category correction.

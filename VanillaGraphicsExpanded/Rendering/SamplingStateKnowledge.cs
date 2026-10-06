@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Independent validity flags for cached SamplingState values.</summary>
 [Flags]
-internal enum SamplingStateKnowledge
+internal enum SamplingStateKnowledge : byte
 {
     /// <summary>No fields are known.</summary>
     None = 0,

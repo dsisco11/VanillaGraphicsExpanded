@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Independent validity flags for cached OutputState values.</summary>
 [Flags]
-internal enum OutputStateKnowledge
+internal enum OutputStateKnowledge : byte
 {
     /// <summary>No fields are known.</summary>
     None = 0,

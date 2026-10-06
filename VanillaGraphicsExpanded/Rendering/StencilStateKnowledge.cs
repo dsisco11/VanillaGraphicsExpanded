@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Independent validity flags for cached StencilState values.</summary>
 [Flags]
-internal enum StencilStateKnowledge
+internal enum StencilStateKnowledge : byte
 {
     /// <summary>No fields are known.</summary>
     None = 0,
