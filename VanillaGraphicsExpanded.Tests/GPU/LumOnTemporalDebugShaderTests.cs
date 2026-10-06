@@ -30,7 +30,11 @@ public sealed class LumOnTemporalDebugShaderTests : RenderTestBase
             history.Capture(matrix, 16777216.25, 32, -16777216.25); history.Commit();
             history.Capture(matrix, 16777216.375, 32.0625, -16777216.125);
             GL.UseProgram(program);
-            GL.UniformMatrix4(0, 1, false, history.PreviousViewProjection);
+            using var inputs = new PackedUniformBuffer(96);
+            byte[] inputBytes = new byte[96];
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(history.PreviousViewProjection.AsSpan()).CopyTo(inputBytes);
+            inputs.SetBytes(inputBytes);
+            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, output);
             GL.BufferData(BufferTarget.ShaderStorageBuffer, 8, IntPtr.Zero, BufferUsageHint.DynamicRead);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, output);

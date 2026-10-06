@@ -1,10 +1,19 @@
 #version 450 core
-uniform vec3 surfaceVS;
-uniform vec3 normalVS;
-uniform mat4 projectionMatrix;
-uniform mat4 inverseProjectionMatrix;
-uniform vec2 frameSize;
-uniform int underwater;
+layout(std140, binding = 28) uniform WaterUvRefractionInputs
+{
+    vec3 surfaceVS;
+    vec3 normalVS;
+    mat4 projectionMatrix;
+    mat4 inverseProjectionMatrix;
+    vec2 frameSize;
+    int underwater;
+};
+
+
+
+
+
+
 ivec4 receiverWork = ivec4(0);
 #define VGE_REFRACTION_DEPTH_FETCH() receiverWork.x++
 #define VGE_REFRACTION_COLOR_FETCH() receiverWork.y++

@@ -44,6 +44,8 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
         owner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.CreateRange(new float[width * height * 4]))
         { Width = width, Height = height, AerialRadiance = ImmutableArray.CreateRange(scatter), AerialAttenuation = ImmutableArray.CreateRange(loss), AerialMie = ImmutableArray.CreateRange(mie) });
+        using var inputs = new PackedUniformBuffer(16);
+        byte[] inputBytes = new byte[16];
         var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/aerial-lookup.fsh");
         StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
         using var r = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
@@ -61,8 +63,10 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             float distance = MathF.Exp(MathF.Log(2500001f) * slice) - 1;
             Vector3 direction = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
             target.BindWithViewport();
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "displacement"), direction.X * distance, direction.Y * distance, direction.Z * distance);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "visibility"), visibility);
+            UboPacking.WriteVec3(inputBytes, 0, direction.X * distance, direction.Y * distance, direction.Z * distance);
+            UboPacking.WriteFloat(inputBytes, 12, visibility);
+            inputs.SetBytes(inputBytes);
+            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
             float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y) * visibility;
@@ -72,7 +76,9 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             Assert.InRange(MathF.Abs(actual[2] - (1 + (azimuth == 0 ? .375f : .125f) * visibility)), 0, .001f);
         }
         target.BindWithViewport();
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "displacement"), 0f, 0f, 0f);
+        UboPacking.WriteVec3(inputBytes, 0, 0f, 0f, 0f);
+        inputs.SetBytes(inputBytes);
+        Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(new[] { 1f, 1f, 1f, 1f }, target[0].ReadPixels());
     }

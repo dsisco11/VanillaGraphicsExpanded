@@ -28,12 +28,16 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         StateCache.Current.UseProgram(program.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+        using var inputs = new PackedUniformBuffer(16);
+        byte[] inputBytes = new byte[16];
         for (int exponent = 2; exponent <= 7; exponent++)
         foreach (float sign in new[] { -1f, 1f })
         {
             float elevation = sign * (1 - MathF.Pow(10, -exponent)) * AtmosphereSolarDisk.AngularRadius;
             target.BindWithViewport();
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "elevation"), elevation);
+            UboPacking.WriteFloat(inputBytes, 0, elevation);
+            inputs.SetBytes(inputBytes);
+            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
             float visible = AtmosphereSolarDisk.Visibility(elevation, 0);
@@ -66,17 +70,21 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-raster.vsh", fragmentPath);
         StateCache.Current.UseProgram(program.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereDisk"), 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+        using var inputs = new PackedUniformBuffer(64);
+        byte[] inputBytes = new byte[64];
+        UboPacking.WriteVec4(inputBytes, 32, 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);
         float[]? baseline = null;
         for (int iteration = 0; iteration < 4; iteration++)
         {
             target.BindWithViewport();
             GL.ClearColor(0, 0, 0, 0); GL.ClearDepth(iteration == 3 ? .5 : 1);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "camera"), iteration * 37f, iteration * -19f, iteration * 123f);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereSun"), 0f, 0f, -1f, iteration == 2 ? 0f : -1f);
+            UboPacking.WriteVec3(inputBytes, 48, iteration * 37f, iteration * -19f, iteration * 123f);
+            UboPacking.WriteVec4(inputBytes, 16, 0f, 0f, -1f, iteration == 2 ? 0f : -1f);
+            inputs.SetBytes(inputBytes);
+            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
             float[] pixels = target[0].ReadPixels();
             float[] glowPixels = target[1].ReadPixels();

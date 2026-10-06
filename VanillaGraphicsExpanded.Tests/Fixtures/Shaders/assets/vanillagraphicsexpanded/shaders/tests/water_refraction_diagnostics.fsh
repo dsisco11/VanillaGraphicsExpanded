@@ -1,14 +1,27 @@
 #version 450 core
-uniform int diagnosticScenario;
-uniform vec2 frameSize;
-uniform vec3 customSurface;
-uniform vec3 customNormal;
-uniform int diagnosticBudget;
-uniform int diagnosticSelect;
-uniform int diagnosticQuality;
-uniform int diagnosticUnderwater;
-uniform mat4 projectionMatrix;
-uniform mat4 inverseProjectionMatrix;
+layout(std140, binding = 28) uniform WaterRefractionDiagnosticInputs
+{
+    int diagnosticScenario;
+    vec2 frameSize;
+    vec3 customSurface;
+    vec3 customNormal;
+    int diagnosticBudget;
+    int diagnosticSelect;
+    int diagnosticQuality;
+    int diagnosticUnderwater;
+    mat4 projectionMatrix;
+    mat4 inverseProjectionMatrix;
+};
+
+
+
+
+
+
+
+
+
+
 ivec4 receiverWork = ivec4(0);
 #define VGE_REFRACTION_DEPTH_FETCH() receiverWork.x++
 #define VGE_REFRACTION_COLOR_FETCH() receiverWork.y++

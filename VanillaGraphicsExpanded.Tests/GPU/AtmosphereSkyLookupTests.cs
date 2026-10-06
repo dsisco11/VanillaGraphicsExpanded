@@ -39,7 +39,7 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
             ? File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"))
             : "vec3 VgeResolveDisplay(vec3 radiance) { return radiance; }\nvec3 VgeDitherDisplay(vec3 value, vec2 pixel) { return value; }\n";
         var tree = SyntaxTree.Parse("#version 430 core\n" + mapping + "\n" + transfer + "\n" + """
-            uniform vec3 sampleDirection;
+            layout(std140) uniform TestInputs { vec3 sampleDirection; };
             vec4 skyColor; vec4 skyGlow;
             layout(location=0) out vec4 outColor;
             void getSkyColorAt(vec3 skyPosition) { skyColor=vec4(0,0,0,1); }
@@ -66,6 +66,7 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
         }
         owner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.CreateRange(pixels))
             { Width = width, Height = height, HorizonElevation = horizon, SkyMie = ImmutableArray.CreateRange(mie) });
+        using var inputs = new FixtureUniformInputs(program.ProgramId, 16);
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         target.BindWithViewport();
         StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
@@ -82,7 +83,8 @@ public sealed class AtmosphereSkyLookupTests(HeadlessGLFixture fixture) : Render
             target.BindWithViewport();
             float elevation = AtmosphereSkyMapping.Elevation(v, horizon);
             Vector3 direction = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "sampleDirection"), direction.X, direction.Y, direction.Z);
+            inputs.Vector(0, direction.X, direction.Y, direction.Z);
+            inputs.Publish();
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
             float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y);

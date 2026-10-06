@@ -32,7 +32,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         long names = pipeline.ProgramLayout.UniformNameResolutions;
         long interfaceNames = pipeline.ProgramLayout.BinaryInterface.UniformNameResolutions;
         ulong revision = Revision(shader);
-        int uploads = History<ShaderUniformPublication<float>>(shader, "Scalar").Uploads;
+        Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+        long uploads = ring.AllocationsWritten, bytes = ring.BytesWritten;
         long imageChecks = cache.ImageCacheChecks;
         long imageBinds = cache.ResourceSlotBindCount;
         const int repeats = 8;
@@ -46,10 +47,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
         }
         Assert.Equal(revision, Revision(shader));
-        Assert.Equal(uploads, History<ShaderUniformPublication<float>>(shader, "Scalar").Uploads);
-        Assert.Equal(1, History<ShaderUniformPublication<float[]>>(shader, "Values").Uploads);
-        Assert.Equal(1, History<ShaderUniformPublication<System.Numerics.Vector3>>(shader, "Vector").Uploads);
-        Assert.Equal(1, History<ShaderUniformPublication<System.Numerics.Matrix4x4>>(shader, "Transform").Uploads);
+        Assert.Equal(uploads, ring.AllocationsWritten);
+        Assert.Equal(bytes, ring.BytesWritten);
         Assert.Equal(imageChecks + repeats, cache.ImageCacheChecks);
         Assert.Equal(imageBinds, cache.ResourceSlotBindCount);
         Assert.Equal(reflection, prepared.ReflectionQueries);
@@ -60,7 +59,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(1, validation.CompatibilityChecks);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 7, 5, 0, 0 }, result.ReadPixels());
-        output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions/image cache checks; entry resolutions 1; compatibility checks 1; first-use ordinary uploads 4, repeated uploads 0; repeated image binds 0.");
+        output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions/image cache checks; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
 
         using var arrays = Load("prepared_binding", PreparedBindingComputeShader.Contract);
         var table = arrays.ProgramLayout.BinaryInterface!.PreparedBindings;

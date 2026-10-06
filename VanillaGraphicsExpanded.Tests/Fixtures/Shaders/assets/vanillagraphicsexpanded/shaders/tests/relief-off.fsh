@@ -1,6 +1,7 @@
 #version 450 core
+@import "../includes/tests/relief_inputs.glsl"
 #define VGE_PBR_ENABLE_POM 0
-uniform sampler2D vge_normalDepthTex; uniform vec2 metric; out vec4 result;
+uniform sampler2D vge_normalDepthTex;  out vec4 result;
 @import "../includes/vge_normaldepth.glsl"
 @import "../includes/vge_parallax.glsl"
 void main() {

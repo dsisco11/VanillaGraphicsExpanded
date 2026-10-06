@@ -30,6 +30,8 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             Enumerable.Range(0,64*64).SelectMany(_ => new[] {.8f,.5f,.9f,.25f}).ToArray());
         using var indices = drawing.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
         using var records = drawing.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);
+        using var inputs = new PackedUniformBuffer(96);
+        byte[] inputBytes = new byte[96];
         int vs = BuiltShaderFixture.LoadFixture("tests/eye-relative.vsh", ShaderType.VertexShader), fs = BuiltShaderFixture.LoadFixture("tests/eye-relative.fsh", ShaderType.FragmentShader);
         int program = GL.CreateProgram(), vao = GL.GenVertexArray();
         try
@@ -68,9 +70,11 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             {
                 float c=MathF.Cos(radians),s=MathF.Sin(radians);
                 float[] view=[c,s,0,0,-s,c,0,0,0,0,1,0,-c*eye.X+s*eye.Y,-s*eye.X-c*eye.Y,-eye.Z,1];
-                GL.UniformMatrix4(layout.GetUniformLocation(program,"modelViewMatrix"),1,false,view);
-                GL.Uniform3(layout.GetUniformLocation(program,"surface"),position.X,position.Y,position.Z);
-                GL.Uniform1(layout.GetUniformLocation(program,"outputMode"),mode);
+                System.Runtime.InteropServices.MemoryMarshal.AsBytes(view.AsSpan()).CopyTo(inputBytes);
+                UboPacking.WriteVec3(inputBytes, 64, position.X, position.Y, position.Z);
+                UboPacking.WriteInt32(inputBytes, 76, mode);
+                inputs.SetBytes(inputBytes);
+                Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
                 target.BindWithViewport(); GL.DrawArrays(PrimitiveType.Triangles,0,3);
                 float[] pixel=new float[4]; GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.Float,pixel);
                 return pixel;

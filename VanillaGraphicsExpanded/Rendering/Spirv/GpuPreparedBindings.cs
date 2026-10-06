@@ -9,7 +9,6 @@ namespace VanillaGraphicsExpanded.Rendering.Spirv;
 internal sealed class GpuPreparedBindings
 {
     private readonly Dictionary<int, int> uniformArrays = new();
-    private readonly Dictionary<int, ActiveUniformType> uniformTypes = new();
     private readonly Dictionary<ulong, Entry> entriesByIdentity = new();
     private readonly Dictionary<int, int> uniformResourceLocations = new();
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> blockIndices = new();
@@ -45,12 +44,18 @@ internal sealed class GpuPreparedBindings
             if (values[0] >= 0)
             {
                 uniformArrays.Add(values[0], Math.Max(1, values[2]));
-                uniformTypes.Add(values[0], type);
             }
             ShaderBindingKind kind;
             if (GpuProgramLayout.IsSamplerType(type)) kind = ShaderBindingKind.Sampler;
             else if (GpuProgramLayout.IsImageType(type)) kind = ShaderBindingKind.Image;
-            else continue;
+            else
+            {
+                // Owned executables publish numeric data only through immutable UBO versions.
+                // Catch undeclared/manual numeric paths as well as generator-contract mistakes.
+                if (values[0] >= 0)
+                    throw new InvalidOperationException($"Standalone numeric uniform at location {values[0]} must use a uniform block.");
+                continue;
+            }
             if (values[0] < 0 || values[2] < 1) throw new InvalidOperationException("Invalid linked texture resource.");
             // Inspect each array element: the compiler owns locations, while the contract owns units.
             int baseSlot = -1;
@@ -118,7 +123,7 @@ internal sealed class GpuPreparedBindings
     /// <summary>Selects prepared activity by generated numeric identity; excluded variant inputs remain inactive.</summary>
     internal Entry Resolve(ulong identity) => entriesByIdentity.GetValueOrDefault(identity);
 
-    /// <summary>Checks legacy numeric uniform metadata without exposing reflection locations in resource entries.</summary>
+    /// <summary>Checks retained sampler/image location metadata without exposing addresses in resource entries.</summary>
     internal bool ContainsUniformLocation(int location)
     {
         foreach (var array in uniformArrays)
@@ -126,11 +131,8 @@ internal sealed class GpuPreparedBindings
         return false;
     }
 
-    /// <summary>Returns ordinary uniform extent for existing element-aware value upload compatibility.</summary>
+    /// <summary>Returns sampler/image array extent for existing engine interface projections.</summary>
     internal int UniformArrayLength(int location) => uniformArrays.GetValueOrDefault(location);
-
-    /// <summary>Returns retained ordinary-value type metadata without another driver query.</summary>
-    internal ActiveUniformType UniformType(int location) => uniformTypes.GetValueOrDefault(location);
 
     /// <summary>Reads the retained inspection location for the existing diagnostic resource adapter.</summary>
     internal int UniformResourceLocation(int index) => uniformResourceLocations.GetValueOrDefault(index, -1);

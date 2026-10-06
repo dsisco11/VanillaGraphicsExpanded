@@ -6,8 +6,13 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 internal sealed class SurfaceLightingParamsUbo : CpuUniformBuffer
 {
     #region Public API
-    /// <summary>Creates an unavailable, zero-sized cache domain.</summary>
-    public SurfaceLightingParamsUbo() : base(96) { }
+    /// <summary>Creates an unavailable cache domain with the full shared block layout.</summary>
+    public SurfaceLightingParamsUbo() : base(144)
+    {
+        // Lookup consumers sample existing radiance rather than executing its lighting producer.
+        // Keep producer-only sampling, policy and atmosphere fields at their zero defaults, but
+        // provide the complete linked block size even when those members are unused by lookup.
+    }
 
     /// <summary>Replaces the complete domain, including unavailable snapshots.</summary>
     public void Set(SurfaceLightingSnapshot? snapshot)

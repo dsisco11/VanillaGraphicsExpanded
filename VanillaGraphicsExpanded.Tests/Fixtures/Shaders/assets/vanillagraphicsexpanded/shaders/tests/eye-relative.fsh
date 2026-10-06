@@ -1,8 +1,9 @@
 #version 450 core
+@import "../includes/tests/eye_inputs.glsl"
 #define VGE_PBR_ENABLE_POM 1
 uniform sampler2D vge_normalDepthTex;
-uniform vec3 surface;
-uniform int outputMode;
+
+
 out vec4 color;
 @import "../includes/vge_normaldepth.glsl"
 @import "../includes/vge_parallax.glsl"

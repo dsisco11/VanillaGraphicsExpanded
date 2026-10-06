@@ -1,3 +1,4 @@
+#ifndef VGE_ATMOSPHERE_SUN_INPUTS
 uniform int vge_atmosphereSunDraw;
 #ifndef VGE_SCENE_LINEAR_INPUT
 #define VGE_SCENE_LINEAR_INPUT
@@ -5,6 +6,7 @@ uniform int vge_sceneLinear;
 #endif
 uniform vec4 vge_atmosphereSun;
 uniform vec4 vge_atmosphereDisk;
+#endif
 in vec3 vge_sunDirection;
 in vec2 vge_sunPlane;
 

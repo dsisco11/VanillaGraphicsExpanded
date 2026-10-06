@@ -37,7 +37,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
             #define SSAOLEVEL 0
             layout(location=0) out vec4 outColor;
             layout(location=1) out vec4 outGlow;
-            uniform float attenuation;
+            layout(std140) uniform TestInputs { float attenuation; };
             const float extraGodray=.7;
             float getSkyMurkiness() { return 0; }
             vec3 applyUnderwaterEffects(vec3 color,float murk) { return color*attenuation; }
@@ -55,6 +55,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
         using var source = GpuFramebuffer.CreateMRT([color, glow])!;
         using var framework = new ShaderTestFramework();
         using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var inputs = new FixtureUniformInputs(sun.ProgramId, 16);
         var sunLayout = GpuProgramLayout.TryBuild(sun.ProgramId);
         var bloomLayout = GpuProgramLayout.TryBuild(bloom.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
@@ -68,7 +69,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
             StateCache.Current.UseProgram(sun.ProgramId);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereDisk"), radiance, radiance, radiance, .01f);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereSun"), 0f, 1f, 0f, 0f);
-            ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "attenuation"), attenuation);
+            inputs.Float(0, attenuation);
+            inputs.Publish();
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] solar = source[0].ReadPixels();
             float[] emission = source[1].ReadPixels();

@@ -4,12 +4,18 @@ Shader compilation uses performance optimization (`-O`) in both Debug and Releas
 Debug requests debug information (`-g`); Release omits it. The build receipt includes both
 settings, so compiler-policy changes invalidate previous outputs.
 
-Shared standalone uniforms with stripped names currently expose an installed-driver linking
-defect in the eye-relative and solar raster fixtures. Release stripping remains enabled;
-retaining debug metadata and duplicating shared uniforms are not accepted workarounds.
-Migration of standalone numeric uniform data to UBOs requires a separately agreed scope and plan.
-Sampler/image resource bindings and specialization constants have different contracts and must
-be accounted for separately in that inventory.
+Owned shader numeric inputs use explicit std140 uniform blocks. Shared vertex/fragment values
+use one block declaration and one publication; the eye-relative and solar raster fixtures verify
+this under stripped Release. Retaining debug metadata or duplicating shared values is unnecessary.
+Typed setters write owned CpuUniformBuffer storage, and a ShaderBinding UniformBlock getter supplies
+it to prepared submission. Numeric UniformLocation properties are rejected by the generator, and
+linked owned executables reject active standalone numeric uniforms. Sampler/image locations remain
+resource metadata; specialization constants remain structural selections.
+
+The approved engine GLSL compatibility exceptions retain their existing numeric APIs and activation
+behavior, including VGE-added atmosphere, scene-color and terrain inputs. They do not extend the
+world-frame publication epoch. See the [migration inventory](Rendering.AuthoritativePipelineState.md#standalone-numeric-input-migration-inventory)
+for owners and test-only rejection/source-processing exceptions.
 
 Declare a shader's immutable contract on its owning partial class. The generator automatically includes it in the shared build/runtime catalog; no registration list or special declaration filename is needed.
 

@@ -483,84 +483,91 @@ Phase 4: Prepared graphics pipelines and executable compatibility
   ☑ Completion gate: failures cannot expose a partially usable pipeline; no steady-state interface queries.
 
 Subphase 4.1: Migrate standalone numeric uniforms to uniform buffers
+  Completed: 2026-10-06 after second source review and independent completion audit.
+    Evidence and retained unrelated baseline failures: Rendering.AuthoritativePipelineState.md /
+    Current migration verification. Engine GLSL compatibility exceptions remain explicit.
   Dependencies: Phase 4 executable preparation; existing uniform publication/lifetime implementation
     documented in Rendering.UniformBufferLifetime.md. User requested this corrective subphase on 2026-10-06.
   Outcome: VGE-owned graphics and compute shader numeric inputs use explicit UBO contracts, including
     reusable fixtures, without depending on SPIR-V debug names or duplicating shared stage values.
+  Compatibility decision (2026-10-06): retain documented engine GLSL numeric inputs, including
+    VGE-added atmosphere, scene-color and terrain inputs. Do not change the engine-frame UBO epoch.
+    VGE-owned SPIR-V programs and test-owned controls still migrate.
   Sequencing: complete before Phase 5 and subsequent production-consumer migration. Establish and
     review the inventory/block design first; do not infer approval of unreviewed engine compatibility changes.
 
-  ☐ Establish a complete source-to-consumer inventory and review the migration design.
-    ☐ Enumerate every standalone numeric uniform in production stages, imported includes, all
+  ☑ Establish a complete source-to-consumer inventory and review the migration design.
+    ☑ Enumerate every standalone numeric uniform in production stages, imported includes, all
       graphics/compute variants, generated declarations, reusable test fixtures and runtime GLSL tests.
       Follow each input through CPU assignment, contract generation, upload, shader activation and reload.
-    ☐ Cover PBR lighting/composition/materials/liquids, atmosphere, LumOn scene/probes, terrain,
+    ☑ Cover PBR lighting/composition/materials/liquids, atmosphere, LumOn scene/probes, terrain,
       debug views, rendering infrastructure and all shader fixture owners; record exact files/members,
       types/array extents, shared-stage use, update frequency, ownership and intended destination block.
-    ☐ Include ShaderBuildTool/TestShaderPrograms.cs, ShaderSourceLayout and both production/test
+    ☑ Include ShaderBuildTool/TestShaderPrograms.cs, ShaderSourceLayout and both production/test
       catalogs; explicitly include the failing eye-relative and solar raster shared-uniform fixtures.
-    ☐ Distinguish numeric values from sampler/image bindings, UBO/SSBO bindings, specialization
+    ☑ Distinguish numeric values from sampler/image bindings, UBO/SSBO bindings, specialization
       constants and structural defines. Those interfaces are not numeric data to place in a UBO.
-    ☐ Separate VGE-owned inputs, VGE-added engine shader inputs and untouched base-game inputs.
+    ☑ Separate VGE-owned inputs, VGE-added engine shader inputs and untouched base-game inputs.
       Inventory engine-generated/source-patched paths and third-party compatibility boundaries;
       specify adapters for VGE-owned values without rewriting the engine's ownership/API contract.
       List every retained engine/test-only standalone uniform and its concrete justification; no silent omissions.
-    ☐ Group blocks by owner and update frequency (frame/view, pass, material, object/draw), reuse
+    ☑ Group blocks by owner and update frequency (frame/view, pass, material, object/draw), reuse
       existing blocks where their lifetime and semantics match, and avoid a single global catch-all block.
       Specify stable slots, CPU packing, stage sharing, defaults, dirty/revision behavior and usage class.
-    ☐ Review the inventory, compatibility exceptions and block map before migrating consumers.
+    ☑ Review the inventory, compatibility exceptions and block map before migrating consumers.
       Record decisions in Rendering.AuthoritativePipelineState.md and reconcile the proposal's input contract.
 
-  ☐ Extend existing contracts and publication owners where the inventory demonstrates missing support.
-    ☐ Reuse CpuUniformBuffer/PackedUniformBuffer, UniformPublication, UniformBufferUsage,
+  ☑ Extend existing contracts and publication owners where the inventory demonstrates missing support.
+    ☑ Reuse CpuUniformBuffer/PackedUniformBuffer, UniformPublication, UniformBufferUsage,
       PersistentUniformStorage and GpuUniformRingBuffer/frame-controller ownership; do not add another
       allocator, per-draw buffer objects, context registry or separate resource-binding cache.
-    ☐ Cover ShaderContractGenerator UniformValueReader, BindingReader/InterfaceBindingReader and
+    ☑ Cover ShaderContractGenerator UniformValueReader, BindingReader/InterfaceBindingReader and
       RuntimeSubmissionEmitter; preserve typed input assignment and change suppression while replacing
       migrated scalar/vector/matrix/array uploads with owned block writes and prepared UBO publication.
-    ☐ Cover GpuProgram.Inputs/UniformOwnership, IShaderSubmissionTarget, ShaderPreparedSubmission,
+    ☑ Cover GpuProgram.Inputs/UniformOwnership, IShaderSubmissionTarget, ShaderPreparedSubmission,
       ShaderInputValidation, GpuBindingContract/Registry and GpuProgramInterface/GpuPreparedBindings.
       Preserve readiness, required/optional resource validation, failed-candidate isolation and reload behavior.
-    ☐ Validate std140 offsets, alignment, padding, matrix order/stride, array stride and boolean/integer
+    ☑ Validate std140 offsets, alignment, padding, matrix order/stride, array stride and boolean/integer
       representation against linked blocks. Resolve the existing SurfaceLightingParams 96-byte CPU versus
       144-byte shader mismatch through its actual owner; do not weaken size validation to accept it.
-    ☐ Check GpuSupport limits for block sizes, binding slots, per-stage/combined resources and range
+    ☑ Check GpuSupport limits for block sizes, binding slots, per-stage/combined resources and range
       alignment. Preserve targeted StateCache binding/restoration and last-use retirement semantics.
 
-  ☐ Migrate the reviewed inventory end to end.
-    ☐ Update GLSL declarations/imports and CPU owners together, including variant-specific consumers.
+  ☑ Migrate the reviewed inventory end to end.
+    ☑ Update GLSL declarations/imports and CPU owners together, including variant-specific consumers.
       Shared stages reference the same compatible block layout, slot and publication; upload each logical
       shared value once. Do not split locations/duplicate data merely to bypass a driver linker defect.
-    ☐ Move VGE-added engine inputs through the agreed adapters while preserving engine shader
-      activation, render ordering and boundary restoration. Keep explicit engine-owned exceptions intact.
-    ☐ Migrate reusable fixtures through the shared SpirvBuild output. Preserve runtime GLSL compilation
+    ☑ Preserve the approved engine GLSL compatibility inputs and adapters, including VGE-added
+      inputs, shader activation, render ordering and boundary restoration. Migrate equivalent
+      inputs in VGE-owned binary fixtures without altering the engine-frame publication boundary.
+    ☑ Migrate reusable fixtures through the shared SpirvBuild output. Preserve runtime GLSL compilation
       where compilation/source transformation itself is tested; adapt these tests to the new input contract.
-    ☐ Update uniform/layout/contract snapshots and assertions from the reviewed ABI, with explanations
+    ☑ Update uniform/layout/contract snapshots and assertions from the reviewed ABI, with explanations
       for changes; retain numerical, image/readback and failure-path assertions rather than weakening them.
-    ☐ Remove obsolete standalone upload paths only after their consumers migrate: audit ShaderUniformValue,
+    ☑ Remove obsolete standalone upload paths only after their consumers migrate: audit ShaderUniformValue,
       ShaderUniformUpload, ShaderUniformPublication and generator output for actual remaining engine use.
       Retain narrowly required compatibility code, not a second VGE numeric submission path.
-    ☐ Sweep GL.Uniform*/ProgramUniform*, numeric UniformLocations and generated scalar uploads, reconcile
+    ☑ Sweep GL.Uniform*/ProgramUniform*, numeric UniformLocations and generated scalar uploads, reconcile
       every remaining occurrence to the inventory, and prevent new unapproved VGE standalone numeric inputs.
 
-  ☐ Delegate focused and integration verification in Debug and stripped Release.
-    ☐ Keep -O in both configurations and -g only in Debug. Do not retain names, patch SPIR-V names,
+  ☑ Delegate focused and integration verification in Debug and stripped Release.
+    ☑ Keep -O in both configurations and -g only in Debug. Do not retain names, patch SPIR-V names,
       duplicate shared values or skip failing variants as an acceptance workaround.
-    ☐ Build all production and shared test variants through SpirvBuild; validate digests, specialization,
+    ☑ Build all production and shared test variants through SpirvBuild; validate digests, specialization,
       graphics/compute linking, clean/incremental builds and missing-output recovery under the real policy.
-    ☐ Verify shared-stage blocks without debug names and single logical publication, including solar
+    ☑ Verify shared-stage blocks without debug names and single logical publication, including solar
       raster and eye-relative numerical results; exercise matrices, arrays, padding and changed defaults.
-    ☐ Cover unchanged-input reuse, changed inputs on an unchanged pipeline, transient/persistent lifetimes,
+    ☑ Cover unchanged-input reuse, changed inputs on an unchanged pipeline, transient/persistent lifetimes,
       ring wrap/retirement, prepared-slot binding, exception restoration, reload and failed publication.
-    ☐ Run affected generated-input, resource-layout, graphics/compute, engine-adapter and numerical suites.
+    ☑ Run affected generated-input, resource-layout, graphics/compute, engine-adapter and numerical suites.
       Record all failures and distinguish unrelated baseline issues; prior metadata-retaining Release
       receipts cannot establish acceptance. Obtain a fresh stripped-Release result for migrated coverage.
-    ☐ Measure upload bytes, native uniform calls, UBO updates/binds and allocation behavior on matched
+    ☑ Measure upload bytes, native uniform calls, UBO updates/binds and allocation behavior on matched
       workloads; avoid claiming performance improvements from packing alone. Leave live visual/GPU
       acceptance to user-provided evidence without launching the game.
-  ☐ Update downstream submission/consumer tasks and evidence to use the reviewed UBO contracts.
+  ☑ Update downstream submission/consumer tasks and evidence to use the reviewed UBO contracts.
     Perform a second source review and independent completion audit before checking completion.
-  ☐ Completion gate: every inventoried VGE numeric input is migrated or has an explicitly reviewed
+  ☑ Completion gate: every inventoried VGE numeric input is migrated or has an explicitly reviewed
     engine compatibility disposition; stripped Release links and executes affected shaders correctly,
     shared inputs retain one publication, lifetime/restoration tests pass and no debug-name dependency remains.
 
@@ -695,7 +702,9 @@ Phase 6: Immediate graphics submission
     ☐ Validate current target/executable revision, geometry layout/topology, required dynamics and resources.
     ☐ Use existing engine-aware shader activation and input publication, including CurrentShaderProgram,
       overlapping-owner restrictions, failure cleanup and recursion/mutation guards.
-    ☐ Publish changed resources/uniforms even when the selected pipeline is unchanged.
+    ☐ Publish changed resources and typed numeric UBO versions even when the selected pipeline is unchanged.
+      Reuse CpuUniformBuffer/UniformPublication, shared-stage blocks and prepared fixed slots from 4.1;
+      preserve the documented engine GLSL exceptions without adding an ordinary numeric VGE upload path.
     ☐ Establish all required state before issuing the draw; failure must emit no draw.
     ☐ Document and observe engine geometry helper mutations; prohibit untracked operations inside a pass.
     ☐ End/suspend authority at declared external boundaries and dirty affected categories before resuming.

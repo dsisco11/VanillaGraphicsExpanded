@@ -78,21 +78,9 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void SurfaceNormalUsesGeometryForTransmissionOrLegacyUp(bool twoSided, bool smooth, bool back, float transmission, float x, float y, float z)
     {
         EnsureContextValid();
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "vge_terrain_normal.glsl"));
-        string authored = smooth ? "normalize(vec3(0,1,1))" : "vec3(0,1,0)";
-        int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\n" + helper + $$"""
-            uniform float transmission;
-            in vec3 world;
-            layout(location=0) out vec4 result;
-            void main() { result = vec4(VgeTerrainNormal({{authored}}, world, transmission), 1); }
-            """);
-        string side = back ? "-position.x" : "position.x";
-        int vertex = Compile(ShaderType.VertexShader, $$"""
-            #version 330 core
-            layout(location=0) in vec2 position;
-            out vec3 world;
-            void main() { world = vec3({{side}},position.y,0); gl_Position = vec4(position,0,1); }
-            """);
+        using var modules = new TerrainShaderTestFixture();
+        int vertex = modules.Load(ShaderType.VertexShader, "tests/normal-input.vsh");
+        int fragment = modules.Load(ShaderType.FragmentShader, "tests/normal-input.fsh");
         int program = GL.CreateProgram();
         try
         {
@@ -100,8 +88,12 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "vge_twoSidedTerrain"), twoSided ? 1 : 0);
-            GL.Uniform1(GL.GetUniformLocation(program, "transmission"), transmission);
+            using var inputs = new FixtureUniformInputs(16);
+            inputs.Float(0, transmission);
+            inputs.Integer(4, twoSided ? 1 : 0);
+            inputs.Integer(8, smooth ? 1 : 0);
+            inputs.Integer(12, back ? 1 : 0);
+            inputs.Publish();
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
@@ -110,7 +102,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             for (int channel = 0; channel < 4; channel++)
                 Assert.InRange(actual[channel], expected[channel] - .00001f, expected[channel] + .00001f);
         }
-        finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
+        finally { GL.DeleteProgram(program); }
     }
     #endregion
 
@@ -125,20 +117,9 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void TransmissionRespectsVisibilityAndAngles(float visibility, bool frontLit, bool sideView, float factor)
     {
         EnsureContextValid();
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_transmission.glsl"));
-        int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\n" + helper + """
-            uniform float visibility;
-            uniform vec3 lightDirection;
-            uniform vec3 viewDirection;
-            layout(location=0) out vec4 result;
-            void main() { result = vec4(VgeTransmission(vec3(.2,.8,.1), vec3(0,0,1),
-                viewDirection, lightDirection, vec3(1), 0, .5, visibility), 1); }
-            """);
-        int vertex = Compile(ShaderType.VertexShader, """
-            #version 330 core
-            layout(location=0) in vec2 position;
-            void main() { gl_Position = vec4(position,0,1); }
-            """);
+        using var modules = new TerrainShaderTestFixture();
+        int vertex = modules.Load(ShaderType.VertexShader, "tests/numerical-quad.vsh");
+        int fragment = modules.Load(ShaderType.FragmentShader, "tests/foliage-transmission.fsh");
         int program = GL.CreateProgram();
         try
         {
@@ -146,9 +127,11 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "visibility"), visibility);
-            GL.Uniform3(GL.GetUniformLocation(program, "lightDirection"), 0f, 0f, frontLit ? 1f : -1f);
-            GL.Uniform3(GL.GetUniformLocation(program, "viewDirection"), sideView ? 1f : 0f, 0f, sideView ? 0f : 1f);
+            using var inputs = new FixtureUniformInputs(48);
+            inputs.Float(0, visibility);
+            inputs.Vector(16, 0f, 0f, frontLit ? 1f : -1f);
+            inputs.Vector(32, sideView ? 1f : 0f, 0f, sideView ? 0f : 1f);
+            inputs.Publish();
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
@@ -160,7 +143,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
                 Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
             }
         }
-        finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
+        finally { GL.DeleteProgram(program); }
     }
     #endregion
 
@@ -174,21 +157,9 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void LiquidOpticsRemainBounded(float cosine, bool underwater, float reflection, float missingThickness)
     {
         EnsureContextValid();
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_liquid_optics.glsl"));
-        int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\nconst float zNear=.1; const float zFar=100.0;\n" + helper + """
-            uniform float cosine;
-            uniform bool underwater;
-            layout(location=0) out vec4 result;
-            void main() { result = vec4(VgeLiquidFresnel(cosine, underwater),
-                VgeLiquidThickness(1.0,.5,vec3(0,0,-1),underwater),
-                VgeLiquidThickness(.4,.5,vec3(0,0,-1),underwater),
-                VgeLiquidThickness(.75,.5,vec3(0,0,-1),underwater)); }
-            """);
-        int vertex = Compile(ShaderType.VertexShader, """
-            #version 330 core
-            layout(location=0) in vec2 position;
-            void main() { gl_Position = vec4(position,0,1); }
-            """);
+        using var modules = new TerrainShaderTestFixture();
+        int vertex = modules.Load(ShaderType.VertexShader, "tests/numerical-quad.vsh");
+        int fragment = modules.Load(ShaderType.FragmentShader, "tests/liquid-interface.fsh");
         int program = GL.CreateProgram();
         try
         {
@@ -196,8 +167,10 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "cosine"), cosine);
-            GL.Uniform1(GL.GetUniformLocation(program, "underwater"), underwater ? 1 : 0);
+            using var inputs = new FixtureUniformInputs(16);
+            inputs.Float(0, cosine);
+            inputs.Integer(4, underwater ? 1 : 0);
+            inputs.Publish();
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
@@ -208,7 +181,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             if (underwater) Assert.Equal(0f, actual[3]);
             else Assert.InRange(actual[3], .19f, .21f);
         }
-        finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
+        finally { GL.DeleteProgram(program); }
     }
     #endregion
 

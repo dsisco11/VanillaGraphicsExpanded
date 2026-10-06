@@ -47,7 +47,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             #define SHADOWQUALITY 1
             #define DYNLIGHTS 1
             #define VGE_SURFACE_VIEW surfaceView
-            uniform mat4 surfaceView;
+            layout(std140) uniform TestInputs { mat4 surfaceView; };
             uniform sampler2DShadow shadowMapFar;
             vec4 shadowCoordsFar = vec4(0.5, 0.5, 0.8, 1.0);
             float shadowIntensity = 1.0;
@@ -85,9 +85,11 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            using var inputs = new FixtureUniformInputs(program, 64);
             GL.UseProgram(program);
             float[] view = scenario == 3 ? [0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1] : [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-            GL.UniformMatrix4(GL.GetUniformLocation(program, "surfaceView"), 1, false, view);
+            inputs.Matrix(0, view);
+            inputs.Publish();
             GL.Uniform1(GL.GetUniformLocation(program, "pointLightQuantity"), scenario is 2 or 3 or 8 or 14 ? 1 : 0);
             GL.Uniform3(GL.GetUniformLocation(program, "pointLights[0]"), 0f, 0f, 0f);
             GL.Uniform3(GL.GetUniformLocation(program, "pointLightColors[0]"), 1f, 1f, 1f);

@@ -179,6 +179,13 @@ Pipeline preparation validates the shader stages, vertex interface, output inter
 
 Reuse `GpuBindingContract`, `GpuPreparedBindings`, generated shader inputs, and existing readiness/activation code. Add missing vertex/output interface validation at preparation time instead of querying linked interfaces for every draw.
 
+Owned numeric shader inputs use explicit std140 UBOs through the existing CPU block and publication
+owners. Shared stages consume one declaration and logical publication; debug names are not an input
+contract. Sampler/image locations and specialization constants remain separate interfaces. The approved
+engine GLSL compatibility exceptions preserve existing atmosphere, scene-color and terrain numeric
+inputs and do not change engine-frame ownership. Their inventory and packing contracts are recorded in
+[Standalone numeric input migration inventory](Rendering.AuthoritativePipelineState.md#standalone-numeric-input-migration-inventory).
+
 The descriptor must have deeply immutable payloads and structural equality. Canonical keys include every behavior-affecting static field, dynamic declaration, target signature, vertex layout, and shader variant/layout identity. Debug labels are excluded. Hash collisions require equality comparison. Native object names alone are not durable identities because they can be reused.
 
 Distinguish a reusable description key from a live realization bound to an executable revision and renderer lifetime. Shader reload invalidates dependent realizations; incompatible reloads fail validation before the new realization is published. Failed preparation must not leave a partially valid pipeline available for drawing. Preserve existing shader ownership and deferred-deletion mechanisms.

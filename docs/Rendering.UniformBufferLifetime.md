@@ -58,7 +58,7 @@ the command stream and reject failed fences rather than treating failure as comp
 | PBR direct lighting/composite, 3552/272 bytes | Camera/light/transport and pass publication inputs | SingleFrame compatibility. No persistent-policy benefit inferred from shader longevity. |
 | Height bake, 528 bytes | Per tile/pass/solver iteration; shared intentionally by bake orchestration | SingleFrame compatibility. |
 | LumOn probe/near-field/combine/upsample/HZB/debug; debug line/orb blocks | Per probe/pass/camera/debug draw | SingleFrame compatibility; later tuning requires measured stable writes. |
-| SurfaceLightingParamsUbo, 96 bytes | Domain snapshots, owned by query/trace batches or screen-probe shader | SingleFrame compatibility pending workload benefit and all owners' disposal migration. |
+| SurfaceLightingParamsUbo, 144 bytes | Domain snapshots, owned by query/trace batches or screen-probe shader | SingleFrame compatibility pending workload benefit and all owners' disposal migration. |
 | Packed compute blocks | Dispatch-specific externally packed complete blocks with SetBytes comparisons | SingleFrame default; callers can explicitly request another lifetime. |
 | Existing native GPU blocks | Explicit GPU resources borrowed by prepared bindings | Unchanged resource policy; not CPU logical publications. |
 

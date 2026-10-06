@@ -42,6 +42,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         capture.BeginCapture();
         Assert.Equal(.75f, ReadDepth(capture.BeforeDepth));
         using var shaders = new TerrainShaderTestFixture();
+        using var inputs = new PackedUniformBuffer(32);
         int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
         int fragment = shaders.Load(ShaderType.FragmentShader, "tests/particle-draw.fsh");
         using var draw = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
@@ -57,8 +58,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         GL.BindVertexArray(vao.VertexArrayId);
         if (scenario != 3)
         {
-            DrawParticle(draw.ProgramId, 8, 0, scenario == 2 ? 0 : .5f, .625f);
-            DrawParticle(draw.ProgramId, 0, 4, scenario == 2 ? 0 : .5f, .5f);
+            DrawParticle(inputs, 8, 0, scenario == 2 ? 0 : .5f, .625f);
+            DrawParticle(inputs, 0, 4, scenario == 2 ? 0 : .5f, .5f);
         }
         StateCache.Current.InvalidateAll();
         EstablishScissor(false);
@@ -264,10 +265,14 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         StateCache.Current.Apply(new GlPipelineDesc(enabled ? default : mask, enabled ? mask : default));
     }
     /// <summary>Issues one ordered source-alpha particle draw with an independently chosen visibility depth.</summary>
-    private static void DrawParticle(int program, float red, float green, float alpha, float depth)
+    private static void DrawParticle(PackedUniformBuffer inputs, float red, float green, float alpha, float depth)
     {
-        GL.Uniform4(0, red, green, 0f, alpha);
-        GL.Uniform1(1, depth);
+        Span<byte> bytes = stackalloc byte[32];
+        bytes.Clear();
+        UboPacking.WriteVec4(bytes, 0, red, green, 0f, alpha);
+        UboPacking.WriteFloat(bytes, 16, depth);
+        inputs.SetBytes(bytes);
+        Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
     }
 

@@ -1,7 +1,9 @@
 #ifndef VGE_TERRAIN_NORMAL_GLSL
 #define VGE_TERRAIN_NORMAL_GLSL
 
+#ifndef VGE_TERRAIN_NORMAL_INPUTS
 uniform int vge_twoSidedTerrain;
+#endif
 
 /** Uses geometry for transmitting surfaces and corrects legacy two-sided lighting normals. */
 vec3 VgeTerrainNormal(vec3 authoredNormal, vec3 position, float transmission)

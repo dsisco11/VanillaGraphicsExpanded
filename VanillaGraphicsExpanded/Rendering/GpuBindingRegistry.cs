@@ -28,6 +28,9 @@ internal static partial class GpuBindingRegistry
 
         // Small, dedicated bridge UBO for vanilla-terrain world-space reconstruction.
         public const int TerrainBridge = 27;
+
+        /// <summary>Program-owned numeric inputs, rebound on each prepared submission.</summary>
+        public const int ShaderInputs = 28;
     }
 
     /// <summary>

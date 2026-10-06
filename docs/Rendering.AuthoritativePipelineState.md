@@ -1723,5 +1723,310 @@ manifests contain every expected output. No in-game visual or performance accept
 
 Release metadata-retention rollback: the compiler and invocation regression again select `-g`
 only for Debug, with `-O` in both configurations. The earlier passing shared-uniform Release
-results are historical, not current acceptance. UBO migration is pending an agreed inventory,
-scope and sequencing decision; no uniform migration or duplicated uploads are included here.
+results are historical, not current acceptance. At that rollback, UBO migration still awaited
+an agreed inventory and scope; the completed migration and fresh evidence are recorded below.
+
+## Standalone numeric input migration inventory
+
+Status: completed and independently audited on 2026-10-06 under the approved engine GLSL
+compatibility exceptions below. The original source inventory is reconciled with the final block
+map, exact retained engine interfaces, CPU owners and runtime-test dispositions. Broader-suite
+baseline failures and live/performance limitations remain explicit in the verification record.
+
+Controlling lifetime sources: Rendering.UniformBufferLifetime.md and its archived proposal/checklist
+at revision `62bcc898^` (removed by `62bcc898`, "docs: remove completed documents").
+Reuse CpuUniformBuffer packing/revisions, UniformPublication, existing transient/persistent allocators,
+shader-owned versus borrowed disposal, and prepared numeric binding slots. No new allocation system.
+
+| Source | Original standalone numeric declarations (disposition below) |
+| --- | --- |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/atmosphere_sun_fragment.glsl | `int vge_atmosphereSunDraw`; `int vge_sceneLinear`; `vec4 vge_atmosphereSun`; `vec4 vge_atmosphereDisk` |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/atmosphere_sun_vertex.glsl | `int vge_atmosphereSunDraw`; `vec4 vge_atmosphereSun`; `vec4 vge_atmosphereDisk` |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_forward_surface.glsl | `int vge_sceneLinear`; `vec3 pointLights[DYNLIGHTS]`; `vec3 pointLightColors[DYNLIGHTS]`; `int pointLightQuantity` |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_shadowmaps.glsl | Commented interface examples only: shadow matrices, ranges and intensity. Production `pbr_direct_lighting.fsh` already supplies these through `pbr_direct_lighting_params_ubo.glsl`; no standalone declarations here. |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/tessellation/terrain.tesh | `int vge_displacementReactive` |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/tessellation/terrain_displacement.glsl | `mat4 mvpMatrix`; `mat4 modelViewMatrix`; `mat4 projectionMatrix`; `float vge_tessellationFocalPixels`; `int vge_displacementEnabled`; `vec4 vge_tessellationPixels`; `vec2 vge_tessellationDistance` |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_terrain_normal.glsl | `int vge_twoSidedTerrain` |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_view.glsl | `mat4 modelViewMatrix` |
+| VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/pbr_display_resolve.fsh | `int particleLayerEnabled`; `int sceneLinear` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/aerial-lookup.fsh | `vec3 displacement`; `float visibility` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/displacement-height.fsh | `vec3 sampleInput` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/displacement-metric.fsh | `float distance` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/eye-relative.fsh | `vec3 surface`; `int outputMode` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/eye-relative.vsh | `mat4 modelViewMatrix` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/particle-draw.fsh | `vec4 colour`; `float depthValue` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/rasterizer.vsh | `int lineMode`; `int zeroDepth` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/relief-off.fsh | `vec2 metric` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/relief-on.fsh | `vec2 metric` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/sun-raster.vsh | `vec3 camera` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/sun-segment.fsh | `float elevation` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/temporal-debug.csh | `mat4 prevViewProjMatrix`; `int probeSpacing`; `int debugMode`; `vec2 probeGridSize`; `float depthRejectThreshold`; `float normalRejectThreshold`; `float temporalAlpha` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/uniform_state.csh | `float scalar`; `float values[2]`; `vec3 vector`; `mat4 transform` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/water_pixel_normal_refraction.fsh | `vec3 surfaceVS`; `vec3 normalVS`; `vec3 baseNormalVS`; `mat4 projectionMatrix`; `mat4 inverseProjectionMatrix`; `vec2 frameSize`; `int underwater` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/water_receiver_filter.fsh | `vec2 sampleUv`; `vec3 surfaceVS`; `vec3 normalVS`; `mat4 inverseProjection`; `vec2 frameSize` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/water_refraction_diagnostics.fsh | `int diagnosticScenario`; `vec2 frameSize`; `vec3 customSurface`; `vec3 customNormal`; `int diagnosticBudget`; `int diagnosticSelect`; `int diagnosticQuality`; `int diagnosticUnderwater`; `mat4 projectionMatrix`; `mat4 inverseProjectionMatrix` |
+| VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/water_uv_refraction.fsh | `vec3 surfaceVS`; `vec3 normalVS`; `mat4 projectionMatrix`; `mat4 inverseProjectionMatrix`; `vec2 frameSize`; `int underwater` |
+
+Additional production source-injection and publication owners identified:
+
+| Family | Sources and CPU publication | Implemented ownership and compatibility disposition |
+| --- | --- | --- |
+| Atmosphere | AtmosphereSkyPatches; atmosphere_sun_vertex/fragment includes; PbrSurfaceShaderPatches/PbrTerrainColorPatches; AtmosphereShaderBindingHook; AtmosphereProgramBindings | Retain the approved engine GLSL interface: lighting snapshots are frame/view data, solar selection is reset on each relevant engine Use including startup. No UBO epoch or HasUniform behavior change. Binary solar fixtures use their shared SunInputs block. |
+| Scene-color routing | PbrFinalDisplayPatches; SceneColorLegacyPatches/SceneColorPostprocessPatches; SceneColorParticleCapture; PbrDrawRouteHook | Retain approved engine GLSL routing values and nested capture/restoration semantics per engine program. Owned display resolve has its separate Routing block. |
+| Terrain subdivision | TerrainDisplacementPatches; TerrainTessellationStages; TerrainDisplacementRuntime | Retain approved engine GLSL view/frame subdivision and per-pool reactive values, including shadow variants and engine matrices. Binary displacement fixtures use DisplacementInputs. |
+| Terrain normals | vge_terrain_normal.glsl; TerrainSurfaceNormals | Retain approved engine GLSL per-pool two-sidedness. Owned eye/relief fixtures carry the equivalent integer in their fixture blocks. |
+| Display resolve | IPBRDisplayResolveShaderProgramBindings; PBRDisplayResolveShaderProgram; pbr_display_resolve.fsh | One shader-owned 16-byte block for the two integer routing values; keep typed setters, zero defaults, dirty suppression and SingleFrame publication. Use slot 28, distinct from inherited include blocks. |
+| Surface lighting | SurfaceLightingParamsUbo; lumon_surface_lighting.glsl; atmosphere snapshot publication | Lookup consumers now publish 144 bytes; producer-only atmosphere fields remain neutral. SurfaceLightingDispatch remains the owner of the real atmosphere values, as detailed below. |
+| Generated fixture values | IUniformStateComputeBindings and water UV/pixel-normal/receiver/diagnostic bindings | Typed per-fixture blocks with reviewed std140 offsets; retain independent array snapshots, mutation guards and numerical behavior. |
+| Fixed/numerical fixtures | TestShaderPrograms; BuiltShaderFixture; TerrainShaderTestFixture; numerical/state/particle tests | Share one UBO publication across stages for sun and eye matrices. Use existing publication helpers; preserve runtime compilation where source processing is the actual subject. |
+
+Approved boundary: untouched base-game matrices, shadow transforms/ranges and dynamic-light arrays
+remain engine-owned inputs on engine GLSL paths. VGE-owned SPIR-V fixtures importing those kernels
+need explicit fixture UBO inputs instead. Sampler/image locations, storage/atomic bindings, structural
+defines and specialization constants retain their existing distinct contracts. The block map and compatibility decision below define the implemented disposition.
+Completion still requires the final caller sweep and validation.
+
+### Approved engine publication boundary
+
+`GpuUniformRingModSystem` registers the existing publication epoch at the world's `Before`/`Done`
+render stages. `UniformPublication` requires an open epoch even for `MultiFrame` storage: retaining
+storage does not remove last-use accounting. `AtmosphereShaderBindingHook` also deliberately resets
+solar selection before a lighting snapshot exists, and `AtmosphereProgramBindings` initializes linked
+engine interfaces before their first draw. Moving those values to a UBO must preserve that behavior.
+Skipping the write when no ring is active would leave context-global bindings stale; it is not an adapter.
+
+Approved scope (2026-10-06): retain the engine GLSL numeric inputs as compatibility exceptions.
+This covers the atmosphere, scene-color routing, terrain subdivision and terrain-normal engine
+adapters inventoried above, including their VGE-added inputs. Preserve their current activation,
+name discovery and reload behavior. The engine-frame publication boundary stays unchanged.
+Every VGE-owned SPIR-V input and reusable binary fixture still migrates, including fixture copies
+of imported engine inputs. Runtime tests of those engine interfaces retain the matching compatibility
+declarations; test-owned numeric controls use blocks. Do not add a second allocator or bypass
+last-use tracking. This approval resolves the compatibility disposition, not the completion gate.
+
+### Exact retained engine numeric interfaces
+
+All members below are single values unless an array extent is shown. They retain engine GLSL
+program-local storage and the engine's linked-interface/reload lifecycle. Fixture copies use
+the block layouts below.
+
+| Members and types | Declaration source | CPU publication and frequency |
+| --- | --- | --- |
+| `vec3 vge_atmosphereEnvironment` | PbrTerrainColorPatches and PbrSurfaceShaderPatches | AtmosphereShaderBindingHook.Postfix publishes Lighting.Environment on each relevant engine Use when a snapshot exists. |
+| `vec3 vge_atmosphereSolar`; `vec3 vge_atmosphereSunDirection`; `vec3 vge_atmosphereAerialParams` | PbrSurfaceShaderPatches; AtmosphereSkyPatches also declares SunDirection | Same Postfix publishes snapshot Solar, Sun, and altitude/horizon/camera-underwater respectively on engine Use. |
+| `float vge_atmosphereLutHorizon` | AtmosphereSkyPatches | Same Postfix publishes snapshot horizon on sky activation. |
+| `int vge_atmosphereSunDraw`; `vec4 vge_atmosphereSun`; `vec4 vge_atmosphereDisk` | atmosphere_sun_vertex/fragment.glsl | Same Postfix resets SunDraw every Use, including startup; only solar draws write Sun direction/horizon and Disk radiance/angular radius. |
+| `int vge_pbrRoute` | PbrSurfaceShaderPatches | PbrDrawRouteHook.Postfix derives the route from the current engine render stage/framebuffer at Use. |
+| `int vge_sceneLinear` | PbrFinalDisplayPatches; SceneColorLegacyPatches; SceneColorPostprocessPatches; pbr_forward_surface.glsl; atmosphere_sun_fragment.glsl | SceneColorParticleCapture enables it for the borrowed particle program and resets it on scope disposal. Other engine programs retain existing zero/default routing unless their existing caller selects it. |
+| `int vge_displacementEnabled` | TerrainDisplacementPatches and terrain_displacement.glsl | TerrainDisplacementRuntime.Bind updates changed pool eligibility before adaptive grouped draws; resets publication knowledge on program replacement. |
+| `int vge_displacementReactive` | TerrainDisplacementPatches and terrain.tesh | Same Bind publishes frame/atlas change state at first relevant use each frame; shadow program excluded. |
+| `vec2 vge_tessellationDistance`; `vec4 vge_tessellationPixels`; `float vge_tessellationFocalPixels` | TerrainDisplacementPatches and terrain_displacement.glsl | Same Bind publishes fade distances, framebuffer size/target edge pixels/maximum level and focal scale once per program per frame. |
+| `int vge_twoSidedTerrain` | vge_terrain_normal.glsl | TerrainSurfaceNormals.Bind publishes per-pool two-sidedness before the grouped draw. |
+| `mat4 modelViewMatrix`; `mat4 viewMatrix` | PbrSurfaceShaderPatches selects the engine matrix; vge_view.glsl and terrain_displacement.glsl reuse modelViewMatrix | Existing engine matrix publication owns values and draw frequency; no replacement VGE upload owner. |
+| `mat4 mvpMatrix`; `mat4 projectionMatrix` | terrain_displacement.glsl | Existing engine view/draw matrix publication, retained with adaptive terrain's engine interface. |
+| `float shadowRangeFar`; `float shadowRangeNear`; `mat4 toShadowMapSpaceMatrixFar`; `mat4 toShadowMapSpaceMatrixNear` | TerrainTessellationStages | Existing engine shadow/view publication; injected stages reuse its data ownership. |
+| `vec3 pointLights[DYNLIGHTS]`; `vec3 pointLightColors[DYNLIGHTS]`; `int pointLightQuantity` | pbr_forward_surface.glsl | Existing engine light arrays/count; extent follows the engine's DYNLIGHTS compilation setting and values follow its draw publication. |
+
+AtmosphereProgramBindings.Register resolves active allowlisted members after linking and removes
+old metadata before recompilation. Its immediate initialization concerns aerial sampler units,
+not numeric values. Atmosphere sky/aerial textures, terrain relief/material textures and chunk-slot
+samplers are opaque resources and retain their binding contracts.
+
+### Block design for the binary-owned inputs
+
+Use explicit `std140` blocks and the existing generated `UniformBlock` resource submission. Typed
+scalar/vector/matrix setters write a shader-owned `CpuUniformBuffer`; array setters copy into owned
+packed storage. Register ownership and mutation guards through the existing shader owner. Default
+bytes are zero; unchanged writes retain revisions; changed inputs publish immutable versions at the
+next activation. Use `SingleFrame` initially, with no new lifetime policy or content cache. Borrowed
+fixture blocks remain fixture-owned and are disposed after submission has retired through the existing
+publication mechanism. Shared stages use one identical declaration and one logical publication.
+
+The following layouts give member byte offsets. Migrated program-owned inputs use the dedicated
+`GpuBindingRegistry.Ubo.ShaderInputs` slot 28, separate from imported frame/world-probe/material/terrain
+blocks at 12/13/15/27. Reusing a slot across different programs is valid, but every
+activation must establish that program's range through StateCache. Sampler and image slots are separate.
+
+| Block owner | Member offsets | Bytes |
+| --- | --- | ---: |
+| PBRDisplayResolveShaderProgram | sceneLinear 0; particleLayerEnabled 4 | 16 |
+| UniformStateComputeShader | scalar 0; values[2] 16 (stride 16); vector 48; transform 64 | 128 |
+| WaterUvRefraction fixture | surfaceVS 0; normalVS 16; projectionMatrix 32; inverseProjectionMatrix 96; frameSize 160; underwater 168 | 176 |
+| WaterPixelNormalRefraction fixture | surfaceVS 0; normalVS 16; baseNormalVS 32; projectionMatrix 48; inverseProjectionMatrix 112; frameSize 176; underwater 184 | 192 |
+| WaterReceiverFilter fixture | sampleUv 0; surfaceVS 16; normalVS 32; inverseProjection 48; frameSize 112 | 128 |
+| WaterRefractionDiagnostic fixture | diagnosticScenario 0; frameSize 8; customSurface 16; customNormal 32; diagnosticBudget 44; diagnosticSelect 48; diagnosticQuality 52; diagnosticUnderwater 56; projectionMatrix 64; inverseProjectionMatrix 128 | 192 |
+| temporal-debug fixture | prevViewProjMatrix 0; probeSpacing 64; debugMode 68; probeGridSize 72; depthRejectThreshold 80; normalRejectThreshold 84; temporalAlpha 88 | 96 |
+| eye-relative fixture, shared vertex/fragment declaration | modelViewMatrix 0; surface 64; outputMode 76; imported vge_twoSidedTerrain 80 | 96 |
+| sun-raster fixture, shared vertex/fragment declaration | vge_atmosphereSunDraw 0; vge_sceneLinear 4; vge_atmosphereSun 16; vge_atmosphereDisk 32; camera 48 | 64 |
+| aerial-lookup fixture | displacement 0; visibility 12 | 16 |
+| particle-draw fixture | colour 0; depthValue 16 | 32 |
+| rasterizer fixture | lineMode 0; zeroDepth 4 | 16 |
+| sun-segment fixture | elevation 0 | 16 |
+| relief fixtures | imported modelViewMatrix 0; imported vge_twoSidedTerrain 64; metric 72 | 80 |
+| displacement fixtures | mvpMatrix 0; modelViewMatrix 64; projectionMatrix 128; vge_tessellationFocalPixels 192; vge_displacementEnabled 196; vge_tessellationPixels 208; vge_tessellationDistance 224; sampleInput 240; distance 252 | 256 |
+
+Matrices use the existing CPU matrix convention and 16-byte column stride; matrix readback must check
+non-symmetric values. Integer and boolean shader controls use 32-bit components. A vec3 followed by a
+scalar can share its fourth component; an array element instead retains std140's 16-byte stride.
+These layouts are design inputs, not linked-layout verification receipts.
+
+The normal/depth import closes over `vge_view.glsl` and `vge_terrain_normal.glsl`; both eye-relative
+and relief fixture declarations therefore include their matrix/two-sided inputs even if a particular
+selection optimizes them away. Displacement fixtures share a superset layout for shadow and visible
+projection variants. Unused members remain zero; removal by optimization is distinct from missing
+required active input publication.
+
+Direct native-call scan: the migrated consumers no longer use `ShaderUniformUpload`, which has been removed. `GpuProgramLayout` and the terrain material/chunk-slot hooks also
+call `Uniform1`, but those calls assign sampler units; retain them. `UniformBlockBinding` calls
+establish resource interfaces, not numeric value uploads. Engine `program.Uniform` calls need their
+separate compatibility disposition and cannot be accounted for by scanning `GL.Uniform` alone.
+
+`RuntimeSubmissionEmitter` already distinguishes `CpuUniformBuffer` resources and validates all
+resources before publication. Reuse that path rather than generating ordinary numeric GL uploads for
+the new blocks. The obsolete `UniformValueReader` and `ShaderUniformPublication` paths have been removed.
+Typed setters now write the owned buffers; arrays retain copied values and mutation guards remain
+on the owning shader. The generator rejects numeric `UniformLocation` runtime properties, and
+prepared owned executables reject active standalone numeric uniforms. Sampler/image location
+metadata remains supported. Engine GLSL compatibility uses its existing separate interface.
+
+### Runtime source-test dispositions
+
+The raw C# declaration scan additionally finds the following runtime source families. Compilation
+remains runtime when source transformation or engine linking is the test subject; that fact alone
+does not exempt test-authored numeric inputs from block migration.
+
+| Test source | Numeric declarations / disposition |
+| --- | --- |
+| AtmosphereEngineBindingTests; AtmosphereSkyLookupTests | sampleDirection; retain engine patch/link exercise, move test-owned direction to a block; injected atmospheric inputs retain the approved engine GLSL interface |
+| AtmosphereSunBloomTests | attenuation; test-owned block, preserve the tested source processing |
+| PbrForwardSurfaceNumericalTests | surfaceView; fixture-owned matrix block, distinguish imported engine values |
+| PbrFinalDisplayDitherTests; SceneColorParticlePublicationTests | vge_sceneLinear; retain the approved production engine routing interface |
+| PbrTerrainCaptureGpuTests | normal-input, foliage-transmission and liquid-interface numerical fixtures now build through SpirvBuild; only the actual transformed-engine-main test compiles at runtime |
+| TerrainChunkSlotBindingTests | position/normal; fixture-owned block, preserve engine chunk-slot binding behavior |
+| TerrainDisplacementRasterTests | injected engine shadow matrices; retain engine contract test and reconcile other imported values |
+| ShaderPatchRecoveryTests | deliberately mismatched vec3/vec4 mismatch and invalid failedUniform source; retain standalone declarations because interface/source failure is the assertion |
+| UniformExtractorTests; ShaderSourceLayoutTests; DerivedGlobalConstantsTests; ShaderPatchingTests; PbrTerrainColorPatchesTests | parser, layout, compatibility-source and rejection strings; not runtime VGE numeric publication, retain input examples and update expected patched declarations where applicable |
+| RenderTestBase | comments on compatibility upload helpers; not shader declarations; audit helper callers before removal |
+
+### Surface-lighting ownership finding and baseline
+
+The 144-byte producer is `SurfaceLightingDispatch`: it already writes environment, solar and sun
+at offsets 96, 112 and 128 from `AtmosphereModSystem.Lighting`, with defined fallback values. Its
+compute shader consumes these fields during direct-light production. `SurfaceLightingParamsUbo`
+instead belongs to the three lookup consumers (`SurfaceLightingQueryBatch`, `WorldProbeTraceBatch`,
+and `LumOnScreenProbeAtlasTraceShaderProgram`), which sample previously produced radiance through
+`sampleSurfaceLighting`; they do not compute direct illumination from these atmosphere members.
+Its fix must supply the full shared block ABI with explicit neutral producer-only fields, preserve
+the lookup-domain values, and leave atmosphere publication with the producer. Copying live atmosphere
+into every lookup would introduce an unrelated dependency and would not change sampled radiance.
+
+Fresh normal shader-enabled baseline (2026-10-06): Debug passed 6/7 and stripped Release passed 1/7.
+Both configurations rebuilt 414 production and 486 shared stage binaries. Debug's failure is
+`LumOnNearFieldFunctionalTests.Parallax_ChangesDirectionalLookup` rejecting the 96-byte block.
+Release additionally fails two solar shared-uniform links (locations 12/16) and three eye-relative
+links (location 16). No workarounds or skipped variants were applied. Logs:
+`artifacts/ubo-migration-baseline-debug.log` and `artifacts/ubo-migration-baseline-release.log`.
+These are baseline failures, not migration acceptance. The lookup buffer now reserves the full
+144-byte ABI, retaining zero producer-only fields. Fresh focused verification passed 18/18 in
+Debug and 18/18 in stripped Release, with no skips: the formerly failing parallax case, world-probe
+transport and surface-lighting consumer lookup coverage. Logs: `artifacts/surface-lighting-abi-debug.log`
+(4 cases), `artifacts/surface-lighting-lookup-debug.log` (14 cases), and
+`artifacts/surface-lighting-abi-release.log` (18 cases). Source review confirms only lookup storage
+size changed; the producer's lighting values and ownership remain intact. Standalone numeric-input
+migration acceptance is established by the final combined evidence below, not this correction alone.
+
+Implemented migration: display resolve owns a 16-byte routing block;
+the four water fixture owners retain typed accessors backed by owned blocks; eye-relative and solar
+raster fixtures use one shared declaration and one publication across vertex and fragment stages.
+Engine include guards permit fixture-owned declarations while leaving the default engine interface
+unchanged. An emitted-source defect exposed by imported blocks (`}#line`) is corrected at directive
+insertion, with source-mapping regression coverage; shader compilation remains exclusively in SpirvBuild.
+
+### Current migration verification
+
+The consolidated migrated binary-fixture batch passed 241 tests in Debug and 241 in stripped
+Release, with one existing source-map skip in each configuration. Both configurations rebuilt
+414 production and 486 shared test shader variants. Logs are `artifacts/ubo-consolidated-debug.log`
+and `artifacts/ubo-consolidated-release.log`. These receipts predate removal of the obsolete numeric
+submission code and migration of runtime test-owned controls; final receipts below supersede them.
+
+Runtime engine-source tests use `FixtureUniformInputs` to publish their own `TestInputs` block
+through existing `CpuUniformBuffer` publication at slot 28. Engine-owned and approved VGE-added
+engine uniforms retain their compatibility API. `StandaloneNumericInputTests` deliberately links
+a numeric uniform to verify rejection by owned executable preparation; it is an intentional
+negative-test declaration, not an alternative submission path.
+
+The final fixture sweep also moves the numerical normal/transmission/liquid tests from
+`PbrTerrainCaptureGpuTests` into shared binary fixtures. `normal-input` shares a 16-byte block
+between vertex and fragment stages: transmission 0, two-sided 4, smooth-normal 8, back-facing 12.
+`foliage-transmission` uses 48 bytes: visibility 0, light direction 16, view direction 32.
+`liquid-interface` uses 16 bytes: cosine 0 and boolean underwater 4. All bind at slot 28, retain
+zero defaults and use one fixture-owned single-frame publication with per-case writes.
+The original transformed-engine-main assertion remains runtime GLSL.
+
+Range publication continues to validate size and slot through `GpuUniformBuffer.BindPublicationRange`
+and `GpuSupport`, using the existing ring alignment. Native shader compilation/linking checks
+per-stage and combined active block limits for the actual compiled variants. No secondary limits
+cache or allocation system is introduced.
+
+Binding snapshot reconciliation updates only display-resolve, uniform-state and the four migrated
+water fragment contracts: numeric locations are replaced by their named block at slot 28, while
+opaque resources and output metadata retain their contracts. The display vertex fingerprint remains
+unchanged. Missing water fragment rows are added for their reviewed block contracts. Unrelated
+pre-existing composite/catalog migration snapshot drift is not silently rebaselined.
+
+Measurement interpretation: ShaderBindingOperationTests counts ring bytes/allocations and native
+resource binds over eight repeated submissions after warm-up. Its zero numeric GL uploads follows
+from removal of that submission path; it is not a driver timing measurement. ShaderUniformStateTests
+checks one 128-byte publication shared across A/A/B/A/replacement activations and verifies GPU output.
+These counters concern GPU storage/publication, not all managed allocations (the array assignment
+workload still creates caller arrays). No CPU/GPU frame-time improvement or in-game visual acceptance
+is inferred from them.
+
+The corrected expanded Debug run (`artifacts/ubo-final-debug.log`) reports 1,815 passes,
+three pre-existing snapshot failures and one existing source-map skip. All 491 packaged binary
+specializations, declared graphics combinations, compute replacement/disposal cases and source
+registry coverage pass. The registry correction places shared declarations under `includes/tests`;
+the compute inventory now releases program state through StateCache rather than bypassing it.
+The remaining snapshot failures concern the older composite/catalog baseline, not a waived UBO ABI
+assertion. Corrected stripped Release inventory (`artifacts/ubo-final-inventory-release.log`)
+passes 1,464 cases with the one pre-existing wrong-stage recovery failure and no skips.
+All compiled selections specialize, every declared graphics combination links, and all compute
+replacement/disposal cases pass. The broader migrated numerical Release batch also passed its
+changed cases (`artifacts/ubo-final-release.log`); that earlier run exposed the subsequently fixed
+include classification and compute test cache bypass.
+
+Final supporting receipts (2026-10-06):
+
+| Verification | Debug | Stripped Release | Evidence |
+| --- | ---: | ---: | --- |
+| Contract generator | 173 passed | 173 passed | artifacts/ubo-generator-{debug,release}.log |
+| Shader build tool | 50 passed | 50 passed | artifacts/ubo-buildtool-{debug,release}.log |
+| Lifetime, sharing, ring, publication, production accessors and binding contracts | 63 passed | 63 passed | artifacts/ubo-lifetime-{debug,release}.log |
+| Operation counters and publication reuse | Covered in expanded tests | 6 passed with detailed counters | artifacts/ubo-operations-release.log |
+
+Both configurations compile 414 production and 491 shared binaries through the normal producer.
+Release retains optimization and strips debug names. Its incremental build reports zero compiler
+invocations; deleting the copied eye-relative fragment binary and rebuilding restores identical
+bytes through the existing cache, with 491 cache hits and zero compiler invocations. Receipts:
+`artifacts/ubo-incremental-release.log` and `artifacts/ubo-recovery-release.log`. The binary digest
+inventory verifies packaged bytes against the manifest.
+
+Eight unchanged submissions measured zero additional ring copies, allocations, native range binds,
+reflection or name-resolution work. The shared A/A/B/A/replacement case uses one 128-byte publication.
+The unchanged mixed-lifetime workload on both upload backends reports 128 logical publications;
+stable retained allocation count is 1 versus transient reference 8, and copied bytes are 16 versus
+128, with no blocking waits in this fixture. These are repeatable operation counts, not timing claims.
+
+Remaining broader-suite failures are retained and not skipped: three catalog/composite snapshot
+mismatches and the Release wrong-stage recovery case leaving InvalidValue before recovery preparation.
+`artifacts/shared-fixtures-debug.log` and `artifacts/shared-fixtures-release.log` establish them before
+this migration. The independent audit classified the unchanged wrong-stage recovery behavior as
+separate from numeric UBO publication; installed-generation preservation and the other reload/failure
+cases pass. The existing source-map skip also remains visible. No game was launched.
+
+Second source review checked CPU/GLSL layouts, ownership/disposal, mutation guards, failure-before-
+publication, sampler metadata, runtime compatibility and direct native-call cleanup. The independent
+completion audit accepted the implementation and final receipts after resolving the exact engine
+exception inventory. No migration finding remains. The known unrelated failures above remain
+visible; the audit does not characterize the entire repository suite as passing.

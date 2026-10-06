@@ -5,8 +5,11 @@
 uniform sampler2D primaryScene;
 uniform sampler2D primaryDepth;
 uniform sampler2D particleLayer;
-uniform int particleLayerEnabled;
-uniform int sceneLinear;
+layout(std140) uniform DisplayResolveInputs
+{
+    int sceneLinear;
+    int particleLayerEnabled;
+};
 layout(location = 0) out vec4 outColor;
 
 /** Hands off linear scene radiance or converts deferred geometry on the compatible legacy route. */

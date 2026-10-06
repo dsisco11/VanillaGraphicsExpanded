@@ -53,8 +53,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
 
             layout(local_size_x=1) in;
             layout(std430,binding=0) buffer Result { uvec4 value; vec4 patchUv; };
-            uniform vec3 position;
-            uniform vec3 normal;
+            layout(std140) uniform TestInputs { vec3 position; vec3 normal; };
             void main() {
                 vec4 worldPos=vec4(position,1); uvec4 vge_outPatchId;
                 vec3 vge_surfaceBasePosition=position;
@@ -106,6 +105,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             Assert.True(compiled != 0, GL.GetShaderInfoLog(shader));
             GL.AttachShader(program, shader); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            using var inputs = new FixtureUniformInputs(program, 32);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             generations.UploadDataImmediate(Enumerable.Range(0, 289).Select(i => (uint)(1000 + i)).ToArray());
             LumOnTerrainBridgeUboState.Update(new(16000, 0, 15999), new(30.11, 3, 22.5));
@@ -127,12 +127,13 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
                 GL.BindBufferBase(BufferRangeTarget.UniformBuffer, GpuBindingRegistry.Ubo.Object, unrelated);
                 GL.UseProgram(program);
                 TerrainLumonSceneChunkSlotUniformBindingHook.Use_Postfix(engineProgram);
-                GL.Uniform3(GL.GetUniformLocation(program, "normal"), normal[0], normal[1], normal[2]);
+                inputs.Vector(16, normal[0], normal[1], normal[2]);
                 // The engine subtracts CameraPos from poolOrigin before adding terrain vertices.
-                GL.Uniform3(GL.GetUniformLocation(program, "position"),
+                inputs.Vector(0,
                     movingPlayer ? (float)(surfaceX - camera.CameraX) : 0f,
                     movingPlayer ? (float)(surfaceY - camera.CameraY) : 0f,
                     movingPlayer ? (float)(surfaceZ - camera.CameraZ) : 0f);
+                inputs.Publish();
                 GL.DispatchCompute(1, 1, 1);
                 GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
                 uint[] actual = new uint[8];

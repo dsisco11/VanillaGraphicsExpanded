@@ -1,5 +1,6 @@
 uniform sampler2D vge_displacementTex;
 uniform sampler2D vge_normalDepthTex;
+#ifndef VGE_TESSELLATION_INPUTS
 #if VGE_TESS_SHADOW
 uniform mat4 mvpMatrix;
 #else
@@ -12,6 +13,7 @@ uniform int vge_displacementEnabled;
 uniform vec4 vge_tessellationPixels;
 // x/y = displacement fade start/end in metres; zero/invalid values disable displacement.
 uniform vec2 vge_tessellationDistance;
+#endif
 
 bool VgeFinite(vec3 v) { return !any(isnan(v)) && !any(isinf(v)); }
 bool VgeFinite2(vec2 v) { return !any(isnan(v)) && !any(isinf(v)); }

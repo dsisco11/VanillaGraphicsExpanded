@@ -142,10 +142,12 @@ public sealed class ShaderSourceCodeTests
         Assert.Contains(ranges, r => r.Resource.Path.Replace('\\', '/').Contains("shaders/includes/shared.glsl", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void FromSource_InlinesImports_AndProvidesSourceMap()
+    /// <summary>Imported declarations retain source mapping without inserting directives inside a line.</summary>
+    [Theory]
+    [InlineData("// Shared code\nfloat PI = 3.14159;\n", "float PI = 3.14159")]
+    [InlineData("#define VGE_VIEW_INPUTS 1\n#define VGE_TERRAIN_NORMAL_INPUTS 1\nlayout(std140, binding = 28) uniform EyeInputs\n{\n    mat4 modelViewMatrix;\n    vec3 surface;\n    int outputMode;\n    int vge_twoSidedTerrain;\n};\n", "uniform EyeInputs")]
+    public void FromSource_InlinesImports_AndProvidesSourceMap(string include, string declaration)
     {
-        const string include = "// Shared code\nfloat PI = 3.14159;\n";
 
         const string shader = "#version 330 core\n" +
                               "@import \"./includes/shared.glsl\"\n" +
@@ -191,7 +193,11 @@ public sealed class ShaderSourceCodeTests
 
         var emitted = NormalizeLineEndings(code.EmittedSource);
 
-        Assert.Contains("float PI = 3.14159", emitted);
+        Assert.Contains(declaration, emitted);
+        // A token-based insertion anchor may precede a block's semicolon. Directives must
+        // nevertheless start on their own line so preprocessing preserves valid GLSL.
+        Assert.All(emitted.Split('\n').Where(line => line.Contains("#line", StringComparison.Ordinal)),
+            line => Assert.StartsWith("#line", line.TrimStart()));
         Assert.DoesNotContain("@import", emitted);
 
         Assert.NotNull(code.ImportResult);

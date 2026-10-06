@@ -83,7 +83,9 @@ public sealed class SpirvInventoryTests : IDisposable
                 Assert.True(GpuComputePipeline.TryCreate(module, out var current, out string log, layout: layout), log);
                 using (current) {
                     Assert.NotNull(current); previous?.Dispose(); Assert.True(GL.IsProgram(current.ProgramId));
-                    current.Use(); Assert.Equal(current.ProgramId, GL.GetInteger(GetPName.CurrentProgram)); GL.UseProgram(0);
+                    current.Use(); Assert.Equal(current.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+                    // The next activation uses StateCache; release through that same owner.
+                    StateCache.Current.UseProgram(0);
                     int id = current.ProgramId; current.Dispose(); Assert.False(GL.IsProgram(id));
                     Assert.Equal(ErrorCode.NoError, GL.GetError()); previous = current;
                 }

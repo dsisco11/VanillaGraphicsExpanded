@@ -6,17 +6,9 @@ public sealed class RuntimeSubmissionTests
     private const string Support = """
         namespace VanillaGraphicsExpanded.Rendering
         {
-            public static class ShaderUniformValue
+            public static class ShaderInputSnapshot
             {
-                public static bool Equal<T>(T left, T right) => left is System.Array a && right is System.Array b
-                    ? System.Linq.Enumerable.SequenceEqual(System.Linq.Enumerable.Cast<object>(a), System.Linq.Enumerable.Cast<object>(b))
-                    : System.Collections.Generic.EqualityComparer<T>.Default.Equals(left, right);
-                public static T Snapshot<T>(T value) => value is System.Array array ? (T)(object)array.Clone() : value;
-            }
-            public struct ShaderUniformPublication<T>
-            {
-                public void Validate(object owner, int location, T value) { SubmissionRecorder.Calls += "validate-value;"; }
-                public void Publish(object owner, int location, T value) { SubmissionRecorder.Calls += "value;"; }
+                public static T Copy<T>(T value) => value is System.Array array ? (T)(object)array.Clone() : value;
             }
             public class GpuTexture { }
             public class CpuUniformBuffer { }
@@ -88,37 +80,6 @@ public sealed class RuntimeSubmissionTests
         """;
 
     #region Public API
-    /// <summary>Mutable authored sources are sampled once and compared by owned content rather than reference identity.</summary>
-    [Fact]
-    public void AuthoredMutableValuesRetainSnapshotsAndSkipEqualContent()
-    {
-        string source = """
-            internal interface IInputs
-            {
-                [ShaderBinding("values", ShaderBindingKind.UniformLocation, 120, ShaderStageKind.Fragment)]
-                float[] Values { get; }
-            }
-            """ + Header + """
-            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs
-            {
-                public int Reads;
-                public float[] Current = new float[] { 1, 2 };
-                public float[] Values { get { Reads++; return Current; } }
-                public string Observe() => __inputRevision + ":" + __activeState.Values[1] + ":" + Reads;
-            }
-            public static class Proof
-            {
-                public static string Run()
-                {
-                    var shader = new Shader(); shader.Use(); shader.Use();
-                    shader.Current[1] = 4;
-                    string before = shader.Observe(); shader.Use();
-                    return before + "|" + shader.Observe();
-                }
-            }
-            """;
-        Assert.Equal("1:2:2|2:4:3", GeneratorFixture.Generate(source, supportSource: Support).Run());
-    }
     /// <summary>Complete view/range payloads participate in generated change tracking while equal assignments skip.</summary>
     [Fact]
     public void GeneratedViewAndRangeStateRecordsOnlyActualChanges()
@@ -161,23 +122,6 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal("11", GeneratorFixture.Generate(source, supportSource: Support).Run());
     }
 
-    /// <summary>Ordinary integer values are not confused with raw engine texture IDs.</summary>
-    [Theory]
-    [InlineData("int", "3")]
-    [InlineData("bool", "true")]
-    [InlineData("System.Numerics.Vector2", "new(1, 2)")]
-    [InlineData("System.Numerics.Vector3", "new(1, 2, 3)")]
-    [InlineData("System.Numerics.Vector4", "new(1, 2, 3, 4)")]
-    [InlineData("System.Numerics.Matrix4x4", "System.Numerics.Matrix4x4.Identity")]
-    public void OrdinaryUploadTypesCompileWithoutTexturePolicy(string type, string value)
-    {
-        string source = "internal interface IInputs { [ShaderBinding(\"value\", ShaderBindingKind.UniformLocation, 120, ShaderStageKind.Fragment)] " +
-            type + " Value { get; set; } }" + Header +
-            "internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { } " +
-            "public static class Proof { public static string Run() { var shader = new Shader(); shader.Value = " + value +
-            "; shader.Use(); return VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls; } }";
-        Assert.Equal("validate-value;value;", GeneratorFixture.Generate(source, supportSource: Support).Run());
-    }
     /// <summary>Authored getters are sampled once and retained even when the scene source changes.</summary>
     [Fact]
     public void AuthoredSourcesUpdateTheGeneratedStateOncePerUse()
@@ -210,36 +154,32 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal("True:True:2", GeneratorFixture.Generate(source, supportSource: Support).Run());
     }
 
-    /// <summary>Ordinary mutable values use owned state and validation-before-publication ordering.</summary>
-    [Fact]
-    public void OrdinaryValuesRetainOwnedSnapshotsAndUseSuccessfulPublication()
+    /// <summary>Numeric runtime inputs must use blocks rather than generated ordinary GL uploads.</summary>
+    [Theory]
+    [InlineData("float")]
+    [InlineData("float[]")]
+    [InlineData("int")]
+    [InlineData("bool")]
+    [InlineData("System.Numerics.Vector2")]
+    [InlineData("System.Numerics.Vector3")]
+    [InlineData("System.Numerics.Vector4")]
+    [InlineData("System.Numerics.Matrix4x4")]
+    public void OrdinaryNumericBindingsRequireUniformBlocks(string type)
     {
         string source = """
             internal interface IInputs
             {
                 [ShaderBinding("value", ShaderBindingKind.UniformLocation, 120, ShaderStageKind.Fragment)]
                 float Value { get; set; }
-                [ShaderBinding("values", ShaderBindingKind.UniformLocation, 121, ShaderStageKind.Fragment)]
-                float[] Values { get; set; }
             }
             """ + Header + """
             internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
-            public static class Proof
-            {
-                public static string Run()
-                {
-                    var shader = new Shader(); var source = new float[] { 2, 3 };
-                    shader.Values = source; source[0] = 9;
-                    var copy = shader.Values; copy[0] = 8;
-                    shader.Use();
-                    return shader.Values[0] + ":" + VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
-                }
-            }
             """;
-        var result = GeneratorFixture.Generate(source, supportSource: Support);
-        Assert.Equal("2:validate-value;validate-value;value;value;", result.Run());
-        Assert.Contains(result.Generated, text => text.Contains("ShaderUniformPublication<float>", StringComparison.Ordinal));
+        var result = GeneratorFixture.Generate(source.Replace("float Value", type + " Value", StringComparison.Ordinal), supportSource: Support);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "VGEGEN001" &&
+            diagnostic.GetMessage().Contains("must use a uniform block", StringComparison.Ordinal));
     }
+
     /// <summary>Concrete texture owners are accepted and retain deferred sampler publication.</summary>
     [Theory]
     [InlineData("Texture2D")]

@@ -29,6 +29,9 @@ internal static class TestShaderPrograms
         foreach (string mode in new[] { "display", "linear" })
             programs.Add(new("tests/sun-raster-" + mode, [Numerical("sun-raster", ShaderStageKind.Vertex), Numerical("sun-raster-" + mode)], 1));
         programs.Add(new("tests/eye-relative", [Numerical("eye-relative", ShaderStageKind.Vertex), Numerical("eye-relative")], 1));
+        programs.Add(new("tests/normal-input", [Fixture("normal-input", "vsh", ShaderStageKind.Vertex), Fixture("normal-input", "fsh", ShaderStageKind.Fragment)], 1));
+        foreach (string name in new[] { "foliage-transmission", "liquid-interface" })
+            programs.Add(new("tests/" + name, [Fixture("numerical-quad", "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         return new(programs);
     }
     #endregion
@@ -37,28 +40,37 @@ internal static class TestShaderPrograms
     /// <summary>Uses existing fixture names as binary identities and leaves native specialization declarations in source.</summary>
     private static ShaderStageContract Stage(string name, ShaderStageKind kind) =>
         new("tests/clipdistance/" + name, "tests/clipdistance/" + name + ".glsl", kind, new GpuBindingContract());
-    /// <summary>Declares fixed fixture interfaces whose numeric locations are authored in source.</summary>
+    /// <summary>Declares fixed fixture resource interfaces and numeric input blocks.</summary>
     private static ShaderStageContract Fixture(string name, string suffix, ShaderStageKind kind)
     {
         var bindings = new GpuBindingContract();
         if (name == "temporal-debug") bindings.RegisterShaderStorageBlockBinding("Result", 0);
+        string? block = name switch { "temporal-debug" => "TemporalDebugInputs", "rasterizer" => "RasterizerInputs", "particle-draw" => "ParticleDrawInputs", "normal-input" or "foliage-transmission" or "liquid-interface" => "TestInputs", _ => null };
+        if (block != null) bindings.RegisterUniformBlockBinding(block, 28);
         if (name == "sampler-handoff") bindings.RegisterSamplerUnit("ordinaryTexture", 5);
         return new("tests/" + name + "." + suffix, "tests/" + name + "." + suffix, kind, bindings);
     }
-    /// <summary>Assigns stable locations to numerical fixtures and their imported production kernels.</summary>
+    /// <summary>Assigns numeric input blocks and opaque resource interfaces to numerical fixtures.</summary>
     private static ShaderStageContract Numerical(string name, ShaderStageKind kind = ShaderStageKind.Fragment)
     {
-        string[] uniforms = name.StartsWith("relief-", StringComparison.Ordinal) || name == "eye-relative"
-            ? ["vge_normalDepthTex", "metric", "surface", "outputMode", "modelViewMatrix", "vge_displacementTex", "vge_displacementRecords", "vge_twoSidedTerrain"]
-            : name.StartsWith("sun-", StringComparison.Ordinal)
-            ? ["elevation", "camera", "vge_atmosphereSunDraw", "vge_atmosphereSun", "vge_atmosphereDisk", "vge_sceneLinear"]
-            : name == "aerial-lookup"
-            ? ["displacement", "visibility", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation"]
-            : ["distance", "sampleInput", "vge_displacementTex", "vge_normalDepthTex", "mvpMatrix", "modelViewMatrix",
-                "projectionMatrix", "vge_tessellationFocalPixels", "vge_displacementEnabled", "vge_tessellationPixels", "vge_tessellationDistance"];
         var bindings = new GpuBindingContract();
-        // Leave room for matrix columns so the fixture ABI remains independent of declaration order.
-        for (int index = 0; index < uniforms.Length; index++) bindings.UniformLocations.Add(uniforms[index], index * 4);
+        // Preserve opaque resource locations while numeric controls live entirely in blocks.
+        if (name.StartsWith("relief-", StringComparison.Ordinal) || name == "eye-relative")
+        {
+            bindings.UniformLocations.Add("vge_normalDepthTex", 0);
+            bindings.UniformLocations.Add("vge_displacementTex", 20);
+            bindings.UniformLocations.Add("vge_displacementRecords", 24);
+        }
+        else if (name == "aerial-lookup")
+        {
+            bindings.UniformLocations.Add("vge_atmosphereAerialRadiance", 8);
+            bindings.UniformLocations.Add("vge_atmosphereAerialAttenuation", 12);
+        }
+        else if (!name.StartsWith("sun-", StringComparison.Ordinal))
+        {
+            bindings.UniformLocations.Add("vge_displacementTex", 8);
+            bindings.UniformLocations.Add("vge_normalDepthTex", 12);
+        }
         if (name == "aerial-lookup")
         {
             bindings.RegisterSamplerUnit("vge_atmosphereAerialRadiance", 11, required: false);
@@ -71,6 +83,16 @@ internal static class TestShaderPrograms
             if (name.StartsWith("relief-", StringComparison.Ordinal) || name == "eye-relative")
                 bindings.RegisterSamplerUnit("vge_displacementRecords", 2, required: false);
         }
+        string block = name switch
+        {
+            "eye-relative" => "EyeInputs",
+            "aerial-lookup" => "AerialLookupInputs",
+            "sun-segment" => "SunSegmentInputs",
+            _ when name.StartsWith("sun-raster", StringComparison.Ordinal) => "SunInputs",
+            _ when name.StartsWith("relief-", StringComparison.Ordinal) => "ReliefInputs",
+            _ => "DisplacementInputs"
+        };
+        bindings.RegisterUniformBlockBinding(block, 28);
         bindings.FragmentOutputLocations.Add("result", 0);
         bindings.FragmentOutputLocations.Add("color", 0);
         bindings.VaryingLocations.Add("vge_sunDirection", 0);

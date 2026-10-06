@@ -12,6 +12,7 @@ using TinyTokenizer.Ast;
 
 namespace VanillaGraphicsExpanded;
 
+/// <summary>Maps emitted shader lines back to imported source resources.</summary>
 internal static class LineDirectiveInjector
 {
     internal sealed class Result
@@ -28,6 +29,7 @@ internal static class LineDirectiveInjector
         };
     }
 
+    /// <summary>Inserts line-oriented diagnostics while preserving the shader token stream.</summary>
     public static Result TryInject(
         SyntaxTree tree,
         SourceMap sourceMap,
@@ -122,15 +124,16 @@ internal static class LineDirectiveInjector
         foreach (var ins in insertsByOffset)
         {
             // Insert at the node that contains this position. This is the most stable anchor for SyntaxEditor.
-            // NOTE: if this lands in the middle of a leaf, FindLeafAt returns that leaf and we insert before it.
-            // That is acceptable for #line directives (they are line-based and should begin at boundaries).
+            // FindLeafAt can anchor to a token before the requested line boundary, for example
+            // the semicolon after an imported uniform block. Supply the directive's leading
+            // newline explicitly so that token anchoring cannot produce "}#line ...".
             var leaf = tree.FindLeafAt(ins.offset);
             if (leaf is null)
             {
                 continue;
             }
 
-            editor.InsertBefore(leaf, ins.directive);
+            editor.InsertBefore(leaf, "\n" + ins.directive);
         }
 
         editor.Commit();

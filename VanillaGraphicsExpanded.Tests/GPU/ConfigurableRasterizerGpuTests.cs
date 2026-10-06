@@ -266,6 +266,9 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     private sealed class RasterDraw : IDisposable
     {
         private readonly int program, vao, framebuffer, color;
+        private readonly PackedUniformBuffer inputs = new(16);
+        private readonly GpuUniformRingFrameController frame;
+        private readonly GpuUniformRingBuffer? previousRing;
         public byte[] LastPixels { get; private set; } = [];
         /// <summary>Creates a 32-square target and vertex-ID geometry with explicitly written clip distances.</summary>
         public RasterDraw()
@@ -281,6 +284,11 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, color);
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
             GL.Viewport(0, 0, 32, 32); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+            // This fixture also runs in an isolated compatibility context. Its publications
+            // must retire on that context rather than borrowing the primary fixture's ring.
+            GpuUniformRingSystem.TryGetCurrent(out previousRing);
+            frame = new(new GpuUniformRingBuffer(4096, 1));
+            frame.BeginFrame();
         }
         /// <summary>Applies production raster policy, draws and counts nonzero red pixels.</summary>
         public int Count(GraphicsPipelineDesc pipeline, bool lines = false, bool zeroToOne = false)
@@ -288,15 +296,29 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             StateCache.Current.ApplyConfigurableRaster(pipeline);
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
             GL.UseProgram(program); GL.BindVertexArray(vao);
-            GL.Uniform1(0, lines ? 1 : 0);
-            GL.Uniform1(1, zeroToOne ? 1 : 0);
+            Span<byte> bytes = stackalloc byte[16];
+            bytes.Clear();
+            UboPacking.WriteInt32(bytes, 0, lines ? 1 : 0);
+            UboPacking.WriteInt32(bytes, 4, zeroToOne ? 1 : 0);
+            inputs.SetBytes(bytes);
+            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
             byte[] pixels = new byte[32 * 32 * 4]; GL.ReadPixels(0, 0, 32, 32, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             LastPixels = pixels;
             return Enumerable.Range(0, 1024).Count(i => pixels[i * 4] != 0);
         }
         /// <summary>Deletes native fixture resources before their context is destroyed.</summary>
-        public void Dispose() { GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer); GL.DeleteRenderbuffer(color); }
+        public void Dispose()
+        {
+            inputs.Dispose();
+            try { frame.EndFrame(); }
+            finally
+            {
+                frame.Dispose();
+                if (previousRing != null) GpuUniformRingSystem.SetCurrent(previousRing);
+                GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer); GL.DeleteRenderbuffer(color);
+            }
+        }
     }
     #endregion
 }

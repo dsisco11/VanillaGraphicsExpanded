@@ -1,6 +1,8 @@
+#ifndef VGE_ATMOSPHERE_SUN_INPUTS
 uniform int vge_atmosphereSunDraw;
 uniform vec4 vge_atmosphereSun; // admitted direction, planetary horizon elevation
 uniform vec4 vge_atmosphereDisk; // scene-linear disk radiance, angular radius
+#endif
 out vec3 vge_sunDirection;
 out vec2 vge_sunPlane;
 

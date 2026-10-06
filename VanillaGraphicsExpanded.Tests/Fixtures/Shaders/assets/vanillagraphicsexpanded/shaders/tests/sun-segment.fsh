@@ -1,6 +1,10 @@
 #version 450 core
+layout(std140, binding = 28) uniform SunSegmentInputs
+{
+    float elevation;
+};
 @import "../includes/atmosphere_solar_disk.glsl"
-uniform float elevation;
+
             layout(location=0) out vec4 result;
             void main() {
                 float visible=atmSunVisibility(elevation,0);

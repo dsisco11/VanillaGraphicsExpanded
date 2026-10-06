@@ -48,7 +48,7 @@ public sealed class AtmosphereEngineBindingTests(HeadlessGLFixture fixture, ITes
             // controlling only the viewing direction supplied by sky dome geometry.
             program.VertexShader.Code = """
                 #version 330 core
-                uniform vec3 sampleDirection;
+                layout(std140) uniform TestInputs { vec3 sampleDirection; };
                 out vec3 vertexPosition;
                 out vec4 rgbaFog;
                 out float nightVisionStrengthv;
@@ -79,6 +79,7 @@ public sealed class AtmosphereEngineBindingTests(HeadlessGLFixture fixture, ITes
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             if (raster)
             {
+                using var inputs = new FixtureUniformInputs(program.ProgramId, 16);
                 using var vao = GpuVao.Create();
                 using var framework = new ShaderTestFramework();
                 using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
@@ -114,7 +115,8 @@ public sealed class AtmosphereEngineBindingTests(HeadlessGLFixture fixture, ITes
                         target.BindWithViewport();
                         program.Stop();
                         program.Use();
-                        program.Uniform("sampleDirection", direction.X, direction.Y, direction.Z);
+                        inputs.Vector(0, direction.X, direction.Y, direction.Z);
+                        inputs.Publish();
                         program.Uniform("dayLight", 1f);
                         // Preserve installed underwater handling with an actual dry-scene depth input.
                         program.BindTexture2D("liquidDepth", dryDepth.TextureId, 0);

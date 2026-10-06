@@ -1,9 +1,17 @@
 #version 450 core
-uniform vec2 sampleUv;
-uniform vec3 surfaceVS;
-uniform vec3 normalVS;
-uniform mat4 inverseProjection;
-uniform vec2 frameSize;
+layout(std140, binding = 28) uniform WaterReceiverFilterInputs
+{
+    vec2 sampleUv;
+    vec3 surfaceVS;
+    vec3 normalVS;
+    mat4 inverseProjection;
+    vec2 frameSize;
+};
+
+
+
+
+
 ivec4 receiverWork = ivec4(0);
 #define VGE_REFRACTION_DEPTH_FETCH() receiverWork.x++
 #define VGE_REFRACTION_COLOR_FETCH() receiverWork.y++

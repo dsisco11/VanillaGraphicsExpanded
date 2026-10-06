@@ -2,7 +2,9 @@
 #define VGE_VIEW_GLSL
 
 // Shared with the vanilla terrain vertex stage and populated by the engine for this draw.
+#ifndef VGE_VIEW_INPUTS
 uniform mat4 modelViewMatrix;
+#endif
 
 /// Returns the fragment-to-eye vector in world axes from a render-relative terrain position.
 vec3 VgeFragmentToEyeWorld(vec3 renderRelativePos)
