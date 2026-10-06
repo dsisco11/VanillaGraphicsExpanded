@@ -1,9 +1,9 @@
 Authoritative graphics pipeline state
 ====================================
 
-Source proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; no parent phase is complete.
-Project index: project.todo / Performance / PipelineState.
+Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phase 1 contracts are complete, Phases 2–9 remain pending.
+Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
   Establish explicit state ownership for VGE-owned graphics draws, preserving shader activation,
@@ -17,7 +17,7 @@ Goal and execution contract
   Never launch Vintage Story. Live game/RenderDoc evidence is supplied by the user.
   Keep tasks unchecked until their stated verification is complete. Distinguish source review,
   unit/headless integration evidence, live rendering evidence, and measured performance.
-  Implementation evidence belongs in docs/Rendering.AuthoritativePipelineState.md (to be created).
+  Implementation evidence belongs in Rendering.AuthoritativePipelineState.md.
 
 Scope boundaries
   Preserve existing resource hierarchies, disposal queues, shader reflection/preparation, generated
@@ -25,14 +25,16 @@ Scope boundaries
   Retain explicit partial overrides at documented compatibility boundaries.
   Resource hazards, barriers, resolves, blits and readback remain explicit operations.
   Renderbuffer binding is resource-operation state, not graphics pipeline identity.
+  One live rendering context; context switching/loss/replacement recovery is separate future work.
   No render graph, deferred command recording, multithreaded GL submission or additional backend.
   Pipeline interning, prewarming and asynchronous preparation remain follow-up capabilities.
   No blanket engine-wide authority claim or removal of all invalidation/restoration scopes.
   Rename types as they migrate; a repository-wide unrelated resource rename is outside this plan.
 
 Approved sequencing exception — engine-boundary restoration (2026-10-05)
-  Source: docs/Rendering.EngineBoundaryRestoration.Proposal.md, approved by the user.
-  Execution plan: docs/Rendering.EngineBoundaryRestoration.todo.
+  Historical restoration proposal/plan were approved, implemented and retired.
+  Retained source/evidence: Rendering.AuthoritativePipelineState.md / Engine-boundary restoration.
+  The retired documents are not current execution dependencies.
   Bring forward the shared StateCache restoration mechanism and pre-overlay refraction adapter
   before complete graphics submission and the normal production-consumer migration sequence.
   First establish the affected boundary inventory, context policy, state coverage and validation.
@@ -41,34 +43,42 @@ Approved sequencing exception — engine-boundary restoration (2026-10-05)
   Reuse this mechanism when GraphicsCommandContext and complete pipelines are introduced.
   Keep all completion markers unchecked until their full contracts and verification are satisfied.
   Inventory, categorized cache foundation and declared entry/resolved snapshots are complete under
-  the linked restoration plan. Scoped restoration/cleanup and refraction/lighting/composite integration
+  the retained restoration evidence. Scoped restoration/cleanup and refraction/lighting/composite integration
   are also complete. Caller reconciliation and user live acceptance after the startup correction are
-  recorded in the implementation evidence; the bounded restoration plan is complete. No parent phase is complete.
+  recorded in the implementation evidence; the bounded restoration plan is complete. This historical exception alone does not complete a parent phase.
 
 Phase 1: Establish state and consumer contracts
   Dependencies: approved proposal.
   Outcome: explicit supported state inventory and migration boundaries that later work can implement.
+  Decisions and source evidence: Rendering.AuthoritativePipelineState.md / Graphics submission design contract.
+  Traceability: consumer inventory -> Consumer and mutation coverage; supported defaults -> Supported state and defaults;
+  layouts/targets/lifetime -> Geometry, target and executable contracts; restoration -> Restoration decisions by boundary;
+  reference cases and evidence categories -> Deterministic reference and evidence boundaries.
+  Scope reconciliation: user-directed context recovery removal supersedes original generation requirements.
+  Completed 2026-10-05: second source review and independent audit-stage-completion passed with no findings.
+  Validation: source/contract inventory, linked-file validation and git diff --check. Documentation-only;
+  no new build, headless-rendering, live-game or performance result is claimed.
 
-  ☐ Inventory graphics consumers and native/engine mutation paths.
-    ☐ Locate descriptor application, framebuffer blend policy, raw GL changes, shader activation,
+  ☑ Inventory graphics consumers and native/engine mutation paths.
+    ☑ Locate descriptor application, framebuffer blend policy, raw GL changes, shader activation,
       MeshRef/VAO draws, tessellation setup, and capture/invalidation scopes.
-    ☐ Classify every consumer as VGE-owned or engine-owned; record required adapters and migration order.
-    ☐ Classify mutation paths as observed, explicitly restored or unknown, including existing Harmony hooks.
-    ☐ Audit renderbuffer binding/scope coverage without adding it to the PSO key.
-  ☐ Resolve and document the proposal's open design choices before their dependent implementations.
-    ☐ Specify supported state and defaults: depth/stencil, rasterizer, indexed blending, sampling,
+    ☑ Classify every consumer as VGE-owned or engine-owned; record required adapters and migration order.
+    ☑ Classify mutation paths as observed, explicitly restored or unknown, including existing Harmony hooks.
+    ☑ Audit renderbuffer binding/scope coverage without adding it to the PSO key.
+  ☑ Resolve and document the proposal's open design choices before their dependent implementations.
+    ☑ Specify supported state and defaults: depth/stencil, rasterizer, indexed blending, sampling,
       framebuffer sRGB, clipping/depth conventions, restart, patch size and shader-controlled point size.
-    ☐ Declare viewport/scissor, stencil reference and blend constant dynamic where applicable;
+    ☑ Declare viewport/scissor, stencil reference and blend constant dynamic where applicable;
       choose depth-range ownership and line-width/point-size policy from actual consumers.
-    ☐ Define vertex layout and geometry adapters for MeshRef and VGE VAOs.
-    ☐ Define exact normalized format/sample matching, sparse routing and intentionally discarded outputs.
-    ☐ Define wrapped/default framebuffer metadata providers and refresh boundaries.
-    ☐ Establish shader executable generation and context generation identity sources.
-    ☐ Specify per-boundary engine restoration sets and known-state versus capture policy.
-  ☐ Create the implementation evidence document with a consumer/state coverage matrix and source links.
-    ☐ Record deterministic direct-lighting reference cases and comparison methodology before migration.
-    ☐ Record unsupported features as rejected or excluded by a verified boundary, never ambient defaults.
-  ☐ Completion gate: every open choice has a documented decision for the first consumer and a defined
+    ☑ Define vertex layout and geometry adapters for MeshRef and VGE VAOs.
+    ☑ Define exact normalized format/sample matching, sparse routing and intentionally discarded outputs.
+    ☑ Define wrapped/default framebuffer metadata providers and refresh boundaries.
+    ☑ Establish shader executable revision and same-live-context lifetime policy; defer context recovery.
+    ☑ Specify per-boundary engine restoration sets and known-state versus capture policy.
+  ☑ Create the implementation evidence document with a consumer/state coverage matrix and source links.
+    ☑ Record deterministic direct-lighting reference cases and comparison methodology before migration.
+    ☑ Record unsupported features as rejected or excluded by a verified boundary, never ambient defaults.
+  ☑ Completion gate: every open choice has a documented decision for the first consumer and a defined
     resolution prerequisite for remaining consumers; scope and evidence categories are explicit.
 
 Phase 2: Complete immutable descriptions
@@ -87,21 +97,21 @@ Phase 2: Complete immutable descriptions
     ☐ Separate partial override identity from complete descriptions; retain stable legacy mask numbering.
   ☐ Implement deep immutability, structural equality and hashing.
     ☐ Include every behavior-affecting field; exclude debug labels, actual FBO IDs and dimensions.
-    ☐ Separate reusable description identity from live executable/context realization identity.
+    ☐ Separate reusable description identity from live executable revision and renderer lifetime identity.
     ☐ Reject invalid combinations and unsupported capabilities in all builds.
   ☐ Delegate focused unit tests in Debug and Release for immutability, equivalent copied arrays,
     field-sensitive identity, defaults, dynamic requirements and invalid combinations.
   ☐ Completion gate: published descriptions cannot be mutated; supported state has explicit ownership;
     complete and partial descriptions cannot be accidentally interchanged.
 
-Phase 3: Context-aware state application and engine boundaries
+Phase 3: Complete state application and engine boundaries
   Dependencies: Phases 1–2.
   Outcome: complete descriptions can be applied independently of prior state and safely restored.
 
-  ☐ Extend and migrate GlStateCache to StateCache, updating references atomically with the rename.
+  ☐ Extend the existing categorized StateCache; its rename and storage foundation are already complete.
     ☐ Implement all supported static/dynamic transitions while preserving existing binding caches.
     ☐ Handle global/indexed blend interactions, write masks and disabled-to-enabled transitions.
-    ☐ Associate knowledge with context generation; reset on replacement/loss/switch as required.
+    ☐ Preserve explicit lifecycle/external invalidation and same-live-context scope lifetime; do not add context replacement tracking.
     ☐ Invalidate affected resource bindings on retirement and native-name reuse; preserve VAO-aware EBO tracking.
   ☐ Implement focused engine boundary adapters for the first consumer and shared mechanisms.
     ☐ Capture or obtain required incoming state; restore native state and engine shader ownership.
@@ -111,13 +121,13 @@ Phase 3: Context-aware state application and engine boundaries
   ☐ Add bounded instrumentation for state calls, queries and draw submission verification.
   ☐ Delegate headless transition tests after deliberately hostile prior state and A-to-B-to-A changes.
     ☐ Verify indexed blend/masks, sampling, stencil and rasterizer results, not only cached fields.
-    ☐ Verify redundant-call suppression, context replacement, retirement and name reuse.
+    ☐ Verify redundant-call suppression, explicit lifecycle invalidation, retirement and name reuse.
     ☐ Verify boundary restoration and unknown external mutation handling on success and exceptions.
   ☐ Completion gate: first-consumer state application and restoration are proven before production
     migration; unverified engine paths remain explicitly outside authority.
 
 Phase 4: Prepared graphics pipelines and executable compatibility
-  Dependencies: Phases 1–3, including executable/context identities.
+  Dependencies: Phases 1–3, including executable revision and same-live-context lifetime policy.
   Outcome: validated GraphicsPipeline realizations usable by submission without per-draw reflection.
 
   ☐ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.
@@ -126,12 +136,12 @@ Phase 4: Prepared graphics pipelines and executable compatibility
     ☐ Add missing interface validation at preparation time; do not build parallel reflection/binding systems.
   ☐ Publish prepared objects only after successful validation.
     ☐ Retain needed dependency references without acquiring ownership of externally owned shader resources.
-    ☐ Reject retired dependencies and obsolete executable/context generations.
+    ☐ Reject retired dependencies and obsolete executable revisions; confine use to the owning renderer lifetime.
     ☐ Invalidate on reload; revalidate incompatible changes before publishing replacements.
     ☐ Preserve existing deferred deletion; do not invent ResourceId for a managed aggregate.
     ☐ Use explicit prepared objects; defer registry/interning and bound future cache requirements in docs.
   ☐ Delegate tests for interface/format/sample mismatch, unsupported stages/settings, failed preparation,
-    compatible/incompatible reload, explicit disposal and context generation replacement.
+    compatible/incompatible reload, explicit disposal and renderer teardown within the same live context.
   ☐ Completion gate: failures cannot expose a partially usable pipeline; no steady-state interface queries.
 
 Phase 5: Render passes and target lifetime
@@ -160,7 +170,7 @@ Phase 6: Immediate graphics submission
   ☐ Implement DynamicDrawState, geometry adapters and a thin GraphicsCommandContext.
     ☐ Support BeginPass, pipeline/dynamic selection, existing shader-input assignment, Draw and EndPass.
     ☐ Reject accidental nesting and draws outside a valid pass.
-    ☐ Validate current target/generations, geometry layout/topology, required dynamics and resources.
+    ☐ Validate current target/executable revision, geometry layout/topology, required dynamics and resources.
     ☐ Use existing engine-aware shader activation and input publication, including CurrentShaderProgram,
       overlapping-owner restrictions, failure cleanup and recursion/mutation guards.
     ☐ Publish changed resources/uniforms even when the selected pipeline is unchanged.
@@ -208,7 +218,7 @@ Phase 8: Remaining VGE consumers and compatibility cleanup
     ☐ Move framebuffer blend policy to pipeline descriptions as its consumers migrate.
     ☐ Add output, lifetime, routing and restoration regression evidence for each consumer family.
   ☐ Migrate VGE-owned debug/tessellation/terrain-related draws using the required specialized adapters.
-    ☐ Follow docs/Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition for
+    ☐ Follow Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition for
       both DebugView consumers and LumOn's OIT, AfterBlit and atlas-overlay entries. Remove the dormant
       RenderWorldProbeClipmapBoundsFrozen method or validate its independent adapter before reuse.
     ☐ Preserve engine-owned rendering behind explicit compatibility boundaries; do not claim ownership

@@ -6,7 +6,7 @@ Status: approved on 2026-10-03. Implementation plan: [Rendering.AuthoritativePip
 
 Evolve VGE's pipeline descriptions and GL state cache into an authoritative graphics submission system. A VGE-owned draw should establish its shader, fixed-function state, target compatibility, geometry bindings, resource bindings, and required dynamic values through a documented contract. Its behavior must not depend on undocumented state left by a previous draw.
 
-Keep `GlStateCache` as the mechanism that suppresses redundant native operations. Build pipeline, render-pass, and submission responsibilities above it, preserving existing shader preparation, resource ownership, and engine integration.
+Keep `StateCache` as the mechanism that suppresses redundant native operations. Build pipeline, render-pass, and submission responsibilities above it, preserving existing shader preparation, resource ownership, and engine integration.
 
 The expected benefits are predictable draw behavior, earlier compatibility errors, reusable pipeline descriptions, and fewer scattered state operations. CPU savings, GPU savings, and reduced driver compilation stalls require measurement; none are established by this proposal.
 
@@ -29,7 +29,7 @@ The name “GlPipelineState system” currently refers to several cooperating ty
 
 `GlPipelineDesc` copies indexed arrays during construction but exposes arrays through getters. A readonly struct therefore does not make its complete payload immutable. It also has no explicit structural pipeline-key contract.
 
-`GlStateCache.Current` is thread-local. Its lifetime must be reconciled with GL context identity before a pipeline cache or command context relies on it across context replacement or switches.
+`StateCache.Current` is thread-local and relies on explicit invalidation at renderer and external-operation boundaries. Per the subsequent user scope decision, this work assumes one live rendering context; context switching/loss/replacement recovery is deferred. GpuSupport retains its capability registration lifecycle.
 
 ## Pipeline model
 
@@ -62,13 +62,13 @@ The following type names are illustrative. Their responsibility boundaries are t
 | Component | Owns | Excludes |
 | --- | --- | --- |
 | `GraphicsPipelineDesc` | Complete static configuration, shader/vertex interface identity, topology, target signature, dynamic-state declaration | Actual framebuffer and resource instances |
-| `GraphicsPipeline` | Prepared and validated pipeline realization for a shader executable generation and GL context generation | Render-target allocation and application resource ownership |
+| `GraphicsPipeline` | Prepared and validated pipeline realization for a shader executable revision within one live rendering-context lifetime | Render-target allocation and application resource ownership |
 | `RenderPassDesc` | Concrete target, output routing, attachment load/store intentions, clear values, render area | Shader and blend policy |
 | `DynamicDrawState` | Declared dynamic values such as viewport, scissor rectangle, stencil reference, blend constant | Implicit inheritance from arbitrary GL state |
 | Existing shader input/binding infrastructure | Actual shader resources and uniform values, validated against the executable contract | Fixed-function pipeline policy |
 | Geometry binding description/adapter | Vertex/index buffer instances, offsets, index type, draw range, compatible vertex layout | Shader preparation |
 | `GraphicsCommandContext` | Pass lifetime, pipeline selection, draw validation, submission ordering, external-state boundaries | Resource allocation algorithms and a second shader binding implementation |
-| `StateCache` (existing `GlStateCache`) | Known native state and minimal state transitions | Pass policy, pipeline registry, resource ownership |
+| `StateCache` | Known native state and minimal state transitions | Pass policy, pipeline registry, resource ownership |
 
 Dependencies flow from renderers into pass/pipeline/submission APIs, then into existing resource and shader abstractions and the state cache. The command context is a thin composition root. Compatibility validation, pipeline keys, pass descriptions, and engine adapters each belong in separate files with one clear responsibility.
 
@@ -125,7 +125,7 @@ Reuse `GpuBindingContract`, `GpuPreparedBindings`, generated shader inputs, and 
 
 The descriptor must have deeply immutable payloads and structural equality. Canonical keys include every behavior-affecting static field, dynamic declaration, target signature, vertex layout, and shader variant/layout identity. Debug labels are excluded. Hash collisions require equality comparison. Native object names alone are not durable identities because they can be reused.
 
-Distinguish a reusable description key from a live realization bound to an executable generation and context generation. Shader reload invalidates dependent realizations; incompatible reloads fail validation before the new realization is published. Failed preparation must not leave a partially valid pipeline available for drawing. Preserve existing shader ownership and deferred-deletion mechanisms.
+Distinguish a reusable description key from a live realization bound to an executable revision and renderer lifetime. Shader reload invalidates dependent realizations; incompatible reloads fail validation before the new realization is published. Failed preparation must not leave a partially valid pipeline available for drawing. Preserve existing shader ownership and deferred-deletion mechanisms.
 
 The prepared object retains the dependencies needed for immediate submission without taking ownership of externally owned shader resources. Explicit disposal still invalidates use. If a future implementation creates pipeline-owned native objects, their retirement must follow existing `GpuResource`/disposal-queue rules. A managed aggregate should not invent a native `ResourceId` merely to inherit `GpuResource`.
 
@@ -146,7 +146,7 @@ EndPass()
 
 Before a draw, the command context must:
 
-1. Confirm the pass, target references, context generation, and pipeline realization remain valid.
+1. Confirm the pass, target references, shader executable revision, and pipeline realization remain valid within the same live rendering-context lifetime.
 2. Validate target signature, geometry layout/topology, required dynamic state, and resource contract.
 3. Activate the shader through its established engine-aware lifecycle and publish current inputs through the existing submission path.
 4. Establish pipeline, dynamic, geometry, and resource state through the appropriate adapters/cache.
@@ -174,7 +174,7 @@ Define an engine boundary adapter that captures the necessary incoming state or 
 
 Inventory engine mutation entry points by category and mark each as observed, explicitly restored, or unknown. Hooks should record successful mutations without recursively issuing the same native call. Known hooks do not establish coverage for arbitrary other mods or raw GL calls.
 
-Associate cached state and prepared realizations with a GL context generation. On context replacement or loss, discard old cache knowledge and realizations. A thread-local cache can remain an access mechanism only if context ownership/switching rules make that association reliable.
+Confine cached state, scopes and prepared realizations to the same live rendering context. Dispose realizations at renderer teardown and preserve explicit cache invalidation at lifecycle/external boundaries. Do not add context generations to StateCache or pipeline identities in this work; context loss/replacement/switching recovery is deferred by user direction. Capability readiness remains owned by GpuSupport.
 
 Resource retirement and native name reuse must invalidate affected bindings. Keep existing texture/buffer/VAO-aware tracking; extend equivalent lifecycle handling where the complete pipeline path exposes gaps.
 
@@ -210,7 +210,7 @@ Choose actual source names and namespace placement during implementation, preser
 - Every behavior-affecting field changes identity as intended; debug labels and framebuffer dimensions do not.
 - Invalid combinations reject in release as well as debug builds.
 - Unsupported capabilities, vertex interface mismatches, and output format/sample mismatches reject preparation or pass binding.
-- Shader reload and context replacement invalidate live realizations without aliasing recycled native IDs.
+- Shader reload and explicit disposal invalidate live realizations without aliasing recycled native IDs. All submission remains within one live rendering-context lifetime; replacement recovery is outside this scope.
 
 ### Headless graphics checks
 
@@ -243,4 +243,4 @@ Acceptance requires complete state ownership for each migrated draw, compatible 
 - The restoration set for each engine boundary and whether a known-state contract can replace capture at that boundary.
 - Which dynamic values, beyond viewport/scissor/reference/constant, production consumers actually need.
 
-These are bounded design choices within the proposed responsibility model. Until resolved, retain conservative validation and existing restoration behavior rather than assuming undocumented engine state.
+These bounded choices are now specified in [Graphics submission design contract](Rendering.AuthoritativePipelineState.md#graphics-submission-design-contract), including supported defaults, consumer adapters, metadata providers, executable revision and boundary policies. Runtime implementation and its validation remain scheduled in the implementation plan. Retain existing restoration behavior until the replacement path satisfies those contracts.
