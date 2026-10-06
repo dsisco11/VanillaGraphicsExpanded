@@ -21,21 +21,8 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
-            #version 430 core
-            void main() { vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3)); gl_Position=vec4(p[gl_VertexID],0,1); }
-            """);
-        string directory = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string source = File.ReadAllText(Path.Combine(directory, "atmosphere_aerial.glsl"))
-            .Replace("@import \"./atmosphere_sky_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_sky_mapping.glsl")))
-            .Replace("@import \"./atmosphere_aerial_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_aerial_mapping.glsl")));
-        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + source + """
-
-            uniform vec3 displacement;
-            uniform float visibility;
-            layout(location=0) out vec4 result;
-            void main() { result=vec4(VgeApplyAerial(vec3(1), displacement, visibility, vec2(.001,0), vec3(0,1,0)),1); }
-            """);
+        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
+        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/aerial-lookup.fsh");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         using var framework = new ShaderTestFramework();
@@ -57,7 +44,7 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
         owner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.CreateRange(new float[width * height * 4]))
         { Width = width, Height = height, AerialRadiance = ImmutableArray.CreateRange(scatter), AerialAttenuation = ImmutableArray.CreateRange(loss), AerialMie = ImmutableArray.CreateRange(mie) });
-        var layout = GpuProgramLayout.TryBuild(program.ProgramId);
+        var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/aerial-lookup.fsh");
         StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
         using var r = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
         using var a = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);

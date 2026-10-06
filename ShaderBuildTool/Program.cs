@@ -48,7 +48,8 @@ internal static class Program
             Console.WriteLine($"[SPIR-V] Starting shader build: incremental={options.Incremental}; clean={options.Clean}; verifyContents={options.VerifyContents}; output='{outputRoot}'.");
             ShaderVariantResolver registry = options.RegistryScope switch
             {
-                "production" => GpuShaderContracts.Registry,
+                "production" => new ShaderVariantResolver(GpuShaderContracts.Registry.Programs.Values.Where(program => !program.Identity.StartsWith("tests/", StringComparison.Ordinal))),
+                "tests" => TestShaderPrograms.Create(),
                 "build-validation" => BuildValidationShaderPrograms.Create(),
                 "build-validation-graphics" => BuildValidationShaderPrograms.Create(includeCompute: false),
                 _ => throw new OptionsException("Unknown registry scope: " + options.RegistryScope)
@@ -248,7 +249,7 @@ internal static class Program
             Console.WriteLine("  --outputRoot <path>   Output root for artifacts (e.g. <project>/artifacts/spirv)");
             Console.WriteLine("\nOptional:");
             Console.WriteLine("  --concurrency <count>        Maximum concurrent compiler jobs (default: min(8, logical CPU count); 1 is serial)");
-            Console.WriteLine("  --registry <scope>   production, build-validation, or build-validation-graphics");
+            Console.WriteLine("  --registry <scope>   production, build-validation, build-validation-graphics, or tests");
             Console.WriteLine("  --domain <name>       Asset domain (default: vanillagraphicsexpanded)");
             Console.WriteLine("  --targetEnv <env>     shaderc target env (default: opengl4.5)");
             Console.WriteLine("  --warningsAsErrors    Pass -Werror to compiler");

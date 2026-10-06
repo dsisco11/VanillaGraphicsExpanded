@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–3 and Subphases 2.1–2.2 and 3.1–3.2 are complete; Phases 4–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–4 and Subphases 2.1–2.2 and 3.1–3.2 are complete; Subphases 4.1–4.2 and Phases 5–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -447,36 +447,220 @@ Subphase 3.2: Audit and pack boolean state values
 Phase 4: Prepared graphics pipelines and executable compatibility
   Dependencies: Phases 1–3 including Subphases 2.1–2.2 and 3.1–3.2, executable revision and same-live-context lifetime policy.
   Outcome: validated GraphicsPipeline realizations usable by submission without per-draw reflection.
+  Completed 2026-10-06: shader-enabled Debug and Release 79/79 each, zero failures/skips;
+  second source review and independent audit-stage-completion passed with no unresolved findings.
+  Evidence and task/source mapping: Rendering.AuthoritativePipelineState.md / Prepared graphics realizations (2026-10-06).
+  Production migration, live-game acceptance and performance measurements remain later work.
 
-  ☐ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.
-    ☐ Validate active stages, vertex attributes/scalar interpretation/components/divisors, fragment output
+  Historical clipping implementation note: Subphase 4.2 supersedes the authored descriptor mask
+  and runtime parser recorded below; completed receipts remain historical, not acceptance of that correction.
+
+  ☑ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.
+    ☑ Validate active stages, vertex attributes/scalar interpretation/components/divisors, fragment output
       locations/scalar classes, resource layout, static state, target signature and capabilities.
-    ☐ Add missing interface validation at preparation time; do not build parallel reflection/binding systems.
-    ☐ Derive built-in ClipDistance outputs and array extent for the final vertex-producing stage of
+    ☑ Add missing interface validation at preparation time; do not build parallel reflection/binding systems.
+    ☑ Derive built-in ClipDistance outputs and array extent for the final vertex-producing stage of
       each actual compiled variant through the existing compiler/interface ownership path. Current
       GpuProgramInterface/GpuPreparedBindings reflect resources, not these built-in outputs.
       Resolve specialization-dependent extents; handle optimized binaries and absent debug names.
       Do not reintroduce authored output masks.
-    ☐ Validate enabled clip-distance bits against verified compiled outputs; reject missing or
+    ☑ Validate enabled clip-distance bits against verified compiled outputs; reject missing or
       unverifiable outputs before publishing a usable pipeline. Reflection does not prove writes
       on every control-flow path; retain the shader author's defined-output obligation.
-    ☐ Add compiled-shader/preparation fixtures for absent/present outputs, out-of-range enabled bits,
+    ☑ Add compiled-shader/preparation fixtures for absent/present outputs, out-of-range enabled bits,
       variant-dependent outputs and final vertex/geometry/tessellation-evaluation stage selection.
       Cover Debug/Release reflection, failed publication and unchanged-input metadata reuse.
-  ☐ Preserve immutable description-based pipeline identity; cached category values, packed boolean
+  ☑ Preserve immutable description-based pipeline identity; cached category values, packed boolean
     storage and knowledge masks are mutable implementation state, never pipeline keys.
-  ☐ Publish prepared objects only after successful validation.
-    ☐ Retain needed dependency references without acquiring ownership of externally owned shader resources.
-    ☐ Reject retired dependencies and obsolete executable revisions; confine use to the owning renderer lifetime.
-    ☐ Invalidate on reload; revalidate incompatible changes before publishing replacements.
-    ☐ Preserve existing deferred deletion; do not invent ResourceId for a managed aggregate.
-    ☐ Use explicit prepared objects; defer registry/interning and bound future cache requirements in docs.
-  ☐ Delegate tests for interface/format/sample mismatch, unsupported stages/settings, failed preparation,
+  ☑ Publish prepared objects only after successful validation.
+    ☑ Retain needed dependency references without acquiring ownership of externally owned shader resources.
+    ☑ Reject retired dependencies and obsolete executable revisions; confine use to the owning renderer lifetime.
+    ☑ Invalidate on reload; revalidate incompatible changes before publishing replacements.
+    ☑ Preserve existing deferred deletion; do not invent ResourceId for a managed aggregate.
+    ☑ Use explicit prepared objects; defer registry/interning and bound future cache requirements in docs.
+  ☑ Delegate tests for interface/format/sample mismatch, unsupported stages/settings, failed preparation,
     compatible/incompatible reload, explicit disposal and renderer teardown within the same live context.
-  ☐ Completion gate: failures cannot expose a partially usable pipeline; no steady-state interface queries.
+  ☑ Completion gate: failures cannot expose a partially usable pipeline; no steady-state interface queries.
+
+Subphase 4.1: Migrate standalone numeric uniforms to uniform buffers
+  Dependencies: Phase 4 executable preparation; existing uniform publication/lifetime implementation
+    documented in Rendering.UniformBufferLifetime.md. User requested this corrective subphase on 2026-10-06.
+  Outcome: VGE-owned graphics and compute shader numeric inputs use explicit UBO contracts, including
+    reusable fixtures, without depending on SPIR-V debug names or duplicating shared stage values.
+  Sequencing: complete before Phase 5 and subsequent production-consumer migration. Establish and
+    review the inventory/block design first; do not infer approval of unreviewed engine compatibility changes.
+
+  ☐ Establish a complete source-to-consumer inventory and review the migration design.
+    ☐ Enumerate every standalone numeric uniform in production stages, imported includes, all
+      graphics/compute variants, generated declarations, reusable test fixtures and runtime GLSL tests.
+      Follow each input through CPU assignment, contract generation, upload, shader activation and reload.
+    ☐ Cover PBR lighting/composition/materials/liquids, atmosphere, LumOn scene/probes, terrain,
+      debug views, rendering infrastructure and all shader fixture owners; record exact files/members,
+      types/array extents, shared-stage use, update frequency, ownership and intended destination block.
+    ☐ Include ShaderBuildTool/TestShaderPrograms.cs, ShaderSourceLayout and both production/test
+      catalogs; explicitly include the failing eye-relative and solar raster shared-uniform fixtures.
+    ☐ Distinguish numeric values from sampler/image bindings, UBO/SSBO bindings, specialization
+      constants and structural defines. Those interfaces are not numeric data to place in a UBO.
+    ☐ Separate VGE-owned inputs, VGE-added engine shader inputs and untouched base-game inputs.
+      Inventory engine-generated/source-patched paths and third-party compatibility boundaries;
+      specify adapters for VGE-owned values without rewriting the engine's ownership/API contract.
+      List every retained engine/test-only standalone uniform and its concrete justification; no silent omissions.
+    ☐ Group blocks by owner and update frequency (frame/view, pass, material, object/draw), reuse
+      existing blocks where their lifetime and semantics match, and avoid a single global catch-all block.
+      Specify stable slots, CPU packing, stage sharing, defaults, dirty/revision behavior and usage class.
+    ☐ Review the inventory, compatibility exceptions and block map before migrating consumers.
+      Record decisions in Rendering.AuthoritativePipelineState.md and reconcile the proposal's input contract.
+
+  ☐ Extend existing contracts and publication owners where the inventory demonstrates missing support.
+    ☐ Reuse CpuUniformBuffer/PackedUniformBuffer, UniformPublication, UniformBufferUsage,
+      PersistentUniformStorage and GpuUniformRingBuffer/frame-controller ownership; do not add another
+      allocator, per-draw buffer objects, context registry or separate resource-binding cache.
+    ☐ Cover ShaderContractGenerator UniformValueReader, BindingReader/InterfaceBindingReader and
+      RuntimeSubmissionEmitter; preserve typed input assignment and change suppression while replacing
+      migrated scalar/vector/matrix/array uploads with owned block writes and prepared UBO publication.
+    ☐ Cover GpuProgram.Inputs/UniformOwnership, IShaderSubmissionTarget, ShaderPreparedSubmission,
+      ShaderInputValidation, GpuBindingContract/Registry and GpuProgramInterface/GpuPreparedBindings.
+      Preserve readiness, required/optional resource validation, failed-candidate isolation and reload behavior.
+    ☐ Validate std140 offsets, alignment, padding, matrix order/stride, array stride and boolean/integer
+      representation against linked blocks. Resolve the existing SurfaceLightingParams 96-byte CPU versus
+      144-byte shader mismatch through its actual owner; do not weaken size validation to accept it.
+    ☐ Check GpuSupport limits for block sizes, binding slots, per-stage/combined resources and range
+      alignment. Preserve targeted StateCache binding/restoration and last-use retirement semantics.
+
+  ☐ Migrate the reviewed inventory end to end.
+    ☐ Update GLSL declarations/imports and CPU owners together, including variant-specific consumers.
+      Shared stages reference the same compatible block layout, slot and publication; upload each logical
+      shared value once. Do not split locations/duplicate data merely to bypass a driver linker defect.
+    ☐ Move VGE-added engine inputs through the agreed adapters while preserving engine shader
+      activation, render ordering and boundary restoration. Keep explicit engine-owned exceptions intact.
+    ☐ Migrate reusable fixtures through the shared SpirvBuild output. Preserve runtime GLSL compilation
+      where compilation/source transformation itself is tested; adapt these tests to the new input contract.
+    ☐ Update uniform/layout/contract snapshots and assertions from the reviewed ABI, with explanations
+      for changes; retain numerical, image/readback and failure-path assertions rather than weakening them.
+    ☐ Remove obsolete standalone upload paths only after their consumers migrate: audit ShaderUniformValue,
+      ShaderUniformUpload, ShaderUniformPublication and generator output for actual remaining engine use.
+      Retain narrowly required compatibility code, not a second VGE numeric submission path.
+    ☐ Sweep GL.Uniform*/ProgramUniform*, numeric UniformLocations and generated scalar uploads, reconcile
+      every remaining occurrence to the inventory, and prevent new unapproved VGE standalone numeric inputs.
+
+  ☐ Delegate focused and integration verification in Debug and stripped Release.
+    ☐ Keep -O in both configurations and -g only in Debug. Do not retain names, patch SPIR-V names,
+      duplicate shared values or skip failing variants as an acceptance workaround.
+    ☐ Build all production and shared test variants through SpirvBuild; validate digests, specialization,
+      graphics/compute linking, clean/incremental builds and missing-output recovery under the real policy.
+    ☐ Verify shared-stage blocks without debug names and single logical publication, including solar
+      raster and eye-relative numerical results; exercise matrices, arrays, padding and changed defaults.
+    ☐ Cover unchanged-input reuse, changed inputs on an unchanged pipeline, transient/persistent lifetimes,
+      ring wrap/retirement, prepared-slot binding, exception restoration, reload and failed publication.
+    ☐ Run affected generated-input, resource-layout, graphics/compute, engine-adapter and numerical suites.
+      Record all failures and distinguish unrelated baseline issues; prior metadata-retaining Release
+      receipts cannot establish acceptance. Obtain a fresh stripped-Release result for migrated coverage.
+    ☐ Measure upload bytes, native uniform calls, UBO updates/binds and allocation behavior on matched
+      workloads; avoid claiming performance improvements from packing alone. Leave live visual/GPU
+      acceptance to user-provided evidence without launching the game.
+  ☐ Update downstream submission/consumer tasks and evidence to use the reviewed UBO contracts.
+    Perform a second source review and independent completion audit before checking completion.
+  ☐ Completion gate: every inventoried VGE numeric input is migrated or has an explicitly reviewed
+    engine compatibility disposition; stripped Release links and executes affected shaders correctly,
+    shared inputs retain one publication, lifetime/restoration tests pass and no debug-name dependency remains.
+
+Subphase 4.2: Package shader interfaces and derive hardware clipping state
+  Dependencies: Phase 4 and Subphase 4.1 input contracts; complete before Phase 5.
+    Preserve accepted preparation behavior and rerun affected acceptance checks.
+  Authorization: user brought this work forward and approved shader-driven clip-state ownership on 2026-10-06.
+  Outcome: the SpirvBuild pipeline packages compiler-derived interface information with shader binaries;
+    runtime preparation consumes it and derives clip enables instead of accepting an authored PSO mask.
+  Sources: Rendering.AuthoritativePipelineState.Proposal.md / Prepared pipelines, identity, and lifetime;
+    Rendering.AuthoritativePipelineState.md / Prepared graphics realizations (2026-10-06).
+  Approved extension: move interface extraction into ShaderBuildTool, invoked by SpirvBuild;
+    retain compiler-derived facts, existing resource-contract ownership and executable validation.
+
+  ☐ Prove the extraction tooling before implementing metadata publication.
+    ☐ Demonstrate compiler/reflection support for final optimized built-in clipping outputs, unused
+      declarations, specialization-dependent extents and stripped Release using the existing fixtures.
+      Document unsupported cases and stop for a design decision if tooling cannot meet the contract;
+      do not replace it with handwritten opcode parsing, authored masks or retained debug names.
+  ☐ Inventory and specify the packaged interface contract before changing extraction ownership.
+    ☐ Cover GraphicsExecutableInterface inputs/outputs, scalar types, components, matrices/arrays,
+      locations/output indices, geometry input topology, tessellation modes and active ClipDistance outputs.
+    ☐ Inventory GpuProgramInterface/GpuPreparedBindings resource reflection and existing generated
+      contracts; distinguish portable compiler facts from driver-assigned or link-dependent information.
+      Record what can move and what must remain at runtime; do not invent or serialize driver addresses.
+    ☐ Account for cross-stage linking/optimization and specialization-dependent activity and extents;
+      per-stage declarations must not be mistaken for the final linked active interface.
+    ☐ Choose a versioned immutable schema keyed to exact compiled binary content, stage, entry point,
+      structural variant and compilation configuration. No manually authored output masks.
+    ☐ Define specialization expression representation/evaluation or pre-resolved variants, including
+      unsupported/unverifiable cases and final vertex-producing stage selection.
+  ☐ Produce metadata through the existing shader build pipeline.
+    ☐ Extend the existing generated contracts, binary digest association, variant cache, build receipts
+      and asset publication/copying paths; do not introduce a parallel catalog or packaging system.
+      Keep authored declarations distinct from compiler-derived active-interface facts.
+    ☐ Replace CompiledClipDistance through suitable compiler/reflection tooling; do not relocate
+      the custom opcode parser into ShaderBuildTool or add another handwritten SPIR-V parser.
+    ☐ Reuse suitable compiler reflection facilities and existing contract/build owners; avoid parallel
+      binding systems. Extract from the final optimized binaries without requiring debug names.
+    ☐ Preserve active-output evidence: implicit unused ClipDistance members do not establish coverage;
+      shader authors still own defined writes on every relevant control-flow path.
+    ☐ Generate metadata for every built variant in Debug and Release, including incremental/cache hits.
+    ☐ Publish matching binary/metadata artifacts coherently; include schema/extractor identity and
+      outputs in build receipts, cache invalidation and digest/consistency verification.
+    ☐ Extend SpirvBuild orchestration, runtime/test asset copying and mod packaging together; remove
+      obsolete metadata when variants disappear, and prevent failed builds publishing mismatched pairs.
+  ☐ Replace independently authored clipping with shader-derived prepared state.
+    ☐ Remove RasterizerDesc.ClipDistances and its construction/default paths, native-limit validation,
+      PipelineCanonicalization handling, equality/hashing, serialization and description/identity tests
+      wherever present. Audit GraphicsPipelineDesc and GlPipelineDesc adapters and all callers;
+      preserve native masks needed by low-level state application and engine restoration.
+    ☐ Update GraphicsExecutableInterface, GraphicsInterfaceValidation and GraphicsPipeline preparation
+      to derive required indices from the final vertex-producing stage and selected specialization.
+      Verified absence yields zero; missing/corrupt/stale/ambiguous/unsupported metadata fails preparation.
+      Validate native limits and mask width; do not treat array declarations as proof of defined writes.
+    ☐ Carry the derived mask in the prepared realization and apply it through existing StateCache
+      rasterizer/category transitions, including disabling previous shader distances. Preserve shader
+      identity/specialization keys without adding an independently authored or mutable cache-state key.
+    ☐ Preserve RasterizerState, RasterizerStateKnowledge, per-bit knowledge, low-level engine adapters,
+      boundary coverage, snapshot/query/restore ownership and native capability limits. No manual GL
+      state management, parallel cache, fragment-discard fallback or per-draw reflection/parsing.
+    ☐ Replace mask-versus-shader tests in PreparedGraphicsPipelineTests, CompiledGraphicsClippingTests,
+      ConfigurableRasterizerDescriptionTests and related description/identity fixtures. Preserve native
+      state tests in ConfigurableRasterizerGpuTests while moving shader requirements into fixtures.
+      Retire CompiledClipDistance and its parser-specific tests after packaged-metadata coverage passes.
+  ☐ Consume packaged metadata through existing shader preparation and interface ownership.
+    ☐ Validate schema, binary association, entry point and selection before candidate publication;
+      reject missing, corrupt, stale or incompatible metadata with actionable diagnostics.
+    ☐ Resolve selected specialization values and compose final-stage interfaces at preparation time;
+      preserve vertex/output/topology/resource/capability validation and explicit discard semantics.
+    ☐ Keep any genuinely link-dependent inspection under the existing interface owner, with its
+      necessity documented and query counts measured; never silently weaken validation to remove a query.
+    ☐ Cover driver program-binary cache loads, reloads, failed/superseded candidates, executable
+      revisions, borrowed ownership and renderer teardown using the same coherent installation path.
+    ☐ Remove superseded runtime SPIR-V parsing and interface queries only after equivalent coverage
+      is proven; retain GraphicsPipeline's query-free steady-state validation and shader input publication.
+  ☐ Delegate build-tool, packaging and runtime tests in Debug and Release.
+    ☐ Verify clean/incremental builds, cache hits, variant removal, failed publication and exact
+      binary/metadata pairing; exercise packaged outputs rather than source-tree-only fixtures.
+    ☐ Compare packaged metadata with actual linked executable behavior for optimized/no-name shaders,
+      specialization-dependent interfaces, unused built-ins, vertex/geometry/tessellation precedence,
+      integer/matrix/array interfaces, sparse outputs and resource activity.
+    ☐ Verify shader-derived enablement for no clipping and multiple distances, clipping-to-nonclipping
+      and A-to-B-to-A switches, geometry/tessellation/vertex precedence, specialization changes,
+      required-index limits, warm-cache suppression and exact engine restoration on success/failure.
+      Keep hardware clipping readback/numerical tests and plane-data UBO publication coverage.
+    ☐ Retain preparation mismatch, reload/disposal, failed-candidate, generated-input and compute
+      regressions; prove malformed or missing metadata cannot publish a usable graphics realization.
+    ☐ Measure extraction/build cost, package size, load/preparation cost and remaining native queries
+      separately; do not infer frame-time improvements from moved work or smaller query counts.
+  ☐ Update the proposal and implementation evidence to describe final extraction/runtime ownership,
+    artifact schema, remaining driver-dependent inspection, validation commands and limitations.
+  ☐ Perform a second source review and independent completion audit before checking completion.
+  ☐ Completion gate: packaged compiler metadata is used by preparation, binary association and
+    specialization/link semantics and derived clip enablement are verified, the authored descriptor
+    mask and runtime parser are removed, engine restoration is preserved, and affected prior
+    acceptance checks pass without weakening interface, lifetime or publication guarantees.
 
 Phase 5: Render passes and target lifetime
-  Dependencies: Phases 1–4 target and state contracts.
+  Dependencies: Phases 1–4 target and state contracts, including Subphase 4.1 UBO migration and Subphase 4.2 packaged-interface gates.
   Outcome: explicit pass targets, routing, clears and store intentions with compatibility validation.
 
   ☐ Implement RenderPassDesc and target signature extraction/validation through existing FBO resources.
@@ -497,7 +681,7 @@ Phase 5: Render passes and target lifetime
     or retired targets fail deterministically; clear behavior is independent of preceding draw state.
 
 Phase 6: Immediate graphics submission
-  Dependencies: Phases 3–5.
+  Dependencies: Phases 3–5, including Subphase 4.1 typed UBO publication contracts.
   Outcome: one authoritative entry point validates and establishes the full draw contract.
 
   ☐ Compose existing GraphicsDynamicState inputs with geometry adapters and a thin GraphicsCommandContext.

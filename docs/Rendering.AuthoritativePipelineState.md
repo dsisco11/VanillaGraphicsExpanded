@@ -94,7 +94,7 @@ Every supported field is established when unknown and restored if changed at an 
 | Output blending | Each output disabled, RGB/alpha Add equations, One/Zero factors, RGBA writes enabled. Support independent enables/equations/factors/masks. Constant factors require declared dynamic blend constant; otherwise canonical zero. Global changes invalidate/update all affected indexed slots, including beyond the routed target count before engine restoration. |
 | Sampling | Effective samples 1, multisample on, sample coverage disabled (value 1, invert false), sample mask disabled (all supported words all-ones), alpha-to-coverage and alpha-to-one off; sample shading off (minimum 0). Supported controls are capability-gated; all mask words represented. Target sample count must match exactly. |
 | Output interpretation | Framebuffer sRGB off for linear intermediates; explicit static enable for compatible sRGB targets. Color logic operation disabled (Copy), dither disabled. Logic-op rendering rejects initially; disabled must still be established/restored, never inherited. |
-| Clipping | Lower-left origin, negative-one-to-one clip depth, depth range [0,1]; all supported user clip-distance enables off. Where clip-control exists, set/restore it; otherwise use the API fixed convention. Individual clip enables and alternate conventions are supported with capability and shader-output validation. Current production shader scan found no gl_ClipDistance/gl_CullDistance outputs. |
+| Clipping | Lower-left origin, negative-one-to-one clip depth, depth range [0,1]; all supported user clip-distance enables off. Where clip-control exists, set/restore it; otherwise use the API fixed convention. Prepared pipelines derive clip enables from packaged shader metadata; alternate conventions remain authored settings. Current production shader scan found no gl_ClipDistance/gl_CullDistance outputs. |
 | Primitive assembly | Triangles, restart and fixed-index restart disabled, restart index 0; patch count 3 when tessellation used. Validate topology/stages/control-point count; explicit restart may be enabled for compatible indexed draws. Tessellation must supply control/evaluation stages; no ambient default tessellation levels. |
 | Lines and points | Width and fixed point size 1, static fields. Program point size off by default; explicit enable for shader-sized orb points. World-probe resolve shaders write size 1. Debug selected-orb size 12 uses a distinct static description; varying shader pointSize remains a shader input. No consumer requires dynamic fixed line/point size. |
 | Compatibility raster features | All smoothing/test/stipple enables default off; point sprite coordinate origin defaults upper-left. Line and polygon smoothing and point-coordinate origin are core state. Alpha test, point smoothing and line/polygon stipple require compatibility profiles. Alpha defaults Always/reference 0; line repeat/pattern default 1/0xffff; polygon pattern defaults to 128 all-ones bytes. Legacy point-sprite/fixed-function shading modes are excluded from programmable core draws, not accepted as arbitrary complete-pipeline settings. |
@@ -158,8 +158,8 @@ active pass and require end/rebegin.
 Shader realization identity is owner reference plus a monotonically increasing executable revision,
 introduced at successful candidate installation in
 [GpuProgram.Spirv](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.Spirv.cs).
-Current lifecycle installs a new GpuProgramInterface and prepared bindings but exposes no explicit
-revision counter. Increment only after coherent program/layout/settings publication; failed/superseded
+The lifecycle installs a new GpuProgramInterface and prepared bindings and publishes an explicit
+ExecutableRevision only after coherent program/layout/settings publication; failed/superseded
 candidates do not advance it. Disposal invalidates use; recycled ProgramId never aliases the old
 revision. Retain existing [readiness/activation](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.Preparation.cs),
 generated inputs and UBO publication/last-use retirement. Validate vertex/output interfaces once at
@@ -230,26 +230,34 @@ stipple becomes factor 1/pattern 0xffff, and disabled polygon stipple becomes th
 authored enabled description retains its complete parameters. Boundary snapshots preserve actual
 incoming parameters even while their enable is false, without canonicalizing engine state.
 
-The clip mask is a uint with bit i naming gl_ClipDistance[i]. Bits beyond GpuSupport's queried
-MaxClipDistances reject; implementations exceeding the represented 32-bit width reject rather than
-truncate. Descriptor construction validates the requested native state and implementation limits,
-without duplicating shader-output declarations. Shader source and existing compilation options define
-clip outputs; existing shader identity already distinguishes selected variants.
+Approved shader-driven clipping contract (implementation pending): shader variants own clipping
+usage; plane equations are UBO data. RasterizerDesc no longer owns an authored clip-enable mask
+in the target design. Its mask field, validation, canonicalization, equality/hashing and any serialized
+representation must be removed. Shader identity and selected specialization continue to distinguish
+configurations without duplicating derived metadata in the authored key.
 
-Preparation must derive built-in ClipDistance output availability and array extent from the final
-vertex-producing stage (geometry, otherwise tessellation evaluation, otherwise vertex) of the actual
-compiled variant with specialization-dependent extents resolved. It must reject enabled bits without
-matching verified outputs, including unavailable
-or ambiguous reflection. An output declaration or reflected array extent does not prove that every
-control-flow path writes a value; shader authors retain that correctness obligation.
+SpirvBuild packages the final optimized shader's clipping interface alongside its existing binary
+identity, contracts, cache and receipts, using suitable compiler/reflection tooling. Tool selection
+requires proof for built-in outputs, unused declarations and specialization-dependent extents in
+stripped Release; no handwritten opcode parser may replace that tooling. Missing capabilities require
+an explicit design decision, not guessed metadata or retention of the current parser.
 
-Inspection of GpuProgramInterface and GpuPreparedBindings found linked uniform/resource reflection,
-not built-in vertex-output metadata. ShaderCompilerProcess emits optimized SPIR-V, with debug names
-only requested in Debug builds. Extend the existing compiler/interface ownership path during pipeline
-preparation work; do not depend on optional names or invent a second authored output contract. The
-concrete built-in reflection mechanism and compiled-shader fixtures remain preparation prerequisites.
-Current descriptions are not prepared pipelines, and this addition does not authorize production use
-of unverified enabled clip configurations.
+Preparation selects geometry, otherwise tessellation evaluation, otherwise vertex as the final
+vertex-producing stage. It resolves the selected specialization and derives a uint native enable
+mask, with bit i naming gl_ClipDistance[i]. Verified absence gives zero; missing, stale, ambiguous or
+unsupported metadata fails preparation. Reject required indices beyond MaxClipDistances or the
+represented 32-bit width rather than truncating. Reflection cannot prove defined writes on every
+control-flow path; shader authors retain that correctness obligation.
+
+The prepared pipeline applies this derived state through existing StateCache transitions before a
+draw, disabling no-longer-required distances when shaders change. Keep RasterizerState/Knowledge,
+per-distance tracking, engine Enable/Disable adapters and exact boundary snapshot restoration.
+Low-level native-state masks remain necessary; they are not independently authored PSO inputs.
+There is no per-draw extraction or query, additional state cache, or fragment-clipping substitution.
+
+The current implementation below still uses RasterizerDesc.ClipDistances and CompiledClipDistance.
+Those are superseded implementation details awaiting replacement, not the approved steady-state
+contract. Historical validation receipts do not establish completion of this correction.
 
 ClipControl availability comes from OpenGL 4.5 or ARB_clip_control. Alternate origin/depth conventions
 require the caller's projection and reconstruction to agree: zero-to-one projections must emit z in
@@ -265,14 +273,15 @@ native polygon rasterization mask, not a texture or fragment-shader workaround.
 
 | Added state | Existing owner extended | Application, observation and restoration |
 | --- | --- | --- |
-| Clip enables and conventions | RasterizerDesc, shared GraphicsCapabilities/GpuSupport, RasterizerState/Knowledge | StateCache clip setters and per-distance knowledge; selective boundary queries and exact restore; engine Enable/Disable and ClipControl adapters. |
+| Clip enables and conventions | Shader metadata/prepared pipeline owns derived enables; RasterizerDesc owns conventions; shared GraphicsCapabilities/GpuSupport and RasterizerState/Knowledge | StateCache clip setters and per-distance knowledge; selective boundary queries and exact restore; engine Enable/Disable and ClipControl adapters. |
 | Alpha, smoothing, stipple, point origin | RasterizerDesc and categorized raster cache | StateCache setters and ApplyConfigurableRaster; profile-aware queries/restoration including disabled parameters; exact-signature engine adapters. |
 | Polygon mask transfer layout | StateCache pixel pack and buffer binding owners, corresponding unpack owner | Canonical upload/readback, exception cleanup, immutable snapshot sharing. Raw engine array uploads retain engine unpack semantics and invalidate only mask knowledge. |
 | Unknown native overloads/external mutations | Existing ExecuteExternal and EPipelineState invalidation | ConfigurableRaster invalidation withdraws only added raster knowledge; PixelPack/PixelUnpack and BufferBindings remain independent categories. Unmapped pointer/ref uploads and point-parameter overloads require an explicit external handoff. |
 
 ApplyConfigurableRaster applies only these added settings from a validated complete descriptor. General
-complete-pipeline application and production consumer migration remain pending. It does not make the
-existing partial GlPipelineDesc a complete pipeline or bypass shader activation ownership.
+complete-pipeline application is now provided by ApplyGraphicsState; production consumer migration
+remains pending. The existing partial GlPipelineDesc is not a complete pipeline and cannot bypass
+shader activation ownership.
 
 Native feature classification follows [Khronos glEnable](https://raw.githubusercontent.com/KhronosGroup/OpenGL-Refpages/main/gl4/glEnable.xml).
 Original validation, before the compiler-derived output contract amendment below: delegated
@@ -321,16 +330,16 @@ not collected. Both final runtime invocations rebuilt successfully before execut
 
 ### Compiler-derived output contract amendment
 
-The approved correction removes authored clip-output metadata from shader attributes/contracts,
+Historical correction (superseded for descriptor-mask ownership by the shader-driven clipping contract above): removes authored clip-output metadata from shader attributes/contracts,
 generator emission and shader identity. Descriptor validation now checks only the native clip mask
 and implementation limit; it does not claim to verify executable compatibility. The corresponding
 unit test verifies that enabled and disabled masks share shader identity while retaining distinct
 pipeline identity. Native raster tests continue to use fixture shaders that actually write clip outputs.
 The obsolete generator declaration tests were removed.
 
-Compiled-output reflection and preparation tests remain explicit prerequisites in the implementation
-plan. They have not been implemented by this correction. Pixel-transfer, texture upload, rasterizer
-transitions and engine-boundary restoration are unchanged.
+This metadata-removal correction did not itself implement compiled-output reflection or preparation
+tests; those are now covered by Prepared graphics realizations below. Pixel-transfer, texture upload,
+rasterizer transitions and engine-boundary restoration were unchanged by the correction.
 
 Fresh delegated validation after this correction passed 124/124 affected runtime tests and 173/173
 shader-generator tests in both Debug and Release, with zero failures/skips. Runtime commands used the
@@ -1533,3 +1542,186 @@ known-false suppression, invalidation, detached snapshots, partial authority and
 Independent audit-stage-completion reviewed the exhaustive inventory, linked contracts, implementation,
 final layouts and both final test receipts after the second review. It passed with no unresolved
 requirements or evidence gaps for the packed boolean category correction.
+
+
+## Prepared graphics realizations (2026-10-06)
+
+GraphicsPipeline is an explicitly constructed managed realization, not a native resource or an
+interning registry. It retains its immutable GraphicsPipelineDesc, borrowed GpuProgram and existing
+GpuPreparedBindings, and the successful executable revision. GraphicsPipelineLifetime is disposed
+by the owning renderer at teardown; it invalidates all dependent realizations without acquiring
+shader ownership. Construction and validation remain on the rendering thread in the same live
+context. No context replacement machinery or native ResourceId is introduced.
+
+GpuProgramInterface owns retained GraphicsExecutableInterface metadata alongside prepared resources.
+The existing candidate installation publishes the structural shader identity and increments
+ExecutableRevision only after installing coherent layout/settings. Failed or superseded candidates
+do not advance the revision. Requested reloads, pending incompatible options, owner disposal and
+successful replacement all reject use of an old realization. Replacement preparation calls the
+existing readiness path and repeats compatibility validation; it never changes engine activation,
+generated input submission, UBO ownership or deferred resource retirement.
+
+Preparation validates the current capability owner, description, actual shader selection, vertex
+locations/components/scalar interpretation, fragment locations/scalar classes/component coverage,
+geometry input topology, and enabled clipping. Matrix columns and array elements occupy explicit
+vertex locations; supplied unused attributes remain allowed. Divisors are immutable geometry-layout
+requirements, not reflected shader properties: shared binding rates are checked by VertexLayoutDesc,
+and future draw adapters must match the complete layout. Sparse output slots retain explicit discard
+policy. ValidateTargets compares exact normalized formats/aspects/samples, excluding resource IDs
+and dimensions. Actual target metadata, storage-specific support/completeness and attachment lifetimes
+remain render-pass responsibilities; this realization owns no framebuffer.
+
+Historical implementation pending replacement under the approved shader-driven contract:
+CompiledClipDistance reads only built-in output declarations from the exact captured SPIR-V bytes
+already owned by PreparedProgramBinary, including the driver-binary-cache path. It chooses geometry,
+then tessellation evaluation, then vertex as the final producer. BuiltIn decorations, member types,
+and the selected entry-point interface identify outputs without debug names. Reachable function writes
+through output access chains exclude implicit unused block members; an unused default
+gl_ClipDistance[1] declaration is not evidence of an active output. Selected specialization
+values and supported integer arithmetic resolve array extents; unsupported/unverifiable forms reject
+enabled clipping. This bounded inspection adds no resource reflection system or authored clip mask.
+It establishes declaration coverage, not proof that every control-flow path writes every enabled
+output; shader authors retain that obligation.
+
+Linked interface queries and their error checks occur only during candidate preparation. Repeated
+realization validation uses retained metadata and revision/lifetime checks without native queries,
+state transitions or error polling. Shader resource publication continues through existing generated
+inputs when the later submission layer activates an owner, even for an unchanged pipeline.
+
+| Task -> controlling source | Implementation and verification |
+| --- | --- |
+| Preparation -> Proposal / Prepared pipelines, identity, and lifetime; Geometry, target and executable contracts above | GraphicsPipeline composes readiness and GpuProgramInterface, GraphicsInterfaceValidation checks retained numeric interfaces, existing description/capability validation is reused. Production shader and numeric interface fixtures cover mismatches and reuse. |
+| Compiled clipping -> Proposal / Static and dynamic state coverage; Configurable raster state contract above | CompiledClipDistance and GraphicsExecutableInterface inspect actual optimized fixtures, debug/no-name variants, specialization extents and final-stage precedence; enabled bits beyond declarations reject. |
+| Identity/lifetime -> Proposal / Categorized cache storage, Prepared pipelines, identity, and lifetime; same-live-context contract above | Description identity is unchanged; no category values/knowledge enter keys. ExecutableRevision, GraphicsPipelineLifetime and disposal/reload fixtures cover invalidation and failed publication. |
+| Resource/layout ownership -> Proposal / Architectural responsibilities and Submission contract | Existing GpuPreparedBindings remains the resource validator; compute uses the unchanged optional-metadata constructor path. Existing shader input/accessor regressions protect generated publication and failed candidate behavior. |
+
+Explicit objects need no global retention cache. Future interning must use structural equality after
+hash comparison and bound retention/eviction so obsolete executable generations are not held forever.
+Production consumer migration and submission remain separate work. No live-game or performance
+improvement is established by this implementation.
+
+Interface rules were checked against the [OpenGL shading language specification](https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.html)
+and the [SPIR-V core grammar](https://raw.githubusercontent.com/KhronosGroup/SPIRV-Headers/main/include/spirv/unified1/spirv.core.grammar.json).
+Reusable test shader sources live under VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets.
+The test build invokes SpirvBuild with the shared ShaderBuildTool tests registry and publishes
+artifacts/spirv-tests/<Configuration>/vanillagraphicsexpanded/shaders. Clipping is one family
+under tests/clipdistance; its binaries are embedded for CPU reflection tests. There is no separate
+fixture compilation script or checked-in binary payload. Debug and Release use the same catalog
+with optimization, configuration-specific debug information, variant caching and verified receipts.
+
+The normal project reference still builds the current production shaders. Production compilation
+excludes declarations in the existing tests/ program namespace. The test build
+combines the generated declarations with its fixed and numerical fixtures and overlays their source assets
+on production inputs in its intermediate directory. This complete test output includes current
+production variants and one coherent digest manifest, avoiding overlapping manifests when a fixture
+reuses a production stage. The normal source coverage validator rejects undeclared entry points.
+Cache entry reads and writes are synchronized by content key. Different variants remain parallel,
+but aliases cannot replace a cached file while another worker reads that same entry on Windows.
+The focused concurrency regression reproduces the former access-denied failure independently of
+shader compilation.
+GpuShaderContracts retains the shared declaration scope so fixtures reuse the exact production stage
+instances. Build selection separates their assets without changing stage ownership; publishing the production
+asset catalog does not publish their test binaries or source files.
+
+Fixture inventory and disposition:
+
+| Family | Compilation owner |
+| --- | --- |
+| Existing water, uniform/storage, prepared-binding, framebuffer, layout, global-definition, scene-color, material, world-probe and direct-lighting test declarations | Shared tests registry; the 24 test source files formerly under production assets now live in test assets. Production stage reuse retains original identities. |
+| Clipping and executable-interface fixtures | Shared tests registry; generated binaries embedded for reflection and native linking. |
+| Complete-state, configurable rasterizer, first-person marker and deferred program deletion | Shared tests registry; no per-test driver GLSL compilation. |
+| Aerial lookup, solar segment/disk, temporal debug reprojection, terrain displacement, eye-relative shading and relief kernels | Shared tests registry; authored wrappers import production kernels and carry fixed numeric interface locations. |
+| Ordinary particle capture/integration draws and sampler handoff | Shared tests registry. |
+| Installed shader coverage/depth/surface, terrain capture/tessellation/displacement raster, detail workload, sky patches, display dither, capture interception and scene-color patches | Runtime GLSL retained: installed sources and production transformations are the test inputs. Companion stages stay GLSL so native linking exercises that path. |
+| Forward-surface scenario source transformations and installed solar bloom extraction | Runtime GLSL retained for constructed scenario sources and engine-stage compatibility. |
+| Chunk-slot/relief engine binding and particle publication | Runtime GLSL retained for engine uniform discovery/publication and binding integration. |
+| ShaderBuildTool.Tests temporary catalogs | Existing compiler pipeline retained; deliberately isolated temporary sources and outputs are mutated by build/cache/failure tests. |
+| Source-only parser, layout, generator, import, patch and source-map fixtures | Remain source inputs; these tests do not require shader binaries. |
+
+
+Validation: shader-enabled Debug and Release each passed 79/79 focused tests, zero failures/skips.
+Receipts: artifacts/prepared-pipeline-debug-tests.log and artifacts/prepared-pipeline-release-tests.log.
+Both commands rebuilt with the normal shader producer enabled; no skipped-shader or no-build option.
+The headless fixture uses the installed driver; these receipts establish preparation/lifetime behavior,
+not migrated production rendering, live-game acceptance or a performance improvement.
+
+Commands used NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages:
+
+~~~text
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter '<selection>' --logger 'console;verbosity=normal'
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-restore --filter '<selection>' --logger 'console;verbosity=normal'
+selection: FullyQualifiedName~PreparedGraphicsPipelineTests|FullyQualifiedName~GraphicsPipelineDescriptionTests|FullyQualifiedName~ShaderPipelineIdentityTests|FullyQualifiedName~ShaderInputSubmissionTests|FullyQualifiedName~CompiledClipDistanceTests|FullyQualifiedName~CompiledGraphicsClippingTests|FullyQualifiedName~ShaderInterfaceCompatibilityTests|FullyQualifiedName~ProductionShaderAccessorGpuTests
+~~~
+
+Earlier iterations exposed the implicit unused ClipDistance block member and two fixture assumptions:
+block-form specialization was emitted with a fixed extent, and the composite fixture needed all three
+output slots. The reader now excludes unused built-ins, specialization fixtures use real standalone
+output declarations preserving compiler expression IDs, and the target fixture matches the executable.
+Final receipts above include these corrections. Unsupported specialization expressions fail closed
+when clipping is enabled. The reachable/unreachable function regression uses explicit synthetic entry
+wrappers around compiler-produced code; the compiler inlines the separate GLSL helper fixture.
+
+Second source review covered the proposal/contract mapping, structural identity, shared interface
+installation, lifetime/reload rejection, topology and numeric interfaces, cold inspection and warm
+query-free validation. Independent completion audit found no unresolved source or coverage defects;
+final commands and receipts were independently checked. Git diff --check passed. Existing build
+warnings remain; no new runtime acceptance or timing claim is made.
+
+
+### Fixture build ownership correction
+
+Clip-distance fixtures now use the SpirvBuild target and ShaderBuildTool test-only registry.
+The test project embeds freshly generated artifacts after the shared receipt validation; source-tree
+binaries and the independent compilation script were removed. Fixture builds use normal optimization
+and configuration-specific debug information. The redundant separate debug-binary test row was
+removed; both configurations now exercise their own generated binaries, with 78 focused cases each.
+IDE design-time builds do not invoke the fixture producer.
+
+Delegated shader-enabled Debug and Release each passed 78/78 cases with no failures/skips, using
+the preparation selection above. Fresh fixture generation succeeded in both configurations.
+Incremental validation reported 10 cache hits and zero compiler invocations. Removing generated
+present.spv caused the receipt check to detect the missing output and restore an identical binary
+from the existing cache (verified SHA256), again without compiler invocation.
+Receipts: artifacts/clip-fixture-pipeline-fresh-build.log and
+artifacts/clip-fixture-pipeline-{debug,release,missing-output}.log.
+The shared fixture target is invoked automatically by the ordinary dotnet test commands above.
+Earlier attempts encountered sandbox compiler-write denial and an MSBuild resource-name projection
+error; the final validated target uses explicit source-item metadata for unique embedded names.
+Source review and git diff --check passed. No runtime graphics behavior or performance claim changed.
+
+### Shared test shader build validation (2026-10-06)
+
+The consolidated test catalog contains 172 programs, 480 combinations and 486 stage binaries;
+the production output contains 414 binaries and excludes the tests/ namespace. Both configurations
+rebuilt through SpirvBuild with default parallel compilation. Source coverage, digest verification,
+stage specialization, graphics linking and migrated numerical fixtures exercise the shared output.
+Runtime compilation remains only where source processing or engine GLSL integration is under test.
+
+The shared-uniform fixtures retain their original locations and single uploads. Removing only
+OpName from otherwise identical Debug modules reproduced the installed driver's duplicate-location
+failure. Retaining compiler metadata allowed Release linking, but that workaround was rejected.
+Release debug stripping is restored. The affected fixture linking failures remain unresolved
+until the standalone numeric uniform migration is scoped and implemented.
+See [shader compiler policy](ShaderAuthoring.md) for the evidence and asset-size tradeoff.
+
+Historical receipts with the temporary metadata-retention policy: Debug passed 1510/1510;
+Release passed 1509/1510, with no skips. These do not validate the restored stripped Release policy.
+The remaining Release failure is RuntimeFailurePreservesInstalledGeneration's wrong-stage injection:
+specialization leaves InvalidValue pending, and the next executable-interface preparation rejects it.
+It also failed before the metadata correction. All migrated shared-uniform cases and graphics
+inventory linking cases pass. Logs: artifacts/shared-fixtures-focused-{debug,release}.log.
+The earlier broader run was not green: it also exposed snapshot drift, compute-binding assertions,
+boundary/lifetime failures and the unchanged SurfaceLightingParams CPU/shader size mismatch.
+These focused receipts do not establish full-suite acceptance.
+
+ShaderBuildTool.Tests passed 50/50 in each configuration, including the cache concurrency regression
+and compiler invocation policy (artifacts/shared-fixtures-tool-{debug,release}.log). An unchanged
+build performed zero compiler invocations for both catalogs. Removing generated eye-relative.fsh.spv
+triggered receipt invalidation and restored byte-identical output using 486 cache hits and zero
+compiler invocations (artifacts/shared-fixtures-{incremental,recovery}.log). Both configuration
+manifests contain every expected output. No in-game visual or performance acceptance is claimed.
+
+Release metadata-retention rollback: the compiler and invocation regression again select `-g`
+only for Debug, with `-O` in both configurations. The earlier passing shared-uniform Release
+results are historical, not current acceptance. UBO migration is pending an agreed inventory,
+scope and sequencing decision; no uniform migration or duplicated uploads are included here.

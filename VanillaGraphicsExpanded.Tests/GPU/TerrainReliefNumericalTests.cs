@@ -32,21 +32,9 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        string includes = Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
-        string fragment = "#version 430\n#define VGE_PBR_ENABLE_POM " + (mode == 1 ? "1\n" : "0\n")
-            + "uniform sampler2D vge_normalDepthTex; uniform vec2 metric; out vec4 result;\n"
-            + TerrainEyeRelativeShadingTests.Expand(Path.Combine(includes,"vge_normaldepth.glsl"))
-            + TerrainEyeRelativeShadingTests.Expand(Path.Combine(includes,"vge_parallax.glsl")) + """
-
-            void main() {
-                vec2 uv=gl_FragCoord.xy/32.0;
-                vec3 position=vec3((uv.x-.5)*metric.x+1.0,(uv.y-.5)*abs(metric.x),-metric.y);
-                vec2 shifted=VgeApplyPomUv_WithTbn(uv,mat3(1),1,position,vec2(0),vec2(1));
-                result=vec4(shifted-uv,shifted);
-            }
-            """;
-        int vertex=shaders.Compile(ShaderType.VertexShader,"#version 430\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2-1,0,1);}");
-        int fs=shaders.Compile(ShaderType.FragmentShader,fragment);
+        string fragmentPath = mode == 1 ? "tests/relief-on.fsh" : "tests/relief-off.fsh";
+        int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
+        int fs=shaders.Load(ShaderType.FragmentShader,fragmentPath);
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fs));
         using var vao=GpuVao.Create();
         using var draw=new ShaderTestFramework();
@@ -55,7 +43,7 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         using var records=draw.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,amplitude,0,0,0]);
         using var target=draw.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
         int id=program.ProgramId;
-        var layout=GpuProgramLayout.TryBuild(id);
+        var layout=BuiltShaderFixture.Layout(id,fragmentPath);
         StateCache.Current.UseProgram(id); StateCache.Current.BindVertexArray(vao.VertexArrayId);
         heights.Bind(0); indices.Bind(1); records.Bind(2);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),0);

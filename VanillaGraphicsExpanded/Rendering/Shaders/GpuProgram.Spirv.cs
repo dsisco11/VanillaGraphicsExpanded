@@ -5,6 +5,7 @@ using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
@@ -72,7 +73,8 @@ public abstract partial class GpuProgram
             GlDebug.ThrowIfErrors($"{ShaderName}: program {program} create/attach/link/status");
 #endif
             var layout = ProgramLayout.CreateCandidate();
-            layout.BinaryInterface = new GpuProgramInterface(program, plan.Stages.Select(stage => stage.Stage.Bindings));
+            layout.BinaryInterface = new GpuProgramInterface(program, plan.Stages.Select(stage => stage.Stage.Bindings),
+                new GraphicsExecutableInterface(program, plan, inputs.Read));
             layout.ApplyContract(program, LayoutWarn);
 #if DEBUG
             layout.ValidateContract(program, LayoutWarn);
@@ -80,6 +82,7 @@ public abstract partial class GpuProgram
 #endif
             // Contracts include inactive uniforms; source-derived placeholder names are unnecessary.
             var locations = layout.BinaryInterface.Uniforms;
+            var graphicsIdentity = new ShaderPipelineIdentity(domain, plan);
             if (!cached) DriverProgramCache.Save(program, inputs);
 
             // Stages unsupported by the engine's slots can be deleted after linking; the executable retains them.
@@ -117,6 +120,8 @@ public abstract partial class GpuProgram
                 foreach (var pair in locations) uniformLocations[pair.Key] = pair.Value;
                 EngineDisposed(this) = false;
                 installedPlan = plan;
+                GraphicsIdentity = graphicsIdentity;
+                ExecutableRevision++;
                 if (oldProgram != 0) GL.DeleteProgram(oldProgram);
                 foreach (int shader in oldStages) if (shader != 0) GL.DeleteShader(shader);
                 return true;

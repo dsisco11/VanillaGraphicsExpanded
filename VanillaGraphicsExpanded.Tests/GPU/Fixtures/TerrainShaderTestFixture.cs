@@ -17,6 +17,15 @@ internal sealed class TerrainShaderTestFixture : IDisposable
         return module.ShaderId;
     }
 
+    /// <summary>Owns a precompiled reusable fixture alongside runtime-generated test stages.</summary>
+    internal int Load(ShaderType type, string path)
+    {
+        byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path + ".spv"));
+        Assert.True(GpuShaderModule.TryLoadSpirv(type, binary, "main", [], out var module, out string error), error);
+        stages.Add(module!.ShaderId, (module, string.Empty));
+        return module.ShaderId;
+    }
+
     /// <summary>Returns the exact submitted source without querying the driver.</summary>
     internal string Source(int shader) => stages[shader].Source;
 

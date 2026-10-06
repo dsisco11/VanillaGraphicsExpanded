@@ -107,14 +107,33 @@ The old masks can remain an adapter representation. Existing stable bit numberin
 
 ## Static and dynamic state coverage
 
-Approved configurable raster-state amendment: complete descriptions support individual user
-clip-distance enables, clip origin/depth convention, alpha testing, point/line/polygon smoothing,
-line/polygon stipple and point-sprite coordinate origin. These are static pipeline values, including
-alpha comparison/reference, line repeat/pattern and the immutable 32-by-32 polygon mask. Existing
-neutral values remain defaults, not support restrictions. Capability validation distinguishes core
-features from compatibility-only features. Enabled clip distances require compiler-derived output information from the
-final vertex-processing stage of the actual compiled variant. Preparation must reject missing or
-unverifiable outputs before publishing a pipeline; authored shader masks are not required.
+Approved configurable raster-state amendment: complete descriptions support clip origin/depth
+convention, alpha testing, point/line/polygon smoothing, line/polygon stipple and point-sprite
+coordinate origin. These are static pipeline values, including alpha comparison/reference,
+line repeat/pattern and the immutable 32-by-32 polygon mask. Existing neutral values remain defaults,
+not support restrictions. Capability validation distinguishes core from compatibility-only features.
+
+Approved shader-driven clipping amendment: shader variants own hardware clip-distance usage.
+Plane equations are numeric shader inputs supplied through the existing UBO publication system.
+RasterizerDesc must not expose an independently authored clip-distance enable mask; remove that
+field from descriptor validation, canonicalization, equality/hashing and serialization where present.
+Existing shader identity and specialization selection distinguish clipping configurations.
+
+SpirvBuild must package compiler-derived clipping interface facts through its existing contracts,
+binary identities, variant cache, receipts and asset publication paths. Prove suitable compiler/reflection
+tooling can identify actual built-in outputs and specialization-dependent extents without debug names
+before selecting it. Do not implement or relocate a handwritten SPIR-V opcode parser.
+Preparation selects the final vertex-producing stage (geometry, otherwise tessellation evaluation,
+otherwise vertex), resolves its selected specialization and derives the required native enable mask.
+Verified absence produces a zero mask; missing, stale, ambiguous or unsupported metadata rejects
+preparation rather than silently disabling clipping. Validate the derived mask against native limits.
+A declaration does not prove defined writes on every path; shader authors retain that obligation.
+The prepared pipeline carries the derived mask and applies it through StateCache before drawing,
+including disabling distances required by the previous shader but not the current one. It is not a
+second authored pipeline-key field. Preserve actual clip-enable values and per-bit knowledge in
+StateCache, low-level engine adapters and exact engine-boundary restoration. No per-draw reflection,
+SPIR-V parsing, local enable cache or fragment-discard fallback is introduced by this amendment.
+
 Alternate clip conventions require matching projection/reconstruction and viewport/front-face policy;
 they do not implicitly select reversed-Z. Window depth range remains explicitly [0,1].
 The shared StateCache owns native transitions, observation and boundary restoration, including disabled

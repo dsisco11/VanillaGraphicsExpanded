@@ -68,19 +68,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
     private static void AssertPlainTextureHandoff()
     {
         using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
-            #version 330 core
-            void main() {
-                vec2 p[3] = vec2[3](vec2(-1,-1), vec2(3,-1), vec2(-1,3));
-                gl_Position = vec4(p[gl_VertexID], 0, 1);
-            }
-            """);
-        int fragment = shaders.Compile(ShaderType.FragmentShader, """
-            #version 330 core
-            uniform sampler2D ordinaryTexture;
-            layout(location=0) out vec4 color;
-            void main() { color = texture(ordinaryTexture, vec2(.5)); }
-            """);
+        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
+        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/sampler-handoff.fsh");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         using var framework = new ShaderTestFramework();
@@ -88,8 +77,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         StateCache.Current.UseProgram(program.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
-        var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "ordinaryTexture"), 5);
+        ShaderTestFramework.SetUniform(0, 5);
         // Intentionally bypass VGE texture binding: vanilla does not clear foreign sampler objects.
         GL.ActiveTexture(TextureUnit.Texture5);
         GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);

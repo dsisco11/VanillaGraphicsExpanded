@@ -25,20 +25,12 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
     {
         EnsureContextValid();
         using var shaders=new TerrainShaderTestFixture();
-        int vertex=shaders.Compile(ShaderType.VertexShader,"""
-            #version 430 core
-            void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2-1,0,1);}
-            """);
-        int fragment=shaders.Compile(ShaderType.FragmentShader,"#version 430 core\n"+TerrainTessellationTestAssets.Common()+"""
-
-            uniform float distance;
-            out vec4 result;
-            void main(){vec3 a=vec3(-.5,0,distance),b=vec3(.5,0,distance);result=vec4(VgeEdgeLevel(a,b),VgeEdgeLevel(b,a),VgeEdgeLevel(a,a),1);}
-            """);
+        int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
+        int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-metric.fsh");
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
         using var vao=GpuVao.Create();using var framework=new ShaderTestFramework();
         using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-        int id=program.ProgramId;var layout=GpuProgramLayout.TryBuild(id);
+        int id=program.ProgramId;var layout=BuiltShaderFixture.Layout(id,"tests/displacement-metric.fsh");
         target.BindWithViewport();StateCache.Current.UseProgram(id);StateCache.Current.BindVertexArray(vao.VertexArrayId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"distance"),distance);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),1024f);
@@ -71,19 +63,8 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        int vertex=shaders.Compile(ShaderType.VertexShader,"""
-            #version 430 core
-            void main(){ vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3)); gl_Position=vec4(p[gl_VertexID],0,1); }
-            """);
-        int fragment=shaders.Compile(ShaderType.FragmentShader,"#version 430 core\n"+TerrainTessellationTestAssets.Common()+"""
-
-            uniform vec3 sampleInput;
-            layout(location=0) out vec4 result;
-            void main(){
-                float h=VgeHeight(sampleInput.xy,vec2(0),vec2(.5,1),sampleInput.z,vec3(0));
-                result=vec4(h,VgeEdgeLevel(vec3(-.5,0,0),vec3(.5,0,0)),VgeEdgeLevel(vec3(.5,0,0),vec3(-.5,0,0)),VgeEdgeLevel(vec3(0),vec3(0)));
-            }
-            """);
+        int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
+        int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-height.fsh");
         int program=TerrainShaderTestFixture.Link(vertex,fragment);
         using var vertexArray = GpuVao.Create();
         int vao = vertexArray.VertexArrayId;
@@ -94,7 +75,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             for(int y=0;y<16;y++) for(int x=0;x<16;x++) data[(y*16+x)*4+3]=x<8?height:1-height;
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,data);
             using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-            var layout = GpuProgramLayout.TryBuild(program);
+            var layout = BuiltShaderFixture.Layout(program,"tests/displacement-height.fsh");
             target.BindWithViewport(); StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
             atlas.Bind(0); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"sampleInput"),u,v,amplitude);

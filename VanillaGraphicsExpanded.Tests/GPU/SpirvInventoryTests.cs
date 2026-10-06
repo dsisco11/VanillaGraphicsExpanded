@@ -15,7 +15,7 @@ public sealed class SpirvInventoryTests : IDisposable
     private readonly HeadlessGLFixture fixture;
     private readonly ITestOutputHelper output;
     private static string Root => Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-    private static ShaderVariantResolver Registry => GpuShaderContracts.Registry;
+    private static readonly ShaderVariantResolver Registry = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
 
     /// <summary>Retains the shared context and preparation receipt output.</summary>
     public SpirvInventoryTests(HeadlessGLFixture fixture, ITestOutputHelper output) { this.fixture = fixture; this.output = output; }

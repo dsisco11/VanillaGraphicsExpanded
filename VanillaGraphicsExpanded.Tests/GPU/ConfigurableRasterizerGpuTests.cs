@@ -270,8 +270,8 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         /// <summary>Creates a 32-square target and vertex-ID geometry with explicitly written clip distances.</summary>
         public RasterDraw()
         {
-            int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nout float modelY; uniform int lineMode; uniform int zeroDepth; void main(){vec2 p; if(lineMode!=0) p=vec2(gl_VertexID==0?-1.0:1.0,0.0);else p=vec2((gl_VertexID==1)?3.0:-1.0,(gl_VertexID==2)?3.0:-1.0);gl_Position=vec4(p,zeroDepth!=0?0.25:-0.5,1.0);gl_ClipDistance[0]=p.x;modelY=p.y;}");
-            int fragment = Compile(ShaderType.FragmentShader, "#version 330 core\nin float modelY; out vec4 result;void main(){result=vec4(1,modelY>0.0?1.0:0.0,1,0.5);}");
+            int vertex = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/rasterizer.vsh", ShaderType.VertexShader);
+            int fragment = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/rasterizer.fsh", ShaderType.FragmentShader);
             program = GL.CreateProgram(); GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.DeleteShader(vertex); GL.DeleteShader(fragment);
@@ -288,8 +288,8 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             StateCache.Current.ApplyConfigurableRaster(pipeline);
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
             GL.UseProgram(program); GL.BindVertexArray(vao);
-            GL.Uniform1(GL.GetUniformLocation(program, "lineMode"), lines ? 1 : 0);
-            GL.Uniform1(GL.GetUniformLocation(program, "zeroDepth"), zeroToOne ? 1 : 0);
+            GL.Uniform1(0, lines ? 1 : 0);
+            GL.Uniform1(1, zeroToOne ? 1 : 0);
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
             byte[] pixels = new byte[32 * 32 * 4]; GL.ReadPixels(0, 0, 32, 32, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             LastPixels = pixels;
@@ -297,12 +297,6 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         }
         /// <summary>Deletes native fixture resources before their context is destroyed.</summary>
         public void Dispose() { GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer); GL.DeleteRenderbuffer(color); }
-        /// <summary>Compiles deterministic fixture source with diagnostic failure output.</summary>
-        private static int Compile(ShaderType type, string source)
-        {
-            int shader = GL.CreateShader(type); GL.ShaderSource(shader, source); GL.CompileShader(shader);
-            GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled); Assert.True(compiled != 0, GL.GetShaderInfoLog(shader)); return shader;
-        }
     }
     #endregion
 }

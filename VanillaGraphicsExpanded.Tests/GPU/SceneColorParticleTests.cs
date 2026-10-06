@@ -42,16 +42,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         capture.BeginCapture();
         Assert.Equal(.75f, ReadDepth(capture.BeforeDepth));
         using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
-            #version 430 core
-            void main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[gl_VertexID],0,1);}
-            """);
-        int fragment = shaders.Compile(ShaderType.FragmentShader, """
-            #version 430 core
-            uniform vec4 colour; uniform float depthValue;
-            layout(location=0) out vec4 outColor; layout(location=1) out vec4 outGlow;
-            void main(){outColor=colour;outGlow=vec4(.8,.7,.6,.5);gl_FragDepth=depthValue;}
-            """);
+        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
+        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/particle-draw.fsh");
         using var draw = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         capture.DrawTarget.BindWithViewport();
@@ -274,8 +266,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     /// <summary>Issues one ordered source-alpha particle draw with an independently chosen visibility depth.</summary>
     private static void DrawParticle(int program, float red, float green, float alpha, float depth)
     {
-        GL.Uniform4(GL.GetUniformLocation(program, "colour"), red, green, 0f, alpha);
-        GL.Uniform1(GL.GetUniformLocation(program, "depthValue"), depth);
+        GL.Uniform4(0, red, green, 0f, alpha);
+        GL.Uniform1(1, depth);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
     }
 

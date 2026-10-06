@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj" />
+    <Compile Include="..\ShaderBuildTool\TestShaderPrograms.cs" Link="Fixtures\Shaders\TestShaderPrograms.cs" />
     <!-- Exercise the production source-layout emitter directly. -->
     <Compile Include="..\ShaderBuildTool\Spirv\ShaderSourceLayout.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
     <Compile Include="..\ShaderBuildTool\Spirv\ShaderVariantSource.cs;..\ShaderBuildTool\Spirv\ShaderSourcePreprocessor.cs;..\ShaderBuildTool\Spirv\DerivedGlobalConstants.cs;..\ShaderBuildTool\Spirv\FileSystemSyntaxTreeResourceResolver.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
@@ -60,10 +61,38 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+
   </ItemGroup>
+
+  <!-- Test assets overlay production inputs; one catalog publishes a complete digest manifest. -->
+  <Target Name="BuildTestShaderFixtures" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveProjectReferences"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <TestShaderArtifacts>$(MSBuildProjectDirectory)\..\artifacts\spirv-tests\$(Configuration)</TestShaderArtifacts>
+      <TestShaderInputs>$(MSBuildProjectDirectory)\obj\$(Configuration)\test-shader-inputs</TestShaderInputs>
+    </PropertyGroup>
+    <RemoveDir Directories="$(TestShaderInputs)" />
+    <ItemGroup>
+      <_ProductionShaderInput Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\**\*" />
+      <_FixtureShaderInput Include="Fixtures\Shaders\assets\vanillagraphicsexpanded\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ProductionShaderInput)" DestinationFiles="@(_ProductionShaderInput->'$(TestShaderInputs)\vanillagraphicsexpanded\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(_FixtureShaderInput)" DestinationFiles="@(_FixtureShaderInput->'$(TestShaderInputs)\vanillagraphicsexpanded\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <MSBuild Projects="..\SpirvBuild\VanillaGraphicsExpanded.SpirvBuild.csproj"
+             Targets="CompileSpirvShaders"
+             Properties="Configuration=$(Configuration);SpirvRegistry=tests;SpirvDomain=vanillagraphicsexpanded;SpirvAssetsRoot=$(TestShaderInputs);SpirvArtifactsDir=$(TestShaderArtifacts)" />
+    <ItemGroup>
+      <_ClipFixtureBinary Include="$(TestShaderArtifacts)\vanillagraphicsexpanded\shaders\tests\clipdistance\*.spv" />
+      <EmbeddedResource Include="@(_ClipFixtureBinary)">
+        <LogicalName>VanillaGraphicsExpanded.Tests.Fixtures.ClipDistance.%(_ClipFixtureBinary.Filename)%(_ClipFixtureBinary.Extension)</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+    <Error Condition="!Exists('$(TestShaderArtifacts)\build-receipt.json')" Text="Missing successful test shader build receipt." />
+  </Target>
 
   <!-- Copy shader assets to test output directory for GPU tests -->
   <ItemGroup>
+    <Content Include="Fixtures\Shaders\assets\vanillagraphicsexpanded\**\*" Link="assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\schemas\pbr_material_definitions.schema.json" Link="schemas\pbr_material_definitions.schema.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\config\configlib-patches.json">
       <Link>assets\config\configlib-patches.json</Link>
@@ -87,11 +116,14 @@
   <!-- Enumerate after project references build, so a clean build includes newly generated binaries. -->
   <Target Name="CopyTestSpirvAssets" AfterTargets="Build">
     <ItemGroup>
-      <_TestSpirvFiles Include="$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\**\*.spv;$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\**\spirv-digests.json" />
+      <_TestSpirvFiles Include="$(TestShaderArtifacts)\vanillagraphicsexpanded\shaders\**\*.spv;$(TestShaderArtifacts)\vanillagraphicsexpanded\shaders\**\spirv-digests.json" />
+      <_CurrentTestSpirv Include="@(_TestSpirvFiles->'$(TargetDir)assets\shaders\%(RecursiveDir)%(Filename)%(Extension)')" />
+      <_ObsoleteTestSpirv Include="$(TargetDir)assets\shaders\**\*.spv" Exclude="@(_CurrentTestSpirv)" />
       <_RequiredTestSpirv Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\shaders\*.csh" />
     </ItemGroup>
-    <Error Condition="!Exists('$(SpirvArtifactsDir)\vanillagraphicsexpanded\shaders\%(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv')"
+    <Error Condition="!Exists('$(TestShaderArtifacts)\vanillagraphicsexpanded\shaders\%(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv')"
            Text="Missing compiled test shader: %(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv" />
+    <Delete Files="@(_ObsoleteTestSpirv)" />
     <Copy SourceFiles="@(_TestSpirvFiles)" DestinationFiles="@(_TestSpirvFiles->'$(TargetDir)assets\shaders\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 

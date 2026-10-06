@@ -17,8 +17,9 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public SpirvGraphicsLifecycleTests(HeadlessGLFixture fixture, ITestOutputHelper output) : base(fixture) => this.output = output;
 
     #region Binary execution
-    /// <summary>Automatically includes every graphics program variant in the built shader inventory.</summary>
-    public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.GraphicsPrograms();
+    /// <summary>Includes the built graphics variants owned by runtime program declarations.</summary>
+    public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.GraphicsPrograms()
+        .Where(row => VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.Programs.ContainsKey((string)row[0]));
 
     /// <summary>Reuses the registered program after the engine has disposed its previous GL generation.</summary>
     [Theory]

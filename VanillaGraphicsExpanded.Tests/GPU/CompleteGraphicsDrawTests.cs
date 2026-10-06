@@ -66,11 +66,11 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         private readonly GpuVao vao;
         private readonly GpuEbo indices;
         #region Public API
-        /// <summary>Compiles deterministic sources and creates an independent render target.</summary>
+        /// <summary>Loads deterministic binaries and creates an independent render target.</summary>
         public FullscreenDraw()
         {
-            int vs = Compile(ShaderType.VertexShader, "#version 330 core\nvoid main(){vec2 p=vec2(gl_VertexID==1?3:-1,gl_VertexID==2?3:-1);gl_Position=vec4(p,0,1);}");
-            int fs = Compile(ShaderType.FragmentShader, "#version 330 core\nlayout(location=0) out vec4 a;layout(location=1) out vec4 b;layout(location=2) out vec4 c;void main(){a=vec4(1,0,0,1);b=vec4(0,1,0,1);c=vec4(0,0,1,1);}");
+            int vs = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/complete-state.vsh", ShaderType.VertexShader);
+            int fs = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/complete-state.fsh", ShaderType.FragmentShader);
             program = GL.CreateProgram(); GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.DeleteShader(vs); GL.DeleteShader(fs);
@@ -105,14 +105,6 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
             StateCache.Current.UseProgram(0); indices.Dispose(); vao.Dispose(); GL.DeleteProgram(program);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0); GL.DeleteFramebuffer(framebuffer);
             foreach (int color in colors) GL.DeleteRenderbuffer(color); StateCache.Current.InvalidateAll();
-        }
-        #endregion
-        #region Private
-        /// <summary>Compiles a fixture stage with driver diagnostics on failure.</summary>
-        private static int Compile(ShaderType kind, string source)
-        {
-            int shader = GL.CreateShader(kind); GL.ShaderSource(shader, source); GL.CompileShader(shader);
-            GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled); Assert.True(compiled != 0, GL.GetShaderInfoLog(shader)); return shader;
         }
         #endregion
     }

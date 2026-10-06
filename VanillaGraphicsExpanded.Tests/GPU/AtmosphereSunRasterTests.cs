@@ -18,27 +18,13 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
-            #version 430 core
-            void main() {
-                vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));
-                gl_Position=vec4(p[gl_VertexID],0,1);
-            }
-            """);
-        string source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/atmosphere_solar_disk.glsl"));
-        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + source + """
-            uniform float elevation;
-            layout(location=0) out vec4 result;
-            void main() {
-                float visible=atmSunVisibility(elevation,0);
-                result=vec4(visible,atmSunVisibleElevation(elevation,0,visible),0,1);
-            }
-            """);
+        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
+        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/sun-segment.fsh");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        var layout = GpuProgramLayout.TryBuild(program.ProgramId);
+        var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-segment.fsh");
         StateCache.Current.UseProgram(program.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
@@ -68,44 +54,16 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        string directory = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
-            #version 430 core
-            vec2 uvIn;
-            mat4 projectionMatrix;
-            mat4 viewMatrix;
-            uniform vec3 camera;
-            """ + File.ReadAllText(Path.Combine(directory, "atmosphere_sun_vertex.glsl")) + """
-            void main() {
-                vec2 corners[6] = vec2[6](vec2(0,0),vec2(1,0),vec2(1,1),vec2(0,0),vec2(1,1),vec2(0,1));
-                uvIn=corners[gl_VertexID];
-                float zoom=.75/tan(vge_atmosphereDisk.w);
-                projectionMatrix=mat4(zoom,0,0,0, 0,zoom,0,0, 0,0,-1,-1, 0,0,-1,0);
-                viewMatrix=mat4(1); viewMatrix[3]=vec4(camera,1);
-                VgeDrawAtmosphericSun();
-            }
-            """);
-        int fragment = shaders.Compile(ShaderType.FragmentShader, """
-            #version 430 core
-            #define VGE_SURFACE_PRIMARY_OUTPUTS 0
-            #define SSAOLEVEL 0
-            layout(location=0) out vec4 outColor;
-            layout(location=1) out vec4 outGlow;
-            const float extraGodray=1;
-            float getSkyMurkiness() { return 0; }
-            vec3 applyUnderwaterEffects(vec3 color,float murk) { return color; }
-            """ + "\n" + (displayTransfer ? File.ReadAllText(Path.Combine(directory, "pbr_color.glsl"))
-                : "vec3 VgeResolveDisplay(vec3 value) { return value; }\nvec3 VgeDitherDisplay(vec3 value, vec2 pixel) { return value; }\n")
-            + "\n" + File.ReadAllText(Path.Combine(directory, "atmosphere_sun_fragment.glsl")) + "\n" + """
-            void main() { VgeDrawAtmosphericSun(); }
-            """);
+        int vertex = shaders.Load(ShaderType.VertexShader, "tests/sun-raster.vsh");
+        string fragmentPath = displayTransfer ? "tests/sun-raster-display.fsh" : "tests/sun-raster-linear.fsh";
+        int fragment = shaders.Load(ShaderType.FragmentShader, fragmentPath);
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         using var color = DynamicTexture2D.Create(64, 64, PixelInternalFormat.Rgba32f);
         using var depth = new DepthTexture(64, 64, PixelInternalFormat.DepthComponent32f);
         using var glow = DynamicTexture2D.Create(64, 64, PixelInternalFormat.Rgba32f);
         using var target = GpuFramebuffer.CreateMRT([color, glow], depth)!;
-        var layout = GpuProgramLayout.TryBuild(program.ProgramId);
+        var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-raster.vsh", fragmentPath);
         StateCache.Current.UseProgram(program.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereDisk"), 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);

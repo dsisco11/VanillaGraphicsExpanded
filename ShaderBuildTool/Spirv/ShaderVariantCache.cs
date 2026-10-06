@@ -8,6 +8,7 @@ namespace ShaderBuildTool.Spirv;
 internal sealed class ShaderVariantCache(string outputRoot, string compilerIdentity)
 {
     private readonly string root = Path.Combine(outputRoot, "_cache");
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> entryLocks = new(StringComparer.Ordinal);
 
     #region Cache identity and lookup
     /// <summary>Includes final source, layout, defines, entry point and compiler policy in an unambiguous content key.</summary>
@@ -17,23 +18,28 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
     /// <summary>Accepts only complete entries whose bytes still match the recorded digest.</summary>
     internal bool TryRead(string key, out byte[] bytes, out ShaderBinaryDigest.Entry digest, Action<string>? reportMiss = null)
     {
-        bytes = [];
-        digest = null!;
-        try
+        // The output lease excludes other builders, but aliases within this batch can share a key.
+        // Keep native file reads out of the atomic replacement window on platforms denying delete sharing.
+        lock (entryLocks.GetOrAdd(key, static _ => new object()))
         {
-            string metadata = Path.Combine(root, key + ".json");
-            string binary = Path.Combine(root, key + ".bin");
-            if (!File.Exists(metadata)) { reportMiss?.Invoke("cache key has no metadata"); return false; }
-            if (!File.Exists(binary)) { reportMiss?.Invoke("cached binary missing"); return false; }
-            var expected = JsonSerializer.Deserialize<ShaderBinaryDigest.Entry>(File.ReadAllBytes(metadata));
-            bytes = File.ReadAllBytes(binary);
-            var actual = Digest(bytes);
-            if (expected != actual || bytes.Length == 0) { reportMiss?.Invoke("cached binary digest/length invalid"); return false; }
-            digest = actual;
-            return true;
+            bytes = [];
+            digest = null!;
+            try
+            {
+                string metadata = Path.Combine(root, key + ".json");
+                string binary = Path.Combine(root, key + ".bin");
+                if (!File.Exists(metadata)) { reportMiss?.Invoke("cache key has no metadata"); return false; }
+                if (!File.Exists(binary)) { reportMiss?.Invoke("cached binary missing"); return false; }
+                var expected = JsonSerializer.Deserialize<ShaderBinaryDigest.Entry>(File.ReadAllBytes(metadata));
+                bytes = File.ReadAllBytes(binary);
+                var actual = Digest(bytes);
+                if (expected != actual || bytes.Length == 0) { reportMiss?.Invoke("cached binary digest/length invalid"); return false; }
+                digest = actual;
+                return true;
+            }
+            catch (JsonException) { reportMiss?.Invoke("cache metadata malformed"); return false; }
+            catch (IOException) { reportMiss?.Invoke("cache entry unreadable"); return false; }
         }
-        catch (JsonException) { reportMiss?.Invoke("cache metadata malformed"); return false; }
-        catch (IOException) { reportMiss?.Invoke("cache entry unreadable"); return false; }
     }
     #endregion
 
@@ -41,9 +47,13 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
     /// <summary>Publishes metadata last so interrupted writes cannot validate a partial compiler result.</summary>
     internal void Store(string key, byte[] bytes, ShaderBinaryDigest.Entry digest)
     {
-        Directory.CreateDirectory(root);
-        WriteAtomic(Path.Combine(root, key + ".bin"), bytes);
-        WriteAtomic(Path.Combine(root, key + ".json"), JsonSerializer.SerializeToUtf8Bytes(digest));
+        // Serialize only this entry; different compiler results still publish concurrently.
+        lock (entryLocks.GetOrAdd(key, static _ => new object()))
+        {
+            Directory.CreateDirectory(root);
+            WriteAtomic(Path.Combine(root, key + ".bin"), bytes);
+            WriteAtomic(Path.Combine(root, key + ".json"), JsonSerializer.SerializeToUtf8Bytes(digest));
+        }
     }
 
     /// <summary>Restores a cached output only when its bytes differ, preserving unaffected output timestamps.</summary>

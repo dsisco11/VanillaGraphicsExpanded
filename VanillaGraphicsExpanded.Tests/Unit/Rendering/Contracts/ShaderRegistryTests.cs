@@ -17,14 +17,17 @@ public sealed class ShaderRegistryTests
         while (directory != null && !File.Exists(Path.Combine(directory.FullName, "ShaderBuildTool", "Program.cs")))
             directory = directory.Parent;
         Assert.NotNull(directory);
-        string root = Path.Combine(directory.FullName, "VanillaGraphicsExpanded", "assets", "vanillagraphicsexpanded", "shaders");
-        string[] extensions = [".vsh", ".fsh", ".csh", ".gsh", ".tcsh", ".tesh"];
-        var sources = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-            .Where(p => extensions.Contains(Path.GetExtension(p)))
-            .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/'))
-            .Where(p => !p.StartsWith("includes/", StringComparison.Ordinal)).Order(StringComparer.Ordinal);
-        Assert.Equal(sources, Registry.Stages.Values.Select(s => s.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
-        Assert.Equal(Registry.Binaries.Count, Registry.Binaries.Select(b => b.BinaryPath).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        string[] roots = [
+            Path.Combine(directory.FullName, "VanillaGraphicsExpanded", "assets", "vanillagraphicsexpanded", "shaders"),
+            Path.Combine(directory.FullName, "VanillaGraphicsExpanded.Tests", "Fixtures", "Shaders", "assets", "vanillagraphicsexpanded", "shaders")];
+        string[] extensions = [".vsh", ".fsh", ".csh", ".gsh", ".tcsh", ".tesh", ".glsl"];
+        var sources = roots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .Where(path => extensions.Contains(Path.GetExtension(path)))
+            .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/')))
+            .Where(path => !path.StartsWith("includes/", StringComparison.Ordinal)).Order(StringComparer.Ordinal);
+        var fixtures = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
+        Assert.Equal(sources, fixtures.Stages.Values.Select(stage => stage.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+        Assert.Equal(fixtures.Binaries.Count, fixtures.Binaries.Select(binary => binary.BinaryPath).Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
     /// <summary>Explicit empty contracts remain distinct from unknown identities and validator-only assets.</summary>

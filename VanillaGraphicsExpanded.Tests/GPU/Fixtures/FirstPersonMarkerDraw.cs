@@ -11,27 +11,11 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     private readonly int framebuffer;
 
     #region Public API
-    /// <summary>Compiles a real raster draw writing overlay color, sampled depth and negative metadata.</summary>
+    /// <summary>Loads a precompiled raster draw writing overlay color, sampled depth and negative metadata.</summary>
     public FirstPersonMarkerDraw()
     {
-        int vertex = Compile(ShaderType.VertexShader, """
-            #version 430 core
-            void main() {
-                vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
-                gl_Position = vec4(p * 2.0 - 1.0, -0.98, 1.0);
-            }
-            """);
-        int fragment = Compile(ShaderType.FragmentShader, """
-            #version 430 core
-            layout(location=0) out vec4 color;
-            layout(location=1) out vec4 depth;
-            layout(location=4) out vec4 normal;
-            layout(location=5) out vec4 material;
-            void main() {
-                color=vec4(1,0,0,1); depth=vec4(0.01,0,0,1);
-                normal=vec4(0.5,0.5,1,-1); material=vec4(0.5,0,0,0);
-            }
-            """);
+        int vertex = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/first-person.vsh", ShaderType.VertexShader);
+        int fragment = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/first-person.fsh", ShaderType.FragmentShader);
         program = GL.CreateProgram();
         GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
         GL.DeleteShader(vertex); GL.DeleteShader(fragment);
@@ -81,18 +65,6 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     public void Dispose()
     {
         GL.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer);
-    }
-    #endregion
-
-    #region Private
-    /// <summary>Compiles one driver shader and reports its diagnostic on failure.</summary>
-    private static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type);
-        GL.ShaderSource(shader, source); GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
-        Assert.True(compiled != 0, GL.GetShaderInfoLog(shader));
-        return shader;
     }
     #endregion
 }

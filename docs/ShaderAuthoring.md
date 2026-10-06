@@ -1,8 +1,15 @@
 # Declaring owned shaders
 
 Shader compilation uses performance optimization (`-O`) in both Debug and Release builds.
-Debug additionally requests debug information (`-g`); Release omits it. The build receipt
-includes both settings, so a change in optimization policy invalidates previous shader outputs.
+Debug requests debug information (`-g`); Release omits it. The build receipt includes both
+settings, so compiler-policy changes invalidate previous outputs.
+
+Shared standalone uniforms with stripped names currently expose an installed-driver linking
+defect in the eye-relative and solar raster fixtures. Release stripping remains enabled;
+retaining debug metadata and duplicating shared uniforms are not accepted workarounds.
+Migration of standalone numeric uniform data to UBOs requires a separately agreed scope and plan.
+Sampler/image resource bindings and specialization constants have different contracts and must
+be accounted for separately in that inventory.
 
 Declare a shader's immutable contract on its owning partial class. The generator automatically includes it in the shared build/runtime catalog; no registration list or special declaration filename is needed.
 

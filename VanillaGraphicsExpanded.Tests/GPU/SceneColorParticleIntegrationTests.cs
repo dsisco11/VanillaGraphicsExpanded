@@ -69,15 +69,8 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
         GL.ColorMask(2, false, true, false, true);
         StateCache.Current.InvalidateAll();
         using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
-            #version 430 core
-            void main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[gl_VertexID],0,1);}
-            """);
-        int fragment = shaders.Compile(ShaderType.FragmentShader, """
-            #version 430 core
-            layout(location=0) out vec4 color;layout(location=1) out vec4 glow;
-            void main(){color=vec4(8,4,2,.5);glow=vec4(1);gl_FragDepth=.5;}
-            """);
+        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
+        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/particle-integration.fsh");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         try

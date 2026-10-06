@@ -161,12 +161,10 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         var cache = StateCache.Current;
-        int program = GL.CreateProgram(), shader = GL.CreateShader(ShaderType.VertexShader);
+        int program = GL.CreateProgram(), shader = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/deletion.vsh", ShaderType.VertexShader);
         try
         {
             // Build a minimal executable so the test exercises deferred native deletion.
-            GL.ShaderSource(shader, "#version 330 core\nvoid main() { gl_Position = vec4(0.0); }");
-            GL.CompileShader(shader);
             GL.AttachShader(program, shader);
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);

@@ -24,48 +24,26 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
     public void ImportedMaterialHelpersPreserveEquivalentEyeGeometry(float angle, float eyeX, float eyeY, float eyeZ)
     {
         EnsureContextValid();
-        string includes = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-        string fragment = "#version 330\n#define VGE_PBR_ENABLE_POM 1\n" +
-            "uniform sampler2D vge_normalDepthTex;\nuniform vec3 surface;\nuniform int outputMode;\nout vec4 color;\n" +
-            Expand(Path.Combine(includes, "vge_normaldepth.glsl")) + Expand(Path.Combine(includes, "vge_parallax.glsl")) + """
-
-            void main() {
-                vec3 toEye=VgeFragmentToEyeWorld(surface);
-                if(outputMode==0) { color=vec4(toEye,length(toEye)); return; }
-                vec2 baseUv=vec2(.5)+(gl_FragCoord.xy-vec2(.5))*.01;
-                vec3 metricSurface=surface+vec3((gl_FragCoord.xy-vec2(.5))*.01,0);
-                vec2 uv=VgeApplyPomUv_WithTbn(baseUv,mat3(1),1,metricSurface,vec2(0),vec2(1));
-                vec4 n=VgeComputePackedWorldNormal01Height01_WithTbn(vec2(.5),vec3(0,0,1),surface,mat3(1),1,vec3(.6,0,.8),.75);
-                color=vec4(uv,n.x,n.z);
-            }
-            """;
-        const string vertex = """
-            #version 330
-            uniform mat4 modelViewMatrix;
-            void main() {
-                vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);
-                gl_Position=vec4(p*2-1,modelViewMatrix[3].w-1,1);
-            }
-            """;
         using var drawing = new ShaderTestFramework();
         using var target = drawing.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba32f);
         using var texture = drawing.CreateTexture(64, 64, PixelInternalFormat.Rgba32f,
             Enumerable.Range(0,64*64).SelectMany(_ => new[] {.8f,.5f,.9f,.25f}).ToArray());
         using var indices = drawing.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
         using var records = drawing.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);
-        int vs = Compile(ShaderType.VertexShader, vertex), fs = Compile(ShaderType.FragmentShader, fragment);
+        int vs = BuiltShaderFixture.LoadFixture("tests/eye-relative.vsh", ShaderType.VertexShader), fs = BuiltShaderFixture.LoadFixture("tests/eye-relative.fsh", ShaderType.FragmentShader);
         int program = GL.CreateProgram(), vao = GL.GenVertexArray();
         try
         {
             GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            var layout = BuiltShaderFixture.Layout(program, "tests/eye-relative.vsh", "tests/eye-relative.fsh");
             GL.UseProgram(program); GL.BindVertexArray(vao);
             GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
-            GL.Uniform1(GL.GetUniformLocation(program,"vge_normalDepthTex"),0);
+            GL.Uniform1(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             indices.Bind(1); records.Bind(2);
-            GL.Uniform1(GL.GetUniformLocation(program,"vge_displacementTex"),1);
-            GL.Uniform1(GL.GetUniformLocation(program,"vge_displacementRecords"),2);
+            GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementTex"),1);
+            GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             foreach(float distance in new[] {10f,16f})
             {
@@ -90,9 +68,9 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             {
                 float c=MathF.Cos(radians),s=MathF.Sin(radians);
                 float[] view=[c,s,0,0,-s,c,0,0,0,0,1,0,-c*eye.X+s*eye.Y,-s*eye.X-c*eye.Y,-eye.Z,1];
-                GL.UniformMatrix4(GL.GetUniformLocation(program,"modelViewMatrix"),1,false,view);
-                GL.Uniform3(GL.GetUniformLocation(program,"surface"),position.X,position.Y,position.Z);
-                GL.Uniform1(GL.GetUniformLocation(program,"outputMode"),mode);
+                GL.UniformMatrix4(layout.GetUniformLocation(program,"modelViewMatrix"),1,false,view);
+                GL.Uniform3(layout.GetUniformLocation(program,"surface"),position.X,position.Y,position.Z);
+                GL.Uniform1(layout.GetUniformLocation(program,"outputMode"),mode);
                 target.BindWithViewport(); GL.DrawArrays(PrimitiveType.Triangles,0,3);
                 float[] pixel=new float[4]; GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.Float,pixel);
                 return pixel;
@@ -107,13 +85,6 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
     #endregion
 
     #region Shader fixtures
-    /// <summary>Compiles a stage with explicit failure diagnostics.</summary>
-    private static int Compile(ShaderType type,string source)
-    {
-        int shader=GL.CreateShader(type); GL.ShaderSource(shader,source); GL.CompileShader(shader);
-        GL.GetShader(shader,ShaderParameter.CompileStatus,out int compiled);
-        Assert.True(compiled!=0,GL.GetShaderInfoLog(shader)); return shader;
-    }
 
     /// <summary>Expands relative production includes without altering their implementations.</summary>
     internal static string Expand(string path) => Regex.Replace(File.ReadAllText(path),"@import\\s+\"([^\"]+)\"",

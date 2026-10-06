@@ -16,13 +16,16 @@ internal sealed class GpuProgramInterface
     private readonly Dictionary<int, string> uniformNames = new();
     /// <summary>Validated resource entries owned by this executable's interface generation.</summary>
     internal GpuPreparedBindings PreparedBindings { get; }
+    /// <summary>Graphics-only linked interface metadata, installed with this same resource-interface candidate.</summary>
+    internal GraphicsExecutableInterface? Graphics { get; }
     /// <summary>Active locations and diagnostic resource indices belonging to this program.</summary>
     private sealed record Resources(Dictionary<string, int> Uniforms, Dictionary<string, int> Blocks, Dictionary<string, int> Storage, Dictionary<int, int> ArraySizes);
 
     #region Registration
     /// <summary>Matches active locations and initial block bindings without querying any SPIR-V debug name.</summary>
-    public GpuProgramInterface(int program, IEnumerable<GpuBindingContract> contracts)
+    public GpuProgramInterface(int program, IEnumerable<GpuBindingContract> contracts, GraphicsExecutableInterface? graphics = null)
     {
+        Graphics = graphics;
         var array = contracts.ToArray();
         PreparedBindings = new GpuPreparedBindings(program, GpuBindingContract.Merge(array));
         var arraySizes = new Dictionary<int, int>();

@@ -43,6 +43,8 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             Assert.Same(firstLayout, program.ResourceBindings);
             program.FogDensityIn = 0.125f;
             int installed = program.ProgramId;
+            ulong installedRevision = program.ExecutableRevision;
+            var installedInterface = program.GraphicsInterface;
             var installedSettings = program.InstalledSettings;
             var installedLayout = program.ResourceBindings;
             program.EnableShortRangeAo = true;
@@ -51,6 +53,8 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             Assert.False(program.EnsureReady());
             assets.ScheduledTasks.Clear();
             Assert.Equal(installed, program.ProgramId);
+            Assert.Equal(installedRevision, program.ExecutableRevision);
+            Assert.Same(installedInterface, program.GraphicsInterface);
             Assert.True(GL.IsProgram(installed));
             Assert.Same(installedSettings, program.InstalledSettings);
             Assert.Same(installedLayout, program.ResourceBindings);
