@@ -287,14 +287,25 @@ and ownership behavior; live appearance and GPU timings remain unmeasured.
 
 ## UV distortion
 
-`liquids/uv_distortion.glsl` implements the approximate receiver independently of ray traversal.
-The generated `LiquidShaderProgram.RefractionQuality` shader option selects it at `0` and
-defaults to `3`. `LiquidRenderer` selects the current persisted quality before shader preparation;
-`refraction_selection.glsl` maps `1`, `2`, `3` to the geometric x2/x4/x8 budgets.
-It uses the same continuous material
-wave normal, oriented toward the eye, and IOR 1.333 as the geometric sampler.
+Quality `0` uses `liquids/pixel_normal_refraction.glsl`: UE-style pixel-normal offset.
+It compares the unperturbed mesh normal with the continuous wave normal in view space,
+both oriented toward the eye. Matching normals produce no offset, including oblique flat
+water. The UV offset is their XY difference multiplied by the projection focal scales,
+a resolution-independent strength of `0.02`, and axial receiver separation ramped from
+zero to full strength over `0.3` metres. This strength is VGE calibration, not UE's
+resolution-dependent distortion constant. Increasing depth beyond that ramp does not
+increase displacement. Candidate UVs use the existing 0.55-texel safe edge clamp and
+bilateral eligibility checks; unavailable candidates retain the validated seed.
+Snell direction remains available for scattering and total internal reflection, but does
+not select the background UV. Absorption and scattering retain the selected receiver's
+approximate water path. Full and half background resolution remain supported.
 
-The selected behavior is IOR-based projection rather than an arbitrary pixel-normal offset.
+`LiquidRenderer` selects persisted quality before shader preparation. The default remains
+`3`; `refraction_selection.glsl` maps `1`, `2`, `3` to geometric x2/x4/x8 budgets.
+Their approximate fallback remains `liquids/uv_distortion.glsl`, described below; it uses
+the continuous wave normal and IOR 1.333 rather than pixel-normal offset.
+
+The higher-quality fallback uses IOR-based projection.
 Let `s` be the displaced view-space interface, `n` its oriented unit normal, and `d` the Snell
 direction from `normalize(s)`. A filtered lookup at `project(s)` supplies the straight receiver
 `b` and a local receiver normal `m`. Its water-normal separation is
@@ -322,8 +333,13 @@ Overlapping corners reuse cached values; at most three missing corners are fetch
 independently checked for submerged eligibility and layer compatibility or precise planar
 continuation. The new actual triangles must cover the query. No bounding-box filling or
 barycentric extrapolation is accepted. Unavailable coverage retains the eligible bilinear
-approximation. Nonfinite projections, projections behind the eye and offscreen
-endpoints are rejected, never clamped onto the image edge. An unsupported distorted candidate
+approximation. Nonfinite projections and projections behind the eye are rejected.
+Approximate distorted endpoints are clamped to the captured image with a 0.55-texel
+inset at the actual refraction texture resolution; a one-texel dimension uses its center.
+This continues edge samples when the estimated destination leaves the screen, rather than
+abruptly reverting to the undistorted seed. It can stretch edge content and does not recover
+offscreen geometry. Source-triangle projections, initial seed eligibility, and geometric
+ray-hit validation retain their exact coverage checks. An unsupported distorted candidate
 retains the validated seed radiance and geometry. If the seed has no support, no thickness is
 invented and the existing straight-through liquid transport remains active. The filter can
 renormalize supported taps at an edge without importing out-of-bounds or foreground color.
@@ -694,7 +710,7 @@ The snapshot represents opaque receivers only. Accepted paths approximate one wa
 The following contract governs the work in [PBR.WaterRefraction.todo](PBR.WaterRefraction.todo).
 The fields and default/validation behavior are implemented. The distinct x8/x4/x2 algorithms
 are implemented with total receiver-depth ceilings, as described under Optics and traversal.
-The ConfigLib Water Settings section exposes enable/disable, quality `0` (UV distortion),
+The ConfigLib Water Settings section exposes enable/disable, quality `0` (pixel-normal offset),
 `1` (ray march x2), `2` (ray march x4), `3` (ray march x8, default), and background resolution
 `1` (half) or `2` (full, default).
 Both menus display lower values before higher values. Numeric allowed values retain
@@ -783,7 +799,7 @@ assembly and SPIR-V output directories; it did not replace the running client's 
 | Persisted property | Values and default | Contract |
 | --- | --- | --- |
 | `WaterRefractionEnabled` | Existing Boolean, default `false` | Preserve existing saved values. Off is independent of quality. |
-| `WaterRefractionQuality` | Integer `0` = UV distortion, `1` = x2, `2` = x4, `3` = ray march x8 (default) | Present the UI in lowest-to-highest order, labelled Water Quality. Values are stable identifiers, not loop counts. |
+| `WaterRefractionQuality` | Integer `0` = pixel-normal offset, `1` = x2, `2` = x4, `3` = ray march x8 (default) | Present the UI in lowest-to-highest order, labelled Water Quality. Values are stable identifiers, not loop counts. |
 | `WaterRefractionBackgroundScale` | Integer resolution choice `1` = half width and height, `2` = full size (default) | Independent of quality; all four qualities support both resolutions. Convert to the inverse size divisor at receiver ownership boundaries. |
 
 Missing leaves use these defaults through the existing `ConfigModSystem` load/default-materialization

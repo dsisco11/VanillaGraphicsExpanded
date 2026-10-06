@@ -6,13 +6,23 @@
 #define VGE_REFRACTION_UV_SAMPLE(uv)
 #endif
 
-/** Projects an approximate receiver without clamping missing coverage onto an edge texel. */
-bool VgeWaterUvProject(vec3 positionVS, out vec2 sampleUv)
+/** Projects source geometry exactly, or bounds an approximate receiver lookup to safe image coverage. */
+bool VgeWaterUvProject(vec3 positionVS, bool clampToEdge, out vec2 sampleUv)
 {
     vec4 clip = projectionMatrix * vec4(positionVS, 1.0);
     sampleUv = vec2(0);
     if (any(isnan(clip)) || any(isinf(clip)) || clip.w <= .0001) return false;
     sampleUv = clip.xy / clip.w * .5 + .5;
+    if (any(isnan(sampleUv)) || any(isinf(sampleUv))) return false;
+    if (clampToEdge)
+    {
+        // Keep the complete filtering footprint inside the captured image. This is
+        // approximate edge continuation, never evidence of an offscreen ray hit.
+        // A one-texel dimension collapses to its center instead of reversing bounds.
+        vec2 inset = min(vec2(.5), vec2(.55) / vec2(textureSize(vge_refractionDepth, 0)));
+        sampleUv = clamp(sampleUv, inset, vec2(1) - inset);
+        return true;
+    }
     return all(greaterThanEqual(sampleUv, vec2(0))) && all(lessThanEqual(sampleUv, vec2(1)));
 }
 
@@ -61,7 +71,7 @@ bool VgeWaterUvAdjacentPatch(vec2 sampleUv, vec3 surface, vec3 normalVS, mat4 in
     if (!support.secondaryTriangle) return false;
     vec2 sourceUvs[4];
     for (int tap = 0; tap < 4; ++tap)
-        if (!VgeWaterUvProject(support.tapPositions[tap], sourceUvs[tap])) return false;
+        if (!VgeWaterUvProject(support.tapPositions[tap], false, sourceUvs[tap])) return false;
     // The selected originals form a convex quad inside their four reduced cells.
     // Find violated edges in its actual camera projection, rather than guessing
     // a coordinate offset from a different receiver footprint.
@@ -141,7 +151,7 @@ VgeWaterReceiver VgeWaterUvRefractionFromSeed(vec3 surface, vec3 normalVS, bool 
     vec3 selectedRadiance = vec3(0);
     bool corrected = false;
     vec2 projectedUv;
-    if (VgeWaterUvProject(surface + direction * estimate, projectedUv))
+    if (VgeWaterUvProject(surface + direction * estimate, true, projectedUv))
     {
 #ifdef VGE_WATER_BACKGROUND_RESOLUTION
         const bool reduced = VGE_WATER_BACKGROUND_RESOLUTION == 1;
@@ -151,7 +161,7 @@ VgeWaterReceiver VgeWaterUvRefractionFromSeed(vec3 surface, vec3 normalVS, bool 
         VgeRefractionSupport candidate;
         VGE_REFRACTION_UV_SAMPLE(projectedUv);
         // Unsupported candidate taps cannot import foreground radiance. Preserve
-        // the validated seed instead of clamping an offscreen ray into the image.
+        // the validated seed if the clamped edge footprint fails depth validation.
         if (VgeRefractionFilterSupport(projectedUv, surface, normalVS, inverseProjection, candidate))
         {
             selectedPosition = candidate.positionVS;
@@ -188,7 +198,7 @@ VgeWaterReceiver VgeWaterUvRefraction(vec3 surface, vec3 normalVS, bool underwat
     // TIR has no transmitted receiver and performs no background reads.
     if (dot(direction, direction) < .0001) { VGE_REFRACTION_EVENT(6); return result; }
     vec2 seedUv;
-    if (!VgeWaterUvProject(surface, seedUv)) return result;
+    if (!VgeWaterUvProject(surface, false, seedUv)) return result;
     VgeRefractionSupport seed;
     VGE_REFRACTION_UV_SAMPLE(seedUv);
     if (!VgeRefractionFilterSupport(seedUv, surface, normalVS, inverseProjectionMatrix, seed)) return result;

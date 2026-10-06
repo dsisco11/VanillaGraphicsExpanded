@@ -63,7 +63,11 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     if (water && liquidMediumControl.z > .5 && fresnel < 1.0)
     {
         vec3 normalVS = normalize(mat3(modelViewMatrix) * N);
-        receiver = VgeWaterSelectRefraction(vge_viewPosition, normalVS, underwater);
+        // The mesh normal excludes wave detail and supplies the neutral PNO surface.
+        vec3 baseNormal = normalize(fragNormal);
+        if (dot(baseNormal, V) < 0.0) baseNormal = -baseNormal;
+        vec3 baseNormalVS = normalize(mat3(modelViewMatrix) * baseNormal);
+        receiver = VgeWaterSelectRefraction(vge_viewPosition, normalVS, baseNormalVS, underwater);
     }
     // Only a valid, fully weighted receiver replaces the ordinary contribution.
     // Partial confidence keeps both paths; shared reflection lighting remains outside this gate.

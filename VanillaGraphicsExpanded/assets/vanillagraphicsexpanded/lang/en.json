@@ -3,7 +3,7 @@
   "config-water-refraction-tooltip": "Enable water background refraction. Disabling releases refraction-only snapshots and retains straight-through water transmission. Water lighting, waves and medium effects remain active.",
   "config-section-water": "Water Settings",
   "config-water-quality": "Water Quality",
-  "config-water-quality-tooltip": "0 = UV distortion, 1 = ray marching x2, 2 = ray marching x4, 3 = ray marching x8 (default). Ray marching follows visible background geometry within the selected sample budget. UV distortion approximates background bending. Background resolution is selected independently; no restart is required.",
+  "config-water-quality-tooltip": "0 = pixel-normal offset, 1 = ray marching x2, 2 = ray marching x4, 3 = ray marching x8 (default). Pixel-normal offset distorts the background using wave detail without bending it across flat water. Ray marching follows visible background geometry within the selected sample budget. Background resolution is selected independently; no restart is required.",
   "config-water-background-resolution": "Water background resolution",
   "config-water-background-resolution-tooltip": "1 = half width and height, 2 = full resolution (default). Half resolution adds a reduction pass and can lose thin submerged detail. Applies independently of Water Quality; no restart is required.",
   "config-tessellation-maximum-level": "Maximum tessellation level",

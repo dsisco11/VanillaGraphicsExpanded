@@ -204,20 +204,91 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
             Assert.InRange(MathF.Abs(result[3][channel] - expected[channel]),0,.00001f);
     }
 
-    /// <summary>An offscreen estimate keeps supported near-edge transmission without clamping or confidence loss.</summary>
+    /// <summary>An offscreen estimate samples the bounded edge instead of jumping back to its near-edge seed.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void OffscreenEstimateKeepsNearEdgeSeed(bool half)
+    public void OffscreenEstimateUsesBoundedEdge(bool half)
     {
         var projection = Projection(60,2);
         Vector3 surface = Position(new(.98f,.5f),2,projection);
         Vector3 normal = Vector3.Normalize(new Vector3(-.9f,0,.4f));
         var result = Render(surface,normal,projection,10,half,false);
         Assert.Equal(1,result[0][0]); Assert.Equal(1,result[0][3]);
-        Assert.Equal(1,result[3][3]);
-        Assert.InRange(MathF.Abs(result[2][0] - (5.96f - (half ? 1f / Width : 0))),0,.00002f);
-        Assert.InRange(MathF.Abs(result[4][2] - .98f),0,.00001f);
+        float edge = 1 - .55f / (half ? Width / 2 : Width);
+        Assert.Equal(2,result[3][3]);
+        Assert.InRange(MathF.Abs(result[4][2] - edge),0,.00001f);
+        Assert.True(result[2][0] > 5.96f);
+    }
+
+    /// <summary>Crossing each screen edge and corner retains continuous HDR sampling at both capture resolutions.</summary>
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(1, 0)]
+    [InlineData(0, -1)]
+    [InlineData(0, 1)]
+    [InlineData(-1, -1)]
+    [InlineData(-1, 1)]
+    [InlineData(1, -1)]
+    [InlineData(1, 1)]
+    public void CrossingScreenBoundaryKeepsContinuousEdgeRadiance(int x, int y)
+    {
+        foreach (bool half in new[] { false, true })
+        {
+            Vector3 surface = new(0, 0, -2);
+            Vector3 normal = Vector3.Normalize(new Vector3(-.9f * x, -.9f * y, .4f));
+            Vector3 direction = Refract(-Vector3.UnitZ, normal, 1 / 1.333f);
+            var projection = Projection(60, 2);
+            Vector2 endpoint = Project(surface + direction * (-8 / direction.Z), projection);
+            float[][]? previous = null;
+            foreach (float crossing in new[] { -.0001f, .0001f })
+            {
+                // Translate the projection to move the physical endpoint across
+                // the boundary while its undistorted seed remains inside the image.
+                var shifted = projection;
+                if (x != 0) shifted.M31 = 2 * (endpoint.X - (x > 0 ? 1 + crossing : -crossing));
+                if (y != 0) shifted.M32 = 2 * (endpoint.Y - (y > 0 ? 1 + crossing : -crossing));
+                var result = Render(surface, normal, shifted, 10, half, false);
+                Assert.Equal(1, result[0][0]);
+                Assert.Equal(1, result[0][3]);
+                Assert.Equal(2, result[3][3]);
+                Vector2 inset = new(.55f / (half ? Width / 2 : Width), .55f / (half ? Height / 2 : Height));
+                if (x != 0) Assert.InRange(MathF.Abs(result[4][2] - (x > 0 ? 1 - inset.X : inset.X)), 0, .00001f);
+                if (y != 0) Assert.InRange(MathF.Abs(result[4][3] - (y > 0 ? 1 - inset.Y : inset.Y)), 0, .00001f);
+                if (previous != null)
+                    for (int channel = 0; channel < 3; channel++)
+                        Assert.InRange(MathF.Abs(result[2][channel] - previous[2][channel]), 0, .0001f);
+                previous = result;
+            }
+        }
+    }
+
+    /// <summary>Clamping cannot authorize foreground depth or missing capture coverage at the edge.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void InvalidClampedEdgeKeepsValidatedSeed(bool half, bool foreground)
+    {
+        var projection = Projection(60, 2);
+        Vector3 surface = Position(new(.94f, .5f), 2, projection);
+        Vector3 normal = Vector3.Normalize(new Vector3(-.9f, 0, .4f));
+        var result = Render(surface, normal, projection, 10, half, false, (colors, depths) =>
+        {
+            for (int y = 0; y < Height; y++)
+            for (int x = Width - 4; x < Width; x++)
+            {
+                int pixel = y * Width + x;
+                colors[pixel * 4] = 1000;
+                if (foreground) depths[pixel] = DeviceDepth(1);
+                else colors[pixel * 4 + 3] = 0;
+            }
+        });
+        Assert.Equal(1, result[0][0]);
+        Assert.Equal(1, result[0][3]);
+        Assert.Equal(2, result[3][3]);
+        Assert.InRange(MathF.Abs(result[2][0] - (5.88f - (half ? 1f / Width : 0))), 0, .00002f);
     }
 
     /// <summary>Approximate transport remains bounded even when the visible receiver is much farther away.</summary>

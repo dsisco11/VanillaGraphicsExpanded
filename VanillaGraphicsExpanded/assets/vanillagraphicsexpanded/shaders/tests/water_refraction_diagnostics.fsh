@@ -51,7 +51,7 @@ void main()
     if (diagnosticSelect == 2)
         receiver = VgeWaterUvRefraction(surface, normal, diagnosticUnderwater != 0);
     else if (diagnosticSelect != 0)
-        receiver = VgeWaterSelectRefraction(surface, normal, diagnosticUnderwater != 0, diagnosticQuality);
+        receiver = VgeWaterSelectRefraction(surface, normal, vec3(0,0,1), diagnosticUnderwater != 0, diagnosticQuality);
     else
         receiver = VgeWaterRefraction(surface, normal, diagnosticUnderwater != 0, diagnosticBudget, seed, seedValid);
     decision = vec4(receiver.valid ? 1 : 0, diagnosticReason, diagnosticCount, receiver.confidence);

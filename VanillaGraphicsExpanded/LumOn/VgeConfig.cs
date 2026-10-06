@@ -1401,7 +1401,7 @@ public class VgeConfig
     [JsonProperty]
     public bool WaterRefractionEnabled { get; set; } = false;
 
-    /// <summary>Selects UV distortion at zero or total ray-depth budgets x2/x4/x8 at one/two/three.</summary>
+    /// <summary>Selects pixel-normal offset at zero or total ray-depth budgets x2/x4/x8 at one/two/three.</summary>
     [JsonProperty]
     public int WaterRefractionQuality { get; set; } = 3;
 
