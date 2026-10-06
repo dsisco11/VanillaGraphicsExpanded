@@ -891,6 +891,11 @@ internal sealed partial class StateCache
     /// <summary>Skips known buffer bindings while keeping element bindings specific to their VAO.</summary>
     public void BindBuffer(BufferTarget target, int bufferId)
     {
+        if (target is BufferTarget.PixelPackBuffer or BufferTarget.PixelUnpackBuffer)
+        {
+            BindPixelTransferBuffer(target, bufferId);
+            return;
+        }
         if (TryGetCachedBoundBuffer(target, out int cached) && cached == bufferId) return;
         if (target == BufferTarget.ElementArrayBuffer)
         {

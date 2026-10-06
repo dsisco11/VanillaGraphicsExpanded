@@ -7,6 +7,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 public sealed record GraphicsCapabilities
 {
     #region Graphics features and limits
+    /// <summary>Maximum individually enabled shader clip distances, queried from GL_MAX_CLIP_DISTANCES.</summary>
+    public int MaxClipDistances { get; init; }
+    /// <summary>Whether core 4.5 or ARB_clip_control supplies alternate clip origin/depth conventions.</summary>
+    public bool ClipControl { get; init; }
+
     /// <summary>Whether the API version meets the OpenGL 3.3 graphics baseline.</summary>
     public bool Graphics33 { get; init; }
     /// <summary>Whether blend equations and factors can be configured independently per draw buffer.</summary>

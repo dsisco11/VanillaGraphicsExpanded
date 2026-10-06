@@ -10,8 +10,20 @@ internal sealed partial class StateCache
     /// <summary>Tracks supported capabilities and preserves native behavior for all other capabilities.</summary>
     internal void SetCapability(EnableCap capability, bool enabled)
     {
+        int clipIndex = (int)capability - (int)EnableCap.ClipDistance0;
+        if (clipIndex >= 0 && clipIndex < 32 && clipIndex < GpuSupport.Graphics.MaxClipDistances)
+        {
+            SetClipDistance(clipIndex, enabled);
+            return;
+        }
         switch (capability)
         {
+            case EnableCap.AlphaTest: SetAlphaTest(enabled); break;
+            case EnableCap.PointSmooth: SetPointSmooth(enabled); break;
+            case EnableCap.LineSmooth: SetLineSmooth(enabled); break;
+            case EnableCap.PolygonSmooth: SetPolygonSmooth(enabled); break;
+            case EnableCap.LineStipple: SetLineStipple(enabled); break;
+            case EnableCap.PolygonStipple: SetPolygonStipple(enabled); break;
             case EnableCap.DepthTest:
                 ValidateBoundaryMutation(depth: DepthStateKnowledge.TestEnabled);
                 if (depthKnown.HasFlag(DepthStateKnowledge.TestEnabled) && depth.TestEnabled == enabled) return;
@@ -58,27 +70,37 @@ internal sealed partial class StateCache
         }
     }
 
-    /// <summary>Forwards a single pixel-store change and invalidates the aggregate pack snapshot.</summary>
+    /// <summary>Forwards one integer pixel-store change after withdrawing the affected layout knowledge.</summary>
     internal void SetPixelStore(PixelStoreParameter parameter, int value)
     {
-        // Do not query or replay other pack fields: this call changes exactly one native field.
+        InvalidatePixelTransferLayout(parameter);
         GL.PixelStore(parameter, value);
-        if (parameter is PixelStoreParameter.PackAlignment or PixelStoreParameter.PackRowLength
-            or PixelStoreParameter.PackSkipRows or PixelStoreParameter.PackSkipPixels
-            or PixelStoreParameter.PackSwapBytes) DirtyPixelPackState();
     }
 
-    /// <summary>Forwards the floating-point overload without changing OpenGL's integer conversion rules.</summary>
+    /// <summary>Preserves native float-to-integer conversion without retaining stale layout knowledge.</summary>
     internal void SetPixelStore(PixelStoreParameter parameter, float value)
     {
+        InvalidatePixelTransferLayout(parameter);
         GL.PixelStore(parameter, value);
-        DirtyPixelPackState();
     }
 
     #endregion
 
     #endregion
     #region Private
+    /// <summary>Forgets only layout fields that the specified native pixel-store command can change.</summary>
+    private void InvalidatePixelTransferLayout(PixelStoreParameter parameter)
+    {
+        // Image-height/image-skip values do not participate in these two-dimensional bitmap transfers.
+        if (parameter is PixelStoreParameter.PackAlignment or PixelStoreParameter.PackRowLength
+            or PixelStoreParameter.PackSkipRows or PixelStoreParameter.PackSkipPixels
+            or PixelStoreParameter.PackSwapBytes or PixelStoreParameter.PackLsbFirst) DirtyPixelPackState();
+        else if (parameter is PixelStoreParameter.UnpackAlignment or PixelStoreParameter.UnpackRowLength
+            or PixelStoreParameter.UnpackSkipRows or PixelStoreParameter.UnpackSkipPixels
+            or PixelStoreParameter.UnpackSwapBytes or PixelStoreParameter.UnpackLsbFirst
+            or PixelStoreParameter.UnpackImageHeight or PixelStoreParameter.UnpackSkipImages) DirtyPixelUnpackState();
+    }
+
     /// <summary>Issues a native capability transition and records its diagnostic count.</summary>
     private void SetEnable(EnableCap cap, bool enabled)
     {

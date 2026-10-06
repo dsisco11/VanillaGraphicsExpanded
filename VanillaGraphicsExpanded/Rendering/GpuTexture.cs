@@ -662,7 +662,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         using var binding = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         // Single-channel regions need not have four-byte-wide rows.
         GL.GetInteger(GetPName.UnpackAlignment, out int previousAlignment);
-        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment, 1);
         try
         {
             GL.TexSubImage3D(textureTarget, mipLevel, x, y, z, regionWidth, regionHeight, regionDepth,
@@ -670,7 +670,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
         finally
         {
-            GL.PixelStore(PixelStoreParameter.UnpackAlignment, previousAlignment);
+            StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment, previousAlignment);
         }
     }
 
@@ -733,9 +733,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
         if (data.Length != checked(regionWidth * regionHeight * GetChannelCount())) throw new ArgumentException("Incorrect byte payload size.", nameof(data));
         using var binding = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         GL.GetInteger(GetPName.UnpackAlignment, out int previousAlignment);
-        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment, 1);
         try { GL.TexSubImage2D(textureTarget, 0, x, y, regionWidth, regionHeight, TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.UnsignedByte, data); }
-        finally { GL.PixelStore(PixelStoreParameter.UnpackAlignment, previousAlignment); }
+        finally { StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment, previousAlignment); }
     }
 
     /// <summary>Uploads a full texture immediately from floating-point input.</summary>
@@ -927,7 +927,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
 
         using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
-        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment, 1);
         GL.TexSubImage2D(
             textureTarget,
             level: 0,

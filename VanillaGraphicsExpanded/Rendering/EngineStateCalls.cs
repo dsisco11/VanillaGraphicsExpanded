@@ -9,6 +9,26 @@ internal static class EngineStateCalls
 {
     #region Public API
     #region Fixed function
+    /// <summary>Observes native alpha comparison, including native reference clamping.</summary>
+    public static void AlphaFunc(AlphaFunction function, float reference) => CurrentCache.SetAlphaFunction(function, reference);
+    /// <summary>Observes clip coordinate conventions.</summary>
+    public static void ClipControl(ClipOrigin origin, ClipDepthMode depth) => CurrentCache.SetClipControl(origin, depth);
+    /// <summary>Observes the unsigned native stipple pattern.</summary>
+    public static void LineStipple(int factor, ushort pattern) => CurrentCache.SetLineStipple(factor, pattern);
+    /// <summary>Preserves the signed native overload's 16-bit pattern.</summary>
+    public static void LineStipple(int factor, short pattern) => CurrentCache.SetLineStipple(factor, unchecked((ushort)pattern));
+    /// <summary>Observes point coordinate orientation while forwarding unrelated point parameters.</summary>
+    public static void PointParameter(PointParameterName parameter, int value)
+    {
+        if (parameter == PointParameterName.PointSpriteCoordOrigin) CurrentCache.SetPointSpriteOrigin((PointSpriteCoordOriginParameter)value);
+        else { CurrentCache.RejectUnsupportedBoundaryMutation(); GL.PointParameter(parameter, value); }
+    }
+    /// <summary>Preserves engine pixel unpack semantics and withdraws only the changed bitmap's knowledge.</summary>
+    public static void PolygonStipple(byte[] pattern)
+    {
+        CurrentCache.UploadEnginePolygonStipple(pattern);
+    }
+
     /// <summary>Enables a cached capability or forwards an unsupported capability unchanged.</summary>
     public static void Enable(EnableCap cap) => CurrentCache.SetCapability(cap, true);
     /// <summary>Disables a cached capability or forwards an unsupported capability unchanged.</summary>

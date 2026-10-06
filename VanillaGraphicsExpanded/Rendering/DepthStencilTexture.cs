@@ -29,15 +29,10 @@ public sealed class DepthStencilTexture : DynamicTexture2D
         framebuffer.Attach(this);
         GL.DrawBuffer(DrawBufferMode.None);
         GL.ReadBuffer(ReadBufferMode.None);
-        GL.GetInteger(GetPName.PackAlignment, out int previousPackAlignment);
-        try
+        // Borrow a tightly packed layout and restore every incoming pack field through the cache.
+        using (StateCache.Current.SetPixelPackScope(new StateCache.PixelPackState(Alignment: 1)))
         {
-            GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
             GL.ReadPixels(0, 0, Width, Height, PixelFormat.StencilIndex, PixelType.UnsignedByte, pixels);
-        }
-        finally
-        {
-            GL.PixelStore(PixelStoreParameter.PackAlignment, previousPackAlignment);
         }
         GpuFramebuffer.Unbind();
         return pixels;

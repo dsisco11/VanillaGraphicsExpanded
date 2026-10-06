@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class DepthStencilTextureTests : RenderTestBase
 {
+    #region Public API
     /// <summary>Initializes the headless OpenGL fixture.</summary>
     public DepthStencilTextureTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -52,7 +53,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
         GL.Clear(ClearBufferMask.StencilBufferBit);
         GpuFramebuffer.Unbind();
 
-        Assert.All(texture.ReadStencilPixels(), value => Assert.Equal((byte)0x5a, value));
+        AssertStencilReadbackPreservesPackLayout(texture.ReadStencilPixels, 15, 0x5a);
     }
 
     /// <summary>Packed storage exposes both aspects without treating either as color.</summary>
@@ -73,6 +74,29 @@ public sealed class DepthStencilTextureTests : RenderTestBase
         GpuFramebuffer.Unbind();
 
         Assert.All(texture.ReadPixels(), value => Assert.InRange(value, 0.624f, 0.626f));
-        Assert.All(texture.ReadStencilPixels(), value => Assert.Equal((byte)0x36, value));
+        AssertStencilReadbackPreservesPackLayout(texture.ReadStencilPixels, 16, 0x36);
     }
+    #endregion
+
+    #region Private
+    /// <summary>Verifies tightly packed stencil pixels and restoration of all cached and native pack fields.</summary>
+    private static void AssertStencilReadbackPreservesPackLayout(Func<byte[]> readback, int count, byte expected)
+    {
+        var cache = StateCache.Current;
+        var hostile = new StateCache.PixelPackState(8, 17, 2, 3, true, true);
+        // The outer scope preserves the fixture's layout; readback must restore this hostile inner owner.
+        using var restore = cache.SetPixelPackScope(hostile);
+        byte[] pixels = readback();
+        Assert.Equal(count, pixels.Length);
+        Assert.All(pixels, value => Assert.Equal(expected, value));
+        Assert.Equal(hostile, cache.GetPixelPackState());
+        Assert.Equal(8, GL.GetInteger(GetPName.PackAlignment));
+        Assert.Equal(17, GL.GetInteger(GetPName.PackRowLength));
+        Assert.Equal(2, GL.GetInteger(GetPName.PackSkipRows));
+        Assert.Equal(3, GL.GetInteger(GetPName.PackSkipPixels));
+        Assert.Equal(1, GL.GetInteger(GetPName.PackSwapBytes));
+        Assert.Equal(1, GL.GetInteger(GetPName.PackLsbFirst));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
 }

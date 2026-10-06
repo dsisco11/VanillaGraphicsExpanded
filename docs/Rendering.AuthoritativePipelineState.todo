@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–2 are complete, Subphase 2.1 and Phases 3–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–2 and Subphase 2.1 are complete; Subphase 2.2 and Phases 3–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -118,7 +118,7 @@ Phase 2: Complete immutable descriptions
 Subphase 2.1: Configurable clipping and compatibility raster state
   Dependencies: completed Phases 1–2 and existing categorized StateCache/engine-boundary foundation.
   Authorization: user requested this subphase after approving support for the settings previously
-  represented by fixed RasterizerDesc properties. This is a planning amendment, not an implementation receipt.
+  represented by fixed RasterizerDesc properties. Implementation completed 2026-10-06.
   Outcome: these settings are configurable complete-pipeline state, with explicit defaults, validated
   capabilities, cache-backed application and faithful engine-boundary restoration.
   Sources: Rendering.AuthoritativePipelineState.Proposal.md / Static and dynamic state coverage;
@@ -131,61 +131,110 @@ Subphase 2.1: Configurable clipping and compatibility raster state
   This subphase brings forward only the application/restoration work needed for these settings; it does
   not complete Phase 3's general application, instrumentation or consumer-boundary acceptance gates.
 
-  ☐ Reconcile the supported-state contract and inventory reusable coverage before implementation.
-    ☐ Update the proposal/evidence contract, coverage matrix and dependent tasks to distinguish defaults
+  Evidence: Rendering.AuthoritativePipelineState.md / Configurable raster state contract.
+  Completed after second source review and independent audit-stage-completion: no unresolved findings.
+  Shader-enabled Debug/Release runtime selection: 124/124 each, zero failures/skips;
+  original generator suites: 177/177 each. Approved metadata-removal correction validated runtime
+  124/124 and generator 173/173 in both configurations, zero failures/skips; compiler-derived output
+  checks remain Phase 4 prerequisites. Native core and compatibility coverage; unavailable clip-control
+  rejection is synthetic-only. Live-game appearance and performance were not evaluated.
+
+  ☑ Reconcile the supported-state contract and inventory reusable coverage before implementation.
+    ☑ Update the proposal/evidence contract, coverage matrix and dependent tasks to distinguish defaults
       from supported alternatives; remove contradictory rejection rules and misleading compatibility labels.
-    ☐ Inventory descriptor, capability, native transition, engine observation, snapshot and restoration
+    ☑ Inventory descriptor, capability, native transition, engine observation, snapshot and restoration
       coverage for each setting. Reuse existing owners rather than introducing parallel state management.
-    ☐ Resolve static versus explicitly declared dynamic ownership for added parameters; define defaults,
+    ☑ Resolve static versus explicitly declared dynamic ownership for added parameters; define defaults,
       inactive canonicalization and shader/projection obligations without inheriting ambient values.
-  ☐ Extend immutable descriptions and structural identity for every added setting and parameter.
-    ☐ Replace the user-clip-distance boolean with an individual enable mask; define mask width and reject
+  ☑ Extend immutable descriptions and structural identity for every added setting and parameter.
+    ☑ Replace the user-clip-distance boolean with an individual enable mask; define mask width and reject
       bits beyond the implementation limit rather than silently truncating them.
-    ☐ Represent clip origin, clip-depth convention and point-sprite coordinate origin with named enums.
+    ☑ Represent clip origin, clip-depth convention and point-sprite coordinate origin with named enums.
       Keep window depth-range ownership explicit; do not infer reversed-Z from a clip-depth selection.
-    ☐ Add alpha-test enable, comparison function and reference value with documented validation semantics.
-    ☐ Add independent point, line and polygon smoothing enables.
-    ☐ Add line-stipple enable, repeat factor and 16-bit pattern with native range validation.
-    ☐ Add polygon-stipple enable and a deeply immutable 32-by-32-bit pattern with an explicit all-ones
+    ☑ Add alpha-test enable, comparison function and reference value with documented validation semantics.
+    ☑ Add independent point, line and polygon smoothing enables.
+    ☑ Add line-stipple enable, repeat factor and 16-bit pattern with native range validation.
+    ☑ Add polygon-stipple enable and a deeply immutable 32-by-32-bit pattern with an explicit all-ones
       default, structural equality/hashing, exact length validation and documented bit/row ordering.
-    ☐ Include active behavior in equality/hashing; validate authored inactive values before canonicalization
+    ☑ Include active behavior in equality/hashing; validate authored inactive values before canonicalization
       and preserve disabled-to-enabled behavior. Maintain complete-versus-partial description separation.
-  ☐ Extend shared capability and shader-contract validation.
-    ☐ Capture missing clip-distance limits and clip-control support in GraphicsCapabilities/GpuSupport;
+  ☑ Extend shared capability and shader-contract validation.
+    ☑ Capture missing clip-distance limits and clip-control support in GraphicsCapabilities/GpuSupport;
       use named GL enums and core-version/extension gates, with no StateCache-owned capability cache.
-    ☐ Validate each setting against actual core/compatibility availability; do not classify every item
+    ☑ Validate each setting against actual core/compatibility availability; do not classify every item
       as compatibility-only. Unsupported requested behavior must reject in Debug and Release.
-    ☐ Define the required gl_ClipDistance outputs for each enabled bit using existing shader contracts
-      and reflection where reliable; carry checks requiring a linked executable into Phase 4 preparation.
-      Reject unverifiable enabled configurations rather than accepting undefined shader output.
-    ☐ Document matching projection, depth reconstruction, viewport-origin and front-face interpretation
+    ☑ Define compiler-derived gl_ClipDistance output requirements without authored shader masks.
+      Descriptor construction validates native limits; Phase 4 preparation must verify the actual
+      compiled variant and reject missing/unverifiable enabled outputs before publishing a pipeline.
+    ☑ Document matching projection, depth reconstruction, viewport-origin and front-face interpretation
       obligations for alternate clip conventions; preserve current production consumer conventions.
-  ☐ Implement categorized StateCache transitions and complete-description application for these settings.
-    ☐ Track values and per-field knowledge, including individual clip enables and complete stipple payloads;
+  ☑ Implement categorized StateCache transitions and complete-description application for these settings.
+    ☑ Track values and per-field knowledge, including individual clip enables and complete stipple payloads;
       apply unknown/different values and suppress redundant native calls through existing cache APIs.
-    ☐ Establish explicit disabled/default values as well as enabled alternatives; avoid invalid native
+    ☑ Establish explicit disabled/default values as well as enabled alternatives; avoid invalid native
       calls for unavailable state and do not add manual state management in VGE consumers.
-    ☐ Reuse pixel-transfer state ownership for polygon-stipple upload/readback, including pack/unpack
+    ☑ Reuse pixel-transfer state ownership for polygon-stipple upload/readback, including pack/unpack
       settings and buffer bindings where applicable; restore temporary transfer state on exceptions.
-  ☐ Extend engine-boundary coverage and observation for the added state.
-    ☐ Expand declarations, coverage resolution, selective queries, immutable snapshots and restoration
+  ☑ Extend engine-boundary coverage and observation for the added state.
+    ☑ Expand declarations, coverage resolution, selective queries, immutable snapshots and restoration
       to include enables and dependent parameters; snapshot arrays must not alias mutable storage.
-    ☐ Route known engine mutations through existing observation mechanisms; invalidate affected knowledge
+    ☑ Route known engine mutations through existing observation mechanisms; invalidate affected knowledge
       for unobserved mutations and retain truthful knowledge after native failures.
-    ☐ Restore hostile incoming values on success and exceptions, including disabled-state parameters;
+    ☑ Restore hostile incoming values on success and exceptions, including disabled-state parameters;
       keep the existing same-live-context policy without adding context replacement support.
-  ☐ Delegate focused verification in shader-enabled Debug and Release.
-    ☐ Unit tests: defaults, each field's identity, copied stipple-pattern equality and immutability,
+  ☑ Delegate focused verification in shader-enabled Debug and Release.
+    ☑ Unit tests: defaults, each field's identity, copied stipple-pattern equality and immutability,
       mask/range/enum rejection, inactive canonicalization and synthetic capability combinations.
-    ☐ GPU tests: supported core and compatibility cases, native state agreement, hostile prior state,
+    ☑ GPU tests: supported core and compatibility cases, native state agreement, hostile prior state,
       A-to-B-to-A transitions, repeated-call suppression, selective invalidation and boundary restoration.
-    ☐ Verify pixel-transfer state preservation and clipping/alpha/stipple behavior with deterministic
+    ☑ Verify pixel-transfer state preservation and clipping/alpha/stipple behavior with deterministic
       shader/geometry fixtures; check alternate clip conventions with matching fixture projections.
-    ☐ Record unavailable profile/extension cases explicitly; synthetic rejection tests do not establish
+    ☑ Record unavailable profile/extension cases explicitly; synthetic rejection tests do not establish
       native feature support. Do not claim live-game appearance or performance from headless tests.
-  ☐ Completion gate: every listed setting has descriptor/validation/application/restoration evidence,
+  ☑ Completion gate: every listed setting has descriptor/validation/application/restoration evidence,
     linked contracts agree, and second review plus independent completion audit find no unresolved gaps.
     Executable-dependent validation remains an explicit Phase 4 prerequisite before production use.
+
+Phase 2.2: Correct native error polling and checked-operation ownership
+  Dependencies: Phases 1–2 and Subphase 2.1; existing engine-boundary restoration foundation.
+  Outcome: ordinary cached transitions avoid unconditional native error polling, while checked
+  boundaries and pixel transfers retain explicit failure and safe-restoration guarantees.
+  Scope: corrective error-checking policy within existing StateCache owners; no PSO identity,
+  capability-model, renderer-side state-management or context-lifetime redesign.
+
+  ☐ Reconcile the proposal and implementation contract before changing polling behavior.
+    ☐ Distinguish managed input/capability validation, optional per-command diagnostics and required
+      checked operations. Ordinary transitions do not promise immediate detection of every native error.
+    ☐ Define responsibility for pre-existing errors, post-operation checks and cache publication;
+      retain failed-query rejection and prevent unsafe handoff from being reported as successful.
+    ☐ Inventory nested checks in rasterizer setters, restoration, pack/unpack layouts, pixel-buffer
+      bindings and polygon-stipple transfers; identify every required check and its owning operation.
+  ☐ Correct ordinary transitions and unchanged-state paths through existing cache APIs.
+    ☐ Remove unconditional native error polling from ordinary rasterizer transitions; preserve managed
+      validation, per-field knowledge, external invalidation and necessary native state changes.
+    ☐ Return from known unchanged pack/unpack layout updates without native calls or error polling.
+    ☐ Make detailed per-command checking explicitly optional through existing diagnostic ownership;
+      normal execution must not accidentally retain the same polling cost through nested helpers.
+  ☐ Consolidate required checks at explicit operation boundaries.
+    ☐ Avoid duplicate outer/inner checks during restoration while attempting independent restores
+      after a failure and preserving operation plus cleanup exceptions.
+    ☐ Define checked-group granularity and invalidate all affected knowledge when a group fails;
+      do not claim exact per-field failure attribution from a batch-level error result.
+    ☐ Preserve verified pixel-buffer binding/layout setup before host-pointer transfers, borrowed
+      pack/unpack state restoration and propagation of unsafe restoration failures.
+    ☐ Keep checks required by cold queries and native safety; do not replace targeted invalidation
+      with blanket cache invalidation or consume errors on ordinary unchanged transitions.
+  ☐ Delegate focused verification in shader-enabled Debug and Release.
+    ☐ Assert zero native error polling for ordinary changed and unchanged transitions with detailed
+      diagnostics disabled; separately verify optional diagnostics and required checked operations.
+    ☐ Replace tests that require redundant polling, including unchanged boundary restoration counts,
+      with assertions matching the documented check ownership and native mutation suppression.
+    ☐ Retain real native-failure, failed-query, hostile incoming state, independent cleanup, exception
+      aggregation and pixel-transfer safety tests; verify native state and cache knowledge agree.
+    ☐ Record state mutations, value queries and error checks separately; update implementation
+      evidence with fresh receipts. Reduced call counts alone do not establish frame-time savings.
+  ☐ Completion gate: proposal, plan and implementation contracts agree; focused verification,
+    second source review and independent completion audit find no unresolved failure-contract gaps.
 
 Phase 3: Complete state application and engine boundaries
   Dependencies: Phases 1–2 and Subphase 2.1.
@@ -210,15 +259,24 @@ Phase 3: Complete state application and engine boundaries
     migration; unverified engine paths remain explicitly outside authority.
 
 Phase 4: Prepared graphics pipelines and executable compatibility
-  Dependencies: Phases 1–3 including Subphase 2.1, executable revision and same-live-context lifetime policy.
+  Dependencies: Phases 1–3 including Subphases 2.1–2.2, executable revision and same-live-context lifetime policy.
   Outcome: validated GraphicsPipeline realizations usable by submission without per-draw reflection.
 
   ☐ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.
     ☐ Validate active stages, vertex attributes/scalar interpretation/components/divisors, fragment output
       locations/scalar classes, resource layout, static state, target signature and capabilities.
     ☐ Add missing interface validation at preparation time; do not build parallel reflection/binding systems.
-    ☐ Enforce Subphase 2.1's enabled clip-distance output contract against the prepared executable;
-      reject missing or unverifiable required outputs before publishing a usable pipeline.
+    ☐ Derive built-in ClipDistance outputs and array extent for the final vertex-producing stage of
+      each actual compiled variant through the existing compiler/interface ownership path. Current
+      GpuProgramInterface/GpuPreparedBindings reflect resources, not these built-in outputs.
+      Resolve specialization-dependent extents; handle optimized binaries and absent debug names.
+      Do not reintroduce authored output masks.
+    ☐ Validate enabled clip-distance bits against verified compiled outputs; reject missing or
+      unverifiable outputs before publishing a usable pipeline. Reflection does not prove writes
+      on every control-flow path; retain the shader author's defined-output obligation.
+    ☐ Add compiled-shader/preparation fixtures for absent/present outputs, out-of-range enabled bits,
+      variant-dependent outputs and final vertex/geometry/tessellation-evaluation stage selection.
+      Cover Debug/Release reflection, failed publication and unchanged-input metadata reuse.
   ☐ Publish prepared objects only after successful validation.
     ☐ Retain needed dependency references without acquiring ownership of externally owned shader resources.
     ☐ Reject retired dependencies and obsolete executable revisions; confine use to the owning renderer lifetime.

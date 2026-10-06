@@ -326,7 +326,7 @@ public class DynamicTexture2D : GpuTexture
         }
 
         using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
-        GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment, 1);
         GL.TexSubImage2D(
             TextureTarget.Texture2D,
             0,

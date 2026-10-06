@@ -1497,6 +1497,7 @@ internal sealed class TextureStreamingManager : IDisposable
         return EnsureFallbackPboPool().TryStageBytes(bytes, prepared.ByteCount, out upload);
     }
 
+    /// <summary>Uploads pinned owned bytes while borrowing and restoring the incoming unpack layout.</summary>
     private static unsafe bool TryUploadDirectFromOwnedBytes(OwnedCpuUploadBuffer owned, in PreparedUpload prepared)
     {
         if (owned.ByteCount < prepared.ByteCount)
@@ -1504,7 +1505,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        ApplyPixelStore(prepared);
+        using var unpackScope = StateCache.Current.SetPixelUnpackScope(GetUploadUnpackState(prepared));
 
         try
         {
@@ -1522,7 +1523,6 @@ internal sealed class TextureStreamingManager : IDisposable
         finally
         {
             StateCache.Current.BindTextureOnActiveUnit(prepared.Request.Target.BindTarget, 0);
-            ResetPixelStore(prepared);
         }
     }
 
@@ -1852,6 +1852,7 @@ internal sealed class TextureStreamingManager : IDisposable
         prepared = new PreparedUpload(request, byteCount, rowLength, imageHeight);
         return true;
     }
+    /// <summary>Uploads from a staged pixel buffer while restoring the borrowed unpack layout.</summary>
     private static void IssuePboUpload(in PreparedUpload prepared, in PboUpload pboUpload)
     {
         TextureUploadRequest request = prepared.Request;
@@ -1859,14 +1860,13 @@ internal sealed class TextureStreamingManager : IDisposable
         StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
         StateCache.Current.BindBuffer(BufferTarget.PixelUnpackBuffer, pboUpload.BufferId);
 
-        ApplyPixelStore(prepared);
         try
         {
+            using var unpackScope = StateCache.Current.SetPixelUnpackScope(GetUploadUnpackState(prepared));
             UploadSubImage(prepared, new IntPtr(pboUpload.OffsetBytes));
         }
         finally
         {
-            ResetPixelStore(prepared);
             StateCache.Current.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
             StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, 0);
         }
@@ -1885,10 +1885,11 @@ internal sealed class TextureStreamingManager : IDisposable
         }
     }
 
+    /// <summary>Uploads managed source data with an explicit temporary unpack layout.</summary>
     private static unsafe void UploadDirect(in PreparedUpload prepared)
     {
         TextureUploadRequest request = prepared.Request;
-        ApplyPixelStore(prepared);
+        using var unpackScope = StateCache.Current.SetPixelUnpackScope(GetUploadUnpackState(prepared));
 
         try
         {
@@ -1939,53 +1940,18 @@ internal sealed class TextureStreamingManager : IDisposable
         finally
         {
             StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, 0);
-            ResetPixelStore(prepared);
         }
     }
 
-    private static void ApplyPixelStore(in PreparedUpload prepared)
+    /// <summary>Defines the complete unpack layout required by a prepared upload.</summary>
+    private static StateCache.PixelUnpackState GetUploadUnpackState(in PreparedUpload prepared)
     {
         TextureUploadRequest request = prepared.Request;
-        int alignment = request.UnpackAlignment > 0 ? request.UnpackAlignment : 4;
-
-        GL.PixelStore(PixelStoreParameter.UnpackAlignment, alignment);
-
-        if (prepared.RowLength != request.Region.Width)
-        {
-            GL.PixelStore(PixelStoreParameter.UnpackRowLength, prepared.RowLength);
-        }
-        else
-        {
-            GL.PixelStore(PixelStoreParameter.UnpackRowLength, 0);
-        }
-
-        if (prepared.ImageHeight != request.Region.Height)
-        {
-            GL.PixelStore(PixelStoreParameter.UnpackImageHeight, prepared.ImageHeight);
-        }
-        else
-        {
-            GL.PixelStore(PixelStoreParameter.UnpackImageHeight, 0);
-        }
-    }
-
-    private static void ResetPixelStore(in PreparedUpload prepared)
-    {
-        TextureUploadRequest request = prepared.Request;
-        if (request.UnpackAlignment > 0 && request.UnpackAlignment != 4)
-        {
-            GL.PixelStore(PixelStoreParameter.UnpackAlignment, 4);
-        }
-
-        if (prepared.RowLength != request.Region.Width)
-        {
-            GL.PixelStore(PixelStoreParameter.UnpackRowLength, 0);
-        }
-
-        if (prepared.ImageHeight != request.Region.Height)
-        {
-            GL.PixelStore(PixelStoreParameter.UnpackImageHeight, 0);
-        }
+        // Neutral skip and byte-order fields prevent incoming engine state from changing source addressing.
+        return new StateCache.PixelUnpackState(
+            Alignment: request.UnpackAlignment > 0 ? request.UnpackAlignment : 4,
+            RowLength: prepared.RowLength != request.Region.Width ? prepared.RowLength : 0,
+            ImageHeight: prepared.ImageHeight != request.Region.Height ? prepared.ImageHeight : 0);
     }
 
     private static void UploadSubImage(in PreparedUpload prepared, IntPtr dataPtr)

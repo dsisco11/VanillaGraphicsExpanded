@@ -7,6 +7,8 @@ internal sealed partial class StateCache
     private DepthStateKnowledge depthKnown;
     private RasterizerState rasterizer;
     private RasterizerStateKnowledge rasterizerKnown;
+    // Clip enables are individually observed even when the rest of the mask is unknown.
+    private uint clipDistancesKnown;
     private PrimitiveAssemblyState assembly;
     private PrimitiveAssemblyStateKnowledge assemblyKnown;
     private DynamicDrawState dynamicState;

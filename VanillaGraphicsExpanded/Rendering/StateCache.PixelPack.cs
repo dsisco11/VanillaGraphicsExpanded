@@ -8,7 +8,7 @@ internal sealed partial class StateCache
 {
     private PixelPackState? pixelPackState;
 
-    #region Pixel pack state
+    #region Public API
     /// <summary>Forgets pack state after explicitly reported external GL changes.</summary>
     public void DirtyPixelPackState() => pixelPackState = null;
 
@@ -17,11 +17,12 @@ internal sealed partial class StateCache
     {
         // External rendering boundaries must invalidate the cache before borrowing state.
         return pixelPackState ??= new PixelPackState(
-            GL.GetInteger(GetPName.PackAlignment),
-            GL.GetInteger(GetPName.PackRowLength),
-            GL.GetInteger(GetPName.PackSkipRows),
-            GL.GetInteger(GetPName.PackSkipPixels),
-            GL.GetInteger(GetPName.PackSwapBytes) != 0);
+            QueryBoundary(() => GL.GetInteger(GetPName.PackAlignment)),
+            QueryBoundary(() => GL.GetInteger(GetPName.PackRowLength)),
+            QueryBoundary(() => GL.GetInteger(GetPName.PackSkipRows)),
+            QueryBoundary(() => GL.GetInteger(GetPName.PackSkipPixels)),
+            QueryBoundary(() => GL.GetInteger(GetPName.PackSwapBytes)) != 0,
+            QueryBoundary(() => GL.GetInteger(GetPName.PackLsbFirst)) != 0);
     }
 
     /// <summary>Applies a pack layout, omitting driver calls for known unchanged values.</summary>
@@ -29,6 +30,7 @@ internal sealed partial class StateCache
     {
         if (state.Alignment is not (1 or 2 or 4 or 8)) throw new ArgumentOutOfRangeException(nameof(state));
         if (state.RowLength < 0 || state.SkipRows < 0 || state.SkipPixels < 0) throw new ArgumentOutOfRangeException(nameof(state));
+        CheckBoundaryNativeError();
         var previous = pixelPackState;
         // Leave the cache unknown if a driver call throws partway through the update.
         pixelPackState = null;
@@ -37,6 +39,8 @@ internal sealed partial class StateCache
         if (previous?.SkipRows != state.SkipRows) GL.PixelStore(PixelStoreParameter.PackSkipRows, state.SkipRows);
         if (previous?.SkipPixels != state.SkipPixels) GL.PixelStore(PixelStoreParameter.PackSkipPixels, state.SkipPixels);
         if (previous?.SwapBytes != state.SwapBytes) GL.PixelStore(PixelStoreParameter.PackSwapBytes, state.SwapBytes ? 1 : 0);
+        if (previous?.LsbFirst != state.LsbFirst) GL.PixelStore(PixelStoreParameter.PackLsbFirst, state.LsbFirst ? 1 : 0);
+        CheckBoundaryNativeError();
         pixelPackState = state;
     }
 
@@ -44,12 +48,18 @@ internal sealed partial class StateCache
     public PixelPackScope SetPixelPackScope(PixelPackState state)
     {
         var previous = GetPixelPackState();
-        SetPixelPackState(state);
+        try { SetPixelPackState(state); }
+        catch (Exception operation)
+        {
+            try { SetPixelPackState(previous); }
+            catch (Exception cleanup) { throw new AggregateException(operation, cleanup); }
+            throw;
+        }
         return new PixelPackScope(this, previous);
     }
 
-    /// <summary>Describes row layout and byte ordering for non-bitmap framebuffer readback.</summary>
-    public readonly record struct PixelPackState(int Alignment, int RowLength = 0, int SkipRows = 0, int SkipPixels = 0, bool SwapBytes = false);
+    /// <summary>Describes row layout and byte ordering for framebuffer and bitmap readback.</summary>
+    public readonly record struct PixelPackState(int Alignment, int RowLength = 0, int SkipRows = 0, int SkipPixels = 0, bool SwapBytes = false, bool LsbFirst = false);
 
     /// <summary>Restores a borrowed pack layout through the owning cache.</summary>
     public readonly struct PixelPackScope : IDisposable

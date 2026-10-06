@@ -13,4 +13,34 @@ internal struct RasterizerState
     public float PointSize;
     /// <summary>Declared ProvokingVertex value.</summary>
     public ProvokingVertexMode ProvokingVertex;
+    /// <summary>Cached native ClipDistances value, meaningful only when its knowledge flag is set.</summary>
+    public uint ClipDistances;
+    /// <summary>Cached native ClipOrigin value, meaningful only when its knowledge flag is set.</summary>
+    public ClipOrigin ClipOrigin;
+    /// <summary>Cached native ClipDepth value, meaningful only when its knowledge flag is set.</summary>
+    public ClipDepthMode ClipDepth;
+    /// <summary>Cached native PointSpriteOrigin value, meaningful only when its knowledge flag is set.</summary>
+    public PointSpriteCoordOriginParameter PointSpriteOrigin;
+    /// <summary>Cached native AlphaTest value, meaningful only when its knowledge flag is set.</summary>
+    public bool AlphaTest;
+    /// <summary>Cached native PointSmooth value, meaningful only when its knowledge flag is set.</summary>
+    public bool PointSmooth;
+    /// <summary>Cached native LineSmooth value, meaningful only when its knowledge flag is set.</summary>
+    public bool LineSmooth;
+    /// <summary>Cached native PolygonSmooth value, meaningful only when its knowledge flag is set.</summary>
+    public bool PolygonSmooth;
+    /// <summary>Cached native LineStipple value, meaningful only when its knowledge flag is set.</summary>
+    public bool LineStipple;
+    /// <summary>Cached native PolygonStipple value, meaningful only when its knowledge flag is set.</summary>
+    public bool PolygonStipple;
+    /// <summary>Cached native AlphaComparison value, meaningful only when its knowledge flag is set.</summary>
+    public AlphaFunction AlphaComparison;
+    /// <summary>Cached native AlphaReference value, meaningful only when its knowledge flag is set.</summary>
+    public float AlphaReference;
+    /// <summary>Cached native LineStippleFactor value, meaningful only when its knowledge flag is set.</summary>
+    public int LineStippleFactor;
+    /// <summary>Cached native LineStipplePattern value, meaningful only when its knowledge flag is set.</summary>
+    public ushort LineStipplePattern;
+    /// <summary>Cached native PolygonStipplePattern value, meaningful only when its knowledge flag is set.</summary>
+    public Pipeline.Descriptions.PipelineValues<byte>? PolygonStipplePattern;
 }

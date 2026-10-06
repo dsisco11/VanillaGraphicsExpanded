@@ -22,7 +22,7 @@ public sealed class PipelineStateCoverageTests
             colorMask: GlColorMask.All, lineWidth: 2, pointSize: 3);
         var coverage = PipelineStateCoverage.From(descriptor);
         Assert.Equal(DepthStateKnowledge.All, coverage.Depth);
-        Assert.Equal(RasterizerStateKnowledge.All & ~RasterizerStateKnowledge.ProvokingVertex, coverage.Rasterizer);
+        Assert.Equal(RasterizerStateKnowledge.CullEnabled | RasterizerStateKnowledge.ScissorEnabled | RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize, coverage.Rasterizer);
         Assert.Equal(PrimitiveAssemblyStateKnowledge.None, coverage.Assembly);
         Assert.Equal(DynamicDrawStateKnowledge.None, coverage.Dynamic);
         Assert.False(coverage.ClearColor);

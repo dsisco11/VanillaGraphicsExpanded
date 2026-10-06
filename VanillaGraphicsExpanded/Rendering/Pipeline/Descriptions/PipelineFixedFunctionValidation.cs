@@ -23,12 +23,33 @@ internal static class PipelineFixedFunctionValidation
         Range(raster.PointSize, caps.MinPointSize, caps.MaxPointSize);
         if (raster.DepthClamp && !caps.DepthClamp) throw new NotSupportedException("Depth clamping is unavailable.");
 
+        ValidateCompatibilityRaster(raster, caps);
+
         var sampling = value.Sampling;
         Range(sampling.Coverage, 0, 1); Range(sampling.MinimumSampleShading, 0, 1);
         if (sampling.Masks is { } masks && masks.Count > caps.MaxSampleMaskWords)
             throw new NotSupportedException("Too many sample-mask words.");
         if (sampling.SampleShading && !caps.SampleShading)
             throw new NotSupportedException("Sample shading is unavailable.");
+    }
+    /// <summary>Checks static raster settings independently of a linked executable.</summary>
+    internal static void ValidateCompatibilityRaster(RasterizerDesc raster, GraphicsCapabilities caps)
+    {
+        Defined(raster.ClipOrigin); Defined(raster.ClipDepth); Defined(raster.PointSpriteOrigin);
+        Defined(raster.AlphaComparison); Range(raster.AlphaReference, 0, 1);
+        if (raster.LineStippleFactor < 1 || raster.LineStippleFactor > 256)
+            throw new ArgumentOutOfRangeException(nameof(raster.LineStippleFactor));
+        if (raster.PolygonStipplePattern is null || raster.PolygonStipplePattern.Count != 128)
+            throw new ArgumentException("Polygon stipple requires exactly 128 bytes.");
+        if (caps.MaxClipDistances < 0 || caps.MaxClipDistances > 32)
+            throw new NotSupportedException("The clip-distance limit exceeds the supported mask width.");
+        uint allowed = caps.MaxClipDistances == 32 ? uint.MaxValue : (1u << caps.MaxClipDistances) - 1;
+        if ((raster.ClipDistances & ~allowed) != 0) throw new NotSupportedException("Clip-distance mask exceeds the implementation limit.");
+        if (!caps.ClipControl && (raster.ClipOrigin != ClipOrigin.LowerLeft || raster.ClipDepth != ClipDepthMode.NegativeOneToOne))
+            throw new NotSupportedException("Clip control is unavailable.");
+        // Line and polygon smoothing remain core state; the other legacy tests/stipple controls were removed from core.
+        if (caps.CoreProfile && (raster.AlphaTest || raster.PointSmooth || raster.LineStipple || raster.PolygonStipple))
+            throw new NotSupportedException("Requested rasterization requires a compatibility profile.");
     }
     #endregion
 

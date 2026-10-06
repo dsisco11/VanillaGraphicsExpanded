@@ -88,16 +88,16 @@ Every supported field is established when unknown and restored if changed at an 
 
 | Category | Complete default and supported policy |
 | --- | --- |
-| Depth | Test off, comparison Less, write off. Support comparison and write independently; static depth range fixed to [0,1]. No reversed-Z or alternate clip-depth convention initially. |
+| Depth | Test off, comparison Less, write off. Support comparison and write independently; static depth range fixed to [0,1]. Clip-depth convention is independently configurable; it does not imply reversed-Z. |
 | Stencil | Disabled; front/back Always, reference 0, read/write masks all stencil bits, fail/depth-fail/pass Keep. Support independent front/back comparisons, masks and operations; declared dynamic front/back references when enabled. Validate against attachment stencil bit width. |
 | Rasterizer | Cull off with Back selection, CCW front face, Fill front/back, polygon offset fill/line/point off with factor/units 0; depth clamp off, rasterizer discard off, LastVertex provoking convention. Supported alternatives require capability validation and complete application. |
 | Output blending | Each output disabled, RGB/alpha Add equations, One/Zero factors, RGBA writes enabled. Support independent enables/equations/factors/masks. Constant factors require declared dynamic blend constant; otherwise canonical zero. Global changes invalidate/update all affected indexed slots, including beyond the routed target count before engine restoration. |
 | Sampling | Effective samples 1, multisample on, sample coverage disabled (value 1, invert false), sample mask disabled (all supported words all-ones), alpha-to-coverage and alpha-to-one off; sample shading off (minimum 0). Supported controls are capability-gated; all mask words represented. Target sample count must match exactly. |
 | Output interpretation | Framebuffer sRGB off for linear intermediates; explicit static enable for compatible sRGB targets. Color logic operation disabled (Copy), dither disabled. Logic-op rendering rejects initially; disabled must still be established/restored, never inherited. |
-| Clipping | Lower-left origin, negative-one-to-one clip depth, depth range [0,1]; all supported user clip-distance enables off. Where clip-control exists, set/restore it; otherwise use the API fixed convention. Enabling user clip distances or alternate conventions rejects initially. Current production shader scan found no gl_ClipDistance/gl_CullDistance outputs. |
+| Clipping | Lower-left origin, negative-one-to-one clip depth, depth range [0,1]; all supported user clip-distance enables off. Where clip-control exists, set/restore it; otherwise use the API fixed convention. Individual clip enables and alternate conventions are supported with capability and shader-output validation. Current production shader scan found no gl_ClipDistance/gl_CullDistance outputs. |
 | Primitive assembly | Triangles, restart and fixed-index restart disabled, restart index 0; patch count 3 when tessellation used. Validate topology/stages/control-point count; explicit restart may be enabled for compatible indexed draws. Tessellation must supply control/evaluation stages; no ambient default tessellation levels. |
 | Lines and points | Width and fixed point size 1, static fields. Program point size off by default; explicit enable for shader-sized orb points. World-probe resolve shaders write size 1. Debug selected-orb size 12 uses a distinct static description; varying shader pointSize remains a shader input. No consumer requires dynamic fixed line/point size. |
-| Compatibility raster features | Alpha test, point/line/polygon smoothing and line/polygon stipple off on compatibility contexts; point sprite coordinate origin upper-left. Unsupported modes reject. Legacy point-sprite/fixed-function shading modes are excluded from programmable core draws, not accepted as arbitrary complete-pipeline settings. |
+| Compatibility raster features | All smoothing/test/stipple enables default off; point sprite coordinate origin defaults upper-left. Line and polygon smoothing and point-coordinate origin are core state. Alpha test, point smoothing and line/polygon stipple require compatibility profiles. Alpha defaults Always/reference 0; line repeat/pattern default 1/0xffff; polygon pattern defaults to 128 all-ones bytes. Legacy point-sprite/fixed-function shading modes are excluded from programmable core draws, not accepted as arbitrary complete-pipeline settings. |
 | Dynamics | Single viewport and scissor rectangle; scissor enable static. Require viewport every pass/draw and rectangle whenever scissor enabled. Stencil references and blend constant required when declared/used. No viewport arrays initially. Clear area is pass state independent of draw scissor/write masks. |
 
 Active transform feedback and conditional rendering are not permitted across the first-consumer
@@ -222,6 +222,124 @@ baseline, performance measurement or live acceptance. Existing receipts below va
 bounded restoration. Fresh reference-versus-migrated results are required before production migration
 is complete.
 
+## Configurable raster state contract
+
+All added settings are static pipeline inputs; no new dynamic declaration is needed. Authored inactive
+values are validated before canonicalization: disabled alpha parameters become Always/0, disabled line
+stipple becomes factor 1/pattern 0xffff, and disabled polygon stipple becomes the all-ones mask. A newly
+authored enabled description retains its complete parameters. Boundary snapshots preserve actual
+incoming parameters even while their enable is false, without canonicalizing engine state.
+
+The clip mask is a uint with bit i naming gl_ClipDistance[i]. Bits beyond GpuSupport's queried
+MaxClipDistances reject; implementations exceeding the represented 32-bit width reject rather than
+truncate. Descriptor construction validates the requested native state and implementation limits,
+without duplicating shader-output declarations. Shader source and existing compilation options define
+clip outputs; existing shader identity already distinguishes selected variants.
+
+Preparation must derive built-in ClipDistance output availability and array extent from the final
+vertex-producing stage (geometry, otherwise tessellation evaluation, otherwise vertex) of the actual
+compiled variant with specialization-dependent extents resolved. It must reject enabled bits without
+matching verified outputs, including unavailable
+or ambiguous reflection. An output declaration or reflected array extent does not prove that every
+control-flow path writes a value; shader authors retain that correctness obligation.
+
+Inspection of GpuProgramInterface and GpuPreparedBindings found linked uniform/resource reflection,
+not built-in vertex-output metadata. ShaderCompilerProcess emits optimized SPIR-V, with debug names
+only requested in Debug builds. Extend the existing compiler/interface ownership path during pipeline
+preparation work; do not depend on optional names or invent a second authored output contract. The
+concrete built-in reflection mechanism and compiled-shader fixtures remain preparation prerequisites.
+Current descriptions are not prepared pipelines, and this addition does not authorize production use
+of unverified enabled clip configurations.
+
+ClipControl availability comes from OpenGL 4.5 or ARB_clip_control. Alternate origin/depth conventions
+require the caller's projection and reconstruction to agree: zero-to-one projections must emit z in
+[0,w], negative-one-to-one projections in [-w,w]. Window depth range stays [0,1]. Upper-left origin changes
+viewport Y mapping and the native front-facing area convention; screen-coordinate calculations,
+scissor placement, texture reconstruction and authored winding policy must match it. StateCache does
+not rewrite matrices, flip winding, or infer reversed-Z. Production conventions remain unchanged.
+
+Polygon stipple uses an immutable 128-byte value: 32 rows bottom-to-top, four bytes per row, most
+significant bit first within each byte. Native transfers explicitly use this layout and restore the
+borrowed pack/unpack layout, bit order and buffer binding even when an operation fails. This is the
+native polygon rasterization mask, not a texture or fragment-shader workaround.
+
+| Added state | Existing owner extended | Application, observation and restoration |
+| --- | --- | --- |
+| Clip enables and conventions | RasterizerDesc, shared GraphicsCapabilities/GpuSupport, RasterizerState/Knowledge | StateCache clip setters and per-distance knowledge; selective boundary queries and exact restore; engine Enable/Disable and ClipControl adapters. |
+| Alpha, smoothing, stipple, point origin | RasterizerDesc and categorized raster cache | StateCache setters and ApplyConfigurableRaster; profile-aware queries/restoration including disabled parameters; exact-signature engine adapters. |
+| Polygon mask transfer layout | StateCache pixel pack and buffer binding owners, corresponding unpack owner | Canonical upload/readback, exception cleanup, immutable snapshot sharing. Raw engine array uploads retain engine unpack semantics and invalidate only mask knowledge. |
+| Unknown native overloads/external mutations | Existing ExecuteExternal and EPipelineState invalidation | ConfigurableRaster invalidation withdraws only added raster knowledge; PixelPack/PixelUnpack and BufferBindings remain independent categories. Unmapped pointer/ref uploads and point-parameter overloads require an explicit external handoff. |
+
+ApplyConfigurableRaster applies only these added settings from a validated complete descriptor. General
+complete-pipeline application and production consumer migration remain pending. It does not make the
+existing partial GlPipelineDesc a complete pipeline or bypass shader activation ownership.
+
+Native feature classification follows [Khronos glEnable](https://raw.githubusercontent.com/KhronosGroup/OpenGL-Refpages/main/gl4/glEnable.xml).
+Original validation, before the compiler-derived output contract amendment below: delegated
+shader-enabled Debug and Release validation on 2026-10-06 passed 124/124 affected
+runtime tests in each configuration, with zero failures/skips. Separate generator suites passed
+177/177 each. Native fixtures used NVIDIA RTX 4090 / driver 591.86: OpenGL 4.3 core and OpenGL 4.6
+compatibility. Both expose clip control; capability-absent rejection is synthetic evidence only.
+
+The original six ConfigurableRasterizerDescriptionTests covered explicit defaults, every added field's active
+identity, copied pattern ownership/equality, inactive canonicalization, enum/range/mask/profile
+rejection and the then-authored clip-output declarations. Eight ConfigurableRasterizerGpuTests cases cover
+native state agreement, individual clip bits, A-to-B-to-A transitions, redundant-call suppression,
+selective invalidation, hostile disabled parameters and boundary restoration on success/exceptions.
+Real 32-by-32 fixture draws verify clipping, alpha rejection, line/polygon stipple, upper-left Y
+orientation and projected depth matching the selected clip convention. Pack and unpack callbacks
+also fail after temporary transfer setup, proving native buffer/layout restoration on that path.
+Engine LSB-first bitmap upload and an actual DynamicTexture2D upload exercise cache coherence.
+The original generator tests checked authored clip masks; those tests were removed with the
+superseded metadata. Existing boundary/cache/description/texture regressions are included in the runtime selection.
+
+Second source review corrected core polygon-smoothing availability, explicit neutral snapshots for
+unavailable fields, checked pixel-buffer binding failure, and pixel-store observation in existing
+texture/readback owners. No upload algorithm or resource ownership changed. Independent audit found
+no source gaps; linked-executable verification and general complete application retain their existing
+preparation/application prerequisites. No live-game appearance or performance result is claimed.
+
+Receipts: artifacts/configurable-raster-{debug,release}-tests.log and
+artifacts/configurable-raster-generator-release.log. Earlier compilation attempts exposed a missing
+OpenTK GetPName member (resolved using the named All enum) and two stale legacy-coverage assertions
+(now list the partial descriptor's actual fields). An initial Release shader-cache replacement access
+error cleared on retry. These earlier attempts are not substituted for the final passing receipts.
+
+Commands used NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages with default shader compilation enabled:
+
+~~~text
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter '<selection>' -v quiet --logger 'console;verbosity=detailed'
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-restore --filter '<selection>' -v quiet --logger 'console;verbosity=detailed'
+selection: FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~GraphicsPipelineDescriptionTests|FullyQualifiedName~ShaderPipelineIdentityTests|FullyQualifiedName~EngineBoundary|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~EngineState|FullyQualifiedName~PixelPack|FullyQualifiedName~GpuTextureLifetimeTests|FullyQualifiedName~DynamicTextureReadPixelsTests|FullyQualifiedName~DepthStencilTextureTests
+dotnet test ShaderContractGenerator.Tests/ShaderContractGenerator.Tests.csproj --no-build --no-restore --verbosity minimal
+dotnet test ShaderContractGenerator.Tests/ShaderContractGenerator.Tests.csproj --configuration Release --no-restore --verbosity minimal
+~~~
+
+The generator Debug run reused its successful focused build. Final builds emitted existing
+compiler/analyzer warnings and NU1900 vulnerability-feed access warnings; exact warning totals were
+not collected. Both final runtime invocations rebuilt successfully before executing the tests.
+
+### Compiler-derived output contract amendment
+
+The approved correction removes authored clip-output metadata from shader attributes/contracts,
+generator emission and shader identity. Descriptor validation now checks only the native clip mask
+and implementation limit; it does not claim to verify executable compatibility. The corresponding
+unit test verifies that enabled and disabled masks share shader identity while retaining distinct
+pipeline identity. Native raster tests continue to use fixture shaders that actually write clip outputs.
+The obsolete generator declaration tests were removed.
+
+Compiled-output reflection and preparation tests remain explicit prerequisites in the implementation
+plan. They have not been implemented by this correction. Pixel-transfer, texture upload, rasterizer
+transitions and engine-boundary restoration are unchanged.
+
+Fresh delegated validation after this correction passed 124/124 affected runtime tests and 173/173
+shader-generator tests in both Debug and Release, with zero failures/skips. Runtime commands used the
+same selection above, default shader compilation enabled, and --no-restore; generator commands used
+-c Debug/Release --no-restore -v quiet. Logs: artifacts/configurable-raster-{debug,release}-tests.log
+(now the correction receipts) and artifacts/configurable-raster-generator-{debug,release}-tests.log.
+Builds reported zero compiler errors; existing compiler/analyzer and NU1900 feed-access warnings remain.
+Source review and git diff --check passed. No compiled-output verification or live-game result is claimed.
+
 ## Immutable graphics descriptions
 
 Complete descriptions now live in `Rendering/Pipeline/Descriptions`. The construction boundary is
@@ -275,8 +393,8 @@ Validation runs unconditionally before canonicalization, including invalid inact
 Enabled scissor/stencil/constant blending requires the corresponding declared dynamics; viewport is
 always explicit. Depth/stencil enables require matching aspects; integer blending, dual-source factors,
 unsupported topology/stage combinations, device-limit violations and unavailable optional features
-reject. Polygon mode applies equally to both faces. Unsupported clip/compatibility/logic-operation
-modes are fixed neutral policy, not inherited values or publicly configurable alternatives.
+reject. Polygon mode applies equally to both faces. Clip and compatibility settings follow the
+configurable raster contract above; logic operations remain fixed neutral policy.
 
 Inactive culling, stencil, blending, bias, restart, patch size and sampling values resolve to explicit
 canonical values. Enabled configurations retain their full authored behavior; constructing another

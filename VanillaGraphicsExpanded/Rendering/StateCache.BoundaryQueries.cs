@@ -16,6 +16,7 @@ internal sealed partial class StateCache
     {
         ResolveBoundaryDepth(coverage.Depth);
         ResolveBoundaryRasterizer(coverage.Rasterizer);
+        if ((coverage.Rasterizer & RasterizerStateKnowledge.ConfigurableRaster) != 0) ResolveConfigurableRaster(coverage.Rasterizer);
         if (coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices)
             && !assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices))
         {

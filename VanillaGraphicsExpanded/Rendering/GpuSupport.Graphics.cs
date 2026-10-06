@@ -48,6 +48,8 @@ public static partial class GpuSupport
         // Extend the unpublished value; initialization publishes only after all queries succeed.
         return capabilities with
         {
+            MaxClipDistances = IsAtLeast(capabilities.ApiVersion, 3, 0) ? SafeGetInt(GetPName.MaxClipDistances) : 0,
+            ClipControl = IsAtLeast(capabilities.ApiVersion, 4, 5) || GlExtensions.Supports("GL_ARB_clip_control"),
             Graphics33 = IsAtLeast(capabilities.ApiVersion, 3, 3),
             CoreProfile = ((ContextProfileMask)capabilities.ContextProfileMaskValue).HasFlag(ContextProfileMask.ContextCoreProfileBit),
             Tessellation = tessellation,

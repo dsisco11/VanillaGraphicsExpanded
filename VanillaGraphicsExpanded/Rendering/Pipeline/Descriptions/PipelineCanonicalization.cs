@@ -20,7 +20,12 @@ internal static class PipelineCanonicalization
     {
         CullMode = value.Cull ? value.CullMode : CullFaceMode.Back,
         DepthBiasFactor = value.OffsetFill || value.OffsetLine || value.OffsetPoint ? value.DepthBiasFactor : 0,
-        DepthBiasUnits = value.OffsetFill || value.OffsetLine || value.OffsetPoint ? value.DepthBiasUnits : 0
+        DepthBiasUnits = value.OffsetFill || value.OffsetLine || value.OffsetPoint ? value.DepthBiasUnits : 0,
+        AlphaComparison = value.AlphaTest ? value.AlphaComparison : AlphaFunction.Always,
+        AlphaReference = value.AlphaTest ? value.AlphaReference : 0,
+        LineStippleFactor = value.LineStipple ? value.LineStippleFactor : 1,
+        LineStipplePattern = value.LineStipple ? value.LineStipplePattern : ushort.MaxValue,
+        PolygonStipplePattern = value.PolygonStipple ? value.PolygonStipplePattern : RasterizerDesc.FullPolygonStipple
     };
 
     /// <summary>Retains color masks even when blending is disabled, and resolves ignored factors for min/max equations.</summary>

@@ -15,6 +15,11 @@ internal sealed partial class StateCache
     {
         if (!EPipelineState.All.HasFlag(states)) throw new ArgumentOutOfRangeException(nameof(states));
 
+        if (states.HasFlag(EPipelineState.ConfigurableRaster))
+        {
+            rasterizerKnown &= ~RasterizerStateKnowledge.ConfigurableRaster;
+            clipDistancesKnown = 0;
+        }
         if (states.HasFlag(EPipelineState.Depth)) depthKnown = default;
         if (states.HasFlag(EPipelineState.Blend)) { DirtyIndexedBlendEnable(); DirtyIndexedBlendFunc(); }
         if (states.HasFlag(EPipelineState.CullFace)) rasterizerKnown &= ~RasterizerStateKnowledge.CullEnabled;
@@ -61,6 +66,7 @@ internal sealed partial class StateCache
             elementArrayBufferByVao.Clear();
         }
         if (states.HasFlag(EPipelineState.ImageBindings)) imageBindings.Clear();
+        if (states.HasFlag(EPipelineState.PixelUnpack)) pixelUnpackState = null;
         if (states.HasFlag(EPipelineState.PixelPack)) pixelPackState = null;
     }
     #endregion

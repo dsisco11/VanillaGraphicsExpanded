@@ -84,6 +84,20 @@ The old masks can remain an adapter representation. Existing stable bit numberin
 
 ## Static and dynamic state coverage
 
+Approved configurable raster-state amendment: complete descriptions support individual user
+clip-distance enables, clip origin/depth convention, alpha testing, point/line/polygon smoothing,
+line/polygon stipple and point-sprite coordinate origin. These are static pipeline values, including
+alpha comparison/reference, line repeat/pattern and the immutable 32-by-32 polygon mask. Existing
+neutral values remain defaults, not support restrictions. Capability validation distinguishes core
+features from compatibility-only features. Enabled clip distances require compiler-derived output information from the
+final vertex-processing stage of the actual compiled variant. Preparation must reject missing or
+unverifiable outputs before publishing a pipeline; authored shader masks are not required.
+Alternate clip conventions require matching projection/reconstruction and viewport/front-face policy;
+they do not implicitly select reversed-Z. Window depth range remains explicitly [0,1].
+The shared StateCache owns native transitions, observation and boundary restoration, including disabled
+parameters. Polygon mask transfers borrow and restore pixel-transfer layout and buffer bindings.
+Logic operations, viewport arrays and fixed-function lighting remain outside this amendment.
+
 | Category | Required description |
 | --- | --- |
 | Shader | Prepared graphics executable/variant identity, active stages, executable generation, resource-layout identity |
