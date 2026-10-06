@@ -43,10 +43,6 @@ internal struct RasterizerState
     public ushort LineStipplePattern;
     /// <summary>Cached native PolygonStipplePattern value, meaningful only when its knowledge flag is set.</summary>
     public Pipeline.Descriptions.PipelineValues<byte>? PolygonStipplePattern;
-    /// <summary>Independent knowledge for observed native values.</summary>
-    public CompleteRasterKnowledge SupplementalKnown;
-    /// <summary>Supplemental native enable values and their validity.</summary>
-    public CompleteEnableState SupplementalEnables;
     /// <summary>Declared or observed CullFaceMode CullMode value.</summary>
     public CullFaceMode CullMode;
     /// <summary>Declared or observed FrontFaceDirection FrontFace value.</summary>
@@ -55,4 +51,16 @@ internal struct RasterizerState
     public (PolygonMode Front, PolygonMode Back) PolygonModes;
     /// <summary>Observed PolygonOffset value, valid only when corresponding knowledge is established.</summary>
     public (float Factor, float Units) PolygonOffset;
+    /// <summary>Cached native DepthClamp enable value.</summary>
+    public bool DepthClamp;
+    /// <summary>Cached native RasterizerDiscard enable value.</summary>
+    public bool RasterizerDiscard;
+    /// <summary>Cached native PolygonOffsetFill enable value.</summary>
+    public bool PolygonOffsetFill;
+    /// <summary>Cached native PolygonOffsetLine enable value.</summary>
+    public bool PolygonOffsetLine;
+    /// <summary>Cached native PolygonOffsetPoint enable value.</summary>
+    public bool PolygonOffsetPoint;
+    /// <summary>Cached native ProgramPointSize enable value.</summary>
+    public bool ProgramPointSize;
 }

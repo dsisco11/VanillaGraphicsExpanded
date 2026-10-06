@@ -36,7 +36,7 @@ internal sealed partial class StateCache
             case EnableCap.ColorLogicOp:
             case EnableCap.PrimitiveRestart:
             case EnableCap.PrimitiveRestartFixedIndex:
-                SetCompleteEnable(capability, enabled); break;
+                SetGraphicsEnable(capability, enabled); break;
             case EnableCap.AlphaTest: SetAlphaTest(enabled); break;
             case EnableCap.PointSmooth: SetPointSmooth(enabled); break;
             case EnableCap.LineSmooth: SetLineSmooth(enabled); break;

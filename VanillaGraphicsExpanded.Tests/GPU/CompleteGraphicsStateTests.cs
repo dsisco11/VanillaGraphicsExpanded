@@ -149,7 +149,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         scope!.Run(() => Assert.Throws<InvalidOperationException>(() => cache.ApplyGraphicsState(pipeline, Dynamics())));
         Assert.Equal(calls, cache.FixedFunctionCalls);
     }
-    /// <summary>Opt-in checking withdraws failed supplemental knowledge so a later retry reaches the driver.</summary>
+    /// <summary>Opt-in checking withdraws failed category knowledge so a later retry reaches the driver.</summary>
     [Fact]
     public void CheckedTransitionFailureDoesNotPublishKnowledge()
     {
@@ -181,22 +181,59 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
                 cache.ApplyGraphicsState(Pipeline(false), Dynamics());
                 cache.SetDepthRange(.3, .7); cache.SetSampleCoverage(.75f, false); cache.SetSampleMask(0, 0xAAu);
                 cache.InvalidateAll();
-                Assert.True(saved.Depth.SupplementalKnown.HasFlag(CompleteDepthKnowledge.DepthRange));
+                Assert.True(saved.DepthKnown.HasFlag(DepthStateKnowledge.DepthRange));
                 Assert.Equal((0d, 1d), saved.Depth.DepthRange);
-                Assert.True(saved.Sampling.Known.HasFlag(CompleteSamplingKnowledge.SampleCoverage));
+                Assert.True(saved.SamplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverage));
                 Assert.Equal((.375f, true), saved.Sampling.SampleCoverage);
-                Assert.True(saved.Sampling.Enables.Known.HasFlag(CompleteEnableFlags.SampleMask));
-                Assert.True(saved.Sampling.Enables.Values.HasFlag(CompleteEnableFlags.SampleMask));
+                Assert.True(saved.SamplingKnown.HasFlag(SamplingStateKnowledge.SampleMask));
+                Assert.True(saved.Sampling.SampleMask);
                 Assert.Equal(0x55u, saved.SampleMasks.Single(entry => entry.Key == 0).Value);
                 // Accessors return category values by copy, so consumers cannot corrupt restoration.
-                var sampling = saved.Sampling; sampling.Known = CompleteSamplingKnowledge.None;
-                Assert.True(saved.Sampling.Known.HasFlag(CompleteSamplingKnowledge.SampleCoverage));
+                var sampling = saved.Sampling; sampling.SampleCoverage = (0, false);
+                Assert.Equal((.375f, true), saved.Sampling.SampleCoverage);
+                Assert.True(saved.SamplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverage));
             });
             AssertNative(Pipeline(true));
         }
         finally { cache.ApplyGraphicsState(Pipeline(false), Dynamics()); }
     }
 
+    /// <summary>Viewport invalidation and partial snapshots preserve independently known draw parameters.</summary>
+    [Fact]
+    public void UnifiedDynamicKnowledgePreservesUnrelatedFields()
+    {
+        fixture.MakeCurrent();
+        var cache = StateCache.Current;
+        cache.InvalidateAll();
+        cache.ApplyGraphicsState(Pipeline(false), Dynamics());
+        try
+        {
+            cache.SetScissor(2, 4, 11, 13);
+            cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+            cache.Invalidate(EPipelineState.Viewport);
+            long calls = cache.FixedFunctionCalls, queries = cache.BoundaryQueries, checks = cache.BoundaryErrorChecks;
+            cache.SetScissor(2, 4, 11, 13);
+            cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+            Assert.Equal(calls, cache.FixedFunctionCalls);
+            Assert.Equal(queries, cache.BoundaryQueries);
+            Assert.Equal(checks, cache.BoundaryErrorChecks);
+            // Capturing a viewport must not claim warm scissor/constant fields as restorable.
+            Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ViewportOnly",
+                new PipelineStateCoverage(dynamic: DynamicDrawStateKnowledge.Viewport)), out var scope));
+            Assert.Equal(DynamicDrawStateKnowledge.Viewport, scope!.Snapshot.DynamicKnown);
+            scope.Run(() => cache.ApplyDynamic(new() { X = 0, Y = 0, Width = 8, Height = 8 }));
+            int[] scissor = new int[4]; GL.GetInteger(GetPName.ScissorBox, scissor);
+            Assert.Equal(new[] { 2, 4, 11, 13 }, scissor);
+            cache.Invalidate(EPipelineState.ScissorRectangle);
+            calls = cache.FixedFunctionCalls;
+            cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+            cache.ApplyDynamic(Dynamics().Viewport!.Value);
+            Assert.Equal(calls, cache.FixedFunctionCalls);
+            cache.SetScissor(2, 4, 11, 13);
+            Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+        }
+        finally { cache.ApplyGraphicsState(Pipeline(false), Dynamics()); }
+    }
     #endregion
 
     #region Private

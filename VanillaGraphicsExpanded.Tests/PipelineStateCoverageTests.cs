@@ -21,7 +21,7 @@ public sealed class PipelineStateCoverageTests
             blendFuncIndexed: [new GlBlendFuncIndexed(3, GlBlendFunc.Default)],
             colorMask: GlColorMask.All, lineWidth: 2, pointSize: 3);
         var coverage = PipelineStateCoverage.From(descriptor);
-        Assert.Equal(DepthStateKnowledge.All, coverage.Depth);
+        Assert.Equal((DepthStateKnowledge.TestEnabled | DepthStateKnowledge.Comparison | DepthStateKnowledge.WriteEnabled), coverage.Depth);
         Assert.Equal(RasterizerStateKnowledge.CullEnabled | RasterizerStateKnowledge.ScissorEnabled | RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize, coverage.Rasterizer);
         Assert.Equal(PrimitiveAssemblyStateKnowledge.None, coverage.Assembly);
         Assert.Equal(DynamicDrawStateKnowledge.None, coverage.Dynamic);
@@ -74,6 +74,21 @@ public sealed class PipelineStateCoverageTests
         Assert.Throws<ArgumentException>(() => PipelineStateCoverage.From(descriptor));
         var missing = new GlPipelineDesc(default, GlPipelineStateMask.From(GlPipelineStateId.BlendEnableIndexed), validate: false);
         Assert.Throws<ArgumentException>(() => PipelineStateCoverage.From(missing));
+    }
+    /// <summary>Unified knowledge masks cannot authorize new fields in partial boundaries.</summary>
+    [Fact]
+    public void CompleteOnlyFieldsRequireExplicitBoundaryAuthority()
+    {
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(depth: DepthStateKnowledge.DepthRange));
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(rasterizer: RasterizerStateKnowledge.DepthClamp));
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(assembly: PrimitiveAssemblyStateKnowledge.RestartIndex));
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(dynamic: DynamicDrawStateKnowledge.Scissor));
+        var complete = new PipelineStateCoverage(completeGraphics: true);
+        Assert.True(complete.Depth.HasFlag(DepthStateKnowledge.DepthRange));
+        Assert.True(complete.Rasterizer.HasFlag(RasterizerStateKnowledge.DepthClamp));
+        Assert.True(complete.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.RestartIndex));
+        Assert.True(complete.Dynamic.HasFlag(DynamicDrawStateKnowledge.Scissor | DynamicDrawStateKnowledge.BlendConstant));
+        Assert.False(complete.Dynamic.HasFlag(DynamicDrawStateKnowledge.Viewport));
     }
     #endregion
 }

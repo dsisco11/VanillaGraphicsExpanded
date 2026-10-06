@@ -14,7 +14,7 @@ internal sealed partial class StateCache
     /// <summary>Resolves scalar categories and all effective output aliases before optional work begins.</summary>
     private void ResolveBoundaryState(PipelineStateCoverage coverage, int count)
     {
-        if (coverage.CompleteGraphics) ResolveCompleteGraphics();
+        ResolveGraphicsCategories(coverage);
         ResolveBoundaryDepth(coverage.Depth);
         ResolveBoundaryRasterizer(coverage.Rasterizer);
         if ((coverage.Rasterizer & RasterizerStateKnowledge.ConfigurableRaster) != 0) ResolveConfigurableRaster(coverage.Rasterizer);

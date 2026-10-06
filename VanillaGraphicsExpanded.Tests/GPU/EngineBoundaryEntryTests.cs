@@ -26,7 +26,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         GL.Enable(EnableCap.DepthTest);
         GL.DepthFunc(DepthFunction.Greater);
         GL.DepthMask(false);
-        var declaration = new EngineBoundaryDeclaration("Depth", new PipelineStateCoverage(depth: DepthStateKnowledge.All));
+        var declaration = new EngineBoundaryDeclaration("Depth", new PipelineStateCoverage(depth: (DepthStateKnowledge.TestEnabled | DepthStateKnowledge.Comparison | DepthStateKnowledge.WriteEnabled)));
         long queries = cache.BoundaryQueries;
         long calls = cache.FixedFunctionCalls;
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var first), cache.BoundaryEntryFailure?.ToString());
@@ -59,8 +59,8 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         GL.PatchParameter(PatchParameterInt.PatchVertices, 4);
         GL.Viewport(7, 9, 31, 37); GL.ClearColor(.2f, .4f, .6f, .8f);
         var declaration = new EngineBoundaryDeclaration("All", new PipelineStateCoverage(
-            rasterizer: RasterizerStateKnowledge.All, assembly: PrimitiveAssemblyStateKnowledge.All,
-            dynamic: DynamicDrawStateKnowledge.All, clearColor: true));
+            rasterizer: (RasterizerStateKnowledge.ConfigurableRaster | RasterizerStateKnowledge.CullEnabled | RasterizerStateKnowledge.ScissorEnabled | RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize | RasterizerStateKnowledge.ProvokingVertex), assembly: PrimitiveAssemblyStateKnowledge.PatchVertices,
+            dynamic: DynamicDrawStateKnowledge.Viewport, clearColor: true));
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope), cache.BoundaryEntryFailure?.ToString());
         try
         {

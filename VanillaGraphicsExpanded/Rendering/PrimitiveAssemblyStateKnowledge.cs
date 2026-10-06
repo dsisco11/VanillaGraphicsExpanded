@@ -10,6 +10,12 @@ internal enum PrimitiveAssemblyStateKnowledge : byte
     None = 0,
     /// <summary>The cached PatchVertices value is known.</summary>
     PatchVertices = 1 << 0,
+    /// <summary>The cached RestartIndex value is known.</summary>
+    RestartIndex = 1 << 1,
+    /// <summary>The cached PrimitiveRestart value is known.</summary>
+    PrimitiveRestart = 1 << 2,
+    /// <summary>The cached PrimitiveRestartFixedIndex value is known.</summary>
+    PrimitiveRestartFixedIndex = 1 << 3,
     /// <summary>Every field in this category is known.</summary>
-    All = PatchVertices
+    All = PatchVertices | RestartIndex | PrimitiveRestart | PrimitiveRestartFixedIndex
 }

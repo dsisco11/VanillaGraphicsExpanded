@@ -44,6 +44,26 @@ internal enum RasterizerStateKnowledge : uint
     PolygonStipplePattern = 1u << 16,
     /// <summary>All configurable clipping and compatibility fields.</summary>
     ConfigurableRaster = ClipDistances | ClipControl | PointSpriteOrigin | AlphaTest | PointSmooth | LineSmooth | PolygonSmooth | LineStipple | PolygonStipple | AlphaFunction | LineStippleParameters | PolygonStipplePattern,
+    /// <summary>The cached CullMode value is known.</summary>
+    CullMode = 1u << 17,
+    /// <summary>The cached FrontFace value is known.</summary>
+    FrontFace = 1u << 18,
+    /// <summary>The cached PolygonModes value is known.</summary>
+    PolygonModes = 1u << 19,
+    /// <summary>The cached PolygonOffset value is known.</summary>
+    PolygonOffset = 1u << 20,
+    /// <summary>The cached DepthClamp value is known.</summary>
+    DepthClamp = 1u << 21,
+    /// <summary>The cached RasterizerDiscard value is known.</summary>
+    RasterizerDiscard = 1u << 22,
+    /// <summary>The cached PolygonOffsetFill value is known.</summary>
+    PolygonOffsetFill = 1u << 23,
+    /// <summary>The cached PolygonOffsetLine value is known.</summary>
+    PolygonOffsetLine = 1u << 24,
+    /// <summary>The cached PolygonOffsetPoint value is known.</summary>
+    PolygonOffsetPoint = 1u << 25,
+    /// <summary>The cached ProgramPointSize value is known.</summary>
+    ProgramPointSize = 1u << 26,
     /// <summary>Every field in this category is known.</summary>
-    All = ConfigurableRaster | CullEnabled | ScissorEnabled | LineWidth | PointSize | ProvokingVertex
+    All = ConfigurableRaster | CullEnabled | ScissorEnabled | LineWidth | PointSize | ProvokingVertex | CullMode | FrontFace | PolygonModes | PolygonOffset | DepthClamp | RasterizerDiscard | PolygonOffsetFill | PolygonOffsetLine | PolygonOffsetPoint | ProgramPointSize
 }

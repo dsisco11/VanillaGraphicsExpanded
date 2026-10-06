@@ -30,7 +30,7 @@ internal sealed partial class StateCache
     #endregion
 
     #region Private
-    /// <summary>Requires complete drawing-state coverage before supplemental state can change.</summary>
+    /// <summary>Requires complete drawing-state coverage before complete-only state can change.</summary>
     private void ValidateCompleteMutation()
     {
         if (resolvingBoundary) throw new InvalidOperationException("Drawing state cannot change during boundary resolution.");

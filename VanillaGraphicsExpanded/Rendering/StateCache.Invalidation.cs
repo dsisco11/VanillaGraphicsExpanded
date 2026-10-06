@@ -15,7 +15,16 @@ internal sealed partial class StateCache
     {
         if (!EPipelineState.All.HasFlag(states)) throw new ArgumentOutOfRangeException(nameof(states));
 
-        InvalidateSupplementalGraphics(states);
+        // Preserve the existing public invalidation groups while using unified category masks.
+        if (states.HasFlag(EPipelineState.DepthRange)) depthKnown &= ~DepthStateKnowledge.DepthRange;
+        if (states.HasFlag(EPipelineState.Blend)) ForgetBlendEquations();
+        if (states.HasFlag(EPipelineState.RasterParameters)) rasterizerKnown &= ~(RasterizerStateKnowledge.CullMode | RasterizerStateKnowledge.FrontFace | RasterizerStateKnowledge.PolygonModes | RasterizerStateKnowledge.PolygonOffset | RasterizerStateKnowledge.DepthClamp | RasterizerStateKnowledge.RasterizerDiscard | RasterizerStateKnowledge.PolygonOffsetFill | RasterizerStateKnowledge.PolygonOffsetLine | RasterizerStateKnowledge.PolygonOffsetPoint | RasterizerStateKnowledge.ProgramPointSize);
+        if (states.HasFlag(EPipelineState.Stencil)) stencilKnown = default;
+        if (states.HasFlag(EPipelineState.Sampling)) { samplingKnown = default; sampleMasks.Clear(); }
+        if (states.HasFlag(EPipelineState.OutputInterpretation)) outputKnown = default;
+        if (states.HasFlag(EPipelineState.PrimitiveRestart)) assemblyKnown &= ~(PrimitiveAssemblyStateKnowledge.RestartIndex | PrimitiveAssemblyStateKnowledge.PrimitiveRestart | PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex);
+        if (states.HasFlag(EPipelineState.ScissorRectangle)) dynamicKnown &= ~DynamicDrawStateKnowledge.Scissor;
+        if (states.HasFlag(EPipelineState.BlendConstant)) dynamicKnown &= ~DynamicDrawStateKnowledge.BlendConstant;
         if (states.HasFlag(EPipelineState.ConfigurableRaster))
         {
             rasterizerKnown &= ~RasterizerStateKnowledge.ConfigurableRaster;
@@ -31,7 +40,7 @@ internal sealed partial class StateCache
         if (states.HasFlag(EPipelineState.PointSize)) rasterizerKnown &= ~RasterizerStateKnowledge.PointSize;
         if (states.HasFlag(EPipelineState.PatchVertices)) assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PatchVertices;
         if (states.HasFlag(EPipelineState.ProvokingVertex)) rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex;
-        if (states.HasFlag(EPipelineState.Viewport)) dynamicKnown = default;
+        if (states.HasFlag(EPipelineState.Viewport)) dynamicKnown &= ~DynamicDrawStateKnowledge.Viewport;
         if (states.HasFlag(EPipelineState.ClearColor)) clearColorKnown = false;
         if (states.HasFlag(EPipelineState.Program)) currentProgram = null;
         if (states.HasFlag(EPipelineState.ProgramPipeline)) currentProgramPipeline = null;

@@ -38,8 +38,9 @@ internal sealed partial class StateCache
             if (declaration.Coverage.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) && GpuSupport.Graphics.Tessellation) EnsurePatchLimit();
             var snapshot = new PipelineStateSnapshot(declaration.Coverage,
                 depth, rasterizer, assembly, dynamicState, clearColor, blend,
-                completeSampling, completeStencil, completeOutput,
-                declaration.Coverage.CompleteGraphics ? completeSampleMasks : null);
+                sampling, stencil, output,
+                declaration.Coverage.CompleteGraphics ? sampleMasks : null,
+                depthKnown, rasterizerKnown, assemblyKnown, dynamicKnown, samplingKnown, stencilKnown, outputKnown, blendKnown);
             scope = new EngineBoundaryScope(this, snapshot);
             if (resources is not null) CaptureBoundaryBindings(scope, resources);
             activeBoundary = scope;

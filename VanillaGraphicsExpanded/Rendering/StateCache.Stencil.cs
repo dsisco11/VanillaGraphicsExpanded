@@ -13,16 +13,16 @@ internal sealed partial class StateCache
         reference = Math.Max(0, reference);
         ValidateCompleteMutation();
         bool front = face != StencilFace.Back, back = face != StencilFace.Front;
-        if ((!front || completeStencil.Known.HasFlag(CompleteStencilKnowledge.FrontStencilFunction) && completeStencil.FrontStencilFunction == (function, reference, mask))
-            && (!back || completeStencil.Known.HasFlag(CompleteStencilKnowledge.BackStencilFunction) && completeStencil.BackStencilFunction == (function, reference, mask))) return;
-        if (front) completeStencil.Known &= ~CompleteStencilKnowledge.FrontStencilFunction;
-        if (back) completeStencil.Known &= ~CompleteStencilKnowledge.BackStencilFunction;
+        if ((!front || stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilFunction) && stencil.FrontStencilFunction == (function, reference, mask))
+            && (!back || stencilKnown.HasFlag(StencilStateKnowledge.BackStencilFunction) && stencil.BackStencilFunction == (function, reference, mask))) return;
+        if (front) stencilKnown &= ~StencilStateKnowledge.FrontStencilFunction;
+        if (back) stencilKnown &= ~StencilStateKnowledge.BackStencilFunction;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.StencilFuncSeparate(face, function, reference, mask);
         FixedFunctionCalls++;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        if (front) { completeStencil.FrontStencilFunction = (function, reference, mask); completeStencil.Known |= CompleteStencilKnowledge.FrontStencilFunction; }
-        if (back) { completeStencil.BackStencilFunction = (function, reference, mask); completeStencil.Known |= CompleteStencilKnowledge.BackStencilFunction; }
+        if (front) { stencil.FrontStencilFunction = (function, reference, mask); stencilKnown |= StencilStateKnowledge.FrontStencilFunction; }
+        if (back) { stencil.BackStencilFunction = (function, reference, mask); stencilKnown |= StencilStateKnowledge.BackStencilFunction; }
     }
     /// <summary>Sets stencil mask for selected faces and updates all native aliases.</summary>
     internal void SetStencilWriteMask(StencilFace face, uint mask)
@@ -31,16 +31,16 @@ internal sealed partial class StateCache
         
         ValidateCompleteMutation();
         bool front = face != StencilFace.Back, back = face != StencilFace.Front;
-        if ((!front || completeStencil.Known.HasFlag(CompleteStencilKnowledge.FrontStencilMask) && completeStencil.FrontStencilMask == mask)
-            && (!back || completeStencil.Known.HasFlag(CompleteStencilKnowledge.BackStencilMask) && completeStencil.BackStencilMask == mask)) return;
-        if (front) completeStencil.Known &= ~CompleteStencilKnowledge.FrontStencilMask;
-        if (back) completeStencil.Known &= ~CompleteStencilKnowledge.BackStencilMask;
+        if ((!front || stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilMask) && stencil.FrontStencilMask == mask)
+            && (!back || stencilKnown.HasFlag(StencilStateKnowledge.BackStencilMask) && stencil.BackStencilMask == mask)) return;
+        if (front) stencilKnown &= ~StencilStateKnowledge.FrontStencilMask;
+        if (back) stencilKnown &= ~StencilStateKnowledge.BackStencilMask;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.StencilMaskSeparate(face, mask);
         FixedFunctionCalls++;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        if (front) { completeStencil.FrontStencilMask = mask; completeStencil.Known |= CompleteStencilKnowledge.FrontStencilMask; }
-        if (back) { completeStencil.BackStencilMask = mask; completeStencil.Known |= CompleteStencilKnowledge.BackStencilMask; }
+        if (front) { stencil.FrontStencilMask = mask; stencilKnown |= StencilStateKnowledge.FrontStencilMask; }
+        if (back) { stencil.BackStencilMask = mask; stencilKnown |= StencilStateKnowledge.BackStencilMask; }
     }
     /// <summary>Sets stencil operation for selected faces and updates all native aliases.</summary>
     internal void SetStencilOperation(StencilFace face, StencilOp fail, StencilOp depthFail, StencilOp pass)
@@ -49,16 +49,16 @@ internal sealed partial class StateCache
         if (!Enum.IsDefined(fail) || !Enum.IsDefined(depthFail) || !Enum.IsDefined(pass)) throw new ArgumentOutOfRangeException(nameof(fail));
         ValidateCompleteMutation();
         bool front = face != StencilFace.Back, back = face != StencilFace.Front;
-        if ((!front || completeStencil.Known.HasFlag(CompleteStencilKnowledge.FrontStencilOperation) && completeStencil.FrontStencilOperation == (fail, depthFail, pass))
-            && (!back || completeStencil.Known.HasFlag(CompleteStencilKnowledge.BackStencilOperation) && completeStencil.BackStencilOperation == (fail, depthFail, pass))) return;
-        if (front) completeStencil.Known &= ~CompleteStencilKnowledge.FrontStencilOperation;
-        if (back) completeStencil.Known &= ~CompleteStencilKnowledge.BackStencilOperation;
+        if ((!front || stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilOperation) && stencil.FrontStencilOperation == (fail, depthFail, pass))
+            && (!back || stencilKnown.HasFlag(StencilStateKnowledge.BackStencilOperation) && stencil.BackStencilOperation == (fail, depthFail, pass))) return;
+        if (front) stencilKnown &= ~StencilStateKnowledge.FrontStencilOperation;
+        if (back) stencilKnown &= ~StencilStateKnowledge.BackStencilOperation;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.StencilOpSeparate(face, fail, depthFail, pass);
         FixedFunctionCalls++;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        if (front) { completeStencil.FrontStencilOperation = (fail, depthFail, pass); completeStencil.Known |= CompleteStencilKnowledge.FrontStencilOperation; }
-        if (back) { completeStencil.BackStencilOperation = (fail, depthFail, pass); completeStencil.Known |= CompleteStencilKnowledge.BackStencilOperation; }
+        if (front) { stencil.FrontStencilOperation = (fail, depthFail, pass); stencilKnown |= StencilStateKnowledge.FrontStencilOperation; }
+        if (back) { stencil.BackStencilOperation = (fail, depthFail, pass); stencilKnown |= StencilStateKnowledge.BackStencilOperation; }
     }
     #endregion
 }

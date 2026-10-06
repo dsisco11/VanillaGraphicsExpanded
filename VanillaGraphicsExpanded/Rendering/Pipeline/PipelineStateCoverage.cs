@@ -14,7 +14,7 @@ internal sealed class PipelineStateCoverage
     internal DynamicDrawStateKnowledge Dynamic { get; }
     internal BlendStateKnowledge GlobalBlend { get; }
     internal bool ClearColor { get; }
-    /// <summary>Includes every supplemental complete graphics field, including inactive parameters.</summary>
+    /// <summary>Includes every complete graphics category field, including inactive parameters.</summary>
     internal bool CompleteGraphics { get; }
     internal static PipelineStateCoverage Empty { get; } = new();
 
@@ -30,6 +30,23 @@ internal sealed class PipelineStateCoverage
         if (!DepthStateKnowledge.All.HasFlag(depth) || !RasterizerStateKnowledge.All.HasFlag(rasterizer)
             || !PrimitiveAssemblyStateKnowledge.All.HasFlag(assembly) || !DynamicDrawStateKnowledge.All.HasFlag(dynamic)
             || !BlendStateKnowledge.All.HasFlag(globalBlend)) throw new ArgumentOutOfRangeException(nameof(depth));
+        // Full graphics coverage includes inactive parameters as well as enable values.
+        // Partial boundaries retain their established field set; category masks do not grant new authority.
+        const DepthStateKnowledge fullDepth = DepthStateKnowledge.DepthRange;
+        const RasterizerStateKnowledge fullRaster = RasterizerStateKnowledge.CullMode | RasterizerStateKnowledge.FrontFace
+            | RasterizerStateKnowledge.PolygonModes | RasterizerStateKnowledge.PolygonOffset | RasterizerStateKnowledge.DepthClamp
+            | RasterizerStateKnowledge.RasterizerDiscard | RasterizerStateKnowledge.PolygonOffsetFill | RasterizerStateKnowledge.PolygonOffsetLine
+            | RasterizerStateKnowledge.PolygonOffsetPoint | RasterizerStateKnowledge.ProgramPointSize;
+        const PrimitiveAssemblyStateKnowledge fullAssembly = PrimitiveAssemblyStateKnowledge.RestartIndex
+            | PrimitiveAssemblyStateKnowledge.PrimitiveRestart | PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;
+        const DynamicDrawStateKnowledge fullDynamic = DynamicDrawStateKnowledge.Scissor | DynamicDrawStateKnowledge.BlendConstant;
+        if (completeGraphics)
+        {
+            depth |= fullDepth; rasterizer |= fullRaster; assembly |= fullAssembly; dynamic |= fullDynamic;
+        }
+        else if ((depth & fullDepth) != 0 || (rasterizer & fullRaster) != 0
+            || (assembly & fullAssembly) != 0 || (dynamic & fullDynamic) != 0)
+            throw new ArgumentException("These fields require complete graphics boundary coverage.");
         Depth = depth; Rasterizer = rasterizer; Assembly = assembly; Dynamic = dynamic;
         GlobalBlend = globalBlend; ClearColor = clearColor; CompleteGraphics = completeGraphics;
         outputs = new();

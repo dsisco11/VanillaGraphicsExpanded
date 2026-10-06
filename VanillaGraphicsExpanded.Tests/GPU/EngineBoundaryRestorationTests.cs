@@ -25,8 +25,8 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         var factors = new GlBlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha, BlendingFactorSrc.One, BlendingFactorDest.Zero);
         cache.SetBlendFunc(factors); int last = cache.MaxDrawBuffers - 1; cache.SetBlendFuncIndexed(last, GlBlendFunc.Default);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("AllCategories", new PipelineStateCoverage(
-            rasterizer: RasterizerStateKnowledge.All, assembly: PrimitiveAssemblyStateKnowledge.All,
-            dynamic: DynamicDrawStateKnowledge.All, globalBlend: BlendStateKnowledge.Factors, clearColor: true)), out var scope));
+            rasterizer: (RasterizerStateKnowledge.ConfigurableRaster | RasterizerStateKnowledge.CullEnabled | RasterizerStateKnowledge.ScissorEnabled | RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize | RasterizerStateKnowledge.ProvokingVertex), assembly: PrimitiveAssemblyStateKnowledge.PatchVertices,
+            dynamic: DynamicDrawStateKnowledge.Viewport, globalBlend: BlendStateKnowledge.Factors, clearColor: true)), out var scope));
         scope!.Run(() =>
         {
             cache.SetCapability(EnableCap.CullFace, false); cache.SetCapability(EnableCap.ScissorTest, false);
@@ -89,7 +89,7 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
     public void NoOpRestorationAndPartialEntryCounts()
     {
         var cache = Prepare();
-        var declaration = new EngineBoundaryDeclaration("Depth", new PipelineStateCoverage(depth: DepthStateKnowledge.All));
+        var declaration = new EngineBoundaryDeclaration("Depth", new PipelineStateCoverage(depth: (DepthStateKnowledge.TestEnabled | DepthStateKnowledge.Comparison | DepthStateKnowledge.WriteEnabled)));
         long reads = cache.BoundaryQueries, calls = cache.FixedFunctionCalls;
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var cold));
         cold!.Dispose();

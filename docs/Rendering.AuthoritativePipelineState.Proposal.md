@@ -72,6 +72,17 @@ The following type names are illustrative. Their responsibility boundaries are t
 
 Dependencies flow from renderers into pass/pipeline/submission APIs, then into existing resource and shader abstractions and the state cache. The command context is a thin composition root. Compatibility validation, pipeline keys, pass descriptions, and engine adapters each belong in separate files with one clear responsibility.
 
+## Categorized cache storage
+
+StateCache owns value-only category structs and separate field-level knowledge masks. Extend each
+existing category mask when coverage grows rather than adding a parallel supplemental mask or
+cross-category enable container. Sampling, stencil and output interpretation follow the same model
+as depth, rasterizer, primitive assembly, dynamics and indexed blending. Immutable PSO descriptions
+remain authored intent; cached values can also represent arbitrary supported incoming engine state.
+Boundary snapshots copy these same values and masks, restrict knowledge to declared coverage, and
+privately copy indexed payloads. Storage consolidation must preserve partial-boundary authority,
+selective invalidation, native transitions, error-checking policy and same-live-context lifetime.
+
 ## Complete descriptions and partial overrides
 
 Preserve partial state descriptions for engine overlays and compatibility adapters where “change only these settings” is intentional. Give that behavior an explicit override/patch identity so it cannot be confused with a complete PSO.

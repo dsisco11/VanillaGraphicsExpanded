@@ -34,7 +34,7 @@ internal sealed partial class StateCache
     internal void RestoreBoundaryState(PipelineStateSnapshot snapshot, List<Exception> failures)
     {
         var coverage = snapshot.Coverage;
-        if (snapshot.Coverage.CompleteGraphics) RestoreCompleteGraphics(snapshot, failures);
+        RestoreGraphicsCategories(snapshot, failures);
         if ((coverage.Rasterizer & RasterizerStateKnowledge.ConfigurableRaster) != 0) RestoreConfigurableRaster(snapshot, failures);
         if (coverage.Depth.HasFlag(DepthStateKnowledge.TestEnabled) && (!depthKnown.HasFlag(DepthStateKnowledge.TestEnabled) || depth.TestEnabled != snapshot.Depth.TestEnabled))
             RestoreBoundaryField(() => SetCapability(EnableCap.DepthTest, snapshot.Depth.TestEnabled), () => depthKnown &= ~DepthStateKnowledge.TestEnabled, failures);

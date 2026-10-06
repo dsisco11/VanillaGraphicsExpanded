@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–3 and Subphases 2.1–2.2 are complete; Subphase 3.1 and Phases 4–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–3 and Subphases 2.1–2.2 and 3.1 are complete; Subphase 3.2 and Phases 4–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -269,107 +269,180 @@ Subphase 3.1: Unify categorized state values and knowledge
   Dependencies: Phase 3 state application and engine-boundary implementation.
   Sources: Rendering.AuthoritativePipelineState.Proposal.md / complete state and existing cache ownership;
     Rendering.AuthoritativePipelineState.md / Complete state application and engine boundary (2026-10-06).
+  Completed 2026-10-06: shader-enabled Debug/Release 161/161 each, zero failures/skips;
+  second source review and independent audit-stage-completion passed with no unresolved findings.
+  Evidence, item dispositions and commands: Rendering.AuthoritativePipelineState.md / Unified category storage (2026-10-06).
   Outcome: one consistent category model supplies live cache storage and detached boundary snapshots,
     without a separate complete/supplemental storage layer or changes to native rendering behavior.
 
-  ☐ Inventory every supplemental value, enable and knowledge bit and map it to its owning category.
-    ☐ Preserve distinctions between authored immutable PSO descriptions and observed native state;
+  ☑ Inventory every supplemental value, enable and knowledge bit and map it to its owning category.
+    ☑ Preserve distinctions between authored immutable PSO descriptions and observed native state;
       retain engine values that authored pipeline policy does not expose.
-  ☐ Reconcile this explicit affected-item inventory before implementation and again before completion.
+  ☑ Reconcile this explicit affected-item inventory before implementation and again before completion.
     Paths below are relative to VanillaGraphicsExpanded/Rendering unless prefixed otherwise.
     Each item requires migration or an explicit reviewed no-change disposition; this is not a mandate
     to rename whole-pipeline operations merely because their names contain Complete.
-    ☐ Value types: Pipeline/State/{DepthState,RasterizerState,PrimitiveAssemblyState,DynamicDrawState,
+    ☑ Value types: Pipeline/State/{DepthState,RasterizerState,PrimitiveAssemblyState,DynamicDrawState,
       BlendState,CompleteSamplingState,CompleteStencilState,CompleteOutputState}.cs.
       Review GraphicsDynamicState.cs as the distinct authored dynamic payload; do not merge it with
       cached DynamicDrawState or change its submission contract.
-    ☐ Existing masks: {DepthStateKnowledge,RasterizerStateKnowledge,PrimitiveAssemblyStateKnowledge,
+    ☑ Existing masks: {DepthStateKnowledge,RasterizerStateKnowledge,PrimitiveAssemblyStateKnowledge,
       DynamicDrawStateKnowledge,BlendStateKnowledge}.cs; review every None/All/composite mask and user.
-    ☐ Retire/merge CompleteDepthKnowledge, CompleteRasterKnowledge, CompleteAssemblyKnowledge,
+    ☑ Retire/merge CompleteDepthKnowledge, CompleteRasterKnowledge, CompleteAssemblyKnowledge,
       CompleteDynamicKnowledge, CompleteSamplingKnowledge, CompleteStencilKnowledge and
       CompleteOutputKnowledge; replace CompleteEnableState and CompleteEnableFlags.
-    ☐ Depth mapping: DepthRange; remove embedded SupplementalKnown and SupplementalEnables,
+    ☑ Depth mapping: DepthRange; remove embedded SupplementalKnown and SupplementalEnables,
       including unused storage, while preserving TestEnabled, Comparison and WriteEnabled.
-    ☐ Raster mapping: CullMode, FrontFace, front/back PolygonModes and PolygonOffset factor/units;
+    ☑ Raster mapping: CullMode, FrontFace, front/back PolygonModes and PolygonOffset factor/units;
       DepthClamp, RasterizerDiscard, PolygonOffsetFill/Line/Point and ProgramPointSize enables.
       Retain all existing clipping, alpha, point/line/polygon smoothing and stipple values/knowledge.
-    ☐ Assembly mapping: RestartIndex, PrimitiveRestart and PrimitiveRestartFixedIndex; preserve
+    ☑ Assembly mapping: RestartIndex, PrimitiveRestart and PrimitiveRestartFixedIndex; preserve
       existing patch parameters. Dynamic mapping: Scissor rectangle and BlendConstant; preserve viewport.
-    ☐ Sampling mapping: SampleCoverage value/invert, MinimumSampleShading, Multisample,
+    ☑ Sampling mapping: SampleCoverage value/invert, MinimumSampleShading, Multisample,
       SampleCoverage/Mask/Shading enables, SampleAlphaToCoverage and SampleAlphaToOne;
       completeSampleMasks indexed values and per-word knowledge in live storage and snapshots.
-    ☐ Stencil mapping: StencilTest; front/back function/reference/read mask, write mask and
+    ☑ Stencil mapping: StencilTest; front/back function/reference/read mask, write mask and
       fail/depth-fail/pass operations. Output mapping: FramebufferSrgb, Dither, ColorLogicOp and
       LogicOperation. Blend mapping: existing per-output factors, enables, write masks and Equations.
-    ☐ Storage/application: StateCache.cs and StateCache.{FixedFunctionStorage,CompleteStorage,
+    ☑ Storage/application: StateCache.cs and StateCache.{FixedFunctionStorage,CompleteStorage,
       CompleteApplication,CompleteEnables,CompleteParameters,CompleteIndexed,CompleteStencil}.cs;
       completeSampling/completeStencil/completeOutput fields and InvalidateSupplementalGraphics.
-    ☐ Category consumers: StateCache.{Depth,Rasterizer,RasterEnables,RasterParameters,
+    ☑ Category consumers: StateCache.{Depth,Rasterizer,RasterEnables,RasterParameters,
       PipelineRasterizer,PrimitiveAssembly,Patches,Dynamic,Blending,ScissorScope,ClearOperations,
       Legacy,Invalidation}.cs; check full-struct assignments do not erase unrelated category values.
-    ☐ Boundary consumers: PipelineStateSnapshot.cs; StateCache.{BoundaryEntry,BoundaryQueries,
+    ☑ Boundary consumers: PipelineStateSnapshot.cs; StateCache.{BoundaryEntry,BoundaryQueries,
       BoundaryCompleteQueries,BoundaryRestoration,BoundaryCompleteRestoration,BoundaryRasterizer,
       BoundaryValidation,BoundaryActivity,BoundaryBindings}.cs; EngineBoundaryScope.cs and
       Integration/{EngineBoundaryDeclaration,EngineBoundaryExecution,CompleteGraphicsBoundary,
       FullscreenBoundary}.cs. Preserve checked cleanup and partial snapshot semantics.
-    ☐ Coverage/engine routing: EPipelineState.cs, Pipeline/PipelineStateCoverage.cs,
+    ☑ Coverage/engine routing: EPipelineState.cs, Pipeline/PipelineStateCoverage.cs,
       EngineStateCalls.cs, EngineStateCalls.Complete.cs, StateCache.EngineOperations.cs and the
       existing EngineStateCallMap exact-signature routing; retain external mutation ownership.
-    ☐ Diagnostic/transfer regression review: StateCache.{PixelPack,PixelUnpack,PixelTransferBindings,
+    ☑ Diagnostic/transfer regression review: StateCache.{PixelPack,PixelUnpack,PixelTransferBindings,
       PolygonStipple}.cs and GlDebug.CheckStateTransitions; preserve current polling boundaries.
-    ☐ Direct and contract tests in VanillaGraphicsExpanded.Tests: EngineStateSwitchingTests,
+    ☑ Direct and contract tests in VanillaGraphicsExpanded.Tests: EngineStateSwitchingTests,
       EngineStateInventoryTests, PipelineStateCoverageTests, GlStateCacheInvalidationTests,
       GraphicsPipelineDescriptionTests, ConfigurableRasterizerDescriptionTests and
       Unit/Rendering/GlPipelineStateMaskTests.
-    ☐ GPU regression fixtures: CompleteGraphicsStateTests, CompleteGraphicsDrawTests,
+    ☑ GPU regression fixtures: CompleteGraphicsStateTests, CompleteGraphicsDrawTests,
       CategorizedStateCacheTests, ConfigurableRasterizerGpuTests, EngineStateSwitchingGpuTests,
       EngineBoundaryEntryTests, EngineBoundaryRestorationTests, EngineBoundaryBindingTests,
       StateTransitionDiagnosticsTests, PixelPackStateTests, PixelUnpackStateTests,
       DepthStencilTextureTests, ScissorStateScopeTests, GpuFramebufferBlendStateIntegrationTests
       and StateCacheResourceDeletionTests; update assertions for unified masks and detached snapshots.
-    ☐ Documentation: Rendering.AuthoritativePipelineState.Proposal.md,
+    ☑ Documentation: Rendering.AuthoritativePipelineState.Proposal.md,
       Rendering.AuthoritativePipelineState.md, this plan and affected project.todo references;
       reconcile current contracts without rewriting historical verification receipts as new evidence.
-    ☐ Run a repository-wide reference sweep for every retired symbol, supplemental field/helper,
+    ☑ Run a repository-wide reference sweep for every retired symbol, supplemental field/helper,
       old namespace and altered All mask; include any additional discovered consumers in this inventory.
 
-  ☐ Normalize category value structs and knowledge masks.
-    ☐ Rename CompleteSamplingState, CompleteStencilState and CompleteOutputState to SamplingState,
+  ☑ Normalize category value structs and knowledge masks.
+    ☑ Rename CompleteSamplingState, CompleteStencilState and CompleteOutputState to SamplingState,
       StencilState and OutputState in the existing Pipeline.State namespace.
-    ☐ Keep category structs value-only; store category knowledge masks separately in StateCache.
-    ☐ Fold supplemental depth, rasterizer, primitive-assembly and dynamic knowledge into their
+    ☑ Keep category structs value-only; store category knowledge masks separately in StateCache.
+    ☑ Fold supplemental depth, rasterizer, primitive-assembly and dynamic knowledge into their
       existing category enums; add ordinary sampling, stencil and output category knowledge enums.
-    ☐ Replace CompleteEnableState/CompleteEnableFlags with enable values in their owning categories
+    ☑ Replace CompleteEnableState/CompleteEnableFlags with enable values in their owning categories
       and corresponding category knowledge flags; remove obsolete complete/supplemental fields/types.
-    ☐ Preserve independently known indexed sample-mask words and their existing sparse ownership;
+    ☑ Preserve independently known indexed sample-mask words and their existing sparse ownership;
       do not collapse partial knowledge into a category-wide known flag.
-  ☐ Update all consumers of the category model together.
-    ☐ Update transitions, engine adapters, cold queries, coverage validation, targeted invalidation
+  ☑ Update all consumers of the category model together.
+    ☑ Update transitions, engine adapters, cold queries, coverage validation, targeted invalidation
       and restoration to use the same values and masks without duplicate live representations.
-    ☐ Preserve partial boundary coverage, global/indexed aliases and selective failure invalidation;
+    ☑ Preserve partial boundary coverage, global/indexed aliases and selective failure invalidation;
       merging knowledge enums must not silently broaden existing coverage or invalidation contracts.
-    ☐ Have PipelineStateSnapshot retain detached category values and knowledge masks, including
+    ☑ Have PipelineStateSnapshot retain detached category values and knowledge masks, including
       independently owned sample-mask storage; prevent mutable collection aliasing with the live cache.
-    ☐ Preserve managed validation, known-equal suppression, optional transition diagnostics and
+    ☑ Preserve managed validation, known-equal suppression, optional transition diagnostics and
       separately owned boundary/transfer safety checks; introduce no additional native queries/polls.
-  ☐ Organize source by steady-state responsibility.
-    ☐ Move supplemental setters/storage helpers into owning category partials; keep whole-pipeline
+  ☑ Organize source by steady-state responsibility.
+    ☑ Move supplemental setters/storage helpers into owning category partials; keep whole-pipeline
       application and boundary orchestration separate, reusing existing ownership and public APIs.
-    ☐ Update comments, architecture documentation and references to describe the unified model;
+    ☑ Update comments, architecture documentation and references to describe the unified model;
       leave immutable pipeline descriptions and production migration scope unchanged.
-  ☐ Delegate shader-enabled Debug and Release regression tests.
-    ☐ Verify hostile prior state and A-to-B-to-A application against native state and fixture output.
-    ☐ Verify independent category/field invalidation, partial coverage and global/indexed aliases.
-    ☐ Verify detached snapshots and native restoration on success, exceptions and diagnostic failure.
-    ☐ Verify repeated known state emits no mutations/queries/error polls and ordinary changed
+  ☑ Delegate shader-enabled Debug and Release regression tests.
+    ☑ Verify hostile prior state and A-to-B-to-A application against native state and fixture output.
+    ☑ Verify independent category/field invalidation, partial coverage and global/indexed aliases.
+    ☑ Verify detached snapshots and native restoration on success, exceptions and diagnostic failure.
+    ☑ Verify repeated known state emits no mutations/queries/error polls and ordinary changed
       transitions, including pixel layouts and scope restoration, retain zero default error polling.
-  ☐ Perform second source review and independent completion audit against the category mapping,
+  ☑ Perform second source review and independent completion audit against the category mapping,
     proposal and focused receipts; resolve discrepancies before marking this subphase complete.
-  ☐ Completion gate: no complete/supplemental category storage or parallel knowledge model remains;
+  ☑ Completion gate: no complete/supplemental category storage or parallel knowledge model remains;
     native behavior, restoration coverage and diagnostic policy are preserved. Phase 4 depends on this gate.
 
+Subphase 3.2: Audit and pack boolean state values
+  Dependencies: Subphase 3.1 unified category values, masks and snapshot ownership.
+  Sources: Rendering.AuthoritativePipelineState.Proposal.md / Categorized cache storage and Native
+    error-checking policy; Rendering.AuthoritativePipelineState.md / Unified category storage (2026-10-06).
+  Outcome: suitable state structs store boolean values in a compact category flag field, reusing
+    existing enums where their bit meanings fit, while validity remains independently tracked.
+
+  ☐ Audit all ...State structs and record a migration or justified no-change disposition per type.
+    ☐ Inventory declarations repository-wide, including nested structs and positional record structs;
+      distinguish rendering cache values from unrelated simulation state and authored descriptions.
+    ☐ Explicitly inspect Pipeline/State/{DepthState,BlendState,RasterizerState,PrimitiveAssemblyState,
+      DynamicDrawState,SamplingState,StencilState,OutputState}.cs and GraphicsDynamicState.cs.
+      GraphicsDynamicState is an authored record, not cached storage; review without conflating roles.
+    ☐ Inspect StateCache.PixelPack.cs / PixelPackState and StateCache.PixelUnpack.cs / PixelUnpackState,
+      including positional booleans, equality, with-expressions and scope restoration.
+    ☐ Inventory other discovered ...State structs, including LumOnCameraState and
+      LumOnWorldProbeScheduler.LevelState; document applicability rather than extending cache enums
+      into unrelated domains or silently excluding declarations.
+    ☐ Enumerate every boolean, including nested tuple/record values: depth test/write; blend enable
+      and nested color masks; all raster enables; both restart enables; sampling enables and coverage
+      invert; stencil test; output sRGB/dither/logic enable; pixel-store byte-swap and bit-order values.
+    ☐ Map each candidate boolean to an existing flag bit, documenting missing or incompatible bits.
+      Audit DepthStateKnowledge, BlendStateKnowledge, RasterizerStateKnowledge,
+      PrimitiveAssemblyStateKnowledge, DynamicDrawStateKnowledge, SamplingStateKnowledge,
+      StencilStateKnowledge and OutputStateKnowledge, plus any existing nested-value flag types.
+    ☐ Record actual managed struct sizes and enum underlying widths before/after candidate layouts;
+      account for padding/alignment and reference-containing structs. Smaller flag payload alone
+      does not prove a smaller struct, faster transitions or reduced GPU cost.
+  ☐ Define and implement compact value storage for suitable candidates.
+    ☐ Reuse existing category enums as the value bitset where their boolean bits match; keep the
+      value field distinct from StateCache knowledge masks. Known-false and unknown remain distinct.
+    ☐ Use only the boolean subset in value storage; parameter-validity bits and All knowledge masks
+      must not be interpreted as boolean values. Never use one grouped-validity bit to encode several
+      independent values (for example coverage value/invert or a multi-channel write mask).
+    ☐ For missing mappings, document the smallest compatible representation or a no-change decision;
+      do not invent false knowledge semantics or restore a parallel complete/supplemental model.
+    ☐ Preserve existing stable bit assignments and public invalidation groups. Choose enum widths
+      that fit every defined bit; avoid narrowing a shared knowledge enum to fit only its value subset.
+    ☐ Replace redundant boolean backing fields with flags. Preserve useful named boolean properties
+      as accessors where this keeps call sites clear; those properties must have no separate storage.
+      Use Enum.HasFlag for reads and typed bitwise OR/AND-complement for setting/clearing bits.
+    ☐ Preserve default values, constructor/object-initializer behavior, tuple/group semantics,
+      equality and hash behavior where applicable, and independently owned indexed payloads.
+  ☐ Update and review all affected consumers using the audit's exact reference inventory.
+    ☐ Review category setters, capability routing, engine adapters, native queries, partial/full
+      application, invalidation, coverage masks, snapshots and restoration; preserve native calls,
+      publication on success, failure invalidation and optional diagnostics without extra polling.
+    ☐ Preserve detached snapshots and copied arrays; toggling a value bit must neither change
+      knowledge nor overwrite another boolean or non-boolean value in the category.
+    ☐ Review tests that use reflection, field names, struct initialization, equality or native
+      assertions; update representations without weakening behavioral checks.
+    ☐ Update current proposal/implementation documentation and this inventory with the selected
+      layouts, measured sizes and no-change reasons; preserve historical verification receipts.
+    ☐ Sweep references to every removed field and changed enum/mask, including generated-source
+      inputs if affected; add newly discovered consumers before declaring the inventory complete.
+  ☐ Delegate focused shader-enabled Debug and Release verification.
+    ☐ Verify independent set/clear combinations, false defaults and preservation of other bits/data;
+      verify known-false versus unknown behavior and selective invalidation.
+    ☐ Exercise native hostile-state and A-to-B-to-A transitions, redundant-call suppression,
+      global/indexed aliases, partial coverage and detached snapshot restoration on success/failure.
+    ☐ Retain pixel pack/unpack restoration and diagnostic-policy regressions for affected layouts;
+      unchanged state and ordinary transitions must retain their existing native-call/query costs.
+    ☐ Record actual size results and test commands/counts; report any performance benefit as
+      unmeasured unless separately established by a representative measurement.
+  ☐ Perform a second source review and independent completion audit against the exhaustive type/field
+    inventory and linked contracts; resolve all required findings before checking completion.
+  ☐ Completion gate: every discovered state struct has a disposition, suitable boolean storage is
+    packed without duplicate backing fields or conflated knowledge, and behavioral regressions pass.
+    Phase 4 depends on this gate.
+
 Phase 4: Prepared graphics pipelines and executable compatibility
-  Dependencies: Phases 1–3 including Subphases 2.1–2.2 and 3.1, executable revision and same-live-context lifetime policy.
+  Dependencies: Phases 1–3 including Subphases 2.1–2.2 and 3.1–3.2, executable revision and same-live-context lifetime policy.
   Outcome: validated GraphicsPipeline realizations usable by submission without per-draw reflection.
 
   ☐ Compose existing shader readiness, GpuBindingContract, GpuPreparedBindings and generated inputs.

@@ -1274,7 +1274,7 @@ implementation dependencies. Existing partial GlPipelineDesc behavior remains av
 
 The cache reuses its categorized values and knowledge for depth, rasterizer, primitive assembly,
 dynamic state and indexed blending, adding stencil, sampling and output interpretation ownership.
-PipelineStateSnapshot retains copies of these same category structs and their embedded knowledge
+PipelineStateSnapshot retains copies of these same value-only category structs and their separate knowledge
 masks. Indexed sample-mask values are copied once into private snapshot storage; callers can enumerate
 values without accessing the mutable dictionary. Missing incoming fields are queried directly into
 the live category and become known only after their complete native query group succeeds. Restoration
@@ -1366,3 +1366,69 @@ Command (repeat with -c Release; NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages):
 ~~~powershell
 dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~CompleteGraphics|FullyQualifiedName~EngineBoundary|FullyQualifiedName~StateTransitionDiagnostics|FullyQualifiedName~PixelPack|FullyQualifiedName~PixelUnpack|FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~PipelineStateCoverage' -v quiet
 ~~~
+
+
+## Unified category storage (2026-10-06)
+
+The mutable cache owns one value struct and one independent knowledge mask per category:
+DepthState/DepthStateKnowledge, RasterizerState/RasterizerStateKnowledge,
+PrimitiveAssemblyState/PrimitiveAssemblyStateKnowledge, DynamicDrawState/DynamicDrawStateKnowledge,
+SamplingState/SamplingStateKnowledge, StencilState/StencilStateKnowledge and
+OutputState/OutputStateKnowledge. Indexed BlendState values retain per-output BlendStateKnowledge.
+All value structs live in Rendering/Pipeline/State and its matching namespace. Enables are ordinary
+category values with category-specific knowledge bits. There is no second complete/supplemental
+state representation. Sample-mask dictionary membership remains independent per-word validity;
+scalar SamplingStateKnowledge.All does not imply that every sample-mask word is known.
+
+PipelineStateSnapshot copies category values and separate coverage-filtered masks. Blend values and
+knowledge arrays and indexed sample-mask storage are privately copied. A partial snapshot cannot
+restore warm fields outside its declaration. Complete-only fields still require explicit complete
+boundary authority; expanding a knowledge enum does not grant new partial-boundary authority.
+Legacy partial descriptor mapping remains unchanged. Full coverage resolves inactive parameters.
+
+StateCache.FixedFunctionStorage owns live category storage. DepthRange, RasterModes,
+RasterCapabilities, DrawDynamics, PrimitiveRestart/RestartEnables, Sampling/SamplingEnables,
+Stencil/StencilEnable, Output/OutputEnables and BlendEquations partials own their focused transitions.
+GraphicsEnables adapts native capability identifiers to these owners; CompleteApplication remains
+whole-pipeline orchestration. BoundaryCategoryQueries and BoundaryCategoryRestoration operate on
+these same values and masks. Invalidation clears only the existing public groups: viewport leaves
+scissor/constant knowledge intact; patch count leaves restart knowledge intact; cull enable leaves
+cull mode intact. Diagnostic policy, managed validation, external invalidation and resource lifetimes
+are unchanged. Capability data remains owned by GpuSupport.
+
+Traceability and inventory dispositions:
+
+| Contract/source | Implementation or reviewed no-change disposition | Evidence |
+| --- | --- | --- |
+| Proposal / Architectural responsibilities, Complete descriptions and partial overrides; retained State representation and source layout decisions | Unified value structs, category masks, FixedFunctionStorage and focused transition owners; all retired storage symbols removed from runtime source | Category mapping and source sweep; native state and invalidation regressions |
+| Proposal / Engine integration and cache authority; retained Boundary API, coverage and failures | Coverage, snapshot, entry/query/restoration and exact engine capability routing use unified owners | Detached warm/cold snapshots, exception restoration, engine routing and coverage tests |
+| Proposal / Native error-checking policy | Existing optional setter diagnostics and checked boundary/transfer owners retained | StateTransitionDiagnosticsTests and pixel layout/readback tests |
+| Graphics submission design contract / Supported state and defaults, Restoration decisions by boundary | CompleteApplication establishes the same authored values; GraphicsDynamicState and immutable descriptions are unchanged | Hostile-state, A-to-B-to-A, indexed alias and actual fixture-draw tests |
+| Plan inventory / remaining category consumers | Depth, Rasterizer, RasterEnables, RasterParameters, PipelineRasterizer, PrimitiveAssembly, Patches, Dynamic, Blending, ScissorScope, ClearOperations and Legacy retain existing per-field writes and do not overwrite the expanded structs | Source review and focused category/legacy regressions |
+| Plan inventory / remaining boundary and resource consumers | BoundaryValidation keeps complete-only authority; BoundaryRasterizer, BoundaryBindings, BoundaryActivity, EngineBoundaryScope, EngineBoundaryDeclaration/Execution and FullscreenBoundary/CompleteGraphicsBoundary require no ownership changes. PixelPack/Unpack, PixelTransferBindings, PolygonStipple and resource deletion remain with existing owners | Source review; boundary, transfer, retirement and diagnostic suites |
+| Plan inventory / authored interfaces and index | EngineStateCalls and EngineStateCallMap signatures remain intact; EPipelineState numbering and groups unchanged; project.todo already links the governing plan and requires no index edit | Exact-signature engine tests, coverage tests and source review |
+
+Historical receipts above retain their original scope and counts. Delegated shader-enabled verification
+passed on 2026-10-06: Debug **161/161** and Release **161/161**, zero failures or skips. Both runs
+include UnifiedDynamicKnowledgePreservesUnrelatedFields and
+CompleteOnlyFieldsRequireExplicitBoundaryAuthority, plus detached warm/cold snapshot checks.
+Receipts: artifacts/unified-categories-debug-tests.log and artifacts/unified-categories-release-tests.log.
+Existing compiler/analyzer warnings remain; no build errors. No production migration, live-game
+acceptance or performance measurement is implied by this structural correction.
+
+With NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages, run (repeat with -c Release):
+
+~~~powershell
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~CompleteGraphics|FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~GraphicsPipelineDescriptionTests|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~EngineBoundary|FullyQualifiedName~EngineStateSwitching|FullyQualifiedName~EngineStateInventoryTests|FullyQualifiedName~StateCacheResourceDeletionTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~StateTransitionDiagnosticsTests|FullyQualifiedName~PixelUnpackStateTests|FullyQualifiedName~PixelPackStateTests|FullyQualifiedName~DepthStencilTextureTests|FullyQualifiedName~ScissorStateScopeTests|FullyQualifiedName~GpuFramebufferBlendStateIntegrationTests|FullyQualifiedName~GlPipelineStateMaskTests' --logger 'console;verbosity=normal'
+~~~
+
+Second source review checked all 17 parameter groups and 18 enable mappings, enum All masks,
+coverage normalization, knowledge publication after native query groups, independent restore failure
+invalidation, and per-field assignments preserving other category values. Repository-wide source
+search found no retired complete/supplemental storage symbols. The inventory dispositions above
+include unchanged consumers; existing test names describing complete graphics behavior are retained.
+
+
+Independent audit-stage-completion consulted the governing documents, full affected-item inventory,
+implementation and both final receipts after the second review. It passed with no unresolved
+implementation, contract or evidence findings for the unified category correction.
