@@ -43,7 +43,10 @@ internal static class ShaderBuildReceipt
         string compilerRoot = Path.Combine(packageRoot, "dotnet-shaderc", version, "tools");
         if (!Directory.Exists(compilerRoot)) throw new DirectoryNotFoundException("Restore the pinned shader compiler before building: " + compilerRoot);
         // Include managed and native compiler contents, not just its version label: replacing either invalidates the receipt.
-        var inputs = Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")
+        var inputs = Directory.EnumerateFiles(AppContext.BaseDirectory, "*", SearchOption.AllDirectories)
+            .Where(path => path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase)
+                || Path.GetFileName(path).Contains(".so", StringComparison.Ordinal))
             .Concat(Directory.EnumerateFiles(compilerRoot, "*", SearchOption.AllDirectories))
             .Append(toolManifest).Select(Path.GetFullPath).Order(StringComparer.Ordinal);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

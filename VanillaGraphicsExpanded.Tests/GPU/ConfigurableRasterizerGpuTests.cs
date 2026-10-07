@@ -26,7 +26,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         output.WriteLine($"Raster core: {GL.GetString(StringName.Version)}; {GL.GetString(StringName.Renderer)}; ClipControl={GpuSupport.Graphics.ClipControl}");
         var cache = StateCache.Current;
         cache.InvalidateAll();
-        var first = Pipeline(new() { ClipDistances = 1, LineSmooth = true, PolygonSmooth = true,
+        var first = Pipeline(new() { LineSmooth = true, PolygonSmooth = true,
             PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft });
         var second = Pipeline(new());
         cache.ApplyConfigurableRaster(first);
@@ -39,12 +39,15 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             Assert.True(GL.IsEnabled(EnableCap.LineSmooth));
             Assert.True(GL.IsEnabled(EnableCap.PolygonSmooth));
             cache.SetClipDistance(1, false);
+            cache.ApplyConfigurableRaster(first);
+            Assert.False(GL.IsEnabled(EnableCap.ClipDistance0));
             long calls = cache.FixedFunctionCalls;
             cache.ApplyConfigurableRaster(first);
             Assert.Equal(calls, cache.FixedFunctionCalls);
             cache.ApplyConfigurableRaster(second);
             cache.ApplyConfigurableRaster(first);
-            Assert.True(GL.IsEnabled(EnableCap.ClipDistance0));
+            Assert.False(GL.IsEnabled(EnableCap.ClipDistance0));
+            EngineStateCalls.Enable(EnableCap.ClipDistance0);
             cache.SetDepthFunc(DepthFunction.Less);
             calls = cache.FixedFunctionCalls;
             cache.Invalidate(EPipelineState.ConfigurableRaster);
@@ -59,6 +62,12 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             })));
             Assert.True(GL.IsEnabled(EnableCap.ClipDistance0));
             Assert.True(GL.IsEnabled(EnableCap.PolygonSmooth)); Assert.False(GL.IsEnabled(EnableCap.ClipDistance1));
+            Assert.True(cache.TryBeginEngineBoundary(Declaration(), out var successful));
+            successful!.Run(() => {
+                cache.ApplyConfigurableRaster(second);
+                Assert.False(GL.IsEnabled(EnableCap.ClipDistance0));
+            });
+            Assert.True(GL.IsEnabled(EnableCap.ClipDistance0));
             Assert.Equal((int)PointSpriteCoordOriginParameter.LowerLeft, GL.GetInteger((GetPName)All.PointSpriteCoordOrigin));
             GlDebug.CheckStateTransitions = true;
             GL.Enable((EnableCap)(-1));
@@ -193,7 +202,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         Assert.True(cache.GetPixelUnpackState().LsbFirst);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
-    /// <summary>Real fragments exercise clipping, alpha tests, line/polygon stipple and matching clip-depth conventions.</summary>
+    /// <summary>Real fragments exercise alpha tests, line/polygon stipple and matching clip-depth conventions.</summary>
     [Fact]
     public void CompatibilityRasterPoliciesChangePixels()
     {
@@ -202,7 +211,6 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         var cache = StateCache.Current;
         cache.InvalidateAll();
         Assert.Equal(1024, draw.Count(Pipeline(new())));
-        Assert.Equal(512, draw.Count(Pipeline(new() { ClipDistances = 1 })));
         Assert.Equal(0, draw.Count(Pipeline(new() { AlphaTest = true, AlphaComparison = AlphaFunction.Greater, AlphaReference = .75f })));
         Assert.Equal(1024, draw.Count(Pipeline(new() { AlphaTest = true, AlphaComparison = AlphaFunction.Less, AlphaReference = .75f })));
         Assert.Equal(0, draw.Count(Pipeline(new() { PolygonStipple = true, PolygonStipplePattern = new(new byte[128]) })));
@@ -270,7 +278,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         private readonly GpuUniformRingFrameController frame;
         private readonly GpuUniformRingBuffer? previousRing;
         public byte[] LastPixels { get; private set; } = [];
-        /// <summary>Creates a 32-square target and vertex-ID geometry with explicitly written clip distances.</summary>
+        /// <summary>Creates a 32-square target and vertex-ID geometry for compatibility raster checks.</summary>
         public RasterDraw()
         {
             int vertex = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/rasterizer.vsh", ShaderType.VertexShader);

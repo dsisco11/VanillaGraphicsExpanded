@@ -5,6 +5,7 @@ using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
@@ -73,8 +74,10 @@ public abstract partial class GpuProgram
             GlDebug.ThrowIfErrors($"{ShaderName}: program {program} create/attach/link/status");
 #endif
             var layout = ProgramLayout.CreateCandidate();
+            var graphicsInterface = new GraphicsExecutableInterface(program, plan, inputs.Interface);
+            GraphicsInterfaceValidation.ValidateDeclarations(graphicsInterface);
             layout.BinaryInterface = new GpuProgramInterface(program, plan.Stages.Select(stage => stage.Stage.Bindings),
-                new GraphicsExecutableInterface(program, plan, inputs.Read));
+                graphicsInterface);
             layout.ApplyContract(program, LayoutWarn);
 #if DEBUG
             layout.ValidateContract(program, LayoutWarn);

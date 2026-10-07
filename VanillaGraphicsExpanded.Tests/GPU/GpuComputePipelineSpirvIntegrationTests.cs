@@ -3,6 +3,8 @@ using System;
 using System.IO;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Spirv;
+using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Xunit;
 
@@ -37,10 +39,15 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
         byte[] bytes = File.ReadAllBytes(spvPath);
         Assert.True(bytes.Length > 0, "SPIR-V asset bytes should be non-empty.");
 
-        string renamed = Path.Combine(Path.GetTempPath(), $"unrelated-{Guid.NewGuid():N}.bin");
+        string directory = Path.Combine(Path.GetTempPath(), $"vge-compute-interface-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string renamed = Path.Combine(directory, "unrelated.bin");
         File.WriteAllBytes(renamed, bytes);
         try
         {
+            // Relocation changes neither the contract identity nor the required binary/metadata pairing.
+            File.Copy(Path.Combine(Path.GetDirectoryName(spvPath)!, ShaderBinaryDigest.FileName),
+                Path.Combine(directory, ShaderBinaryDigest.FileName));
             bool ok = GpuComputePipeline.TryLoadFromSpirv(
                 spirvBinaryPath: renamed,
                 settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
@@ -56,7 +63,13 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
             pipeline.Dispose();
             pipeline.Dispose();
         }
-        finally { File.Delete(renamed); }
+        finally
+        {
+            ShaderDigestIndexCache.Clear();
+            File.Delete(renamed);
+            File.Delete(Path.Combine(directory, ShaderBinaryDigest.FileName));
+            Directory.Delete(directory);
+        }
 
         // Newly introduced driver errors are failures; the shared fixture owns test isolation.
         Assert.Equal(ErrorCode.NoError, GL.GetError());

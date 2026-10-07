@@ -22,8 +22,6 @@ internal sealed record RasterizerDesc
     public float PointSize { get; init; } = 1;
     public bool ProgramPointSize { get; init; }
 
-    /// <summary>Individual gl_ClipDistance enables; bit i controls distance i (up to 32).</summary>
-    public uint ClipDistances { get; init; }
     public ClipOrigin ClipOrigin { get; init; } = ClipOrigin.LowerLeft;
     public ClipDepthMode ClipDepth { get; init; } = ClipDepthMode.NegativeOneToOne;
     public PointSpriteCoordOriginParameter PointSpriteOrigin { get; init; } = PointSpriteCoordOriginParameter.UpperLeft;

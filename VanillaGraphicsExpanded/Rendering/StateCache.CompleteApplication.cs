@@ -8,6 +8,14 @@ internal sealed partial class StateCache
 {
     private static readonly ColorBlendDesc NeutralBlend = new();
     #region Public API
+    /// <summary>Establishes a live prepared realization, with custom clip distances disabled.</summary>
+    internal void ApplyGraphicsState(Pipeline.GraphicsPipeline pipeline, GraphicsDynamicState dynamics)
+    {
+        ArgumentNullException.ThrowIfNull(pipeline);
+        pipeline.Validate();
+        ApplyGraphicsState(pipeline.Description, dynamics);
+    }
+
     /// <summary>Validates the entire request before changing state, then establishes every supported drawing parameter.</summary>
     internal void ApplyGraphicsState(GraphicsPipelineDesc pipeline, GraphicsDynamicState dynamics)
     {

@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Public API
-    /// <summary>Establishes clipping and compatibility state; other complete pipeline categories retain their own application owners.</summary>
+    /// <summary>Disables custom clip distances and establishes origin/depth conventions and compatibility state.</summary>
     internal void ApplyConfigurableRaster(GraphicsPipelineDesc pipeline)
     {
         ArgumentNullException.ThrowIfNull(pipeline);
@@ -14,8 +14,8 @@ internal sealed partial class StateCache
         var caps = GpuSupport.Graphics;
         PipelineFixedFunctionValidation.ValidateCompatibilityRaster(value, caps);
         ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ConfigurableRaster);
-        // Descriptions are reusable across compatible devices; validate the actual device before any native change.
-        for (int i = 0; i < caps.MaxClipDistances; i++) SetClipDistance(i, (value.ClipDistances & (1u << i)) != 0);
+        // Custom shader clipping is unsupported; never inherit the engine's enabled distances.
+        for (int i = 0; i < caps.MaxClipDistances; i++) SetClipDistance(i, false);
         SetClipControl(value.ClipOrigin, value.ClipDepth);
         SetPointSpriteOrigin(value.PointSpriteOrigin);
         SetLineSmooth(value.LineSmooth);

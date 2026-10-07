@@ -43,8 +43,6 @@ internal static class PipelineFixedFunctionValidation
             throw new ArgumentException("Polygon stipple requires exactly 128 bytes.");
         if (caps.MaxClipDistances < 0 || caps.MaxClipDistances > 32)
             throw new NotSupportedException("The clip-distance limit exceeds the supported mask width.");
-        uint allowed = caps.MaxClipDistances == 32 ? uint.MaxValue : (1u << caps.MaxClipDistances) - 1;
-        if ((raster.ClipDistances & ~allowed) != 0) throw new NotSupportedException("Clip-distance mask exceeds the implementation limit.");
         if (!caps.ClipControl && (raster.ClipOrigin != ClipOrigin.LowerLeft || raster.ClipDepth != ClipDepthMode.NegativeOneToOne))
             throw new NotSupportedException("Clip control is unavailable.");
         // Line and polygon smoothing remain core state; the other legacy tests/stipple controls were removed from core.

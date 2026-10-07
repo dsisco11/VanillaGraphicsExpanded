@@ -21,21 +21,25 @@ public sealed class ShaderParallelBuildTests
         Assert.All(times, pair => Assert.Equal(pair.Value, File.GetLastWriteTimeUtc(pair.Key)));
     }
 
-    /// <summary>A failed non-clean rebuild removes prior success and incomplete compiler outputs, then recovers.</summary>
+    /// <summary>A failed rebuild invalidates its receipt while preserving the previous matching published generation.</summary>
     [Fact]
     public void FailedRebuildCannotReuseSuccessReceiptOrPublishPartialBinary()
     {
         using var fixture = new ShaderBuildFixture();
         Assert.Equal(0, fixture.Build(4));
+        string published = Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders");
+        var previous = Directory.GetFiles(published, "*", SearchOption.AllDirectories)
+            .ToDictionary(file => file, File.ReadAllBytes);
+        string vertex = Path.Combine(fixture.Shaders, "fixture.vsh");
+        File.WriteAllText(vertex, File.ReadAllText(vertex).Replace("vec3(1)", "vec3(0.5)"));
         string path = Path.Combine(fixture.Shaders, "fixture.csh");
         string valid = File.ReadAllText(path);
         File.WriteAllText(path, valid + "\ninvalid compiler input");
         Assert.Equal(1, fixture.Build(4, clean: false, incremental: true));
         Assert.False(File.Exists(Path.Combine(fixture.Output, "build-receipt.json")));
-        Assert.False(File.Exists(Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders",
-            VanillaGraphicsExpanded.Rendering.Spirv.ShaderBinaryDigest.FileName)));
+        Assert.All(previous, pair => Assert.Equal(pair.Value, File.ReadAllBytes(pair.Key)));
         Assert.Empty(Directory.GetFiles(Path.Combine(fixture.Output, "_tmp"), "*.spv", SearchOption.AllDirectories));
-        Assert.False(File.Exists(Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders", "fixture.csh.spv")));
+        Assert.True(File.Exists(Path.Combine(published, "fixture.csh.spv")));
         File.WriteAllText(path, valid);
         Assert.Equal(0, fixture.Build(4, incremental: true));
         Assert.Equal(6, fixture.ContentSnapshot().Count);

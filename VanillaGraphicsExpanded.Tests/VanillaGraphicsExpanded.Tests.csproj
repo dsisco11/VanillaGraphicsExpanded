@@ -71,6 +71,7 @@
       <TestShaderArtifacts>$(MSBuildProjectDirectory)\..\artifacts\spirv-tests\$(Configuration)</TestShaderArtifacts>
       <TestShaderInputs>$(MSBuildProjectDirectory)\obj\$(Configuration)\test-shader-inputs</TestShaderInputs>
     </PropertyGroup>
+    <!-- Reconstruct the owned overlay so removed fixture sources cannot survive catalog changes. -->
     <RemoveDir Directories="$(TestShaderInputs)" />
     <ItemGroup>
       <_ProductionShaderInput Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\**\*" />
@@ -81,12 +82,6 @@
     <MSBuild Projects="..\SpirvBuild\VanillaGraphicsExpanded.SpirvBuild.csproj"
              Targets="CompileSpirvShaders"
              Properties="Configuration=$(Configuration);SpirvRegistry=tests;SpirvDomain=vanillagraphicsexpanded;SpirvAssetsRoot=$(TestShaderInputs);SpirvArtifactsDir=$(TestShaderArtifacts)" />
-    <ItemGroup>
-      <_ClipFixtureBinary Include="$(TestShaderArtifacts)\vanillagraphicsexpanded\shaders\tests\clipdistance\*.spv" />
-      <EmbeddedResource Include="@(_ClipFixtureBinary)">
-        <LogicalName>VanillaGraphicsExpanded.Tests.Fixtures.ClipDistance.%(_ClipFixtureBinary.Filename)%(_ClipFixtureBinary.Extension)</LogicalName>
-      </EmbeddedResource>
-    </ItemGroup>
     <Error Condition="!Exists('$(TestShaderArtifacts)\build-receipt.json')" Text="Missing successful test shader build receipt." />
   </Target>
 

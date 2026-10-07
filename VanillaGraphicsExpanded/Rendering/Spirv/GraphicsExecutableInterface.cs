@@ -6,31 +6,28 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Spirv;
 
-/// <summary>Retains linked vertex/fragment locations and compiled clipping information for one executable revision.</summary>
+/// <summary>Retains linked vertex/fragment locations and compiler declarations for one executable revision.</summary>
 internal sealed class GraphicsExecutableInterface
 {
     /// <summary>One linked interface resource, with arrays and matrices still represented by their native type.</summary>
     internal readonly record struct Variable(int Location, ActiveAttribType Type, int ArraySize, int LocationIndex);
     internal IReadOnlyList<Variable> Inputs { get; }
     internal IReadOnlyList<Variable> Outputs { get; }
-    internal int? ClipDistanceExtent { get; }
-    internal ShaderStageKind FinalVertexStage { get; }
+    internal IReadOnlyList<PackagedInterfaceVariable> DeclaredInputs { get; }
+    internal IReadOnlyList<PackagedInterfaceVariable> DeclaredOutputs { get; }
     internal PrimitiveType? GeometryInput { get; }
     internal PrimitiveType? TessellationOutput { get; }
     internal int ReflectionQueries { get; private set; }
 
     #region Public API
     /// <summary>Inspects the linked interface once and the exact captured binary used for specialization or binary-cache loading.</summary>
-    internal GraphicsExecutableInterface(int program, ShaderLoadPlan plan, ShaderAssetReader read)
+    internal GraphicsExecutableInterface(int program, ShaderLoadPlan plan, Func<ShaderStageSelection, PackagedStageInterface> readInterface)
     {
         using var errors = new GlDebug.ErrorScope("Graphics executable interface preparation");
         Inputs = ReadVariables(program, ProgramInterface.ProgramInput);
         Outputs = ReadVariables(program, ProgramInterface.ProgramOutput);
-        var final = plan.Stages.FirstOrDefault(s => s.Stage.Kind == ShaderStageKind.Geometry)
-            ?? plan.Stages.FirstOrDefault(s => s.Stage.Kind == ShaderStageKind.TessellationEvaluation)
-            ?? plan.Stages.Single(s => s.Stage.Kind == ShaderStageKind.Vertex);
-        FinalVertexStage = final.Stage.Kind;
-        ClipDistanceExtent = CompiledClipDistance.Read(final, read(final.BinaryPath));
+        DeclaredInputs = readInterface(plan.Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Vertex)).Inputs;
+        DeclaredOutputs = readInterface(plan.Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Fragment)).Outputs;
         if (plan.Stages.Any(s => s.Stage.Kind == ShaderStageKind.Geometry))
         {
             GL.GetProgram(program, GetProgramParameterName.GeometryInputType, out int input);
@@ -63,7 +60,7 @@ internal sealed class GraphicsExecutableInterface
         {
             GL.GetProgramResource(program, kind, index, properties.Length, properties, values.Length, out _, values);
             ReflectionQueries++;
-            // Built-ins have no user location; ClipDistance is separately inspected in its producing stage.
+            // Built-ins have no user location; custom clip distances are unsupported.
             if (values[0] >= 0)
             {
                 if (values[2] < 1) throw new InvalidOperationException("Invalid linked interface array extent.");

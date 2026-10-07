@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 
@@ -10,9 +12,10 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 internal static class GraphicsInterfaceValidation
 {
     #region Public API
-    /// <summary>Rejects mismatched interfaces and unverifiable enabled clipping before publishing a realization.</summary>
+    /// <summary>Rejects mismatched interfaces before publishing a realization.</summary>
     internal static void Validate(GraphicsPipelineDesc description, GraphicsExecutableInterface executable)
     {
+        ValidateDeclarations(executable);
         if (executable.GeometryInput is { } expected)
         {
             var produced = executable.TessellationOutput ?? description.Assembly.Topology switch
@@ -59,10 +62,39 @@ internal static class GraphicsInterfaceValidation
                         throw new InvalidOperationException($"Incompatible target for fragment output {location}.");
                 }
             }
-        uint mask = description.Rasterizer.ClipDistances;
-        if (mask != 0 && (executable.ClipDistanceExtent is not { } extent
-            || extent < 32 && (mask >> extent) != 0))
-            throw new InvalidOperationException("Enabled clip distances exceed verified final-stage compiled outputs.");
+    }
+    /// <summary>Checks compiler declarations before a linked candidate can replace an installed executable.</summary>
+    internal static void ValidateDeclarations(GraphicsExecutableInterface executable)
+    {
+        ValidateVariables(executable.Inputs, executable.DeclaredInputs);
+        ValidateVariables(executable.Outputs, executable.DeclaredOutputs);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Allows linker elimination while requiring every surviving numeric variable to match compiler declarations.</summary>
+    private static void ValidateVariables(IReadOnlyList<GraphicsExecutableInterface.Variable> active,
+        IReadOnlyList<PackagedInterfaceVariable> declarations)
+    {
+        foreach (var variable in active)
+        {
+            var shape = ShaderInterfaceShape.From(variable.Type);
+            var scalar = shape.Interpretation == VertexInterpretation.Integer
+                ? shape.Unsigned ? ShaderScalarType.UInt : ShaderScalarType.Int : ShaderScalarType.Float;
+            uint bits = shape.Interpretation == VertexInterpretation.Double ? 64u : 32u;
+            bool covered = declarations.Any(declaration =>
+            {
+                if (declaration.Scalar != scalar || declaration.BitWidth != bits ||
+                    declaration.VectorSize != shape.Components || declaration.Columns != shape.Columns ||
+                    declaration.Index != variable.LocationIndex || declaration.Component != 0) return false;
+                long elements = 1;
+                foreach (uint dimension in declaration.ArrayDimensions) elements = checked(elements * dimension);
+                long offset = variable.Location - (long)declaration.Location;
+                return offset >= 0 && offset % shape.Columns == 0 &&
+                    offset / shape.Columns + variable.ArraySize <= elements;
+            });
+            if (!covered) throw new InvalidOperationException($"Linked shader location {variable.Location} disagrees with packaged compiler declarations.");
+        }
     }
     #endregion
 }

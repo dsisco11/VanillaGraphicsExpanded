@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks prepared graphics ownership against real compiled production executables.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture)
+public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITestOutputHelper output)
 {
     #region Public API
     /// <summary>Repeated validation reuses metadata and compatible reload requires an explicit replacement.</summary>
@@ -22,13 +22,19 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture)
         var shader = programs.Create<LumOnUpsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         var description = Description(shader);
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
         using var pipeline = new GraphicsPipeline(lifetime, description, shader);
+        double preparation = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         var metadata = shader.GraphicsInterface!;
         int queries = metadata.ReflectionQueries, resourceQueries = pipeline.Bindings.ReflectionQueries;
+        start = System.Diagnostics.Stopwatch.GetTimestamp();
         for (int i = 0; i < 100; i++) pipeline.ValidateTargets(description.Targets);
+        double validation = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         Assert.Same(metadata, shader.GraphicsInterface);
         Assert.Equal(queries, metadata.ReflectionQueries);
         Assert.Equal(resourceQueries, pipeline.Bindings.ReflectionQueries);
+        output.WriteLine($"Preparation: {preparation:F3} ms; graphics queries={queries}; resource queries={resourceQueries}; " +
+            $"100 retained validations: {validation:F3} ms; additional reflection queries=0.");
         shader.InvalidateAssets();
         Assert.Throws<InvalidOperationException>(pipeline.Validate);
         Assert.True(shader.EnsureReady());

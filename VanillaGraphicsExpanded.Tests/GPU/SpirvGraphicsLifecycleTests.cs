@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Spirv;
+using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -29,7 +30,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
         // A deployed binary needs no GLSL assets, including during engine-driven reloads.
-        assets.BeforeRead = path => Assert.EndsWith(".spv", path);
+        assets.BeforeRead = AssertBinaryAsset;
         var program = new FixtureProgram(shaderName);
         program.SetDefines(variant.Split(';', StringSplitOptions.RemoveEmptyEntries)
             .Select(setting => setting.Split('=', 2)).ToDictionary(pair => pair[0], pair => (string?)pair[1]));
@@ -72,7 +73,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
-        assets.BeforeRead = path => Assert.EndsWith(".spv", path);
+        assets.BeforeRead = AssertBinaryAsset;
         using var program = new FixtureProgram("lumon_debug_view_direct_total");
         program.Initialize(assets.Api);
         for (int generation = 0; generation < 2; generation++)
@@ -86,7 +87,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         Assert.NotEmpty(assets.Reads);
-        Assert.All(assets.Reads, path => Assert.EndsWith(".spv", path));
+        Assert.All(assets.Reads, AssertBinaryAsset);
     }
 
     /// <summary>Uses the actual runtime program path to replace binaries and preserve a working generation on binary load failure.</summary>
@@ -145,7 +146,19 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         if (substitute.Length == 0)
             assets.BeforeRead = path => { if (path == "shaders/" + replaced) throw new IOException("controlled asset read failure"); };
         else
+        {
             assets.Overrides["shaders/" + replaced] = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", substitute));
+            // Keep the substituted bytes and declarations coherent so this deliberately invalid
+            // stage pairing still exercises specialization, linking or binding-contract rejection.
+            var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,
+                "assets", "shaders", ShaderBinaryDigest.FileName)))!;
+            var original = manifest.Binaries[replaced].Interface!;
+            var replacement = manifest.Binaries[substitute];
+            manifest.Binaries[replaced] = replacement with { Interface = replacement.Interface! with
+                { Stage = original.Stage, EntryPoint = original.EntryPoint, StructuralKey = original.StructuralKey } };
+            assets.Overrides["shaders/" + ShaderBinaryDigest.FileName] = ShaderBinaryDigest.Encode(manifest.Binaries);
+            ShaderDigestIndexCache.Clear();
+        }
         Assert.False(program.CompileAndLink());
         Assert.Contains(assets.Logs, message => message.Contains(failure, StringComparison.OrdinalIgnoreCase));
         Assert.Equal(installed, program.ProgramId);
@@ -153,10 +166,16 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         Assert.Same(layout, program.ResourceBindings);
         Assert.Same(table, program.ResourceBindings.BinaryInterface!.PreparedBindings);
         Assert.True(GL.IsProgram(installed));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
         assets.Overrides.Clear();
         assets.BeforeRead = null;
+        ShaderDigestIndexCache.Clear();
         Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
     }
+
+    /// <summary>Permits only compiled payloads and their required association metadata, never GLSL source.</summary>
+    private static void AssertBinaryAsset(string path) =>
+        Assert.True(path.EndsWith(".spv", StringComparison.Ordinal) || path == "shaders/" + ShaderBinaryDigest.FileName, path);
     /// <summary>Installs engine stage objects while retaining production binary loading and reload behavior.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {

@@ -9,15 +9,7 @@ internal static class TestShaderPrograms
     /// <summary>Groups fixture stages into valid program declarations while sharing their compiled binaries.</summary>
     internal static ShaderVariantResolver Create()
     {
-        var fragment = Stage("fragment", ShaderStageKind.Fragment);
-        var vertex = Stage("present", ShaderStageKind.Vertex);
         var programs = GpuShaderContracts.Registry.Programs.Values.ToList();
-        foreach (string name in new[] { "absent", "present", "specialized", "conditional", "helper" })
-            programs.Add(new(name, [Stage(name, ShaderStageKind.Vertex), fragment], 1));
-        foreach (string name in new[] { "geometry", "geometry-triangles" })
-            programs.Add(new(name, [vertex, Stage(name, ShaderStageKind.Geometry), fragment], 1));
-        programs.Add(new("tessellation", [vertex, Stage("control", ShaderStageKind.TessellationControl),
-            Stage("evaluation", ShaderStageKind.TessellationEvaluation), fragment], 1));
         foreach (string name in new[] { "complete-state", "rasterizer", "first-person" })
             programs.Add(new("tests/" + name, [Fixture(name, "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         programs.Add(new("tests/deletion", [Fixture("deletion", "vsh", ShaderStageKind.Vertex), Fixture("complete-state", "fsh", ShaderStageKind.Fragment)], 1));
@@ -37,9 +29,6 @@ internal static class TestShaderPrograms
     #endregion
 
     #region Private
-    /// <summary>Uses existing fixture names as binary identities and leaves native specialization declarations in source.</summary>
-    private static ShaderStageContract Stage(string name, ShaderStageKind kind) =>
-        new("tests/clipdistance/" + name, "tests/clipdistance/" + name + ".glsl", kind, new GpuBindingContract());
     /// <summary>Declares fixed fixture resource interfaces and numeric input blocks.</summary>
     private static ShaderStageContract Fixture(string name, string suffix, ShaderStageKind kind)
     {

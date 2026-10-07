@@ -68,6 +68,10 @@ public sealed class ShaderIncrementalBuildTests
         Assert.Equal(0, fixture.Build(2, clean: false, incremental: true));
         Assert.Equal(expected, File.ReadAllBytes(binary));
         Assert.All(cached, entry => Assert.Equal(DateTime.UnixEpoch, File.GetLastWriteTimeUtc(entry)));
+        var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(binary)!, ShaderBinaryDigest.FileName)));
+        Assert.NotNull(manifest);
+        Assert.All(manifest.Binaries.Values, entry => Assert.NotNull(entry.Interface));
+        Assert.NotEmpty(manifest.Binaries["fixture.fsh.spv"].Interface!.Interface.Outputs);
     }
 
     /// <summary>An isolated source or include edit preserves unrelated compiled output timestamps.</summary>
@@ -134,6 +138,10 @@ public sealed class ShaderIncrementalBuildTests
         Assert.Equal(0, fixture.Build(2, clean: false, incremental: true, registry: "build-validation-graphics"));
         Assert.False(File.Exists(Path.Combine(root, "fixture.csh.spv")));
         Assert.DoesNotContain("fixture.csh.spv", File.ReadAllText(Path.Combine(root, ShaderBinaryDigest.FileName)));
+        var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(root, ShaderBinaryDigest.FileName)));
+        Assert.NotNull(manifest);
+        Assert.Equal(2, manifest.Binaries.Count);
+        Assert.All(manifest.Binaries.Values, entry => Assert.NotNull(entry.Interface));
         Assert.Equal(DateTime.UnixEpoch, File.GetLastWriteTimeUtc(retained));
     }
 

@@ -330,6 +330,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
                 if (status == 0)
                 {
                     try { GL.DeleteShader(id); } catch { }
+                    infoLog = WithPendingShaderErrors(infoLog);
                     return false;
                 }
             }
@@ -353,6 +354,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             }
 
             module = null;
+            infoLog = WithPendingShaderErrors(infoLog);
             return false;
         }
     }
@@ -364,4 +366,16 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
 
     /// <summary>Typed specialization bits passed to OpenGL.</summary>
     public readonly record struct SpirvSpecializationConstant(int ConstantId, int Value);
+
+    #region Private
+    /// <summary>Retains native diagnostics while preventing a rejected shader attempt from poisoning its replacement.</summary>
+    private static string WithPendingShaderErrors(string message)
+    {
+        // Failed specialization can report both a compile log and an error flag. Consume flags
+        // only on this rejected-candidate path; successful loading keeps its existing check policy.
+        var nativeErrors = GlDebug.GetErrors();
+        return nativeErrors.Length == 0 ? message
+            : message + " Pending OpenGL errors while rejecting shader: " + string.Join(", ", nativeErrors);
+    }
+    #endregion
 }

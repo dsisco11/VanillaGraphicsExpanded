@@ -14,7 +14,6 @@ public sealed class ConfigurableRasterizerDescriptionTests
     public void DefaultsAreExplicit()
     {
         var raster = Create(new()).Rasterizer;
-        Assert.Equal(0u, raster.ClipDistances);
         Assert.Equal(ClipOrigin.LowerLeft, raster.ClipOrigin);
         Assert.Equal(ClipDepthMode.NegativeOneToOne, raster.ClipDepth);
         Assert.Equal(PointSpriteCoordOriginParameter.UpperLeft, raster.PointSpriteOrigin);
@@ -32,7 +31,7 @@ public sealed class ConfigurableRasterizerDescriptionTests
     public void ActiveRasterSettingsChangeIdentity()
     {
         var baseline = Create(new());
-        RasterizerDesc[] alternatives = [new() { ClipDistances = 1 }, new() { ClipOrigin = ClipOrigin.UpperLeft },
+        RasterizerDesc[] alternatives = [new() { ClipOrigin = ClipOrigin.UpperLeft },
             new() { ClipDepth = ClipDepthMode.ZeroToOne }, new() { PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft },
             new() { AlphaTest = true }, new() { PointSmooth = true }, new() { LineSmooth = true },
             new() { PolygonSmooth = true }, new() { LineStipple = true }, new() { PolygonStipple = true }];
@@ -85,7 +84,7 @@ public sealed class ConfigurableRasterizerDescriptionTests
     public void ProfileAndClipCapabilitiesAreEnforced()
     {
         var core = Capabilities() with { CoreProfile = true };
-        Create(new() { LineSmooth = true, PolygonSmooth = true, ClipDistances = 3, PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft }, core);
+        Create(new() { LineSmooth = true, PolygonSmooth = true, PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft }, core);
         RasterizerDesc[] legacy = [new() { AlphaTest = true }, new() { PointSmooth = true },
             new() { LineStipple = true }, new() { PolygonStipple = true }];
         foreach (var raster in legacy) Assert.Throws<NotSupportedException>(() => Create(raster, core));
@@ -93,21 +92,10 @@ public sealed class ConfigurableRasterizerDescriptionTests
         Create(new(), noControl);
         Assert.Throws<NotSupportedException>(() => Create(new() { ClipOrigin = ClipOrigin.UpperLeft }, noControl));
         Assert.Throws<NotSupportedException>(() => Create(new() { ClipDepth = ClipDepthMode.ZeroToOne }, noControl));
-        Assert.Throws<NotSupportedException>(() => Create(new() { ClipDistances = 256 }));
-        Create(new() { ClipDistances = 1u << 31 }, Capabilities() with { MaxClipDistances = 32 });
-        Assert.Throws<NotSupportedException>(() => Create(new() { ClipDistances = 1 }, Capabilities() with { MaxClipDistances = 0 }));
+        Create(new(), Capabilities() with { MaxClipDistances = 0 });
     }
 
-    /// <summary>Descriptions validate native limits without duplicating compiled shader output metadata.</summary>
-    [Fact]
-    public void ClipEnablesDoNotRequireAuthoredShaderMetadata()
-    {
-        var disabled = Create(new());
-        var enabled = Create(new() { ClipDistances = 3 });
-        Assert.Equal(disabled.Shader, enabled.Shader);
-        Assert.Equal(3u, enabled.Rasterizer.ClipDistances);
-        Assert.NotEqual(disabled, enabled);
-    }
+
     #endregion
 
     #region Private

@@ -113,26 +113,12 @@ coordinate origin. These are static pipeline values, including alpha comparison/
 line repeat/pattern and the immutable 32-by-32 polygon mask. Existing neutral values remain defaults,
 not support restrictions. Capability validation distinguishes core from compatibility-only features.
 
-Approved shader-driven clipping amendment: shader variants own hardware clip-distance usage.
-Plane equations are numeric shader inputs supplied through the existing UBO publication system.
-RasterizerDesc must not expose an independently authored clip-distance enable mask; remove that
-field from descriptor validation, canonicalization, equality/hashing and serialization where present.
-Existing shader identity and specialization selection distinguish clipping configurations.
-
-SpirvBuild must package compiler-derived clipping interface facts through its existing contracts,
-binary identities, variant cache, receipts and asset publication paths. Prove suitable compiler/reflection
-tooling can identify actual built-in outputs and specialization-dependent extents without debug names
-before selecting it. Do not implement or relocate a handwritten SPIR-V opcode parser.
-Preparation selects the final vertex-producing stage (geometry, otherwise tessellation evaluation,
-otherwise vertex), resolves its selected specialization and derives the required native enable mask.
-Verified absence produces a zero mask; missing, stale, ambiguous or unsupported metadata rejects
-preparation rather than silently disabling clipping. Validate the derived mask against native limits.
-A declaration does not prove defined writes on every path; shader authors retain that obligation.
-The prepared pipeline carries the derived mask and applies it through StateCache before drawing,
-including disabling distances required by the previous shader but not the current one. It is not a
-second authored pipeline-key field. Preserve actual clip-enable values and per-bit knowledge in
-StateCache, low-level engine adapters and exact engine-boundary restoration. No per-draw reflection,
-SPIR-V parsing, local enable cache or fragment-discard fallback is introduced by this amendment.
+Approved custom-clipping removal (2026-10-06): Custom shader clip distances are unsupported. Graphics descriptions and prepared realizations
+carry no clip-enable mask, and shader packaging does not extract clipping outputs or analyze their
+specialization dependencies. VGE graphics-state application explicitly disables all user clip
+distances through StateCache. Native masks, knowledge bits, engine adapters and boundary restoration
+remain necessary to preserve incoming engine state. Ordinary frustum clipping, clip origin/depth
+conventions and depth-clamp policy are unchanged.
 
 Alternate clip conventions require matching projection/reconstruction and viewport/front-face policy;
 they do not implicitly select reversed-Z. Window depth range remains explicitly [0,1].
@@ -178,6 +164,17 @@ The current `BindWithViewport()` and clear helpers may remain compatibility APIs
 Pipeline preparation validates the shader stages, vertex interface, output interface, binding layout, static state, target signature, and context capabilities before publishing a usable pipeline.
 
 Reuse `GpuBindingContract`, `GpuPreparedBindings`, generated shader inputs, and existing readiness/activation code. Add missing vertex/output interface validation at preparation time instead of querying linked interfaces for every draw.
+
+SpirvBuild packages portable compiler declarations in the existing binary digest manifest, associated
+with the exact binary hash, stage, entry point, structural selection, configuration and extractor identity.
+Build receipts fingerprint the extractor assembly and native dependencies. Runtime accepts the supported
+metadata schema rather than requiring the identical compiler version: extractor identity records provenance,
+while linked activity, specialization and driver-assigned resource addresses remain runtime responsibilities.
+Missing, malformed or mismatched metadata rejects a candidate even when the optional driver cache is disabled.
+Linked numeric declarations must agree before a candidate replaces the installed executable.
+Publish binaries and metadata as one coherent build generation, preserving the previous generation on failure.
+Unsupported declaration shapes or execution modes fail explicitly; do not guess specialization-dependent
+interface extents, interpret compiler instructions at runtime or constrain ordinary numeric specialization values.
 
 Owned numeric shader inputs use explicit std140 UBOs through the existing CPU block and publication
 owners. Shared stages consume one declaration and logical publication; debug names are not an input

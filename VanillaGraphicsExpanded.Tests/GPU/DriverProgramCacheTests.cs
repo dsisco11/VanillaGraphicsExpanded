@@ -3,6 +3,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -13,6 +14,72 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Graphics execution
+    /// <summary>Invalid packaged declarations cannot replace a working generation, including a cached native executable.</summary>
+    [Theory]
+    [InlineData(false, "missing")]
+    [InlineData(true, "missing")]
+    [InlineData(false, "schema")]
+    [InlineData(true, "schema")]
+    [InlineData(false, "shape")]
+    [InlineData(true, "shape")]
+    [InlineData(false, "absent-output")]
+    [InlineData(true, "absent-output")]
+    public void PackagedMetadataFailurePreservesInstalledGeneration(bool useCache, string failure)
+    {
+        EnsureContextValid();
+        string directory = Path.Combine(Path.GetTempPath(), "VGE.DriverCacheTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var cache = DriverProgramCache.UseStoreForTesting(useCache ? new ProgramBinaryStore(directory) : null);
+            using var assets = new BinaryShaderApiFixture();
+            using var program = new FixtureProgram();
+            program.Initialize(assets.Api);
+            Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+            Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+            Assert.Equal(useCache, DriverProgramCache.LastLoadWasHit);
+            int installed = program.ProgramId;
+            ulong revision = program.ExecutableRevision;
+            var bindings = program.ResourceBindings;
+            var graphics = program.GraphicsInterface;
+            var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,
+                "assets", "shaders", ShaderBinaryDigest.FileName)))!;
+            const string fragment = "tests/render_infrastructure.fsh.spv";
+            var entry = manifest.Binaries[fragment];
+            var metadata = entry.Interface!;
+            // Keep the binary hash valid so declaration tests reach linked-interface comparison.
+            metadata = failure switch
+            {
+                "missing" => null,
+                "schema" => metadata with { Version = -1 },
+                "shape" => metadata with { Interface = metadata.Interface with
+                    { Outputs = [metadata.Interface.Outputs[0] with { VectorSize = 3 }] } },
+                _ => metadata with { Interface = metadata.Interface with { Outputs = [] } }
+            };
+            manifest.Binaries[fragment] = entry with { Interface = metadata };
+            assets.Overrides["shaders/" + ShaderBinaryDigest.FileName] = ShaderBinaryDigest.Encode(manifest.Binaries);
+            ShaderDigestIndexCache.Clear();
+            Assert.False(program.CompileAndLink());
+            Assert.Equal(installed, program.ProgramId);
+            Assert.Equal(revision, program.ExecutableRevision);
+            Assert.Same(bindings, program.ResourceBindings);
+            Assert.Same(graphics, program.GraphicsInterface);
+            Assert.True(GL.IsProgram(installed));
+            Assert.Contains(assets.Logs, message => message.Contains(
+                failure is "shape" or "absent-output" ? "packaged compiler declarations" : "interface schema/identity",
+                StringComparison.OrdinalIgnoreCase));
+            assets.Overrides.Clear();
+            ShaderDigestIndexCache.Clear();
+            Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
+            Assert.Equal(useCache, DriverProgramCache.LastLoadWasHit);
+            Assert.True(program.ExecutableRevision > revision);
+        }
+        finally
+        {
+            ShaderDigestIndexCache.Clear();
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     /// <summary>Cold, warm, and reload paths produce the same pixels and retire replaced programs.</summary>
     [Fact]
     public void GraphicsCacheRetainsRenderingAndReloadLifetime()

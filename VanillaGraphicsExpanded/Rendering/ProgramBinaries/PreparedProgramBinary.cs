@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 internal sealed class PreparedProgramBinary
 {
     private readonly Dictionary<string, byte[]> binaries = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PackagedStageInterface> interfaces = new(StringComparer.Ordinal);
     internal string? Key { get; }
     internal ProgramBinaryStore? Store { get; }
 
@@ -23,22 +24,15 @@ internal sealed class PreparedProgramBinary
         Store = store;
         foreach (var selection in plan.Stages)
             if (!binaries.ContainsKey(selection.BinaryPath)) binaries.Add(selection.BinaryPath, read(selection.BinaryPath).ToArray());
+        ShaderBinaryDigest.Manifest? manifest = digestIndex();
+        // Compiler interface facts are required even when the optional driver cache is disabled.
+        // Validate the exact captured bytes before either specialization or cache installation.
+        foreach (var selection in plan.Stages)
+            interfaces.Add(selection.BinaryPath, PackagedInterfaceValidation.Resolve(manifest, selection, binaries[selection.BinaryPath]));
         if (store == null) return;
-        ShaderBinaryDigest.Manifest? manifest;
-        try { manifest = digestIndex(); }
-        catch (Exception) { Store = null; return; }
-        var digests = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        // Missing metadata disables caching, not shader loading. Never substitute a runtime stage hash.
-        foreach (var pair in binaries)
-        {
-            try
-            {
-                if (!ShaderBinaryDigest.TryRead(manifest, pair.Key, pair.Value.Length, out var digest))
-                { Store = null; return; }
-                digests.Add(pair.Key, digest);
-            }
-            catch (Exception) { Store = null; return; }
-        }
+        // Association has already been verified independently of this optional cache key.
+        var digests = binaries.ToDictionary(pair => pair.Key,
+            pair => Convert.FromHexString(manifest!.Binaries[pair.Key].Digest), StringComparer.Ordinal);
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
         writer.Write(ProgramBinaryStore.Schema);
@@ -65,4 +59,7 @@ internal sealed class PreparedProgramBinary
 
     /// <summary>Borrows the captured bytes for synchronous specialization without rereading assets.</summary>
     internal ReadOnlySpan<byte> Read(string path) => binaries[path];
+
+    /// <summary>Borrows the already verified interface for the captured stage selection.</summary>
+    internal PackagedStageInterface Interface(ShaderStageSelection stage) => interfaces[stage.BinaryPath];
 }

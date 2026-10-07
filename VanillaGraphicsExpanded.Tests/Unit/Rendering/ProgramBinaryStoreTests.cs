@@ -66,7 +66,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
         byte[] bytes = [1, 2, 3];
         ReadOnlySpan<byte> Read(string path) => path == ShaderBinaryDigest.FileName
             ? ShaderBinaryDigest.Encode(new Dictionary<string, ShaderBinaryDigest.Entry>
-            { [plan.Stages[0].BinaryPath] = new(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes))) }) : bytes;
+            { [plan.Stages[0].BinaryPath] = Entry(plan.Stages[0], bytes) }) : bytes;
         var baseline = new PreparedProgramBinary(plan, Read, store, "driver-a", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
         Assert.Equal(baseline.Key, new PreparedProgramBinary(plan, Read, store, "driver-a", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName))).Key);
         Assert.NotEqual(baseline.Key, new PreparedProgramBinary(plan, Read, store, "driver-b", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName))).Key);
@@ -80,10 +80,11 @@ public sealed class ProgramBinaryStoreTests : IDisposable
         var otherEntry = new ShaderStageContract("test.csh", "test.csh", ShaderStageKind.Compute,
             new GpuBindingContract(), specializations: stage.Specializations, entryPoint: "other");
         var entryPlan = new ShaderLoadPlan(new ShaderSettings(new GpuShaderContract("test", [otherEntry], 1, [LumOnShaderOptions.DirectVisibility])));
-        Assert.NotEqual(baseline.Key, new PreparedProgramBinary(entryPlan, Read, store, "driver-a", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName))).Key);
+        Assert.NotEqual(baseline.Key, new PreparedProgramBinary(entryPlan, Read, store, "driver-a",
+            () => new ShaderBinaryDigest.Manifest(2, new() { [entryPlan.Stages[0].BinaryPath] = Entry(entryPlan.Stages[0], bytes) })).Key);
     }
 
-    /// <summary>Missing, malformed or mismatched build metadata bypasses caching without hiding shader bytes.</summary>
+    /// <summary>Invalid compiler metadata prevents preparation even when binary bytes are available.</summary>
     [Theory]
     [InlineData("missing")]
     [InlineData("malformed")]
@@ -91,7 +92,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [InlineData("version")]
     [InlineData("entry")]
     [InlineData("digest")]
-    public void InvalidBuildDigestBypassesCache(string failure)
+    public void InvalidBuildDigestRejectsPreparation(string failure)
     {
         var stage = new ShaderStageContract("test.csh", "test.csh", ShaderStageKind.Compute, new GpuBindingContract());
         var plan = new ShaderLoadPlan(new ShaderSettings(new GpuShaderContract("test", [stage], 1)));
@@ -109,14 +110,14 @@ public sealed class ProgramBinaryStoreTests : IDisposable
             if (failure == "missing") throw new FileNotFoundException(path);
             return metadata;
         }
-        var prepared = new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
-        Assert.Null(prepared.Key);
-        Assert.Equal(bytes, prepared.Read(plan.Stages[0].BinaryPath).ToArray());
+        Action prepare = () => new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
+        if (failure == "missing") Assert.Throws<FileNotFoundException>(prepare);
+        else Assert.Throws<InvalidDataException>(prepare);
     }
 
-    /// <summary>Explicit cache bypass never asks the asset owner for optional metadata.</summary>
+    /// <summary>Explicit driver cache bypass still requires validated interface metadata.</summary>
     [Fact]
-    public void BypassOnlyReadsShaderBinary()
+    public void BypassStillRequiresCompilerMetadata()
     {
         var stage = new ShaderStageContract("test.csh", "test.csh", ShaderStageKind.Compute, new GpuBindingContract());
         var plan = new ShaderLoadPlan(new ShaderSettings(new GpuShaderContract("test", [stage], 1)));
@@ -125,10 +126,10 @@ public sealed class ProgramBinaryStoreTests : IDisposable
             Assert.EndsWith(".spv", path);
             return new byte[] { 1, 2, 3 };
         }
-        Assert.Null(new PreparedProgramBinary(plan, Read, null, "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName))).Key);
+        Assert.Throws<InvalidDataException>(() => new PreparedProgramBinary(plan, Read, null, "driver", () => null));
     }
 
-    /// <summary>One manifest serves every program stage; a missing stage entry disables the whole cache key.</summary>
+    /// <summary>One manifest serves every stage; a missing stage entry rejects the entire candidate.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -139,7 +140,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
         var plan = new ShaderLoadPlan(new ShaderSettings(new GpuShaderContract("test", [vertex, fragment], 1)));
         byte[] binary = [1, 2, 3];
         var entries = plan.Stages.Where(stage => !omitFragment || stage.Stage.Kind != ShaderStageKind.Fragment)
-            .ToDictionary(stage => stage.BinaryPath, _ => new ShaderBinaryDigest.Entry(binary.Length, Convert.ToHexString(SHA256.HashData(binary))));
+            .ToDictionary(stage => stage.BinaryPath, stage => Entry(stage, binary));
         byte[] metadata = ShaderBinaryDigest.Encode(entries);
         int manifestReads = 0;
         ReadOnlySpan<byte> Read(string path)
@@ -148,10 +149,15 @@ public sealed class ProgramBinaryStoreTests : IDisposable
             manifestReads++;
             return metadata;
         }
-        var prepared = new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
+        if (omitFragment)
+            Assert.Throws<InvalidDataException>(() => new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName))));
+        else
+        {
+            var prepared = new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
+            Assert.NotNull(prepared.Key);
+            Assert.All(plan.Stages, stage => Assert.Equal(binary, prepared.Read(stage.BinaryPath).ToArray()));
+        }
         Assert.Equal(1, manifestReads);
-        Assert.Equal(omitFragment, prepared.Key is null);
-        Assert.All(plan.Stages, stage => Assert.Equal(binary, prepared.Read(stage.BinaryPath).ToArray()));
     }
 
     /// <summary>Truncated or tampered payloads and missing files cannot be returned to the driver.</summary>
@@ -204,5 +210,13 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     {
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
     }
+    #endregion
+
+    #region Private
+    /// <summary>Creates coherent interface metadata for the synthetic cache identity fixture.</summary>
+    private static ShaderBinaryDigest.Entry Entry(ShaderStageSelection stage, byte[] binary) =>
+        new(binary.Length, Convert.ToHexString(SHA256.HashData(binary)),
+            new(PackagedShaderInterface.CurrentVersion, "test-compiler", stage.Stage.Kind, stage.Stage.EntryPoint,
+                stage.Key, "Release", new([], [], [])));
     #endregion
 }
