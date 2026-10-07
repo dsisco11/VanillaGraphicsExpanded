@@ -2207,3 +2207,99 @@ dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -
 
 Both commands were repeated with `-c Release`. `git diff --check` passed. No game launch, live visual
 acceptance, packaging result or CPU/GPU performance improvement is claimed by this work.
+
+## Immediate graphics submission
+
+`GraphicsCommandContext.TryRun` declares prepared pipelines before entering the existing
+`CompleteGraphicsBoundary`. Their complete state coverage and prepared resource footprints are
+resolved once at entry. The callback can execute sequential nonnested `BeginPass` / `EndPass`
+operations. Select a declared pipeline, assign its existing generated shader inputs, supply
+`GraphicsDynamicState` (including an explicit viewport), and call `Draw`. `PassViewport` provides
+the current target area's viewport without introducing a second dynamic representation.
+
+Before native submission the context validates target compatibility and lifetime, executable revision,
+geometry layout/topology/ranges, dynamics and current shader resources. State is applied through
+`StateCache.ApplyGraphicsState`. Activation uses `GpuProgram.UseScope`, retained until shader change
+or pass end. Every subsequent draw calls the existing `Use` publication path even for the same
+pipeline, so edited resources and typed UBO versions cannot be skipped. Existing input mutation,
+recursion and UBO epoch rules remain in force; the documented engine GLSL exceptions are unchanged.
+The context rejects recursive draws or context edits during submission and rejects use after its
+callback ends. No new shader-input binding or reflection system is involved.
+
+Shader activation scopes are consumed once before framebuffer cleanup. Forgotten pass ends and
+exceptions use the existing ordered `EngineBoundaryScope` cleanup: shader ownership, borrowed
+bindings, framebuffer scopes, then category snapshots. The boundary additionally preserves the
+incoming VAO's element-buffer association, including when it is the engine mesh drawn inside the
+boundary. Resources remain externally owned unless explicitly created by a geometry adapter.
+
+`ManagedGraphicsGeometry` owns immutable VAO/VBO/EBO uploads and configures them through
+`GpuVertexAttribBinding`. It validates requested index subranges against retained CPU index values,
+base vertex and per-binding vertex/instance capacity. Its initial index storage is unsigned 32-bit;
+unused attributes are permitted in the pipeline layout, while mismatched layouts reject. Setup uses
+existing binding scopes, and native draw submission uses cached VAO/EBO selection. Private owned
+storage prevents silent metadata drift; changing geometry requires a replacement upload.
+
+`EngineFullscreenGeometry.Upload` owns the existing engine upload/delete lifecycle for position/UV
+indexed triangles. It rejects unknown mesh representations and checks the installed native attribute
+layout, offsets, buffers and byte extents at publication. Ordinary `RenderMesh` binds the mesh VAO
+and unsigned-int element buffer, draws, then unbinds that EBO and VAO. The adapter reports those exact
+effects to StateCache; failure forgets the uncertain selection and only that mesh's EBO association.
+It never adopts grouped, pooled or instanced engine helper semantics. Draw-time validation checks
+retirement and retained engine metadata without querying the driver.
+
+Installed-engine IL inspection confirms location 0 float3 positions and location 1 float2 UV when
+normals are absent, with legacy `VertexAttribPointer` stride zero and offset zero. Publication
+normalizes that tightly packed representation to the 12-byte/8-byte structural layout; additional
+normal/color/flag/custom streams reject. The native helper fixture uses that exact representation
+and calls the installed ordinary `ClientPlatformWindows.RenderMesh`, rather than simulating its
+draw commands. Engine upload itself remains mocked in the headless fixture; its layout and buffer
+allocation contract are backed by the inspected installed implementation.
+The installed `QuadMeshUtil.GetCustomQuadModelData(-1,-1,0,2,2)` also matches the first consumer's
+authored contract after clearing `Rgba`: four vertices, six indices, twelve position floats, eight
+UV floats, no normal/flag/custom streams, and no instanced streams.
+
+Raw GL calls and arbitrary engine rendering are prohibited inside the callback. Deliberate external
+operations run after `TryRun` exits through `GraphicsCommandContext.ExecuteExternal`, which uses
+the existing StateCache owner to invalidate the declared categories even if the operation throws.
+A subsequent `TryRun` resolves truthful entry state and reestablishes complete draw intent. Ending
+only a pass does not end the enclosing engine boundary and does not authorize external operations.
+
+| Contract and controlling source | Implementation and verification |
+| --- | --- |
+| Proposal / Submission contract; design contract / Geometry, target and executable contracts | GraphicsCommandContext, existing RenderPass/GraphicsPipeline validation, owned geometry adapters; deterministic HZB pixels and rejected draw contracts |
+| Proposal / Prepared pipelines, identity, and lifetime; numeric input migration inventory | Existing GpuProgram activation, generated typed UBO publication and prepared resource validation; changed texture/mip on one pipeline and prior-owner restoration |
+| Proposal / Native error-checking policy; design contract / Restoration decisions by boundary | Existing category transitions and EngineBoundaryScope, VAO-owned EBO restoration and observed engine helper effects; warm counters, external operations and exception cleanup |
+
+Delegated validation passed 165 distinct selected cases in each configuration: Debug 115/115 broad
+plus 65/65 focused, and Release 159/159 broad plus 10/10 focused, with overlapping cases counted once.
+After narrowing upload invalidation to its actual VAO/array/element footprint, the four affected
+engine-geometry cases passed again in both configurations. Receipts are
+`artifacts/submission-debug-broad-final.log`, `submission-debug-additions.log`,
+`submission-release-broad.log`, `submission-release-additions.log`,
+`submission-debug-upload-final.log` and `submission-release-upload-final.log`.
+The installed upload/draw inspection is retained in `artifacts/submission-engine-il.txt`.
+
+Commands used `NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages` and normal production/shared-test
+shader orchestration (414 production and 481 combined variants when rebuilt). All used
+`dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore
+--filter '<selection>' --logger 'console;verbosity=normal'`, repeated with `-c Release` as described:
+
+- The broad selection ORs `FullyQualifiedName~` matches for GraphicsCommandContextTests,
+  EngineGraphicsGeometryTests, RenderPass, EngineBoundary, EngineStateSwitching,
+  PreparedGraphicsPipeline, CompleteGraphics, ShaderInputSubmission and ShaderOwnership.
+  Release additionally includes GpuVaoIntegrationTests.
+- The Debug focused selection covers GraphicsCommandContextTests, EngineGraphicsGeometryTests,
+  GpuVaoIntegrationTests and GpuProgramUseScopeTests. Release focused covers
+  EngineGraphicsGeometryTests and GpuProgramUseScopeTests.
+- Final upload checks select only `FullyQualifiedName~EngineGraphicsGeometryTests`.
+
+Initial failed engine fixtures were corrected to bind a VAO before EBO upload and to represent the
+installed legacy stride-zero attribute setup. Warm managed draws add neither fixed-function calls
+nor boundary state queries; executable/resource reflection counters stay unchanged. Changed inputs
+produce the expected HZB pixel value, and rejected contracts emit no draw. These are behavioral and
+counter checks, not frame-time measurements. No production consumer migration, game launch, live
+visual acceptance or CPU/GPU performance improvement is claimed by this infrastructure.
+
+Second source review and the independent audit-stage-completion pass reconciled the submission,
+geometry, input-publication and restoration requirements with these receipts. The final affected-path
+rechecks and `git diff --check` passed; no required submission-contract findings remain open.

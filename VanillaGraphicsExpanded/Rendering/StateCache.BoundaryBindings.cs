@@ -61,9 +61,23 @@ internal sealed partial class StateCache
         currentVao ??= QueryBoundary(() => GL.GetInteger(GetPName.VertexArrayBinding));
         int vao = currentVao.Value;
         int arrayBuffer = ResolveBoundaryBuffer(BufferTarget.ArrayBuffer);
-        // Quad helpers rebind geometry; EBO associations stay with their original VAO owner.
+        if (!elementArrayBufferByVao.TryGetValue(vao, out int elementBuffer))
+        {
+            elementBuffer = QueryBoundary(() => GL.GetInteger(GetPName.ElementArrayBufferBinding));
+            elementArrayBufferByVao[vao] = elementBuffer;
+        }
+        // The owned engine mesh can already be selected at entry. Its helper clears that VAO's EBO.
         bindings.Add(() => { RequireBoundaryResource(EPipelineState.VertexArray, vao); if (currentVao != vao) BindVertexArray(vao); }, () => currentVao = null,
             () => currentVao != vao || boundaryRetiredResources.Contains((EPipelineState.VertexArray, vao)));
+        bindings.Add(() =>
+        {
+            RequireBoundaryResource(EPipelineState.VertexArray, vao);
+            RequireBoundaryResource(EPipelineState.BufferBindings, elementBuffer);
+            BindVertexArray(vao);
+            BindBuffer(BufferTarget.ElementArrayBuffer, elementBuffer);
+        }, () => elementArrayBufferByVao.Remove(vao),
+            () => !elementArrayBufferByVao.TryGetValue(vao, out int current) || current != elementBuffer
+                || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, elementBuffer)));
         bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, arrayBuffer); if (bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer) BindBuffer(BufferTarget.ArrayBuffer, arrayBuffer); },
             () => bufferBindingByTarget.Remove(BufferTarget.ArrayBuffer),
             () => bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, arrayBuffer)));

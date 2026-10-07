@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–5 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; Phases 6–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–6 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; Phases 7–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -648,30 +648,31 @@ Phase 5: Render passes and target lifetime
 Phase 6: Immediate graphics submission
   Dependencies: Phases 3–5, including Subphase 4.1 typed UBO publication contracts.
   Outcome: one authoritative entry point validates and establishes the full draw contract.
+  Evidence: Rendering.AuthoritativePipelineState.md / Immediate graphics submission; second review and completion audit passed.
 
-  ☐ Compose existing GraphicsDynamicState inputs with geometry adapters and a thin GraphicsCommandContext.
-    ☐ Reuse GraphicsDynamicState as authored draw inputs and DynamicDrawState as cached native values;
+  ☑ Compose existing GraphicsDynamicState inputs with geometry adapters and a thin GraphicsCommandContext.
+    ☑ Reuse GraphicsDynamicState as authored draw inputs and DynamicDrawState as cached native values;
       neither requires a replacement type or a parallel dynamic-state representation.
-    ☐ Establish graphics state through existing ApplyGraphicsState and category transitions, and
+    ☑ Establish graphics state through existing ApplyGraphicsState and category transitions, and
       restore through existing coverage-filtered PipelineStateSnapshot ownership. Preserve the
       separation between packed boolean values and knowledge masks.
-    ☐ Support BeginPass, pipeline/dynamic selection, existing shader-input assignment, Draw and EndPass.
-    ☐ Reject accidental nesting and draws outside a valid pass.
-    ☐ Validate current target/executable revision, geometry layout/topology, required dynamics and resources.
-    ☐ Use existing engine-aware shader activation and input publication, including CurrentShaderProgram,
+    ☑ Support BeginPass, pipeline/dynamic selection, existing shader-input assignment, Draw and EndPass.
+    ☑ Reject accidental nesting and draws outside a valid pass.
+    ☑ Validate current target/executable revision, geometry layout/topology, required dynamics and resources.
+    ☑ Use existing engine-aware shader activation and input publication, including CurrentShaderProgram,
       overlapping-owner restrictions, failure cleanup and recursion/mutation guards.
-    ☐ Publish changed resources and typed numeric UBO versions even when the selected pipeline is unchanged.
+    ☑ Publish changed resources and typed numeric UBO versions even when the selected pipeline is unchanged.
       Reuse CpuUniformBuffer/UniformPublication, shared-stage blocks and prepared fixed slots from 4.1;
       preserve the documented engine GLSL exceptions without adding an ordinary numeric VGE upload path.
-    ☐ Establish all required state before issuing the draw; failure must emit no draw.
-    ☐ Document and observe engine geometry helper mutations; prohibit untracked operations inside a pass.
-    ☐ End/suspend authority at declared external boundaries and dirty affected categories before resuming.
-    ☐ Coordinate EngineBoundaryExecution/EngineBoundaryScope around sequential complete passes using
+    ☑ Establish all required state before issuing the draw; failure must emit no draw.
+    ☑ Document and observe engine geometry helper mutations; prohibit untracked operations inside a pass.
+    ☑ End/suspend authority at declared external boundaries and dirty affected categories before resuming.
+    ☑ Coordinate EngineBoundaryExecution/EngineBoundaryScope around sequential complete passes using
       the existing StateCache snapshots/transitions. Preserve shader, borrowed-binding/framebuffer,
       then drawing-state cleanup; do not create another restoration cache. Keep viewport dynamic.
-  ☐ Delegate integration tests for missing dynamics/resources, invalid geometry, no-draw failures,
+  ☑ Delegate integration tests for missing dynamics/resources, invalid geometry, no-draw failures,
     changed inputs on the same pipeline, external operations, nesting rejection and exception cleanup.
-  ☐ Completion gate: deterministic fixture draws use the full submission path with no hidden ambient
+  ☑ Completion gate: deterministic fixture draws use the full submission path with no hidden ambient
     state dependency or per-draw reflection/state queries under stable managed conditions.
 
 Phase 7: Direct-lighting production migration

@@ -124,6 +124,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
             Bind();
             StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
         }
+        else StateCache.Current.NotifyVertexArrayElementBuffer(vertexArrayId, bufferId);
     }
 
     public void BindElementBuffer(GpuEbo ebo)
