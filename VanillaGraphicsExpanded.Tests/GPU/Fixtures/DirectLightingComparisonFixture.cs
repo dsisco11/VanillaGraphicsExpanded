@@ -86,10 +86,11 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         Upload(gbuffer.EnvironmentTextureId, Pixels([1, 1, 1, 1]));
     }
 
-    /// <summary>Runs the retained old renderer from a complete explicitly neutral state.</summary>
-    internal void DrawReference()
+    /// <summary>Runs the retained renderer, optionally establishing the neutral baseline before a measurement batch.</summary>
+    internal void DrawReference(bool establishNeutral = true)
     {
-        Neutral(); Assert.True(reference.RenderLighting(Expected));
+        if (establishNeutral) Neutral();
+        Assert.True(reference.RenderLighting(Expected));
     }
 
     /// <summary>Establishes a complete baseline independently of the old renderer's partial descriptor.</summary>

@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–7 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; Phases 8–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–9 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; automated acceptance and measured costs are recorded in Rendering.AuthoritativePipelineState.md / System acceptance. User-run live acceptance is explicitly pending (user confirmation, 2026-10-06).
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -741,27 +741,27 @@ Phase 9: Acceptance evidence and measurements
   Dependencies: Phases 1–8.
   Outcome: implementation scope, correctness and measured costs are reviewable without overstated claims.
 
-  ☐ Map each proposal section to implemented source and evidence in the implementation document.
-    ☐ Cover naming, immutable identity, complete/partial semantics, all supported state, targets/lifetime,
+  ☑ Map each proposal section to implemented source and evidence in the implementation document.
+    ☑ Cover naming, immutable identity, complete/partial semantics, all supported state, targets/lifetime,
       preparation, submission, engine boundaries and adoption; record limitations and follow-up exclusions.
-  ☐ Delegate required Debug/Release builds and focused unit/headless integration suites.
-    ☐ Consolidate prior valid receipts; rerun where later edits affect previously verified behavior.
-    ☐ Retain packed-value independence, known-false versus unknown, selective invalidation,
+  ☑ Delegate required Debug/Release builds and focused unit/headless integration suites.
+    ☑ Consolidate prior valid receipts; rerun where later edits affect previously verified behavior.
+    ☑ Retain packed-value independence, known-false versus unknown, selective invalidation,
       detached snapshot and partial-coverage regressions from Subphases 3.1–3.2.
-    ☐ Verify ordinary transitions and scope restoration retain their established diagnostic costs;
+    ☑ Verify ordinary transitions and scope restoration retain their established diagnostic costs;
       unchanged-state suppression must not conceal added queries or unconditional error polling.
-    ☐ Record context, commands, pass/failure/skip counts and outstanding failures without hiding skips.
-  ☐ Record comparable-workload state-call/query counts, CPU submission and preparation cost,
+    ☑ Record context, commands, pass/failure/skip counts and outstanding failures without hiding skips.
+  ☑ Record comparable-workload state-call/query counts, CPU submission and preparation cost,
     prepared-object/cache retention, and representative GPU timing with instrumentation/environment details.
-    ☐ Separate measured results from expected benefits; do not require an invented speedup threshold.
-    ☐ Report managed layout reductions separately from CPU submission and GPU timings; smaller
+    ☑ Separate measured results from expected benefits; do not require an invented speedup threshold.
+    ☑ Report managed layout reductions separately from CPU submission and GPU timings; smaller
       structs do not establish faster transitions or improved frame time.
-  ☐ Provide user-run live game/RenderDoc cases for migrated passes, engine handoff, resize and reload.
-    ☐ Record supplied visual/runtime results separately from headless evidence; leave live acceptance
+  ☑ Provide user-run live game/RenderDoc cases for migrated passes, engine handoff, resize and reload.
+    ☑ Record supplied visual/runtime results separately from headless evidence; leave live acceptance
       pending if unavailable and do not launch the game to obtain it.
-  ☐ Perform a final second review of implementation, contracts, remaining compatibility paths and evidence.
-    ☐ Resolve verified issues and document explicit scope dispositions before completion claims.
-  ☐ Final acceptance: required implementation and tests are complete, live evidence status is explicit,
+  ☑ Perform a final second review of implementation, contracts, remaining compatibility paths and evidence.
+    ☑ Resolve verified issues and document explicit scope dispositions before completion claims.
+  ☑ Final acceptance: required implementation and tests are complete, live evidence status is explicit,
     proposal requirements are accounted for, and no authority/performance claim exceeds verified coverage.
 
 Open assumptions and follow-up boundaries

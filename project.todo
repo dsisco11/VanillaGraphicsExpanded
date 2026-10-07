@@ -20,7 +20,7 @@ Issues:
 
   Performance:
     PipelineState:
-      ☐ Evolve graphics pipeline state into an authoritative submission system. Approved proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md. Plan: docs/Rendering.AuthoritativePipelineState.todo.
+      ☑ Evolve graphics pipeline state into an authoritative submission system. Approved proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md. Plan: docs/Rendering.AuthoritativePipelineState.todo. Automated acceptance and measurements: docs/Rendering.AuthoritativePipelineState.md / System acceptance; user live acceptance remains pending.
       ☑ Establish concrete framebuffer targets through render-pass setup and compatible target signatures through pipeline validation. Coverage: docs/Rendering.AuthoritativePipelineState.md / Remaining consumer submission; explicit image and published window destinations.
       ☑ Integrate prepared shader dependencies through the existing activation/submission lifecycle. Coverage: docs/Rendering.AuthoritativePipelineState.md / Remaining consumer submission; per-draw input publication and engine shader-owner handoff.
       ☑ Remove individual invalidation/capture scopes only after tracking and engine restoration are proven; retain fallback boundaries for unknown mutations. Coverage: docs/Rendering.AuthoritativePipelineState.md / Consumer and mutation coverage and Legacy scope inventory and disposition. Engine-owned particle, terrain and tessellation adapters remain; unobserved external mutations still require explicit invalidation.

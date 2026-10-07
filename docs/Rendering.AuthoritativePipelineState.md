@@ -1,5 +1,10 @@
 # Authoritative pipeline state implementation evidence
 
+The dated sections retain implementation history and the scope of their original receipts. Current
+contract dispositions and consolidated acceptance are recorded in [System acceptance](#system-acceptance).
+Superseded temporary helpers and custom-clipping experiments described in historical sections are
+not part of the current production implementation.
+
 ## State cache lifetime
 
 StateCache retains knowledge for the rendering thread and relies on explicit invalidation at
@@ -2465,3 +2470,228 @@ All eleven original production legacy-capture invocations are absent, and the te
 blend owner and fullscreen coordination adapter are retired. Engine-owned compatibility paths retain
 their explicit restoration contracts. Project binding and capture entries are reconciled with this
 coverage; unobserved external mutations and live acceptance are not claimed complete.
+
+## System acceptance
+
+The governing sources are the approved proposal (including its configurable raster-state, numeric
+input, custom-clipping removal and context-lifetime amendments), the implementation plan's execution
+contract and acceptance requirements, and the design/consumer contracts above. The baseline for this
+acceptance work is commit `1d998a97`, containing the completed consumer migration. Existing receipts
+are reused only for unchanged behavior; new measurements and affected verification are recorded below.
+
+### Proposal-to-implementation coverage
+
+Each row maps the named proposal sections to their current owning source and behavioral evidence.
+Source paths below Rendering are under `VanillaGraphicsExpanded/Rendering/`; test names locate the
+existing unit or GPU suites. Detailed commands and limits remain with the linked historical receipts
+and the consolidated verification below.
+
+| Proposal sections / required contract | Current implementation and evidence |
+| --- | --- |
+| Intent; Current implementation and gaps; Pipeline model | Pipeline/Descriptions/GraphicsPipelineDesc, Pipeline/GraphicsPipeline, Pipeline/GraphicsCommandContext and StateCache separate draw policy from cached transitions. DirectLightingSubmissionTests compares all three outputs to the retained reference; the remaining-consumer table accounts for every VGE draw family. The historical gaps are not current implementation claims. |
+| Naming and namespaces; Architectural responsibilities | Responsibility-named types live in Pipeline/Descriptions, Pipeline/State and Pipeline/Passes; geometry, interface validation and lifetime each have focused owners. Existing GpuProgram, GpuFramebuffer and buffer hierarchies remain resource owners. GraphicsCommandContext composes them without owning allocation algorithms or another binding system. |
+| Scope and exclusions | Engine-owned particle, G-buffer, terrain/tessellation and shared-shadow paths retain explicit partial adapters. Compute uses its existing pipeline and resource owners. One live rendering context is assumed; no context generations, render graph, alternate backend, interning or asynchronous preparation are introduced. Consumer and mutation coverage records unobserved external paths. |
+| Categorized cache storage | Pipeline/State category values and independent category knowledge masks are copied by PipelineStateSnapshot. StateBooleanValueTests, StateValueLayoutTests, CategorizedStateCacheTests, GlStateCacheInvalidationTests and PipelineStateCoverageTests cover packed-value independence, known false versus unknown, detached snapshots and selective/partial authority. Managed sizes are reported separately below. |
+| Complete descriptions and partial overrides | GraphicsPipelineDesc resolves defaults and validates in all configurations; GlPipelineDesc remains explicitly partial compatibility intent. PipelineCanonicalization preserves structural identity; StateCache.ApplyGraphicsState establishes supported complete values. GraphicsPipelineDescriptionTests, CompleteGraphicsStateTests and GraphicsCommandContextTests verify independence from ambient state and rejection of undeclared changes. |
+| Static and dynamic state coverage | Description category records, GraphicsDynamicState, StateCache category transitions and complete restoration own supported raster/depth/stencil/blend/sampling/output/assembly state. ConfigurableRasterizerDescriptionTests and ConfigurableRasterizerGpuTests cover the approved compatibility-state additions. Custom shader clipping is unsupported; user clip enables are explicitly disabled for VGE draws and restored for engine handoff. |
+| Target signatures and render passes | RenderTargetSignature, RenderPassDesc, RenderPassTargets, RenderPassOperations and GpuFramebuffer attachment/surface publication retain exact formats, sparse/discard routes, typed clears, render areas and borrowed lifetime. RenderPassClearTests/RenderPassLifetimeTests, SurfaceRenderPassTests and native liquid-target tests cover incompatible targets, clear independence, retirement, replacement and resize. |
+| Prepared pipelines, identity, and lifetime | ShaderPipelineIdentity, GraphicsPipelineLifetime, GraphicsPipeline and GraphicsInterfaceValidation use immutable descriptions plus owner/executable revision. Existing prepared bindings and generated std140 inputs remain authoritative. GraphicsPipelineDescriptionTests, ShaderPipelineIdentityTests and PreparedGraphicsPipelineTests cover equality, mutation resistance, reload/disposal and validation without repeated reflection. |
+| Compiler packaging and numeric-input amendments within preparation | ShaderBuildTool/Spirv/ShaderInterfaceReflection and ShaderVariantBuild package immutable declarations with exact binary association; PreparedProgramBinary and GpuProgram.Spirv validate candidates before publication. PackagedInterfaceValidationTests, ShaderInterfaceCompatibilityTests and existing build/driver-cache receipts cover rejection and atomic generations. The Standalone numeric input migration inventory and ShaderAuthoring.md define the approved engine GLSL exceptions; no runtime instruction parser or release debug-name dependency remains. |
+| Submission contract | GraphicsCommandContext and geometry adapters validate pass, targets, executable, ranges, dynamics and resources before drawing. GpuProgram activation publishes changed inputs on every draw. GraphicsCommandContextTests, EngineGraphicsGeometryTests, ArrayGraphicsGeometryTests and LiquidGraphicsSubmissionTests cover input changes, failure-before-draw, recursive/external mutation and UseSsbo restoration. |
+| Native error-checking policy | GlDebug.CheckStateTransitions is opt-in; category transitions and pixel-store scopes suppress unchanged work. Boundary cleanup retains checked, independent restoration and targeted invalidation. StateTransitionDiagnosticsTests, PixelPackStateTests, PixelUnpackStateTests, ConfigurableRasterizerGpuTests and boundary tests distinguish ordinary setters, cold queries, transfer safety and checked restoration. Counters are bounded instrumentation, not a complete driver trace. |
+| Engine integration and cache authority | CompleteGraphicsBoundary, EngineBoundaryScope, EngineStateCalls and exact-signature observation compose prepared footprints with prior shader-owner restoration. EngineBoundaryEntryTests/EngineBoundaryBindingTests, EngineStateSwitchingTests and capture/publication tests prove covered handoffs. Unknown mutations still require explicit invalidation; no whole-engine or arbitrary-mod authority is claimed. |
+| Interpretation of existing project TODOs | project.todo links concrete targets, prepared shader dependencies and scope retirement to the current coverage matrix. Resource binding remains separate from PSO identity. Required engine compatibility scopes remain; all eleven inventoried legacy fixed-function capture calls and framebuffer-owned blend policy are retired. |
+| Adoption strategy | Direct lighting was followed by composition/capture, liquids, atlas baking, CPU probe resolve, LumOn fullscreen and debug draws. The Remaining consumer submission and Legacy scope inventory tables map each entry to output, lifetime, routing and restoration tests. Historical reference implementations exist only in test fixtures. |
+| Validation and acceptance | Valid prior consumer receipts are consolidated with current state-contract tests and comparable-workload measurements below. Correctness, CPU timing, GPU timing, managed layout and live evidence are reported separately. There is no required speedup threshold. |
+| Decisions to resolve during implementation design | Graphics submission design contract records supported defaults, geometry adapters, exact target/discard policy, window metadata, executable revision, restoration coverage and dynamic declarations. Current consumer evidence exercises these decisions; historical staged helpers do not supersede the final contracts. |
+
+### Consolidated automated verification
+
+Delegated verification on 2026-10-06 used the installed package cache, normal shader-enabled test
+builds and the hidden native context described below. No production source changed during acceptance;
+the only executable changes are the opt-in measurement fixture and an optional neutral-baseline
+parameter whose default preserves the comparison fixture's existing behavior.
+
+| Evidence set | Debug | Release | Receipt / applicability |
+| --- | ---: | ---: | --- |
+| Consumer/shared-state regression selection | 310 passed | 310 passed | `artifacts/phase8-final-current-{debug,release}.log`; unchanged production behavior, exact filter in `phase8-final-filter.txt` |
+| Final debug-target metadata correction | 7 passed | 7 passed | `artifacts/phase8-target-retention-{debug,release}.log`; final target-cache source |
+| Fresh state/identity/boundary/pass/submission selection | 205 passed | 207 passed | `artifacts/phase9-acceptance-{debug,release}.log`; Release additionally includes the two direct-lighting submission cases |
+| Fresh shared comparison-fixture follow-up | 2 passed | Included above | `artifacts/phase9-direct-lighting-debug.log`; final optional-baseline source |
+| Explicit matched workload and realization retention | 1 passed | 1 passed | `artifacts/lighting-measurement-{Debug,Release}.log` and JSON/TRX below |
+
+Each listed successful run had zero failures and zero skips. Counts are separate receipts with
+overlapping coverage, not one combined or deduplicated suite. The original compiler/bootstrap attempt
+failed before tests because the sandbox's default package directory lacked the pinned shader tool.
+The same Debug command passed after selecting NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages;
+the failure and retry remain in its log. Existing compiler/analyzer warnings remain (including nullable,
+obsolete API, platform and xUnit warnings); successful builds have no errors. No full-repository test
+suite or new distributable package run is claimed.
+
+The fresh regression selection retains packed values, actual layouts, known-false/unknown distinctions,
+detached snapshots, partial coverage, selective invalidation, native error policy, resource retirement,
+engine switches, prepared identity/bindings and target/pass lifetime. The exact initial and expanded
+filters are `artifacts/phase9-acceptance-filter.txt` and `artifacts/phase9-acceptance-release-filter.txt`.
+TRX files are in `artifacts/TestResults/` with corresponding log basenames. Commands from the repository
+root were:
+
+```powershell
+$env:NUGET_PACKAGES = 'C:/Users/Sisco/.nuget/packages'
+$selection = Get-Content artifacts/phase9-acceptance-filter.txt -Raw
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter $selection.Trim() --logger 'trx;LogFileName=phase9-acceptance-debug.trx' --results-directory artifacts/TestResults
+# After the final shader-enabled measurement builds:
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-build --no-restore --filter 'FullyQualifiedName~DirectLightingSubmissionTests' --logger 'trx;LogFileName=phase9-direct-lighting-debug.trx' --results-directory artifacts/TestResults
+$selection = Get-Content artifacts/phase9-acceptance-release-filter.txt -Raw
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-build --no-restore --filter $selection.Trim() --logger 'trx;LogFileName=phase9-acceptance-release.trx' --results-directory artifacts/TestResults
+```
+
+Release and the Debug follow-up reuse the final measurement builds; they do not bypass shader
+orchestration for stale binaries. Earlier compiler-packaging and generated-input receipts remain
+applicable to those unchanged owners, with their original counts and limits recorded in the sections
+above. The opt-in measurement test's ordinary-run skip policy is explicit below; it was enabled for
+both reported measurement runs. No required selected regression remains failing or skipped.
+
+### Matched renderer measurement method
+
+DirectLightingMeasurementTests is an opt-in reproducible experiment using the retained partial
+reference and current complete direct-lighting renderer in the same headless context. Both use the
+same production shaders, frozen shadow/point-light inputs, three RGBA16F outputs and equivalent
+clears. All finite output components are compared before and after measurement against the existing
+0.001 + 0.002 * abs(reference) ceiling. The shared fixture's optional neutral setup defaults to its
+original correctness-test behavior; measurement establishes neutral state outside each CPU batch.
+
+For each of 32x24 and 640x360, warm both paths with 16 draws, then run six ABBA blocks, each containing
+reference/current/current/reference batches of 16 invocations. This yields 12 batches per path and
+size. CPU batches exclude input setup, neutral baseline and explicit completion waits; separate GPU
+elapsed-query batches include the complete submitted work. These are standalone renderer invocations,
+each entering a boundary and pass, rather than repeated draws within an already active pass. Reported
+per-invocation values divide each batch by 16; medians and min/max describe those batch averages.
+
+The environment is Windows 10.0.26200 x64, .NET 10.0.12, Intel Core i9-12900K (24 logical processors),
+NVIDIA RTX 4090, driver 591.86 and a hidden OpenGL 4.3 context. Transition diagnostics are disabled;
+native debug output and the production GPU profiler are enabled in both runs. Synchronous debug
+output is enabled in Debug and disabled in Release.
+CPU timings include assertions, engine-service mocks, boundary handling and driver backpressure.
+GPU intervals can include CPU submission gaps, clears and restoration. Debug/Release are separate
+processes with uncontrolled JIT, driver caches, scheduling and GPU clocks, not paired compiler benchmarks.
+
+The fixture is skipped in ordinary unfiltered runs unless VGE_RUN_LIGHTING_MEASUREMENTS=1. Explicit
+measurement commands enable it and retain JSON, console and TRX receipts:
+
+```powershell
+$env:NUGET_PACKAGES = 'C:/Users/Sisco/.nuget/packages'
+$env:VGE_RUN_LIGHTING_MEASUREMENTS = '1'
+$env:VGE_LIGHTING_REPORT = "$PWD/artifacts/lighting-measurement-Debug.json"
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~DirectLightingMeasurementTests' --logger 'trx;LogFileName=lighting-measurement-Debug.trx' --results-directory artifacts/acceptance-measurements -v minimal *> artifacts/lighting-measurement-Debug.log
+```
+
+Repeat with Release in the configuration and output names. Normal production/shared-fixture shader
+orchestration remains enabled. JSON and console logs are `artifacts/lighting-measurement-{Debug,Release}.{json,log}`;
+TRX files are in `artifacts/acceptance-measurements/`. These measurements do not establish production
+frame cost, retained heap bytes or a GPU throughput improvement.
+
+### Measured results
+
+Both explicit measurement runs passed 1/1 with zero failures or skips. CPU and GPU columns below are
+microseconds per renderer invocation: median [minimum, maximum] of the 12 batch averages. GPU intervals
+are separately timed batches, not the GPU portion of the adjacent CPU samples.
+
+| Build / target | Reference CPU | Complete CPU | Reference GPU interval | Complete GPU interval |
+| --- | ---: | ---: | ---: | ---: |
+| Debug / 32x24 | 215.2 [190.3, 322.3] | 343.7 [305.7, 375.2] | 10.6 [6.7, 538.4] | 18.2 [6.9, 128.3] |
+| Debug / 640x360 | 202.7 [162.8, 306.0] | 327.6 [288.6, 430.0] | 48.6 [12.0, 603.6] | 45.9 [12.0, 364.9] |
+| Release / 32x24 | 187.8 [166.5, 318.2] | 334.8 [287.4, 962.7] | 57.0 [7.1, 559.6] | 57.3 [7.2, 667.4] |
+| Release / 640x360 | 165.8 [151.7, 248.6] | 309.0 [266.9, 464.2] | 53.1 [12.0, 256.8] | 32.5 [12.0, 250.9] |
+
+The complete path costs more CPU time in this fixture; these results establish no submission speedup.
+It establishes/restores a broader contract than the partial reference. The noisy GPU intervals do not
+support a GPU performance conclusion. Per-thread allocation volume per invocation was 47,888 reference
+versus 88,368 complete bytes in Debug, and 47,144 versus 88,360 in Release, at both sizes. These volumes
+include mock invocation/argument objects and are not production allocation or retained-cache sizes.
+
+Every 16-invocation batch recorded 0 reference versus 64 complete instrumented fixed-state calls,
+0 versus 16 BoundaryQueries, and zero additional graphics-interface reflection on both paths.
+Thus the complete path recorded four fixed-state commands and one counted boundary query per invocation.
+The four commands include required clear/draw-state transitions; the counter excludes both paths'
+native clear commands. Source accounting additionally identifies eight routing and two framebuffer
+binding GetInteger calls per complete pass, absent from the partial reference, and eight active-sampler
+IsTexture validations per invocation on both paths. Those are excluded from the bounded counters;
+bindings, helper operations, cold helper queries and error polls are not comprehensively counted.
+Pass-boundary capture remains an optimization opportunity requiring explicit routing/restoration
+ownership, not evidence that unchanged category setters fail to suppress redundant calls.
+
+First renderer realization with an already prepared shader measured 23.601 ms Debug / 18.330 ms Release
+for the first size in each fresh process, and 0.164 / 0.103 ms for the later size. These individual
+observations include first-use/JIT effects and exclude fixture setup and shader compilation; they are
+not stable per-pipeline averages. Six executable invalidation/repreparation samples per configuration
+measured 42.970–47.150 ms Debug and 43.383–69.473 ms Release. The application driver-binary cache was
+bypassed; driver-internal caches were uncontrolled. These samples include executable reprepare plus
+realization and exclude the invalidation call itself.
+
+Each target-size run retained the same realization through 1,000 repeated preparation calls with no
+additional measured draw-time interface reflection. Three invalidations replaced and explicitly retired
+the old realization; teardown retired the current one. DirectLightingRenderer retains one pipeline
+field rather than an accumulating interning table. This proves the exercised identity/lifetime behavior,
+not GC collectability, byte retention or bounded growth of unrelated caches. Global interning remains
+outside the implementation scope.
+
+### State-cost and storage interpretation
+
+StateTransitionDiagnosticsTests verifies that ordinary changed raster and pixel-layout setters do
+not poll errors with diagnostics disabled, and unchanged setters preserve pending native errors.
+EngineBoundaryRestorationTests verifies that an unchanged warm partial boundary emits zero counted
+state calls, queries or error checks. Changed checked restoration deliberately retains its safety
+checks: StateTransitionDiagnosticsTests requires one changed native command and two error polls,
+without nested transition diagnostics. Cold queries and transfer-buffer safety checks are separate
+required work. Suppressing redundant setters does not remove those ownership obligations.
+
+GraphicsCommandContextTests verifies repeated draws within an active pass add no counted fixed-state
+calls, boundary reads or interface reflection, while changed generated inputs still reach the draw.
+That is narrower than a complete one-draw renderer invocation. RenderPass setup captures framebuffer
+bindings and framebuffer-local routing, and cleanup restores them. The matched renderer measurements
+include that setup on each invocation; these raw queries are outside BoundaryQueries. Sampler native
+object validation, helper operations, error polling and timer instrumentation are also outside the
+bounded state counters. Neither a zero counter nor a smaller count establishes zero driver calls.
+
+Fresh x64 StateValueLayoutTests results agree with the earlier measured storage table: DepthState
+24 bytes, BlendState 32, RasterizerState 80, PrimitiveAssemblyState 12, DynamicDrawState 48,
+SamplingState 16, StencilState 80 and OutputState 8. PixelPackState is 20, PixelUnpackState 28,
+LumOnCameraState 56 and GlColorMask 1. Category knowledge enums use one byte except Rasterizer's
+four bytes. The recorded pre-packing baseline was DepthState 32, RasterizerState 88 and SamplingState
+24; the other category struct sizes are unchanged. These are Unsafe.SizeOf managed layouts, including
+RasterizerState's reference field, not native ABI sizes or evidence of CPU/GPU speedup.
+
+### User-run live acceptance
+
+Status: **pending**. On 2026-10-06 the user confirmed that the consumer-migration build has not yet
+been tested in-game and requested that live acceptance remain pending. No game was launched to
+obtain acceptance evidence. The following cases are ready for the user's installed build; record
+build identity, enabled options, driver, outcome and any capture/event IDs alongside each result.
+
+| Case | Actions and expected behavior | Evidence status |
+| --- | --- | --- |
+| Water and first-person handoff | With visible water, move the held item across the screen and change camera pitch; test each quality and receiver scale. Confirm no held-item silhouette enters the pre-overlay receiver, no state-induced cutoff returns and liquid depth/surface/volume agree. Existing screen-space missing-information limitations remain separate optical behavior. | Pending user run |
+| Composition and particles | Compare PBR with LumOn disabled/enabled, including particles in front of geometry and water. Confirm emission, SSAO, glow and ordinary postprocessing survive capture and engine handoff. | Pending user run |
+| Debug paths | Exercise G-buffer overlay, world-cell bounds, probe bounds/points/orbs, ray lines and atlas overlays; enable OIT and window overlays together. Disable them again and confirm ordinary rendering/state returns. | Pending user run |
+| Window and target lifecycle | Resize the window repeatedly, including odd dimensions, change applicable receiver settings, leave/reenter a world and revisit debug views. Confirm full target coverage, refreshed metadata and absence of stale images/native-name reuse errors. | Pending user run |
+| Shader lifecycle | Use the existing shader reload mechanism while migrated passes are visible; exercise a controlled unavailable/failed shader if practical, then recover. Confirm no partially published frame, stale realization or broken engine shader owner. | Pending user run |
+| RenderDoc handoff | Capture a representative frame and inspect actual liquid RGB8/R16F/RGBA8/RGBA16F routes, depth-only output discard, per-slot blends, viewports, shader/resources and the first engine draw after each VGE interruption. Record event IDs; compare equivalent camera/settings when judging performance. | Pending user capture |
+
+Headless surface tests draw to the actual small native surface and test publication revisions; they
+do not substitute for operating-system window resize. Synthetic GPU timings above describe the
+chosen workload on one driver, not production frame cost, visual quality or arbitrary-mod compatibility.
+
+### Completion review and remaining scope
+
+The second source/evidence review and independent audit-stage-completion pass on 2026-10-06 checked
+the plan's inherited proposal, design and shader-authoring contracts against the mapping, current owners,
+actual TRX results and measurement JSON. No required implementation or automated-evidence item remains
+unresolved. The audit distinguishes permitted pass-boundary reads from unchanged managed-draw checks,
+and the explicit pending live status from automated acceptance. Final whitespace validation passed.
+
+The implementation and automated acceptance are complete within the declared VGE-owned draw scope.
+User live rendering/RenderDoc evidence remains pending. Unknown engine/mod mutations, context
+replacement, global interning/eviction, asynchronous preparation and additional backends remain outside
+that scope. Measured complete-boundary CPU cost and uncounted pass/helper queries are documented
+optimization opportunities, not a claimed speedup. Existing project issues concerning normal maps,
+tessellation and screen-space water optics are not closed by this acceptance record.

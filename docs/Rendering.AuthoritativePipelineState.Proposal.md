@@ -12,6 +12,9 @@ The expected benefits are predictable draw behavior, earlier compatibility error
 
 ## Current implementation and gaps
 
+This section records the pre-migration baseline. Current implementation and evidence are mapped in
+[System acceptance](Rendering.AuthoritativePipelineState.md#system-acceptance).
+
 The name “GlPipelineState system” currently refers to several cooperating types rather than a complete graphics pipeline object:
 
 | Existing code | Current responsibility | Gap relative to this proposal |
