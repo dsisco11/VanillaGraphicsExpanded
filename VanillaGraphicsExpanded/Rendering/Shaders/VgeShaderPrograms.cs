@@ -20,6 +20,7 @@ internal static class VgeShaderPrograms
             new DebugView.DebugTextureShaderProgram(),
             new VgeWorldProbeOrbsPointsShaderProgram(),
             new PBRDirectLightingShaderProgram(),
+            new PBR.Atmosphere.AtmosphereSkyShaderProgram(),
             new PBR.Liquids.LiquidShaderProgram(),
             // Keep both liquid executables resident; changing a compile-time mode replaces an executable.
             new PBR.Liquids.LiquidShaderProgram { PassName = PBR.Liquids.LiquidShaderProgram.VolumePassName, CaptureMode = 3 },

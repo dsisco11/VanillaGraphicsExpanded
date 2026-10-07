@@ -24,7 +24,7 @@ public sealed class ShaderVariantSourceTests
         var resolver = new ShaderVariantResolver([program]);
         var active = resolver.Resolve(new ShaderSettings(program).With(enabled, true).With(mode, 3u).With(steps, 24))[0];
         string emitted = new ShaderVariantSource(".", "fixture").Emit("#version 330 core\nvoid main() {}", active);
-        Assert.Contains("#version 450 core", emitted);
+        Assert.Contains("#version 330 core", emitted);
         Assert.Contains("#define ENABLED 1", emitted);
         Assert.Contains("#define MODE 3u", emitted);
         Assert.Contains("#define FIXED_BOOL 1", emitted);
@@ -61,6 +61,20 @@ public sealed class ShaderVariantSourceTests
         Assert.True(source.IndexOf("#version", StringComparison.Ordinal) < source.IndexOf("#extension", StringComparison.Ordinal));
         Assert.True(source.IndexOf("#define FACTOR vgeSpecialization3", StringComparison.Ordinal) < source.IndexOf("#ifndef FACTOR", StringComparison.Ordinal));
         Assert.True(source.IndexOf("vgeSpecialization3 = 0.75", StringComparison.Ordinal) < source.IndexOf("float value", StringComparison.Ordinal));
+    }
+
+    /// <summary>Compilation keeps each stage's declared language baseline instead of silently upgrading it.</summary>
+    [Theory]
+    [InlineData(330)]
+    [InlineData(430)]
+    public void PreservesAuthoredLanguageVersion(int version)
+    {
+        var stage = new ShaderStageContract("baseline.vsh", "baseline.vsh", ShaderStageKind.Vertex, new());
+        var selected = new ShaderStageSelection(stage, new Dictionary<string, ShaderScalar>());
+        string directive = $"#version {version} core";
+        string emitted = new ShaderVariantSource(".", "fixture").Emit(directive + "\nvoid main() {}", selected);
+        Assert.StartsWith(directive, emitted);
+        Assert.DoesNotContain("#version 450", emitted);
     }
 
     /// <summary>Ambiguous or absent language versions fail before invoking the compiler.</summary>

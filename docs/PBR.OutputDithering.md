@@ -21,7 +21,7 @@ dither may be spatially visible under magnification; live invisibility is not
 claimed from numerical checks.
 
 Deferred geometry dithers once in `pbr_display_resolve` immediately before the
-display-referred primary write. Sky dithers at the end of its patched fragment main, after
+display-referred primary write. The owned sky dithers at the end of its legacy fragment route, after
 underwater/night-vision effects. Solar RGB dithers after underwater effects and
 before coverage blending. Forward surfaces dither their resolved display RGB
 before existing primary/OIT blending. Sky-depth pixels bypass deferred dithering

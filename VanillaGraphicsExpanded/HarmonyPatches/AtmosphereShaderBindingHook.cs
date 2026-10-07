@@ -9,12 +9,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 [HarmonyPatch(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Use))]
 internal static class AtmosphereShaderBindingHook
 {
-    private const int SkyTextureUnit = 13;
     private const int AerialRadianceTextureUnit = AtmosphereProgramBindings.AerialRadianceTextureUnit;
     private const int AerialAttenuationTextureUnit = AtmosphereProgramBindings.AerialAttenuationTextureUnit;
 
     #region Binding
-    /// <summary>Shares one snapshot across sky, terrain and forward draws; initialization completes before the first scene draw.</summary>
+    /// <summary>Shares one snapshot across terrain and forward draws; initialization completes before the first scene draw.</summary>
     [HarmonyPostfix]
     internal static void Postfix(ShaderProgramBase __instance)
     {
@@ -62,13 +61,6 @@ internal static class AtmosphereShaderBindingHook
         {
             __instance.Uniform("vge_atmosphereAerialParams", lighting.Altitude, lighting.HorizonElevation,
                 PbrDrawRouteHook.Api?.Render.ShaderUniforms.CameraUnderwater ?? 0f);
-        }
-        if ((bindings & AtmosphereBindings.SkyMapping) != 0)
-            __instance.Uniform("vge_atmosphereLutHorizon", lighting.HorizonElevation);
-        if ((bindings & AtmosphereBindings.Sky) != 0)
-        {
-            __instance.BindTexture2D("vge_atmosphereSky", AtmosphereModSystem.SkyTextureId, SkyTextureUnit);
-            Rendering.StateCache.Current.UnbindSampler(SkyTextureUnit);
         }
     }
     #endregion

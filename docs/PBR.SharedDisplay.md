@@ -19,13 +19,13 @@ exposure or calibrated HDR presentation.
 The table describes the retained legacy color route. Scene storage is now floating point,
 and selectable shader branches support scene-linear output and a single final conversion.
 Runtime activation is deferred to existing binding owners in the full-scene HDR task; the global
-shader-use hook and experimental coordinator are removed. The current sky retains display output. Its HDR patch
-adapters were removed; the planned VGE-owned sky replacement must supply compatible output.
+shader-use hook and experimental coordinator are removed. The owned `pbr_sky` program retains display
+output at runtime and supplies a selectable linear branch for the future common handoff.
 See [PBR.WaterRefraction.md](PBR.WaterRefraction.md#hdr-producer-and-consumer-contract).
 
 | Path | Input | Conversion point |
 | --- | --- | --- |
-| Atmospheric sky | Scene-linear sky LUT radiance | Patched `getSkyColorAt`, before dome blending |
+| Atmospheric sky | Scene-linear sky LUT radiance | Owned `pbr_sky`, before dome blending |
 | Sun | Atmosphere-attenuated disk radiance | Solar fragment path, before coverage blending |
 | Deferred terrain/entities | Composed lighting and aerial transport | `pbr_display_resolve`, before display-referred primary |
 | Forward/OIT/held surfaces | Forward lighting and aerial transport | `pbr_forward_surface.glsl`, before existing display-space blending |
@@ -35,10 +35,10 @@ already converted. Applying the operator again would darken them. Alpha and
 coverage do not pass through RGB transfer. Moon textures and stars remain
 engine-authored display colors, rather than being interpreted as physical radiance.
 
-The installed `sky.fsh` invokes `getSkyColorAt` before underwater/night-vision
-effects; `final.fsh` applies user gamma, brightness and contrast later. Those sky effects
-currently retain the engine's display-color behavior; their HDR ownership belongs to the
-planned VGE-owned sky shader. The solar override bypasses vanilla solar
+The owned `pbr_sky` resolves before underwater/night-vision effects on its legacy route;
+`final.fsh` applies user gamma, brightness and contrast later. The sky's linear branch keeps
+spatial effects before dome blending and decodes authored tint inputs. See
+[owned dome submission](PBR.Atmosphere.md#owned-dome-submission). The solar override bypasses vanilla solar
 tint/fog so atmospheric attenuation is not applied twice.
 
 ## HDR ordering and validation limits
@@ -51,7 +51,7 @@ Complete-frame verification of that route is still required. HDR monitor output 
 requires transfer-function and presentation support. The legacy sky bypass remains necessary
 because those pixels have already been converted on that route.
 
-No textures, buffers, CPU updates, draw calls or LUT work are added. The shoulder
+The display operator itself adds no textures, buffers, draw calls or LUT work. The shoulder
 replaces a vector denominator with two scalar maximum operations and a common
 denominator. No GPU timing improvement is claimed. Tests cover intensity ranges,
 RGB ratios, alpha, sky bypass and real sky/solar display helpers. In-game

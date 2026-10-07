@@ -74,7 +74,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             if (vertex != 0) GL.DeleteShader(vertex);
         }
     }
-    /// <summary>Compiles the actual sky dome and expanded engine sky lookup with atmosphere interception.</summary>
+    /// <summary>Keeps the engine sky available as a metadata-compatible fallback without atmospheric source interception.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -91,11 +91,9 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereReady"));
-            Assert.True(GL.GetUniformLocation(program, "vge_atmosphereSky") >= 0);
-            Assert.True(GL.GetUniformLocation(program, "vge_atmosphereLutHorizon") >= 0);
-            // The expanded engine lookup precedes our helper definitions. Linking this real
-            // ordering must retain the per-pixel Mie reconstruction and its sun input.
-            Assert.True(GL.GetUniformLocation(program, "vge_atmosphereSunDirection") >= 0);
+            Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereSky"));
+            Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereLutHorizon"));
+            Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereSunDirection"));
             Assert.Equal(6, GL.GetFragDataLocation(program, "vge_outPatchId"));
         }
         finally

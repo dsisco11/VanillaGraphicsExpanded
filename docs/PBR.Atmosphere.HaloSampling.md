@@ -5,8 +5,8 @@ The sky halo is baked into the 2D sky radiance lookup. The aerial-perspective
 shader. Both include the sun-facing Mie term with asymmetry 0.76.
 
 `AtmosphereTextureSet` uses RGBA16F and linear filtering for all three textures,
-with repeating azimuth and clamped elevation/distance. The engine binding hook
-unbinds sampler overrides. Sky generation and lookup agree on azimuth texel
+with repeating azimuth and clamped elevation/distance. The owned sky's default sampler contract
+unbinds sampler overrides; the aerial engine binding hook does likewise. Sky generation and lookup agree on azimuth texel
 centers and horizon-focused elevation mapping. The sky lookup uses normalized
 sky geometry direction, without an explicit camera-facing halo-size multiplier.
 This does not constitute live verification of engine camera transforms.
@@ -79,6 +79,9 @@ program with GL program zero and the state cache before compilation. No game was
 launched, and production GPU cost has not been measured for this change.
 
 ## Installed sky declaration-order correction
+
+This is historical evidence for the superseded engine sky patch. The current owned SPIR-V program
+and replacement validation are described in [owned dome submission](PBR.Atmosphere.md#owned-dome-submission).
 
 The initial Mie patch omitted the forward declaration of `atmMieFactor`. Engine
 include expansion places `getSkyColorAt` before the imported helper definitions,

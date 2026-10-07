@@ -15,6 +15,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     private AtmosphereBackend? computation;
     private AtmosphereSeasonInputs seasonInputs = new();
     private AtmosphereTextureSet? textures, stagingTextures;
+    private AtmosphereAmbientPublication? ambientPublication;
+    private bool updateFailureReported;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
     internal static int AerialRadianceTextureId { get; private set; }
@@ -34,6 +36,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     public override void StartClientSide(ICoreClientAPI api)
     {
         this.api = api;
+        ambientPublication = new(api);
         computation = new(api);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_atmosphere");
         api.Event.LeaveWorld += Reset;
@@ -43,6 +46,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>Releases the last world's snapshot and owned GPU texture.</summary>
     private void Reset()
     {
+        updateFailureReported = false;
+        ambientPublication?.Dispose();
         AerialRadianceTexture = null; AerialAttenuationTexture = null;
         Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
         seasonInputs = new();
@@ -74,19 +79,44 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>One block is one metre; cloud coverage is mapped to bounded aerosol turbidity, not used as an SI density.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (api?.World?.Player?.Entity is not { } player || api.World.Calendar is not { } calendar) return;
-        var direction = calendar.SunPositionNormalized;
-        var settings = ConfigModSystem.Config.Atmosphere;
-        var seasonal = seasonInputs.Capture(api, player.Pos.AsBlockPos);
-        // Supply valid resources without integrating on the render thread before the first result arrives.
-        if (Lighting is null)
-            Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
-                ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
-        var ready = computation!.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
-            (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
-            width: settings.LookupWidth, height: settings.LookupHeight, quality: (int)settings.SkyLutQuality,
-            groundAlbedo: seasonal.GroundAlbedo);
-        if (ready is not null) Publish(ready);
+        if (stage != EnumRenderStage.Before) return;
+        if (api?.World?.Player?.Entity is not { } player || api.World.Calendar is not { } calendar)
+        {
+            ambientPublication?.Dispose();
+            return;
+        }
+        try
+        {
+            // Supply valid resources without integrating on the render thread before the first result arrives.
+            if (Lighting is null)
+                Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
+                    ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
+            var direction = calendar.SunPositionNormalized;
+            var settings = ConfigModSystem.Config.Atmosphere;
+            var seasonal = seasonInputs.Capture(api, player.Pos.AsBlockPos);
+            var ready = computation!.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
+                (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
+                width: settings.LookupWidth, height: settings.LookupHeight, quality: (int)settings.SkyLutQuality,
+                groundAlbedo: seasonal.GroundAlbedo);
+            if (ready is not null) Publish(ready);
+            updateFailureReported = false;
+        }
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
+        {
+            // Upload publication is atomic. Continue serving the last complete snapshot and
+            // advancing shared frame inputs even if the next atmospheric update fails.
+            if (!updateFailureReported)
+                api.Logger.Error("[VGE] Atmosphere update failed; retaining the last published lighting. {0}", error);
+            updateFailureReported = true;
+        }
+        if (AtmosphereSkyRenderer.IsEnabled)
+        {
+            // Environmental and frame publication continue even when drawing resources are unavailable.
+            // The neutral startup snapshot is a valid publication until physical transport completes.
+            if (Lighting is { } lighting) ambientPublication?.Publish(lighting);
+            EngineSkyFrameInputs.Publish(api);
+        }
+        else ambientPublication?.Dispose();
     }
 
     /// <summary>Uploads a completed lookup before swapping dimensions and lighting visible to consumers.</summary>

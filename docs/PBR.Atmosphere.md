@@ -1,5 +1,9 @@
 # Physical sky and shared atmospheric lighting
 
+The separation of atmospheric publication from the owned sky renderer is specified in
+[Atmospheric lighting publication and sky ownership](PBR.Atmosphere.Publication.md).
+Atmosphere publication owns environmental compatibility values; the registered sky renderer owns drawing.
+
 ## Model and units
 
 The halo sampling update separates unweighted Mie transport from the smooth
@@ -265,14 +269,96 @@ inputs and have no atmosphere-readiness branches. CPU rebuild latency depends on
 and computation; GPU source-table work is bounded across render updates. Both backends use
 low-resolution interpolation rather than a full-resolution fragment ray march.
 
-The installed sky shader samples this table and uses the shared unit-exposure, RGB-ratio-preserving shoulder/sRGB
-display conversion once. The engine's night/fog alpha calculation is retained, as are subsequent
-underwater/night-vision effects. Stars remain the separate engine night-sky draw before the dome;
+The owned `pbr_sky` shader samples this table and uses the shared unit-exposure, RGB-ratio-preserving shoulder/sRGB
+display conversion on the retained legacy route. Its selectable scene-linear route preserves radiance
+above one and omits display conversion and dithering. Runtime continues to select legacy output until
+the common scene-HDR handoff is ready. The engine's night/fog alpha calculation is retained, as are subsequent
+underwater/night-vision effects. Stars remain the separate engine night-sky draw before the atmosphere;
 the sun reuses the engine quad with atmospheric disk shading, while the moon retains its textured
 draw afterward. See [solar disk integration](PBR.Atmosphere.SolarDisk.md). Moonlight is not a second atmospheric light
 source in this implementation. At night only residual solar twilight is integrated; no artificial
 ambient floor is added. Lunar texture photometry and adaptive night exposure are not calibrated
 by this model.
+
+### Owned fullscreen submission
+
+Fullscreen validation: the SPIR-V-enabled Debug build passed with 418 production and 485 test
+shader variants. The focused atmosphere/frame-input/procedural-geometry suite passed 203 tests,
+with five explicit opt-in measurement skips and no failures; all 76 shader-compiler tests also
+passed (`artifacts/PbrColor/sky-fullscreen-compiler.trx`). Coverage includes all-pixel
+reconstruction for rotated, asymmetric narrow/wide perspective and orthographic views, camera
+translation independence, virtual-depth flat fog, and reset/disposal without engine mesh calls.
+Receipts: `artifacts/PbrColor/sky-fullscreen-build.log` and `sky-fullscreen.trx`.
+No game was launched; visual acceptance and GPU timings remain unverified.
+
+Historical persistent-ownership validation before fullscreen conversion passed: 265 atmosphere/frame-input/installed-surface regression tests,
+five opt-in measurement skips, and no GPU-availability skips. The Debug build passed with no
+new warnings in the changed code. See [publication validation](PBR.Atmosphere.Publication.md)
+for coverage, receipts and visual-acceptance limits. The historical receipts below describe the
+earlier draw-hook implementation rather than the current ownership boundary.
+
+`AtmosphereSkyDrawHook` suppresses the complete engine frame callback throughout the registered
+VGE sky renderer lifetime, independently of drawing-resource readiness. `AtmosphereSkyRenderer` is registered at Opaque order 0.2,
+uses a VGE-owned empty VAO and one procedural fullscreen triangle on the existing primary
+framebuffer. There are no vertex/index streams or calls to the engine dome generator. The vertex
+shader generates clip positions from `gl_VertexID`; the fragment shader unprojects two finite
+clip depths through the inverse camera-relative view-projection matrix to reconstruct each
+world-space viewing ray. Translation is removed from a copied view matrix without changing
+the engine stack. The ray samples the existing atmospheric LUT; scattering is not reintegrated
+per screen pixel. The forward transform is retained for compatibility fog depth.
+The normal complete graphics boundary restores draw state; no engine shader suspension is needed.
+
+At Before order -0.5, completed atmospheric lighting supplies a VGE-owned replacement for the
+ordered sunglow modifier before the engine ambient blend at order 0. Other modifiers retain their
+order and values. Physical inputs remain scene-linear; legacy ambient/fog compatibility colors
+use the explicit mapping in [the publication contract](PBR.Atmosphere.Publication.md).
+Frame noise and legacy lookup handles are maintained by `EngineSkyFrameInputs`, not the sky draw.
+Legacy cloud lookup content and calendar sunset variation remain compatibility dependencies.
+
+Unavailable drawing resources skip the owned draw without restoring vanilla rendering. Atmospheric
+publication and frame inputs continue independently, including the neutral startup snapshot.
+Atmospheric update failures retain the last complete publication. Drawing exceptions are reported
+and disable owned drawing until reload/reset. Reload, resize and world retirement release the empty VAO
+and pipeline resources without releasing sky replacement ownership. Only renderer disposal releases
+that lifecycle ownership. The per-frame ownership flag and readiness-based vanilla fallback are removed.
+
+Twilight opacity combines atmosphere-derived compatibility daylight with horizon and flat-fog opacity; RGB lookup stays
+independent of this coverage. The owned shader does not add the old lookup's random noise to alpha.
+The three liquid-depth samples retain shoreline masking and the engine camera-underwater rule.
+Underwater tint, night vision and position-dependent psychedelic effects use a virtual point 250 units along the viewing ray. This preserves their spatial scale,
+while removing the small radius variations of the old faceted mesh. Flat-fog depth is projected
+from that virtual point rather than the fullscreen triangle depth. On the linear branch authored underwater/night colors are decoded before addition or
+mixing; psychedelic modulation operates on the unexposed RGB. These effects are artistic engine
+conventions, not calibrated atmospheric radiance. Exposure, tone mapping, output transfer and SDR
+dithering belong at final display on an activated HDR scene; legacy sky applies its display
+conversion before spatial effects and dithers afterward. Alpha is never transferred or dithered.
+
+Sky declares only color and glow outputs and routes only primary attachments 0 and 1.
+The other attachments remain unchanged during sky drawing; framebuffer clearing establishes
+background metadata validity. The pass restores the previous draw-buffer routing afterward. Color and
+glow retain the engine's source-alpha/one-minus-source-alpha blend, including alpha; glow RGB is zero. Culling and depth testing/writes are disabled for this background pass.
+Two-output validation: the SPIR-V-enabled build and all 28 focused sky tests passed with no
+skips or failures (`artifacts/PbrColor/sky-two-outputs.trx`). Tests seed nonzero metadata and
+verify preservation and draw-buffer restoration with SSAO enabled and disabled.
+Solar glow remains owned by the separate sun draw. Complete-scene HDR activation, user-run visual
+acceptance and GPU cost measurements remain separate from shader and headless draw validation.
+
+Historical draw-hook validation (before independent renderer ownership): the Debug build passed and the combined atmosphere/installed-surface suite
+passed 263 tests, with five opt-in measurement tests skipped. Receipts:
+`artifacts/PbrColor/sky-owned-build.log`, `sky-owned-debug-tests.log` and `sky-owned-debug.trx`.
+The suite includes 19 owned-program cases for color transfer, HDR retention, metadata, LUT
+rows/seams and directional Mie, twilight/fog alpha, underwater/night/perception effects and
+engine input packing. Installed IL preservation and Harmony installation are checked separately
+from actual runtime adapter submissions. Both SSAO configurations execute the production draw
+with a vanilla sky program already active, preserve its explicit uniform and texture state, and
+recover across resize/reload/world retirement. An injected exception after owned shader activation
+verifies exceptional restoration without an extra draw. Borrowed mesh tests cover retirement,
+replacement and malformed-layout rejection. Independent source review findings were corrected
+before these checks. No game was launched; daylight/twilight/star visibility, shoreline transitions
+and perception appearance still require user observation.
+After test-analyzer cleanup, the final Debug build and 35/35 focused sky checks passed with no
+skips (`artifacts/PbrColor/sky-owned-final-build.log`, `sky-owned-final-focused.log` and matching
+TRX). These checks overlap the combined suite and are not an additional unique-test total.
 
 ## Shared lighting contract
 

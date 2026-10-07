@@ -29,8 +29,14 @@ internal sealed class ShaderVariantSource
         var version = Query.Syntax<GlDirectiveNode>().Named("version");
         if (tree.Select(version).Count() != 1)
             throw new InvalidOperationException($"Stage '{selection.Stage.Identity}' must contain exactly one #version directive.");
-        tree.CreateEditor().Replace(version, "#version 450 core\n").Commit();
-        var header = new StringBuilder("\n#extension GL_EXT_control_flow_attributes : require\n");
+        // Preserve the authored language baseline so compilation catches unsupported features.
+        // Compute and other advanced stages declare their higher requirements in their source.
+        // The generated SPIR-V interface uses explicit resource bindings and varying/uniform
+        // locations. Enable those contracts without raising the authored GLSL language version.
+        var header = new StringBuilder("\n#extension GL_ARB_shading_language_420pack : require\n"
+            + "#extension GL_ARB_separate_shader_objects : require\n"
+            + "#extension GL_ARB_explicit_uniform_location : require\n"
+            + "#extension GL_EXT_control_flow_attributes : require\n");
         foreach (var pair in selection.Stage.FixedDefines.OrderBy(p => p.Key, StringComparer.Ordinal))
             header.AppendLine($"#define {pair.Key} {pair.Value.MacroLiteral}");
         foreach (var pair in selection.Structural)

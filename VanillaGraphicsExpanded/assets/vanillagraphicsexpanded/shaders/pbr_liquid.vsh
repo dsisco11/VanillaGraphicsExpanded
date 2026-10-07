@@ -1,4 +1,6 @@
-#version 450 core
+#version 330 core
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_shading_language_420pack : require
 @import "./includes/liquids/params.glsl"
 layout(location = 0) out vec2 uv;
 layout(location = 1) out vec2 uvSize;

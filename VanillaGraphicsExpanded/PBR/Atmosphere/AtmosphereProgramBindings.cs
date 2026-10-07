@@ -12,8 +12,6 @@ internal enum AtmosphereBindings
     None = 0,
     Environment = 1,
     Solar = 2,
-    Sky = 16,
-    SkyMapping = 32,
     SunDisk = 64,
     SunDirection = 128,
     AerialParams = 256,
@@ -36,7 +34,6 @@ internal static class AtmosphereProgramBindings
     /// <summary>Allows only shader families whose sources receive atmospheric patches.</summary>
     internal static AtmosphereBindings Expected(string? passName) => passName switch
     {
-        "sky" => AtmosphereBindings.Sky | AtmosphereBindings.SkyMapping | AtmosphereBindings.SunDirection,
         "chunkopaque" or "chunktopsoil" => AtmosphereBindings.Environment,
         "standard" => AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial
             | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk,
@@ -55,8 +52,6 @@ internal static class AtmosphereProgramBindings
         if ((expected & AtmosphereBindings.AerialParams) != 0 && hasUniform("vge_atmosphereAerialParams")) active |= AtmosphereBindings.AerialParams;
         if ((expected & AtmosphereBindings.AerialRadiance) != 0 && hasUniform("vge_atmosphereAerialRadiance")) active |= AtmosphereBindings.AerialRadiance;
         if ((expected & AtmosphereBindings.AerialAttenuation) != 0 && hasUniform("vge_atmosphereAerialAttenuation")) active |= AtmosphereBindings.AerialAttenuation;
-        if ((expected & AtmosphereBindings.Sky) != 0 && hasUniform("vge_atmosphereSky")) active |= AtmosphereBindings.Sky;
-        if ((expected & AtmosphereBindings.SkyMapping) != 0 && hasUniform("vge_atmosphereLutHorizon")) active |= AtmosphereBindings.SkyMapping;
         if ((expected & AtmosphereBindings.SunDirection) != 0 && hasUniform("vge_atmosphereSunDirection")) active |= AtmosphereBindings.SunDirection;
         if ((expected & AtmosphereBindings.SunDisk) != 0 && hasUniform("vge_atmosphereSunDraw")
             && hasUniform("vge_atmosphereSun") && hasUniform("vge_atmosphereDisk")) active |= AtmosphereBindings.SunDisk;

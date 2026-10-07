@@ -244,11 +244,6 @@ flat in uint vge_faceId;
                 PbrFinalDisplayPatches.Preprocess(tree);
                 return true;
             }
-            if (sourceName == "sky.fsh")
-            {
-                Atmosphere.AtmosphereSkyPatches.Preprocess(tree);
-                return true;
-            }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
             {
                 var editor = tree.CreateEditor();
@@ -433,7 +428,6 @@ flat in uint vge_faceId;
                 case "sky.fsh":
                     {
                         var editor = tree.CreateEditor();
-                        Atmosphere.AtmosphereSkyPatches.Apply(editor);
                         InjectGBufferInputs(editor);
                         InjectSkyGBufferOutputs(editor);
                         editor.Commit();

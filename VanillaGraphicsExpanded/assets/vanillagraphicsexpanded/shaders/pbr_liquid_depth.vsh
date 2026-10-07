@@ -1,4 +1,5 @@
-#version 450 core
+#version 330 core
+#extension GL_ARB_shading_language_420pack : require
 layout(location = 0) in vec3 xyz;
 layout(location = 3) in int renderFlags;
 layout(location = 6) in int waterFlagsIn;

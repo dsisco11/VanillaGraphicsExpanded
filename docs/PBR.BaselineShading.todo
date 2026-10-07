@@ -104,6 +104,20 @@ Tasks
       Source and implementation review completed; no game launch or live appearance claim.
 
   ☐ Fully replace the base-game sky shader with a VGE-owned shader.
+    - Implemented ownership: atmosphere publication supplies physical-model-derived compatibility
+      lighting before ambient blending; an independently registered sky IRenderer consumes it.
+      A lifecycle prefix suppresses the complete engine sky callback regardless of draw readiness.
+      Atmospheric/frame publication is independent of drawing; no per-frame vanilla fallback remains. Shared frame/resource
+      inputs have a separate adapter; legacy cloud lookup content remains a compatibility dependency.
+      Contract and limits: docs/PBR.Atmosphere.Publication.md.
+    - Owned pbr_sky SPIR-V and typed inputs reuse the published atmosphere and primary framebuffer;
+      the renderer owns a procedural fullscreen triangle and reconstructs camera-relative rays per pixel. Runtime retains legacy output.
+      The earlier draw-hook/shader-handoff validation is historical and does not validate the revised
+      ownership. User-run visual acceptance remains required before completion.
+      Evidence: docs/PBR.Atmosphere.md / Owned fullscreen submission.
+    - Persistent ownership validation: Debug build passed; 265 regression tests passed with five
+      opt-in measurement skips, no GPU-availability skips. See docs/PBR.Atmosphere.Publication.md.
+      Twilight/night compatibility mapping and legacy cloud appearance still require user review.
     - Reuse the existing atmospheric LUT generation, publication and shared lighting inputs;
       replace the engine sky program rather than extending its GLSL with further HDR patches.
     - Use the established VGE shader asset, typed binding, registration and SPIR-V build paths.

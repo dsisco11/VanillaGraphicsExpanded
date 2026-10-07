@@ -14,16 +14,16 @@ let `t = 2*v - 1`. Elevation is `h - (pi/2 + h)*t*t` below the middle coordinate
 concentrates rows around the depressed visible limb, rather than incorrectly keeping them at zero.
 
 Row centres use `v = y/(height-1)`, making the first and last rows exact poles. Azimuth retains
-`(x+0.5)/width * 2*pi`. The patched engine sky shader applies the inverse elevation mapping and
+`(x+0.5)/width * 2*pi`. The owned sky shader applies the inverse elevation mapping and
 converts it to texture coordinates `(v*(height-1)+0.5)/height`; this accounts for the endpoint rows
 and GL's half-texel convention. Longitude repeats across the azimuth seam and latitude clamps at
 the poles. The existing azimuth fallback avoids `atan(0,0)` at a pole. The 1x1 startup placeholder
 still samples its sole row.
 
 `AtmosphereSkyMapping` supplies CPU coordinates and `atmosphere_sky_mapping.glsl` supplies the
-matching GPU generation and engine lookup functions. GPU parameters receive the CPU-computed `h`
+matching GPU generation and sky lookup functions. GPU parameters receive the CPU-computed `h`
 for the admitted generation. `AtmosphereLighting.HorizonElevation` travels with the completed LUT;
-the explicit sky-only `vge_atmosphereLutHorizon` binding uses that value, never a newer player altitude.
+the owned `SkyInputs.skySunHorizon.w` binding uses that value, never a newer player altitude.
 An in-flight altitude change therefore cannot reinterpret the previously published texture.
 
 ## Shared illumination
@@ -46,6 +46,9 @@ preserve endpoint behavior, but this is not a universal full-sphere error reduct
 in the physical model's ray-integration accuracy.
 
 ## Validation
+
+The receipts below describe the earlier engine-patched lookup. Current owned-program lookup and
+draw validation is recorded in [owned dome submission](PBR.Atmosphere.md#owned-dome-submission).
 
 Release validation passed 164 distinct tests; five optional measurement tests were skipped.
 Receipts: `artifacts/AtmosphereHorizon/horizon.trx` (162 passed) and

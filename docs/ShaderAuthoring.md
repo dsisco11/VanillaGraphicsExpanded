@@ -1,5 +1,17 @@
 # Declaring owned shaders
 
+Graphics shaders use `#version 330 core` as their source-language baseline. The build preserves
+each authored version instead of silently promoting it to 450. Stages that need a higher language
+version, such as the existing 430 compute shaders, declare that requirement explicitly.
+
+The SPIR-V build enables `GL_ARB_shading_language_420pack`, `GL_ARB_separate_shader_objects`,
+and `GL_ARB_explicit_uniform_location` for the explicit bindings and locations emitted by the
+shared interface contract, plus `GL_EXT_control_flow_attributes` for loop/branch attributes.
+Other newer language features require a source-declared extension or an explicitly higher version.
+This is a GLSL source baseline with extensions, not a claim of compatibility with an unextended
+OpenGL 3.3 runtime: owned programs still use the existing SPIR-V loading path and resource capabilities.
+The compiler's `opengl4.5` target environment is separate from the source `#version` and remains unchanged.
+
 Shader compilation uses performance optimization (`-O`) in both Debug and Release builds.
 Debug requests debug information (`-g`); Release omits it. The build receipt includes both
 settings, so compiler-policy changes invalidate previous outputs.
