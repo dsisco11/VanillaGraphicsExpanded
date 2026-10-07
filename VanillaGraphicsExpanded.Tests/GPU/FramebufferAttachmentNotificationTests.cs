@@ -16,7 +16,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     {
         EnsureContextValid();
         using var bindings = StateCache.Current.BindFramebufferScope();
-        using var fixedState = StateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedState = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var depth = GpuRenderbuffer.Create(RenderbufferStorage.DepthComponent24, 2, 2);
         using var framebuffer = GpuFramebuffer.CreateDepthOnly(depth)!;
         framebuffer.Bind();

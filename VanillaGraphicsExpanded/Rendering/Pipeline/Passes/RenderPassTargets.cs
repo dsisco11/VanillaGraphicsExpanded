@@ -20,7 +20,26 @@ internal sealed class RenderPassTargets : IDisposable
     {
         target = description.Target;
         target.ValidateAttachments();
-        if (target.FboId == 0) throw new NotSupportedException("Strict passes require published framebuffer image metadata.");
+        if (target.FboId == 0)
+        {
+            var surface = target.Surface ?? throw new NotSupportedException("Strict passes require published window-surface metadata.");
+            if (description.Colors.Count != 1 || description.Colors[0].SurfaceBuffer != surface.Buffer)
+                throw new ArgumentException("Window passes require their published front/back color route.");
+            description.Colors[0].Clear?.Validate(surface.Color);
+            Signature = new([new(surface.Color)], surface.DepthStencil, surface.Samples, surface.HasDepth, surface.HasStencil);
+            Area = description.Area ?? new(0, 0, target.Width, target.Height);
+            if (Area.X < 0 || Area.Y < 0 || Area.Width <= 0 || Area.Height <= 0
+                || (long)Area.X + Area.Width > target.Width || (long)Area.Y + Area.Height > target.Height)
+                throw new ArgumentOutOfRangeException(nameof(description));
+            if ((!surface.HasDepth && (description.DepthStencil.DepthLoad != AttachmentLoad.Preserve || description.DepthStencil.DepthStore != AttachmentStore.Preserve))
+                || (!surface.HasStencil && (description.DepthStencil.StencilLoad != AttachmentLoad.Preserve || description.DepthStencil.StencilStore != AttachmentStore.Preserve)))
+                throw new ArgumentException("Window attachment intentions require a published aspect.");
+            revision = target.AttachmentRevision;
+            Borrow(target);
+            return;
+        }
+        foreach (var color in description.Colors)
+            if (color.SurfaceBuffer is not null) throw new ArgumentException("Image framebuffers cannot use window buffer routes.");
         if (!target.HasRenderPassMetadata)
             throw new InvalidOperationException("Publish complete wrapped framebuffer metadata before beginning a pass.");
         int width = 0, height = 0, samples = -1, count = 0;

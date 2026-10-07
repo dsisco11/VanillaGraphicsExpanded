@@ -47,7 +47,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         Assert.Equal(read.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
         int[] viewport = new int[4];
         GL.GetInteger(GetPName.Viewport, viewport);
-        Assert.Equal(new[] {1, 2, 7, 9}, viewport);
+        Assert.Equal(new[] { 1, 2, 7, 9 }, viewport);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         GpuFramebuffer.Unbind();
     }
@@ -57,7 +57,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void ExistingBindAndClearMethodsClearAllFloatOutputs()
     {
         EnsureContextValid();
-        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
+        using var state = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var target = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f, PixelInternalFormat.R32f);
         target[0].UploadDataImmediate(Enumerable.Repeat(2f, 16).ToArray());
         target[1].UploadDataImmediate(Enumerable.Repeat(3f, 4).ToArray());
@@ -203,7 +203,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var scope = StateCache.Current.BindFramebufferScope();
-        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
+        using var state = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var source = GpuFramebuffer.CreateDepthOnly(sourceDepth)!;
@@ -227,7 +227,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var scope = StateCache.Current.BindFramebufferScope();
-        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
+        using var state = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var sourceColor = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
@@ -262,7 +262,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var scope = StateCache.Current.BindFramebufferScope();
-        using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
+        using var state = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var color = GpuRenderbuffer.Create(RenderbufferStorage.Rgba32f, 2, 2);
         using var source = GpuFramebuffer.CreateEmpty("Tests.ColorRenderbuffer");
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);

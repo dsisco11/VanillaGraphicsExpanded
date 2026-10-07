@@ -63,7 +63,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
 
 
         var state = StateCache.Current;
-        using var fixedFunction = state.CaptureLegacyFixedFunctionState();
+        using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         using var vao = GpuVao.Create("Test.LiquidTriangulation.Vao");
         using var vertices = GpuVbo.Create(debugName: "Test.LiquidTriangulation.Vertices");
@@ -112,15 +112,15 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         float largestDifference = 0;
         int compared = 0;
         for (int y = size / 4; y < 3 * size / 4; y++)
-        for (int x = size / 4; x < 3 * size / 4; x++)
-        {
-            int pixel = (y * size + x) * 4;
-            if (diagonalA[pixel + 3] <= 0 || diagonalB[pixel + 3] <= 0) continue;
-            float a = diagonalA[pixel] / diagonalA[pixel + 3];
-            float b = diagonalB[pixel] / diagonalB[pixel + 3];
-            largestDifference = MathF.Max(largestDifference, MathF.Abs(a - b));
-            compared++;
-        }
+            for (int x = size / 4; x < 3 * size / 4; x++)
+            {
+                int pixel = (y * size + x) * 4;
+                if (diagonalA[pixel + 3] <= 0 || diagonalB[pixel + 3] <= 0) continue;
+                float a = diagonalA[pixel] / diagonalA[pixel + 3];
+                float b = diagonalB[pixel] / diagonalB[pixel + 3];
+                largestDifference = MathF.Max(largestDifference, MathF.Abs(a - b));
+                compared++;
+            }
         Assert.True(compared > 100, $"Expected a shared water interior, compared {compared} pixels.");
         TestContext.Current.TestOutputHelper!.WriteLine($"Largest interior highlight difference: {largestDifference}");
         // The two diagonals form different surfaces when the quad is nonplanar.

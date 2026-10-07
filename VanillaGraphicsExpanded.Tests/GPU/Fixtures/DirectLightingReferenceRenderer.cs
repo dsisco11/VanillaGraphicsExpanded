@@ -84,7 +84,7 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         var shader = PrepareBoundaryProgram();
         if (shader is null) return false;
         bool rendered = false;
-        if (!FullscreenBoundary.TryRun("PBR.DirectLighting", [LightingPipeline], [shader],
+        if (!ReferenceFullscreenBoundary.TryRun("PBR.DirectLighting", [LightingPipeline], [shader],
             scope => rendered = RenderLightingWithinBoundary(scope, isolated)))
             throw new InvalidOperationException("Direct lighting engine boundary unavailable.");
         return rendered;

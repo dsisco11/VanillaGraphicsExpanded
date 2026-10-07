@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Collections.Generic;
@@ -61,7 +62,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     private readonly LumOnUniformBuffers uniformBuffers = new();
 
     // Fullscreen quad mesh
-    private MeshRef? quadMeshRef;
+    private EngineFullscreenGeometry? geometry;
 
     // Matrix buffers
     private readonly float[] invProjectionMatrix = new float[16];
@@ -136,7 +137,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Create fullscreen quad mesh
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
-        quadMeshRef = capi.Render.UploadMesh(quadMesh);
+        geometry = EngineFullscreenGeometry.Upload(capi.Render, quadMesh);
 
         PreloadInvariantPrograms();
 
@@ -211,30 +212,25 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     #region Rendering
 
+    /// <summary>Runs the lighting frame with restored target bindings and invalidates history after a failed submission.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
+        using var framebuffer = StateCache.Current.BindFramebufferScope();
         primaryBuffers.WorldProbeSuppressedLighting = null;
         primaryBuffers.HasPublishedIndirect = false;
         if (!config.LumOn.Enabled) return;
         if (!WorldProbeComparisonRequested)
             ReleaseWorldProbeComparison();
         pmjJitter.EnsureCreated();
-        TryRenderFrame(deltaTime, stage);
+        try { TryRenderFrame(deltaTime, stage); }
+        catch { isFirstFrame = true; throw; }
 
-        // Ensure VS's primary framebuffer is bound for subsequent passes.
-        // LumOn is intended to overwrite the primary color attachment so the base game's post-processing
-        // consumes the updated scene.
-        var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        if (primaryFb != null)
-        {
-            StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, primaryFb.FboId);
-        }
-        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = capi.Render.FrameWidth, Height = capi.Render.FrameHeight });
     }
 
+    /// <summary>Stages lighting passes and commits temporal history only after all required submissions succeed.</summary>
     private bool TryRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (quadMeshRef is null || !config.LumOn.Enabled)
+        if (geometry is null || !config.LumOn.Enabled)
             return false;
 
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
@@ -388,6 +384,12 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         primaryBuffers.HasPublishedIndirect = lightingPassesComplete && primaryBuffers.IndirectFullTex?.IsValid == true;
+        if (!lightingPassesComplete)
+        {
+            // An unavailable boundary must not promote partially rendered images into temporal history.
+            isFirstFrame = true;
+            return false;
+        }
         RenderWorldProbeComparison(primaryFb);
 
         // Pass 6 (combine) is handled by PBRCompositeRenderer.
@@ -571,35 +573,29 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        bufferManager.VelocityFbo.BindWithViewport();
-        bufferManager.VelocityFbo.Clear();
-
-        capi.Render.GlToggleBlend(false);
-
-
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         shader.PatchIdentity = gBufferManager!.PatchIdTextureId;
 
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, bufferManager.VelocityFbo, true)) lightingPassesComplete = false;
+
     }
 
     /// <summary>
     /// Pass 1: Build probe anchors from G-buffer depth and normals.
     /// Output: ProbeAnchor textures with world-space positions and normals.
-    /// 
+    ///
     /// Output is in WORLD-SPACE (matching UE5 Lumen's design) for temporal stability:
     /// - World-space directions remain valid across camera rotations
     /// - Radiance stored per world-space direction can be directly blended
-    /// 
+    ///
     /// Implements validation from LumOn.02-Probe-Grid.md:
     /// - Sky rejection (depth >= 0.9999)
     /// - Edge detection via depth discontinuity (partial validity)
@@ -623,10 +619,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        fbo.BindWithViewport();
-        fbo.Clear();
-
-        capi.Render.GlToggleBlend(false);
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
@@ -639,15 +631,15 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Edge detection threshold for depth discontinuity
         shader.DepthDiscontinuityThreshold = config.LumOn.DepthDiscontinuityThreshold;
 
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
 
         // Render
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, fbo, true)) lightingPassesComplete = false;
+
     }
 
     /// <summary>
@@ -677,9 +669,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
 
         // Render to probe-resolution mask.
-        fbo.BindWithViewport();
-        fbo.Clear();
-        capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         shader.ConfigureOptions(() =>
@@ -702,15 +691,15 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex;
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex;
 
-        if (!shader.TryUse()) { lightingPassesComplete = false; return; }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!shader.EnsureReady()) { lightingPassesComplete = false; return; }
+        if (!SubmitFullscreen(shader, fbo, true)) lightingPassesComplete = false;
+
     }
 
     /// <summary>
-     /// Pass 2 (Screen-Probe Atlas): Ray trace from each probe and store radiance + hit distance.
-     /// Uses temporal distribution: only traces a subset of texels each frame.
-     /// Output: Probe atlas texture with radiance and hit distance.
+    /// Pass 2 (Screen-Probe Atlas): Ray trace from each probe and store radiance + hit distance.
+    /// Uses temporal distribution: only traces a subset of texels each frame.
+    /// Output: Probe atlas texture with radiance and hit distance.
     /// </summary>
     private void RenderProbeAtlasTracePass(FrameBufferRef primaryFb)
     {
@@ -731,11 +720,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Render at atlas resolution (probeCountX * 8, probeCountY * 8)
-        fbo.BindWithViewport();
+
         // Don't clear - we want to preserve non-traced texels from history
         // The shader handles history read for non-traced texels
-
-        capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         // Publish trace settings together so reloads cannot install an intermediate combination.
@@ -811,7 +798,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.SurfaceAlbedo = primaryBuffers.SurfaceAlbedoTex;
         shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
 
-
         // Bind history for temporal preservation
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex!;
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
@@ -842,13 +828,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             config.LumOn.IndirectTint[2]);
 
         // Render
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, fbo, false)) lightingPassesComplete = false;
+
     }
 
     private void BuildHzb(FrameBufferRef primaryFb)
@@ -867,24 +853,17 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        int previousFbo = Rendering.GpuFramebuffer.SaveBinding();
-
         var hzb = primaryBuffers.HzbDepthTex;
         var fbo = bufferManager.HzbFbo!;
 
-        capi.Render.GlToggleBlend(false);
-
         // Copy mip 0 from the primary depth texture.
-        fbo.Bind();
         fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: 0);
-        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = hzb.Width, Height = hzb.Height });
 
         using (GlGpuProfiler.Instance.Scope(copy.PassName))
         {
             copy.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-            if (!copy.TryUse()) { lightingPassesComplete = false; return; }
-            capi.Render.RenderMesh(quadMeshRef);
-            copy.Stop();
+            if (!copy.EnsureReady()) { lightingPassesComplete = false; return; }
+            if (!SubmitFullscreen(copy, fbo, false)) { lightingPassesComplete = false; return; }
         }
 
         // Downsample the mip chain using MIN depth.
@@ -896,27 +875,21 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             {
                 int dstW = Math.Max(1, hzb.Width >> dstMip);
                 int dstH = Math.Max(1, hzb.Height >> dstMip);
-
-                fbo.Bind();
                 fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
-                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = dstW, Height = dstH });
 
                 down.SrcMip = dstMip - 1;
-                if (!down.TryUse()) { lightingPassesComplete = false; return; }
-                capi.Render.RenderMesh(quadMeshRef);
+                if (!down.EnsureReady()) { lightingPassesComplete = false; return; }
+                if (!SubmitFullscreen(down, fbo, false)) { lightingPassesComplete = false; return; }
             }
 
-            down.Stop();
         }
 
-        Rendering.GpuFramebuffer.RestoreBinding(previousFbo);
-        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = capi.Render.FrameWidth, Height = capi.Render.FrameHeight });
     }
 
     /// <summary>
-     /// Pass 3 (Screen-Probe Atlas mode): Per-texel temporal blending for probe-atlas radiance.
-     /// Only blends texels that were traced this frame; preserves non-traced texels.
-     /// Uses hit-distance delta for per-texel disocclusion detection.
+    /// Pass 3 (Screen-Probe Atlas mode): Per-texel temporal blending for probe-atlas radiance.
+    /// Only blends texels that were traced this frame; preserves non-traced texels.
+    /// Uses hit-distance delta for per-texel disocclusion detection.
     /// Output: Blended probe atlas to ScreenProbeAtlasCurrentFbo.
     /// </summary>
     private void RenderProbeAtlasTemporalPass()
@@ -938,9 +911,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Render to current octahedral atlas (which will become history after swap)
-        fbo.BindWithViewport();
-
-        capi.Render.GlToggleBlend(false);
 
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         shader.ConfigureOptions(() =>
@@ -991,13 +961,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.HitDistanceRejectThreshold = config.LumOn.ProbeAtlasHitDistanceRejectThreshold;
 
         // Render
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, fbo, false)) lightingPassesComplete = false;
+
     }
 
     /// <summary>
@@ -1050,23 +1020,19 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        outFbo.BindWithViewport();
-        outFbo.Clear();
-        capi.Render.GlToggleBlend(false);
-
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
         shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
 
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, outFbo, true)) lightingPassesComplete = false;
+
     }
 
     /// <summary>
@@ -1119,10 +1085,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
                 worldProbeDiffuseStride: hasWorldProbe ? 2 : 0);
 
-        fbo.BindWithViewport();
-        fbo.Clear();
-
-        capi.Render.GlToggleBlend(false);
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.NearFieldVisibility.Stage(shader, nearFieldScene);
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
@@ -1150,13 +1112,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.Intensity = config.LumOn.Intensity;
         shader.IndirectTint = config.LumOn.IndirectTint;
 
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, fbo, true)) lightingPassesComplete = false;
+
     }
 
     /// <summary>
@@ -1214,10 +1176,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
                 worldProbeAtlasTexelsPerUpdate: hasWorldProbe ? worldProbeAtlasTexelsPerUpdate : 0,
                 worldProbeDiffuseStride: hasWorldProbe ? 2 : 0);
 
-        fbo.BindWithViewport();
-        fbo.Clear();
-
-        capi.Render.GlToggleBlend(false);
         shader.SuppressWorldProbeRadiance = comparisonPass;
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.NearFieldVisibility.Stage(shader, nearFieldScene);
@@ -1246,13 +1204,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.SampleStride = config.LumOn.ProbeAtlasSampleStride;
 
         // Render
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, fbo, true)) lightingPassesComplete = false;
+
     }
 
     private bool TryBindWorldProbeClipmapCommon(
@@ -1328,9 +1286,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        fbo.BindWithViewport();
-
-        capi.Render.GlToggleBlend(false);
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
@@ -1342,13 +1297,13 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.FilterRadius = 1;
         shader.HitDistanceSigma = 1.0f;
 
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, fbo, false)) lightingPassesComplete = false;
+
     }
 
     /// <summary>
@@ -1376,9 +1331,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             lightingPassesComplete = false;
             return;
         }
-        fullResFbo.BindWithViewport();
-        fullResFbo.Clear();
-        capi.Render.GlToggleBlend(false);
+
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
@@ -1398,18 +1351,17 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.HoleFillRadius = Math.Max(0, config.LumOn.UpsampleHoleFillRadius);
         shader.HoleFillMinConfidence = Math.Clamp(config.LumOn.UpsampleHoleFillMinConfidence, 0f, 1f);
 
-        if (!shader.TryUse())
+        if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
 
         // Render
-        capi.Render.RenderMesh(quadMeshRef);
-        shader.Stop();
+        if (!SubmitFullscreen(shader, fullResFbo, true)) lightingPassesComplete = false;
 
         // Restore blend state
-        capi.Render.GlToggleBlend(false);
+
     }
 
     // Combine pass removed: final composite is handled by PBRCompositeRenderer.
@@ -1473,10 +1425,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
         capi.Event.LeaveWorld -= OnLeaveWorld;
 
-        if (quadMeshRef is not null)
+        if (geometry is not null)
         {
-            capi.Render.DeleteMesh(quadMeshRef);
-            quadMeshRef = null;
+            geometry.Dispose();
+            DisposeGraphicsPipelines();
+            geometry = null;
         }
     }
 

@@ -119,7 +119,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         EnsureContextValid();
         string? binaryDirectory = Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_BINARIES");
         bool measure = Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_SURFACE") == "1" && scenario == 0 && compatibility == 0;
-        bool phaseMeasurement=measure && Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE")=="1";
+        bool phaseMeasurement = measure && Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE") == "1";
         int frameSize = measure ? 512 : scenario >= 14 ? 128 : 16;
         int center = frameSize / 2;
         using var platform = new EngineShaderPlatformScope();
@@ -128,9 +128,9 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         {
             assets.BeforeRead = path =>
             {
-                bool variant = path.Contains("variants/pbr_liquid.fsh/",StringComparison.Ordinal);
-                if (!variant && !path.EndsWith("/pbr_liquid.fsh.spv",StringComparison.Ordinal)) return;
-                string binary = Path.Combine(binaryDirectory,variant
+                bool variant = path.Contains("variants/pbr_liquid.fsh/", StringComparison.Ordinal);
+                if (!variant && !path.EndsWith("/pbr_liquid.fsh.spv", StringComparison.Ordinal)) return;
+                string binary = Path.Combine(binaryDirectory, variant
                     ? $"pbr_liquid.fsh.{Path.GetFileNameWithoutExtension(path)}.glsl.spv" : "default.spv");
                 assets.Overrides[path] = File.ReadAllBytes(binary);
             };
@@ -144,7 +144,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         if (!string.IsNullOrEmpty(binaryDirectory)) Assert.NotEmpty(assets.Overrides);
         program.SceneLinear = sceneLinear;
-        using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgb32f, PixelInternalFormat.R32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var terrain = DynamicTexture2D.Create(compatibility == FlowCase ? 8 : 1, compatibility == FlowCase ? 8 : 1, PixelInternalFormat.Rgba32f);
         using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(frameSize, frameSize, PixelInternalFormat.R32f);
@@ -152,7 +152,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         // Allocation contents are undefined; numerical optics require an explicitly empty atmosphere.
         aerial.UploadDataImmediate(new float[4], 0, 0, 0, 1, 1, 1, 0);
         if (compatibility == FlowCase)
-            terrain.UploadDataImmediate(Enumerable.Range(0, 64).SelectMany(pixel => new float[] {.1f * (pixel % 8 + 1), .2f, .3f, 1}).ToArray());
+            terrain.UploadDataImmediate(Enumerable.Range(0, 64).SelectMany(pixel => new float[] { .1f * (pixel % 8 + 1), .2f, .3f, 1 }).ToArray());
         else terrain.UploadDataImmediate(new float[] { 1, 1, 1, 1 });
         material.UploadDataImmediate([.1f, 0, 0, 1]);
         if (compatibility is LavaCase or FullAlphaCase or FlowCase)
@@ -177,7 +177,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         using var mediumRecord = Texture2D.Create(2, 1, PixelInternalFormat.Rgba32f);
         mediumIndex.UploadDataImmediate([1f]);
         mediumRecord.UploadDataImmediate(new float[8]);
-        if (scatteringSource != 0) mediumRecord.UploadDataImmediate([.1f,.2f,.3f,.7f, .2f,.3f,.4f,0]);
+        if (scatteringSource != 0) mediumRecord.UploadDataImmediate([.1f, .2f, .3f, .7f, .2f, .3f, .4f, 0]);
         program.WaterMediumIndicesTexture = mediumIndex;
         program.WaterMediumRecordsTexture = mediumRecord;
         program.RefractionColorTexture = sceneColor;
@@ -205,24 +205,24 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         if (shadow is not null)
         {
             // Constant cascade coordinates and depth zero establish complete solar occlusion.
-            shadow.UploadDataImmediate(new float[] {0});
+            shadow.UploadDataImmediate(new float[] { 0 });
             program.ShadowMapNear = shadow.TextureId;
             program.ShadowMapFar = shadow.TextureId;
             program.ShadowRanges = new(100, 100, 0, 0);
-            float[] matrix = [0,0,0,0, 0,0,0,0, 0,0,0,0, .5f,.5f,.5f,1];
+            float[] matrix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .5f, .5f, .5f, 1];
             program.ShadowMatrixNear = matrix;
             program.ShadowMatrixFar = matrix;
         }
         if (compatibility == FlowCase) program.AtlasMetrics = new(1, 1, 8, 8);
         if (scatteringSource == 1)
         {
-            program.SunDirection = new(0,0,-1,0);
-            program.SolarIrradiance = new(100,100,100,0);
+            program.SunDirection = new(0, 0, -1, 0);
+            program.SolarIrradiance = new(100, 100, 100, 0);
         }
         if (scatteringSource == 2)
         {
             program.SetCounts(1, 0);
-            program.SetPointLightPosition(0, new(0,0,-12));
+            program.SetPointLightPosition(0, new(0, 0, -12));
             program.SetPointLightColor(0, new(10000));
         }
         program.MediumLookupEnabled = scenario == 9 || scenario >= 14;
@@ -287,7 +287,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             program.RefractionDepthTexture = reducedDepth;
         }
         var state = StateCache.Current;
-        using var fixedFunction = state.CaptureLegacyFixedFunctionState();
+        using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         target.BindWithViewport();
 
@@ -319,34 +319,33 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         program.RefractionEnabled = false;
         target.Clear(0, 0, 0, 0);
         DrawBoundary(2, true);
-        var baseline = target[1].ReadPixelsRegion(center,center,1,1);
-        var baselineAccumulation = target[3].ReadPixelsRegion(center,center,1,1);
-        var edgeBaseline = target[1].ReadPixelsRegion(8,0,1,8);
+        var baseline = target[1].ReadPixelsRegion(center, center, 1, 1);
+        var baselineAccumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
+        var edgeBaseline = target[1].ReadPixelsRegion(8, 0, 1, 8);
         if (compatibility == FlowCase) program.Animation = new(0, 1, 0, 0);
         program.RefractionEnabled = true;
         Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(4632, 4)));
         target.Clear(0, 0, 0, 0);
         DrawBoundary(2, true);
-        var actual = target[1].ReadPixelsRegion(center,center,1,1);
+        var actual = target[1].ReadPixelsRegion(center, center, 1, 1);
         Assert.All(actual, value => Assert.True(float.IsFinite(value)));
         if (compatibility is LavaCase or FullAlphaCase)
         {
             // Excluded liquid materials preserve their original body response despite valid receiver data.
-            Assert.InRange(Vector4.Distance(new(actual[0], actual[1], actual[2], actual[3]),
-                new(baseline[0], baseline[1], baseline[2], baseline[3])), 0, .00001f);
-            Assert.InRange(Vector4.Distance(new(target[3].ReadPixelsRegion(center,center,1,1)), new(baselineAccumulation)), 0, .00001f);
+            Assert.InRange(MathF.Abs(actual[0] - baseline[0]), 0, .00001f);
+            Assert.InRange(Vector4.Distance(new(target[3].ReadPixelsRegion(center, center, 1, 1)), new(baselineAccumulation)), 0, .00001f);
             Assert.True(baselineAccumulation[0] > 0);
         }
         else if (compatibility == FlowCase)
         {
-            var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
+            var accumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
             Assert.InRange(MathF.Abs(baselineAccumulation[0] / baselineAccumulation[3] - Decode(.4f)), 0, .0001f);
             Assert.InRange(MathF.Abs(accumulation[0] / accumulation[3] - Decode(.6f)), 0, .0001f);
             Assert.InRange(actual[0], 0, .00001f);
         }
         else if (compatibility == FogCase)
         {
-            var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
+            var accumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
             float[] fog = [.5f, .25f, .125f];
             for (int channel = 0; channel < 3; channel++)
                 Assert.InRange(MathF.Abs(accumulation[channel] / accumulation[3] - Decode(fog[channel])), 0, .0001f);
@@ -354,13 +353,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         }
         else if (compatibility == ShadowCase)
         {
-            var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
+            var accumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
             Assert.All(accumulation.Take(3), value => Assert.InRange(MathF.Abs(value), 0, .00001f));
             // Restore sunlight and verify its independent Beer-Lambert/Henyey-Greenstein prediction.
-            shadow!.UploadDataImmediate(new float[] {1});
+            shadow!.UploadDataImmediate(new float[] { 1 });
             target.Clear(0, 0, 0, 0);
             DrawBoundary(2, true);
-            AssertSnellGradient(target[3].ReadPixelsRegion(center,center,1,1), true, 1, refractionQuality);
+            AssertReceiverGradient(target[3].ReadPixelsRegion(center, center, 1, 1), true, 1, refractionQuality);
         }
         else if (scenario >= 14)
         {
@@ -387,17 +386,17 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                     PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
                 using var diagnosticDraw = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
                 diagnosticDraw.RenderQuadTo(diagnostic, diagnosticTarget);
-                receiverDecision = $" decision={string.Join(",", diagnosticTarget[0].ReadPixelsRegion(center,center,1,1))} sample={string.Join(",", diagnosticTarget[1].ReadPixelsRegion(center,center,1,1))}";
+                receiverDecision = $" decision={string.Join(",", diagnosticTarget[0].ReadPixelsRegion(center, center, 1, 1))} sample={string.Join(",", diagnosticTarget[1].ReadPixelsRegion(center, center, 1, 1))}";
             }
             Assert.True(actual[0] < baseline[0], $"Fixed-world camera scenario {scenario} must transmit a refracted floor sample.{receiverDecision}");
-            AssertFixedWorldSnellGradient(target[3].ReadPixelsRegion(center,center,1,1), baselineAccumulation,
+            AssertFixedWorldSnellGradient(target[3].ReadPixelsRegion(center, center, 1, 1), baselineAccumulation,
                 actual[0], baseline[0], frameSize, camera, worldFromView, modelView * projection, sceneLinear);
         }
         else if (scenario == 5)
         {
             // Geometric coverage beyond the traversal extent still has a valid
             // approximate UV receiver; optical attenuation may remove its red channel.
-            Assert.InRange(actual[0],0,.00001f);
+            Assert.InRange(actual[0], 0, .00001f);
             Assert.True(baseline[0] > .001f);
         }
         else if (scenario < 2 || scenario == 6 || scenario == 8 || scenario == 9 || scenario == 10 || scenario >= 11)
@@ -405,27 +404,27 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             // The steep underwater exit also retains a valid receiver.
             // Zero revealage proves scene radiance replaces rather than re-blends the original background.
             Assert.InRange(actual[0], 0, .00001f);
-            var accumulation = target[3].ReadPixelsRegion(center,center,1,1);
+            var accumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
             Assert.True(accumulation[0] > 0);
             Assert.True(baseline[0] > .001f);
-            if (scenario == 9) AssertSnellGradient(accumulation, sceneLinear, scatteringSource, refractionQuality);
+            if (scenario == 9) AssertReceiverGradient(accumulation, sceneLinear, scatteringSource, refractionQuality);
             if (sceneLinear && scenario is 0 or 9) Assert.True(accumulation.Take(3).Max() / accumulation[3] > 1);
 
         }
         else if (scenario == 7)
         {
             Assert.InRange(actual[0], 0, .00001f);
-            var accumulated = target[3].ReadPixelsRegion(center,center,1,1);
+            var accumulated = target[3].ReadPixelsRegion(center, center, 1, 1);
             Assert.All(accumulated.Take(3), value => Assert.InRange(MathF.Abs(value), 0, .00001f));
         }
         else
-            for (int channel = 0; channel < 4; channel++)
+            for (int channel = 0; channel < actual.Length; channel++)
                 Assert.InRange(MathF.Abs(actual[channel] - baseline[channel]), 0, .00001f);
         if (scenario == 0 && compatibility == 0)
         {
             // Supported edge receivers retain transmission instead of fading it by position.
-            var edgeRevealage = target[1].ReadPixelsRegion(8,0,1,8);
-            for (int row = 0; row < 8; ++row) Assert.InRange(edgeRevealage[row * 4],0,.00001f);
+            var edgeRevealage = target[1].ReadPixelsRegion(8, 0, 1, 8);
+            for (int row = 0; row < 8; ++row) Assert.InRange(edgeRevealage[row], 0, .00001f);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 
@@ -433,131 +432,131 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         {
             // Compare the same existing numerical scenarios across independently
             // compiled binaries without changing their expected optical outcomes.
-            output.WriteLine($"surface-output scenario={scenario} quality={refractionQuality} scale={backgroundScale} compatibility={compatibility} disabledReveal={string.Join(',',baseline)} disabledAccumulation={string.Join(',',baselineAccumulation)}");
+            output.WriteLine($"surface-output scenario={scenario} quality={refractionQuality} scale={backgroundScale} compatibility={compatibility} disabledReveal={string.Join(',', baseline)} disabledAccumulation={string.Join(',', baselineAccumulation)}");
             for (int attachment = 0; attachment < 6; attachment++)
-                output.WriteLine($"surface-mrt index={attachment} center={string.Join(',',target[attachment].ReadPixelsRegion(center,center,1,1))}");
+                output.WriteLine($"surface-mrt index={attachment} center={string.Join(',', target[attachment].ReadPixelsRegion(center, center, 1, 1))}");
         }
         if (Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_AERIAL") == "1")
         {
             // The normal scenario assertions run first. This optional comparison
             // then records actual production outputs with nonzero atmospheric LUTs.
-            program.AerialParameters = new(100,100,scenario is >= 6 and <= 8 ? 1 : 0,0);
-            aerial.UploadDataImmediate([.05f,.1f,.2f,.1f],0,0,0,1,1,1,0);
-            foreach (float sky in new[] { 0f,.4f,1f })
-            foreach (bool enabled in new[] { false,true })
-            {
-                validationSky = sky; program.RefractionEnabled = enabled;
-                target.Clear(0,0,0,0); DrawBoundary(2,true);
-                for (int attachment = 0; attachment < 6; attachment++)
+            program.AerialParameters = new(100, 100, scenario is >= 6 and <= 8 ? 1 : 0, 0);
+            aerial.UploadDataImmediate([.05f, .1f, .2f, .1f], 0, 0, 0, 1, 1, 1, 0);
+            foreach (float sky in new[] { 0f, .4f, 1f })
+                foreach (bool enabled in new[] { false, true })
                 {
-                    float[] values = target[attachment].ReadPixelsRegion(center,center,1,1);
-                    Assert.All(values,value => Assert.True(float.IsFinite(value)));
-                    output.WriteLine($"aerial-output scenario={scenario} quality={refractionQuality} source={scatteringSource} compatibility={compatibility} sky={sky:R} enabled={enabled} mrt={attachment} values={string.Join(',',values.Select(value => value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)))}");
+                    validationSky = sky; program.RefractionEnabled = enabled;
+                    target.Clear(0, 0, 0, 0); DrawBoundary(2, true);
+                    for (int attachment = 0; attachment < 6; attachment++)
+                    {
+                        float[] values = target[attachment].ReadPixelsRegion(center, center, 1, 1);
+                        Assert.All(values, value => Assert.True(float.IsFinite(value)));
+                        output.WriteLine($"aerial-output scenario={scenario} quality={refractionQuality} source={scatteringSource} compatibility={compatibility} sky={sky:R} enabled={enabled} mrt={attachment} values={string.Join(',', values.Select(value => value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))}");
+                    }
                 }
-            }
         }
-        if(Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_PHASE")=="1")
+        if (Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_PHASE") == "1")
         {
             // Matched production binaries exercise independent solar and point
             // sources through both fallback and selected receiver composition.
-            program.MediumLookupEnabled=true;
-            program.EnvironmentIrradiance=Vector4.Zero;
-            foreach(int light in new[] {1,2})
-            foreach(float anisotropy in new[] {0f,.7f,-.7f,1e-7f,-1e-7f,2f,-2f})
-            foreach(bool enabled in new[] {false,true})
-            {
-                mediumRecord.UploadDataImmediate([.1f,.2f,.3f,anisotropy,.2f,.3f,.4f,0]);
-                program.SunDirection=new(0,0,-1,0);
-                program.SolarIrradiance=light==1?new(100,100,100,0):Vector4.Zero;
-                program.SetCounts(light==2?1:0,0);
-                program.SetPointLightPosition(0,new(0,0,-12));
-                program.SetPointLightColor(0,new(10000));
-                program.RefractionEnabled=enabled;
-                target.Clear(0,0,0,0); DrawBoundary(2,true);
-                for(int attachment=0;attachment<6;attachment++)
-                {
-                    float[] values=target[attachment].ReadPixelsRegion(center,center,1,1);
-                    Assert.All(values,value=>Assert.True(float.IsFinite(value)));
-                    output.WriteLine($"phase-output scenario={scenario} quality={refractionQuality} light={light} g={anisotropy:R} enabled={enabled} mrt={attachment} values={string.Join(',',values.Select(value=>value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)))}");
-                }
-            }
+            program.MediumLookupEnabled = true;
+            program.EnvironmentIrradiance = Vector4.Zero;
+            foreach (int light in new[] { 1, 2 })
+                foreach (float anisotropy in new[] { 0f, .7f, -.7f, 1e-7f, -1e-7f, 2f, -2f })
+                    foreach (bool enabled in new[] { false, true })
+                    {
+                        mediumRecord.UploadDataImmediate([.1f, .2f, .3f, anisotropy, .2f, .3f, .4f, 0]);
+                        program.SunDirection = new(0, 0, -1, 0);
+                        program.SolarIrradiance = light == 1 ? new(100, 100, 100, 0) : Vector4.Zero;
+                        program.SetCounts(light == 2 ? 1 : 0, 0);
+                        program.SetPointLightPosition(0, new(0, 0, -12));
+                        program.SetPointLightColor(0, new(10000));
+                        program.RefractionEnabled = enabled;
+                        target.Clear(0, 0, 0, 0); DrawBoundary(2, true);
+                        for (int attachment = 0; attachment < 6; attachment++)
+                        {
+                            float[] values = target[attachment].ReadPixelsRegion(center, center, 1, 1);
+                            Assert.All(values, value => Assert.True(float.IsFinite(value)));
+                            output.WriteLine($"phase-output scenario={scenario} quality={refractionQuality} light={light} g={anisotropy:R} enabled={enabled} mrt={attachment} values={string.Join(',', values.Select(value => value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))}");
+                        }
+                    }
         }
         if (measure)
         {
-            Assert.Equal(1,backgroundScale);
+            Assert.Equal(1, backgroundScale);
             output.WriteLine($"surface-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)} binaries={binaryDirectory}");
             // Keep transport, source and shared point-light reflection active.
             // Receiver eligibility alone varies between coherent and mixed regions.
-            mediumRecord.UploadDataImmediate([.1f,.2f,.3f,.7f, .2f,.3f,.4f,0]);
-            using var phaseIndices=phaseMeasurement?Texture2D.Create(frameSize,frameSize,PixelInternalFormat.R32f):null;
-            using var phaseRecords=phaseMeasurement?Texture2D.Create(4,1,PixelInternalFormat.Rgba32f):null;
-            if(phaseMeasurement)
+            mediumRecord.UploadDataImmediate([.1f, .2f, .3f, .7f, .2f, .3f, .4f, 0]);
+            using var phaseIndices = phaseMeasurement ? Texture2D.Create(frameSize, frameSize, PixelInternalFormat.R32f) : null;
+            using var phaseRecords = phaseMeasurement ? Texture2D.Create(4, 1, PixelInternalFormat.Rgba32f) : null;
+            if (phaseMeasurement)
             {
-                phaseRecords!.UploadDataImmediate([.1f,.2f,.3f,0,.2f,.3f,.4f,0,.1f,.2f,.3f,.7f,.2f,.3f,.4f,0]);
-                program.WaterMediumIndicesTexture=phaseIndices!; program.WaterMediumRecordsTexture=phaseRecords;
+                phaseRecords!.UploadDataImmediate([.1f, .2f, .3f, 0, .2f, .3f, .4f, 0, .1f, .2f, .3f, .7f, .2f, .3f, .4f, 0]);
+                program.WaterMediumIndicesTexture = phaseIndices!; program.WaterMediumRecordsTexture = phaseRecords;
             }
             program.MediumLookupEnabled = true;
-            program.SolarIrradiance = new(10,10,10,0);
-            program.EnvironmentIrradiance = new(2,2,2,0);
-            program.SetCounts(1,0);
-            program.SetPointLightPosition(0,new(0,0,-12)); program.SetPointLightColor(0,new(100));
-            program.AerialParameters = new(100,100,0,0);
-            aerial.UploadDataImmediate([.05f,.05f,.05f,.1f],0,0,0,1,1,1,0);
-            float[]? isotropicPixels=null, anisotropicPixels=null;
-            foreach (string workload in phaseMeasurement?new[] {"isotropic","anisotropic","checker"}:new[] { "valid", "invalid", "checker" })
+            program.SolarIrradiance = new(10, 10, 10, 0);
+            program.EnvironmentIrradiance = new(2, 2, 2, 0);
+            program.SetCounts(1, 0);
+            program.SetPointLightPosition(0, new(0, 0, -12)); program.SetPointLightColor(0, new(100));
+            program.AerialParameters = new(100, 100, 0, 0);
+            aerial.UploadDataImmediate([.05f, .05f, .05f, .1f], 0, 0, 0, 1, 1, 1, 0);
+            float[]? isotropicPixels = null, anisotropicPixels = null;
+            foreach (string workload in phaseMeasurement ? new[] { "isotropic", "anisotropic", "checker" } : new[] { "valid", "invalid", "checker" })
             {
-                if(phaseMeasurement)
-                    phaseIndices!.UploadDataImmediate(Enumerable.Range(0,frameSize*frameSize).Select(pixel=>
-                        workload=="isotropic"?1f:workload=="anisotropic"?2f:1f+((pixel%frameSize+pixel/frameSize)&1)).ToArray());
+                if (phaseMeasurement)
+                    phaseIndices!.UploadDataImmediate(Enumerable.Range(0, frameSize * frameSize).Select(pixel =>
+                        workload == "isotropic" ? 1f : workload == "anisotropic" ? 2f : 1f + ((pixel % frameSize + pixel / frameSize) & 1)).ToArray());
                 var receiverDepths = new float[frameSize * frameSize];
                 for (int pixel = 0; pixel < receiverDepths.Length; pixel++)
                     receiverDepths[pixel] = !phaseMeasurement && (workload == "invalid" || workload == "checker" && (((pixel % frameSize) / 8 + (pixel / frameSize) / 8) & 1) != 0) ? 1 : deviceDepth;
                 sceneDepth.UploadDataImmediate(receiverDepths);
-                int measuredDraws=phaseMeasurement?128:16;
-                for (int sample = phaseMeasurement?-5:-2; sample < (phaseMeasurement?10:5); sample++)
+                int measuredDraws = phaseMeasurement ? 128 : 16;
+                for (int sample = phaseMeasurement ? -5 : -2; sample < (phaseMeasurement ? 10 : 5); sample++)
                 {
-                    DrawBoundary(2,true); target.Clear(0,0,0,0);
+                    DrawBoundary(2, true); target.Clear(0, 0, 0, 0);
                     using var elapsed = GpuTimerQuery.Create();
                     using var shader = program.UseScope();
                     elapsed.Begin();
-                    for (int draw = 0; draw < measuredDraws; draw++) vao.DrawElements(PrimitiveType.Triangles,indices);
+                    for (int draw = 0; draw < measuredDraws; draw++) vao.DrawElements(PrimitiveType.Triangles, indices);
                     elapsed.End();
                     double milliseconds = elapsed.GetResultNanoseconds() / 1e6;
                     if (sample >= 0) output.WriteLine($"surface-cost quality={refractionQuality} workload={workload} sample={sample} gpuMs={milliseconds:R} viewport=512x512 draws={measuredDraws}");
                 }
                 float[] revealage = target[1].ReadPixels();
-                int replaced = Enumerable.Range(0,frameSize * frameSize).Count(pixel => revealage[pixel * 4] == 0);
-                if (workload == "checker" && !phaseMeasurement) Assert.InRange(replaced,1,frameSize * frameSize - 1);
-                if(phaseMeasurement)
+                int replaced = Enumerable.Range(0, frameSize * frameSize).Count(pixel => revealage[pixel] == 0);
+                if (workload == "checker" && !phaseMeasurement) Assert.InRange(replaced, 1, frameSize * frameSize - 1);
+                if (phaseMeasurement)
                 {
-                    float[] values=target[3].ReadPixels();
-                    if(workload=="isotropic") isotropicPixels=values;
-                    else if(workload=="anisotropic") anisotropicPixels=values;
+                    float[] values = target[3].ReadPixels();
+                    if (workload == "isotropic") isotropicPixels = values;
+                    else if (workload == "anisotropic") anisotropicPixels = values;
                     else
                     {
-                        int iso=0,aniso=0;
-                        for(int pixel=0;pixel<values.Length;pixel+=4)
+                        int iso = 0, aniso = 0;
+                        for (int pixel = 0; pixel < values.Length; pixel += 4)
                         {
-                            float first=MathF.Abs(values[pixel]-isotropicPixels![pixel]);
-                            float second=MathF.Abs(values[pixel]-anisotropicPixels![pixel]);
-                            Assert.InRange(MathF.Min(first,second),0,1e-5f*MathF.Max(1,MathF.Abs(values[pixel])));
-                            if(first<second) iso++; else if(second<first) aniso++;
+                            float first = MathF.Abs(values[pixel] - isotropicPixels![pixel]);
+                            float second = MathF.Abs(values[pixel] - anisotropicPixels![pixel]);
+                            Assert.InRange(MathF.Min(first, second), 0, 1e-5f * MathF.Max(1, MathF.Abs(values[pixel])));
+                            if (first < second) iso++; else if (second < first) aniso++;
                         }
-                        Assert.True(iso>0 && aniso>0,$"Mixed phase pixels: isotropic={iso}, anisotropic={aniso}");
+                        Assert.True(iso > 0 && aniso > 0, $"Mixed phase pixels: isotropic={iso}, anisotropic={aniso}");
                     }
                 }
                 for (int attachment = 0; attachment < 6; attachment++)
                 {
                     float[] pixels = target[attachment].ReadPixels();
-                    Assert.All(pixels,value => Assert.True(float.IsFinite(value)));
+                    Assert.All(pixels, value => Assert.True(float.IsFinite(value)));
                     string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan())));
                     output.WriteLine($"surface-workload-output quality={refractionQuality} workload={workload} mrt={attachment} sum={pixels.Sum(value => (double)value):R} hash={hash} replaced={replaced}");
                     string? captureDirectory = Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_OUTPUTS");
                     if (!string.IsNullOrEmpty(captureDirectory))
                     {
                         Directory.CreateDirectory(captureDirectory);
-                        using var file = File.Create(Path.Combine(captureDirectory,$"q{refractionQuality}-{workload}-mrt{attachment}.f32.gz"));
-                        using var compressed = new System.IO.Compression.GZipStream(file,System.IO.Compression.CompressionLevel.Fastest);
+                        using var file = File.Create(Path.Combine(captureDirectory, $"q{refractionQuality}-{workload}-mrt{attachment}.f32.gz"));
+                        using var compressed = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionLevel.Fastest);
                         compressed.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan()));
                     }
                 }
@@ -568,7 +567,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         /// <summary>Submits a sloped quad with an explicitly encoded outward normal and no wave animation.</summary>
         void DrawBoundary(float distance, bool entry)
         {
-            float[] points = [-10,-10, 10,-10, 10,10, -10,-10, 10,10, -10,10];
+            float[] points = [-10, -10, 10, -10, 10, 10, -10, -10, 10, 10, -10, 10];
             var data = new float[66];
             var packed = new int[18];
             for (int vertex = 0; vertex < 6; vertex++)
@@ -590,8 +589,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                     data[offset + 2] = -points[vertex * 2 + 1] * 10;
                 }
                 data[offset + 3] = data[offset + 4] = .5f;
-                if(phaseMeasurement)
-                { data[offset+3]=x*.05f+.5f; data[offset+4]=points[vertex*2+1]*.05f+.5f; }
+                if (phaseMeasurement)
+                { data[offset + 3] = x * .05f + .5f; data[offset + 4] = points[vertex * 2 + 1] * .05f + .5f; }
                 if (compatibility == FlowCase)
                 {
                     data[offset + 3] = data[offset + 4] = .4375f;
@@ -656,8 +655,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.InRange(accumulation[0] / accumulation[3], expectedRed - .003f, expectedRed + .003f);
     }
 
-    /// <summary>Predicts the refracted receiver texel using independent vector Snell optics and display transfer.</summary>
-    private static void AssertSnellGradient(float[] accumulation, bool sceneLinear, int scatteringSource, int refractionQuality)
+    /// <summary>Predicts receiver sampling independently for pixel-normal distortion and traced Snell optics.</summary>
+    private static void AssertReceiverGradient(float[] accumulation, bool sceneLinear, int scatteringSource, int refractionQuality)
     {
         float raySlope = 1f / (16f * MathF.Sqrt(3));
         float z = -2f / (1f + .4f * raySlope);
@@ -668,12 +667,12 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         const float eta = 1f / 1.333f;
         float transmittedCosine = MathF.Sqrt(1f - eta * eta * (1f - cosine * cosine));
         Vector3 direction = eta * incident + (eta * cosine - transmittedCosine) * normal;
-        Vector3 receiver = surface + direction * ((-10f - z) / direction.Z);
-        // The authored constant-depth floor has an exact independent ray/plane
-        // endpoint. UV and geometric methods can share that projected coordinate
-        // while retaining their distinct approximation and sampling contracts.
+        Vector3 receiver = refractionQuality == 0 ? PixelNormalReceiver(surface, normal)
+            : surface + direction * ((-10f - z) / direction.Z);
+        // Traced qualities sample the texel containing the physical endpoint. Pixel-normal
+        // distortion reconstructs a continuous camera-ray sample on this planar gradient.
         int pixel = (int)((receiver.X / 10f * MathF.Sqrt(3f) * .5f + .5f) * 16f);
-        Assert.NotEqual(8, pixel);
+        if (refractionQuality != 0) Assert.NotEqual(8, pixel);
         float rs = (eta * cosine - transmittedCosine) / (eta * cosine + transmittedCosine);
         float rp = (cosine - eta * transmittedCosine) / (cosine + eta * transmittedCosine);
         float transmission = 1f - .5f * (rs * rs + rp * rp);
@@ -685,13 +684,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         }
         if (scatteringSource != 0)
         {
-            Vector3 light = scatteringSource == 1 ? new(0,0,-1) : Vector3.Normalize(new Vector3(0,0,-12) - surface);
-            float intensity = scatteringSource == 1 ? 100 : 10000 / Vector3.DistanceSquared(new(0,0,-12), surface);
+            Vector3 light = scatteringSource == 1 ? new(0, 0, -1) : Vector3.Normalize(new Vector3(0, 0, -12) - surface);
+            float intensity = scatteringSource == 1 ? 100 : 10000 / Vector3.DistanceSquared(new(0, 0, -12), surface);
             double phaseCosine = Vector3.Dot(-light, -direction);
             double phase = (1 - .7 * .7) / (4 * Math.PI * Math.Pow(1 + .7 * .7 - 2 * .7 * phaseCosine, 1.5));
-            double path = refractionQuality == 0 ? -Vector3.Dot(receiver - surface,normal) / transmittedCosine
+            double path = refractionQuality == 0 ? -Vector3.Dot(receiver - surface, normal) / transmittedCosine
                 : Vector3.Distance(receiver, surface);
-            double[] extinction = [.3,.5,.7], scatter = [.2,.3,.4];
+            double[] extinction = [.3, .5, .7], scatter = [.2, .3, .4];
             for (int channel = 0; channel < 3; channel++)
             {
                 double expected = transmission * intensity * phase * scatter[channel] / extinction[channel]
@@ -709,6 +708,22 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         float encodedRed = 1.055f * MathF.Pow(linearRed, 1f / 2.4f) - .055f;
         float dither = (.5f / 64f - .5f) / 255f;
         Assert.InRange(accumulation[0] / accumulation[3], encodedRed + dither - .002f, encodedRed + dither + .002f);
+    }
+
+    /// <summary>Projects authored normal-detail distortion and intersects its camera ray with the constant-depth receiver.</summary>
+    private static Vector3 PixelNormalReceiver(Vector3 surface, Vector3 normal)
+    {
+        // The fixture packs +Z as its mesh normal while its sloped vertices produce a
+        // different geometric normal. Their difference is the authored detail signal.
+        const float receiverDepth = 10f;
+        float focalLength = MathF.Sqrt(3f);
+        Vector2 seed = new(surface.X / -surface.Z, surface.Y / -surface.Z);
+        seed = seed * (focalLength * .5f) + new Vector2(.5f);
+        float shallow = Math.Clamp((surface.Z + receiverDepth) / .3f, 0f, 1f);
+        Vector2 uv = seed - new Vector2(normal.X, normal.Y) * (focalLength * .02f * shallow);
+        uv = Vector2.Clamp(uv, new(.55f / 16f), new(1f - .55f / 16f));
+        Vector2 receiverXY = (uv * 2f - Vector2.One) * (receiverDepth / focalLength);
+        return new(receiverXY, -receiverDepth);
     }
 
     /// <summary>Publishes row-vector Numerics storage as engine column-major matrix bytes.</summary>

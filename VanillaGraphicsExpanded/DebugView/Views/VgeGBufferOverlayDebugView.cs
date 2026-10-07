@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -99,42 +101,36 @@ public static partial class VgeBuiltInDebugViews
         PrimaryColor = 3
     }
 
+    /// <summary>Displays a selected attachment with owned geometry and a complete debug pipeline.</summary>
     private sealed class VgeGBufferOverlayRenderer : IRenderer, IDisposable
     {
-        private static readonly GlPipelineDesc OverlayPso = new(
-            defaultMask: default(GlPipelineStateMask)
-                .With(GlPipelineStateId.DepthTestEnable)
-                .With(GlPipelineStateId.BlendEnable)
-                .With(GlPipelineStateId.CullFaceEnable)
-                .With(GlPipelineStateId.ScissorTestEnable)
-                .With(GlPipelineStateId.ColorMask),
-            nonDefaultMask: default(GlPipelineStateMask)
-                .With(GlPipelineStateId.DepthWriteMask),
-            depthWriteMask: false);
-
         private const double RenderOrderValue = 1.0;
         private const int RenderRangeValue = 1;
 
         private readonly ICoreClientAPI capi;
         private readonly GBufferManager gBufferManager;
 
-        private MeshRef? quadMeshRef;
+        private EngineFullscreenGeometry? geometry;
+        private readonly DebugGraphicsSubmission submission;
 
         public double RenderOrder => RenderOrderValue;
         public int RenderRange => RenderRangeValue;
 
+        /// <summary>Creates the fullscreen geometry and registers the window-overlay callback.</summary>
         public VgeGBufferOverlayRenderer(ICoreClientAPI capi, GBufferManager gBufferManager)
         {
             this.capi = capi;
             this.gBufferManager = gBufferManager;
+            submission = new(capi);
 
             var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
             quadMesh.Rgba = null;
-            quadMeshRef = capi.Render.UploadMesh(quadMesh);
+            geometry = EngineFullscreenGeometry.Upload(capi.Render, quadMesh);
 
             capi.Event.RegisterRenderer(this, EnumRenderStage.AfterBlit, "vge_gbuffer_overlay");
         }
 
+        /// <summary>Submits the selected current attachment through its declared window pass.</summary>
         public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
         {
             if (stage != EnumRenderStage.AfterBlit)
@@ -142,7 +138,7 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            if (quadMeshRef is null)
+            if (geometry is null)
             {
                 return;
             }
@@ -153,31 +149,10 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
-
-            var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
-            blitShader.Use();
-
-            try
-            {
-                StateCache.Current.InvalidateAll();
-                StateCache.Current.Apply(OverlayPso);
-
-                StateCache.Current.ActiveTexture(0);
-                StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, textureId);
-                blitShader.BindTexture2D("scene", textureId, 0);
-                GpuSamplers.NearestClamp.Bind(0);
-
-                capi.Render.RenderMesh(quadMeshRef);
-            }
-            finally
-            {
-                blitShader.Stop();
-
-                StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
-                StateCache.Current.InvalidateAll();
-            }
+            var shader = GpuShaderPrograms.Get<DebugTextureShaderProgram>(capi, "debug_texture");
+            if (shader is null) return;
+            shader.Scene = textureId;
+            submission.Draw("GBufferOverlay", shader, geometry, EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
         }
 
         private int GetTextureId()
@@ -192,14 +167,16 @@ public static partial class VgeBuiltInDebugViews
             };
         }
 
+        /// <summary>Unregisters the callback and retires owned geometry and realizations.</summary>
         public void Dispose()
         {
             capi.Event.UnregisterRenderer(this, EnumRenderStage.AfterBlit);
+            submission.Dispose();
 
-            if (quadMeshRef is not null)
+            if (geometry is not null)
             {
-                capi.Render.DeleteMesh(quadMeshRef);
-                quadMeshRef = null;
+                geometry.Dispose();
+                geometry = null;
             }
         }
     }

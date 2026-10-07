@@ -1,4 +1,6 @@
-using VanillaGraphicsExpanded.Rendering.Pipeline.State;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -16,21 +18,14 @@ using VanillaGraphicsExpanded.Rendering.Profiling;
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 
 /// <summary>Owns reusable render-thread staging buffers for immediate probe atlas uploads.</summary>
-internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
+internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
 {
-    private static readonly GlPipelineDesc ResolvePso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.CullFaceEnable),
-        nonDefaultMask: default);
-
     private readonly ICoreClientAPI capi;
 
-    private readonly GpuVao probeVao;
+    private readonly ArrayGraphicsGeometry probeGeometry;
     private readonly GpuVbo probeVbo;
 
-    private readonly GpuVao tileVao;
+    private readonly ArrayGraphicsGeometry tileGeometry;
     private readonly GpuVbo tileVbo;
 
     private readonly List<ProbeResolveVertex> probeVertices = new();
@@ -38,62 +33,25 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
     private bool isDisposed;
     private WorldProbeHybridCommit? hybridCommit;
 
+    /// <summary>Creates streaming buffers and privately configured geometry, retiring partial allocation on failure.</summary>
     public LumOnWorldProbeClipmapGpuUploader(ICoreClientAPI capi)
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
 
-        probeVao = GpuVao.Create(debugName: "VGE_WorldProbeProbeResolve_VAO");
         probeVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, debugName: "VGE_WorldProbeProbeResolve_VBO");
 
-        using (var vaoScope = probeVao.BindScope())
-        using (var vboScope = probeVbo.BindScope())
+        try
         {
-            int stride = Marshal.SizeOf<ProbeResolveVertex>();
-
-            // vec2 atlasCoord
-            probeVao.EnableAttrib(0);
-            probeVao.AttribPointer(0, 2, VertexAttribPointerType.Float, normalized: false, stride, 0);
-
-            // vec3 aoDirWorld
-            probeVao.EnableAttrib(1);
-            probeVao.AttribPointer(1, 3, VertexAttribPointerType.Float, normalized: false, stride, 8);
-
-            // float aoConfidence
-            probeVao.EnableAttrib(2);
-            probeVao.AttribPointer(2, 1, VertexAttribPointerType.Float, normalized: false, stride, 20);
-
-            // float confidence
-            probeVao.EnableAttrib(3);
-            probeVao.AttribPointer(3, 1, VertexAttribPointerType.Float, normalized: false, stride, 24);
-
-            // float meanLogHitDistance
-            probeVao.EnableAttrib(4);
-            probeVao.AttribPointer(4, 1, VertexAttribPointerType.Float, normalized: false, stride, 28);
-
-            // float skyIntensity
-            probeVao.EnableAttrib(5);
-            probeVao.AttribPointer(5, 1, VertexAttribPointerType.Float, normalized: false, stride, 32);
-
-            // uint flags (integer attribute)
-            probeVao.EnableAttrib(6);
-            probeVao.AttribIPointer(6, 1, VertexAttribIntegerType.UnsignedInt, stride, 36);
+            probeGeometry = new(ProbeLayout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = probeVbo });
+            tileVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, debugName: "VGE_WorldProbeTileResolve_VBO");
+            tileGeometry = new(TileLayout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = tileVbo });
         }
-
-        tileVao = GpuVao.Create(debugName: "VGE_WorldProbeTileResolve_VAO");
-        tileVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, debugName: "VGE_WorldProbeTileResolve_VBO");
-
-        using (var vaoScope = tileVao.BindScope())
-        using (var vboScope = tileVbo.BindScope())
+        catch
         {
-            int stride = Marshal.SizeOf<TileResolveVertex>();
-
-            // vec2 atlasCoord
-            tileVao.EnableAttrib(0);
-            tileVao.AttribPointer(0, 2, VertexAttribPointerType.Float, normalized: false, stride, 0);
-
-            // vec4 radianceRGBA (alpha is signed log distance)
-            tileVao.EnableAttrib(1);
-            tileVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 8);
+            tileVbo?.Dispose();
+            probeGeometry?.Dispose();
+            probeVbo.Dispose();
+            throw;
         }
     }
 
@@ -227,69 +185,42 @@ internal sealed class LumOnWorldProbeClipmapGpuUploader : IDisposable
         }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.WorldProbe.UploadResolve");
-        using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
-        StateCache.Current.InvalidateAll();
-        StateCache.Current.Apply(ResolvePso);
-
-        // Pass 1: tile samples -> radiance atlas
-        if (tileProg is not null && !tileProg.LoadError && !tileProg.Disposed && tileVertices.Count > 0)
+        var radianceTarget = resources.GetRadianceFbo();
+        var metadataTarget = resources.GetFbo();
+        var tileState = PreparePipeline(ref tilePipeline, tileProg, TileLayout, radianceTarget, TileOutputs);
+        var probeState = PreparePipeline(ref probePipeline, probeProg, ProbeLayout, metadataTarget, ProbeOutputs);
+        bool submitted = GraphicsCommandContext.TryRun("LumOn.WorldProbe.UploadResolve", [tileState, probeState], true, commands =>
         {
-            using (GlGpuProfiler.Instance.Scope(tileProg.PassName))
+            // Publish radiance first; metadata becomes visible only after both sequential passes succeed.
+            if (tileVertices.Count > 0)
             {
                 tileProg.AtlasSize = new Vec2f(resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
-                tileProg.Use();
-
-                using var vaoScope = tileVao.BindScope();
-
-                var rfbo = resources.GetRadianceFbo();
-                rfbo.Bind();
-                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = resources.RadianceAtlasWidth, Height = resources.RadianceAtlasHeight });
-
-                ReadOnlySpan<TileResolveVertex> tileData = CollectionsMarshal.AsSpan(tileVertices);
-                tileVbo.UploadData(tileData);
-
-                GL.DrawArrays(PrimitiveType.Points, 0, tileData.Length);
-                Rendering.GpuFramebuffer.Unbind();
-                tileProg.Stop();
+                tileVbo.UploadData((ReadOnlySpan<TileResolveVertex>)CollectionsMarshal.AsSpan(tileVertices));
+                Submit(commands, tileState, tileGeometry, radianceTarget, TileOutputs, tileVertices.Count);
             }
-        }
-
-        // Pass 2: per-probe scalars -> vis/dist/meta atlases
-        using (GlGpuProfiler.Instance.Scope(probeProg.PassName))
-        {
             probeProg.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
-            probeProg.Use();
-
-            using (var vaoScope = probeVao.BindScope())
-            {
-                var fbo = resources.GetFbo();
-                fbo.Bind();
-                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = resources.AtlasWidth, Height = resources.AtlasHeight });
-
-                ReadOnlySpan<ProbeResolveVertex> probeData = CollectionsMarshal.AsSpan(probeVertices);
-                probeVbo.UploadData(probeData);
-
-                GL.DrawArrays(PrimitiveType.Points, 0, probeData.Length);
-                Rendering.GpuFramebuffer.Unbind();
-            }
-
-            probeProg.Stop();
-        }
-
+            probeVbo.UploadData((ReadOnlySpan<ProbeResolveVertex>)CollectionsMarshal.AsSpan(probeVertices));
+            Submit(commands, probeState, probeGeometry, metadataTarget, ProbeOutputs, probeVertices.Count);
+        });
+        if (!submitted) return 0;
         return usedProbes;
     }
 
+    /// <summary>Retires geometry before its borrowed streams and invalidates renderer-owned realizations.</summary>
     public void Dispose()
     {
         if (isDisposed) return;
         isDisposed = true;
         hybridCommit?.Dispose(); hybridCommit = null;
 
+        probeGeometry.Dispose();
         probeVbo.Dispose();
-        probeVao.Dispose();
+        probePipeline?.Dispose();
 
+        tileGeometry.Dispose();
         tileVbo.Dispose();
-        tileVao.Dispose();
+        tilePipeline?.Dispose();
+        pipelineLifetime.Dispose();
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]

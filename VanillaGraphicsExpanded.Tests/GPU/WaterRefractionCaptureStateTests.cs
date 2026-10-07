@@ -22,7 +22,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
     public void CaptureRestoresEngineOwnerAndIndependentFramebufferBindings(int backgroundScale, bool lumon)
     {
         EnsureContextValid();
-        using var fixedFunction = StateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunction = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var programs = new RuntimeLightingPrograms();
@@ -32,28 +32,30 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         var events = new RuntimeRenderEvents();
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
         framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
-        float[] identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         int draws = 0; bool failDraw = false; Action? duringDraw = null;
         var render = RuntimeEngineServices.Render(1, framebuffers, () => identity, () => identity,
             () => { if (failDraw) throw new InvalidOperationException("Injected engine mesh failure"); draws++; duringDraw?.Invoke(); drawing.RenderGeometry(); });
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
-            "get_Render" => render, "get_Event" => events.Api, "get_Shader" => programs.Api,
+            "get_Render" => render,
+            "get_Event" => events.Api,
+            "get_Shader" => programs.Api,
             _ => method.Invoke(assets.Api, args)
         });
         programs.Initialize(api);
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = lumon; config.LumOn.EnablePbrComposite = false;
-        config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1,1,1];
+        config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1, 1, 1];
         using var gbuffer = new GBufferManager(api);
-        Assert.True(gbuffer.EnsureBuffers(1,1));
+        Assert.True(gbuffer.EnsureBuffers(1, 1));
         using var directBuffers = new DirectLightingBufferManager(api);
         using var direct = new DirectLightingRenderer(api, gbuffer, directBuffers);
         using var composite = new PBRCompositeRenderer(api, gbuffer, directBuffers, config, () => null);
         using var capture = new VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture(api, direct, composite);
-        using var callerTarget = CreateRenderTarget(2,2,PixelInternalFormat.Rgba32f);
-        using var readTarget = CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);
-        terrain.UploadTerrain(gbuffer, [.75f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
+        using var callerTarget = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var readTarget = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        terrain.UploadTerrain(gbuffer, [.75f], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [.5f, .5f, .5f, 1]);
         var caller = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(api, "pbr_display_resolve")!;
         caller.PrimaryScene = terrain.Color.TextureId;
         caller.PrimaryDepth = terrain.Depth.TextureId;
@@ -69,17 +71,17 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             GL.Disable(IndexedEnableCap.Blend, 4);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             StateCache.Current.Invalidate(EPipelineState.Blend);
-            using (StateCache.Current.CaptureLegacyFixedFunctionState()) { }
+            using (LegacyFixedFunctionReference.Capture(StateCache.Current)) { }
             marker.Draw(terrain, gbuffer);
             Assert.True(marker.ReadMarker(gbuffer) >= 0, "Legacy restoration must reproduce the lost negative marker.");
-            terrain.UploadTerrain(gbuffer, [.75f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
+            terrain.UploadTerrain(gbuffer, [.75f], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [.5f, .5f, .5f, 1]);
             caller.Use();
             // Simulate engine framebuffer binds that bypass an already-primed VGE cache.
             StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, terrain.Output.FboId);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, callerTarget.FboId);
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, readTarget.FboId);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            GL.Viewport(1,1,1,1);
+            GL.Viewport(1, 1, 1, 1);
             GL.DepthMask(true);
             GL.Enable(EnableCap.DepthTest);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -87,9 +89,13 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 if (output < 3) GL.Enable(IndexedEnableCap.Blend, output);
                 else GL.Disable(IndexedEnableCap.Blend, output);
             StateCache.Current.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.Viewport | EPipelineState.FramebufferBindings);
-            HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
+            using (var hostile = new HostileFullscreenState())
+            {
+                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
+                hostile.AssertRestored();
+            }
             Assert.True(composite.PreOverlayScene!.Published);
-            Assert.Equal(1,composite.PreOverlayScene.BackgroundScale);
+            Assert.Equal(1, composite.PreOverlayScene.BackgroundScale);
             Assert.Equal(2, draws);
             Assert.Null(composite.SceneLinearColor);
             Assert.Equal(callerTarget.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
@@ -103,11 +109,11 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.True(GL.IsEnabled(EnableCap.Blend));
             int[] viewport = new int[4];
             GL.GetInteger(GetPName.Viewport, viewport);
-            Assert.Equal(new[] {1,1,1,1}, viewport);
+            Assert.Equal(new[] { 1, 1, 1, 1 }, viewport);
             Assert.Equal(.75f, composite.PreOverlayScene.Depth!.ReadPixels()[0]);
             Assert.Equal(1f, composite.PreOverlayScene.Color!.ReadPixels()[3]);
             Assert.Equal(.75f, terrain.Depth.ReadPixels()[0]);
-            Assert.Equal(new float[] {.5f,.5f,.5f,1f}, terrain.Color.ReadPixels());
+            Assert.Equal(new float[] { .5f, .5f, .5f, 1f }, terrain.Color.ReadPixels());
             // Simulate the first-person write after clean capture, then run the actual
             // final owner. Reduction must consume restored world depth, never the hand proxy.
             caller.Stop();
@@ -120,7 +126,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.True(composite.RefractionScene.Published);
             Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
             Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
-            Assert.Equal(backgroundScale,composite.RefractionScene.BackgroundScale);
+            Assert.Equal(backgroundScale, composite.RefractionScene.BackgroundScale);
             Assert.Equal(backgroundScale == 2 ? 6 : 5, draws);
             Assert.Equal(.75f, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
             Assert.Equal(.75f, composite.RefractionScene.Depth!.ReadPixels()[0]);
@@ -201,18 +207,22 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             StateCache.Current.UnbindProgram();
             StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, callerTarget.FboId);
             StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, readTarget.FboId);
-            StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X=1, Y=1, Width=1, Height=1 });
-            failDraw = true;
-            var captureFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
-                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null));
-            Assert.IsType<InvalidOperationException>(captureFailure.InnerException);
-            Assert.False(composite.PreOverlayScene.Published);
-            AssertCallbackState();
-            Assert.Throws<InvalidOperationException>(() => direct.OnRenderFrame(.016f, EnumRenderStage.Opaque));
-            AssertCallbackState();
-            Assert.Throws<InvalidOperationException>(() => composite.OnRenderFrame(.016f, EnumRenderStage.Opaque));
-            Assert.False(composite.RefractionScene.Published);
-            AssertCallbackState();
+            StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 1, Y = 1, Width = 1, Height = 1 });
+            using (var hostile = new HostileFullscreenState())
+            {
+                failDraw = true;
+                var captureFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
+                    HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null));
+                Assert.IsType<InvalidOperationException>(captureFailure.InnerException);
+                Assert.False(composite.PreOverlayScene.Published);
+                AssertCallbackState();
+                Assert.Throws<InvalidOperationException>(() => direct.OnRenderFrame(.016f, EnumRenderStage.Opaque));
+                AssertCallbackState();
+                Assert.Throws<InvalidOperationException>(() => composite.OnRenderFrame(.016f, EnumRenderStage.Opaque));
+                Assert.False(composite.RefractionScene.Published);
+                AssertCallbackState();
+                hostile.AssertRestored();
+            }
             failDraw = false;
             AssertStableFrames();
 
@@ -222,35 +232,35 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             var liquidRenderer = (Vintagestory.Client.NoObf.ChunkRenderer)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.Client.NoObf.ChunkRenderer));
             liquidRenderer.textureIds = [17];
             liquidRenderer.poolsByRenderPass = new MeshDataPoolManager[(int)EnumChunkRenderPass.Liquid + 1][];
-            var manager = new MeshDataPoolManager(null!,null!,api,16,24,4);
+            var manager = new MeshDataPoolManager(null!, null!, api, 16, 24, 4);
             liquidRenderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid] = [manager];
-            var pool = (MeshDataPool)HarmonyLib.AccessTools.Constructor(typeof(MeshDataPool), [typeof(int),typeof(int),typeof(int)]).Invoke([16,24,4]);
-            var livePools = (List<MeshDataPool>)HarmonyLib.AccessTools.Field(typeof(MeshDataPoolManager),"pools").GetValue(manager)!;
-            var locations = (List<ModelDataPoolLocation>)HarmonyLib.AccessTools.Field(typeof(MeshDataPool),"poolLocations").GetValue(pool)!;
+            var pool = (MeshDataPool)HarmonyLib.AccessTools.Constructor(typeof(MeshDataPool), [typeof(int), typeof(int), typeof(int)]).Invoke([16, 24, 4]);
+            var livePools = (List<MeshDataPool>)HarmonyLib.AccessTools.Field(typeof(MeshDataPoolManager), "pools").GetValue(manager)!;
+            var locations = (List<ModelDataPoolLocation>)HarmonyLib.AccessTools.Field(typeof(MeshDataPool), "poolLocations").GetValue(pool)!;
             livePools.Add(pool);
-            VanillaGraphicsExpanded.PBR.Liquids.LiquidMeshSource.Register(api,liquidRenderer,new(1,1));
+            VanillaGraphicsExpanded.PBR.Liquids.LiquidMeshSource.Register(api, liquidRenderer, new(1, 1));
             try
             {
                 var retainedColor = composite.PreOverlayScene.Color;
                 var retainedDepth = composite.PreOverlayScene.Depth;
                 int beforeDry = draws;
-                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture),"Capture").Invoke(capture,null);
-                Assert.Equal(beforeDry,draws);
+                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
+                Assert.Equal(beforeDry, draws);
                 Assert.False(composite.PreOverlayScene.Published);
-                Assert.Same(retainedColor,composite.PreOverlayScene.Color);
-                Assert.Same(retainedDepth,composite.PreOverlayScene.Depth);
+                Assert.Same(retainedColor, composite.PreOverlayScene.Color);
+                Assert.Same(retainedDepth, composite.PreOverlayScene.Depth);
                 Assert.True(retainedColor!.IsValid); Assert.True(retainedDepth!.IsValid);
                 var location = new ModelDataPoolLocation();
                 locations.Add(location);
-                capture.OnRenderFrame(.016f,EnumRenderStage.Before);
+                capture.OnRenderFrame(.016f, EnumRenderStage.Before);
                 ComposeChangedWorld(.45f);
-                Assert.Same(retainedColor,composite.PreOverlayScene.Color);
-                Assert.Same(retainedDepth,composite.PreOverlayScene.Depth);
+                Assert.Same(retainedColor, composite.PreOverlayScene.Color);
+                Assert.Same(retainedDepth, composite.PreOverlayScene.Depth);
                 pool.RemoveLocation(location);
-                capture.OnRenderFrame(.016f,EnumRenderStage.Before);
+                capture.OnRenderFrame(.016f, EnumRenderStage.Before);
                 beforeDry = draws;
-                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture),"Capture").Invoke(capture,null);
-                Assert.Equal(beforeDry,draws); Assert.False(composite.PreOverlayScene.Published);
+                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
+                Assert.Equal(beforeDry, draws); Assert.False(composite.PreOverlayScene.Published);
             }
             finally { VanillaGraphicsExpanded.PBR.Liquids.LiquidMeshSource.Remove(api); }
 
@@ -268,7 +278,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             ComposeChangedWorld(.375f);
             AssertStableFrames();
 
-            terrain.UploadTerrain(gbuffer, [.75f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
+            terrain.UploadTerrain(gbuffer, [.75f], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [.5f, .5f, .5f, 1]);
             caller.Use();
             caller.PrimaryScene = terrain.Color.TextureId;
             caller.PrimaryDepth = terrain.Depth.TextureId;
@@ -279,9 +289,9 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Moq.Mock.Get(render).SetupGet(value => value.FrameHeight).Returns(3);
             Assert.True(gbuffer.EnsureBuffers(3, 3));
             terrain.UploadTerrain(gbuffer, Enumerable.Repeat(.75f, 9).ToArray(),
-                Enumerable.Range(0, 9).SelectMany(_ => new float[] {.5f,.5f,1,1}).ToArray(),
-                Enumerable.Range(0, 9).SelectMany(_ => new float[] {.5f,0,0,0}).ToArray(),
-                Enumerable.Range(0, 9).SelectMany(_ => new float[] {.5f,.5f,.5f,1}).ToArray());
+                Enumerable.Range(0, 9).SelectMany(_ => new float[] { .5f, .5f, 1, 1 }).ToArray(),
+                Enumerable.Range(0, 9).SelectMany(_ => new float[] { .5f, 0, 0, 0 }).ToArray(),
+                Enumerable.Range(0, 9).SelectMany(_ => new float[] { .5f, .5f, .5f, 1 }).ToArray());
             // A resize must withdraw the borrowed pre-overlay publication before its scratch image changes.
             HarmonyLib.AccessTools.Method(typeof(PBRCompositeRenderer), "OnScreenResized").Invoke(composite, null);
             Assert.False(composite.PreOverlayScene.Published);
@@ -359,7 +369,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 var ordinaryColor = Assert.IsType<DynamicTexture2D>(composite.SceneLinearColor);
                 float[] sentinel = [13f, 7f, 3f, 1f];
                 ordinaryColor.UploadDataImmediate(sentinel);
-                terrain.UploadTerrain(gbuffer, [depth], [.5f,.5f,1,1], [.5f,0,0,0], [depth,depth,depth,1]);
+                terrain.UploadTerrain(gbuffer, [depth], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [depth, depth, depth, 1]);
                 HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
                 Assert.True(composite.PreOverlayScene!.Published);
                 Assert.Equal(sentinel, ordinaryColor.ReadPixels());
@@ -370,7 +380,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 // isolated capture and return the engine's separate read/draw and viewport state.
                 StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, callerTarget.FboId);
                 StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, readTarget.FboId);
-                StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X=1, Y=1, Width=1, Height=1 });
+                StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 1, Y = 1, Width = 1, Height = 1 });
                 direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                 AssertCallbackState();
                 composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
@@ -383,7 +393,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
                 composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                 Assert.True(composite.RefractionScene.Published);
-            Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
+                Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
                 Assert.Equal(depth, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
                 Assert.Equal(worldColor, composite.RefractionScene.SourceColor!.ReadPixels());
                 Assert.NotEqual(sentinel, ordinaryColor.ReadPixels());

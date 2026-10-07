@@ -18,7 +18,7 @@ public sealed partial class GpuFramebuffer
     #region Public API
     /// <summary>Captures all external attachment metadata after framebuffer publication or refresh.</summary>
     /// <remarks>The external owner must call this again after changing native storage. Default surfaces
-    /// require a window-specific provider and remain unsupported by strict render passes.</remarks>
+    /// use the separate window-surface metadata publication entry point.</remarks>
     public void PublishRenderPassMetadata()
     {
         RequireMutableStorage();

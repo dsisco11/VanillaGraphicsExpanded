@@ -3,7 +3,7 @@
 // Restriction: coarseB = restrict(fineResidual)
 // Output: R32F
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_fine;
 @import "./includes/pbr_heightbake_params_ubo.glsl"
@@ -33,5 +33,5 @@ void main()
     float r11 = LoadFine(f0 + ivec2(1, 1));
 
     float coarse = 0.25 * (r00 + r10 + r01 + r11);
-    outColor = vec4(coarse, 0.0, 0.0, 1.0);
+    outColor = coarse;
 }

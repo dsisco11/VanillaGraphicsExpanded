@@ -1,6 +1,7 @@
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -43,6 +44,71 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
                 + previous[8 + row] * -.0625f + previous[12 + row];
             Assert.InRange(mapped.Span[12 + row], expected - .00001f, expected + .00001f);
         }
+    }
+
+    /// <summary>The actual HZB consumer routes every mip and restores hostile engine state on repeated submissions.</summary>
+    [Fact]
+    public void RendererHzbSubmissionBuildsEveryMipUnderHostileState()
+    {
+        EnsureContextValid();
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, new SpatialLightingScene());
+        for (int frame = 0; frame < 8; frame++) runtime.Frame();
+        var renderer = Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
+            item => item is LumOnRenderer);
+        var build = typeof(LumOnRenderer).GetMethod("BuildHzb", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var hzb = runtime.Screen.HzbDepthTex!;
+        Assert.True(hzb.MipLevels > 1);
+        foreach (float depth in new[] { .375f, .625f })
+        {
+            runtime.Cache.Terrain.Depth.UploadDataImmediate(Enumerable.Repeat(depth, 16).ToArray());
+            using var hostile = new HostileFullscreenState();
+            int draws = runtime.DrawnPrograms.Count;
+            build.Invoke(renderer, [runtime.Cache.Terrain.Primary]);
+            hostile.AssertRestored();
+            Assert.Equal(hzb.MipLevels, runtime.DrawnPrograms.Count - draws);
+            for (int mip = 0; mip < hzb.MipLevels; mip++)
+                Assert.All(hzb.ReadPixels(mip), value => Assert.InRange(value, depth - .0001f, depth + .0001f));
+        }
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>A foreign engine shader rejects submission without publishing or advancing temporal history, and the next valid frame recovers.</summary>
+    [Fact]
+    public void RejectedBoundaryDoesNotCommitOrSwapHistory()
+    {
+        EnsureContextValid();
+        var scene = new SpatialLightingScene();
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene);
+        for (int frame = 0; frame < 8; frame++) runtime.Frame();
+        var renderer = (LumOnRenderer)Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
+            item => item is LumOnRenderer);
+        const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+        var index = typeof(LumOnRenderer).GetField("frameIndex", fields)!;
+        var first = typeof(LumOnRenderer).GetField("isFirstFrame", fields)!;
+        int previousIndex = (int)index.GetValue(renderer)!;
+        var current = runtime.Screen.ScreenProbeAtlasCurrentTex;
+        var history = runtime.Screen.ScreenProbeAtlasHistoryTex;
+        var temporal = (LumOnTemporalReprojection)typeof(LumOnRenderer).GetField("temporalReprojection", fields)!.GetValue(renderer)!;
+        var committedX = typeof(LumOnTemporalReprojection).GetField("previousX", fields)!;
+        double previousX = (double)committedX.GetValue(temporal)!;
+        scene.Position += new System.Numerics.Vector3(.125f, 0, 0);
+        var priorOwner = Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram;
+        try
+        {
+            Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram = new Vintagestory.Client.NoObf.ShaderProgramParticlescube();
+            renderer.OnRenderFrame(.016f, Vintagestory.API.Client.EnumRenderStage.Opaque);
+            Assert.False(runtime.Screen.HasPublishedIndirect);
+            Assert.Equal(previousIndex, (int)index.GetValue(renderer)!);
+            Assert.Same(current, runtime.Screen.ScreenProbeAtlasCurrentTex);
+            Assert.Same(history, runtime.Screen.ScreenProbeAtlasHistoryTex);
+            Assert.Equal(previousX, (double)committedX.GetValue(temporal)!);
+            Assert.True((bool)first.GetValue(renderer)!);
+        }
+        finally { Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram = priorOwner; }
+        runtime.Frame();
+        Assert.True(runtime.Screen.HasPublishedIndirect);
+        Assert.True((int)index.GetValue(renderer)! > previousIndex);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
 }

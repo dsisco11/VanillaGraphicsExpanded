@@ -6,7 +6,7 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering.Integration;
 
-/// <summary>Preserves complete graphics and prepared-resource state at a programmable fullscreen interruption.</summary>
+/// <summary>Preserves complete graphics and prepared-resource state at an owned graphics interruption.</summary>
 internal static class CompleteGraphicsBoundary
 {
     #region Public API
@@ -28,7 +28,11 @@ internal static class CompleteGraphicsBoundary
             coverage = coverage.Union(PipelineStateCoverage.From(pipeline));
             hasPipeline = true;
         }
-        if (!hasPipeline) throw new ArgumentException("At least one complete pipeline is required.", nameof(pipelines));
+        // A clear-only pass has no shader executable, but its load operations still need
+        // complete drawing-state restoration. Draw remains impossible without a declared pipeline.
+        if (!hasPipeline) coverage = new(DepthStateKnowledge.All, RasterizerStateKnowledge.All,
+            PrimitiveAssemblyStateKnowledge.All, DynamicDrawStateKnowledge.All, BlendStateKnowledge.All,
+            clearColor: true, completeGraphics: true);
         var resources = new EngineBoundaryResources(textures: [(0, OpenTK.Graphics.OpenGL.TextureTarget.Texture2D)]);
         foreach (var program in programs)
         {

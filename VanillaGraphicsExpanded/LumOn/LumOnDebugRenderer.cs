@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
@@ -43,7 +44,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// 10 = Radiance Overlay (shows indirect diffuse buffer)
 /// 11 = Gather Weight (diagnostic; grayscale weight, red fallback)
 /// </summary>
-public sealed class LumOnDebugRenderer : IRenderer, IDisposable
+public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 {
     #region Constants
 
@@ -54,138 +55,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private const int ClipmapBoundsVerticesPerLevel = 48; // Outer clip volume + inner probe-center bounds (2 * 12 edges * 2 vertices)
     private const int FrozenMarkerVertices = 36; // camera axes + L0 center + L0 min + L0 max + L0 first/last probe centers (3*2 each)
     private const int MaxProbePointVertices = 300_000; // Safety cap to avoid pathological allocations (e.g., res>64).
-    private const byte OitRevealBinsAttachmentIndex = 0;
-    private const byte OitRevealageAttachmentIndex = 1;
-    private const byte OitAccumulationBin0AttachmentIndex = 3;
-    private const byte OitAccumulationBin1AttachmentIndex = 4;
-    private const byte OitAccumulationBin2AttachmentIndex = 5;
 
     #endregion
 
     #region Fields
-
-    private static readonly GlPipelineDesc FullscreenOverlayPso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable)
-            .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthWriteMask),
-        depthWriteMask: false);
-
-    private static readonly GlPipelineDesc ClipmapBoundsLinesPso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable)
-            .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.DepthFunc)
-            .With(GlPipelineStateId.DepthWriteMask)
-            .With(GlPipelineStateId.LineWidth),
-        depthFunc: DepthFunction.Lequal,
-        depthWriteMask: false,
-        lineWidth: 2f);
-
-    private static readonly GlPipelineDesc ClipmapBoundsLivePso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable)
-            .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.DepthFunc)
-            .With(GlPipelineStateId.DepthWriteMask)
-            .With(GlPipelineStateId.LineWidth),
-        depthFunc: DepthFunction.Lequal,
-        depthWriteMask: false,
-        lineWidth: 2f);
-
-    private static readonly GlPipelineDesc QueuedTraceRaysPso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable)
-            .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.DepthFunc)
-            .With(GlPipelineStateId.DepthWriteMask)
-            .With(GlPipelineStateId.LineWidth),
-        depthFunc: DepthFunction.Lequal,
-        depthWriteMask: false,
-        lineWidth: 1.5f);
-
-    private static readonly GlPipelineDesc ClosestProbeMarkerPso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable)
-            .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthWriteMask)
-            .With(GlPipelineStateId.PointSize),
-        depthWriteMask: false,
-        pointSize: 10f);
-
-    private static readonly GlPipelineDesc WorldProbeOrbsPointsPso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.BlendFunc)
-            .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.DepthFunc)
-            .With(GlPipelineStateId.DepthWriteMask)
-            .With(GlPipelineStateId.BlendEnableIndexed)
-            .With(GlPipelineStateId.BlendFuncIndexed)
-            .With(GlPipelineStateId.PointSize),
-        depthFunc: DepthFunction.Lequal,
-        depthWriteMask: true,
-        blendEnableIndexedAttachments:
-        [
-            OitRevealBinsAttachmentIndex,
-            OitRevealageAttachmentIndex,
-            OitAccumulationBin0AttachmentIndex,
-            OitAccumulationBin1AttachmentIndex,
-            OitAccumulationBin2AttachmentIndex
-        ],
-        blendFuncIndexed:
-        [
-            new GlBlendFuncIndexed(OitRevealBinsAttachmentIndex, new GlBlendFunc(
-                BlendingFactorSrc.Zero,
-                BlendingFactorDest.SrcColor,
-                BlendingFactorSrc.Zero,
-                BlendingFactorDest.SrcAlpha)),
-            new GlBlendFuncIndexed(OitRevealageAttachmentIndex, new GlBlendFunc(
-                BlendingFactorSrc.Zero,
-                BlendingFactorDest.SrcColor,
-                BlendingFactorSrc.Zero,
-                BlendingFactorDest.SrcAlpha)),
-            new GlBlendFuncIndexed(OitAccumulationBin0AttachmentIndex, new GlBlendFunc(
-                BlendingFactorSrc.One,
-                BlendingFactorDest.One,
-                BlendingFactorSrc.One,
-                BlendingFactorDest.One)),
-            new GlBlendFuncIndexed(OitAccumulationBin1AttachmentIndex, new GlBlendFunc(
-                BlendingFactorSrc.One,
-                BlendingFactorDest.One,
-                BlendingFactorSrc.One,
-                BlendingFactorDest.One)),
-            new GlBlendFuncIndexed(OitAccumulationBin2AttachmentIndex, new GlBlendFunc(
-                BlendingFactorSrc.One,
-                BlendingFactorDest.One,
-                BlendingFactorSrc.One,
-                BlendingFactorDest.One))
-        ],
-        pointSize: 18f);
 
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
@@ -200,17 +73,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManagerEventSource;
 
-    private MeshRef? quadMeshRef;
+    private EngineFullscreenGeometry? quadMeshRef;
+    private readonly DebugGraphicsSubmission debugSubmission;
 
     private LumOnDebugMode lastMode = LumOnDebugMode.Off;
-
-    private bool hasFrozenClipmapBounds;
-    private Vec3d frozenCameraPosWorld = new Vec3d();
-    private float frozenBaseSpacing;
-    private int frozenLevels;
-    private int frozenResolution;
-    private readonly Vec3d[] frozenOriginsWorld = new Vec3d[MaxWorldProbeLevels];
-    private readonly System.Numerics.Vector3[] frozenOrigins = new System.Numerics.Vector3[MaxWorldProbeLevels];
 
     // World-probe live debug geometry is built in camera-matrix world space at build time:
     //   originMatBuild = (originAbs - camWorldBuild) + camWSBuild
@@ -222,12 +88,12 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     // World-probe bounds debug line rendering (GL_LINES).
     private readonly LineVertex[] clipmapBoundsVertices = new LineVertex[MaxWorldProbeLevels * ClipmapBoundsVerticesPerLevel + FrozenMarkerVertices];
-    private GpuVao? clipmapBoundsVao;
+    private ArrayGraphicsGeometry? clipmapBoundsGeometry;
     private GpuVbo? clipmapBoundsVbo;
 
     // World-probe queued trace rays (GL_LINES).
     private LineVertex[]? clipmapQueuedTraceRayVertices;
-    private GpuVao? clipmapQueuedTraceRaysVao;
+    private ArrayGraphicsGeometry? clipmapQueuedTraceRaysGeometry;
     private GpuVbo? clipmapQueuedTraceRaysVbo;
     private int clipmapQueuedTraceRayVertexCount;
 
@@ -237,13 +103,13 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
     // Probe point cloud (GL_POINTS) attributes.
     private ColorVertex[]? clipmapProbePointColors;
-    private GpuVao? clipmapProbePointsVao;
+    private ArrayGraphicsGeometry? clipmapProbePointsGeometry;
     private GpuVbo? clipmapProbePointsColorVbo;
 
     // Probe orb impostors (GL_POINTS + point sprite shading) attributes.
     private ColorVertex[]? clipmapProbeOrbColors;
     private UvVertex[]? clipmapProbeOrbAtlasCoords;
-    private GpuVao? clipmapProbeOrbsVao;
+    private ArrayGraphicsGeometry? clipmapProbeOrbsGeometry;
     private GpuVbo? clipmapProbeOrbsColorVbo;
     private GpuVbo? clipmapProbeOrbsAtlasVbo;
     private int clipmapProbeOrbsCount;
@@ -251,7 +117,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     // Closest-probe marker (single GL_POINT) for orb debug mode.
     private readonly System.Numerics.Vector3[] closestProbeMarkerPos = new System.Numerics.Vector3[1];
     private readonly ColorVertex[] closestProbeMarkerColor = new ColorVertex[1];
-    private GpuVao? closestProbeMarkerVao;
+    private ArrayGraphicsGeometry? closestProbeMarkerGeometry;
     private GpuVbo? closestProbeMarkerPosVbo;
     private GpuVbo? closestProbeMarkerColorVbo;
     private bool hasClosestProbeMarker;
@@ -321,7 +187,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // Create fullscreen quad mesh (-1 to 1 in NDC)
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
-        quadMeshRef = capi.Render.UploadMesh(quadMesh);
+        quadMeshRef = EngineFullscreenGeometry.Upload(capi.Render, quadMesh);
+        debugSubmission = new(capi);
 
         // Debug views:
         // - Fullscreen overlays: AfterBlit (always visible).
@@ -480,7 +347,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         EnsureClipmapProbeOrbsGlObjects();
         EnsureClosestProbeMarkerGlObjects();
 
-        if (clipmapBoundsVao is null || !clipmapBoundsVao.IsValid || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
+        if (clipmapBoundsGeometry is null || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
         {
             clipmapBoundsCount = 0;
             clipmapProbePointsCount = 0;
@@ -504,8 +371,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         EnsureClipmapProbePositionsArray(probeCount);
 
         clipmapProbePointsCount = 0;
-        if (clipmapProbePointsVao is not null
-            && clipmapProbePointsVao.IsValid
+        if (clipmapProbePointsGeometry is not null
+
             && clipmapProbePointsColorVbo is not null
             && clipmapProbePointsColorVbo.IsValid)
         {
@@ -523,8 +390,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         clipmapProbeOrbsCount = 0;
-        if (clipmapProbeOrbsVao is not null
-            && clipmapProbeOrbsVao.IsValid
+        if (clipmapProbeOrbsGeometry is not null
+
             && clipmapProbeOrbsColorVbo is not null
             && clipmapProbeOrbsColorVbo.IsValid
             && clipmapProbeOrbsAtlasVbo is not null
@@ -727,16 +594,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
                 EnsureWorldProbeClipmapDebugBuffers();
                 UpdateWorldProbeClipmapDebugVerticesForCurrentCameraOrigin();
 
-                int prevOitActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-                using (StateCache.Current.CaptureLegacyFixedFunctionState())
-                {
-                    RenderWorldProbeClipmapBoundsLive();
-                    RenderWorldProbeQueuedTraceRaysLive();
-                    RenderWorldProbeOrbsPointsLive();
-                    StateCache.Current.ActiveTexture(prevOitActiveTexture - (int)TextureUnit.Texture0);
-                }
-
-                StateCache.Current.InvalidateAll();
+                RenderWorldProbeClipmapBoundsLive();
+                RenderWorldProbeQueuedTraceRaysLive();
+                RenderWorldProbeOrbsPointsLive();
             }
 
             return;
@@ -890,255 +750,191 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             worldProbeAtlasTexelsPerUpdate: hasWorldProbeResources ? config.WorldProbeClipmap.AtlasTexelsPerUpdate : 0,
             worldProbeDiffuseStride: hasWorldProbeResources ? 2 : 0);
         if (!LumOnDebugShaderProgramFamily.EnsureReady(capi, shader)) return;
-        int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-        using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
-
-        int[] prevViewport = new int[4];
-        int[] prevScissorBox = new int[4];
-        try
+        if (usesNearFieldVisibility) shader.NearFieldVisibility.Stage(shader, nearFieldVisibilityScene);
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        var worldProbeUbo = uniformBuffers.WorldProbeUboOrNull;
+        if (worldProbeUbo is not null)
         {
-            GL.GetInteger(GetPName.Viewport, prevViewport);
-            GL.GetInteger(GetPName.ScissorBox, prevScissorBox);
-        }
-        catch
-        {
-            prevViewport[0] = 0;
-            prevViewport[1] = 0;
-            prevViewport[2] = capi.Render.FrameWidth;
-            prevViewport[3] = capi.Render.FrameHeight;
-
-            prevScissorBox[0] = 0;
-            prevScissorBox[1] = 0;
-            prevScissorBox[2] = capi.Render.FrameWidth;
-            prevScissorBox[3] = capi.Render.FrameHeight;
+            shader.WorldProbeUniformBuffer = worldProbeUbo;
         }
 
-        bool shaderUsed = false;
-        try
+        var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
+        shader.LumOnTerrainBridge = terrainBridgeUbo;
+
+        // Bind textures
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
+        // encoded to [0,1] via the shader patching system
+        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+        shader.GBufferPatchId = gBufferManager?.PatchIdTextureId ?? 0;
+        shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex;
+        shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex;
+        shader.RadianceTexture0 = null;
+        shader.RadianceTexture1 = null;
+        shader.IndirectHalf = bufferManager?.IndirectHalfTex;
+        shader.HistoryMeta = null;
+
+        // Outcome colors use raw trace metadata, not temporally blended confidence.
+        shader.ProbeAtlasMeta = mode == LumOnDebugMode.ProbeAtlasTraceOutcome
+            ? bufferManager?.ScreenProbeAtlasMetaTraceTex
+            : bufferManager?.ScreenProbeAtlasMetaHistoryTex;
+
+        // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
+        DynamicTexture2D? probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex;
+        DynamicTexture2D? probeAtlasCurrent = bufferManager?.ScreenProbeAtlasCurrentTex ?? probeAtlasTrace;
+        DynamicTexture2D? probeAtlasFiltered = bufferManager?.ScreenProbeAtlasFilteredTex;
+
+        int gatherAtlasSource = 0;
+        GpuTexture? gatherInput = probeAtlasTrace;
+        if (probeAtlasFiltered is not null)
         {
-            // Fullscreen overlays should not disturb global GL state even on early-return paths.
-            StateCache.Current.InvalidateAll();
-            StateCache.Current.Apply(FullscreenOverlayPso);
+            gatherAtlasSource = 2;
+            gatherInput = probeAtlasFiltered;
+        }
+        else if (probeAtlasCurrent is not null)
+        {
+            gatherAtlasSource = 1;
+            gatherInput = probeAtlasCurrent;
+        }
 
-            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = capi.Render.FrameWidth, Height = capi.Render.FrameHeight });
+        shader.ProbeAtlasCurrent = probeAtlasCurrent;
+        shader.ProbeAtlasFiltered = probeAtlasFiltered;
+        shader.ProbeAtlasGatherInput = gatherInput;
+        shader.GatherAtlasSource = gatherAtlasSource;
+        shader.ProbeAtlasTrace = probeAtlasTrace;
 
+        // Phase 10: PIS debug inputs
+        shader.ProbeTraceMask = bufferManager?.ProbeTraceMaskTex;
+        shader.ProbePisEnergy = bufferManager?.ProbePisEnergyTex;
 
-            if (usesNearFieldVisibility) shader.NearFieldVisibility.Stage(shader, nearFieldVisibilityScene);
-            shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
-            var worldProbeUbo = uniformBuffers.WorldProbeUboOrNull;
-            if (worldProbeUbo is not null)
+        // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
+        if (hasWorldProbeResources && worldProbeClipmapBufferManager?.Resources is not null)
+        {
+            shader.WorldProbeRadianceAtlas = worldProbeClipmapBufferManager.Resources.ProbeRadianceAtlas;
+            shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0;
+            shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0;
+            shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0;
+            shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0;
+
+            if (!hasWorldProbeRuntimeParams || wpOrigins is null || wpRings is null)
             {
-                shader.WorldProbeUniformBuffer = worldProbeUbo;
-            }
-
-            var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
-            shader.LumOnTerrainBridge = terrainBridgeUbo;
-
-            // Bind textures
-            shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-            // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
-            // encoded to [0,1] via the shader patching system
-            shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
-            shader.GBufferPatchId = gBufferManager?.PatchIdTextureId ?? 0;
-            shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex;
-            shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex;
-            shader.RadianceTexture0 = null;
-            shader.RadianceTexture1 = null;
-            shader.IndirectHalf = bufferManager?.IndirectHalfTex;
-            shader.HistoryMeta = null;
-
-            // Outcome colors use raw trace metadata, not temporally blended confidence.
-            shader.ProbeAtlasMeta = mode == LumOnDebugMode.ProbeAtlasTraceOutcome
-                ? bufferManager?.ScreenProbeAtlasMetaTraceTex
-                : bufferManager?.ScreenProbeAtlasMetaHistoryTex;
-
-            // Probe-atlas debug textures (raw/current/filtered + the actual gather input selection)
-            DynamicTexture2D? probeAtlasTrace = bufferManager?.ScreenProbeAtlasTraceTex;
-            DynamicTexture2D? probeAtlasCurrent = bufferManager?.ScreenProbeAtlasCurrentTex ?? probeAtlasTrace;
-            DynamicTexture2D? probeAtlasFiltered = bufferManager?.ScreenProbeAtlasFilteredTex;
-
-            int gatherAtlasSource = 0;
-            GpuTexture? gatherInput = probeAtlasTrace;
-            if (probeAtlasFiltered is not null)
-            {
-                gatherAtlasSource = 2;
-                gatherInput = probeAtlasFiltered;
-            }
-            else if (probeAtlasCurrent is not null)
-            {
-                gatherAtlasSource = 1;
-                gatherInput = probeAtlasCurrent;
-            }
-
-            shader.ProbeAtlasCurrent = probeAtlasCurrent;
-            shader.ProbeAtlasFiltered = probeAtlasFiltered;
-            shader.ProbeAtlasGatherInput = gatherInput;
-            shader.GatherAtlasSource = gatherAtlasSource;
-            shader.ProbeAtlasTrace = probeAtlasTrace;
-
-            // Phase 10: PIS debug inputs
-            shader.ProbeTraceMask = bufferManager?.ProbeTraceMaskTex;
-            shader.ProbePisEnergy = bufferManager?.ProbePisEnergyTex;
-
-            // Phase 18 world-probe debug inputs (only bound if available + active in the compiled shader).
-            if (hasWorldProbeResources && worldProbeClipmapBufferManager?.Resources is not null)
-            {
-                shader.WorldProbeRadianceAtlas = worldProbeClipmapBufferManager.Resources.ProbeRadianceAtlas;
-                shader.WorldProbeVis0 = worldProbeClipmapBufferManager.Resources.ProbeVis0;
-                shader.WorldProbeDist0 = worldProbeClipmapBufferManager.Resources.ProbeDist0;
-                shader.WorldProbeMeta0 = worldProbeClipmapBufferManager.Resources.ProbeMeta0;
-                shader.WorldProbeDebugState0 = worldProbeClipmapBufferManager.Resources.ProbeDebugState0;
-
-                if (!hasWorldProbeRuntimeParams || wpOrigins is null || wpRings is null)
-                {
-                    uniformBuffers.UpdateWorldProbe(
-                        skyTint: capi.Render.AmbientColor,
-                        cameraPosWS: default,
-                        originMinCorner: default,
-                        ringOffset: default);
-                }
-                else
-                {
-                    uniformBuffers.UpdateWorldProbe(
-                        skyTint: capi.Render.AmbientColor,
-                        cameraPosWS: wpCamPosWS,
-                        originMinCorner: wpOrigins,
-                        ringOffset: wpRings);
-                }
-
-            }
-            else
-            {
-                shader.WorldProbeRadianceAtlas = null;
-                shader.WorldProbeVis0 = null;
-                shader.WorldProbeDist0 = null;
-                shader.WorldProbeMeta0 = null;
-                shader.WorldProbeDebugState0 = null;
-                // Publish a stable, disabled buffer so UBO-backed shaders can safely read from the block.
                 uniformBuffers.UpdateWorldProbe(
                     skyTint: capi.Render.AmbientColor,
                     cameraPosWS: default,
                     originMinCorner: default,
                     ringOffset: default);
             }
-
-            // Phase 15 composite debug inputs
-            shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex;
-            shader.WorldProbeSuppressedLighting = bufferManager?.WorldProbeSuppressedLighting;
-            shader.GBufferAlbedo = bufferManager?.SurfaceAlbedoTex;
-            shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
-
-            // Phase 16 direct lighting debug inputs
-            shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex;
-            shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex;
-            shader.Emissive = directLightingBufferManager?.EmissiveTex;
-
-            // Phase 14 velocity debug input
-            shader.VelocityTex = bufferManager?.VelocityTex;
-
-            // Phase 22 LumonScene debug inputs (Near field v1).
-            // Only used by LumonScene debug modes; other modes ignore these uniforms.
-            int lumonSceneEnabled = 0;
-            GpuTexture? lumonScenePageTableMip0 = null;
-            GpuTexture? lumonSceneMaterialAtlas = null;
-            GpuTexture? lumonSceneIrradianceAtlas = null;
-            GpuTexture? lumonSceneSurfaceLut = null;
-            int tileSizeTexels = 0;
-            int tilesPerAxis = 0;
-            int tilesPerAtlas = 0;
-
-            if (mode is LumOnDebugMode.LumonScenePageReady
-                or LumOnDebugMode.LumonScenePatchUv
-                or LumOnDebugMode.LumonSceneIrradiance
-                or LumOnDebugMode.LumonSceneMaterial
-                or LumOnDebugMode.LumonSceneMaterialRoughness
-                or LumOnDebugMode.LumonSceneMaterialAtlasAll
-                or LumOnDebugMode.LumonSceneMaterialAtlasAllRoughness
-                or LumOnDebugMode.LumonSceneMaterialAtlasAllNormals
-                or LumOnDebugMode.LumonSceneChunkSlot
-                or LumOnDebugMode.LumonSceneSlotGeneration
-                or LumOnDebugMode.LumonScenePageTableOccupancy
-                or LumOnDebugMode.LumOnScenesOverview)
+            else
             {
-                if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneFeedbackUpdateRenderer is not null)
+                uniformBuffers.UpdateWorldProbe(
+                    skyTint: capi.Render.AmbientColor,
+                    cameraPosWS: wpCamPosWS,
+                    originMinCorner: wpOrigins,
+                    ringOffset: wpRings);
+            }
+
+        }
+        else
+        {
+            shader.WorldProbeRadianceAtlas = null;
+            shader.WorldProbeVis0 = null;
+            shader.WorldProbeDist0 = null;
+            shader.WorldProbeMeta0 = null;
+            shader.WorldProbeDebugState0 = null;
+            // Publish a stable, disabled buffer so UBO-backed shaders can safely read from the block.
+            uniformBuffers.UpdateWorldProbe(
+                skyTint: capi.Render.AmbientColor,
+                cameraPosWS: default,
+                originMinCorner: default,
+                ringOffset: default);
+        }
+
+        // Phase 15 composite debug inputs
+        shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex;
+        shader.WorldProbeSuppressedLighting = bufferManager?.WorldProbeSuppressedLighting;
+        shader.GBufferAlbedo = bufferManager?.SurfaceAlbedoTex;
+        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+
+        // Phase 16 direct lighting debug inputs
+        shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex;
+        shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex;
+        shader.Emissive = directLightingBufferManager?.EmissiveTex;
+
+        // Phase 14 velocity debug input
+        shader.VelocityTex = bufferManager?.VelocityTex;
+
+        // Phase 22 LumonScene debug inputs (Near field v1).
+        // Only used by LumonScene debug modes; other modes ignore these uniforms.
+        int lumonSceneEnabled = 0;
+        GpuTexture? lumonScenePageTableMip0 = null;
+        GpuTexture? lumonSceneMaterialAtlas = null;
+        GpuTexture? lumonSceneIrradianceAtlas = null;
+        GpuTexture? lumonSceneSurfaceLut = null;
+        int tileSizeTexels = 0;
+        int tilesPerAxis = 0;
+        int tilesPerAtlas = 0;
+
+        if (mode is LumOnDebugMode.LumonScenePageReady
+            or LumOnDebugMode.LumonScenePatchUv
+            or LumOnDebugMode.LumonSceneIrradiance
+            or LumOnDebugMode.LumonSceneMaterial
+            or LumOnDebugMode.LumonSceneMaterialRoughness
+            or LumOnDebugMode.LumonSceneMaterialAtlasAll
+            or LumOnDebugMode.LumonSceneMaterialAtlasAllRoughness
+            or LumOnDebugMode.LumonSceneMaterialAtlasAllNormals
+            or LumOnDebugMode.LumonSceneChunkSlot
+            or LumOnDebugMode.LumonSceneSlotGeneration
+            or LumOnDebugMode.LumonScenePageTableOccupancy
+            or LumOnDebugMode.LumOnScenesOverview)
+        {
+            if (config.LumOn.Enabled && config.LumOn.LumonScene.Enabled && lumonSceneFeedbackUpdateRenderer is not null)
+            {
+                if (lumonSceneFeedbackUpdateRenderer.TryGetNearDebugSamplingState(
+                    out var pageTable,
+                    out var material,
+                    out var irradiance,
+                    out tileSizeTexels,
+                    out tilesPerAxis,
+                    out tilesPerAtlas))
                 {
-                    if (lumonSceneFeedbackUpdateRenderer.TryGetNearDebugSamplingState(
-                        out var pageTable,
-                        out var material,
-                        out var irradiance,
-                        out tileSizeTexels,
-                        out tilesPerAxis,
-                        out tilesPerAtlas))
-                    {
-                        lumonSceneEnabled = 1;
-                        lumonScenePageTableMip0 = pageTable;
-                        lumonSceneMaterialAtlas = material;
-                        lumonSceneIrradianceAtlas = irradiance;
-                    }
+                    lumonSceneEnabled = 1;
+                    lumonScenePageTableMip0 = pageTable;
+                    lumonSceneMaterialAtlas = material;
+                    lumonSceneIrradianceAtlas = irradiance;
                 }
             }
-
-            if (lumonSceneEnabled != 0 && traceGeometryRenderer is not null)
-            {
-                lumonSceneSurfaceLut = traceGeometryRenderer.Resources?.Surfaces;
-            }
-
-            shader.LumonSceneEnabled = lumonSceneEnabled;
-            shader.LumonScenePageTableMip0 = lumonScenePageTableMip0;
-            shader.LumonSceneMaterialAtlas = lumonSceneMaterialAtlas;
-            shader.LumonSceneIrradianceAtlas = lumonSceneIrradianceAtlas;
-            shader.LumonSceneSurfaceLut = lumonSceneSurfaceLut;
-            shader.LumonSceneTileSizeTexels = tileSizeTexels;
-            shader.LumonSceneTilesPerAxis = tilesPerAxis;
-            shader.LumonSceneTilesPerAtlas = tilesPerAtlas;
-
-            shader.TraceSceneLegacy = nearFieldVisibilityScene?.Legacy;
-
-            shader.DebugMode = (int)mode;
-            shader.TemporalAlpha = lum.TemporalAlpha;
-            shader.DepthRejectThreshold = 0.0f;
-            shader.NormalRejectThreshold = 0.0f;
-            // Phase 15 composite params (now compile-time defines)
-            shader.IndirectIntensity = lum.Intensity;
-            shader.IndirectTint = new Vec3f(lum.IndirectTint[0], lum.IndirectTint[1], lum.IndirectTint[2]);
-            shader.DiffuseAOStrength = Math.Clamp(lum.DiffuseAOStrength, 0f, 1f);
-            shader.SpecularAOStrength = Math.Clamp(lum.SpecularAOStrength, 0f, 1f);
-            shader.WorldProbeEffectGain = float.IsFinite(lum.WorldProbeEffectGain)
-                ? Math.Clamp(lum.WorldProbeEffectGain, 1f, 1000f) : 10f;
-
-            shader.Use();
-            shaderUsed = true;
-
-            // Render fullscreen quad
-            using var cpuScope = Profiler.BeginScope("Debug.LumOn", "Render");
-            using (GlGpuProfiler.Instance.Scope("Debug.LumOn"))
-            using (GlGpuProfiler.Instance.Scope(shader.PassName))
-            {
-                capi.Render.RenderMesh(quadMeshRef);
-            }
         }
-        finally
+
+        if (lumonSceneEnabled != 0 && traceGeometryRenderer is not null)
         {
-            if (shaderUsed)
-            {
-                shader.Stop();
-            }
-
-            StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
-
-            try
-            {
-                GL.Scissor(prevScissorBox[0], prevScissorBox[1], prevScissorBox[2], prevScissorBox[3]);
-                StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
-            }
-            catch
-            {
-                // ignore restore failures
-            }
-
-            // This pass restores previous engine state via raw GL/wrappers, so the cache must be considered stale.
-            StateCache.Current.InvalidateAll();
+            lumonSceneSurfaceLut = traceGeometryRenderer.Resources?.Surfaces;
         }
+
+        shader.LumonSceneEnabled = lumonSceneEnabled;
+        shader.LumonScenePageTableMip0 = lumonScenePageTableMip0;
+        shader.LumonSceneMaterialAtlas = lumonSceneMaterialAtlas;
+        shader.LumonSceneIrradianceAtlas = lumonSceneIrradianceAtlas;
+        shader.LumonSceneSurfaceLut = lumonSceneSurfaceLut;
+        shader.LumonSceneTileSizeTexels = tileSizeTexels;
+        shader.LumonSceneTilesPerAxis = tilesPerAxis;
+        shader.LumonSceneTilesPerAtlas = tilesPerAtlas;
+
+        shader.TraceSceneLegacy = nearFieldVisibilityScene?.Legacy;
+
+        shader.DebugMode = (int)mode;
+        shader.TemporalAlpha = lum.TemporalAlpha;
+        shader.DepthRejectThreshold = 0.0f;
+        shader.NormalRejectThreshold = 0.0f;
+        // Phase 15 composite params (now compile-time defines)
+        shader.IndirectIntensity = lum.Intensity;
+        shader.IndirectTint = new Vec3f(lum.IndirectTint[0], lum.IndirectTint[1], lum.IndirectTint[2]);
+        shader.DiffuseAOStrength = Math.Clamp(lum.DiffuseAOStrength, 0f, 1f);
+        shader.SpecularAOStrength = Math.Clamp(lum.SpecularAOStrength, 0f, 1f);
+        shader.WorldProbeEffectGain = float.IsFinite(lum.WorldProbeEffectGain)
+            ? Math.Clamp(lum.WorldProbeEffectGain, 1f, 1000f) : 10f;
+
+        debugSubmission.Draw("LumOn." + shader.PassName, shader, quadMeshRef,
+            EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
 
         // Store current matrix for next frame's reprojection
         StorePrevViewProjMatrix();
@@ -1200,187 +996,9 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             }
         }
 
-        // Clipmap bounds overlay is live now; keep frozen capture code around for future use.
     }
 
-    private void CaptureFrozenClipmapBounds()
-    {
-        hasFrozenClipmapBounds = false;
-
-        if (worldProbeClipmapBufferManager?.Resources is null)
-        {
-            return;
-        }
-
-        if (!worldProbeClipmapBufferManager.TryGetRuntimeParams(
-                out var camPosWorld,
-                out _,
-                out frozenBaseSpacing,
-                out frozenLevels,
-                out frozenResolution,
-                out var origins,
-                out _))
-        {
-            return;
-        }
-
-        // Store the frozen capture in absolute world space so it stays fixed even when the engine's
-        // camera-matrix origin shifts (floating origin).
-        frozenCameraPosWorld = camPosWorld;
-
-        frozenLevels = Math.Clamp(frozenLevels, 1, MaxWorldProbeLevels);
-        for (int i = 0; i < MaxWorldProbeLevels; i++)
-        {
-            // Runtime origins are stored relative to the absolute camera position.
-            // Recover absolute world origins at capture time:
-            //   originAbs = originRel + cameraAbs
-            var oRel = (i < origins.Length) ? origins[i] : default;
-            frozenOriginsWorld[i] = new Vec3d(
-                frozenCameraPosWorld.X + oRel.X,
-                frozenCameraPosWorld.Y + oRel.Y,
-                frozenCameraPosWorld.Z + oRel.Z);
-        }
-
-        hasFrozenClipmapBounds = true;
-
-        capi.Logger.Notification(
-            "[VGE] Frozen world-probe clipmap bounds captured (camera={0:0.0},{1:0.0},{2:0.0}; L0 size={3:0.0}m; levels={4})",
-            frozenCameraPosWorld.X, frozenCameraPosWorld.Y, frozenCameraPosWorld.Z,
-            frozenBaseSpacing * frozenResolution,
-            frozenLevels);
-
-        // Extra diagnostics to catch origin/extent sign mistakes.
-        // If probe centers appear to start at the max-corner, these numbers will make it unambiguous.
-        if (frozenLevels > 0 && frozenResolution > 0)
-        {
-            var o0 = frozenOriginsWorld[0];
-            double spacing0 = frozenBaseSpacing;
-            double size0 = spacing0 * frozenResolution;
-            var max0 = new Vec3d(o0.X + size0, o0.Y + size0, o0.Z + size0);
-            var firstCenter0 = new Vec3d(o0.X + 0.5 * spacing0, o0.Y + 0.5 * spacing0, o0.Z + 0.5 * spacing0);
-            var lastCenter0 = new Vec3d(o0.X + (frozenResolution - 0.5) * spacing0, o0.Y + (frozenResolution - 0.5) * spacing0, o0.Z + (frozenResolution - 0.5) * spacing0);
-
-            capi.Logger.Debug(
-                "[VGE] Frozen world-probe L0: originMin=({0:0.###},{1:0.###},{2:0.###}) max=({3:0.###},{4:0.###},{5:0.###}) firstCenter=({6:0.###},{7:0.###},{8:0.###}) lastCenter=({9:0.###},{10:0.###},{11:0.###})",
-                o0.X, o0.Y, o0.Z,
-                max0.X, max0.Y, max0.Z,
-                firstCenter0.X, firstCenter0.Y, firstCenter0.Z,
-                lastCenter0.X, lastCenter0.Y, lastCenter0.Z);
-        }
-    }
-
-    private void RenderWorldProbeClipmapBoundsFrozen()
-    {
-        if (!hasFrozenClipmapBounds)
-        {
-            // Try once per frame until data becomes available (e.g. switching modes before Phase 18 has produced params).
-            CaptureFrozenClipmapBounds();
-            if (!hasFrozenClipmapBounds)
-            {
-                return;
-            }
-        }
-
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
-        if (shader is null || !shader.EnsureReady())
-        {
-            return;
-        }
-
-        EnsureClipmapBoundsLineGlObjects();
-        if (clipmapBoundsVao is null || !clipmapBoundsVao.IsValid || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
-        {
-            return;
-        }
-
-        var player = capi.World?.Player;
-        if (player?.Entity is null)
-        {
-            return;
-        }
-
-        // Convert the frozen absolute world-space bounds into the current camera-relative space every frame,
-        // so they appear fixed in world space even when the engine re-centers the floating origin.
-        Vec3d camPosWorldNow = player.Entity.CameraPos;
-
-        for (int i = 0; i < MaxWorldProbeLevels; i++)
-        {
-            if (i < frozenLevels)
-            {
-                Vec3d oAbs = frozenOriginsWorld[i];
-                frozenOrigins[i] = new System.Numerics.Vector3(
-                    (float)(oAbs.X - camPosWorldNow.X),
-                    (float)(oAbs.Y - camPosWorldNow.Y),
-                    (float)(oAbs.Z - camPosWorldNow.Z));
-            }
-            else
-            {
-                frozenOrigins[i] = default;
-            }
-        }
-
-        var frozenCameraMarkerPos = new System.Numerics.Vector3(
-            (float)(frozenCameraPosWorld.X - camPosWorldNow.X),
-            (float)(frozenCameraPosWorld.Y - camPosWorldNow.Y),
-            (float)(frozenCameraPosWorld.Z - camPosWorldNow.Z));
-
-        UpdateCurrentViewProjMatrix();
-
-        int vertexCount = BuildClipmapBoundsVertices(
-            baseSpacing: frozenBaseSpacing,
-            levels: frozenLevels,
-            resolution: frozenResolution,
-            origins: frozenOrigins,
-            frozenCameraMarkerPos: frozenCameraMarkerPos);
-
-        if (vertexCount <= 0)
-        {
-            StorePrevViewProjMatrix();
-            return;
-        }
-
-        using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBounds", "Render");
-        using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBounds"))
-        {
-            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
-
-            bool shaderUsed = false;
-            try
-            {
-                StateCache.Current.InvalidateAll();
-                StateCache.Current.Apply(ClipmapBoundsLinesPso);
-
-                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
-                shader.WorldOffset = GetClipmapDebugWorldOffset();
-                shader.Use();
-                shaderUsed = true;
-
-                int stride = Marshal.SizeOf<LineVertex>();
-                clipmapBoundsVbo.UploadData(clipmapBoundsVertices, vertexCount * stride);
-
-                clipmapBoundsVao.Bind();
-                GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount);
-                StateCache.Current.SetLineWidth(1f);
-
-                StateCache.Current.BindVertexArray(0);
-            }
-            finally
-            {
-                if (shaderUsed)
-                {
-                    shader.Stop();
-                }
-
-                StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
-
-                StateCache.Current.InvalidateAll();
-            }
-        }
-
-        StorePrevViewProjMatrix();
-    }
-
+    /// <summary>Submits this debug view through its declared geometry, targets and complete pipeline.</summary>
     private void RenderWorldProbeClipmapBoundsLive()
     {
         // Live bounds overlay so we can compare bounds + probe debug visualizations in the same frame.
@@ -1400,7 +1018,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (clipmapBoundsVao is null || !clipmapBoundsVao.IsValid || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
+        if (clipmapBoundsGeometry is null || clipmapBoundsVbo is null || !clipmapBoundsVbo.IsValid)
         {
             RateLimitedClipmapDebugLog("World-probe bounds: missing vao/vbo");
             return;
@@ -1410,64 +1028,18 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         // world - CameraPos, then transformed by the full CameraMatrixOriginf.
         UpdateCurrentViewProjMatrix();
 
-        using var cpuScope = Profiler.BeginScope("Debug.WorldProbeClipmapBoundsLive", "Render");
-        using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeClipmapBoundsLive"))
-        {
-            bool shaderUsed = false;
-            try
-            {
-                StateCache.Current.InvalidateAll();
-                StateCache.Current.Apply(ClipmapBoundsLivePso);
-
-                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
-                shader.WorldOffset = new Vec3f(0, 0, 0);
-                shader.Use();
-                shaderUsed = true;
-
-                clipmapBoundsVao.Bind();
-
-                GL.DrawArrays(PrimitiveType.Lines, 0, clipmapBoundsCount);
-                StateCache.Current.SetLineWidth(1f);
-
-                StateCache.Current.BindVertexArray(0);
-
-                if (clipmapProbePointsCount > 0 && clipmapProbePointsVao is not null && clipmapProbePointsVao.IsValid)
-                {
-                    StateCache.Current.SetPointSize(3.5f);
-
-                    clipmapProbePointsVao.Bind();
-                    GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbePointsCount);
-                    StateCache.Current.BindVertexArray(0);
-                }
-
-                if (hasClosestProbeMarker
-                    && closestProbeMarkerVao is not null
-                    && closestProbeMarkerVao.IsValid)
-                {
-                    // Always-visible marker (no depth test) to help locate probe centers even when they're inside solids.
-                    StateCache.Current.Apply(ClosestProbeMarkerPso);
-
-                    closestProbeMarkerVao.Bind();
-                    GL.DrawArrays(PrimitiveType.Points, 0, 1);
-                    StateCache.Current.BindVertexArray(0);
-                }
-            }
-            finally
-            {
-                if (shaderUsed)
-                {
-                    shader.Stop();
-                }
-            }
-        }
-
-        var err = GL.GetError();
-        if (err != ErrorCode.NoError)
-        {
-            RateLimitedClipmapDebugLog($"World-probe bounds: GL error {err}");
-        }
+        shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+        shader.WorldOffset = new Vec3f(0, 0, 0);
+        debugSubmission.Draw("LumOn.Bounds", shader, clipmapBoundsGeometry, DebugLineLayout,
+            new(0, clipmapBoundsCount), PrimitiveType.Lines, depthTest: true, lineWidth: 2);
+        if (clipmapProbePointsCount > 0 && clipmapProbePointsGeometry is not null)
+            debugSubmission.Draw("LumOn.Points", shader, clipmapProbePointsGeometry, DebugPointLayout,
+                new(0, clipmapProbePointsCount), PrimitiveType.Points, depthTest: true, pointSize: 3.5f);
+        if (hasClosestProbeMarker && closestProbeMarkerGeometry is not null)
+            debugSubmission.Draw("LumOn.Marker", shader, closestProbeMarkerGeometry, DebugPointLayout,
+                new(0, 1), PrimitiveType.Points, pointSize: 10);
     }
-
+    /// <summary>Submits this debug view through its declared geometry, targets and complete pipeline.</summary>
     private void RenderWorldProbeQueuedTraceRaysLive()
     {
         if (worldProbeClipmapBufferManager?.Resources is null)
@@ -1499,7 +1071,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         EnsureClipmapQueuedTraceRaysGlObjects();
-        if (clipmapQueuedTraceRaysVao is null || !clipmapQueuedTraceRaysVao.IsValid || clipmapQueuedTraceRaysVbo is null || !clipmapQueuedTraceRaysVbo.IsValid)
+        if (clipmapQueuedTraceRaysGeometry is null || clipmapQueuedTraceRaysVbo is null || !clipmapQueuedTraceRaysVbo.IsValid)
         {
             return;
         }
@@ -1533,114 +1105,81 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         UpdateCurrentViewProjMatrix();
 
-        bool shaderUsed = false;
-        try
-        {
-            StateCache.Current.InvalidateAll();
-            StateCache.Current.Apply(QueuedTraceRaysPso);
-
-
-            shader.ModelViewProjectionMatrix = currentViewProjMatrix;
-            shader.WorldOffset = new Vec3f(0, 0, 0);
-
-            shader.Use();
-            shaderUsed = true;
-            clipmapQueuedTraceRaysVao.Bind();
-            GL.DrawArrays(PrimitiveType.Lines, 0, clipmapQueuedTraceRayVertexCount);
-            StateCache.Current.SetLineWidth(1f);
-            StateCache.Current.BindVertexArray(0);
-        }
-        finally
-        {
-            if (shaderUsed) shader.Stop();
-        }
+        shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+        shader.WorldOffset = new Vec3f(0, 0, 0);
+        debugSubmission.Draw("LumOn.TraceRays", shader, clipmapQueuedTraceRaysGeometry, DebugLineLayout,
+            new(0, clipmapQueuedTraceRayVertexCount), PrimitiveType.Lines, depthTest: true, lineWidth: 1.5f);
     }
-
+    /// <summary>Publishes private geometry configuration over reusable streaming buffers.</summary>
     private void EnsureClipmapQueuedTraceRaysGlObjects()
     {
-        if (clipmapQueuedTraceRaysVao is not null
-            && clipmapQueuedTraceRaysVao.IsValid
+        if (clipmapQueuedTraceRaysGeometry is not null
+
             && clipmapQueuedTraceRaysVbo is not null
             && clipmapQueuedTraceRaysVbo.IsValid)
         {
             return;
         }
 
-        clipmapQueuedTraceRaysVao?.Dispose();
+        clipmapQueuedTraceRaysGeometry?.Dispose();
         clipmapQueuedTraceRaysVbo?.Dispose();
-        clipmapQueuedTraceRaysVao = null;
+        clipmapQueuedTraceRaysGeometry = null;
         clipmapQueuedTraceRaysVbo = null;
 
         try
         {
-            clipmapQueuedTraceRaysVao = GpuVao.Create("VGE_WorldProbeQueuedTraceRays_VAO");
             clipmapQueuedTraceRaysVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeQueuedTraceRays_VBO");
 
-            using var vaoScope = clipmapQueuedTraceRaysVao.BindScope();
-            using var vboScope = clipmapQueuedTraceRaysVbo.BindScope();
-
-            int stride = Marshal.SizeOf<LineVertex>();
-
-            // vec3 position
-            clipmapQueuedTraceRaysVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
-
-            // vec4 color
-            clipmapQueuedTraceRaysVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+            clipmapQueuedTraceRaysGeometry = new(DebugLineLayout, PrimitiveType.Lines,
+                new Dictionary<int, GpuVbo> { [0] = clipmapQueuedTraceRaysVbo });
         }
         catch
         {
-            clipmapQueuedTraceRaysVao?.Dispose();
+            clipmapQueuedTraceRaysGeometry?.Dispose();
             clipmapQueuedTraceRaysVbo?.Dispose();
-            clipmapQueuedTraceRaysVao = null;
+            clipmapQueuedTraceRaysGeometry = null;
             clipmapQueuedTraceRaysVbo = null;
         }
     }
 
+    /// <summary>Publishes private geometry configuration over reusable streaming buffers.</summary>
     private void EnsureClipmapBoundsLineGlObjects()
     {
-        if (clipmapBoundsVao is not null
-            && clipmapBoundsVao.IsValid
+        if (clipmapBoundsGeometry is not null
+
             && clipmapBoundsVbo is not null
             && clipmapBoundsVbo.IsValid)
         {
             return;
         }
 
-        clipmapBoundsVao?.Dispose();
+        clipmapBoundsGeometry?.Dispose();
         clipmapBoundsVbo?.Dispose();
-        clipmapBoundsVao = null;
+        clipmapBoundsGeometry = null;
         clipmapBoundsVbo = null;
 
         try
         {
-            clipmapBoundsVao = GpuVao.Create("VGE_WorldProbeClipmapBoundsLines_VAO");
             clipmapBoundsVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapBoundsLines_VBO");
 
-            using var vaoScope = clipmapBoundsVao.BindScope();
-            using var vboScope = clipmapBoundsVbo.BindScope();
-
-            int stride = Marshal.SizeOf<LineVertex>();
-
-            // vec3 position
-            clipmapBoundsVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
-
-            // vec4 color
-            clipmapBoundsVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+            clipmapBoundsGeometry = new(DebugLineLayout, PrimitiveType.Lines,
+                new Dictionary<int, GpuVbo> { [0] = clipmapBoundsVbo });
         }
         catch
         {
             // Best-effort only; fall back to no-op if GL objects can't be created.
-            clipmapBoundsVao?.Dispose();
+            clipmapBoundsGeometry?.Dispose();
             clipmapBoundsVbo?.Dispose();
-            clipmapBoundsVao = null;
+            clipmapBoundsGeometry = null;
             clipmapBoundsVbo = null;
         }
     }
 
+    /// <summary>Publishes private geometry configuration over reusable streaming buffers.</summary>
     private void EnsureClipmapProbePointsGlObjects()
     {
-        if (clipmapProbePointsVao is not null
-            && clipmapProbePointsVao.IsValid
+        if (clipmapProbePointsGeometry is not null
+
             && clipmapProbePointsColorVbo is not null
             && clipmapProbePointsColorVbo.IsValid)
         {
@@ -1653,36 +1192,24 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        clipmapProbePointsVao?.Dispose();
+        clipmapProbePointsGeometry?.Dispose();
         clipmapProbePointsColorVbo?.Dispose();
-        clipmapProbePointsVao = null;
+        clipmapProbePointsGeometry = null;
         clipmapProbePointsColorVbo = null;
 
         try
         {
-            clipmapProbePointsVao = GpuVao.Create("VGE_WorldProbeClipmapProbePoints_VAO");
             clipmapProbePointsColorVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapProbePoints_Color_VBO");
 
-            using var vaoScope = clipmapProbePointsVao.BindScope();
-
-            int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
-            using (clipmapProbePositionsVbo.BindScope())
-            {
-                clipmapProbePointsVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
-            }
-
-            int colorStride = Marshal.SizeOf<ColorVertex>();
-            using (clipmapProbePointsColorVbo.BindScope())
-            {
-                clipmapProbePointsVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
-            }
+            clipmapProbePointsGeometry = new(DebugPointLayout, PrimitiveType.Points,
+                new Dictionary<int, GpuVbo> { [0] = clipmapProbePositionsVbo, [1] = clipmapProbePointsColorVbo });
         }
         catch
         {
             // Best-effort only; fall back to no-op if GL objects can't be created.
-            clipmapProbePointsVao?.Dispose();
+            clipmapProbePointsGeometry?.Dispose();
             clipmapProbePointsColorVbo?.Dispose();
-            clipmapProbePointsVao = null;
+            clipmapProbePointsGeometry = null;
             clipmapProbePointsColorVbo = null;
         }
     }
@@ -1770,10 +1297,11 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         }
     }
 
+    /// <summary>Publishes private geometry configuration over reusable streaming buffers.</summary>
     private void EnsureClipmapProbeOrbsGlObjects()
     {
-        if (clipmapProbeOrbsVao is not null
-            && clipmapProbeOrbsVao.IsValid
+        if (clipmapProbeOrbsGeometry is not null
+
             && clipmapProbeOrbsColorVbo is not null
             && clipmapProbeOrbsColorVbo.IsValid
             && clipmapProbeOrbsAtlasVbo is not null
@@ -1788,54 +1316,37 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        clipmapProbeOrbsVao?.Dispose();
+        clipmapProbeOrbsGeometry?.Dispose();
         clipmapProbeOrbsColorVbo?.Dispose();
         clipmapProbeOrbsAtlasVbo?.Dispose();
-        clipmapProbeOrbsVao = null;
+        clipmapProbeOrbsGeometry = null;
         clipmapProbeOrbsColorVbo = null;
         clipmapProbeOrbsAtlasVbo = null;
 
         try
         {
-            clipmapProbeOrbsVao = GpuVao.Create("VGE_WorldProbeClipmapProbeOrbs_VAO");
             clipmapProbeOrbsColorVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapProbeOrbs_Color_VBO");
             clipmapProbeOrbsAtlasVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClipmapProbeOrbs_Atlas_VBO");
 
-            using var vaoScope = clipmapProbeOrbsVao.BindScope();
-
-            int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
-            using (clipmapProbePositionsVbo.BindScope())
-            {
-                clipmapProbeOrbsVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
-            }
-
-            int colorStride = Marshal.SizeOf<ColorVertex>();
-            using (clipmapProbeOrbsColorVbo.BindScope())
-            {
-                clipmapProbeOrbsVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
-            }
-
-            int uvStride = Marshal.SizeOf<UvVertex>();
-            using (clipmapProbeOrbsAtlasVbo.BindScope())
-            {
-                clipmapProbeOrbsVao.AttribPointer(2, 2, VertexAttribPointerType.Float, normalized: false, uvStride, 0);
-            }
+            clipmapProbeOrbsGeometry = new(DebugOrbLayout, PrimitiveType.Points,
+                new Dictionary<int, GpuVbo> { [0] = clipmapProbePositionsVbo, [1] = clipmapProbeOrbsColorVbo, [2] = clipmapProbeOrbsAtlasVbo });
         }
         catch
         {
-            clipmapProbeOrbsVao?.Dispose();
+            clipmapProbeOrbsGeometry?.Dispose();
             clipmapProbeOrbsColorVbo?.Dispose();
             clipmapProbeOrbsAtlasVbo?.Dispose();
-            clipmapProbeOrbsVao = null;
+            clipmapProbeOrbsGeometry = null;
             clipmapProbeOrbsColorVbo = null;
             clipmapProbeOrbsAtlasVbo = null;
         }
     }
 
+    /// <summary>Publishes private geometry configuration over reusable streaming buffers.</summary>
     private void EnsureClosestProbeMarkerGlObjects()
     {
-        if (closestProbeMarkerVao is not null
-            && closestProbeMarkerVao.IsValid
+        if (closestProbeMarkerGeometry is not null
+
             && closestProbeMarkerPosVbo is not null
             && closestProbeMarkerPosVbo.IsValid
             && closestProbeMarkerColorVbo is not null
@@ -1844,39 +1355,27 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        closestProbeMarkerVao?.Dispose();
+        closestProbeMarkerGeometry?.Dispose();
         closestProbeMarkerPosVbo?.Dispose();
         closestProbeMarkerColorVbo?.Dispose();
-        closestProbeMarkerVao = null;
+        closestProbeMarkerGeometry = null;
         closestProbeMarkerPosVbo = null;
         closestProbeMarkerColorVbo = null;
 
         try
         {
-            closestProbeMarkerVao = GpuVao.Create("VGE_WorldProbeClosestProbeMarker_VAO");
             closestProbeMarkerPosVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClosestProbeMarker_Pos_VBO");
             closestProbeMarkerColorVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldProbeClosestProbeMarker_Color_VBO");
 
-            using var vaoScope = closestProbeMarkerVao.BindScope();
-
-            int posStride = Marshal.SizeOf<System.Numerics.Vector3>();
-            using (closestProbeMarkerPosVbo.BindScope())
-            {
-                closestProbeMarkerVao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, posStride, 0);
-            }
-
-            int colorStride = Marshal.SizeOf<ColorVertex>();
-            using (closestProbeMarkerColorVbo.BindScope())
-            {
-                closestProbeMarkerVao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, colorStride, 0);
-            }
+            closestProbeMarkerGeometry = new(DebugPointLayout, PrimitiveType.Points,
+                new Dictionary<int, GpuVbo> { [0] = closestProbeMarkerPosVbo, [1] = closestProbeMarkerColorVbo });
         }
         catch
         {
-            closestProbeMarkerVao?.Dispose();
+            closestProbeMarkerGeometry?.Dispose();
             closestProbeMarkerPosVbo?.Dispose();
             closestProbeMarkerColorVbo?.Dispose();
-            closestProbeMarkerVao = null;
+            closestProbeMarkerGeometry = null;
             closestProbeMarkerPosVbo = null;
             closestProbeMarkerColorVbo = null;
         }
@@ -1951,6 +1450,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
     }
 
     /// <summary>Draws probe diagnostics using the published clipmap layout and a matching shader variant.</summary>
+    /// <summary>Submits this debug view through its declared geometry, targets and complete pipeline.</summary>
     private void RenderWorldProbeOrbsPointsLive()
     {
         if (worldProbeClipmapBufferManager?.Resources is null || clipmapProbeOrbsCount <= 0)
@@ -1969,8 +1469,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (clipmapProbeOrbsVao is null
-            || !clipmapProbeOrbsVao.IsValid
+        if (clipmapProbeOrbsGeometry is null
+
             || clipmapProbePositionsVbo is null
             || !clipmapProbePositionsVbo.IsValid
             || clipmapProbeOrbsColorVbo is null
@@ -2002,98 +1502,55 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
         UpdateAndBindFrameUbo(config.LumOn);
 
-        using var cpuScope = Profiler.BeginScope("Debug.WorldProbeOrbsPoints", "Render");
-        using (GlGpuProfiler.Instance.Scope("Debug.WorldProbeOrbsPoints"))
+        bool importanceColorMode = config.LumOn.DebugMode == LumOnDebugMode.WorldProbeImportance;
+
+
+
+        shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+        shader.WorldOffset = new Vec3f(0, 0, 0);
+        shader.CameraPos = new Vec3f(0, 0, 0);
+        shader.PointSize = 18f;
+        shader.ImportanceColorMode = importanceColorMode;
+        float maxSpacing = clipmapDebugBaseSpacing * (1 << Math.Max(clipmapDebugLevels - 1, 0));
+        float maxSize = maxSpacing * clipmapDebugResolution;
+        shader.FadeNear = maxSize * 0.5f;
+        shader.FadeFar = maxSize * 1.05f;
+
+        // Bind world-probe textures (binds both texture + sampler).
+        var res = worldProbeClipmapBufferManager.Resources;
+
+        shader.WorldProbeRadianceAtlas = res.ProbeRadianceAtlas;
+
+        shader.WorldProbeVis0 = res.ProbeVis0;
+
+        shader.WorldProbeDebugState0 = res.ProbeDebugState0;
+
+        // Publish + bind world-probe UBO (Phase 23). This debug pass only needs the sky tint.
+        System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+        uniformBuffers.UpdateWorldProbe(
+            skyTint: capi.Render.AmbientColor,
+            cameraPosWS: camPosWs,
+            originMinCorner: default,
+            ringOffset: default);
+
+        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
+        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
+
+        debugSubmission.Draw("LumOn.Orbs", shader, clipmapProbeOrbsGeometry, DebugOrbLayout,
+            new(0, clipmapProbeOrbsCount), PrimitiveType.Points, depthTest: true,
+            pointSize: 18, programPointSize: true, depthWrite: true, blending: OrbBlending);
+        if (hasClosestProbeMarker && closestProbeMarkerGeometry is not null)
         {
-            bool shaderUsed = false;
-            try
+            var markerShader = GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+            if (markerShader.EnsureReady())
             {
-                StateCache.Current.InvalidateAll();
-                StateCache.Current.Apply(WorldProbeOrbsPointsPso);
-                bool importanceColorMode = config.LumOn.DebugMode == LumOnDebugMode.WorldProbeImportance;
-
-
-
-                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
-                shader.WorldOffset = new Vec3f(0, 0, 0);
-                shader.CameraPos = new Vec3f(0, 0, 0);
-                shader.PointSize = 18f;
-                shader.ImportanceColorMode = importanceColorMode;
-                float maxSpacing = clipmapDebugBaseSpacing * (1 << Math.Max(clipmapDebugLevels - 1, 0));
-                float maxSize = maxSpacing * clipmapDebugResolution;
-                shader.FadeNear = maxSize * 0.5f;
-                shader.FadeFar = maxSize * 1.05f;
-
-                // Bind world-probe textures (binds both texture + sampler).
-                var res = worldProbeClipmapBufferManager.Resources;
-
-                shader.WorldProbeRadianceAtlas = res.ProbeRadianceAtlas;
-
-                shader.WorldProbeVis0 = res.ProbeVis0;
-
-                shader.WorldProbeDebugState0 = res.ProbeDebugState0;
-
-                // Publish + bind world-probe UBO (Phase 23). This debug pass only needs the sky tint.
-                System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
-                uniformBuffers.UpdateWorldProbe(
-                    skyTint: capi.Render.AmbientColor,
-                    cameraPosWS: camPosWs,
-                    originMinCorner: default,
-                    ringOffset: default);
-
-                        shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
-                        shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
-
-                shader.Use();
-                shaderUsed = true;
-                clipmapProbeOrbsVao.Bind();
-
-                GL.DrawArrays(PrimitiveType.Points, 0, clipmapProbeOrbsCount);
-
-                StateCache.Current.BindVertexArray(0);
-
-                // Draw a cyan point at the closest probe center (always visible).
-                if (hasClosestProbeMarker
-                    && closestProbeMarkerVao is not null
-                    && closestProbeMarkerVao.IsValid)
-                {
-                    shader.Stop();
-                    shaderUsed = false;
-
-                    var markerShader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
-                    if (markerShader is not null && markerShader.EnsureReady())
-                    {
-                        StateCache.Current.Apply(ClosestProbeMarkerPso);
-
-                        markerShader.ModelViewProjectionMatrix = currentViewProjMatrix;
-                        markerShader.WorldOffset = new Vec3f(0, 0, 0);
-
-                        markerShader.Use();
-                        GL.PointSize(12.0f);
-                        closestProbeMarkerVao.Bind();
-                        GL.DrawArrays(PrimitiveType.Points, 0, 1);
-                        StateCache.Current.BindVertexArray(0);
-
-                        markerShader.Stop();
-                    }
-                }
+                markerShader.ModelViewProjectionMatrix = currentViewProjMatrix;
+                markerShader.WorldOffset = new Vec3f(0, 0, 0);
+                debugSubmission.Draw("LumOn.OrbMarker", markerShader, closestProbeMarkerGeometry,
+                    DebugPointLayout, new(0, 1), PrimitiveType.Points, pointSize: 12);
             }
-            finally
-            {
-                if (shaderUsed)
-                {
-                    shader.Stop();
-                }
-            }
-        }
-
-        var err = GL.GetError();
-        if (err != ErrorCode.NoError)
-        {
-            RateLimitedClipmapDebugLog($"World-probe orbs: GL error {err}");
         }
     }
-
     private bool TryGetRenderCameraWorldOrigin(out Vec3d originWorld)
     {
         // CameraMatrixOriginf is relative to the render camera. Rebase debug geometry with
@@ -2121,8 +1578,8 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        bool canUpdateBounds = clipmapBoundsVao is not null
-            && clipmapBoundsVao.IsValid
+        bool canUpdateBounds = clipmapBoundsGeometry is not null
+
             && clipmapBoundsVbo is not null
             && clipmapBoundsVbo.IsValid;
         int probeCount = Math.Max(clipmapProbePointsCount, clipmapProbeOrbsCount);
@@ -2267,7 +1724,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (closestProbeMarkerVao is null || !closestProbeMarkerVao.IsValid)
+        if (closestProbeMarkerGeometry is null)
         {
             return;
         }
@@ -2537,6 +1994,7 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
         _ => (0.9f, 0.9f, 0.9f, 1f),
     };
 
+    /// <summary>Submits this debug view through its declared geometry, targets and complete pipeline.</summary>
     private void RenderVgeNormalDepthAtlas()
     {
         if (quadMeshRef is null)
@@ -2559,35 +2017,10 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-        using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
-
-        var blitShader = capi.Render.GetEngineShader(EnumShaderProgram.Blit);
-        blitShader.Use();
-
-        try
-        {
-            StateCache.Current.InvalidateAll();
-            StateCache.Current.Apply(FullscreenOverlayPso);
-
-            StateCache.Current.ActiveTexture(0);
-            StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, texId);
-            blitShader.BindTexture2D("scene", texId, 0);
-            GpuSamplers.NearestClamp.Bind(0);
-
-            using var cpuScope = Profiler.BeginScope("Debug.VGE.NormalDepthAtlas", "Render");
-            using (GlGpuProfiler.Instance.Scope("Debug.VGE.NormalDepthAtlas"))
-            {
-                capi.Render.RenderMesh(quadMeshRef);
-            }
-        }
-        finally
-        {
-            blitShader.Stop();
-
-            StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
-            StateCache.Current.InvalidateAll();
-        }
+        var shader = GpuShaderPrograms.Get<DebugTextureShaderProgram>(capi, "debug_texture");
+        shader.Scene = texId;
+        debugSubmission.Draw("LumOn.NormalDepthAtlas", shader, quadMeshRef,
+            EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
     }
 
     private static bool IsDirectLightingMode(LumOnDebugMode mode) =>
@@ -2746,38 +2179,39 @@ public sealed class LumOnDebugRenderer : IRenderer, IDisposable
 
         if (quadMeshRef is not null)
         {
-            capi.Render.DeleteMesh(quadMeshRef);
+            quadMeshRef.Dispose();
+            debugSubmission.Dispose();
             quadMeshRef = null;
         }
 
         clipmapBoundsVbo?.Dispose();
         clipmapBoundsVbo = null;
-        clipmapBoundsVao?.Dispose();
-        clipmapBoundsVao = null;
+        clipmapBoundsGeometry?.Dispose();
+        clipmapBoundsGeometry = null;
 
         clipmapQueuedTraceRaysVbo?.Dispose();
         clipmapQueuedTraceRaysVbo = null;
-        clipmapQueuedTraceRaysVao?.Dispose();
-        clipmapQueuedTraceRaysVao = null;
+        clipmapQueuedTraceRaysGeometry?.Dispose();
+        clipmapQueuedTraceRaysGeometry = null;
 
         clipmapProbePointsColorVbo?.Dispose();
         clipmapProbePointsColorVbo = null;
-        clipmapProbePointsVao?.Dispose();
-        clipmapProbePointsVao = null;
+        clipmapProbePointsGeometry?.Dispose();
+        clipmapProbePointsGeometry = null;
 
         clipmapProbeOrbsAtlasVbo?.Dispose();
         clipmapProbeOrbsAtlasVbo = null;
         clipmapProbeOrbsColorVbo?.Dispose();
         clipmapProbeOrbsColorVbo = null;
-        clipmapProbeOrbsVao?.Dispose();
-        clipmapProbeOrbsVao = null;
+        clipmapProbeOrbsGeometry?.Dispose();
+        clipmapProbeOrbsGeometry = null;
 
         closestProbeMarkerColorVbo?.Dispose();
         closestProbeMarkerColorVbo = null;
         closestProbeMarkerPosVbo?.Dispose();
         closestProbeMarkerPosVbo = null;
-        closestProbeMarkerVao?.Dispose();
-        closestProbeMarkerVao = null;
+        closestProbeMarkerGeometry?.Dispose();
+        closestProbeMarkerGeometry = null;
 
         clipmapProbePositionsVbo?.Dispose();
         clipmapProbePositionsVbo = null;

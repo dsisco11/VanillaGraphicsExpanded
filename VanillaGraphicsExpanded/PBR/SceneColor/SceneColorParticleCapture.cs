@@ -1,4 +1,7 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.API.Client;
@@ -8,19 +11,13 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.PBR.SceneColor;
 
 /// <summary>Publishes material receiver depth and ordered particle radiance before deferred lighting.</summary>
-internal sealed class SceneColorParticleCapture : IRenderer
+internal sealed partial class SceneColorParticleCapture : IRenderer
 {
     private static SceneColorParticleCapture? active;
-    internal static readonly GlPipelineDesc ResolvePipeline = new(
-        defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask),
-        depthWriteMask: false, name: "SceneColor.Particles.Resolve");
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
     private readonly Action unregisterResize;
-    private readonly MeshRef quad;
+    private readonly EngineFullscreenGeometry geometry;
     private SceneColorParticleTargets? targets;
     private SceneColorParticleShaderProgram? resolve;
     private SceneColorParticleSsaoShaderProgram? ssaoRestore;
@@ -37,7 +34,7 @@ internal sealed class SceneColorParticleCapture : IRenderer
         this.gbuffer = gbuffer;
         var mesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         mesh.Rgba = null;
-        quad = api.Render.UploadMesh(mesh);
+        geometry = EngineFullscreenGeometry.Upload(api.Render, mesh);
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.DirectLightingOrder, Retire);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_particle_capture_reset");
         api.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "vge_particle_receiver_resolve");
@@ -56,7 +53,8 @@ internal sealed class SceneColorParticleCapture : IRenderer
         api.Event.LeaveWorld -= Retire;
         unregisterResize();
         Retire();
-        api.Render.DeleteMesh(quad);
+        geometry.Dispose();
+        pipelineLifetime.Dispose();
     }
     #endregion
 
@@ -89,6 +87,7 @@ internal sealed class SceneColorParticleCapture : IRenderer
             if (ssaoRestore?.EnsureReady() != true) return false;
         }
         targets ??= new SceneColorParticleTargets(gbuffer.PrimaryFramebuffer, hasSsao);
+        PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget);
         prepared = true;
         return true;
     }
@@ -107,19 +106,14 @@ internal sealed class SceneColorParticleCapture : IRenderer
             || resolve is null) return;
         // The resolve owns its full-screen state and borrows only read-only source
         // images. Subsequent deferred passes establish their own pipeline state.
-        using var bindings = StateCache.Current.BindFramebufferScope();
-        targets.ResolveTarget.BindWithViewport();
-        StateCache.Current.Apply(ResolvePipeline);
+        published = false;
         resolve.VisibilityDepth = targets.VisibilityDepth;
         resolve.BeforeDepth = targets.BeforeDepth;
         resolve.AfterDepth = targets.AfterDepth;
         resolve.ParticleColor = targets.ParticleColor;
-        using (resolve.UseScope())
-        {
-            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, resolve)) return;
-            api.Render.RenderMesh(quad);
-        }
-        published = true;
+        var pipeline = PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget);
+        published = GraphicsCommandContext.TryRun("SceneColor.Particles.Resolve", [pipeline], true,
+            commands => Submit(commands, pipeline, targets.ResolveTarget));
     }
 
     /// <summary>Selects corrected material depth only after current-frame receiver separation has completed.</summary>
@@ -133,33 +127,33 @@ internal sealed class SceneColorParticleCapture : IRenderer
             ? capture.targets.ResolveTarget[1] : null;
 
     /// <summary>Resolves the active SSAO helper before the composite captures its resource footprint.</summary>
-    internal static GpuProgram? PrepareSsaoBoundary(ICoreClientAPI api)
+    internal static GraphicsPipeline? PrepareSsaoPipeline(ICoreClientAPI api)
     {
         if (active is not { published: true, targets: { IsCurrent: true, HasSsao: true }, ssaoRestore: { } shader } capture
             || !ReferenceEquals(capture.api, api)) return null;
         if (!shader.EnsureReady()) throw new InvalidOperationException("SSAO restoration shader unavailable.");
-        return shader;
+        return capture.PreparePipeline(ref capture.ssaoPipeline, shader, capture.targets.SsaoTarget!);
     }
 
     /// <summary>Returns original particle metadata to engine SSAO only after deferred material composition finishes.</summary>
-    internal static void RestoreSsao(ICoreClientAPI api, EngineBoundaryScope? scope = null)
+    internal static void RestoreSsao(ICoreClientAPI api, GraphicsCommandContext? commands = null)
     {
-        if (scope is not null) StateCache.Current.RequireEngineBoundary(scope);
         if (active is not { published: true, targets: { IsCurrent: true, HasSsao: true }, ssaoRestore: { } shader } capture
             || !ReferenceEquals(capture.api, api)) return;
-        using var bindings = scope is null ? StateCache.Current.BindFramebufferScope() : (StateCache.FramebufferScope?)null;
-        capture.targets.SsaoTarget!.BindWithViewport();
-        StateCache.Current.Apply(ResolvePipeline);
         shader.VisibilityDepth = capture.targets.VisibilityDepth;
         shader.BeforeDepth = capture.targets.BeforeDepth;
         shader.AfterDepth = capture.targets.AfterDepth;
         shader.ParticleNormal = capture.targets.DrawTarget[2];
         shader.ParticlePosition = capture.targets.DrawTarget[3];
-        using var activation = scope is null ? shader.UseScope() : default;
-        if (scope is not null) scope.Activate(shader);
+        if (commands is not null)
+            capture.Submit(commands, capture.ssaoPipeline
+                ?? throw new InvalidOperationException("SSAO pipeline was not prepared before boundary entry."), capture.targets.SsaoTarget!);
+        else
         {
-            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, shader)) return;
-            api.Render.RenderMesh(capture.quad);
+            var pipeline = PrepareSsaoPipeline(api)!;
+            if (!GraphicsCommandContext.TryRun("SceneColor.Particles.SsaoRestore", [pipeline], true,
+                context => capture.Submit(context, pipeline, capture.targets.SsaoTarget!)))
+                throw new InvalidOperationException("SSAO restoration boundary unavailable.");
         }
     }
     #endregion
@@ -194,6 +188,9 @@ internal sealed class SceneColorParticleCapture : IRenderer
         targets = null;
         resolve = null;
         ssaoRestore = null;
+        resolvePipeline?.Dispose();
+        ssaoPipeline?.Dispose();
+        resolvePipeline = ssaoPipeline = null;
     }
     #endregion
 }

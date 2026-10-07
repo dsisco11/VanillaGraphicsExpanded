@@ -3,7 +3,7 @@
 // Separable 1D Gaussian blur pass (horizontal or vertical).
 // Output: R32F
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_src;
 @import "./includes/pbr_heightbake_params_ubo.glsl"
@@ -35,5 +35,5 @@ void main()
         sum += w * (LoadR(p + o) + LoadR(p - o));
     }
 
-    outColor = vec4(sum, 0.0, 0.0, 1.0);
+    outColor = sum;
 }

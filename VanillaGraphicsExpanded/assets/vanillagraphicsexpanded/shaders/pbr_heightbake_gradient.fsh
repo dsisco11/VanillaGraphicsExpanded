@@ -3,7 +3,7 @@
 // Desired gradient field g from band-passed detail D.
 // Output: RG32F (gx, gy)
 
-out vec4 outColor;
+out vec2 outColor;
 
 uniform sampler2D u_d;
 @import "./includes/pbr_heightbake_params_ubo.glsl"
@@ -40,5 +40,5 @@ void main()
         g *= (u_maxSlope / gmag);
     }
 
-    outColor = vec4(g, 0.0, 1.0);
+    outColor = g;
 }

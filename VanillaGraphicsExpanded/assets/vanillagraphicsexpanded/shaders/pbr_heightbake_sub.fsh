@@ -6,7 +6,7 @@
 // - u_relContrast = 0: out = a - b
 // - u_relContrast = 1: out = (a - b) / (b + u_eps)
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_a;
 uniform sampler2D u_b;
@@ -28,5 +28,5 @@ void main()
         v = clamp(v, -u_vMax, u_vMax);
     }
 
-    outColor = vec4(v, 0.0, 0.0, 1.0);
+    outColor = v;
 }

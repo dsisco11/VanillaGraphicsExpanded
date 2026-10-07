@@ -705,36 +705,36 @@ Phase 8: Remaining VGE consumers and compatibility cleanup
   Dependencies: Phase 7 review gate; Phase 1 consumer inventory.
   Outcome: inventoried VGE passes adopt complete submission or have a documented scope disposition.
 
-  ☐ Migrate composite and capture passes, then indexed-blend/MRT consumers.
-    ☐ Extend per-consumer boundary adapters and metadata before migrating each caller.
-    ☐ Route migrated state through unified category owners via pipeline/submission APIs; retain
+  ☑ Migrate composite and capture passes, then indexed-blend/MRT consumers.
+    ☑ Extend per-consumer boundary adapters and metadata before migrating each caller.
+    ☑ Route migrated state through unified category owners via pipeline/submission APIs; retain
       partial-boundary semantics without renderer-side native-state copies or packed-flag manipulation.
-    ☐ Replace RenderComposite and WaterRefractionCapture compatibility coordination only after complete
+    ☑ Replace RenderComposite and WaterRefractionCapture compatibility coordination only after complete
       submission covers preparation, SSAO, reduction, allocation and failure publication. Retain
       FullscreenBoundary descriptor/resource unions until the final caller has equivalent coverage.
-    ☐ Cover WaterVolumeRenderer terrain pools, indexed blending, viewport and UseSsbo bookkeeping.
-    ☐ Migrate MaterialAtlasNormalDepthGpuBuilder's three independent entries and UploadCpu's two-pass
+    ☑ Cover WaterVolumeRenderer terrain pools, indexed blending, viewport and UseSsbo bookkeeping.
+    ☑ Migrate MaterialAtlasNormalDepthGpuBuilder's three independent entries and UploadCpu's two-pass
       world-probe resolve with target, clear, shader/resource, geometry and exception regressions.
-    ☐ Move framebuffer blend policy to pipeline descriptions as its consumers migrate.
-    ☐ Add output, lifetime, routing and restoration regression evidence for each consumer family.
-  ☐ Migrate VGE-owned debug/tessellation/terrain-related draws using the required specialized adapters.
-    ☐ Follow Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition for
+    ☑ Move framebuffer blend policy to pipeline descriptions as its consumers migrate.
+    ☑ Add output, lifetime, routing and restoration regression evidence for each consumer family.
+  ☑ Migrate VGE-owned debug/tessellation/terrain-related draws using the required specialized adapters.
+    ☑ Follow Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition for
       both DebugView consumers and LumOn's OIT, AfterBlit and atlas-overlay entries. Remove the dormant
       RenderWorldProbeClipmapBoundsFrozen method or validate its independent adapter before reuse.
-    ☐ Preserve engine-owned rendering behind explicit compatibility boundaries; do not claim ownership
+    ☑ Preserve engine-owned rendering behind explicit compatibility boundaries; do not claim ownership
       solely because a shader or draw helper is shared with VGE.
-    ☐ Record any unconverted in-scope consumer as incomplete; require explicit scope agreement to defer it.
-  ☐ Reconcile partial overrides and legacy helpers after inventorying remaining callers.
-    ☐ Retain partial changes only outside complete submissions or through declared boundaries.
-    ☐ Remove obsolete migrated blend storage/setup and temporary adapters only after caller/tests prove safety.
-    ☐ Retain necessary capture/invalidation; remove individual scopes only with tracking/restoration evidence.
-    ☐ Retire CaptureLegacyFixedFunctionState after all 11 remaining source invocations are migrated or
+    ☑ Record any unconverted in-scope consumer as incomplete; require explicit scope agreement to defer it.
+  ☑ Reconcile partial overrides and legacy helpers after inventorying remaining callers.
+    ☑ Retain partial changes only outside complete submissions or through declared boundaries.
+    ☑ Remove obsolete migrated blend storage/setup and temporary adapters only after caller/tests prove safety.
+    ☑ Retain necessary capture/invalidation; remove individual scopes only with tracking/restoration evidence.
+    ☑ Retire CaptureLegacyFixedFunctionState after all 11 remaining source invocations are migrated or
       removed with evidence. Consumer inventory, boundary coverage, prepared pipelines, target/pass and
       submission/geometry contracts remain prerequisites; retained consumers are not complete.
-    ☐ Complete migrated type renames and references without unrelated hierarchy or ownership changes.
-  ☐ Reconcile project.todo binding/hook items with the coverage matrix; do not mark unobserved paths done.
-  ☐ Delegate focused consumer regressions and compute/shared-binding regressions affected by common changes.
-  ☐ Completion gate: every inventoried consumer has an evidenced disposition, no migrated pass has two
+    ☑ Complete migrated type renames and references without unrelated hierarchy or ownership changes.
+  ☑ Reconcile project.todo binding/hook items with the coverage matrix; do not mark unobserved paths done.
+  ☑ Delegate focused consumer regressions and compute/shared-binding regressions affected by common changes.
+  ☑ Completion gate: every inventoried consumer has an evidenced disposition, no migrated pass has two
     blend/state owners, and temporary compatibility code has been removed or assigned a justified purpose.
 
 Phase 9: Acceptance evidence and measurements

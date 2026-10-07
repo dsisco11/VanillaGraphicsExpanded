@@ -17,8 +17,6 @@ public sealed partial class GpuFramebuffer : GpuResource
     private string? debugName;
     private bool attachmentsDirty;
     private bool resizing;
-    private bool?[]? attachmentBlendEnabled;
-    private GlBlendFunc?[]? attachmentBlendFunc;
 
     #region Public API
     #region Properties
@@ -222,15 +220,15 @@ public sealed partial class GpuFramebuffer : GpuResource
     /// <summary>Releases attachment references without disposing any attachment.</summary>
     protected override void OnAfterDelete()
     {
+        Surface = null;
         attachments.Clear();
-        attachmentBlendEnabled = null;
-        attachmentBlendFunc = null;
         PublishAttachmentsChanged();
         AttachmentsChanged = null;
     }
     /// <summary>Withdraws image references when ownership of the framebuffer name is transferred.</summary>
     protected override void OnDetached(nint id)
     {
+        Surface = null;
         attachments.Clear();
         PublishAttachmentsChanged();
         AttachmentsChanged = null;

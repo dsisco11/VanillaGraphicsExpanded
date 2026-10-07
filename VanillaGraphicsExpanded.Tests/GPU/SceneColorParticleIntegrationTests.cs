@@ -27,6 +27,13 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
         Assert.Equal(typeof(void), AccessTools.Method(typeof(SceneColorParticleCaptureHook), nameof(SceneColorParticleCaptureHook.Finalizer)).ReturnType);
         var dispatcher = AccessTools.Method(target.DeclaringType, "OnRenderFrame3D");
         Assert.Contains(PatchProcessor.GetOriginalInstructions(dispatcher), instruction => instruction.Calls((MethodInfo)target));
+        var stop = AccessTools.Method(typeof(Vintagestory.Client.NoObf.ShaderProgramBase), nameof(Vintagestory.Client.NoObf.ShaderProgramBase.Stop));
+        var renderInstructions = PatchProcessor.GetOriginalInstructions(target).ToArray();
+        var dispatchInstructions = PatchProcessor.GetOriginalInstructions(dispatcher).ToArray();
+        Assert.True(renderInstructions.Any(instruction => instruction.Calls(stop)) || dispatchInstructions.Any(instruction => instruction.Calls(stop)),
+            "Installed particle submission must stop its shader before the later resolve callback. Calls: " +
+            string.Join("; ", renderInstructions.Concat(dispatchInstructions).Where(instruction => instruction.operand is MethodBase).Select(instruction => instruction.operand)));
+        TestContext.Current.TestOutputHelper!.WriteLine($"Installed particle shader stop: Render={renderInstructions.Any(instruction => instruction.Calls(stop))}; OnRenderFrame3D={dispatchInstructions.Any(instruction => instruction.Calls(stop))}.");
         var harmony = new Harmony("VGE.Tests.SceneParticleCaptureHook");
         try
         {

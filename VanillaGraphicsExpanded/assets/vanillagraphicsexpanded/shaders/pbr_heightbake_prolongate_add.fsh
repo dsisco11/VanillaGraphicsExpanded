@@ -3,7 +3,7 @@
 // Prolongation + correction: dst = fineH + prolongate(coarseE)
 // Output: R32F
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_fineH;
 uniform sampler2D u_coarseE;
@@ -49,5 +49,5 @@ void main()
     float e = mix(e0, e1, fy);
 
     float h = LoadFineH(p);
-    outColor = vec4(h + e, 0.0, 0.0, 1.0);
+    outColor = h + e;
 }

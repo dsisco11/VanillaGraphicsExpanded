@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidRenderer : IRenderer
 {
     private readonly ICoreClientAPI api;
+    private readonly LiquidGraphicsSubmission submission;
     private readonly Func<WaterRefractionScene?> getRefractionScene;
     private static LiquidRenderer? active;
     private bool failed;
@@ -23,6 +24,7 @@ internal sealed class LiquidRenderer : IRenderer
     internal LiquidRenderer(ICoreClientAPI api, Func<WaterRefractionScene?>? getRefractionScene = null)
     {
         this.api = api;
+        submission = new(api);
         this.getRefractionScene = getRefractionScene ?? (() => null);
         active = this;
         api.Event.RegisterRenderer(this, EnumRenderStage.OIT, "vge_liquids");
@@ -35,6 +37,7 @@ internal sealed class LiquidRenderer : IRenderer
     {
         api.Event.UnregisterRenderer(this, EnumRenderStage.OIT);
         api.Event.LeaveWorld -= LeaveWorld;
+        submission.Dispose();
         LiquidMeshSource.Remove(api);
         if (ReferenceEquals(active, this)) active = null;
     }
@@ -93,8 +96,6 @@ internal sealed class LiquidRenderer : IRenderer
         if (program is null) return;
         try
         {
-            // Engine callbacks bind GL resources directly between VGE passes.
-            StateCache.Current.InvalidateAll();
             var waterSettings = ConfigModSystem.Config;
             // Missing atlas or atmosphere data retains vanilla ownership for the entire invocation.
             if (!source.TryGetAtlasPools(out var atlases, out var pools) || !CanTakeOwnership(api, atlases)) return;
@@ -124,13 +125,9 @@ internal sealed class LiquidRenderer : IRenderer
             program.TerrainTexture = atlases[0];
             program.MaterialParamsTexture = initialMaterial.MaterialParamsTexture;
             BindWaterMedium(program, store, atlases[0]);
-            using var scope = program.UseScope();
-            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return;
-            var engineRender = (Vintagestory.Client.RenderAPIBase)render;
-            bool previousSsbo = LiquidMeshSource.UseSsbo(engineRender);
-            try
+            submission.Run(program, pools[..atlases.Length], new(submission.Borrow(transparent), LiquidPipelineStates.SurfaceOutputs),
+                LiquidPipelineStates.Surface, LiquidPipelineStates.SurfaceBlending, () =>
             {
-                LiquidMeshSource.UseSsbo(engineRender) = false;
                 // Once submission begins, a partial failure must not draw the same water twice.
                 source.SuppressNextEngineDraw = true;
                 for (int i = 0; i < atlases.Length; i++)
@@ -141,15 +138,13 @@ internal sealed class LiquidRenderer : IRenderer
                     BindWaterMedium(program, store, atlases[i]);
                     pools[i].Render(api.World.Player.Entity.CameraPos, "origin", EnumFrustumCullMode.CullNormal);
                 }
-            }
-            finally { LiquidMeshSource.UseSsbo(engineRender) = previousSsbo; }
+            });
         }
-        catch (Exception error)
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
             failed = true;
             api.Logger.Error("[VGE] Liquid renderer disabled; vanilla submission resumes next invocation. {0}", error.ToString());
         }
-        finally { StateCache.Current.InvalidateAll(); }
     }
     #endregion
 

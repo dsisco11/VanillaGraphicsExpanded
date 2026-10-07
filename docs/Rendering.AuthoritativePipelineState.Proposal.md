@@ -23,7 +23,7 @@ The name “GlPipelineState system” currently refers to several cooperating ty
 | [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs) and preparation/input partials | Shader readiness, activation, persistent input publication, and engine ownership | These contracts need to be composed into graphics submission rather than bypassed |
 | [GpuPreparedBindings](../VanillaGraphicsExpanded/Rendering/Spirv/GpuPreparedBindings.cs) | Validated executable resource assignments | Reusable foundation for pipeline resource-layout compatibility |
 | [GpuFramebuffer](../VanillaGraphicsExpanded/Rendering/GpuFramebuffer.cs) | Attachment binding, validity, routing-related operations, viewport convenience, and clears | Target operations are invoked independently of pipeline application |
-| [GpuFramebuffer.Blending](../VanillaGraphicsExpanded/Rendering/GpuFramebuffer.Blending.cs) | Optional per-output blend configuration | A second owner of state that belongs to the graphics pipeline |
+| [Historical framebuffer blend storage](Rendering.AuthoritativePipelineState.md#legacy-scope-inventory-and-disposition) | Optional per-output blend configuration | A second owner of state that belongs to the graphics pipeline |
 | [DirectLightingRenderer](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs) | Composes state application, target setup, shader inputs, and rendering | Representative consumer for migration to an explicit pass and submission contract |
 | [FramebufferBindingHook](../VanillaGraphicsExpanded/HarmonyPatches/FramebufferBindingHook.cs) | Observes selected engine framebuffer setters | Useful integration boundary, not proof that every engine/mod state mutation is observed |
 

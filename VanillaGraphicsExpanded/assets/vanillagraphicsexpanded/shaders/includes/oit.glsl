@@ -3,8 +3,9 @@
 // Bucket OIT uses six draw buffers: multiplicative revealage at 0-1,
 // alpha-blended glow at 2, and additive premultiplied accumulation at 3-5.
 layout(location = 2) out vec4 outOitGlow;
-layout(location = 0) out vec4 outOitRevealBins;
-layout(location = 1) out vec4 outRevealage;
+// Revealage attachments store three bin transmissions and one total transmission.
+layout(location = 0) out vec3 outOitRevealBins;
+layout(location = 1) out float outRevealage;
 layout(location = 3) out vec4 outOitAccumulation0;
 layout(location = 4) out vec4 outOitAccumulation1;
 layout(location = 5) out vec4 outOitAccumulation2;
@@ -39,12 +40,11 @@ void writeOit(vec4 color, float glow)
     outOitAccumulation2 = weightedColor * bin2;
     // Revealage blending is DST_COLOR, ZERO: emit remaining transmission,
     // not opacity. Each fragment multiplies the destination by this value.
-    outOitRevealBins = vec4(
+    outOitRevealBins = vec3(
         1.0 - color.a * bin0,
         1.0 - color.a * bin1,
-        1.0 - color.a * bin2,
-        1.0);
-    outRevealage = vec4(1.0 - color.a);
+        1.0 - color.a * bin2);
+    outRevealage = 1.0 - color.a;
 }
 
 /** Writes a non-emissive transparent surface. */

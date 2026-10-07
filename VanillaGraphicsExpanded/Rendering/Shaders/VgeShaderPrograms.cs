@@ -17,6 +17,7 @@ internal static class VgeShaderPrograms
         GpuProgram[] programs =
         [
             new VgeDebugLinesShaderProgram(),
+            new DebugView.DebugTextureShaderProgram(),
             new VgeWorldProbeOrbsPointsShaderProgram(),
             new PBRDirectLightingShaderProgram(),
             new PBR.Liquids.LiquidShaderProgram(),

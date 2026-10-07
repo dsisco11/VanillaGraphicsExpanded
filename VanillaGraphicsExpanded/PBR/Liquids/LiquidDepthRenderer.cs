@@ -10,6 +10,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidDepthRenderer : IDisposable
 {
     private readonly ICoreClientAPI api;
+    private readonly LiquidGraphicsSubmission submission;
     private static LiquidDepthRenderer? active;
     private bool failed;
     private bool completed;
@@ -20,6 +21,7 @@ internal sealed class LiquidDepthRenderer : IDisposable
     internal LiquidDepthRenderer(ICoreClientAPI api)
     {
         this.api = api;
+        submission = new(api);
         active = this;
         api.Event.LeaveWorld += LeaveWorld;
     }
@@ -39,6 +41,7 @@ internal sealed class LiquidDepthRenderer : IDisposable
     public void Dispose()
     {
         api.Event.LeaveWorld -= LeaveWorld;
+        submission.Dispose();
         if (ReferenceEquals(active, this)) active = null;
     }
     #endregion
@@ -70,36 +73,29 @@ internal sealed class LiquidDepthRenderer : IDisposable
         bool beganSubmission = false;
         try
         {
-            StateCache.Current.InvalidateAll();
             if (!LiquidRenderer.CanTakeOwnership(api, atlases) || !program.EnsureReady()) return false;
             var waves = LiquidWaveFrame.Capture(api);
             program.ProjectionMatrix = render.CurrentProjectionMatrix;
             program.WaveFrame = waves;
             program.ModelViewMatrix = render.CameraMatrixOriginf;
-            using var scope = program.UseScope();
-            if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return false;
-            var engineRender = (Vintagestory.Client.RenderAPIBase)render;
-            bool previousSsbo = LiquidMeshSource.UseSsbo(engineRender);
-            try
-            {
-                LiquidMeshSource.UseSsbo(engineRender) = false;
-                beganSubmission = true;
-                for (int i = 0; i < atlases.Length; i++)
-                    pools[i].Render(api.World.Player.Entity.CameraPos, "origin");
-            }
-            finally { LiquidMeshSource.UseSsbo(engineRender) = previousSsbo; }
+            if (!submission.Run(program, pools[..atlases.Length], new(submission.Borrow(target), LiquidPipelineStates.DepthOutputs),
+                LiquidPipelineStates.Depth, LiquidPipelineStates.DepthBlending, () =>
+                {
+                    beganSubmission = true;
+                    for (int i = 0; i < atlases.Length; i++)
+                        pools[i].Render(api.World.Player.Entity.CameraPos, "origin");
+                })) return false;
             waveFrame = waves;
             completed = true;
             return true;
         }
-        catch (Exception error)
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
             failed = true;
             api.Logger.Error("[VGE] Liquid depth renderer disabled; vanilla resumes next invocation. {0}", error.ToString());
             // Once a pool has drawn, the engine must not draw the whole depth pass a second time.
             return beganSubmission;
         }
-        finally { StateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

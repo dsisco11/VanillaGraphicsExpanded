@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Shaders;
-namespace VanillaGraphicsExpanded.Rendering.Integration;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Integration;
+namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Composes declared fullscreen passes and prepared resource footprints at an engine entry.</summary>
-internal static class FullscreenBoundary
+/// <summary>Retains historical partial fullscreen boundaries for the independent rendering reference.</summary>
+internal static class ReferenceFullscreenBoundary
 {
     #region Public API
     /// <summary>Resolves the complete interruption before allocation or drawing, preserving each participating shader's inputs.</summary>

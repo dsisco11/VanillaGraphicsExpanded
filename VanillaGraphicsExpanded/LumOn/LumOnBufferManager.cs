@@ -1,4 +1,7 @@
 using System;
+using System.Linq;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using VanillaGraphicsExpanded.Rendering;
@@ -365,28 +368,20 @@ public sealed class LumOnBufferManager : IDisposable
         if (!isInitialized)
             return;
 
-        // Save current framebuffer binding
-        int previousFbo = Rendering.GpuFramebuffer.SaveBinding();
-
-        // Clear screen-probe atlas textures (2D atlas)
-        targets?.ScreenProbeAtlasTraceFbo?.BindAndClear();
-        targets?.ScreenProbeAtlasCurrentFbo?.BindAndClear();
-        targets?.ScreenProbeAtlasHistoryFbo?.BindAndClear();
-        targets?.ScreenProbeAtlasFilteredFbo?.BindAndClear();
-        targets?.ProbeSh9Fbo?.BindAndClear();
-        // Composition can still hold these outputs after world teardown; reject stale indirect light too.
-        targets?.IndirectHalfFbo?.BindAndClear();
-        targets?.IndirectFullFbo?.BindAndClear();
-
-        // Clear probe trace mask (computed each frame, but keep deterministic on resets).
-        targets?.ProbeTraceMaskFbo?.BindAndClear();
-
-        // Clear velocity output (debug/temporal safety on resets)
-        targets?.VelocityFbo?.BindAndClear();
-
-        // Restore previous framebuffer
-        Rendering.GpuFramebuffer.RestoreBinding(previousFbo);
-
+        GpuFramebuffer?[] history = [targets?.ScreenProbeAtlasTraceFbo, targets?.ScreenProbeAtlasCurrentFbo,
+            targets?.ScreenProbeAtlasHistoryFbo, targets?.ScreenProbeAtlasFilteredFbo, targets?.ProbeSh9Fbo,
+            targets?.IndirectHalfFbo, targets?.IndirectFullFbo, targets?.ProbeTraceMaskFbo, targets?.VelocityFbo];
+        if (!GraphicsCommandContext.TryRun("LumOn.ClearHistory", [], true, commands =>
+        {
+            foreach (var target in history)
+            {
+                if (target is null) continue;
+                var outputs = Enumerable.Range(0, target.ColorAttachmentCount)
+                    .Select(i => new RenderPassColor(i, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)));
+                commands.BeginPass(new(target, outputs));
+                commands.EndPass();
+            }
+        })) throw new InvalidOperationException("History clear boundary unavailable.");
         capi.Logger.Debug("[LumOn] Cleared probe history buffers");
     }
 

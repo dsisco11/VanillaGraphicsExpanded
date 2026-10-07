@@ -4,7 +4,7 @@
 // Update: hNew = (sumN - b) / 4
 // Output: R32F
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_h;
 uniform sampler2D u_b;
@@ -35,5 +35,5 @@ void main()
     float b = LoadR(u_b, p);
 
     float hNew = (hL + hR + hD + hU - b) * 0.25;
-    outColor = vec4(hNew, 0.0, 0.0, 1.0);
+    outColor = hNew;
 }

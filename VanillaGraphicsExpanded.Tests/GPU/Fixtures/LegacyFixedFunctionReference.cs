@@ -1,16 +1,18 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using OpenTK.Graphics.OpenGL;
 
-namespace VanillaGraphicsExpanded.Rendering;
+namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-internal sealed partial class StateCache
+/// <summary>Preserves the historical partial fixed-function restoration behavior for reference and negative-control tests.</summary>
+internal static class LegacyFixedFunctionReference
 {
+    #region Public API
     /// <summary>Preserves fixed-function state, optionally including viewport for draws that resize it.</summary>
-    public LegacyFixedFunctionScope CaptureLegacyFixedFunctionState(bool preserveViewport = false)
+    public static LegacyFixedFunctionScope Capture(StateCache cache, bool preserveViewport = false)
     {
-        RejectUnsupportedBoundaryMutation();
         var snapshot = LegacyFixedFunctionSnapshot.CaptureBestEffort();
-        return new LegacyFixedFunctionScope(this, snapshot, preserveViewport);
+        return new LegacyFixedFunctionScope(cache, snapshot, preserveViewport);
     }
 
     /// <summary>Restores fixed-function state and, when requested by a draw pass, its previous viewport.</summary>
@@ -37,6 +39,10 @@ internal sealed partial class StateCache
         }
     }
 
+    #endregion
+
+    #region Private
+    /// <summary>Records the historical subset, intentionally excluding indexed blend and other complete state.</summary>
     internal readonly struct LegacyFixedFunctionSnapshot
     {
         public readonly bool DepthTest;
@@ -52,6 +58,7 @@ internal sealed partial class StateCache
         public readonly float LineWidth;
         public readonly float PointSize;
 
+        /// <summary>Retains the independently queried historical fields.</summary>
         private LegacyFixedFunctionSnapshot(
             bool depthTest,
             DepthFunction depthFunc,
@@ -76,6 +83,7 @@ internal sealed partial class StateCache
             PointSize = pointSize;
         }
 
+        /// <summary>Reads the original best-effort fixed-function subset with its historical defaults.</summary>
         public static LegacyFixedFunctionSnapshot CaptureBestEffort()
         {
             bool depthTest = false;
@@ -123,9 +131,10 @@ internal sealed partial class StateCache
                 ps);
         }
 
+        /// <summary>Replays the original subset, including its global blend restoration defect.</summary>
         public void Restore(StateCache cache)
         {
-            // Retained compatibility adapter; its consumers migrate with established boundary contracts.
+            // Preserve the old global restoration exactly so regressions remain reproducible.
             cache.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.CullFace
                 | EPipelineState.ScissorTest | EPipelineState.ColorMask | EPipelineState.LineWidth | EPipelineState.PointSize);
             cache.SetCapability(EnableCap.DepthTest, DepthTest);
@@ -143,4 +152,5 @@ internal sealed partial class StateCache
             cache.SetPointSize(PointSize);
         }
     }
+    #endregion
 }

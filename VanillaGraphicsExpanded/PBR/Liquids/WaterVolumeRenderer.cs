@@ -16,6 +16,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class WaterVolumeRenderer : IRenderer
 {
     private readonly ICoreClientAPI api;
+    private readonly LiquidGraphicsSubmission submission;
     private readonly Action unregisterResize;
     private static WaterVolumeRenderer? active;
     private GpuFramebuffer? target;
@@ -23,13 +24,6 @@ internal sealed class WaterVolumeRenderer : IRenderer
     private WaterVolumeFrame? completed;
     private bool composed;
     private bool failed;
-    private static readonly GlPipelineDesc Pipeline = new(
-        defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.BlendFunc)
-            .With(GlPipelineStateId.DepthWriteMask), depthWriteMask: false,
-        blendFunc: new(BlendingFactorSrc.One, BlendingFactorDest.One, BlendingFactorSrc.One, BlendingFactorDest.One),
-        name: "PBR.WaterBoundaries");
     public double RenderOrder => 10.5;
     public int RenderRange => int.MaxValue;
 
@@ -38,6 +32,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
     internal WaterVolumeRenderer(ICoreClientAPI api)
     {
         this.api = api;
+        submission = new(api);
         active = this;
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Retire);
         api.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "vge_water_volume");
@@ -75,7 +70,6 @@ internal sealed class WaterVolumeRenderer : IRenderer
         if (program is null) return;
         try
         {
-            StateCache.Current.InvalidateAll();
             if (target is null)
             {
                 var resources = new GpuResourceCollection();
@@ -105,18 +99,9 @@ internal sealed class WaterVolumeRenderer : IRenderer
             LiquidRenderer.BindWaterMedium(program, MaterialAtlasSystem.Instance.TextureStore, atlases[0]);
             program.AerialRadianceTexture = ModSystems.AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = ModSystems.AtmosphereModSystem.AerialAttenuationTexture;
-            using var state = StateCache.Current.CaptureLegacyFixedFunctionState();
-            using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
-            target.BindWithViewport();
-            StateCache.Current.Apply(Pipeline);
-            target.Clear(0, 0, 0, 0);
-            var engineRender = (Vintagestory.Client.RenderAPIBase)api.Render;
-            bool previous = LiquidMeshSource.UseSsbo(engineRender);
-            try
+            if (!submission.Run(program, pools[..atlases.Length], new(target, LiquidPipelineStates.VolumeOutputs),
+                new(), LiquidPipelineStates.VolumeBlending, () =>
             {
-                LiquidMeshSource.UseSsbo(engineRender) = false;
-                using var scope = program.UseScope();
-                if (!ReferenceEquals(ShaderProgramBase.CurrentShaderProgram, program)) return;
                 for (int i = 0; i < atlases.Length; i++)
                 {
                     MaterialAtlasSystem.Instance.TextureStore.TryGetPageTextures(atlases[i], out var material);
@@ -125,19 +110,14 @@ internal sealed class WaterVolumeRenderer : IRenderer
                     LiquidRenderer.BindWaterMedium(program, MaterialAtlasSystem.Instance.TextureStore, atlases[i]);
                     pools[i].Render(api.World.Player.Entity.CameraPos, "origin", EnumFrustumCullMode.CullNormal);
                 }
-            }
-            finally { LiquidMeshSource.UseSsbo(engineRender) = previous; }
+            })) return;
             if (!TryGetCameraMedium(out var medium, out var cameraSource)) return;
             completed = new(target[0], target[1], medium, cameraSource);
         }
-        catch (Exception error)
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
             failed = true;
             api.Logger.Error("[VGE] Water volume disabled for this world: {0}", error.ToString());
-        }
-        finally
-        {
-            StateCache.Current.InvalidateAll();
         }
     }
 
@@ -147,6 +127,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
         api.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
         api.Event.LeaveWorld -= LeaveWorld;
         unregisterResize();
+        submission.Dispose();
         Retire();
         if (ReferenceEquals(active, this)) active = null;
     }

@@ -36,12 +36,18 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         using var normal = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
         using var position = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
         using var engine = GpuFramebuffer.Create(ssao ? [material, glow, normal, position] : [material, glow], depth);
-        var primary = new FrameBufferRef { FboId = engine.FboId, Width = 2, Height = 2,
-            DepthTextureId = depth.TextureId, ColorTextureIds = ssao ? [material.TextureId, glow.TextureId, normal.TextureId, position.TextureId] : [material.TextureId, glow.TextureId] };
+        var primary = new FrameBufferRef
+        {
+            FboId = engine.FboId,
+            Width = 2,
+            Height = 2,
+            DepthTextureId = depth.TextureId,
+            ColorTextureIds = ssao ? [material.TextureId, glow.TextureId, normal.TextureId, position.TextureId] : [material.TextureId, glow.TextureId]
+        };
         var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
         frames[0] = primary;
         var events = new RuntimeRenderEvents();
-        float[] identity = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         int resolveDraws = 0;
         var render = RuntimeEngineServices.Render(2, frames, () => identity, () => identity,
             () => { resolveDraws++; drawing.RenderGeometry(); });
@@ -50,7 +56,9 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
-            "get_Render" => render, "get_Event" => events.Api, "get_Shader" => programs.Api,
+            "get_Render" => render,
+            "get_Event" => events.Api,
+            "get_Shader" => programs.Api,
             _ => method.Invoke(assets.Api, args)
         });
         programs.Initialize(api);
@@ -126,7 +134,21 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     scope.Complete();
                 }
                 Assert.Null(SceneColorParticleCapture.Layer(api));
-                capture.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                using (var hostile = new HostileFullscreenState())
+                {
+                    int beforeRejected = resolveDraws;
+                    capture.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                    Assert.Null(SceneColorParticleCapture.Layer(api));
+                    Assert.Equal(beforeRejected, resolveDraws);
+                    Assert.Same(cube, ShaderProgramBase.CurrentShaderProgram);
+                    Assert.Equal(cube.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+                    hostile.AssertRestored();
+                    // The installed particle renderer stops its shader before later opaque callbacks.
+                    // Model its observed program-zero handoff rather than inventing a foreign resource footprint.
+                    cube.Stop(); StateCache.Current.NotifyProgramBound(0);
+                    capture.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                    hostile.AssertRestored();
+                }
                 var layer = SceneColorParticleCapture.Layer(api);
                 Assert.NotNull(layer);
                 Assert.Null(SceneColorParticleCapture.Layer(assets.Api));
@@ -150,9 +172,13 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     StateCache.Current.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.Viewport);
                     StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, engine.FboId);
                     StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, separateRead.FboId);
-                    StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X=1, Y=1, Width=1, Height=1 });
+                    StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 1, Y = 1, Width = 1, Height = 1 });
                     direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
-                    composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                    using (var hostile = new HostileFullscreenState())
+                    {
+                        composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                        hostile.AssertRestored();
+                    }
                     Assert.True(composite.RefractionScene.Published);
                     Assert.Equal(2, composite.RefractionScene.BackgroundScale);
                     Assert.Equal(engine.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));

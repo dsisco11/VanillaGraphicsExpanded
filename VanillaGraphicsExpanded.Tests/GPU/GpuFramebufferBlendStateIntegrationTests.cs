@@ -1,277 +1,98 @@
-using System;
-
 using OpenTK.Graphics.OpenGL;
-
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
-
-using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>
-/// Integration tests verifying per-attachment (indexed) blend state behavior for MRT framebuffers.
-/// </summary>
+/// <summary>Verifies that complete pipelines own indexed output blending and channel writes independently of framebuffer storage.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class GpuFramebufferBlendStateIntegrationTests
+public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
-    private readonly HeadlessGLFixture fixture;
-
-    public GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture fixture)
+    #region Public API
+    /// <summary>Opposite incoming global blend states cannot override the pipeline's distinct MRT policies.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PipelineIndexedBlendOverridesIncomingGlobalState(bool incomingBlend)
     {
-        this.fixture = fixture;
+        DrawAndAssert(incomingBlend, maskOnly: false);
     }
 
-    /// <summary>An indexed write mask preserves disabled destination channels during a real draw.</summary>
+    /// <summary>A pipeline's indexed write mask preserves disabled destination channels during a real draw.</summary>
     [Fact]
     public void IndexedWriteMaskPreservesRenderedChannels()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
-        using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Mask.Att0");
-        using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Mask.Att1");
-        using var fbo = GpuFramebuffer.CreateMRT([t0, t1], debugName: "Mask.Fbo")!;
-        fbo.BindWithViewport(); cache.SetColorMask(GlColorMask.All); cache.SetBlendEnabled(false);
-        cache.SetCapability(EnableCap.DepthTest, false); cache.SetCapability(EnableCap.ScissorTest, false); cache.SetCapability(EnableCap.CullFace, false);
-        ClearColorAttachments(fbo.FboId, 2, 0, 0, 255, 255); UseMrtDrawBuffers(2);
-        cache.SetColorMaskIndexed(0, GlColorMask.FromRgba(true, false, false, false));
-        using var program = SimpleMrtProgram.Create(debugName: "Mask.Program"); int vao = GL.GenVertexArray();
+        DrawAndAssert(incomingBlend: false, maskOnly: true);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Draws the packaged MRT shader through the authoritative submission owner and checks both independent outputs.</summary>
+    private void DrawAndAssert(bool incomingBlend, bool maskOnly)
+    {
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        var shader = programs.Create<BlendProgram>();
+        using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
+        using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
+        using var framebuffer = GpuFramebuffer.CreateMRT([t0, t1])!;
+        using var lifetime = new GraphicsPipelineLifetime();
+        var first = maskOnly ? new ColorBlendDesc { WriteGreen = false, WriteBlue = false, WriteAlpha = false }
+            : new ColorBlendDesc
+            {
+                Enabled = true,
+                SourceRgb = BlendingFactorSrc.SrcAlpha,
+                DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
+                SourceAlpha = BlendingFactorSrc.SrcAlpha,
+                DestinationAlpha = BlendingFactorDest.OneMinusSrcAlpha
+            };
+        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, new([]),
+            new([new(PixelInternalFormat.Rgba8), new(PixelInternalFormat.Rgba8)]), DynamicPipelineState.Viewport,
+            blending: [first, new()]), shader);
+        using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
+        var cache = StateCache.Current;
+        cache.SetBlendEnabled(incomingBlend);
         try
         {
-            GL.BindVertexArray(vao); GL.UseProgram(program.ProgramId); GL.DrawArrays(PrimitiveType.Triangles, 0, 3); GL.Finish();
-            var c0 = ReadRgba8(fbo.FboId, 0); var c1 = ReadRgba8(fbo.FboId, 1);
-            Assert.InRange(c0.R, 245, 255); Assert.Equal((byte)255, c0.B); Assert.Equal((byte)255, c0.A);
-            Assert.InRange(c1.R, 245, 255); Assert.Equal((byte)0, c1.B);
-        }
-        finally { GL.BindVertexArray(0); GL.DeleteVertexArray(vao); cache.SetColorMask(GlColorMask.All); cache.InvalidateAll(); }
-    }
-    [Fact]
-    public void AttachmentBlendEnable_OverridesGlobalBlendDisable()
-    {
-        fixture.MakeCurrent();
-        StateCache.Current.InvalidateAll();
-
-        using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att0");
-        using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att1");
-        using var fbo = GpuFramebuffer.CreateMRT([t0, t1], debugName: "Test.Fbo")!;
-
-        fbo.BindWithViewport();
-
-        // Global blending disabled...
-        StateCache.Current.Apply(new GlPipelineDesc(
-            defaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable),
-            nonDefaultMask: new GlPipelineStateMask(0),
-            validate: false));
-
-        ClearColorAttachments(fbo.FboId, drawBufferCount: 2, r: 0, g: 0, b: 0, a: 0);
-        UseMrtDrawBuffers(2);
-
-        // ...but attachment 0 blending explicitly enabled.
-        fbo.SetAttachmentBlendState(
-            attachmentIndex: 0,
-            enabled: true,
-            srcRgb: BlendingFactorSrc.SrcAlpha,
-            dstRgb: BlendingFactorDest.OneMinusSrcAlpha,
-            srcAlpha: BlendingFactorSrc.SrcAlpha,
-            dstAlpha: BlendingFactorDest.OneMinusSrcAlpha);
-        fbo.SetAttachmentBlendEnabled(1, enabled: false);
-        fbo.ApplyAttachmentBlendState();
-
-        using var program = SimpleMrtProgram.Create(
-            debugName: "Test.Program");
-
-        int vao = GL.GenVertexArray();
-        GL.BindVertexArray(vao);
-
-        GL.UseProgram(program.ProgramId);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-        GL.Finish();
-
-        var c0 = ReadRgba8(fbo.FboId, attachmentIndex: 0);
-        var c1 = ReadRgba8(fbo.FboId, attachmentIndex: 1);
-
-        // Attachment 0 should have blended: 0.5 red over black => ~128.
-        Assert.InRange(c0.R, 110, 150);
-        // Attachment 1 should not have blended (global blend disabled): full red => 255.
-        Assert.InRange(c1.R, 245, 255);
-
-        GL.BindVertexArray(0);
-        GL.DeleteVertexArray(vao);
-    }
-
-    [Fact]
-    public void AttachmentBlendDisable_OverridesGlobalBlendEnable()
-    {
-        fixture.MakeCurrent();
-        StateCache.Current.InvalidateAll();
-
-        using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att0");
-        using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8, debugName: "Test.Att1");
-        using var fbo = GpuFramebuffer.CreateMRT([t0, t1], debugName: "Test.Fbo")!;
-
-        fbo.BindWithViewport();
-
-        // Global blending enabled (alpha blend).
-        StateCache.Current.Apply(new GlPipelineDesc(
-            defaultMask: new GlPipelineStateMask(0),
-            nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.BlendFunc),
-            blendFunc: new GlBlendFunc(
-                BlendingFactorSrc.SrcAlpha,
-                BlendingFactorDest.OneMinusSrcAlpha,
-                BlendingFactorSrc.SrcAlpha,
-                BlendingFactorDest.OneMinusSrcAlpha),
-            validate: false));
-
-        // Clear to blue so blended result differs from overwrite.
-        ClearColorAttachments(fbo.FboId, drawBufferCount: 2, r: 0, g: 0, b: 255, a: 255);
-        UseMrtDrawBuffers(2);
-
-        // Explicitly disable blending for attachment 1.
-        fbo.SetAttachmentBlendEnabled(1, enabled: false);
-        fbo.ApplyAttachmentBlendState();
-
-        using var program = SimpleMrtProgram.Create(
-            debugName: "Test.Program");
-
-        int vao = GL.GenVertexArray();
-        GL.BindVertexArray(vao);
-
-        GL.UseProgram(program.ProgramId);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-        GL.Finish();
-
-        var c1 = ReadRgba8(fbo.FboId, attachmentIndex: 1);
-
-        // If global blend leaked through, we'd get ~128 red + ~128 blue.
-        // With indexed disable, we expect a full overwrite to red.
-        Assert.InRange(c1.R, 245, 255);
-        Assert.InRange(c1.B, 0, 10);
-
-        GL.BindVertexArray(0);
-        GL.DeleteVertexArray(vao);
-    }
-
-    private static void UseMrtDrawBuffers(int colorAttachmentCount)
-    {
-        var bufs = new DrawBuffersEnum[colorAttachmentCount];
-        for (int i = 0; i < colorAttachmentCount; i++)
-        {
-            bufs[i] = DrawBuffersEnum.ColorAttachment0 + i;
-        }
-
-        GL.DrawBuffers(colorAttachmentCount, bufs);
-    }
-
-    private static void ClearColorAttachments(int fboId, int drawBufferCount, byte r, byte g, byte b, byte a)
-    {
-        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
-
-        float rf = r / 255f;
-        float gf = g / 255f;
-        float bf = b / 255f;
-        float af = a / 255f;
-
-        float[] color = [rf, gf, bf, af];
-        for (int i = 0; i < drawBufferCount; i++)
-        {
-            GL.ClearBuffer(ClearBuffer.Color, i, color);
-        }
-    }
-
-    private static (byte R, byte G, byte B, byte A) ReadRgba8(int fboId, int attachmentIndex)
-    {
-        StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, fboId);
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + attachmentIndex);
-
-        byte[] px = new byte[4];
-        GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, px);
-        return (px[0], px[1], px[2], px[3]);
-    }
-
-    private sealed class SimpleMrtProgram : IDisposable
-    {
-        public int ProgramId { get; }
-
-        private readonly int vs;
-        private readonly int fs;
-
-        private SimpleMrtProgram(int programId, int vs, int fs)
-        {
-            ProgramId = programId;
-            this.vs = vs;
-            this.fs = fs;
-        }
-
-        public static SimpleMrtProgram Create(string? debugName = null)
-        {
-            const string vsSource = "tests/GpuFramebufferBlendStateIntegrationTests_1.vsh";
-
-            const string fsSource = "tests/framebuffer_blend.fsh";
-
-            int vs = Compile(ShaderType.VertexShader, vsSource);
-            int fs = Compile(ShaderType.FragmentShader, fsSource);
-
-            int program = GL.CreateProgram();
-            if (program == 0)
+            Assert.True(GraphicsCommandContext.TryRun("IndexedBlend", [pipeline], true, commands =>
             {
-                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vs);
-                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fs);
-                throw new InvalidOperationException("glCreateProgram returned 0.");
-            }
-
-#if DEBUG
-            GlDebug.TryLabel(ObjectLabelIdentifier.Program, program, debugName);
-#endif
-
-            GL.AttachShader(program, vs);
-            GL.AttachShader(program, fs);
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(program);
-
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linkStatus);
-            string info = GL.GetProgramInfoLog(program) ?? string.Empty;
-            if (linkStatus == 0)
-            {
-                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
-                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vs);
-                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fs);
-                throw new InvalidOperationException($"Program link failed: {info}");
-            }
-
-            return new SimpleMrtProgram(program, vs, fs);
+                var clear = ColorClearValue.Float(0, 0, 1, 1);
+                commands.BeginPass(new(framebuffer, [new(0, AttachmentLoad.Clear, Clear: clear), new(1, AttachmentLoad.Clear, Clear: clear)]));
+                commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+                commands.Draw(geometry, new(0, 3));
+                commands.EndPass();
+            }));
+            Assert.Equal(incomingBlend, GL.IsEnabled(IndexedEnableCap.Blend, 0));
+            Assert.Equal(incomingBlend, GL.IsEnabled(IndexedEnableCap.Blend, 1));
+            using var bindings = cache.BindFramebufferScope();
+            float[] firstPixel = t0.ReadPixels(), secondPixel = t1.ReadPixels();
+            Assert.InRange(firstPixel[0], maskOnly ? .99f : .48f, maskOnly ? 1f : .52f);
+            Assert.InRange(firstPixel[2], maskOnly ? .99f : .48f, maskOnly ? 1f : .52f);
+            if (maskOnly) Assert.Equal(1f, firstPixel[3]);
+            Assert.InRange(secondPixel[0], .99f, 1f);
+            Assert.Equal(0f, secondPixel[2]);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-
-        private static int Compile(ShaderType type, string source)
-        {
-            int id = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(source, type);
-            GL.GetShader(id, ShaderParameter.CompileStatus, out int status);
-            string info = GL.GetShaderInfoLog(id) ?? string.Empty;
-            if (status == 0)
-            {
-                global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(id);
-                throw new InvalidOperationException($"{type} compile failed: {info}");
-            }
-
-            return id;
-        }
-
-        public void Dispose()
-        {
-            try
-            {
-                if (ProgramId != 0)
-                {
-                    GL.UseProgram(0);
-                    GL.DetachShader(ProgramId, vs);
-                    GL.DetachShader(ProgramId, fs);
-                    global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(ProgramId);
-                }
-            }
-            catch
-            {
-            }
-
-            try { if (vs != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vs); } catch { }
-            try { if (fs != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fs); } catch { }
-        }
+        finally { cache.SetBlendEnabled(false); }
     }
+
+    /// <summary>Uses the existing shared MRT fixture contract without a second shader compilation path.</summary>
+    private sealed class BlendProgram : GpuProgram
+    {
+        /// <summary>Creates the test program for the standard component shader owner.</summary>
+        public BlendProgram() { }
+        /// <summary>The constant-color fixture has no resource or uniform inputs.</summary>
+        protected override void Submit() { }
+        /// <summary>Publishes the packaged fixture's exact executable declaration.</summary>
+        internal override GpuShaderContract ProgramContract => FramebufferBlendShaderProgram.Contract;
+    }
+    #endregion
 }

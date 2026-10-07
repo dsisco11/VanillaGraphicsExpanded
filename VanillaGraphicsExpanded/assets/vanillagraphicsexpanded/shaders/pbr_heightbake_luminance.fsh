@@ -3,7 +3,7 @@
 // Luminance extraction from an atlas sub-rect.
 // Output: R32F (written as .r)
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_atlas;
 @import "./includes/pbr_heightbake_params_ubo.glsl"
@@ -46,5 +46,5 @@ void main()
     float a = rgba.a;
     float w = smoothstep(0.05, 0.20, a);
     float L = mix(0.5, lum, w);
-    outColor = vec4(L, 0.0, 0.0, 1.0);
+    outColor = L;
 }

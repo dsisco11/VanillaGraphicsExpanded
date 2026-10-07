@@ -178,7 +178,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
                 () => EngineStateCalls.Enable(EnableCap.StencilTest),
                 () => EngineStateCalls.Enable((IndexedEnableCap)EnableCap.ScissorTest, 0),
                 () => EngineStateCalls.PatchParameter((PatchParameterInt)(-1), 3),
-                () => cache.CaptureLegacyFixedFunctionState(), () => { _ = cache.PatchVertices; },
+                () => { _ = cache.PatchVertices; },
                 () => { _ = cache.ProvokingVertex; }
             ];
             long calls = cache.FixedFunctionCalls, queries = cache.BoundaryQueries;

@@ -24,11 +24,14 @@ internal sealed class RenderPassDesc
         foreach (var color in Colors)
         {
             ArgumentNullException.ThrowIfNull(color);
+            if (color.SurfaceBuffer is not null && (color.Attachment != -1 || color.DiscardOutput
+                || color.SurfaceBuffer is not (OpenTK.Graphics.OpenGL.DrawBuffersEnum.BackLeft or OpenTK.Graphics.OpenGL.DrawBuffersEnum.FrontLeft)))
+                throw new ArgumentException("A window output requires one explicit front/back route and no image attachment index.", nameof(colors));
             if (color.Attachment < -1 || color.Attachment > 15 || !Enum.IsDefined(color.Load) || !Enum.IsDefined(color.Store))
                 throw new ArgumentException("Invalid color attachment intention.", nameof(colors));
             if (color.Attachment >= 0 && (!used.Add(color.Attachment) || color.DiscardOutput))
                 throw new ArgumentException("Attachments cannot receive duplicate outputs or routed discard policies.", nameof(colors));
-            if (color.Attachment < 0 && (color.Load != AttachmentLoad.Preserve || color.Store != AttachmentStore.Preserve || color.Clear is not null))
+            if (color.Attachment < 0 && color.SurfaceBuffer is null && (color.Load != AttachmentLoad.Preserve || color.Store != AttachmentStore.Preserve || color.Clear is not null))
                 throw new ArgumentException("Unrouted outputs cannot perform attachment operations.", nameof(colors));
             if ((color.Load == AttachmentLoad.Clear) != (color.Clear is not null))
                 throw new ArgumentException("Only clear loads require a typed clear value.", nameof(colors));

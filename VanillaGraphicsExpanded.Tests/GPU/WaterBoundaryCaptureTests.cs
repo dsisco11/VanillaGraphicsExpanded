@@ -55,10 +55,10 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         using var mediumIndex = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
         using var mediumRecord = Texture2D.Create(2, 1, PixelInternalFormat.Rgba32f);
         mediumIndex.UploadDataImmediate([1f]);
-        float[] absorption = scenario >= 6 ? [.1f,.2f,.3f] : [.340f,.0565f,.00922f];
+        float[] absorption = scenario >= 6 ? [.1f, .2f, .3f] : [.340f, .0565f, .00922f];
         if (scenario == 8) Array.Clear(absorption);
         float scattering = scenario is 7 or 9 ? .25f : 0;
-        mediumRecord.UploadDataImmediate([absorption[0],absorption[1],absorption[2],0, scattering,0,0,0]);
+        mediumRecord.UploadDataImmediate([absorption[0], absorption[1], absorption[2], 0, scattering, 0, 0, 0]);
         program.WaterMediumIndicesTexture = mediumIndex;
         program.WaterMediumRecordsTexture = mediumRecord;
         terrain.UploadDataImmediate(new float[] { 1, 1, 1, 1 });
@@ -74,8 +74,8 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
         program.SunDirection = new(Vector3.UnitY, 0);
-        program.SolarIrradiance = scenario >= 6 ? new(12.56637061436f,12.56637061436f,12.56637061436f,0) : Vector4.Zero;
-        program.EnvironmentIrradiance = new(12.56637061436f,12.56637061436f,12.56637061436f,0);
+        program.SolarIrradiance = scenario >= 6 ? new(12.56637061436f, 12.56637061436f, 12.56637061436f, 0) : Vector4.Zero;
+        program.EnvironmentIrradiance = new(12.56637061436f, 12.56637061436f, 12.56637061436f, 0);
         program.DepthRangeAndFrameSize = new(near, far, 1, 1);
         program.AtlasMetrics = Vector4.One;
         program.SetCounts(0, 0);
@@ -86,7 +86,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         program.ProjectionMatrix = Flatten(projection);
         program.ModelViewMatrix = Flatten(Matrix4x4.Identity);
         var state = StateCache.Current;
-        using var fixedFunction = state.CaptureLegacyFixedFunctionState();
+        using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         target.BindWithViewport();
 
@@ -140,74 +140,74 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             // This opt-in draw-only comparison uses the same production owner and
             // fixed workload for externally supplied, equally optimized binaries.
             const int size = 512;
-            using var measuredTarget = CreateMRTRenderTarget(size,size,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
-            using var measuredDepth = DynamicTexture2D.Create(size,size,PixelInternalFormat.R32f);
-            using var indicesTexture = Texture2D.Create(size,size,PixelInternalFormat.R32f);
-            using var recordsTexture = Texture2D.Create(4,1,PixelInternalFormat.Rgba32f);
-            using var shadow = new DepthTexture(1,1,PixelInternalFormat.DepthComponent32f);
-            measuredDepth.UploadDataImmediate(Enumerable.Repeat(deviceDepth,size * size).ToArray());
-            bool phaseMeasurement=Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE")=="1";
-            recordsTexture.UploadDataImmediate([.1f,.2f,.3f,0, 0,0,0,0, .1f,.2f,.3f,0, .25f,0,0,0]);
-            if(phaseMeasurement)
-                recordsTexture.UploadDataImmediate([.1f,.2f,.3f,0, .25f,0,0,0, .1f,.2f,.3f,.7f, .25f,0,0,0]);
+            using var measuredTarget = CreateMRTRenderTarget(size, size, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+            using var measuredDepth = DynamicTexture2D.Create(size, size, PixelInternalFormat.R32f);
+            using var indicesTexture = Texture2D.Create(size, size, PixelInternalFormat.R32f);
+            using var recordsTexture = Texture2D.Create(4, 1, PixelInternalFormat.Rgba32f);
+            using var shadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
+            measuredDepth.UploadDataImmediate(Enumerable.Repeat(deviceDepth, size * size).ToArray());
+            bool phaseMeasurement = Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE") == "1";
+            recordsTexture.UploadDataImmediate([.1f, .2f, .3f, 0, 0, 0, 0, 0, .1f, .2f, .3f, 0, .25f, 0, 0, 0]);
+            if (phaseMeasurement)
+                recordsTexture.UploadDataImmediate([.1f, .2f, .3f, 0, .25f, 0, 0, 0, .1f, .2f, .3f, .7f, .25f, 0, 0, 0]);
             shadow.UploadDataImmediate([1f]);
             program.ShadowMapNear = shadow.TextureId; program.ShadowMapFar = shadow.TextureId;
-            program.ShadowRanges = new(100,100,0,0);
-            float[] shadowMatrix = [0,0,0,0, 0,0,0,0, 0,0,0,0, .5f,.5f,.5f,1];
+            program.ShadowRanges = new(100, 100, 0, 0);
+            float[] shadowMatrix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .5f, .5f, .5f, 1];
             program.ShadowMatrixNear = shadowMatrix; program.ShadowMatrixFar = shadowMatrix;
-            program.SolarIrradiance = new(10,10,10,0);
+            program.SolarIrradiance = new(10, 10, 10, 0);
             program.DepthTexture = measuredDepth.TextureId;
             program.WaterMediumIndicesTexture = indicesTexture; program.WaterMediumRecordsTexture = recordsTexture;
-            program.DepthRangeAndFrameSize = new(near,far,size,size);
+            program.DepthRangeAndFrameSize = new(near, far, size, size);
             measuredTarget.BindWithViewport(); measuring = true;
-            float[]? isotropicPixels=null, anisotropicPixels=null;
+            float[]? isotropicPixels = null, anisotropicPixels = null;
             foreach (string workload in phaseMeasurement ? new[] { "isotropic", "anisotropic", "checker" } : new[] { "clear", "scattering", "checker" })
             {
-                indicesTexture.UploadDataImmediate(Enumerable.Range(0,size * size).Select(pixel =>
+                indicesTexture.UploadDataImmediate(Enumerable.Range(0, size * size).Select(pixel =>
                     workload is "clear" or "isotropic" ? 1f : workload is "scattering" or "anisotropic" ? 2f : 1f + ((pixel % size + pixel / size) & 1)).ToArray());
                 for (int sample = -2; sample < 5; sample++)
                 {
-                    DrawBoundary(2,true);
-                    measuredTarget.Clear(0,0,0,0);
+                    DrawBoundary(2, true);
+                    measuredTarget.Clear(0, 0, 0, 0);
                     using var elapsed = GpuTimerQuery.Create();
                     using var shader = program.UseScope();
                     elapsed.Begin();
-                    for (int draw = 0; draw < 16; draw++) vao.DrawElements(PrimitiveType.Triangles,indices);
+                    for (int draw = 0; draw < 16; draw++) vao.DrawElements(PrimitiveType.Triangles, indices);
                     elapsed.End();
                     double milliseconds = elapsed.GetResultNanoseconds() / 1e6;
                     if (sample >= 0) output.WriteLine($"boundary-cost binary={Path.GetFileName(measuredBinary)} workload={workload} sample={sample} gpuMs={milliseconds:R} viewport=512x512 draws=16 shadows=active");
                 }
                 float[] measuredSource = measuredTarget[1].ReadPixels();
-                float[] red = Enumerable.Range(0,size * size).Select(pixel => measuredSource[pixel * 4]).ToArray();
-                Assert.All(red,value => Assert.True(float.IsFinite(value)));
-                if (workload == "checker" && !phaseMeasurement) { Assert.Contains(0f,red); Assert.Contains(red,value => value > 0); }
-                if(phaseMeasurement) Assert.All(red,value=>Assert.True(value>0));
-                if(phaseMeasurement)
+                float[] red = Enumerable.Range(0, size * size).Select(pixel => measuredSource[pixel * 4]).ToArray();
+                Assert.All(red, value => Assert.True(float.IsFinite(value)));
+                if (workload == "checker" && !phaseMeasurement) { Assert.Contains(0f, red); Assert.Contains(red, value => value > 0); }
+                if (phaseMeasurement) Assert.All(red, value => Assert.True(value > 0));
+                if (phaseMeasurement)
                 {
-                    if(workload=="isotropic") isotropicPixels=red;
-                    else if(workload=="anisotropic") anisotropicPixels=red;
+                    if (workload == "isotropic") isotropicPixels = red;
+                    else if (workload == "anisotropic") anisotropicPixels = red;
                     else
                     {
-                        int iso=0,aniso=0;
-                        for(int pixel=0;pixel<red.Length;pixel++)
+                        int iso = 0, aniso = 0;
+                        for (int pixel = 0; pixel < red.Length; pixel++)
                         {
-                            float first=MathF.Abs(red[pixel]-isotropicPixels![pixel]);
-                            float second=MathF.Abs(red[pixel]-anisotropicPixels![pixel]);
-                            Assert.InRange(MathF.Min(first,second),0,1e-5f*MathF.Max(1,MathF.Abs(red[pixel])));
-                            if(first<second) iso++; else if(second<first) aniso++;
+                            float first = MathF.Abs(red[pixel] - isotropicPixels![pixel]);
+                            float second = MathF.Abs(red[pixel] - anisotropicPixels![pixel]);
+                            Assert.InRange(MathF.Min(first, second), 0, 1e-5f * MathF.Max(1, MathF.Abs(red[pixel])));
+                            if (first < second) iso++; else if (second < first) aniso++;
                         }
-                        Assert.True(iso>0 && aniso>0,$"Mixed phase pixels: isotropic={iso}, anisotropic={aniso}");
+                        Assert.True(iso > 0 && aniso > 0, $"Mixed phase pixels: isotropic={iso}, anisotropic={aniso}");
                     }
                 }
                 output.WriteLine($"boundary-output workload={workload} redSum={red.Sum(value => (double)value):R} zeroPixels={red.Count(value => value == 0)}");
-                string? outputDirectory=Environment.GetEnvironmentVariable("VGE_WATER_BOUNDARY_OUTPUTS");
-                if(!string.IsNullOrEmpty(outputDirectory))
+                string? outputDirectory = Environment.GetEnvironmentVariable("VGE_WATER_BOUNDARY_OUTPUTS");
+                if (!string.IsNullOrEmpty(outputDirectory))
                 {
                     Directory.CreateDirectory(outputDirectory);
-                    for(int attachment=0;attachment<2;attachment++)
+                    for (int attachment = 0; attachment < 2; attachment++)
                     {
-                        float[] values=measuredTarget[attachment].ReadPixels();
-                        File.WriteAllBytes(Path.Combine(outputDirectory,$"{workload}-mrt{attachment}.f32"),
+                        float[] values = measuredTarget[attachment].ReadPixels();
+                        File.WriteAllBytes(Path.Combine(outputDirectory, $"{workload}-mrt{attachment}.f32"),
                             System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()).ToArray());
                     }
                 }
@@ -220,8 +220,8 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         void DrawBoundary(float distance, bool entry)
         {
             if (scenario == 9)
-                mediumRecord.UploadDataImmediate([absorption[0],absorption[1],absorption[2],0, entry ? scattering : 0,0,0,0]);
-            float[] points = [-10,-10, 10,-10, 10,10, -10,-10, 10,10, -10,10];
+                mediumRecord.UploadDataImmediate([absorption[0], absorption[1], absorption[2], 0, entry ? scattering : 0, 0, 0, 0]);
+            float[] points = [-10, -10, 10, -10, 10, 10, -10, -10, 10, 10, -10, 10];
             var data = new float[66];
             var packed = new int[18];
             for (int vertex = 0; vertex < 6; vertex++)

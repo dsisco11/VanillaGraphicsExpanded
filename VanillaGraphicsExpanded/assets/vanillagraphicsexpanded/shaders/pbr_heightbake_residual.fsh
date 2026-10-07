@@ -3,7 +3,7 @@
 // Residual computation: r = b - A*h, A*h = sumN - 4h
 // Output: R32F
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_h;
 uniform sampler2D u_b;
@@ -37,5 +37,5 @@ void main()
     float Ah = (hL + hR + hD + hU) - 4.0 * hC;
     float r = b - Ah;
 
-    outColor = vec4(r, 0.0, 0.0, 1.0);
+    outColor = r;
 }

@@ -31,7 +31,7 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
     public void CleanCaptureRestoresWorldBehindFirstPersonPixels(bool lumon, bool overlay, bool captured)
     {
         EnsureShaderTestAvailable();
-        using var fixedFunction = StateCache.Current.CaptureLegacyFixedFunctionState();
+        using var fixedFunction = LegacyFixedFunctionReference.Capture(StateCache.Current);
         var program = Programs.Create<PBRCompositeShaderProgram>(value =>
         {
             value.LumOnEnabled = lumon;
@@ -50,9 +50,13 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f);
         using var atmosphere = new AtmosphereModSystem();
         var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
-            ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1,
+            ImmutableArray.Create(0f, 0f, 0f, 1f))
+        {
+            Width = 1,
+            Height = 1,
             AerialRadiance = ImmutableArray.CreateRange(new float[96]),
-            AerialAttenuation = ImmutableArray.CreateRange(new float[96]) };
+            AerialAttenuation = ImmutableArray.CreateRange(new float[96])
+        };
         atmosphere.Publish(snapshot);
         program.DirectDiffuse = direct;
         program.DirectSpecular = zero;
@@ -64,8 +68,8 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         program.GBufferPosition = position.TextureId;
         program.GBufferEnvironment = zero;
         program.PrimaryDepth = depth.TextureId;
-        program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1];
-        program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        program.InvProjectionMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 20, 0, 0, 0, 0, 1];
+        program.ViewMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         program.SetAtmosphere(snapshot);
         program.SetWaterVolume(null);
         program.SetUnderwater(false);
@@ -103,12 +107,12 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
     public void CapturePolicyPreservesAllEngineDrawPaths()
     {
         foreach (bool enabled in new[] { false, true })
-        foreach (bool self in new[] { false, true })
-        foreach (bool shadow in new[] { false, true })
-        foreach (EnumRenderStage stage in Enum.GetValues<EnumRenderStage>())
-        foreach (RenderMode mode in Enum.GetValues<RenderMode>())
-            Assert.Equal(enabled && self && !shadow && stage == EnumRenderStage.Opaque && mode == RenderMode.FirstPerson,
-                WaterRefractionCapture.ShouldCapture(enabled, stage, shadow, self, mode));
+            foreach (bool self in new[] { false, true })
+                foreach (bool shadow in new[] { false, true })
+                    foreach (EnumRenderStage stage in Enum.GetValues<EnumRenderStage>())
+                        foreach (RenderMode mode in Enum.GetValues<RenderMode>())
+                            Assert.Equal(enabled && self && !shadow && stage == EnumRenderStage.Opaque && mode == RenderMode.FirstPerson,
+                                WaterRefractionCapture.ShouldCapture(enabled, stage, shadow, self, mode));
     }
     #endregion
 }

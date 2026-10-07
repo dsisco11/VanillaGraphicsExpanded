@@ -94,8 +94,8 @@ internal sealed class RenderPass : IDisposable
             routingCaptured = true;
             var routing = new DrawBuffersEnum[Math.Max(1, description.Colors.Count)];
             for (int i = 0; i < description.Colors.Count; i++)
-                routing[i] = description.Colors[i].Attachment < 0 ? DrawBuffersEnum.None
-                    : DrawBuffersEnum.ColorAttachment0 + description.Colors[i].Attachment;
+                routing[i] = description.Colors[i].SurfaceBuffer ?? (description.Colors[i].Attachment < 0 ? DrawBuffersEnum.None
+                    : DrawBuffersEnum.ColorAttachment0 + description.Colors[i].Attachment);
             GL.DrawBuffers(routing.Length, routing);
             description.Target.ValidatePassCompleteness(routing);
             StateCache.Current.ApplyDynamic(Viewport);
@@ -126,7 +126,9 @@ internal sealed class RenderPass : IDisposable
         targets.Validate();
         using var errors = new GlDebug.ErrorScope("Render pass routing restoration");
         StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, description.Target.FboId);
-        GL.DrawBuffers(previousRouting.Length, previousRouting);
+        // Window surfaces may expose grouped selectors such as Back, which DrawBuffers rejects.
+        if (description.Target.FboId == 0) GL.DrawBuffer((DrawBufferMode)previousRouting[0]);
+        else GL.DrawBuffers(previousRouting.Length, previousRouting);
     }
     #endregion
 }

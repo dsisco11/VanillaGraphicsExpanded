@@ -33,26 +33,15 @@ internal sealed class GraphicsCommandContext
         bool conditionalRenderingInactive, Action<GraphicsCommandContext> operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        return TryRunShared(name, pipelines, [], conditionalRenderingInactive, (context, _) => operation(context));
-    }
-
-    /// <summary>Shares complete restoration with declared compatibility shader work performed between completed passes.</summary>
-    /// <remarks>The additional callbacks must use their existing tracked boundary adapters, never run inside an active pass.</remarks>
-    internal static bool TryRunShared(string name, IReadOnlyList<GraphicsPipeline> pipelines,
-        IReadOnlyList<GpuProgram> additionalPrograms, bool conditionalRenderingInactive,
-        Action<GraphicsCommandContext, EngineBoundaryScope> operation)
-    {
         ArgumentNullException.ThrowIfNull(pipelines);
-        ArgumentNullException.ThrowIfNull(additionalPrograms);
-        ArgumentNullException.ThrowIfNull(operation);
         var declared = pipelines.ToArray();
         foreach (var candidate in declared) { ArgumentNullException.ThrowIfNull(candidate); candidate.Validate(); }
         return CompleteGraphicsBoundary.TryRun(name, declared.Select(p => p.Description),
-            declared.Select(p => p.Shader).Concat(additionalPrograms).Distinct(), conditionalRenderingInactive, boundary =>
+            declared.Select(p => p.Shader).Distinct(), conditionalRenderingInactive, boundary =>
             {
                 var context = new GraphicsCommandContext(boundary, declared);
                 // Boundary cleanup owns failures; do not mask an operation exception with local disposal.
-                try { operation(context, boundary); }
+                try { operation(context); }
                 finally { context.finished = true; }
             });
     }
@@ -94,6 +83,16 @@ internal sealed class GraphicsCommandContext
         dynamics = value;
     }
 
+    /// <summary>Exposes the selected typed shader bridge to a verified engine pool manager before it stages per-pool inputs.</summary>
+    /// <remarks>No geometry is submitted here. Each intercepted pool must still pass the ordinary Draw validation path.</remarks>
+    internal void ActivateShaderForEngineInputs()
+    {
+        RequireMutable();
+        var selected = pipeline ?? throw new InvalidOperationException("Engine input staging requires a selected pipeline.");
+        (pass ?? throw new InvalidOperationException("Engine input staging requires a pass.")).ValidatePipeline(selected);
+        ActivateShader(selected);
+    }
+
     /// <summary>Validates the full draw, publishes current typed inputs, and only then emits native geometry.</summary>
     internal void Draw(GraphicsGeometry geometry, GraphicsDraw draw)
     {
@@ -107,15 +106,7 @@ internal sealed class GraphicsCommandContext
             target.ValidatePipeline(selected);
             geometry.Validate(selected.Description, draw);
             StateCache.Current.ApplyGraphicsState(selected, dynamics);
-            if (activation is null || !ReferenceEquals(activation.Program, selected.Shader))
-            {
-                var previous = activation;
-                activation = null;
-                previous?.Dispose();
-                activation = new ShaderActivation(selected.Shader);
-                boundary.AddCleanup(EngineBoundaryCleanup.Shader, activation);
-            }
-            else selected.Shader.Use();
+            ActivateShader(selected);
             // Generated submission can reject missing resources or UBO epochs. No draw precedes it.
             target.ValidatePipeline(selected);
             geometry.Validate(selected.Description, draw);
@@ -142,6 +133,20 @@ internal sealed class GraphicsCommandContext
     #endregion
 
     #region Private
+    /// <summary>Retains one activation owner so engine staging, draws and exceptional boundary cleanup share its lifetime.</summary>
+    private void ActivateShader(GraphicsPipeline selected)
+    {
+        if (activation is null || !ReferenceEquals(activation.Program, selected.Shader))
+        {
+            var previous = activation;
+            activation = null;
+            previous?.Dispose();
+            activation = new ShaderActivation(selected.Shader);
+            boundary.AddCleanup(EngineBoundaryCleanup.Shader, activation);
+        }
+        else selected.Shader.Use();
+    }
+
     /// <summary>Retains the already resolved boundary and its exact pipeline set.</summary>
     private GraphicsCommandContext(EngineBoundaryScope boundary, IEnumerable<GraphicsPipeline> pipelines)
     {

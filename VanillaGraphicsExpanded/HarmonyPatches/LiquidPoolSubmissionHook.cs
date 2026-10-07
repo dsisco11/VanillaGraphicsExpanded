@@ -12,15 +12,17 @@ internal static class LiquidPoolSubmissionHook
     #region Engine callbacks
     /// <summary>Submits immediately before the pool forwards its indexed draw to the render API.</summary>
     [HarmonyPrefix]
-    internal static void Prefix()
+    internal static bool Prefix(MeshDataPool __instance)
     {
         // MeshDataPoolManager stages mini-dimension state and origin before RenderMesh,
         // then restores transforms afterwards. Only our liquid owners use this boundary.
+        if (LiquidGraphicsSubmission.TryDraw(__instance)) return false;
         switch (ShaderProgramBase.CurrentShaderProgram)
         {
             case LiquidShaderProgram liquid: liquid.Use(); break;
             case LiquidDepthShaderProgram depth: depth.Use(); break;
         }
+        return true;
     }
     #endregion
 }

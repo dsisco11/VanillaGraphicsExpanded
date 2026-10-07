@@ -40,16 +40,16 @@ blend application, raw fixed-function calls, legacy capture and invalidation, pl
 point-size outputs. Resource wrappers are submission mechanisms, not additional renderers.
 Paths in the tables are repository-relative under `VanillaGraphicsExpanded/`.
 
-| Consumer / source | Draw ownership and current path | Migration order and required adapter |
+| Consumer / source | Draw ownership and current path | Submission owner and compatibility requirements |
 | --- | --- | --- |
 | [DirectLightingRenderer](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs), [DirectLightingTargets](../VanillaGraphicsExpanded/PBR/DirectLightingTargets.cs) | VGE; prepared GraphicsPipeline, owned EngineFullscreenGeometry and explicit three-output render pass; normal, isolated and shared capture invocation | Complete consumer. Uses the managed target signature and complete restoration set below; see Direct-lighting production submission for current evidence. |
-| [PBRCompositeRenderer](../VanillaGraphicsExpanded/PBR/PBRCompositeRenderer.cs), [WaterRefractionCapture](../VanillaGraphicsExpanded/PBR/Liquids/WaterRefractionCapture.cs), [SceneColorParticleCapture](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs) | VGE fullscreen composition, display, receiver/reduction, particle resolve and SSAO preparation; engine SSAO call remains external | After direct lighting. Sequential passes under one existing interruption boundary; preserve success-only publication, receiver dimensions, attachment borrowing and engine SSAO effects. |
-| [LumOnRenderer](../VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs) | VGE fullscreen MeshRef draws across radiance/denoise/composite paths, interleaved with compute | After common fullscreen adapter. Validate each target and shader variant at migration, declare pass dependencies/barriers explicitly; compute implementation stays intact. |
-| [LiquidRenderer](../VanillaGraphicsExpanded/PBR/Liquids/LiquidRenderer.cs), [LiquidDepthRenderer](../VanillaGraphicsExpanded/PBR/Liquids/LiquidDepthRenderer.cs), [WaterVolumeRenderer](../VanillaGraphicsExpanded/PBR/Liquids/WaterVolumeRenderer.cs) | VGE draw orchestration using borrowed engine terrain pools; depth replaces an engine draw, surface suppresses the next engine draw; volume uses partial indexed blend | After fullscreen, as MRT/pool family. Pool geometry/layout/range adapter, engine UseSsbo restoration, per-atlas bindings, depth/OIT metadata and routing. Preserve wave-frame sharing and fallback/suppression bookkeeping. Existing broad invalidation stays until these contracts are proven. |
-| [MaterialAtlasNormalDepthGpuBuilder](../VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs) | VGE raw fullscreen triangle/VAO, scissored clears and three independent legacy capture entries | After raw geometry adapter. Separate bake/clear/rectangle pass declarations, explicit viewport/scissor, sampler/resource restoration; retain allocation ownership. |
-| [LumOnWorldProbeClipmapGpuUploader](../VanillaGraphicsExpanded/LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapGpuUploader.cs) | VGE two point resolve draws in UploadCpu; legacy capture | After raw geometry adapter. Both point shader interfaces, target formats, one-pixel point policy, shader inputs and exception restoration. |
-| [VgeWorldCellBoundsDebugView](../VanillaGraphicsExpanded/DebugView/Views/VgeWorldCellBoundsDebugView.cs), [VgeGBufferOverlayDebugView](../VanillaGraphicsExpanded/DebugView/Views/VgeGBufferOverlayDebugView.cs) | VGE raw lines / fullscreen MeshRef; separate legacy scopes | After geometry and dynamic adapters. Line width, vertex colors and debug destination metadata; overlays use fullscreen contract. |
-| [LumOnDebugRenderer](../VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs) | VGE OIT/AfterBlit/atlas-overlay fullscreen, lines and point draws; four legacy scopes including dormant frozen bounds | After MRT/raw adapters. Explicit per-draw line/point configuration; GL.PointSize(12) in selected-orb draw is an unobserved VGE mutation today. Remove or cover it through complete state before migration. Dormant RenderWorldProbeClipmapBoundsFrozen must be removed or independently validated before reuse. |
+| [PBRCompositeRenderer](../VanillaGraphicsExpanded/PBR/PBRCompositeRenderer.cs), [WaterRefractionCapture](../VanillaGraphicsExpanded/PBR/Liquids/WaterRefractionCapture.cs), [SceneColorParticleCapture](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs) | VGE fullscreen composition, display, receiver/reduction, particle resolve and SSAO | Prepared complete pipelines, explicit routes and sequential passes; success-only publication and shared capture restoration. |
+| [LumOnRenderer](../VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs) | VGE fullscreen draws interleaved with compute | Retained complete realizations and explicit per-target passes; compute barriers and resource ownership remain with existing algorithms. |
+| [LiquidRenderer](../VanillaGraphicsExpanded/PBR/Liquids/LiquidRenderer.cs), LiquidDepthRenderer, WaterVolumeRenderer | VGE orchestration, borrowed engine liquid pools | LiquidGraphicsSubmission and EngineLiquidPoolGeometry preserve engine culling/transform staging, validate ordinary indexed layouts/groups, restore UseSsbo and declare depth, six-output OIT and two-output volume policy. |
+| [MaterialAtlasNormalDepthGpuBuilder](../VanillaGraphicsExpanded/PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs) | VGE procedural fullscreen solver and three public entries | Complete bake boundary, shader-free typed clear, explicit per-rectangle viewport and sampler/readback restoration. |
+| [LumOnWorldProbeClipmapGpuUploader](../VanillaGraphicsExpanded/LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapGpuUploader.cs) | VGE two-pass point resolve | ArrayGraphicsGeometry, two declared complete pipelines and target-specific passes with one-pixel points. |
+| [VgeWorldCellBoundsDebugView](../VanillaGraphicsExpanded/DebugView/Views/VgeWorldCellBoundsDebugView.cs), VgeGBufferOverlayDebugView | VGE line and fullscreen debug draws | DebugGraphicsSubmission owns complete descriptions; geometry adapters validate line/fullscreen streams; debug targets publish actual image or window metadata. |
+| [LumOnDebugRenderer](../VanillaGraphicsExpanded/LumOn/LumOnDebugRenderer.cs) | VGE OIT, AfterBlit and atlas overlays | Explicit line/point/MRT policies and owned overlay shader; dormant frozen draw removed. |
 | [SceneColorParticleDrawScope](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleDrawScope.cs) | Engine-owned particle submission redirected by VGE; output-zero blend patch and documented engine handoff | Keep compatibility adapter. Preserve engine glow routing, full-scene scissor intent and known source-alpha boundary; particle draw is not made VGE-owned by redirection. VGE resolve draws above do migrate. |
 | [GBufferManager](../VanillaGraphicsExpanded/GBuffer/GBufferManager.cs) and [TerrainTessellationDrawHook](../VanillaGraphicsExpanded/HarmonyPatches/TerrainTessellationDrawHook.cs) | Engine-owned terrain/entities/shadow draws, VGE attachments/blend policy, shader and topology interception | Keep explicit engine adapters. Patch count 3 saved/restored by finalizer; ordinary and grouped MeshRef overloads have different effects. Validate installed IL/layout and shared entity shadow path before widening ownership. G-buffer blend policy moves only when its actual draw owner migrates. |
 | [GpuVao](../VanillaGraphicsExpanded/Rendering/GpuVao.cs), [GpuEbo](../VanillaGraphicsExpanded/Rendering/GpuEbo.cs), [GpuVertexAttribBinding](../VanillaGraphicsExpanded/Rendering/GpuVertexAttribBinding.cs) | VGE geometry setup/indexed/instanced submission mechanisms | Reuse buffer/VAO ownership. Expose validated metadata to geometry adapters; no second resource hierarchy or assumption that a native VAO name proves layout compatibility. |
@@ -58,17 +58,17 @@ Scheduling-only IRenderer implementations (held-light completion, trace geometry
 
 All inventoried VGE draw families remain in migration scope. A later adapter prerequisite is not a
 permanent deferral or completion claim. The historical **Legacy scope inventory and disposition**
-below accounts for all 11 remaining capture invocations, including the dormant one.
+below accounts for the eleven retired capture invocations, including the removed dormant helper.
 
 | Mutation mechanism | Classification and authority boundary |
 | --- | --- |
 | [EngineStateSwitchingHook](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateSwitchingHook.cs), [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs), [EngineStateCalls](../VanillaGraphicsExpanded/Rendering/EngineStateCalls.cs) | Observed/routed only for exact mapped signatures in selected engine assemblies. Depth function/mask, selected capability enables, indexed/global blend factors/masks, viewport, line/point size, patch/provoking state, clear color, pixel store, program/VAO/FBO/renderbuffer/texture/sampler/buffer/image bindings and mapped deletion calls use cache adapters. Unsupported capability enums are forwarded, not proof of complete tracking. |
 | [FramebufferBindingHook](../VanillaGraphicsExpanded/HarmonyPatches/FramebufferBindingHook.cs) | Successful setter postfix observes combined read/draw FBO binding without another GL call. Does not establish blend/routing or arbitrary mod coverage. |
 | [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs), [OwnedShaderSubmissionHook](../VanillaGraphicsExpanded/HarmonyPatches/OwnedShaderSubmissionHook.cs), terrain material/scene-slot binding hooks | Shader owner and prepared resource publication remain authoritative; native program tracking alone does not restore engine ownership. Texture/UBO inputs may change on every draw with the same executable. |
-| [FullscreenBoundary](../VanillaGraphicsExpanded/Rendering/Integration/FullscreenBoundary.cs), [EngineBoundaryScope](../VanillaGraphicsExpanded/Rendering/EngineBoundaryScope.cs) | Explicit restoration of declared effects and prepared resource footprints. Resolve unknown incoming fields once at entry; restore shader owner, borrowed bindings and independent read/draw FBOs, then draw state. Current descriptor union is partial, not a full PSO restoration set. |
-| [GpuFramebuffer.Blending](../VanillaGraphicsExpanded/Rendering/GpuFramebuffer.Blending.cs), creation/routing and scratch helpers | Explicit blend application uses cache; bind does not imply blend setup. Raw draw/read-buffer routing is FBO-local resource state. Managed pass owns routing; borrowed engine routing needs restoration or a verified owner contract. |
-| Legacy fixed-function scopes, renderer entry/exit invalidation, [StateCache.ScissorScope](../VanillaGraphicsExpanded/Rendering/StateCache.ScissorScope.cs) | Explicitly bounded compatibility behavior, not proof of coverage for new stencil/sampling/rasterizer fields. Scissor helper preserves enable, not a general dynamic rectangle contract. |
-| Unmapped engine overloads, other mods, raw VGE point-size call, unsupported stencil/equation/rasterizer/sampling/clip changes | Unknown to current cache unless independently restored. Query required unknown fields at entry, establish complete state, restore and invalidate affected knowledge at declared external boundaries. No untracked mutation inside complete submission. |
+| [CompleteGraphicsBoundary](../VanillaGraphicsExpanded/Rendering/Integration/CompleteGraphicsBoundary.cs), [EngineBoundaryScope](../VanillaGraphicsExpanded/Rendering/EngineBoundaryScope.cs) | Explicit restoration of declared effects and prepared resource footprints. Resolve unknown incoming fields once at entry; restore shader owner, borrowed bindings and independent read/draw FBOs, then draw state. Complete descriptions supply full PSO restoration coverage; engine compatibility adapters retain their explicitly partial scopes. |
+| GpuFramebuffer creation/routing and scratch helpers | Framebuffer blend storage is retired; complete pipeline descriptions own VGE blend policy. Raw draw/read-buffer routing is FBO-local resource state. RenderPass owns routing and restores borrowed engine routing. |
+| Engine compatibility scopes, explicit external invalidation, [StateCache.ScissorScope](../VanillaGraphicsExpanded/Rendering/StateCache.ScissorScope.cs) | Retained for bounded engine-owned operations; the legacy fixed-function capture is test-only. Scissor helper preserves enable, not a general dynamic rectangle contract. Complete VGE draws use the full boundary contract. |
+| Unmapped engine overloads, other mods and unobserved external stencil/equation/rasterizer/sampling/clip changes | Unknown to current cache unless independently restored. Query required unknown fields at entry, establish complete state, restore and invalidate affected knowledge at declared external boundaries. No untracked mutation inside complete submission. |
 
 Renderbuffer resource operations now use a checked unknown-binding query and suppress known-equal
 binds. Managed immediate/deferred retirement and the exact engine DeleteRenderbuffer adapter route
@@ -146,8 +146,7 @@ rebuild/publication and refreshed with RefreshWrappedFramebuffer/attachment chan
 [GBufferManager](../VanillaGraphicsExpanded/GBuffer/GBufferManager.cs) boundary. Unsized/unknown formats
 require one-time native metadata resolution there, or rejection. Default framebuffer metadata comes
 from the actual window surface plus native attachment/sample queries at registration/surface resize,
-not assumed RGBA8. Until that provider exists, default-target complete passes reject; direct lighting
-uses managed textures. Check completeness after attachment/storage change and dirty pass entry, not
+not assumed RGBA8. GpuFramebuffer.SurfaceMetadata supplies that provider; unpublished default targets still reject, while direct lighting uses managed textures. Check completeness after attachment/storage change and dirty pass entry, not
 every unchanged draw. Track resource/attachment revision at the owner lifecycle; same-format resize
 refreshes area/dynamics without changing PSO identity. Reject mutation or explicit retirement during an
 active pass and require end/rebegin.
@@ -174,7 +173,7 @@ recovery needs separate design and validation later.
 | Boundary | Required restored effects / policy |
 | --- | --- |
 | Direct-lighting standalone or shared capture | Union of all complete state categories above changed by the pass, plus viewport/scissor/reference/constant, program/engine shader owner, VAO and its EBO association, array buffer, independent read/draw FBO, active texture and touched sampler/texture/UBO/SSBO/image slots. Restore clear helper values if changed. Capture unknown fields, reuse truthful known values. Include global/indexed aliases and prior-shader reactivation effects. No hard-coded engine baseline. |
-| Composite/refraction/particle resolve/SSAO preparation | Union all participating pipeline/resource footprints plus allocation, blit/reduction and actual engine SSAO helper effects. Keep FullscreenBoundary until the larger declaration is validated. Sequential passes share one nonnested interruption. |
+| Composite/refraction/particle resolve/SSAO preparation | Union all participating pipeline/resource footprints plus allocation, blit/reduction and actual engine SSAO helper effects. GraphicsCommandContext now declares the complete participating pipeline set. Sequential passes share one nonnested interruption. |
 | Particle engine redirection | Existing known full-scene scissor and source-alpha output-zero contract, incoming read/draw FBO and borrowed attachment/routing preservation. Verify installed engine entry assumptions when migrating; changed unknown contracts fall back to capture. |
 | Liquid depth/surface/volume pools | Shader owner/resources, pool geometry, targets/viewport, indexed MRT blend/masks, depth/cull, UseSsbo and suppression bookkeeping. Capture unknown entry; preserve invalidation until exact pool/engine effects are validated. |
 | Raw atlas/resolve/debug entries | Each independent entry declares full pipeline/dynamic changes, target/clear/allocation effects, geometry and shader resources. Capture unknown entry; do not assume a sibling caller's surrounding scope. |
@@ -470,6 +469,8 @@ made, and Vintage Story was not launched. Native capability checks do not establ
 
 ## Engine-boundary restoration
 
+The implementation/evidence below records the earlier restoration foundation. Current consumer ownership and retired helper names are reconciled in **Legacy scope inventory and disposition** and **Remaining consumer submission**; historical receipts do not describe the current production helper set.
+
 Inventory and implementation contracts established on 2026-10-05. Categorized cache storage
 and declared boundary entry/restoration are implemented. Refraction and independent fullscreen
 callbacks are integrated with headless correction evidence. Caller reconciliation and user live
@@ -544,35 +545,33 @@ not a new resource hierarchy or resource cache.
 
 ### Legacy scope inventory and disposition
 
-Initial repository search found 14 invocations plus the declaration. Three have since migrated;
-11 source invocations remain, including one dormant helper. Each retained family needs its own
-effect inventory and regressions before migration; presence of observed engine calls is insufficient.
+All eleven previously retained production capture invocations have been replaced or removed.
+The historical subset implementation now exists only as `LegacyFixedFunctionReference` in GPU
+fixtures, including the negative control that reproduces indexed blend corruption. Production
+`StateCache.CaptureLegacyFixedFunctionState` and its duplicate snapshot are retired.
 
-| Source and invocation lines at inventory | Disposition / dependency |
+| Consumer / historical entry | Current owner and disposition |
 | --- | --- |
-| `PBR/Liquids/WaterRefractionCapture.cs` | Migrated to one pre-overlay boundary; duplicate CapturePipeline removed, actual child draw descriptors retained. |
-| `PBR/DirectLightingRenderer.cs` | Migrated to independent callback adapter and shared in-boundary draw implementation. |
-| `PBR/PBRCompositeRenderer.cs` | Migrated to independent callback adapter covering preparation, SSAO restoration and reduction. |
-| `DebugView/Views/VgeWorldCellBoundsDebugView.cs:285` | Retain independent debug boundary; line geometry, shader and binding policy require parent debug-consumer migration. |
-| `DebugView/Views/VgeGBufferOverlayDebugView.cs:157` | Retain independent overlay boundary; indexed outputs and engine blit ownership require debug adapter. |
-| `LumOn/LumOnDebugRenderer.cs:731` | Retain OIT outer scope around live bounds/rays/orbs until shared debug contract and child effects are established. It does not call the frozen helper below. |
-| `LumOn/LumOnDebugRenderer.cs:894` | Independent AfterBlit/debug fullscreen path; manual viewport/scissor and active-texture restoration must migrate together. |
-| `LumOn/LumOnDebugRenderer.cs:1346` | Dormant private RenderWorldProbeClipmapBoundsFrozen helper; search finds only its declaration. Retain its protective scope with the method. Parent debug migration must remove the entire dead helper or validate an independent line/VAO/shader adapter before reuse. This is not nested live-bounds preservation. |
-| `LumOn/LumOnDebugRenderer.cs:2563` | Independent normal-depth atlas overlay, engine blit program and sampler inputs; retain pending debug shader/binding contract. |
-| `LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapGpuUploader.cs:230` | UploadCpu performs two resolve draws; retain until upload/resolve adapter covers both targets/viewports, point geometry and shader cleanup. |
-| `PBR/Materials/MaterialAtlasNormalDepthGpuBuilder.cs:147,509,593` | BakePerTexture, ClearAtlasPage and BakePerRect are separate public entries. Retain each until allocation/clear/viewport/scissor/program/binding and iterative solver contracts are independently migrated. ClearAtlasPage is called independently, not a redundant nested scope. |
-| `PBR/Liquids/WaterVolumeRenderer.cs:108` | Independent liquid pool boundary; viewport, indexed additive blending, UseSsbo bookkeeping and terrain helper effects require volume-specific adapter. |
+| `VgeWorldCellBoundsDebugView` | ArrayGraphicsGeometry publishes line streams; DebugGraphicsSubmission owns depth/no-depth variants and line width. |
+| `VgeGBufferOverlayDebugView` | Owned DebugTextureShaderProgram and EngineFullscreenGeometry replace engine blit activation. |
+| `LumOnDebugRenderer` OIT | Explicit line/point layouts and complete per-mode descriptions; orbs declare six indexed output policies, depth writing and shader point size. |
+| `LumOnDebugRenderer` AfterBlit | Complete fullscreen pipeline and published actual window-surface metadata; no renderer-side viewport/scissor copies. |
+| `RenderWorldProbeClipmapBoundsFrozen` | Dormant method and unused frozen capture removed entirely. |
+| `LumOnDebugRenderer` normal-depth atlas | Same owned texture shader and complete debug submission as other overlays. |
+| `LumOnWorldProbeClipmapGpuUploader.UploadCpu` | One boundary declares both point resolve pipelines and explicit radiance/metadata passes. |
+| `MaterialAtlasNormalDepthGpuBuilder` BakePerTexture / ClearAtlasPage / BakePerRect | Independent complete boundaries; shader-free clear pass, bounded procedural triangle, explicit solver targets and typed load operations. |
+| `WaterVolumeRenderer` | LiquidGraphicsSubmission owns additive two-output policy, viewport and UseSsbo restoration; engine pool managers retain culling/transforms. |
 
-No retained caller is approved for blanket removal. The legacy helper cannot be retired while
-these consumers require it. Their current scopes are compatibility fallbacks, not proof of complete
-indexed preservation or context safety.
+Related composite/capture coordination also uses complete pipelines for direct lighting, composition,
+receiver/reduction, SSAO and display, declaring all participating realizations before shared entry.
 
-All retained families are assigned to the [parent plan](Rendering.AuthoritativePipelineState.todo),
-remaining-consumer migration and compatibility cleanup. Consumer inventory, cache/boundary coverage,
-prepared pipelines, target/pass and submission/geometry contracts remain prerequisites. Existing
-manual cleanup in those consumers is migration work, not permission to add it to migrated passes.
-No remaining scope has validated replacement coverage. Removing only the dormant helper's scope
-would leave unsafe code if reconnected; track whole-method disposition with its debug consumer.
+`FullscreenBoundary` is retired from production. Its partial-description behavior survives only
+in `ReferenceFullscreenBoundary` for the independent direct-lighting comparison renderer.
+`GpuFramebuffer` no longer stores or applies blend policy. Complete descriptions own migrated
+blend state; GBufferManager and redirected engine particle draws retain their explicit partial
+compatibility policies because their actual draw owner remains the engine.
+
+See **Remaining consumer submission** for implementation traceability and verification status.
 
 ### State representation and source layout decisions
 
@@ -703,7 +702,7 @@ and performance measurements remain pending; never launch the game. UV cutoff re
 | Proposed boundary mechanism (entry/application/global-indexed) | BoundaryEntry, PipelineStateSnapshot and BoundaryRestoration; EngineBoundaryEntryTests and EngineBoundaryRestorationTests cover resolved values, alias closure, invalidation, context and failures. |
 | Dynamic state, bindings, shader ownership | StateCache.Dynamic, EngineBoundaryScope and BoundaryBindings; EngineBoundaryBindingTests, GpuProgramUseScopeTests and real callback/viewport/FBO regressions. |
 | Authority, invalidation, lifetime | RenderContextRegistry, boundary context validation, ExecuteExternal and targeted resource retirement; context, external-mutation, deletion and unaffected-binding regressions. |
-| Refraction integration and compatibility | One capture boundary and independent lighting/composite adapters; actual marker/publication regressions; all 11 retained source invocations assigned parent prerequisites above. |
+| Refraction integration and compatibility | One capture boundary and independent lighting/composite adapters; actual marker/publication regressions; all eleven historical invocations now have the dispositions recorded above. |
 | Relationship to approved PSO work | Parent exception governs this bounded work; future command context reuses cache mechanism, complete pipeline adoption remains parent work. |
 | Verification and acceptance | Baseline 213 passing tests plus 97 fresh affected tests after the startup correction; delegated builds and measured fixture counters below. User live confirmation received on 2026-10-05; no new RenderDoc inspection claimed. |
 
@@ -1065,7 +1064,7 @@ and affected-category invalidation; engine hooks do not prove arbitrary raw GL c
 Direct lighting has removed its partial descriptor and local target/clear/draw setup. Shared capture
 declares its prepared direct-lighting pipeline together with the existing composite shader footprints
 through TryRunShared. Its direct-lighting pass ends before the bounded composite callback starts.
-Composite/capture adoption still owns the remaining partial draws and FullscreenBoundary unions once
+The earlier composite/capture adoption prerequisite required retaining partial draws and FullscreenBoundary unions until
 complete submission covers the same operation. Keep any still-used adapter until its final caller migrates. Partial descriptors remain
 restricted to declared compatibility operations outside complete submission or at explicit boundaries.
 Viewport remains dynamic; framebuffer blend policy moves with complete consumer pipelines, with
@@ -1073,7 +1072,7 @@ one policy owner throughout. No renderer restore PSO or second cache is introduc
 
 | Reconciliation task | Controlling source | Evidence |
 | --- | --- | --- |
-| Caller dispositions and helper retirement | Restoration proposal / Refraction integration and compatibility; original caller inventory | Updated table accounts for three migrated and 11 retained source invocations; parent remaining-consumer tasks own every family and final helper retirement. |
+| Caller dispositions and helper retirement | Restoration proposal / Refraction integration and compatibility; original caller inventory | The current inventory accounts for every migrated invocation and the removed dormant helper; historical reference behavior remains test-only. |
 | State ownership, cleanup, unknown mutations and category separation | Restoration proposal / Dynamic state, bindings, and shader ownership; Authority, invalidation, and lifetime; Source organization | StateCache category/knowledge partials, BoundaryValidation, EngineBoundaryScope and FullscreenBoundary source review; existing boundary/cache/callback regressions above. |
 | Future adoption and bounded scope | Parent proposal / Submission contract, Engine integration and cache authority, Adoption strategy | Parent submission, direct-lighting and remaining-consumer tasks explicitly own reuse and compatibility removal; proposal and project index agree. |
 
@@ -2159,9 +2158,7 @@ prohibited during the pass and remains the external owner's responsibility at pu
 `GpuFramebuffer.PublishRenderPassMetadata` discovers wrapped images at an explicit publication
 boundary, retaining exact image selections without acquiring ownership. Failed or missing publication
 cannot satisfy strict entry. `GBufferManager` resolves it during primary framebuffer refresh, including
-equal-size rebuilds, before publishing one completed change notification. Default surfaces still reject
-under the documented policy until a window-surface
-metadata provider exists; they are never guessed to be ordinary RGBA8 attachments.
+equal-size rebuilds, before publishing one completed change notification. Default surfaces require GpuFramebuffer.SurfaceMetadata publication; they are never guessed to be ordinary RGBA8 attachments.
 
 Clears establish writable masks, explicit scissor area and neutral clear interpretation using existing
 StateCache categories. Float, signed and unsigned color values use the corresponding native typed clear;
@@ -2400,3 +2397,71 @@ The second source review and independent audit-stage-completion pass reconciled 
 contract, proposal, design/reference methodology, current sources and final receipts. No required
 adoption, lifetime, restoration or changed-input findings remain open. `git diff --check` passed.
 The remaining consumers and final system-wide measurements retain their separate planning gates.
+
+## Remaining consumer submission
+
+The adoption contract is the proposal's **Submission contract**, **Engine integration and cache
+authority**, and **Adoption strategy**, together with this document's consumer inventory,
+complete-state defaults, target/pass lifetime and geometry contracts. These requirements apply to
+all migrated families; the legacy inventory above tracks every retired capture entry individually.
+
+| Requirement group | Implementation and retained responsibility | Verification |
+| --- | --- | --- |
+| Composite/capture and success-only publication | PBRCompositeRenderer.Pipelines, WaterRefractionCapture and SceneColorParticleCapture.Pipelines declare preparation before one complete interruption; reduction and SSAO use explicit passes. Engine particle rendering remains in SceneColorParticleDrawScope. | WaterRefractionCaptureStateTests; SceneColorParticlePublicationTests; SceneColorParticleIntegrationTests, including engine Stop handoff and foreign-owner rejection. |
+| Atlas allocation, independent clear and bounded solver draws | MaterialAtlasNormalDepthGpuBuilder.Submission, Passes, Statistics, TileResources and Multigrid retain the existing solve and allocation ownership. R32F/RG32F shader outputs now declare their stored scalar/vector width. Scratch publication uses binding-preserving attachment APIs before entry. | MaterialAtlasBakeSubmissionTests exercises all three actual entries, nonflat solved heights, untouched exterior pixels, failure and restoration. |
+| CPU world-probe two-pass resolve | LumOnWorldProbeClipmapGpuUploader.Pipelines declares actual radiance/metadata formats and immutable point layouts; ArrayGraphicsGeometry borrows streaming buffers. | WorldProbeCpuSubmissionTests; ArrayGraphicsGeometryTests; existing transport integration. |
+| LumOn fullscreen and clear-only history | LumOnRenderer.Submission retains one realization per pass name/executable/target signature. HZB uses actual mip areas. ClearHistory declares every target as a clear-only pass. Compute and explicit barriers retain their existing owners. | LumOnTemporalRendererTests; LumOnHistorySubmissionTests; compute/shared-binding suites. |
+| Debug windows, images and primitives | DebugRenderTarget retains actual window formats and borrowed image metadata per target until rebuild/resize, so alternating OIT/window draws reuse their publications. DebugGraphicsSubmission owns bounded per-mode pipeline realizations. Array/fullscreen adapters own geometry. Orbs explicitly declare six output blend policies and point-size/depth behavior. | LumOnDebugRendererFunctionalTests; DebugGraphicsSubmissionTests; SurfaceRenderPassTests. |
+| Liquid depth/surface/volume | LiquidGraphicsSubmission prepares ordinary pool metadata before entry and routes the existing manager's per-pool hook through GraphicsCommandContext.Draw. Engine culling, mini-dimension origin/model-view staging and atlas selection remain in their original order. EngineLiquidPoolGeometry validates native stream layout/capacity once and current allocation groups on each submission. | Liquid adapter tests and existing liquid shader/transport regressions; installed engine pool source/IL establishes the ordinary indexed path and UseSsbo behavior. |
+| Single state/blend owner and compatibility cleanup | Production legacy capture and temporary FullscreenBoundary are removed; reference implementations live only in test fixtures. GpuFramebuffer blend storage is removed. Complete pipelines own VGE draws. G-buffer, particle and terrain/tessellation hooks remain explicit engine-owned compatibility paths. | Indexed-blend pipeline tests, historical negative control, direct-lighting comparison and engine-boundary regressions. |
+
+Clear-only command contexts have no executable but still resolve complete drawing-state coverage;
+they cannot draw without a declared pipeline. Window surfaces are distinct from image attachments:
+metadata includes actual color encoding/channel widths, samples and depth/stencil aspects. Unknown
+window formats reject. The original window draw selector is restored with DrawBuffer because
+selectors such as Back are not accepted by DrawBuffers. The headless window fixture draws to its
+actual 1x1 surface and verifies metadata resize/revision handling; it does not resize an operating-system
+window. Real window resize remains part of user-run live acceptance.
+
+The pool adapter supports the installed 64-bit ordinary indexed liquid representation. It does not
+interpret the engine's shared SSBO index stream. UseSsbo is temporarily false only while engine
+managers stage and submit the declared ordinary pools, and is restored on failure. Borrowed VAO
+and element associations are restored through StateCache scopes. Engine pool allocation/culling
+provenance supplies CPU-side range validation; there is no per-draw GPU index readback. Preparation
+and reusable geometry remain separate from the command context's thin submission composition.
+Installed engine source and IL identify the final OIT storage as RGB8, R16F, RGBA8 and three
+RGBA16F accumulation targets. The shared OIT shader declares three bin-transmission components
+and one total-transmission component to match those first two attachments. Glow retains separate
+source-alpha blending, while revealage multiplies and accumulation adds. LiquidProductionPipelineTests
+prepares the actual production surface executable against those formats, the depth executable against
+Depth24-only storage and the volume executable against two RGBA32F attachments;
+LiquidBlendPolicyTests independently checks the stored arithmetic. Liquid depth is Depth24-only,
+uses Less comparison and explicitly discards its dummy fragment color output.
+
+The shader-enabled Debug and Release builds and combined consumer/shared-state suites passed
+310/310 tests in each configuration with zero failures or skips. Receipts are
+`artifacts/phase8-final-current-debug.log` and `artifacts/phase8-final-current-release.log`;
+the exact selection is retained in `artifacts/phase8-final-filter.txt` and each log's command header.
+The commands use the test project's normal production and shared fixture shader orchestration.
+After the final debug-target metadata retention correction, the affected selection passed 7/7 in both
+configurations with no failures or skips (`artifacts/phase8-target-retention-debug.log` and
+`artifacts/phase8-target-retention-release.log`). These focused reruns cover the final source; the
+broader receipts remain applicable to unchanged consumers and shared submission mechanisms.
+Headless tests do not establish in-game appearance or performance. User-run visual acceptance and
+comparable workload measurements remain outstanding under the acceptance plan.
+
+The broader water regression run exposed four stale lowest-quality receiver expectations. An isolated
+build of unchanged commit `c6329702049c8881c6bf2b564826a02da8de8db4` reproduced the same four
+failures (89/93 passed, zero skipped; `artifacts/phase8-water-baseline-debug.log`). The source archive
+was supplemented only with ignored debug GLSL includes required by its existing shader build.
+The corrected test independently projects the fixture's mesh/geometric-normal difference onto the
+receiver plane for pixel-normal offset; traced qualities retain the Snell intersection oracle.
+Fresnel, scattering, display-transfer checks and tolerances are unchanged. No refraction-model code
+was changed for that test correction.
+
+Second source review and the independent completion audit against the proposal, consumer inventory,
+legacy-entry dispositions and adoption requirements found no remaining required issue on 2026-10-06.
+All eleven original production legacy-capture invocations are absent, and the temporary framebuffer
+blend owner and fullscreen coordination adapter are retired. Engine-owned compatibility paths retain
+their explicit restoration contracts. Project binding and capture entries are reconciled with this
+coverage; unobserved external mutations and live acceptance are not claimed complete.

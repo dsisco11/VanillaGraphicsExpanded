@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -134,38 +137,14 @@ public static partial class VgeBuiltInDebugViews
         private const int MaxCellsDrawn = 4096;
         private const int MaxLineVertices = MaxCellsDrawn * 24 * 2; // 12 edges, 2 vertices per edge.
 
-        private static readonly GlPipelineDesc BoundsLinesPso = new(
-            defaultMask: default(GlPipelineStateMask)
-                .With(GlPipelineStateId.BlendEnable)
-                .With(GlPipelineStateId.CullFaceEnable)
-                .With(GlPipelineStateId.ScissorTestEnable)
-                .With(GlPipelineStateId.ColorMask),
-            nonDefaultMask: default(GlPipelineStateMask)
-                .With(GlPipelineStateId.DepthTestEnable)
-                .With(GlPipelineStateId.DepthFunc)
-                .With(GlPipelineStateId.DepthWriteMask)
-                .With(GlPipelineStateId.LineWidth),
-            depthFunc: DepthFunction.Lequal,
-            depthWriteMask: false,
-            lineWidth: 2f);
-
-        private static readonly GlPipelineDesc BoundsLinesNoDepthPso = new(
-            defaultMask: default(GlPipelineStateMask)
-                .With(GlPipelineStateId.DepthTestEnable)
-                .With(GlPipelineStateId.BlendEnable)
-                .With(GlPipelineStateId.CullFaceEnable)
-                .With(GlPipelineStateId.ScissorTestEnable)
-                .With(GlPipelineStateId.ColorMask),
-            nonDefaultMask: default(GlPipelineStateMask)
-                .With(GlPipelineStateId.DepthWriteMask)
-                .With(GlPipelineStateId.LineWidth),
-            depthWriteMask: false,
-            lineWidth: 2f);
-
         private readonly ICoreClientAPI capi;
         private readonly LumOnDiagnosticsModSystem? lumOnDiagnostics;
 
-        private GpuVao? vao;
+        private ArrayGraphicsGeometry? geometry;
+        private readonly DebugGraphicsSubmission submission;
+        private static readonly VertexLayoutDesc LineLayout = new([
+            new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 28),
+            new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 28)]);
         private GpuVbo? vbo;
 
         private readonly LineVertex[] vertices = new LineVertex[MaxLineVertices];
@@ -181,6 +160,7 @@ public static partial class VgeBuiltInDebugViews
         public VgeWorldCellBoundsWireframeRenderer(ICoreClientAPI capi)
         {
             this.capi = capi;
+            submission = new(capi);
             lumOnDiagnostics = capi.ModLoader.GetModSystem<LumOnDiagnosticsModSystem>();
 
             // World-space lines must use the scene camera state, as the probe wireframes do.
@@ -213,7 +193,7 @@ public static partial class VgeBuiltInDebugViews
             }
 
             EnsureGlObjects();
-            if (vao is null || !vao.IsValid || vbo is null || !vbo.IsValid)
+            if (geometry is null || vbo is null || !vbo.IsValid)
             {
                 return;
             }
@@ -281,41 +261,13 @@ public static partial class VgeBuiltInDebugViews
 
             UpdateCurrentViewProjMatrix();
 
-            int prevActiveTexture = GL.GetInteger(GetPName.ActiveTexture);
-            using var fixedFunctionState = StateCache.Current.CaptureLegacyFixedFunctionState();
-
-            bool shaderUsed = false;
-            try
-            {
-                StateCache.Current.InvalidateAll();
-                StateCache.Current.Apply(WorldCellBoundsViewState.DepthTest ? BoundsLinesPso : BoundsLinesNoDepthPso);
-
-
-                shader.ModelViewProjectionMatrix = currentViewProjMatrix;
-                shader.WorldOffset = new Vec3f(0, 0, 0);
-
-                int stride = Marshal.SizeOf<LineVertex>();
-                vbo!.UploadData(vertices, written * stride);
-
-                shader.Use();
-                shaderUsed = true;
-                vao!.Bind();
-                GL.DrawArrays(PrimitiveType.Lines, 0, written);
-                StateCache.Current.SetLineWidth(1f);
-
-                StateCache.Current.BindVertexArray(0);
-            }
-            finally
-            {
-                if (shaderUsed)
-                {
-                    shader.Stop();
-                }
-
-                StateCache.Current.ActiveTexture(prevActiveTexture - (int)TextureUnit.Texture0);
-
-                StateCache.Current.InvalidateAll();
-            }
+            shader.ModelViewProjectionMatrix = currentViewProjMatrix;
+            shader.WorldOffset = new Vec3f(0, 0, 0);
+            int stride = Marshal.SizeOf<LineVertex>();
+            using (var binding = vbo!.BindScope()) vbo.UploadData(vertices, written * stride);
+            submission.Draw(WorldCellBoundsViewState.DepthTest ? "WorldCells.Depth" : "WorldCells.Overlay",
+                shader, geometry!, LineLayout, new(0, written), PrimitiveType.Lines,
+                depthTest: WorldCellBoundsViewState.DepthTest, lineWidth: 2);
         }
 
         /// <summary>Preserves the engine camera adjustment when projecting camera-relative world bounds.</summary>
@@ -328,43 +280,27 @@ public static partial class VgeBuiltInDebugViews
             MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
         }
 
+        /// <summary>Creates a private line layout over the renderer-owned streaming buffer.</summary>
         private void EnsureGlObjects()
         {
-            if (vao is not null && vao.IsValid && vbo is not null && vbo.IsValid)
-            {
-                return;
-            }
-
-            vao?.Dispose();
+            if (geometry is not null && vbo is { IsValid: true }) return;
+            geometry?.Dispose();
             vbo?.Dispose();
-            vao = null;
+            geometry = null;
             vbo = null;
-
             try
             {
-                vao = GpuVao.Create("VGE_WorldCellBoundsLines_VAO");
                 vbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldCellBoundsLines_VBO");
-
-                using var vaoScope = vao.BindScope();
-                using var vboScope = vbo.BindScope();
-
-                int stride = Marshal.SizeOf<LineVertex>();
-
-                // vec3 position
-                vao.AttribPointer(0, 3, VertexAttribPointerType.Float, normalized: false, stride, 0);
-
-                // vec4 color
-                vao.AttribPointer(1, 4, VertexAttribPointerType.Float, normalized: false, stride, 12);
+                geometry = new(LineLayout, PrimitiveType.Lines, new Dictionary<int, GpuVbo> { [0] = vbo });
             }
             catch
             {
-                vao?.Dispose();
+                geometry?.Dispose();
                 vbo?.Dispose();
-                vao = null;
+                geometry = null;
                 vbo = null;
             }
         }
-
         private static int FloorDiv(double value, int divisor)
         {
             if (divisor <= 0) throw new ArgumentOutOfRangeException(nameof(divisor));
@@ -430,10 +366,11 @@ public static partial class VgeBuiltInDebugViews
         public void Dispose()
         {
             capi.Event.UnregisterRenderer(this, EnumRenderStage.OIT);
+            submission.Dispose();
 
-            vao?.Dispose();
+            geometry?.Dispose();
             vbo?.Dispose();
-            vao = null;
+            geometry = null;
             vbo = null;
         }
 

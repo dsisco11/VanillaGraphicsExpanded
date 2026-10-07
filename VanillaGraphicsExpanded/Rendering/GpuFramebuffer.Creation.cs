@@ -166,6 +166,7 @@ public sealed partial class GpuFramebuffer
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (ownsFramebuffer) throw new InvalidOperationException("Only borrowed framebuffers can be refreshed.");
         if (existingFboId <= 0 || width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(existingFboId));
+        Surface = null;
         attachments.Clear();
         attachmentsDirty = false;
         passMetadataPublished = false;

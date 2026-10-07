@@ -1,6 +1,6 @@
 Issues:
   Current:
-    ☐ Retire `StateCache.CaptureLegacyFixedFunctionState()` after the remaining 11 source invocations are migrated or removed with evidence. Dispositions: docs/Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition. Prerequisites/removal owner: docs/Rendering.AuthoritativePipelineState.todo / Phase 8. Retained mechanism and acceptance evidence: docs/Rendering.AuthoritativePipelineState.md / Engine-boundary restoration (original proposal and plan retired). Engine observation does not replace restoration.
+    ☑ Retired `StateCache.CaptureLegacyFixedFunctionState()` after all 11 source invocations were migrated or removed with evidence. Dispositions: docs/Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition. Prerequisites/removal owner: docs/Rendering.AuthoritativePipelineState.todo / Phase 8. Retained mechanism and acceptance evidence: docs/Rendering.AuthoritativePipelineState.md / Engine-boundary restoration (original proposal and plan retired). Engine observation does not replace restoration.
     ☐ Normal maps not loading from material atlas baking system?
     ☐ Tessellation not working (possibly due to the normal maps not loading?).
     ☐ Add edge beveling for geometry normals prior to direct lighting so that lighting appears smoother along edges and corners.
@@ -21,9 +21,9 @@ Issues:
   Performance:
     PipelineState:
       ☐ Evolve graphics pipeline state into an authoritative submission system. Approved proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md. Plan: docs/Rendering.AuthoritativePipelineState.todo.
-      ☐ Establish concrete framebuffer targets through render-pass setup and compatible target signatures through pipeline validation. See docs/Rendering.AuthoritativePipelineState.todo.
-      ☐ Integrate prepared shader dependencies through the existing activation/submission lifecycle. See docs/Rendering.AuthoritativePipelineState.todo.
-      ☐ Remove individual invalidation/capture scopes only after tracking and engine restoration are proven; retain fallback boundaries for unknown mutations. See docs/Rendering.AuthoritativePipelineState.todo.
+      ☑ Establish concrete framebuffer targets through render-pass setup and compatible target signatures through pipeline validation. Coverage: docs/Rendering.AuthoritativePipelineState.md / Remaining consumer submission; explicit image and published window destinations.
+      ☑ Integrate prepared shader dependencies through the existing activation/submission lifecycle. Coverage: docs/Rendering.AuthoritativePipelineState.md / Remaining consumer submission; per-draw input publication and engine shader-owner handoff.
+      ☑ Remove individual invalidation/capture scopes only after tracking and engine restoration are proven; retain fallback boundaries for unknown mutations. Coverage: docs/Rendering.AuthoritativePipelineState.md / Consumer and mutation coverage and Legacy scope inventory and disposition. Engine-owned particle, terrain and tessellation adapters remain; unobserved external mutations still require explicit invalidation.
     General:
       ☐ Audit each of the LumOn shaders for opportunities to reduce shader code instruction count.
       ☐ Profile the performance of the near-tracing geometry system to identify bottlenecks and optimize GPU memory usage.

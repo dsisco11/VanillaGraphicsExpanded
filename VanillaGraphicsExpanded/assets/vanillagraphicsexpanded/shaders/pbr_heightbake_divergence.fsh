@@ -3,7 +3,7 @@
 // Divergence of desired gradient field.
 // Output: R32F
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_g; // RG32F
 @import "./includes/pbr_heightbake_params_ubo.glsl"
@@ -29,5 +29,5 @@ void main()
     float dy = 0.5 * (LoadG(p + ivec2(0, 1)).y - LoadG(p + ivec2(0, -1)).y);
 
     float div = dx + dy;
-    outColor = vec4(div, 0.0, 0.0, 1.0);
+    outColor = div;
 }

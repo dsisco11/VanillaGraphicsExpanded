@@ -1,4 +1,5 @@
-using VanillaGraphicsExpanded.Rendering.Pipeline.State;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,20 +28,11 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 ///
 /// This runs during loading / atlas build time.
 /// </summary>
-internal static class MaterialAtlasNormalDepthGpuBuilder
+internal static partial class MaterialAtlasNormalDepthGpuBuilder
 {
     private const int MinBakeTilePx = 2;
     // Asset domain for shader source.
     private const string Domain = "vanillagraphicsexpanded";
-
-    private static readonly GlPipelineDesc BakeKnownGoodPso = new(
-        defaultMask: default(GlPipelineStateMask)
-            .With(GlPipelineStateId.BlendEnable)
-            .With(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.ScissorTestEnable)
-            .With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: default);
 
     // Shader asset names (without extension).
     private const string FshLuminance = "pbr_heightbake_luminance";
@@ -62,13 +54,14 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     private static PbrHeightBakeParamsUbo? paramsUbo;
 
     private static bool initialized;
-    private static GpuVao? vao;
+    private static ArrayGraphicsGeometry? geometry;
     private static GpuFramebuffer? scratchFbo;
     private const int MaxDebugTilesPerPage = 3;
     private const int FlatnessSampleStride = 128;
     private const float FlatnessVarianceEpsilon = 0.0025f;
     private const float SaturationEpsilon = 0.01f;
 
+    /// <summary>Bounds blur width by the current tile dimensions.</summary>
     private static float ClampSigmaToTile(float sigma, int tileW, int tileH, float maxFractionOfMinDim)
     {
         if (sigma <= 0f) return 0f;
@@ -77,6 +70,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         return sigma > maxSigma ? maxSigma : sigma;
     }
 
+    /// <summary>Clamps a value to the inclusive supported range.</summary>
     private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
 
     private static PbrHeightBakeShaderProgram? progLuminance;
@@ -100,6 +94,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
     private static TileResources? tile;
     private static MultigridResources? mg;
 
+    /// <summary>Bakes each admitted texture rectangle through one restored graphics boundary.</summary>
     public static void BakePerTexture(
         ICoreClientAPI capi,
         int baseAlbedoAtlasPageTexId,
@@ -133,343 +128,310 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             return;
         }
 
-        // Save minimal GL state.
-        int[] prevViewport = new int[4];
-        GL.GetInteger(GetPName.Viewport, prevViewport);
-        int prevFbo = GpuFramebuffer.SaveBinding();
-        var prevGl = StateCache.Current;
-        _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
-        _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
-        _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
-        _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
-
-        // Engine GL state can leak into the bake. Force a known-good state and restore after.
-        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState();
-
         try
         {
-            // Known-good state for offscreen full-screen passes.
-            var gl = StateCache.Current;
-            gl.InvalidateAll();
-            gl.Apply(BakeKnownGoodPso);
-
-            scratchFbo!.Bind();
-            vao!.Bind();
-
-            // Clear entire atlas sidecar first (deterministic baseline).
-            ClearAtlasPageUnsafe(destNormalDepthTexId, atlasWidth, atlasHeight);
-
-            int debugTilesLogged = 0;
-            int bakedRects = 0;
-            int skippedInvalidRects = 0;
-            int skippedTinyRects = 0;
-            int sampledRects = 0;
-            int flatSampledRects = 0;
-            int flatSampledBlackRects = 0;
-            int flatSampledWhiteRects = 0;
-            int flatDetailsLogged = 0;
-
-            foreach (TextureAtlasPosition pos in positions)
+            RunBake(destNormalDepthTexId, draw =>
             {
-                if (!TryGetRectPx(pos, atlasWidth, atlasHeight, out int rx, out int ry, out int rw, out int rh))
+
+                // Clear entire atlas sidecar first (deterministic baseline).
+                ClearAtlasPageUnsafe(draw, destNormalDepthTexId, atlasWidth, atlasHeight);
+
+                int debugTilesLogged = 0;
+                int bakedRects = 0;
+                int skippedInvalidRects = 0;
+                int skippedTinyRects = 0;
+                int sampledRects = 0;
+                int flatSampledRects = 0;
+                int flatSampledBlackRects = 0;
+                int flatSampledWhiteRects = 0;
+                int flatDetailsLogged = 0;
+
+                foreach (TextureAtlasPosition pos in positions)
                 {
-                    skippedInvalidRects++;
-                    continue;
-                }
-
-                // Extremely small tiles can't produce stable gradients; leave defaults.
-                // Note: leaving defaults means neutral height (0.5 encoded) and flat normal.
-                if (rw < MinBakeTilePx || rh < MinBakeTilePx)
-                {
-                    skippedTinyRects++;
-                    continue;
-                }
-
-                int solverW = rw;
-                int solverH = rh;
-
-                tile ??= new TileResources();
-                tile.EnsureSize(solverW, solverH);
-
-                mg ??= new MultigridResources();
-                mg.EnsureSize(solverW, solverH);
-
-                var cfg = ConfigModSystem.Config.MaterialAtlas;
-                var bake = cfg.NormalDepthBake;
-
-                // Adaptive clamp: SigmaBig as configured can be too aggressive for small tiles (e.g. 32x32),
-                // wiping out most of the low/medium-frequency structure and yielding a flat (neutral) height map.
-                // Clamp to a fraction of the tile size to preserve usable signal across more atlas rects.
-                float sigmaBig = ClampSigmaToTile(bake.SigmaBig, solverW, solverH, maxFractionOfMinDim: 0.25f);
-
-                // Likewise clamp the band-pass sigmas so small tiles don't end up with multiple passes
-                // that are effectively "global" blurs.
-                float sigma1 = ClampSigmaToTile(bake.Sigma1, solverW, solverH, maxFractionOfMinDim: 0.05f);
-                float sigma2 = ClampSigmaToTile(bake.Sigma2, solverW, solverH, maxFractionOfMinDim: 0.08f);
-                float sigma3 = ClampSigmaToTile(bake.Sigma3, solverW, solverH, maxFractionOfMinDim: 0.12f);
-                float sigma4 = ClampSigmaToTile(bake.Sigma4, solverW, solverH, maxFractionOfMinDim: 0.20f);
-
-                // Other rect-size affected knobs (gradient stage operates in texel space).
-                // Scale relative to a 32x32 baseline and clamp to avoid extreme changes.
-                float minDim = Math.Min(solverW, solverH);
-                float sizeScale = Clamp(32f / Math.Max(1f, minDim), 0.5f, 2.0f);
-                float gain = bake.Gain * sizeScale;
-                float maxSlope = bake.MaxSlope * sizeScale;
-                float edgeT0 = bake.EdgeT0 * sizeScale;
-                float edgeT1 = bake.EdgeT1 * sizeScale;
-
-                // Relative-contrast D tends to have smaller gradient magnitudes than absolute luminance D.
-                // If we keep the same edge thresholds, many tiles end up with edge==0 and therefore g==0.
-                // Lower thresholds in this mode to preserve detail.
-                const float RelContrastEdgeScale = 0.25f;
-                edgeT0 *= RelContrastEdgeScale;
-                edgeT1 *= RelContrastEdgeScale;
-
-                if (cfg.DebugLogNormalDepthAtlas && debugTilesLogged < MaxDebugTilesPerPage)
-                {
-                    capi.Logger.Debug(
-                    "[VGE] Normal+depth effective params: rect=({0},{1},{2},{3}) sigmaBig={4:0.00} sigma1={5:0.00} sigma2={6:0.00} sigma3={7:0.00} sigma4={8:0.00} gain={9:0.00} maxSlope={10:0.00} edgeT=({11:0.0000},{12:0.0000})",
-                        rx,
-                        ry,
-                        rw,
-                        rh,
-                        sigmaBig,
-                        sigma1,
-                        sigma2,
-                        sigma3,
-                    sigma4,
-                    gain,
-                    maxSlope,
-                    edgeT0,
-                    edgeT1);
-                }
-
-                // 1) Luminance (linear) from atlas sub-rect.
-                RunLuminancePass(
-                    atlasTexId: baseAlbedoAtlasPageTexId,
-                    atlasRectPx: (rx, ry, rw, rh),
-                    dst: tile.L);
-
-                // 2) Remove low-frequency ramps: base = Gauss(L, sigmaBig), D0 = L - base.
-                RunGaussian(tile.L, tile.Tmp, tile.Base, sigmaBig);
-                // Use relative contrast to reduce sensitivity to tint/brightness:
-                // D0 = (L - base) / (base + eps)
-                RunSub(tile.L, tile.Base, tile.D0, relContrast: true);
-
-                // 3) Multi-scale band-pass on D0.
-                RunGaussian(tile.D0, tile.Tmp, tile.G1, sigma1);
-                RunGaussian(tile.D0, tile.Tmp, tile.G2, sigma2);
-                RunGaussian(tile.D0, tile.Tmp, tile.G3, sigma3);
-                RunGaussian(tile.D0, tile.Tmp, tile.G4, sigma4);
-                RunCombine(tile.G1, tile.G2, tile.G3, tile.G4, tile.D, bake.W1, bake.W2, bake.W3);
-
-                // 4) Desired gradient field.
-                RunGradient(tile.D, tile.G, gain, maxSlope, edgeT0, edgeT1);
-
-                // 5) Divergence.
-                RunDivergence(tile.G, tile.Div);
-
-                // 6) Multigrid Poisson solve: Δh = div (periodic).
-                mg.Solve(tile.Div, tile.H, bake);
-
-                // 7) Subtract mean on CPU (fix DC offset) then normalize/gamma on GPU.
-                var (mean, center, minH, maxH) = ComputeStatsR32f(tile.H);
-
-                // Always normalize the solved height field per tile, but do so asymmetrically:
-                // scale negatives by (center-min), positives by (max-center).
-                // This avoids skewed tiles becoming "mostly black" (or "mostly white") after packing.
-                const float Eps = 1e-6f;
-                const float MaxInv = 64f;
-                float negSpan = center - minH;
-                float posSpan = maxH - center;
-                float invNeg = negSpan > Eps ? Math.Min(1f / negSpan, MaxInv) : 0f;
-                float invPos = posSpan > Eps ? Math.Min(1f / posSpan, MaxInv) : 0f;
-
-                RunNormalize(tile.H, tile.Hn, center, invNeg, invPos, bake.HeightStrength, bake.Gamma);
-
-                // 8) Pack to atlas (RGB normal in 0..1, A signed height).
-                RunPackToAtlas(
-                    dstAtlasTexId: destNormalDepthTexId,
-                    viewportOriginPx: (rx, ry),
-                    tileSizePx: (rw, rh),
-                    solverSizePx: (solverW, solverH),
-                    heightTex: tile.Hn,
-                    baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
-                    normalStrength: bake.NormalStrength,
-                    normalScale: 1f,
-                    depthScale: 1f);
-
-                bakedRects++;
-
-                // Lightweight: sample every Nth baked rect to estimate how many are effectively flat.
-                if (cfg.DebugLogNormalDepthAtlas && (bakedRects % FlatnessSampleStride) == 0)
-                {
-                    int sx = rx + rw / 2;
-                    int sy = ry + rh / 2;
-                    float aCenter = ReadAtlasPixelRgba(destNormalDepthTexId, sx, sy).a;
-                    float a00 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + 0).a;
-                    float a10 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + 0).a;
-                    float a01 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + (rh - 1)).a;
-                    float a11 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + (rh - 1)).a;
-
-                    float minA = Math.Min(aCenter, Math.Min(Math.Min(a00, a10), Math.Min(a01, a11)));
-                    float maxA = Math.Max(aCenter, Math.Max(Math.Max(a00, a10), Math.Max(a01, a11)));
-                    float spanA = maxA - minA;
-
-                    sampledRects++;
-                    if (spanA <= FlatnessVarianceEpsilon)
+                    if (!TryGetRectPx(pos, atlasWidth, atlasHeight, out int rx, out int ry, out int rw, out int rh))
                     {
-                        flatSampledRects++;
-                        if (maxA <= SaturationEpsilon) flatSampledBlackRects++;
-                        if (minA >= (1f - SaturationEpsilon)) flatSampledWhiteRects++;
-
-                        if (flatDetailsLogged < MaxDebugTilesPerPage)
-                        {
-                            // Sample the base albedo atlas at matching pixels to see if the source tile itself is flat.
-                            var cCenter = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, sx, sy);
-                            var c00 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + 0, ry + 0);
-                            var c10 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + (rw - 1), ry + 0);
-                            var c01 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + 0, ry + (rh - 1));
-                            var c11 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + (rw - 1), ry + (rh - 1));
-
-                            float L((float r, float g, float b) rgb) => 0.2126f * rgb.r + 0.7152f * rgb.g + 0.0722f * rgb.b;
-                            float lCenter = L(cCenter.rgb);
-                            float l00 = L(c00.rgb);
-                            float l10 = L(c10.rgb);
-                            float l01 = L(c01.rgb);
-                            float l11 = L(c11.rgb);
-
-                            capi.Logger.Debug(
-                                "[VGE] Normal+depth flat-tile sample: rect=({0},{1},{2},{3}) pack.a=[min={4:0.000},max={5:0.000},span={6:0.000},center={7:0.000}] albedoL=[{8:0.000},{9:0.000},{10:0.000},{11:0.000},{12:0.000}] albedoA=[{13:0.000},{14:0.000},{15:0.000},{16:0.000},{17:0.000}]",
-                                rx,
-                                ry,
-                                rw,
-                                rh,
-                                minA,
-                                maxA,
-                                spanA,
-                                aCenter,
-                                lCenter,
-                                l00,
-                                l10,
-                                l01,
-                                l11,
-                                cCenter.a,
-                                c00.a,
-                                c10.a,
-                                c01.a,
-                                c11.a);
-
-                            flatDetailsLogged++;
-                        }
+                        skippedInvalidRects++;
+                        continue;
                     }
-                }
 
-                if (cfg.DebugLogNormalDepthAtlas)
-                {
-                    int sx = rx + rw / 2;
-                    int sy = ry + rh / 2;
-                    var (a, rgb) = ReadAtlasPixelRgba(destNormalDepthTexId, sx, sy);
-
-                    if (debugTilesLogged < MaxDebugTilesPerPage)
+                    // Extremely small tiles can't produce stable gradients; leave defaults.
+                    // Note: leaving defaults means neutral height (0.5 encoded) and flat normal.
+                    if (rw < MinBakeTilePx || rh < MinBakeTilePx)
                     {
-                        // Also sample intermediate R32F tiles so we can locate where saturation happens.
-                        // Note: tile textures are tile-local coordinates.
-                        int tx = solverW / 2;
-                        int ty = solverH / 2;
-                        float h = ReadTexturePixelR32f(tile.H, tx, ty);
-                        float hn = ReadTexturePixelR32f(tile.Hn, tx, ty);
+                        skippedTinyRects++;
+                        continue;
+                    }
 
-                        // Sample a few more points to detect "binary alpha" vs real gradients.
-                        // Atlas coords use the same (x,y) convention as glReadPixels (bottom-left origin).
+                    int solverW = rw;
+                    int solverH = rh;
+
+                    tile ??= new TileResources();
+                    tile.EnsureSize(solverW, solverH);
+
+                    mg ??= new MultigridResources();
+                    mg.EnsureSize(solverW, solverH);
+
+                    var cfg = ConfigModSystem.Config.MaterialAtlas;
+                    var bake = cfg.NormalDepthBake;
+
+                    // Adaptive clamp: SigmaBig as configured can be too aggressive for small tiles (e.g. 32x32),
+                    // wiping out most of the low/medium-frequency structure and yielding a flat (neutral) height map.
+                    // Clamp to a fraction of the tile size to preserve usable signal across more atlas rects.
+                    float sigmaBig = ClampSigmaToTile(bake.SigmaBig, solverW, solverH, maxFractionOfMinDim: 0.25f);
+
+                    // Likewise clamp the band-pass sigmas so small tiles don't end up with multiple passes
+                    // that are effectively "global" blurs.
+                    float sigma1 = ClampSigmaToTile(bake.Sigma1, solverW, solverH, maxFractionOfMinDim: 0.05f);
+                    float sigma2 = ClampSigmaToTile(bake.Sigma2, solverW, solverH, maxFractionOfMinDim: 0.08f);
+                    float sigma3 = ClampSigmaToTile(bake.Sigma3, solverW, solverH, maxFractionOfMinDim: 0.12f);
+                    float sigma4 = ClampSigmaToTile(bake.Sigma4, solverW, solverH, maxFractionOfMinDim: 0.20f);
+
+                    // Other rect-size affected knobs (gradient stage operates in texel space).
+                    // Scale relative to a 32x32 baseline and clamp to avoid extreme changes.
+                    float minDim = Math.Min(solverW, solverH);
+                    float sizeScale = Clamp(32f / Math.Max(1f, minDim), 0.5f, 2.0f);
+                    float gain = bake.Gain * sizeScale;
+                    float maxSlope = bake.MaxSlope * sizeScale;
+                    float edgeT0 = bake.EdgeT0 * sizeScale;
+                    float edgeT1 = bake.EdgeT1 * sizeScale;
+
+                    // Relative-contrast D tends to have smaller gradient magnitudes than absolute luminance D.
+                    // If we keep the same edge thresholds, many tiles end up with edge==0 and therefore g==0.
+                    // Lower thresholds in this mode to preserve detail.
+                    const float RelContrastEdgeScale = 0.25f;
+                    edgeT0 *= RelContrastEdgeScale;
+                    edgeT1 *= RelContrastEdgeScale;
+
+                    if (cfg.DebugLogNormalDepthAtlas && debugTilesLogged < MaxDebugTilesPerPage)
+                    {
+                        capi.Logger.Debug(
+                        "[VGE] Normal+depth effective params: rect=({0},{1},{2},{3}) sigmaBig={4:0.00} sigma1={5:0.00} sigma2={6:0.00} sigma3={7:0.00} sigma4={8:0.00} gain={9:0.00} maxSlope={10:0.00} edgeT=({11:0.0000},{12:0.0000})",
+                            rx,
+                            ry,
+                            rw,
+                            rh,
+                            sigmaBig,
+                            sigma1,
+                            sigma2,
+                            sigma3,
+                        sigma4,
+                        gain,
+                        maxSlope,
+                        edgeT0,
+                        edgeT1);
+                    }
+
+                    // 1) Luminance (linear) from atlas sub-rect.
+                    RunLuminancePass(draw,
+                        atlasTexId: baseAlbedoAtlasPageTexId,
+                        atlasRectPx: (rx, ry, rw, rh),
+                        dst: tile.L);
+
+                    // 2) Remove low-frequency ramps: base = Gauss(L, sigmaBig), D0 = L - base.
+                    RunGaussian(draw, tile.L, tile.Tmp, tile.Base, sigmaBig);
+                    // Use relative contrast to reduce sensitivity to tint/brightness:
+                    // D0 = (L - base) / (base + eps)
+                    RunSub(draw, tile.L, tile.Base, tile.D0, relContrast: true);
+
+                    // 3) Multi-scale band-pass on D0.
+                    RunGaussian(draw, tile.D0, tile.Tmp, tile.G1, sigma1);
+                    RunGaussian(draw, tile.D0, tile.Tmp, tile.G2, sigma2);
+                    RunGaussian(draw, tile.D0, tile.Tmp, tile.G3, sigma3);
+                    RunGaussian(draw, tile.D0, tile.Tmp, tile.G4, sigma4);
+                    RunCombine(draw, tile.G1, tile.G2, tile.G3, tile.G4, tile.D, bake.W1, bake.W2, bake.W3);
+
+                    // 4) Desired gradient field.
+                    RunGradient(draw, tile.D, tile.G, gain, maxSlope, edgeT0, edgeT1);
+
+                    // 5) Divergence.
+                    RunDivergence(draw, tile.G, tile.Div);
+
+                    // 6) Multigrid Poisson solve: Δh = div (periodic).
+                    mg.Solve(draw, tile.Div, tile.H, bake);
+
+                    // 7) Subtract mean on CPU (fix DC offset) then normalize/gamma on GPU.
+                    var (mean, center, minH, maxH) = ComputeStatsR32f(tile.H);
+
+                    // Always normalize the solved height field per tile, but do so asymmetrically:
+                    // scale negatives by (center-min), positives by (max-center).
+                    // This avoids skewed tiles becoming "mostly black" (or "mostly white") after packing.
+                    const float Eps = 1e-6f;
+                    const float MaxInv = 64f;
+                    float negSpan = center - minH;
+                    float posSpan = maxH - center;
+                    float invNeg = negSpan > Eps ? Math.Min(1f / negSpan, MaxInv) : 0f;
+                    float invPos = posSpan > Eps ? Math.Min(1f / posSpan, MaxInv) : 0f;
+
+                    RunNormalize(draw, tile.H, tile.Hn, center, invNeg, invPos, bake.HeightStrength, bake.Gamma);
+
+                    // 8) Pack to atlas (RGB normal in 0..1, A signed height).
+                    RunPackToAtlas(draw,
+                        dstAtlasTexId: destNormalDepthTexId,
+                        viewportOriginPx: (rx, ry),
+                        tileSizePx: (rw, rh),
+                        solverSizePx: (solverW, solverH),
+                        heightTex: tile.Hn,
+                        baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
+                        normalStrength: bake.NormalStrength,
+                        normalScale: 1f,
+                        depthScale: 1f);
+
+                    bakedRects++;
+
+                    // Lightweight: sample every Nth baked rect to estimate how many are effectively flat.
+                    if (cfg.DebugLogNormalDepthAtlas && (bakedRects % FlatnessSampleStride) == 0)
+                    {
+                        int sx = rx + rw / 2;
+                        int sy = ry + rh / 2;
+                        float aCenter = ReadAtlasPixelRgba(destNormalDepthTexId, sx, sy).a;
                         float a00 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + 0).a;
                         float a10 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + 0).a;
                         float a01 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + (rh - 1)).a;
                         float a11 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + (rh - 1)).a;
 
-                        float hn00 = ReadTexturePixelR32f(tile.Hn, 0, 0);
-                        float hn10 = ReadTexturePixelR32f(tile.Hn, solverW - 1, 0);
-                        float hn01 = ReadTexturePixelR32f(tile.Hn, 0, solverH - 1);
-                        float hn11 = ReadTexturePixelR32f(tile.Hn, solverW - 1, solverH - 1);
+                        float minA = Math.Min(aCenter, Math.Min(Math.Min(a00, a10), Math.Min(a01, a11)));
+                        float maxA = Math.Max(aCenter, Math.Max(Math.Max(a00, a10), Math.Max(a01, a11)));
+                        float spanA = maxA - minA;
 
-                        capi.Logger.Debug(
-                            "[VGE] Normal+depth tile debug: atlas={0} rect=({1},{2},{3},{4}) samplePx=({5},{6}) H={7:0.0000} mean={8:0.0000} center={9:0.0000} min={10:0.0000} max={11:0.0000} invNeg={12:0.000} invPos={13:0.000} Hn={14:0.0000} (strength={15:0.00}, gamma={16:0.00}) pack.a={17:0.000} pack.rgb=({18:0.000},{19:0.000},{20:0.000})",
-                            baseAlbedoAtlasPageTexId,
-                            rx,
-                            ry,
-                            rw,
-                            rh,
-                            sx,
-                            sy,
-                            h,
-                            mean,
-                            center,
-                            minH,
-                            maxH,
-                            invNeg,
-                            invPos,
-                            hn,
-                            bake.HeightStrength,
-                            bake.Gamma,
-                            a,
-                            rgb.r,
-                            rgb.g,
-                            rgb.b);
+                        sampledRects++;
+                        if (spanA <= FlatnessVarianceEpsilon)
+                        {
+                            flatSampledRects++;
+                            if (maxA <= SaturationEpsilon) flatSampledBlackRects++;
+                            if (minA >= (1f - SaturationEpsilon)) flatSampledWhiteRects++;
 
-                        capi.Logger.Debug(
-                            "[VGE] Normal+depth tile samples: pack.a corners=[{0:0.000},{1:0.000},{2:0.000},{3:0.000}] Hn corners=[{4:0.0000},{5:0.0000},{6:0.0000},{7:0.0000}]",
-                            a00,
-                            a10,
-                            a01,
-                            a11,
-                            hn00,
-                            hn10,
-                            hn01,
-                            hn11);
-                        debugTilesLogged++;
+                            if (flatDetailsLogged < MaxDebugTilesPerPage)
+                            {
+                                // Sample the base albedo atlas at matching pixels to see if the source tile itself is flat.
+                                var cCenter = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, sx, sy);
+                                var c00 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + 0, ry + 0);
+                                var c10 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + (rw - 1), ry + 0);
+                                var c01 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + 0, ry + (rh - 1));
+                                var c11 = ReadAtlasPixelRgba(baseAlbedoAtlasPageTexId, rx + (rw - 1), ry + (rh - 1));
+
+                                float L((float r, float g, float b) rgb) => 0.2126f * rgb.r + 0.7152f * rgb.g + 0.0722f * rgb.b;
+                                float lCenter = L(cCenter.rgb);
+                                float l00 = L(c00.rgb);
+                                float l10 = L(c10.rgb);
+                                float l01 = L(c01.rgb);
+                                float l11 = L(c11.rgb);
+
+                                capi.Logger.Debug(
+                                    "[VGE] Normal+depth flat-tile sample: rect=({0},{1},{2},{3}) pack.a=[min={4:0.000},max={5:0.000},span={6:0.000},center={7:0.000}] albedoL=[{8:0.000},{9:0.000},{10:0.000},{11:0.000},{12:0.000}] albedoA=[{13:0.000},{14:0.000},{15:0.000},{16:0.000},{17:0.000}]",
+                                    rx,
+                                    ry,
+                                    rw,
+                                    rh,
+                                    minA,
+                                    maxA,
+                                    spanA,
+                                    aCenter,
+                                    lCenter,
+                                    l00,
+                                    l10,
+                                    l01,
+                                    l11,
+                                    cCenter.a,
+                                    c00.a,
+                                    c10.a,
+                                    c01.a,
+                                    c11.a);
+
+                                flatDetailsLogged++;
+                            }
+                        }
+                    }
+
+                    if (cfg.DebugLogNormalDepthAtlas)
+                    {
+                        int sx = rx + rw / 2;
+                        int sy = ry + rh / 2;
+                        var (a, rgb) = ReadAtlasPixelRgba(destNormalDepthTexId, sx, sy);
+
+                        if (debugTilesLogged < MaxDebugTilesPerPage)
+                        {
+                            // Also sample intermediate R32F tiles so we can locate where saturation happens.
+                            // Note: tile textures are tile-local coordinates.
+                            int tx = solverW / 2;
+                            int ty = solverH / 2;
+                            float h = ReadTexturePixelR32f(tile.H, tx, ty);
+                            float hn = ReadTexturePixelR32f(tile.Hn, tx, ty);
+
+                            // Sample a few more points to detect "binary alpha" vs real gradients.
+                            // Atlas coords use the same (x,y) convention as glReadPixels (bottom-left origin).
+                            float a00 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + 0).a;
+                            float a10 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + 0).a;
+                            float a01 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + 0, ry + (rh - 1)).a;
+                            float a11 = ReadAtlasPixelRgba(destNormalDepthTexId, rx + (rw - 1), ry + (rh - 1)).a;
+
+                            float hn00 = ReadTexturePixelR32f(tile.Hn, 0, 0);
+                            float hn10 = ReadTexturePixelR32f(tile.Hn, solverW - 1, 0);
+                            float hn01 = ReadTexturePixelR32f(tile.Hn, 0, solverH - 1);
+                            float hn11 = ReadTexturePixelR32f(tile.Hn, solverW - 1, solverH - 1);
+
+                            capi.Logger.Debug(
+                                "[VGE] Normal+depth tile debug: atlas={0} rect=({1},{2},{3},{4}) samplePx=({5},{6}) H={7:0.0000} mean={8:0.0000} center={9:0.0000} min={10:0.0000} max={11:0.0000} invNeg={12:0.000} invPos={13:0.000} Hn={14:0.0000} (strength={15:0.00}, gamma={16:0.00}) pack.a={17:0.000} pack.rgb=({18:0.000},{19:0.000},{20:0.000})",
+                                baseAlbedoAtlasPageTexId,
+                                rx,
+                                ry,
+                                rw,
+                                rh,
+                                sx,
+                                sy,
+                                h,
+                                mean,
+                                center,
+                                minH,
+                                maxH,
+                                invNeg,
+                                invPos,
+                                hn,
+                                bake.HeightStrength,
+                                bake.Gamma,
+                                a,
+                                rgb.r,
+                                rgb.g,
+                                rgb.b);
+
+                            capi.Logger.Debug(
+                                "[VGE] Normal+depth tile samples: pack.a corners=[{0:0.000},{1:0.000},{2:0.000},{3:0.000}] Hn corners=[{4:0.0000},{5:0.0000},{6:0.0000},{7:0.0000}]",
+                                a00,
+                                a10,
+                                a01,
+                                a11,
+                                hn00,
+                                hn10,
+                                hn01,
+                                hn11);
+                            debugTilesLogged++;
+                        }
                     }
                 }
-            }
 
-            if (ConfigModSystem.Config.MaterialAtlas.DebugLogNormalDepthAtlas &&
-                (skippedTinyRects != 0 || skippedInvalidRects != 0 || flatSampledRects != 0))
-            {
-                capi.Logger.Debug(
-                    "[VGE] Normal+depth atlas bake summary: atlas={0} rects={1} baked={2} skippedTiny(<2px)={3} skippedInvalid={4} sampledEvery={5} sampled={6} sampledFlat(spanA<={7})={8} flatBlack(a<={9})={10} flatWhite(a>={11})={12}",
-                    baseAlbedoAtlasPageTexId,
-                    positions.Length,
-                    bakedRects,
-                    skippedTinyRects,
-                    skippedInvalidRects,
-                    FlatnessSampleStride,
-                    sampledRects,
-                    FlatnessVarianceEpsilon,
-                    flatSampledRects,
-                    SaturationEpsilon,
-                    flatSampledBlackRects,
-                    1f - SaturationEpsilon,
-                    flatSampledWhiteRects);
-            }
+                if (ConfigModSystem.Config.MaterialAtlas.DebugLogNormalDepthAtlas &&
+                    (skippedTinyRects != 0 || skippedInvalidRects != 0 || flatSampledRects != 0))
+                {
+                    capi.Logger.Debug(
+                        "[VGE] Normal+depth atlas bake summary: atlas={0} rects={1} baked={2} skippedTiny(<2px)={3} skippedInvalid={4} sampledEvery={5} sampled={6} sampledFlat(spanA<={7})={8} flatBlack(a<={9})={10} flatWhite(a>={11})={12}",
+                        baseAlbedoAtlasPageTexId,
+                        positions.Length,
+                        bakedRects,
+                        skippedTinyRects,
+                        skippedInvalidRects,
+                        FlatnessSampleStride,
+                        sampledRects,
+                        FlatnessVarianceEpsilon,
+                        flatSampledRects,
+                        SaturationEpsilon,
+                        flatSampledBlackRects,
+                        1f - SaturationEpsilon,
+                        flatSampledWhiteRects);
+                }
+            });
         }
-        catch
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
-            // Best-effort: on failure, the sidecar remains at default clear values.
-        }
-        finally
-        {
-            // CRITICAL: ensure Vintagestory's shader program tracking is not left in a dirty state.
-            // If any of our VGE programs remains "in use", the engine will throw:
-            // "Already a different shader (...) in use!" on the next render pass.
-            StopAllBakerPrograms();
-
-            var gl = StateCache.Current;
-
-            gl.UseProgram(prevProgram);
-            gl.BindVertexArray(prevVao);
-            GpuFramebuffer.RestoreBinding(prevFbo);
-            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
-
-            gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
+            // Preserve the optional bake fallback after safe boundary cleanup.
         }
     }
 
@@ -488,54 +450,17 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         if (atlasWidth <= 0) throw new ArgumentOutOfRangeException(nameof(atlasWidth));
         if (atlasHeight <= 0) throw new ArgumentOutOfRangeException(nameof(atlasHeight));
 
-        try
+        // Clearing is a resource load operation; it does not require a shader executable.
+        using var image = GpuFramebufferAttachment.FromTextureId(destNormalDepthTexId);
+        using var target = GpuFramebuffer.CreateEmpty("MaterialAtlas.Clear");
+        target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
+        if (!GraphicsCommandContext.TryRun("MaterialAtlas.Clear", [], true, commands =>
         {
-            EnsureInitialized(capi);
-        }
-        catch
-        {
-            return;
-        }
-
-        int[] prevViewport = new int[4];
-        GL.GetInteger(GetPName.Viewport, prevViewport);
-        int prevFbo = GpuFramebuffer.SaveBinding();
-        var prevGl = StateCache.Current;
-        _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
-        _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
-        _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
-        _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
-
-        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState();
-
-        try
-        {
-            var gl = StateCache.Current;
-            gl.InvalidateAll();
-            gl.Apply(BakeKnownGoodPso);
-
-            scratchFbo!.Bind();
-            vao!.Bind();
-
-            ClearAtlasPageUnsafe(destNormalDepthTexId, atlasWidth, atlasHeight);
-        }
-        catch
-        {
-            // Best-effort.
-        }
-        finally
-        {
-            StopAllBakerPrograms();
-
-            var gl = StateCache.Current;
-
-            gl.UseProgram(prevProgram);
-            gl.BindVertexArray(prevVao);
-            GpuFramebuffer.RestoreBinding(prevFbo);
-            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
-
-            gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
-        }
+            commands.BeginPass(new(target,
+                [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0.5f, 0.5f, 1, 0.5f))],
+                area: new(0, 0, atlasWidth, atlasHeight)));
+            commands.EndPass();
+        })) throw new InvalidOperationException("Atlas clear boundary unavailable.");
     }
 
     /// <summary>
@@ -581,149 +506,107 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             return false;
         }
 
-        int[] prevViewport = new int[4];
-        GL.GetInteger(GetPName.Viewport, prevViewport);
-        int prevFbo = GpuFramebuffer.SaveBinding();
-        var prevGl = StateCache.Current;
-        _ = prevGl.TryGetCachedCurrentVao(out int prevVao);
-        _ = prevGl.TryGetCachedCurrentProgram(out int prevProgram);
-        _ = prevGl.TryGetCachedActiveTextureUnit(out int prevActiveUnit);
-        _ = prevGl.TryGetCachedBoundTexture(TextureTarget.Texture2D, prevActiveUnit, out int prevTex2D);
-
-        using var fixedFunctionScope = StateCache.Current.CaptureLegacyFixedFunctionState();
-
         try
         {
-            var gl = StateCache.Current;
-            gl.InvalidateAll();
-            gl.Apply(BakeKnownGoodPso);
+            return RunBake(destNormalDepthTexId, draw =>
+            {
 
-            scratchFbo!.Bind();
-            vao!.Bind();
+                int solverW = rectWidth;
+                int solverH = rectHeight;
 
-            int solverW = rectWidth;
-            int solverH = rectHeight;
+                tile ??= new TileResources();
+                tile.EnsureSize(solverW, solverH);
 
-            tile ??= new TileResources();
-            tile.EnsureSize(solverW, solverH);
+                mg ??= new MultigridResources();
+                mg.EnsureSize(solverW, solverH);
 
-            mg ??= new MultigridResources();
-            mg.EnsureSize(solverW, solverH);
+                var cfg = ConfigModSystem.Config.MaterialAtlas;
+                var bake = cfg.NormalDepthBake;
 
-            var cfg = ConfigModSystem.Config.MaterialAtlas;
-            var bake = cfg.NormalDepthBake;
+                float sigmaBig = ClampSigmaToTile(bake.SigmaBig, solverW, solverH, maxFractionOfMinDim: 0.25f);
+                float sigma1 = ClampSigmaToTile(bake.Sigma1, solverW, solverH, maxFractionOfMinDim: 0.05f);
+                float sigma2 = ClampSigmaToTile(bake.Sigma2, solverW, solverH, maxFractionOfMinDim: 0.08f);
+                float sigma3 = ClampSigmaToTile(bake.Sigma3, solverW, solverH, maxFractionOfMinDim: 0.12f);
+                float sigma4 = ClampSigmaToTile(bake.Sigma4, solverW, solverH, maxFractionOfMinDim: 0.20f);
 
-            float sigmaBig = ClampSigmaToTile(bake.SigmaBig, solverW, solverH, maxFractionOfMinDim: 0.25f);
-            float sigma1 = ClampSigmaToTile(bake.Sigma1, solverW, solverH, maxFractionOfMinDim: 0.05f);
-            float sigma2 = ClampSigmaToTile(bake.Sigma2, solverW, solverH, maxFractionOfMinDim: 0.08f);
-            float sigma3 = ClampSigmaToTile(bake.Sigma3, solverW, solverH, maxFractionOfMinDim: 0.12f);
-            float sigma4 = ClampSigmaToTile(bake.Sigma4, solverW, solverH, maxFractionOfMinDim: 0.20f);
+                float minDim = Math.Min(solverW, solverH);
+                float sizeScale = Clamp(32f / Math.Max(1f, minDim), 0.5f, 2.0f);
+                float gain = bake.Gain * sizeScale;
+                float maxSlope = bake.MaxSlope * sizeScale;
+                float edgeT0 = bake.EdgeT0 * sizeScale;
+                float edgeT1 = bake.EdgeT1 * sizeScale;
 
-            float minDim = Math.Min(solverW, solverH);
-            float sizeScale = Clamp(32f / Math.Max(1f, minDim), 0.5f, 2.0f);
-            float gain = bake.Gain * sizeScale;
-            float maxSlope = bake.MaxSlope * sizeScale;
-            float edgeT0 = bake.EdgeT0 * sizeScale;
-            float edgeT1 = bake.EdgeT1 * sizeScale;
+                const float RelContrastEdgeScale = 0.25f;
+                edgeT0 *= RelContrastEdgeScale;
+                edgeT1 *= RelContrastEdgeScale;
 
-            const float RelContrastEdgeScale = 0.25f;
-            edgeT0 *= RelContrastEdgeScale;
-            edgeT1 *= RelContrastEdgeScale;
+                RunLuminancePass(draw,
+                    atlasTexId: baseAlbedoAtlasPageTexId,
+                    atlasRectPx: (rectX, rectY, rectWidth, rectHeight),
+                    dst: tile.L);
 
-            RunLuminancePass(
-                atlasTexId: baseAlbedoAtlasPageTexId,
-                atlasRectPx: (rectX, rectY, rectWidth, rectHeight),
-                dst: tile.L);
+                RunGaussian(draw, tile.L, tile.Tmp, tile.Base, sigmaBig);
+                RunSub(draw, tile.L, tile.Base, tile.D0, relContrast: true);
 
-            RunGaussian(tile.L, tile.Tmp, tile.Base, sigmaBig);
-            RunSub(tile.L, tile.Base, tile.D0, relContrast: true);
+                RunGaussian(draw, tile.D0, tile.Tmp, tile.G1, sigma1);
+                RunGaussian(draw, tile.D0, tile.Tmp, tile.G2, sigma2);
+                RunGaussian(draw, tile.D0, tile.Tmp, tile.G3, sigma3);
+                RunGaussian(draw, tile.D0, tile.Tmp, tile.G4, sigma4);
+                RunCombine(draw, tile.G1, tile.G2, tile.G3, tile.G4, tile.D, bake.W1, bake.W2, bake.W3);
 
-            RunGaussian(tile.D0, tile.Tmp, tile.G1, sigma1);
-            RunGaussian(tile.D0, tile.Tmp, tile.G2, sigma2);
-            RunGaussian(tile.D0, tile.Tmp, tile.G3, sigma3);
-            RunGaussian(tile.D0, tile.Tmp, tile.G4, sigma4);
-            RunCombine(tile.G1, tile.G2, tile.G3, tile.G4, tile.D, bake.W1, bake.W2, bake.W3);
+                RunGradient(draw, tile.D, tile.G, gain, maxSlope, edgeT0, edgeT1);
+                RunDivergence(draw, tile.G, tile.Div);
+                mg.Solve(draw, tile.Div, tile.H, bake);
 
-            RunGradient(tile.D, tile.G, gain, maxSlope, edgeT0, edgeT1);
-            RunDivergence(tile.G, tile.Div);
-            mg.Solve(tile.Div, tile.H, bake);
+                var (_, center, minH, maxH) = ComputeStatsR32f(tile.H);
 
-            var (_, center, minH, maxH) = ComputeStatsR32f(tile.H);
+                const float Eps = 1e-6f;
+                const float MaxInv = 64f;
+                float negSpan = center - minH;
+                float posSpan = maxH - center;
+                float invNeg = negSpan > Eps ? Math.Min(1f / negSpan, MaxInv) : 0f;
+                float invPos = posSpan > Eps ? Math.Min(1f / posSpan, MaxInv) : 0f;
 
-            const float Eps = 1e-6f;
-            const float MaxInv = 64f;
-            float negSpan = center - minH;
-            float posSpan = maxH - center;
-            float invNeg = negSpan > Eps ? Math.Min(1f / negSpan, MaxInv) : 0f;
-            float invPos = posSpan > Eps ? Math.Min(1f / posSpan, MaxInv) : 0f;
+                RunNormalize(draw, tile.H, tile.Hn, center, invNeg, invPos, bake.HeightStrength, bake.Gamma);
 
-            RunNormalize(tile.H, tile.Hn, center, invNeg, invPos, bake.HeightStrength, bake.Gamma);
+                RunPackToAtlas(draw,
+                    dstAtlasTexId: destNormalDepthTexId,
+                    viewportOriginPx: (rectX, rectY),
+                    tileSizePx: (rectWidth, rectHeight),
+                    solverSizePx: (solverW, solverH),
+                    heightTex: tile.Hn,
+                    baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
+                    normalStrength: bake.NormalStrength,
+                    normalScale: normalScale,
+                    depthScale: depthScale);
 
-            RunPackToAtlas(
-                dstAtlasTexId: destNormalDepthTexId,
-                viewportOriginPx: (rectX, rectY),
-                tileSizePx: (rectWidth, rectHeight),
-                solverSizePx: (solverW, solverH),
-                heightTex: tile.Hn,
-                baseAlbedoAtlasTexId: baseAlbedoAtlasPageTexId,
-                normalStrength: bake.NormalStrength,
-                normalScale: normalScale,
-                depthScale: depthScale);
 
-            return true;
+            });
         }
-        catch
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
             return false;
         }
-        finally
-        {
-            StopAllBakerPrograms();
-
-            var gl = StateCache.Current;
-
-            gl.UseProgram(prevProgram);
-            gl.BindVertexArray(prevVao);
-            GpuFramebuffer.RestoreBinding(prevFbo);
-            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = prevViewport[0], Y = prevViewport[1], Width = prevViewport[2], Height = prevViewport[3] });
-
-            gl.BindTexture(TextureTarget.Texture2D, prevActiveUnit, prevTex2D);
-        }
     }
 
-    private static void ClearAtlasPageUnsafe(int destNormalDepthTexId, int atlasWidth, int atlasHeight)
+    /// <summary>Clears the selected atlas within the already established bake boundary.</summary>
+    private static void ClearAtlasPageUnsafe(BakeDrawContext draw, int destNormalDepthTexId, int atlasWidth, int atlasHeight)
     {
-        BindAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
+        draw.SetAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
         // Identity defaults: flat normal and neutral height (0.5 encoded).
-        StateCache.Current.SetClearColor(0.5f, 0.5f, 1.0f, 0.5f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        draw.Clear(0.5f, 0.5f, 1.0f, 0.5f);
     }
 
 
-    private static void StopAllBakerPrograms()
-    {
-        // Stop() should be a no-op when the program isn't the current active shader,
-        // but calling it defensively avoids leaks across exception paths.
-        try { progPackToAtlas?.Stop(); } catch { }
-        try { progNormalize?.Stop(); } catch { }
-        try { progProlongateAdd?.Stop(); } catch { }
-        try { progRestrict?.Stop(); } catch { }
-        try { progResidual?.Stop(); } catch { }
-        try { progJacobi?.Stop(); } catch { }
-        try { progDivergence?.Stop(); } catch { }
-        try { progGradient?.Stop(); } catch { }
-        try { progCombine?.Stop(); } catch { }
-        try { progSub?.Stop(); } catch { }
-        try { progGauss1D?.Stop(); } catch { }
-        try { progCopy?.Stop(); } catch { }
-        try { progLuminance?.Stop(); } catch { }
-    }
-
+    /// <summary>Reads one atlas pixel while preserving framebuffer and pixel-pack bindings.</summary>
     private static (float a, (float r, float g, float b) rgb) ReadAtlasPixelRgba(int atlasTexId, int x, int y)
     {
         // Attach the atlas texture to the scratch FBO and read back a single pixel.
         // Note: framebuffer coordinates are bottom-left origin.
         scratchFbo!.Attach(atlasTexId);
+        using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, scratchFbo.FboId);
+        using var pack = StateCache.Current.SetPixelPackScope(new(1));
+        using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
 
         float[] px = new float[4];
@@ -731,9 +614,13 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         return (px[3], (px[0], px[1], px[2]));
     }
 
+    /// <summary>Reads one solver value with explicit tightly packed CPU readback state.</summary>
     private static float ReadTexturePixelR32f(DynamicTexture2D tex, int x, int y)
     {
         scratchFbo!.Attach(tex);
+        using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, scratchFbo.FboId);
+        using var pack = StateCache.Current.SetPixelPackScope(new(1));
+        using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
 
         float[] px = new float[1];
@@ -741,6 +628,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         return px[0];
     }
 
+    /// <summary>Creates reusable solver programs and geometry before entering a rendering boundary.</summary>
     private static void EnsureInitialized(ICoreClientAPI capi)
     {
         if (initialized)
@@ -748,58 +636,75 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
             return;
         }
 
-        // Minimal GL objects.
-        vao = GpuVao.Create("VGE_MaterialAtlasNormalDepthBake_VAO");
-        scratchFbo = GpuFramebuffer.Wrap(GL.GenFramebuffer(), debugName: "vge_bake_scratch");
+        try
+        {
+            // Minimal GL objects.
+            geometry = new(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
+            scratchFbo = GpuFramebuffer.CreateEmpty("vge_bake_scratch");
 
-        // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
-        // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.
-        // PbrHeightBakeShaderProgram automatically registers the shared params UBO binding.
-        progLuminance = new PbrHeightBakeShaderProgram(FshLuminance, Domain);
-        progGauss1D = new PbrHeightBakeShaderProgram(FshGauss1D, Domain);
-        progSub = new PbrHeightBakeShaderProgram(FshSub, Domain);
-        progCombine = new PbrHeightBakeShaderProgram(FshCombine, Domain);
-        progGradient = new PbrHeightBakeShaderProgram(FshGradient, Domain);
-        progDivergence = new PbrHeightBakeShaderProgram(FshDivergence, Domain);
-        progJacobi = new PbrHeightBakeShaderProgram(FshJacobi, Domain);
-        progResidual = new PbrHeightBakeShaderProgram(FshResidual, Domain);
-        progRestrict = new PbrHeightBakeShaderProgram(FshRestrict, Domain);
-        progProlongateAdd = new PbrHeightBakeShaderProgram(FshProlongateAdd, Domain);
-        progNormalize = new PbrHeightBakeShaderProgram(FshNormalize, Domain);
-        progPackToAtlas = new PbrHeightBakeShaderProgram(FshPackToAtlas, Domain);
-        progCopy = new PbrHeightBakeShaderProgram(FshCopy, Domain);
+            // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
+            // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.
+            // PbrHeightBakeShaderProgram automatically registers the shared params UBO binding.
+            progLuminance = new PbrHeightBakeShaderProgram(FshLuminance, Domain);
+            progGauss1D = new PbrHeightBakeShaderProgram(FshGauss1D, Domain);
+            progSub = new PbrHeightBakeShaderProgram(FshSub, Domain);
+            progCombine = new PbrHeightBakeShaderProgram(FshCombine, Domain);
+            progGradient = new PbrHeightBakeShaderProgram(FshGradient, Domain);
+            progDivergence = new PbrHeightBakeShaderProgram(FshDivergence, Domain);
+            progJacobi = new PbrHeightBakeShaderProgram(FshJacobi, Domain);
+            progResidual = new PbrHeightBakeShaderProgram(FshResidual, Domain);
+            progRestrict = new PbrHeightBakeShaderProgram(FshRestrict, Domain);
+            progProlongateAdd = new PbrHeightBakeShaderProgram(FshProlongateAdd, Domain);
+            progNormalize = new PbrHeightBakeShaderProgram(FshNormalize, Domain);
+            progPackToAtlas = new PbrHeightBakeShaderProgram(FshPackToAtlas, Domain);
+            progCopy = new PbrHeightBakeShaderProgram(FshCopy, Domain);
 
-        progLuminance!.Initialize(capi);
-        progGauss1D!.Initialize(capi);
-        progSub!.Initialize(capi);
-        progCombine!.Initialize(capi);
-        progGradient!.Initialize(capi);
-        progDivergence!.Initialize(capi);
-        progJacobi!.Initialize(capi);
-        progResidual!.Initialize(capi);
-        progRestrict!.Initialize(capi);
-        progProlongateAdd!.Initialize(capi);
-        progNormalize!.Initialize(capi);
-        progPackToAtlas!.Initialize(capi);
-        progCopy!.Initialize(capi);
+            progLuminance!.Initialize(capi);
+            progGauss1D!.Initialize(capi);
+            progSub!.Initialize(capi);
+            progCombine!.Initialize(capi);
+            progGradient!.Initialize(capi);
+            progDivergence!.Initialize(capi);
+            progJacobi!.Initialize(capi);
+            progResidual!.Initialize(capi);
+            progRestrict!.Initialize(capi);
+            progProlongateAdd!.Initialize(capi);
+            progNormalize!.Initialize(capi);
+            progPackToAtlas!.Initialize(capi);
+            progCopy!.Initialize(capi);
 
-        CompileOrThrow(progLuminance);
-        CompileOrThrow(progGauss1D);
-        CompileOrThrow(progSub);
-        CompileOrThrow(progCombine);
-        CompileOrThrow(progGradient);
-        CompileOrThrow(progDivergence);
-        CompileOrThrow(progJacobi);
-        CompileOrThrow(progResidual);
-        CompileOrThrow(progRestrict);
-        CompileOrThrow(progProlongateAdd);
-        CompileOrThrow(progNormalize);
-        CompileOrThrow(progPackToAtlas);
-        CompileOrThrow(progCopy);
+            CompileOrThrow(progLuminance);
+            CompileOrThrow(progGauss1D);
+            CompileOrThrow(progSub);
+            CompileOrThrow(progCombine);
+            CompileOrThrow(progGradient);
+            CompileOrThrow(progDivergence);
+            CompileOrThrow(progJacobi);
+            CompileOrThrow(progResidual);
+            CompileOrThrow(progRestrict);
+            CompileOrThrow(progProlongateAdd);
+            CompileOrThrow(progNormalize);
+            CompileOrThrow(progPackToAtlas);
+            CompileOrThrow(progCopy);
 
-        initialized = true;
+            initialized = true;
+        }
+        catch
+        {
+            // Failed preparation publishes no usable owner. Retire the entire candidate set before retry.
+            PbrHeightBakeShaderProgram?[] candidates = [progLuminance, progGauss1D, progSub, progCombine,
+                progGradient, progDivergence, progJacobi, progResidual, progRestrict, progProlongateAdd,
+                progNormalize, progPackToAtlas, progCopy];
+            foreach (var candidate in candidates) candidate?.Dispose();
+            progLuminance = progGauss1D = progSub = progCombine = progGradient = progDivergence = null;
+            progJacobi = progResidual = progRestrict = progProlongateAdd = progNormalize = progPackToAtlas = progCopy = null;
+            geometry?.Dispose(); geometry = null;
+            scratchFbo?.Dispose(); scratchFbo = null;
+            throw;
+        }
     }
 
+    /// <summary>Prepares a solver executable and rejects unavailable shader assets.</summary>
     private static void CompileOrThrow(PbrHeightBakeShaderProgram program)
     {
         if (!program.CompileAndLink())
@@ -808,6 +713,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         }
     }
 
+    /// <summary>Converts normalized atlas bounds into a nonempty clamped pixel rectangle.</summary>
     private static bool TryGetRectPx(TextureAtlasPosition pos, int atlasWidth, int atlasHeight, out int x, out int y, out int w, out int h)
     {
         // Same conversion approach as material param atlas builder.
@@ -823,686 +729,7 @@ internal static class MaterialAtlasNormalDepthGpuBuilder
         return w > 0 && h > 0;
     }
 
+    /// <summary>Clamps a value to the inclusive supported range.</summary>
     private static int Clamp(int v, int lo, int hi) => v < lo ? lo : (v > hi ? hi : v);
 
-    private static void DrawFullscreenTriangle()
-    {
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-    }
-
-    private static void BindTarget(DynamicTexture2D dst)
-    {
-        scratchFbo!.Attach(dst);
-        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = 0, Y = 0, Width = dst.Width, Height = dst.Height });
-    }
-
-    private static void BindAtlasTarget(int atlasTexId, int x, int y, int w, int h)
-    {
-        scratchFbo!.Attach(atlasTexId);
-        StateCache.Current.ApplyDynamic(new DynamicDrawState { X = x, Y = y, Width = w, Height = h });
-    }
-
-
-
-    private static void RunLuminancePass(int atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture2D dst)
-    {
-        BindTarget(dst);
-        try
-        {
-            progLuminance!.atlas = atlasTexId;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.LuminanceAtlasRect = atlasRectPx;
-                Params.LuminanceDstSize = (dst.Width, dst.Height);
-            }
-
-            progLuminance!.Parameters = Params;
-            progLuminance!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progLuminance!.Stop();
-        }
-    }
-
-    private static void WritePackedWeights65(float[] weights, int radius)
-    {
-        int r = Math.Clamp(radius, 0, MaxRadius);
-        
-        // Clamp weights to actual radius
-        float[] clampedWeights = new float[r + 1];
-        for (int i = 0; i <= r && i < weights.Length; i++)
-        {
-            clampedWeights[i] = weights[i];
-        }
-        
-        Params.SetKernelWeights(clampedWeights, r + 1);
-    }
-
-    private static void RunGaussian(DynamicTexture2D src, DynamicTexture2D tmp, DynamicTexture2D dst, float sigma)
-    {
-        if (sigma <= 0.0001f)
-        {
-            RunCopy(src, dst);
-            return;
-        }
-
-        int radius = ComputeRadius(sigma);
-        if (radius <= 0)
-        {
-            RunCopy(src, dst);
-            return;
-        }
-
-        var weights = BuildGaussianWeights(sigma, radius);
-
-        // Horizontal
-        BindTarget(tmp);
-        try
-        {
-            progGauss1D!.src = src;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.CommonSize = (src.Width, src.Height);
-                Params.GaussianDirection = (1, 0);
-                Params.GaussianParams = (radius, 0);
-                WritePackedWeights65(weights, radius);
-            }
-
-            progGauss1D!.Parameters = Params;
-            progGauss1D!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progGauss1D!.Stop();
-        }
-
-        // Vertical
-        BindTarget(dst);
-        try
-        {
-            progGauss1D!.src = tmp;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.CommonSize = (dst.Width, dst.Height);
-                Params.GaussianDirection = (0, 1);
-                Params.GaussianParams = (radius, 0);
-                WritePackedWeights65(weights, radius);
-            }
-
-            progGauss1D!.Parameters = Params;
-            progGauss1D!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progGauss1D!.Stop();
-        }
-    }
-
-    private static void RunSub(DynamicTexture2D a, DynamicTexture2D b, DynamicTexture2D dst, bool relContrast)
-    {
-        BindTarget(dst);
-        try
-        {
-            progSub!.a = a;
-            progSub!.b = b;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.CommonSize = (dst.Width, dst.Height);
-                Params.GaussianParams = (0, relContrast ? 1 : 0);
-                Params.SubParams = (1e-6f, 8f);
-            }
-
-            progSub!.Parameters = Params;
-            progSub!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progSub!.Stop();
-        }
-    }
-
-    private static void RunCopy(DynamicTexture2D src, DynamicTexture2D dst)
-    {
-        BindTarget(dst);
-        try
-        {
-            progCopy!.src = src;
-            Params.CommonSize = (dst.Width, dst.Height);
-            progCopy!.Parameters = Params;
-            progCopy!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progCopy!.Stop();
-        }
-    }
-
-    private static void RunCombine(DynamicTexture2D g1, DynamicTexture2D g2, DynamicTexture2D g3, DynamicTexture2D g4, DynamicTexture2D dst, float w1, float w2, float w3)
-    {
-        BindTarget(dst);
-        try
-        {
-            progCombine!.g1 = g1;
-            progCombine!.g2 = g2;
-            progCombine!.g3 = g3;
-            progCombine!.g4 = g4;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.CombineWeights = (w1, w2, w3);
-                Params.CommonSize = (dst.Width, dst.Height);
-            }
-            progCombine!.Parameters = Params;
-            progCombine!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progCombine!.Stop();
-        }
-    }
-
-    private static void RunGradient(DynamicTexture2D d, DynamicTexture2D dstG, float gain, float maxSlope, float edgeT0, float edgeT1)
-    {
-        BindTarget(dstG);
-        try
-        {
-            progGradient!.d = d;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.CommonSize = (d.Width, d.Height);
-                Params.GradientParams = (gain, maxSlope, edgeT0, edgeT1);
-            }
-            progGradient!.Parameters = Params;
-            progGradient!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progGradient!.Stop();
-        }
-    }
-
-    private static void RunDivergence(DynamicTexture2D g, DynamicTexture2D dstDiv)
-    {
-        BindTarget(dstDiv);
-        try
-        {
-            progDivergence!.g = g;
-            Params.CommonSize = (dstDiv.Width, dstDiv.Height);
-            progDivergence!.Parameters = Params;
-            progDivergence!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progDivergence!.Stop();
-        }
-    }
-
-    private static void RunNormalize(DynamicTexture2D h, DynamicTexture2D dst, float mean, float invNeg, float invPos, float heightStrength, float gamma)
-    {
-        BindTarget(dst);
-        try
-        {
-            progNormalize!.h = h;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.CommonSize = (dst.Width, dst.Height);
-                Params.NormalizeParams = (mean, invNeg, invPos, heightStrength);
-                Params.NormalizeGamma = gamma;
-            }
-            progNormalize!.Parameters = Params;
-            progNormalize!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progNormalize!.Stop();
-        }
-    }
-
-    private static void RunPackToAtlas(
-        int dstAtlasTexId,
-        (int x, int y) viewportOriginPx,
-        (int w, int h) tileSizePx,
-        (int w, int h) solverSizePx,
-        DynamicTexture2D heightTex,
-        int baseAlbedoAtlasTexId,
-        float normalStrength,
-        float normalScale,
-        float depthScale)
-    {
-        // Render into atlas sidecar, restricting to this tile rect via viewport.
-        BindAtlasTarget(dstAtlasTexId, viewportOriginPx.x, viewportOriginPx.y, tileSizePx.w, tileSizePx.h);
-        try
-        {
-            progPackToAtlas!.height = heightTex;
-            progPackToAtlas!.albedoAtlas = baseAlbedoAtlasTexId;
-
-            // Pack all pass inputs before activation.
-            {
-                Params.SolverSize = (solverSizePx.w, solverSizePx.h);
-                Params.TileSize = (tileSizePx.w, tileSizePx.h);
-                Params.ViewportOrigin = (viewportOriginPx.x, viewportOriginPx.y);
-                Params.PackParams = (normalStrength, normalScale, depthScale, 0.001f);
-            }
-            progPackToAtlas!.Parameters = Params;
-            progPackToAtlas!.Use();
-            DrawFullscreenTriangle();
-        }
-        finally
-        {
-            progPackToAtlas!.Stop();
-        }
-    }
-
-    private static int ComputeRadius(float sigma)
-    {
-        int r = (int)Math.Ceiling(3.0 * sigma);
-        if (r > MaxRadius) r = MaxRadius;
-        return r;
-    }
-
-    private static float[] BuildGaussianWeights(float sigma, int radius)
-    {
-        // weights[0..radius]
-        float[] w = new float[MaxRadius + 1];
-        float twoSigma2 = 2f * sigma * sigma;
-        float sum = 0f;
-
-        for (int i = 0; i <= radius; i++)
-        {
-            float x = i;
-            float v = (float)Math.Exp(-(x * x) / twoSigma2);
-            w[i] = v;
-            sum += (i == 0) ? v : (2f * v);
-        }
-
-        float inv = sum > 0f ? (1f / sum) : 1f;
-        for (int i = 0; i <= radius; i++)
-        {
-            w[i] *= inv;
-        }
-
-        return w;
-    }
-
-    private static (float mean, float center, float min, float max) ComputeStatsR32f(DynamicTexture2D tex)
-    {
-        float[] data = tex.ReadPixels();
-        if (data.Length == 0) return (0f, 0f, 0f, 0f);
-
-        // R32F: one float per pixel.
-        // Use SIMD for sum/min/max (single pass) where supported.
-        int i = 0;
-        int len = data.Length;
-
-        Vector<float> vSum = Vector<float>.Zero;
-        Vector<float> vMin = new(float.PositiveInfinity);
-        Vector<float> vMax = new(float.NegativeInfinity);
-
-        int vecCount = Vector<float>.Count;
-        int lastVec = len - (len % vecCount);
-        for (; i < lastVec; i += vecCount)
-        {
-            var v = new Vector<float>(data, i);
-            vSum += v;
-            vMin = Vector.Min(vMin, v);
-            vMax = Vector.Max(vMax, v);
-        }
-
-        double sum = 0;
-        float min = float.PositiveInfinity;
-        float max = float.NegativeInfinity;
-
-        for (int lane = 0; lane < vecCount; lane++)
-        {
-            sum += vSum[lane];
-            float mn = vMin[lane];
-            float mx = vMax[lane];
-            if (mn < min) min = mn;
-            if (mx > max) max = mx;
-        }
-
-        for (; i < len; i++)
-        {
-            float v = data[i];
-            sum += v;
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
-
-        int count = data.Length;
-        float mean = (float)(sum / count);
-        if (float.IsPositiveInfinity(min) || float.IsNegativeInfinity(max))
-        {
-            min = mean;
-            max = mean;
-        }
-
-        // Robust center: median (computed in-place via quickselect).
-        float center = SelectMedianInPlace(data);
-        return (mean, center, min, max);
-    }
-
-    private static float SelectMedianInPlace(float[] data)
-    {
-        int n = data.Length;
-        if (n == 0) return 0f;
-
-        int k = n / 2;
-        int left = 0;
-        int right = n - 1;
-
-        while (true)
-        {
-            if (left == right) return data[left];
-
-            int pivotIndex = (left + right) >>> 1;
-            pivotIndex = Partition(data, left, right, pivotIndex);
-
-            if (k == pivotIndex) return data[k];
-            if (k < pivotIndex) right = pivotIndex - 1;
-            else left = pivotIndex + 1;
-        }
-    }
-
-    private static int Partition(float[] data, int left, int right, int pivotIndex)
-    {
-        float pivotValue = data[pivotIndex];
-        (data[pivotIndex], data[right]) = (data[right], data[pivotIndex]);
-
-        int storeIndex = left;
-        for (int i = left; i < right; i++)
-        {
-            if (data[i] < pivotValue)
-            {
-                (data[storeIndex], data[i]) = (data[i], data[storeIndex]);
-                storeIndex++;
-            }
-        }
-
-        (data[right], data[storeIndex]) = (data[storeIndex], data[right]);
-        return storeIndex;
-    }
-
-    private sealed class TileResources
-    {
-        public DynamicTexture2D L { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_L");
-        public DynamicTexture2D Base { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Base");
-        public DynamicTexture2D D0 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_D0");
-        public DynamicTexture2D G1 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G1");
-        public DynamicTexture2D G2 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G2");
-        public DynamicTexture2D G3 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G3");
-        public DynamicTexture2D G4 { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_G4");
-        public DynamicTexture2D D { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_D");
-        public DynamicTexture2D G { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "vge_bake_Gxy");
-        public DynamicTexture2D Div { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Div");
-        public DynamicTexture2D H { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_H");
-        public DynamicTexture2D Hn { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Hn");
-        public DynamicTexture2D Tmp { get; private set; } = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, TextureFilterMode.Nearest, "vge_bake_Tmp");
-
-        public void EnsureSize(int w, int h)
-        {
-            ResizeIfNeeded(L, w, h);
-            ResizeIfNeeded(Base, w, h);
-            ResizeIfNeeded(D0, w, h);
-            ResizeIfNeeded(G1, w, h);
-            ResizeIfNeeded(G2, w, h);
-            ResizeIfNeeded(G3, w, h);
-            ResizeIfNeeded(G4, w, h);
-            ResizeIfNeeded(D, w, h);
-            ResizeIfNeeded(G, w, h);
-            ResizeIfNeeded(Div, w, h);
-            ResizeIfNeeded(H, w, h);
-            ResizeIfNeeded(Hn, w, h);
-            ResizeIfNeeded(Tmp, w, h);
-        }
-
-        private static void ResizeIfNeeded(DynamicTexture2D tex, int w, int h)
-        {
-            if (tex.Width == w && tex.Height == h) return;
-            tex.Resize(w, h);
-        }
-    }
-
-    private sealed class MultigridResources
-    {
-        private int w;
-        private int h;
-        private int levels;
-        private (int w, int h)[] levelSizes = Array.Empty<(int w, int h)>();
-
-        private DynamicTexture2D[] hLevel = Array.Empty<DynamicTexture2D>();
-        private DynamicTexture2D[] hTmpLevel = Array.Empty<DynamicTexture2D>();
-        private DynamicTexture2D[] bLevel = Array.Empty<DynamicTexture2D>();
-        private DynamicTexture2D[] residualLevel = Array.Empty<DynamicTexture2D>();
-
-        public void EnsureSize(int width, int height)
-        {
-            if (w == width && h == height && levels > 0)
-            {
-                return;
-            }
-
-            w = width;
-            h = height;
-
-            // Allow non-power-of-two by halving with ceil.
-            var sizes = new List<(int w, int h)>(capacity: 12);
-            int lw = w;
-            int lh = h;
-            sizes.Add((lw, lh));
-
-            while (lw > 32 || lh > 32)
-            {
-                lw = Math.Max(1, (lw + 1) / 2);
-                lh = Math.Max(1, (lh + 1) / 2);
-                sizes.Add((lw, lh));
-                if (lw == 1 && lh == 1) break;
-            }
-
-            levels = sizes.Count;
-            levelSizes = sizes.ToArray();
-
-            DisposeAll();
-
-            hLevel = new DynamicTexture2D[levels];
-            hTmpLevel = new DynamicTexture2D[levels];
-            bLevel = new DynamicTexture2D[levels];
-            residualLevel = new DynamicTexture2D[levels];
-
-            for (int l = 0; l < levels; l++)
-            {
-                (int levelW, int levelH) = levelSizes[l];
-                hLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_h_{levelW}x{levelH}");
-                hTmpLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_htmp_{levelW}x{levelH}");
-                bLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_b_{levelW}x{levelH}");
-                residualLevel[l] = DynamicTexture2D.Create(levelW, levelH, PixelInternalFormat.R32f, TextureFilterMode.Nearest, $"vge_mg_r_{levelW}x{levelH}");
-            }
-        }
-
-        public void Solve(DynamicTexture2D rhs, DynamicTexture2D outH, VgeConfig.NormalDepthBakeConfig bake)
-        {
-            // Copy rhs into bLevel[0] (keep a stable reference for residual).
-            RunCopy(rhs, bLevel[0]);
-
-            // Clear solution guess.
-            ClearR32f(hLevel[0], 0f);
-            ClearR32f(hTmpLevel[0], 0f);
-
-            for (int cycle = 0; cycle < bake.MultigridVCycles; cycle++)
-            {
-                VCycle(0, bake);
-            }
-
-            // Copy final hLevel[0] into outH.
-            RunCopy(hLevel[0], outH);
-        }
-
-        private void VCycle(int level, VgeConfig.NormalDepthBakeConfig bake)
-        {
-            // Pre-smooth.
-            for (int i = 0; i < bake.MultigridPreSmooth; i++)
-            {
-                RunJacobi(hLevel[level], bLevel[level], hTmpLevel[level]);
-                Swap(ref hLevel[level], ref hTmpLevel[level]);
-            }
-
-            // Residual: r = b - A*h.
-            RunResidual(hLevel[level], bLevel[level], residualLevel[level]);
-
-            bool isCoarsest = level == levels - 1;
-            if (!isCoarsest)
-            {
-                // Restrict residual to coarse RHS.
-                RunRestrict(residualLevel[level], bLevel[level + 1]);
-
-                // Clear coarse error guess.
-                ClearR32f(hLevel[level + 1], 0f);
-                ClearR32f(hTmpLevel[level + 1], 0f);
-
-                VCycle(level + 1, bake);
-
-                // Prolongate coarse error and add to fine.
-                RunProlongateAdd(hLevel[level], hLevel[level + 1], hTmpLevel[level]);
-                Swap(ref hLevel[level], ref hTmpLevel[level]);
-
-                // Post-smooth.
-                for (int i = 0; i < bake.MultigridPostSmooth; i++)
-                {
-                    RunJacobi(hLevel[level], bLevel[level], hTmpLevel[level]);
-                    Swap(ref hLevel[level], ref hTmpLevel[level]);
-                }
-            }
-            else
-            {
-                // Coarsest: iterate more.
-                for (int i = 0; i < bake.MultigridCoarsestIters; i++)
-                {
-                    RunJacobi(hLevel[level], bLevel[level], hTmpLevel[level]);
-                    Swap(ref hLevel[level], ref hTmpLevel[level]);
-                }
-            }
-        }
-
-        private static void Swap(ref DynamicTexture2D a, ref DynamicTexture2D b)
-        {
-            (a, b) = (b, a);
-        }
-
-        private static void ClearR32f(DynamicTexture2D tex, float v)
-        {
-            BindTarget(tex);
-            StateCache.Current.SetClearColor(v, 0f, 0f, 0f);
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-        }
-
-        // Uses outer RunCopy
-
-        private static void RunJacobi(DynamicTexture2D h, DynamicTexture2D b, DynamicTexture2D dst)
-        {
-            BindTarget(dst);
-            try
-            {
-                progJacobi!.h = h;
-                progJacobi!.b = b;
-                Params.CommonSize = (dst.Width, dst.Height);
-                progJacobi!.Parameters = Params;
-            progJacobi!.Use();
-                DrawFullscreenTriangle();
-            }
-            finally
-            {
-                progJacobi!.Stop();
-            }
-        }
-
-        private static void RunResidual(DynamicTexture2D h, DynamicTexture2D b, DynamicTexture2D dst)
-        {
-            BindTarget(dst);
-            try
-            {
-                progResidual!.h = h;
-                progResidual!.b = b;
-                Params.CommonSize = (dst.Width, dst.Height);
-                progResidual!.Parameters = Params;
-            progResidual!.Use();
-                DrawFullscreenTriangle();
-            }
-            finally
-            {
-                progResidual!.Stop();
-            }
-        }
-
-        private static void RunRestrict(DynamicTexture2D fine, DynamicTexture2D coarse)
-        {
-            BindTarget(coarse);
-            try
-            {
-                progRestrict!.fine = fine;
-                // Pack all pass inputs before activation.
-                {
-                    Params.MultigridFineSize = (fine.Width, fine.Height);
-                    Params.MultigridCoarseSize = (coarse.Width, coarse.Height);
-                }
-                progRestrict!.Parameters = Params;
-            progRestrict!.Use();
-                DrawFullscreenTriangle();
-            }
-            finally
-            {
-                progRestrict!.Stop();
-            }
-        }
-
-        private static void RunProlongateAdd(DynamicTexture2D fineH, DynamicTexture2D coarseE, DynamicTexture2D dst)
-        {
-            BindTarget(dst);
-            try
-            {
-                progProlongateAdd!.fineH = fineH;
-                progProlongateAdd!.coarseE = coarseE;
-                // Pack all pass inputs before activation.
-                {
-                    Params.MultigridFineSize = (fineH.Width, fineH.Height);
-                    Params.MultigridCoarseSize = (coarseE.Width, coarseE.Height);
-                }
-                progProlongateAdd!.Parameters = Params;
-            progProlongateAdd!.Use();
-                DrawFullscreenTriangle();
-            }
-            finally
-            {
-                progProlongateAdd!.Stop();
-            }
-        }
-
-        private void DisposeAll()
-        {
-            foreach (DynamicTexture2D t in hLevel) t.Dispose();
-            foreach (DynamicTexture2D t in hTmpLevel) t.Dispose();
-            foreach (DynamicTexture2D t in bLevel) t.Dispose();
-            foreach (DynamicTexture2D t in residualLevel) t.Dispose();
-
-            hLevel = Array.Empty<DynamicTexture2D>();
-            hTmpLevel = Array.Empty<DynamicTexture2D>();
-            bLevel = Array.Empty<DynamicTexture2D>();
-            residualLevel = Array.Empty<DynamicTexture2D>();
-        }
-    }
 }

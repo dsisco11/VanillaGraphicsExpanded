@@ -3,7 +3,7 @@
 // Normalize + shape height field.
 // Output: R32F
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_h;
 @import "./includes/pbr_heightbake_params_ubo.glsl"
@@ -29,5 +29,5 @@ void main()
     float v = d * inv * u_heightStrength;
     v = Shape(v, u_gamma);
 
-    outColor = vec4(v, 0.0, 0.0, 1.0);
+    outColor = v;
 }

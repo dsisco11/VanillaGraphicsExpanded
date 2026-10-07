@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using HarmonyLib;
 using VanillaGraphicsExpanded.ModSystems;
@@ -94,12 +95,12 @@ internal sealed class WaterRefractionCapture : IRenderer
         int width = api.Render.FrameWidth, height = api.Render.FrameHeight;
         if (width <= 0 || height <= 0) return;
         var directPipeline = direct.PrepareBoundaryPipeline();
-        var compositePrograms = composite.PrepareBoundaryPrograms(capture: true);
-        if (directPipeline is null || compositePrograms is null) return;
+        var compositePipelines = composite.PrepareBoundaryPipelines(capture: true);
+        if (directPipeline is null || compositePipelines is null) return;
         try
         {
-            GraphicsCommandContext.TryRunShared("WaterRefraction.PreOverlay", [directPipeline],
-                compositePrograms, true, (commands, scope) =>
+            GraphicsCommandContext.TryRun("WaterRefraction.PreOverlay",
+                new[] { directPipeline }.Concat(compositePipelines).ToArray(), true, commands =>
                 {
                     // Allocation belongs inside the same preservation contract as both draws.
                     if (lighting?.IsValid != true || lighting.DirectDiffuse.Width != width || lighting.DirectDiffuse.Height != height)
@@ -109,7 +110,7 @@ internal sealed class WaterRefractionCapture : IRenderer
                         lighting = new DirectLightingTargets(width, height);
                     }
                     if (direct.RenderLightingWithinBoundary(commands, directPipeline, lighting))
-                        composite.RenderCompositeWithinBoundary(scope, EnumRenderStage.Opaque, scene, lighting);
+                        composite.RenderCompositeWithinBoundary(commands, EnumRenderStage.Opaque, scene, lighting);
                 });
         }
         catch { scene.Invalidate(); throw; }

@@ -4,7 +4,7 @@
 // Inputs are blurred versions of D0: G1..G4.
 // Output: R32F (detail D)
 
-out vec4 outColor;
+out float outColor;
 
 uniform sampler2D u_g1;
 uniform sampler2D u_g2;
@@ -27,5 +27,5 @@ void main()
     float b3 = g3 - g4;
 
     float d = u_w.x * b1 + u_w.y * b2 + u_w.z * b3;
-    outColor = vec4(d, 0.0, 0.0, 1.0);
+    outColor = d;
 }
