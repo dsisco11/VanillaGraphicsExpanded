@@ -30,6 +30,14 @@ internal sealed partial class StateCache
     #endregion
 
     #region Other resource bindings
+    /// <summary>Forgets only the retired renderbuffer binding, including reuse during boundary cleanup.</summary>
+    internal void DeleteRenderbuffer(int renderbuffer)
+    {
+        GL.DeleteRenderbuffer(renderbuffer);
+        RecordBoundaryRetirement(EPipelineState.RenderbufferBinding, renderbuffer);
+        if (renderbuffer != 0 && currentRenderbuffer == renderbuffer) currentRenderbuffer = 0;
+    }
+
     /// <summary>Records implicit sampler unbinding only on slots referencing the deleted name.</summary>
     internal void DeleteSampler(int sampler)
     {

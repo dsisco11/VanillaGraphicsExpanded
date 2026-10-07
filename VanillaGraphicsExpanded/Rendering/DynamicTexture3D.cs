@@ -151,6 +151,7 @@ public sealed class DynamicTexture3D : GpuTexture
     /// <returns>True if texture was reallocated, false if dimensions unchanged.</returns>
     public bool Resize(int newWidth, int newHeight, int newDepth)
     {
+        RequireMutableStorage();
         if (newWidth == width && newHeight == height && newDepth == depth)
             return false;
 

@@ -163,7 +163,6 @@ public sealed class GpuFramebufferAttachment : GpuResource
             GpuRenderbuffer buffer => buffer.Resize(width, height),
             _ => throw new InvalidOperationException("This image does not expose resizable storage.")
         };
-        if (changed && resource is { } storage) GpuFramebufferAttachmentObservers.NotifyChanged(storage);
         return changed;
     }
     #endregion

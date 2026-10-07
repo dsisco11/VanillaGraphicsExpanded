@@ -18,10 +18,10 @@ public static class TextureFormatHelper
     {
         return internalFormat switch
         {
-            PixelInternalFormat.R8ui => PixelFormat.RedInteger,
-            PixelInternalFormat.R32ui => PixelFormat.RedInteger,
-            PixelInternalFormat.Rg32ui => PixelFormat.RgInteger,
-            PixelInternalFormat.Rgba32ui => PixelFormat.RgbaInteger,
+            PixelInternalFormat.R8i or PixelInternalFormat.R16i or PixelInternalFormat.R32i or PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui => PixelFormat.RedInteger,
+            PixelInternalFormat.Rg8i or PixelInternalFormat.Rg16i or PixelInternalFormat.Rg32i or PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui => PixelFormat.RgInteger,
+            PixelInternalFormat.Rgb8i or PixelInternalFormat.Rgb16i or PixelInternalFormat.Rgb32i or PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgb32ui => PixelFormat.RgbInteger,
+            PixelInternalFormat.Rgba8i or PixelInternalFormat.Rgba16i or PixelInternalFormat.Rgba32i or PixelInternalFormat.Rgba8ui or PixelInternalFormat.Rgba16ui or PixelInternalFormat.Rgba32ui or PixelInternalFormat.Rgb10A2ui => PixelFormat.RgbaInteger,
             PixelInternalFormat.Rgba16f => PixelFormat.Rgba,
             PixelInternalFormat.Rgba32f => PixelFormat.Rgba,
             PixelInternalFormat.Rgba16 => PixelFormat.Rgba,
@@ -59,7 +59,13 @@ public static class TextureFormatHelper
     {
         return internalFormat switch
         {
-            PixelInternalFormat.R8ui => PixelType.UnsignedByte,
+            PixelInternalFormat.R8ui or PixelInternalFormat.Rg8ui or PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgba8ui => PixelType.UnsignedByte,
+            PixelInternalFormat.R8i or PixelInternalFormat.Rg8i or PixelInternalFormat.Rgb8i or PixelInternalFormat.Rgba8i => PixelType.Byte,
+            PixelInternalFormat.R16i or PixelInternalFormat.Rg16i or PixelInternalFormat.Rgb16i or PixelInternalFormat.Rgba16i => PixelType.Short,
+            PixelInternalFormat.R16ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgba16ui => PixelType.UnsignedShort,
+            PixelInternalFormat.R32i or PixelInternalFormat.Rg32i or PixelInternalFormat.Rgb32i or PixelInternalFormat.Rgba32i => PixelType.Int,
+            PixelInternalFormat.Rgb32ui => PixelType.UnsignedInt,
+            PixelInternalFormat.Rgb10A2ui => PixelType.UnsignedInt2101010Rev,
             PixelInternalFormat.R32ui => PixelType.UnsignedInt,
             PixelInternalFormat.Rg32ui => PixelType.UnsignedInt,
             PixelInternalFormat.Rgba32ui => PixelType.UnsignedInt,

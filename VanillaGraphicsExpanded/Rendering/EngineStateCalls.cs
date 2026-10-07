@@ -141,6 +141,8 @@ internal static partial class EngineStateCalls
     public static void DeleteSampler(int sampler) => CurrentCache.DeleteSampler(sampler);
     /// <summary>Invalidates read/draw framebuffer bindings after engine retirement.</summary>
     public static void DeleteFramebuffer(int framebuffer) => CurrentCache.DeleteFramebuffer(framebuffer);
+    /// <summary>Observes engine renderbuffer retirement through the shared binding owner.</summary>
+    public static void DeleteRenderbuffer(int renderbuffer) => CurrentCache.DeleteRenderbuffer(renderbuffer);
     /// <summary>Invalidates vertex-array-owned associations after engine retirement.</summary>
     public static void DeleteVertexArray(int array) => CurrentCache.DeleteVertexArray(array);
     /// <summary>Preserves deferred native program deletion and invalidates executable knowledge.</summary>

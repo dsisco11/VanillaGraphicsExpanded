@@ -164,7 +164,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
                         StateCache.Current.DeleteFramebuffer((int)command.Id);
                         break;
                     case GpuDeletionKind.Renderbuffer:
-                        GL.DeleteRenderbuffer((int)command.Id);
+                        StateCache.Current.DeleteRenderbuffer((int)command.Id);
                         break;
                     case GpuDeletionKind.Query:
                         GL.DeleteQuery((int)command.Id);

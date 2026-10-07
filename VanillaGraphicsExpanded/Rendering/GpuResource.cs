@@ -9,7 +9,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 public abstract class GpuResource : IDisposable
 {
     private int disposed;
+    private int activePassReferences;
 
+
+
+    #region Public API
     public bool IsDisposed => Volatile.Read(ref disposed) != 0;
 
     public bool IsValid => ResourceId != 0 && !IsDisposed;
@@ -27,8 +31,10 @@ public abstract class GpuResource : IDisposable
 
     protected virtual bool OwnsResource => true;
 
+    /// <summary>Transfers the native handle only after active pass borrowers have released the resource.</summary>
     public virtual nint Detach()
     {
+        RequireMutableStorage();
         if (IsDisposed)
         {
             return 0;
@@ -46,8 +52,10 @@ public abstract class GpuResource : IDisposable
         return Detach();
     }
 
+    /// <summary>Retires storage exactly once, rejecting retirement while an immediate pass borrows it.</summary>
     public void Dispose()
     {
+        RequireMutableStorage();
         if (Interlocked.Exchange(ref disposed, 1) != 0)
         {
             return;
@@ -65,6 +73,27 @@ public abstract class GpuResource : IDisposable
 
         OnAfterDelete();
     }
+
+    #endregion
+
+    #region Internal API
+    /// <summary>Rejects storage mutation or retirement while an immediate pass borrows this resource.</summary>
+    internal void RequireMutableStorage()
+    {
+        if (Volatile.Read(ref activePassReferences) != 0)
+            throw new InvalidOperationException("End the render pass before changing or retiring its target storage.");
+    }
+
+    /// <summary>Retains a live resource for immediate pass validation without transferring ownership.</summary>
+    internal void RetainPassReference()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        Interlocked.Increment(ref activePassReferences);
+    }
+
+    /// <summary>Releases a matching immediate pass reference without retiring the resource.</summary>
+    internal void ReleasePassReference() => Interlocked.Decrement(ref activePassReferences);
+    #endregion
 
     protected virtual void OnDetached(nint id)
     {
@@ -151,7 +180,7 @@ public abstract class GpuResource : IDisposable
                     StateCache.Current.DeleteFramebuffer((int)id);
                     break;
                 case GpuResourceKind.Renderbuffer:
-                    GL.DeleteRenderbuffer((int)id);
+                    StateCache.Current.DeleteRenderbuffer((int)id);
                     break;
                 case GpuResourceKind.Query:
                     GL.DeleteQuery((int)id);

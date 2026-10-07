@@ -431,27 +431,30 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Resolves unknown renderbuffer state with a checked query and otherwise reuses cached knowledge.</summary>
     public int GetCurrentRenderbuffer()
     {
         if (currentRenderbuffer.HasValue) return currentRenderbuffer.Value;
 
-        try { currentRenderbuffer = GL.GetInteger(GetPName.RenderbufferBinding); }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        { currentRenderbuffer = 0; }
+        using (var errors = new GlDebug.ErrorScope("Renderbuffer binding query"))
+        {
+            int value = GL.GetInteger(GetPName.RenderbufferBinding);
+            GlDebug.ThrowIfErrors("Renderbuffer binding query");
+            currentRenderbuffer = value;
+        }
 
         return currentRenderbuffer.Value;
     }
 
+    /// <summary>Establishes a live renderbuffer binding while suppressing known-equal transitions.</summary>
     public void BindRenderbuffer(int renderbufferId)
     {
-        try
-        {
-            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferId);
-            currentRenderbuffer = renderbufferId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
+        if (renderbufferId < 0) throw new ArgumentOutOfRangeException(nameof(renderbufferId));
+        RequireBoundaryResource(EPipelineState.RenderbufferBinding, renderbufferId);
+        if (currentRenderbuffer == renderbufferId) return;
+        currentRenderbuffer = null;
+        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferId);
+        currentRenderbuffer = renderbufferId;
     }
 
     public void UnbindRenderbuffer()

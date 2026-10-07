@@ -70,15 +70,12 @@ below accounts for all 11 remaining capture invocations, including the dormant o
 | Legacy fixed-function scopes, renderer entry/exit invalidation, [StateCache.ScissorScope](../VanillaGraphicsExpanded/Rendering/StateCache.ScissorScope.cs) | Explicitly bounded compatibility behavior, not proof of coverage for new stencil/sampling/rasterizer fields. Scissor helper preserves enable, not a general dynamic rectangle contract. |
 | Unmapped engine overloads, other mods, raw VGE point-size call, unsupported stencil/equation/rasterizer/sampling/clip changes | Unknown to current cache unless independently restored. Query required unknown fields at entry, establish complete state, restore and invalidate affected knowledge at declared external boundaries. No untracked mutation inside complete submission. |
 
-Renderbuffer audit: [GpuRenderbuffer.AllocateStorage/BindScope](../VanillaGraphicsExpanded/Rendering/GpuRenderbuffer.cs)
-uses the existing cache scope and restores the incoming binding; engine binds route via EngineStateCalls.
-StateCache.Bindings currently issues renderbuffer binds unconditionally and its unknown-binding query
-has a permissive fallback outside strict boundaries. Renderbuffer deletion is not among mapped
-EngineStateCalls retirement methods; both GpuResource immediate retirement and GpuResourceManager.DrainDeletionQueue call GL.DeleteRenderbuffer directly. Do not claim complete suppression or retirement coverage: before
-renderbuffer operations participate in strict pass setup, audit native deletion and invalidate
-RenderbufferBinding on retirement/name reuse, reject failed queries, and verify nested scopes/exception
-cleanup. Direct-lighting targets are textures and do not use this path. Renderbuffer bindings,
-allocation and clear helper values stay outside pipeline identity.
+Renderbuffer resource operations now use a checked unknown-binding query and suppress known-equal
+binds. Managed immediate/deferred retirement and the exact engine DeleteRenderbuffer adapter route
+through StateCache, clearing only the retired binding and retaining boundary retirement detection.
+Nested scopes and exception cleanup are covered by the render-pass evidence below. Allocation and
+renderbuffer binding remain outside pipeline identity. Unobserved raw external changes still require
+explicit invalidation; this does not claim coverage of every engine deletion overload.
 
 ### Supported state and defaults
 
@@ -2131,3 +2128,82 @@ Normal shader orchestration stayed enabled. The package metadata/copy receipt pr
 failure-only runtime cleanup; that correction changes neither shader payloads nor packaging/copy rules.
 Second source review and independent audit-stage-completion passed on 2026-10-06 with no unresolved required findings.
 No live-game visual acceptance or frame-time improvement is claimed.
+
+## Render passes and target lifetime (2026-10-06)
+
+`Rendering/Pipeline/Passes/RenderPassDesc` freezes borrowed target references, sparse output routing,
+typed color clears, independent depth/stencil intentions and an optional pixel render area.
+`RenderPass.Begin` requires an existing complete `EngineBoundaryScope`; it cannot create a nested
+pass or a second restoration cache. The boundary owns drawing-state restoration. The pass restores
+its target's draw routing and the incoming independent read/draw framebuffer bindings, and registers
+cleanup with the boundary so exceptional exits cannot leave borrowed resources locked.
+
+Target signatures retain exact formats, effective samples and actual attached depth/stencil aspects.
+A packed image attached only to depth does not imply a stencil attachment. Dimensions and resource
+names remain outside pipeline identity. All images must have equal dimensions/sample counts; separate
+depth and stencil images are rejected by the existing single-format target contract. Full-target area
+and viewport resolve on each begin, so a retained description follows a same-format resize. Explicit
+areas are checked against the refreshed dimensions. Pipeline validation checks exact compatibility
+without a native query or reflection.
+
+Managed image metadata comes from existing attachment/resource owners. Texture and renderbuffer
+storage changes notify those owners, advancing framebuffer attachment revisions. Completeness is
+checked on the first use and after image/routing changes. Renderbuffer allocation publishes the actual
+native sample count, including driver rounding. An active pass retains non-owning references
+to the framebuffer, images and managed backing resources; their resize/replacement/retirement APIs
+reject until the pass ends. Pass disposal never disposes those resources. External raw mutation is
+prohibited during the pass and remains the external owner's responsibility at publication boundaries.
+
+`GpuFramebuffer.PublishRenderPassMetadata` discovers wrapped images at an explicit publication
+boundary, retaining exact image selections without acquiring ownership. Failed or missing publication
+cannot satisfy strict entry. `GBufferManager` resolves it during primary framebuffer refresh, including
+equal-size rebuilds, before publishing one completed change notification. Default surfaces still reject
+under the documented policy until a window-surface
+metadata provider exists; they are never guessed to be ordinary RGBA8 attachments.
+
+Clears establish writable masks, explicit scissor area and neutral clear interpretation using existing
+StateCache categories. Float, signed and unsigned color values use the corresponding native typed clear;
+depth and stencil clear separately to preserve unrequested packed aspects. Preceding draw masks,
+rasterizer discard and scissor cannot suppress a requested clear. Numeric clear values do not mutate
+global clear-color/depth/stencil helper values. Discard is permission to leave contents undefined,
+implemented conservatively by retaining contents rather than invalidating unrelated aspects or pixels.
+No resolve, blit, readback, barrier or shader activation is implied.
+
+The integer-texture fixture exposed incomplete signed/unsigned mappings in `TextureFormatHelper`;
+the existing allocation helper now supplies integer external formats and matching scalar types for
+the sized integer families already accepted by target descriptions. Renderbuffer binding queries,
+known-equal binds, exact engine deletion routing and managed immediate/deferred retirement now share
+StateCache ownership as required for strict renderbuffer target operations.
+
+| Contract and controlling source | Implementation and behavioral evidence |
+| --- | --- |
+| Proposal / Target signatures and render passes; design contract / Geometry, target and executable contracts | RenderPassTargets, RenderTargetSignature, framebuffer publication/revisions; sparse routing, packed aspects, wrapped refresh, resize, replacement, format/sample and retirement tests |
+| Proposal / Categorized cache storage, Native error-checking policy; design contract / Restoration decisions by boundary | RenderPassOperations and existing EngineBoundaryScope/StateCache owners; hostile masks/scissor, typed clears, independent aspect and area preservation, routing/binding restoration |
+| Proposal / Prepared pipelines, identity, and lifetime; plan / Render passes and target lifetime | Borrow guards, GraphicsPipeline.ValidateTargets and exception cleanup; same pipeline across IDs/dimensions, active mutation rejection, native incomplete setup and omitted-dispose cleanup |
+
+Second source review and the independent audit-stage-completion pass concluded with no unresolved
+required finding on 2026-10-06. Delegated tests passed 180/180 cases in both Debug and Release;
+after the final routing-query guard, the affected 23/23 cases passed again in both configurations.
+Receipts: `artifacts/render-pass-broad-debug-metadata.log`, `render-pass-broad-release-metadata.log`,
+`render-pass-query-debug.log` and `render-pass-query-release.log`.
+
+An initial integer clear fixture exposed the format-helper mapping defect described above. An initial
+broader run also exposed resource-manager shutdown ordering: owning-attachment fixtures cannot allocate
+after that suite closes their disposal context. The new fixtures now borrow independently owned storage.
+The existing `SceneColorParticleTests.CapturePreservesCallerFramebufferAndIndexedState` retains that
+order sensitivity and is excluded from the broad selection; it passed 1/1 independently in each
+configuration (`artifacts/render-pass-isolated-debug.log`, `render-pass-isolated-release.log`). Those
+receipts remain applicable: subsequent changes affect renderbuffer allocation and the new pass's query
+guard, while that fixture uses texture-backed legacy capture. This is not a claim of a single green
+181-case process. The publication regression additionally caught duplicate primary-FBO notifications;
+atomic metadata publication restored the existing single-notification contract before the final runs.
+
+Commands used `NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages` and normal shader orchestration:
+
+```powershell
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter '(FullyQualifiedName~RenderPass|FullyQualifiedName~RenderbufferBindingLifetime|FullyQualifiedName~Framebuffer|FullyQualifiedName~EngineBoundary|FullyQualifiedName~EngineStateSwitching|FullyQualifiedName~PipelineDescription|FullyQualifiedName~ConfigurableRasterizerDescription|FullyQualifiedName~PipelineStateCoverage|FullyQualifiedName~PreparedGraphicsPipeline|FullyQualifiedName~CompleteGraphics|FullyQualifiedName~TextureFormatHelper|FullyQualifiedName~LumOnBufferOwnership)&FullyQualifiedName!~SceneColorParticleTests.CapturePreservesCallerFramebufferAndIndexedState' --logger 'console;verbosity=minimal'
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~RenderPass|FullyQualifiedName~RenderbufferBindingLifetime' --logger 'console;verbosity=minimal'
+```
+
+Both commands were repeated with `-c Release`. `git diff --check` passed. No game launch, live visual
+acceptance, packaging result or CPU/GPU performance improvement is claimed by this work.

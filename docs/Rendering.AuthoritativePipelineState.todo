@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–4 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; Phases 5–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–5 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; Phases 6–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -622,22 +622,27 @@ Subphase 4.2: Package and validate shader interfaces
 Phase 5: Render passes and target lifetime
   Dependencies: Phases 1–4 target and state contracts, including Subphase 4.1 UBO migration and Subphase 4.2 packaged-interface gates.
   Outcome: explicit pass targets, routing, clears and store intentions with compatibility validation.
+  Completed 2026-10-06 after second source review and independent audit-stage-completion.
+  Evidence: Rendering.AuthoritativePipelineState.md / Render passes and target lifetime.
+  Delegated Debug/Release: 180/180 broad cases each, then 23/23 affected cases each after final query hardening.
+  Existing order-sensitive capture case passed separately; detailed receipts and limitations are in the evidence.
+  Default surfaces reject without metadata; discard conservatively retains contents. No live-game claim.
 
-  ☐ Implement RenderPassDesc and target signature extraction/validation through existing FBO resources.
-    ☐ Preserve output-location/draw-buffer/attachment-index distinctions and sparse routing.
-    ☐ Supply wrapped/default target metadata through the chosen provider; reject unknown strict metadata.
-    ☐ Retain borrowed references for the pass without changing FBO or attachment ownership.
-    ☐ Recheck completeness/compatibility after replacement, resize or backing changes at safe boundaries.
-    ☐ Reject mutation during an active pass or require end/rebegin; refresh viewport/render area after resize.
-  ☐ Implement preserve, typed per-attachment clear and discard intentions where meaningful.
-    ☐ Establish clear masks/scissor/render-area behavior independently of draw write masks.
-    ☐ Reuse existing StateCache category transitions and boundary restoration ownership for setup
+  ☑ Implement RenderPassDesc and target signature extraction/validation through existing FBO resources.
+    ☑ Preserve output-location/draw-buffer/attachment-index distinctions and sparse routing.
+    ☑ Supply wrapped/default target metadata through the chosen provider; reject unknown strict metadata.
+    ☑ Retain borrowed references for the pass without changing FBO or attachment ownership.
+    ☑ Recheck completeness/compatibility after replacement, resize or backing changes at safe boundaries.
+    ☑ Reject mutation during an active pass or require end/rebegin; refresh viewport/render area after resize.
+  ☑ Implement preserve, typed per-attachment clear and discard intentions where meaningful.
+    ☑ Establish clear masks/scissor/render-area behavior independently of draw write masks.
+    ☑ Reuse existing StateCache category transitions and boundary restoration ownership for setup
       and clears; preserve unrelated values and independent knowledge instead of adding local caches.
-    ☐ Preserve unrequested aspects; keep resolve/blit/readback/barriers explicit.
-    ☐ End passes without disposing borrowed targets; clean up on setup failure.
-  ☐ Delegate headless tests for sparse targets, packed depth/stencil aspects, typed clears, preservation,
+    ☑ Preserve unrequested aspects; keep resolve/blit/readback/barriers explicit.
+    ☑ End passes without disposing borrowed targets; clean up on setup failure.
+  ☑ Delegate headless tests for sparse targets, packed depth/stencil aspects, typed clears, preservation,
     discard contract, metadata refresh, resize, replacement, format/sample changes and retirement.
-  ☐ Completion gate: same-signature targets reuse a pipeline across dimensions/IDs, while incompatible
+  ☑ Completion gate: same-signature targets reuse a pipeline across dimensions/IDs, while incompatible
     or retired targets fail deterministically; clear behavior is independent of preceding draw state.
 
 Phase 6: Immediate graphics submission

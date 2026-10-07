@@ -199,6 +199,7 @@ public class DynamicTexture2D : GpuTexture
     /// <returns>True if resize occurred, false if dimensions unchanged.</returns>
     public bool Resize(int newWidth, int newHeight)
     {
+        RequireMutableStorage();
         if (!IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to resize disposed or invalid texture");

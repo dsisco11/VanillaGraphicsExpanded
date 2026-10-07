@@ -169,7 +169,7 @@ public sealed partial class GBufferManager : IDisposable
         // Normal primary loads can repeat setup without changing any attachment identity.
         if (primaryRefreshPending || attachmentsRecreated || PrimaryFramebuffer.FboId != primaryFb.FboId)
         {
-            PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, width, height);
+            PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, width, height, publishPassMetadata: true);
             primaryRefreshPending = false;
         }
     }
@@ -417,7 +417,7 @@ public sealed partial class GBufferManager : IDisposable
             // Re-attach to framebuffer
             PrepareReceiverPosition(primaryFb, screenWidth, screenHeight);
             AttachToFramebuffer(primaryFb.FboId);
-            PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, screenWidth, screenHeight);
+            PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, screenWidth, screenHeight, publishPassMetadata: true);
             
             isInjected = true;
             capi.Logger.Debug($"[VGE] EnsureBuffers: Recreated G-buffer textures for {screenWidth}x{screenHeight}");
@@ -588,7 +588,9 @@ public sealed partial class GBufferManager : IDisposable
         
         capi.Logger.Notification("[VGE] G-buffer detached from Primary framebuffer");
         if (PrimaryFramebuffer.IsValid && PrimaryFramebuffer.FboId == fboId)
-            PrimaryFramebuffer.RefreshWrappedFramebuffer(fboId, PrimaryFramebuffer.Width, PrimaryFramebuffer.Height);
+        {
+            PrimaryFramebuffer.RefreshWrappedFramebuffer(fboId, PrimaryFramebuffer.Width, PrimaryFramebuffer.Height, publishPassMetadata: true);
+        }
     }
     
     #endregion

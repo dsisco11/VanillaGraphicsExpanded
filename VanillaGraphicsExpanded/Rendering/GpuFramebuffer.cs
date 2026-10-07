@@ -62,6 +62,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     /// <summary>Configures an image while preserving bindings and retaining a non-owning strong reference.</summary>
     public void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment attachment)
     {
+        RequireMutableStorage();
         ArgumentNullException.ThrowIfNull(attachment);
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (fboId == 0) throw new InvalidOperationException("The default framebuffer cannot accept attachments.");
@@ -83,6 +84,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     /// <summary>Detaches images and releases references without disposing shared attachment instances.</summary>
     public bool RemoveAttachment(FramebufferAttachment slot)
     {
+        RequireMutableStorage();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         bool removed = slot == FramebufferAttachment.DepthStencilAttachment
             ? attachments.Remove(FramebufferAttachment.DepthAttachment) | attachments.Remove(FramebufferAttachment.StencilAttachment)
@@ -104,6 +106,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     /// <summary>Resizes distinct whole backing resources and publishes one completed update for this framebuffer.</summary>
     public bool Resize(int newWidth, int newHeight)
     {
+        RequireMutableStorage();
         if (!IsValid) return false;
         bool changed = false;
         var visited = new HashSet<GpuResource>(ReferenceEqualityComparer.Instance);
@@ -238,6 +241,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     /// <summary>Notifies all dependents even when one callback fails after a committed attachment change.</summary>
     private void PublishAttachmentsChanged()
     {
+        AttachmentRevision++;
         if (AttachmentsChanged is not { } callbacks) return;
         foreach (Action callback in callbacks.GetInvocationList())
         {

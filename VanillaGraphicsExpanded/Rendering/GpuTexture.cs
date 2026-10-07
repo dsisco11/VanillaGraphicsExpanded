@@ -107,8 +107,10 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     #region Allocation Helpers
 
+    /// <summary>Replaces two-dimensional storage outside active passes and notifies borrowed image owners.</summary>
     protected void AllocateOrReallocate2DTexture(int mipLevels)
     {
+        RequireMutableStorage();
         if (textureTarget != TextureTarget.Texture2D && textureTarget != TextureTarget.TextureRectangle)
         {
             throw new InvalidOperationException($"2D allocation is not supported for target {textureTarget}.");
@@ -137,10 +139,13 @@ public abstract class GpuTexture : GpuResource, IDisposable
         GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
     #endif
         Apply2DTextureObjectParamsBound(mipLevels);
+        GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
+    /// <summary>Reallocates an existing image name and publishes changed storage to dependent framebuffers.</summary>
     protected void Reallocate2DStorageInPlace(int mipLevels)
     {
+        RequireMutableStorage();
         if (!IsValid)
         {
             throw new InvalidOperationException("Cannot reallocate texture storage: texture is not valid.");
@@ -165,10 +170,13 @@ public abstract class GpuTexture : GpuResource, IDisposable
         Allocate2DStorageBound(mipLevels);
         StorageMipLevels = mipLevels;
         Apply2DTextureObjectParamsBound(mipLevels);
+        GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
+    /// <summary>Replaces layered storage outside active passes and refreshes dependent framebuffer metadata.</summary>
     protected void AllocateOrReallocate3DTexture()
     {
+        RequireMutableStorage();
         Ensure3DLike();
 
         DeleteTextureIfAllocated();
@@ -183,6 +191,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
     #endif
         Apply3DTextureObjectParamsBound();
+        GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
     private void DeleteTextureIfAllocated()

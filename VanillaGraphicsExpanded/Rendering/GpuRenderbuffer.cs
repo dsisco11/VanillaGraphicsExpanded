@@ -195,6 +195,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public void AllocateStorage(RenderbufferStorage storage, int width, int height, int samples = 0)
     {
+        RequireMutableStorage();
         if (!IsValid)
         {
             Debug.WriteLine("[GpuRenderbuffer] Attempted to allocate storage for disposed or invalid renderbuffer");
@@ -216,6 +217,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
             throw new ArgumentOutOfRangeException(nameof(samples), samples, "Samples must be >= 0.");
         }
 
+        using var errors = new GlDebug.ErrorScope("Renderbuffer storage allocation");
         using var _ = BindScope();
 
         if (samples > 0)
@@ -227,10 +229,15 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
             GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, storage, width, height);
         }
 
+        // Drivers may round a requested multisample count upward. Publish actual storage
+        // metadata, so target compatibility never mistakes a request for the allocation.
+        GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int actualSamples);
+        GlDebug.ThrowIfErrors("Renderbuffer storage metadata");
         this.storage = storage;
         this.width = width;
         this.height = height;
-        this.samples = samples;
+        this.samples = actualSamples;
+        GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
     /// <summary>
