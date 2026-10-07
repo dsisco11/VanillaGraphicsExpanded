@@ -32,16 +32,27 @@ internal sealed class GraphicsCommandContext
     internal static bool TryRun(string name, IReadOnlyList<GraphicsPipeline> pipelines,
         bool conditionalRenderingInactive, Action<GraphicsCommandContext> operation)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+        return TryRunShared(name, pipelines, [], conditionalRenderingInactive, (context, _) => operation(context));
+    }
+
+    /// <summary>Shares complete restoration with declared compatibility shader work performed between completed passes.</summary>
+    /// <remarks>The additional callbacks must use their existing tracked boundary adapters, never run inside an active pass.</remarks>
+    internal static bool TryRunShared(string name, IReadOnlyList<GraphicsPipeline> pipelines,
+        IReadOnlyList<GpuProgram> additionalPrograms, bool conditionalRenderingInactive,
+        Action<GraphicsCommandContext, EngineBoundaryScope> operation)
+    {
         ArgumentNullException.ThrowIfNull(pipelines);
+        ArgumentNullException.ThrowIfNull(additionalPrograms);
         ArgumentNullException.ThrowIfNull(operation);
         var declared = pipelines.ToArray();
         foreach (var candidate in declared) { ArgumentNullException.ThrowIfNull(candidate); candidate.Validate(); }
         return CompleteGraphicsBoundary.TryRun(name, declared.Select(p => p.Description),
-            declared.Select(p => p.Shader).Distinct(), conditionalRenderingInactive, boundary =>
+            declared.Select(p => p.Shader).Concat(additionalPrograms).Distinct(), conditionalRenderingInactive, boundary =>
             {
                 var context = new GraphicsCommandContext(boundary, declared);
                 // Boundary cleanup owns failures; do not mask an operation exception with local disposal.
-                try { operation(context); }
+                try { operation(context, boundary); }
                 finally { context.finished = true; }
             });
     }

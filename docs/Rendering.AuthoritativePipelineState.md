@@ -28,8 +28,8 @@ No live-game acceptance or performance measurement was performed.
 
 Source review: 2026-10-05. This section resolves the bounded design choices in the
 [approved proposal](Rendering.AuthoritativePipelineState.Proposal.md) for the
-[implementation plan](Rendering.AuthoritativePipelineState.todo). It specifies future complete
-submission; it does not claim that today's partial descriptors implement these requirements.
+[implementation plan](Rendering.AuthoritativePipelineState.todo). It specifies complete
+submission; retained partial descriptors do not implement these requirements.
 The state-cache lifetime policy above governs this design. Historical receipts below remain evidence
 only for the implementations and scopes they actually exercised.
 
@@ -42,7 +42,7 @@ Paths in the tables are repository-relative under `VanillaGraphicsExpanded/`.
 
 | Consumer / source | Draw ownership and current path | Migration order and required adapter |
 | --- | --- | --- |
-| [DirectLightingRenderer](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs), [DirectLightingTargets](../VanillaGraphicsExpanded/PBR/DirectLightingTargets.cs) | VGE; partial LightingPipeline, engine fullscreen MeshRef, three linear outputs; standalone and shared capture invocation | First complete consumer. Fullscreen geometry adapter, managed target signature, expanded restoration set below; preserve both normal and isolated targets. |
+| [DirectLightingRenderer](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs), [DirectLightingTargets](../VanillaGraphicsExpanded/PBR/DirectLightingTargets.cs) | VGE; prepared GraphicsPipeline, owned EngineFullscreenGeometry and explicit three-output render pass; normal, isolated and shared capture invocation | Complete consumer. Uses the managed target signature and complete restoration set below; see Direct-lighting production submission for current evidence. |
 | [PBRCompositeRenderer](../VanillaGraphicsExpanded/PBR/PBRCompositeRenderer.cs), [WaterRefractionCapture](../VanillaGraphicsExpanded/PBR/Liquids/WaterRefractionCapture.cs), [SceneColorParticleCapture](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs) | VGE fullscreen composition, display, receiver/reduction, particle resolve and SSAO preparation; engine SSAO call remains external | After direct lighting. Sequential passes under one existing interruption boundary; preserve success-only publication, receiver dimensions, attachment borrowing and engine SSAO effects. |
 | [LumOnRenderer](../VanillaGraphicsExpanded/LumOn/LumOnRenderer.cs) | VGE fullscreen MeshRef draws across radiance/denoise/composite paths, interleaved with compute | After common fullscreen adapter. Validate each target and shader variant at migration, declare pass dependencies/barriers explicitly; compute implementation stays intact. |
 | [LiquidRenderer](../VanillaGraphicsExpanded/PBR/Liquids/LiquidRenderer.cs), [LiquidDepthRenderer](../VanillaGraphicsExpanded/PBR/Liquids/LiquidDepthRenderer.cs), [WaterVolumeRenderer](../VanillaGraphicsExpanded/PBR/Liquids/WaterVolumeRenderer.cs) | VGE draw orchestration using borrowed engine terrain pools; depth replaces an engine draw, surface suppresses the next engine draw; volume uses partial indexed blend | After fullscreen, as MRT/pool family. Pool geometry/layout/range adapter, engine UseSsbo restoration, per-atlas bindings, depth/OIT metadata and routing. Preserve wave-frame sharing and fallback/suppression bookkeeping. Existing broad invalidation stays until these contracts are proven. |
@@ -109,8 +109,8 @@ unsupported value and must not generate invalid queries/calls.
 
 Direct lighting explicitly selects the defaults above, dynamic full-target viewport, triangles and
 three RGBA16F color slots, no depth/stencil, samples 1. Preserve shader/output mathematics, zero clears
-and resource input lifetimes. Implement and test this fuller state contract before consumer migration;
-today's partial LightingPipeline is not complete.
+and resource input lifetimes. The production renderer now uses this complete contract; the former
+partial LightingPipeline remains only in the test reference used to compare output mathematics.
 
 ### Geometry, target and executable contracts
 
@@ -1056,15 +1056,17 @@ UV fallback remain outside the automated acceptance claim. No game is launched b
 
 ### Legacy reconciliation and future submission ownership
 
-Reconciliation on 2026-10-05 changes documentation only. Actual GlPipelineDesc applications remain
-with the draws. GraphicsCommandContext will coordinate the existing boundary mechanism around
-sequential complete passes, preserving engine-aware shader cleanup, borrowed bindings/framebuffers,
+The 2026-10-05 reconciliation was documentation-only; its historical callback tables above describe
+the bounded implementation at that time. Direct lighting now uses GraphicsCommandContext to
+coordinate the existing boundary mechanism around complete passes, preserving engine-aware shader cleanup, borrowed bindings/framebuffers,
 then StateCache drawing-state restoration. Unknown external mutations require an explicit handoff
 and affected-category invalidation; engine hooks do not prove arbitrary raw GL coverage.
 
-Direct-lighting adoption owns removal of its callback compatibility wiring. Composite/capture
-adoption owns theirs and the FullscreenBoundary unions once complete submission covers the same
-operation. Keep any still-used adapter until its final caller migrates. Partial descriptors remain
+Direct lighting has removed its partial descriptor and local target/clear/draw setup. Shared capture
+declares its prepared direct-lighting pipeline together with the existing composite shader footprints
+through TryRunShared. Its direct-lighting pass ends before the bounded composite callback starts.
+Composite/capture adoption still owns the remaining partial draws and FullscreenBoundary unions once
+complete submission covers the same operation. Keep any still-used adapter until its final caller migrates. Partial descriptors remain
 restricted to declared compatibility operations outside complete submission or at explicit boundaries.
 Viewport remains dynamic; framebuffer blend policy moves with complete consumer pipelines, with
 one policy owner throughout. No renderer restore PSO or second cache is introduced.
@@ -2303,3 +2305,98 @@ visual acceptance or CPU/GPU performance improvement is claimed by this infrastr
 Second source review and the independent audit-stage-completion pass reconciled the submission,
 geometry, input-publication and restoration requirements with these receipts. The final affected-path
 rechecks and `git diff --check` passed; no required submission-contract findings remain open.
+
+## Direct-lighting production submission
+
+`DirectLightingRenderer` now retains a prepared `GraphicsPipeline` for the current shader owner and
+successful executable revision. Its complete description selects the existing position/UV triangle
+layout, three linear RGBA16F outputs and a dynamic viewport. The pass declares all three zero clears
+and derives its viewport from the actual target. Normal manager-owned outputs and isolated capture
+outputs use the same submission. Same-format resize preserves pipeline identity; successful shader
+reload replaces the realization. Renderer disposal retires its realization, lifetime and owned engine
+geometry without taking ownership of shader programs or borrowed output images.
+
+The renderer assigns the same generated shader inputs through `DirectLightingRenderer.Inputs.cs`.
+`GraphicsCommandContext.Draw` retains engine-aware activation and current resource/UBO publication
+on every draw, including repeated pipeline selections. It replaces the former renderer-side partial
+descriptor, framebuffer bind, clear and mesh submission. No additional live-state cache, restore PSO,
+packed-value manipulation or context-generation tracking is introduced.
+
+Pre-overlay capture uses `TryRunShared`: complete direct-lighting state and the existing composite
+program resource footprints share one engine interruption. The direct-lighting pass ends before the
+existing bounded composite callback runs. Shader cleanup precedes borrowed binding/framebuffer and
+categorized drawing-state restoration. Standalone composite and its partial descriptor remain with
+their current owners until their own consumer migration. Conditional rendering inactivity is the
+ordinary opaque/pre-overlay callback invariant; transform-feedback inactivity is checked at entry.
+
+| Work and controlling source | Implementation and evidence |
+| --- | --- |
+| Production adoption; proposal / Submission contract; design / Deterministic reference and evidence boundaries | DirectLightingRenderer and Inputs, DirectLightingSubmissionTests and the frozen DirectLightingReferenceRenderer compare all three radiance outputs using identical built shaders and inputs. |
+| Lifetime and readiness; proposal / Prepared pipelines, identity, and lifetime; design / Geometry, target and executable contracts | Renderer-owned realization and EngineFullscreenGeometry, existing target owners and revision checks; normal/isolated output, resize, repeated inputs, failed preparation and reload cases. |
+| State authority and capture; proposal / Engine integration and cache authority; design / Restoration decisions by boundary | GraphicsCommandContext.TryRunShared, existing CompleteGraphicsBoundary and EngineBoundaryScope; hostile-state/exception checks plus capture, particle-publication and shader-ownership regressions. |
+
+The reference fixture preserves the previous submission path and explicitly establishes a complete
+neutral baseline before running its partial descriptor. The candidate is also exercised after hostile
+native state with explicit cache invalidation. Engine mesh uploads use native VAO/VBO/EBO fixtures;
+the comparison invokes the installed engine's ordinary RenderMesh helper. Surface-lighting fixture
+draws preserve caller-owned state and install the existing production shader-stop observation hook,
+rather than allowing the mock draw to impose its own pipeline or hide an unobserved shader stop.
+
+Comparison inputs are frozen at 32x24 and 31x19, with a later 17x13 target resize. They cover exact-zero
+background, planar diffuse, metallic and roughness extremes, emission, independently effective near
+and far shadows with a point light, explicit first-person receiver position, and changed inputs.
+Shadow cases additionally prove that disabling their intensity changes radiance. All three RGBA16F
+attachments, including alpha, are checked for finite values and against the documented tolerance.
+Failed binary preparation emits no draw; successful reload refreshes the realization. Hostile-state
+and draw-exception checks verify native enables/masks, viewport, independent framebuffer bindings
+and engine shader ownership. Existing capture fixtures verify pre-overlay source separation.
+
+Validation uses NVIDIA GeForce RTX 4090, OpenGL 4.3.0 NVIDIA 591.86. The built direct-lighting program
+has one nonstructural variant with no specialization overrides; the generated DropShadowIntensity
+input selects shadow participation. Debug observations for 32x24 / 31x19 respectively were
+30.824 / 0.047 ms to obtain the prepared realization and 0.892 / 0.381 ms for one repeated whole
+standalone submission. Release observations for those same sizes were 0.080 / 23.526 ms for
+realization and 0.607 / 0.429 ms for repeated submission; Release executed the odd-size case first.
+These are individual fixture/JIT-inclusive CPU observations, not averaged
+benchmarks or a before/after speedup claim. The shader had already been prepared by the constructor;
+the realization timing is not shader-compilation cost.
+
+Each measured repeat recorded four fixed-function transitions, one counted boundary state query,
+and zero additional executable-interface reflection queries. The standalone operation includes a
+clear, pass entry and engine restoration, so it is not the same workload as two draws within one
+already active pass. Source-accounted native checks outside BoundaryQueries are eight draw-buffer
+routing reads per pass and eight GL.IsTexture validations for active borrowed integer samplers per
+submission. Native error polls are separate and excluded from those state-read counts. This migration
+does not claim a query-free production callback; stable managed-draw suppression remains covered by
+GraphicsCommandContextTests. GPU timing, in-game appearance and broader engine/other-mod coverage
+remain outside these headless receipts. No game was launched.
+
+Delegated commands used `NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages` and
+`dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore
+--filter '<selection>' --logger 'console;verbosity=detailed'`, repeated for Release. Production and
+shared fixture shaders use normal project orchestration, including release debug stripping.
+The broad selection ORs `FullyQualifiedName~` matches for DirectLightingSubmissionTests,
+PbrDirectLighting, WaterRefractionCaptureStateTests, SceneColorParticle, SurfaceLightingPbr,
+DirectLightingBufferOwnershipTests, GraphicsCommandContextTests and EngineGraphicsGeometryTests.
+Debug separately selects SurfaceLightingDisplayBoundaryTests with `--no-build`; Release includes
+that family in its broad selection. Receipts are `phase7-regression-debug.log`,
+`phase7-display-debug.log` and `phase7-regression-release.log` in the repository root.
+
+Final validation passed 100 distinct selected cases per configuration: Debug 98/98 broad plus 2/2
+display-boundary cases, and Release 100/100, with no failures or skips. Every compared component in
+all three radiance attachments had maximum error zero. After strengthening changed-input verification
+to run the candidate before the reference on their shared shader owner, and asserting unchanged
+pipeline identity, the two comparison cases passed again in both configurations. Those final builds
+and rechecks are recorded in `phase7-final-debug.log` and `phase7-final-release.log`; they also include
+the final fixture cleanup. Preparation failures, reload and exception recovery remain covered there.
+
+Earlier regression failures exposed fixture behavior: the mock draw imposed an extra partial pipeline,
+then hid missing shader-stop observation by unbinding the program itself. The fixture now uses
+geometry-only submission and the production stop hook. The initial shadow setup also did not produce
+occlusion; fixed comparison coordinates and independent cascade controls now make its effect explicit.
+Only the corrected passing receipts support completion.
+
+The second source review and independent audit-stage-completion pass reconciled the complete selected
+contract, proposal, design/reference methodology, current sources and final receipts. No required
+adoption, lifetime, restoration or changed-input findings remain open. `git diff --check` passed.
+The remaining consumers and final system-wide measurements retain their separate planning gates.

@@ -18,6 +18,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("The runtime fixture could not locate the renderer's query owner.");
     private readonly EngineShaderPlatformScope platform = new();
+    private readonly HarmonyLib.Harmony shaderStop = new("tests.surface-lighting-stop." + Guid.NewGuid());
     private readonly ShaderTestFramework drawing = new();
     private readonly RuntimeLightingPrograms programs = new();
     private readonly VanillaGraphicsExpanded.ModSystems.WorldProbeModSystem worldSystem;
@@ -61,6 +62,8 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     /// <summary>Registers real consumers with the producer's engine events and injects real publication providers.</summary>
     public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null, bool pbrComposition = false, bool shortProbeRange = false)
     {
+        // The engine Stop method is sealed; run its production ownership hook alongside native geometry submission.
+        shaderStop.CreateClassProcessor(typeof(VanillaGraphicsExpanded.HarmonyPatches.GpuProgramStopHook)).Patch();
         this.spatial=spatial; edge=spatial==null?2:4;
         Cache = new(requestedPages:24,enclosure:true,spatial:spatial,productionOwned:true);
         World = new(Cache.SourceBlock,spatial);
@@ -186,9 +189,9 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     private void Draw()
     {
         int program=GL.GetInteger(GetPName.CurrentProgram); Assert.NotEqual(0,program);
-        DrawnPrograms.Add(program); drawing.RenderQuad(program);
+        DrawnPrograms.Add(program); drawing.RenderGeometry();
         // Engine RenderMesh preserves the active shader across repeated draws (including HZB mip levels).
-        GL.UseProgram(program);
+
     }
     #endregion
 
@@ -198,6 +201,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     {
         World.ReleaseWorker(); host.Dispose();
         programs.Dispose(); drawing.Dispose(); World.Dispose(); Cache.Dispose(); platform.Dispose();
+        shaderStop.UnpatchAll(shaderStop.Id);
     }
     #endregion
 }

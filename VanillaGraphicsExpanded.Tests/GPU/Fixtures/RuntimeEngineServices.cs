@@ -11,7 +11,7 @@ internal static class RuntimeEngineServices
     #region Engine services
     /// <summary>Provides the headless render boundary with authored matrices and observed mesh submission.</summary>
     public static IRenderAPI Render(int edge, List<FrameBufferRef> framebuffers, Func<float[]> view,
-        Func<float[]> projection, Action draw, DefaultShaderUniforms? uniforms = null)
+        Func<float[]> projection, Action draw, DefaultShaderUniforms? uniforms = null, bool nativeDraw = false)
     {
         var render = new Mock<IRenderAPI>(MockBehavior.Strict);
         render.SetupGet(api => api.FrameWidth).Returns(edge);
@@ -25,9 +25,10 @@ internal static class RuntimeEngineServices
         render.Setup(api => api.GLDepthMask(It.IsAny<bool>())).Callback((bool enabled) => OpenTK.Graphics.OpenGL.GL.DepthMask(enabled));
         render.SetupGet(api => api.AmbientColor).Returns(new Vec3f());
         render.SetupGet(api => api.ShaderUniforms).Returns(uniforms ?? new DefaultShaderUniforms { ZNear = .1f, ZFar = 100 });
-        render.Setup(api => api.UploadMesh(It.IsAny<MeshData>())).Returns(() => new RuntimeMesh());
-        render.Setup(api => api.DeleteMesh(It.IsAny<MeshRef>())).Callback((MeshRef mesh) => mesh.Dispose());
-        render.Setup(api => api.RenderMesh(It.IsAny<MeshRef>())).Callback(draw);
+        var meshes = new Dictionary<MeshRef, RuntimeNativeMesh>();
+        render.Setup(api => api.UploadMesh(It.IsAny<MeshData>())).Returns((MeshData data) => { var native = new RuntimeNativeMesh(data); meshes.Add(native.Mesh, native); return native.Mesh; });
+        render.Setup(api => api.DeleteMesh(It.IsAny<MeshRef>())).Callback((MeshRef mesh) => { if (meshes.Remove(mesh, out var native)) native.Dispose(); });
+        render.Setup(api => api.RenderMesh(It.IsAny<MeshRef>())).Callback((MeshRef mesh) => { draw(); if (nativeDraw) meshes[mesh].Draw(); VanillaGraphicsExpanded.Rendering.StateCache.Current.BindVertexArray(0); });
         render.Setup(api => api.GlToggleBlend(It.IsAny<bool>(), It.IsAny<EnumBlendMode>()))
             .Callback((bool enabled, EnumBlendMode _) => ToggleBlend(enabled));
         return render.Object;
@@ -67,7 +68,5 @@ internal static class RuntimeEngineServices
         if (enabled) OpenTK.Graphics.OpenGL.GL.Enable(OpenTK.Graphics.OpenGL.EnableCap.Blend);
         else OpenTK.Graphics.OpenGL.GL.Disable(OpenTK.Graphics.OpenGL.EnableCap.Blend);
     }
-    /// <summary>Represents the engine mesh handle; the fixture draws its own fullscreen geometry.</summary>
-    private sealed class RuntimeMesh : MeshRef { public override bool Initialized => !Disposed; }
     #endregion
 }

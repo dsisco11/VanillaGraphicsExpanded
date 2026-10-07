@@ -1,6 +1,5 @@
 using System;
-using System.Linq;
-using VanillaGraphicsExpanded.Rendering.Integration;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
 using HarmonyLib;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
@@ -94,13 +93,13 @@ internal sealed class WaterRefractionCapture : IRenderer
         if (LiquidMeshSource.TryGet(api, out var source) && !source.MayHaveLiquidGeometry()) return;
         int width = api.Render.FrameWidth, height = api.Render.FrameHeight;
         if (width <= 0 || height <= 0) return;
-        var directProgram = direct.PrepareBoundaryProgram();
+        var directPipeline = direct.PrepareBoundaryPipeline();
         var compositePrograms = composite.PrepareBoundaryPrograms(capture: true);
-        if (directProgram is null || compositePrograms is null) return;
+        if (directPipeline is null || compositePrograms is null) return;
         try
         {
-            FullscreenBoundary.TryRun("WaterRefraction.PreOverlay", [DirectLightingRenderer.LightingPipeline, PBRCompositeRenderer.CompositePipeline],
-                compositePrograms.Append(directProgram), scope =>
+            GraphicsCommandContext.TryRunShared("WaterRefraction.PreOverlay", [directPipeline],
+                compositePrograms, true, (commands, scope) =>
                 {
                     // Allocation belongs inside the same preservation contract as both draws.
                     if (lighting?.IsValid != true || lighting.DirectDiffuse.Width != width || lighting.DirectDiffuse.Height != height)
@@ -109,7 +108,7 @@ internal sealed class WaterRefractionCapture : IRenderer
                         lighting?.Dispose();
                         lighting = new DirectLightingTargets(width, height);
                     }
-                    if (direct.RenderLightingWithinBoundary(scope, lighting))
+                    if (direct.RenderLightingWithinBoundary(commands, directPipeline, lighting))
                         composite.RenderCompositeWithinBoundary(scope, EnumRenderStage.Opaque, scene, lighting);
                 });
         }

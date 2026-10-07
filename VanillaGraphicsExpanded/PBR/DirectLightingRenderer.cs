@@ -1,12 +1,11 @@
 using System;
-using VanillaGraphicsExpanded.Rendering.Integration;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Shaders;
-
-
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
-using Vintagestory.Client.NoObf;
-
 using VanillaGraphicsExpanded.Profiling;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -20,22 +19,24 @@ namespace VanillaGraphicsExpanded.PBR;
 /// - DirectSpecular
 /// - Emissive
 /// </summary>
-public sealed class DirectLightingRenderer : IRenderer, IDisposable
+public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
 {
     private const double RenderOrderValue = 9.0;
     private const int RenderRangeValue = 1;
-    internal static readonly GlPipelineDesc LightingPipeline = new(
-        defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable)
-            .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-        nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask),
-        depthWriteMask: false, name: "PBR.DirectLighting");
+    private static readonly RenderTargetSignature LightingTargets = new([
+        new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f)]);
+    private static readonly RenderPassColor[] LightingOutputs = [
+        new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
+        new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
+        new(2, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))];
 
     private readonly ICoreClientAPI capi;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager bufferManager;
 
-    private MeshRef? quadMeshRef;
+    private EngineFullscreenGeometry? geometry;
+    private readonly GraphicsPipelineLifetime pipelineLifetime = new();
+    private GraphicsPipeline? lightingPipeline;
 
     private readonly float[] invProjectionMatrix = new float[16];
     private readonly float[] invModelViewMatrix = new float[16];
@@ -61,7 +62,7 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
 
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
-        quadMeshRef = capi.Render.UploadMesh(quadMesh);
+        geometry = EngineFullscreenGeometry.Upload(capi.Render, quadMesh);
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "pbr_direct_lighting");
 
@@ -74,32 +75,44 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         if (stage == EnumRenderStage.Opaque) RenderLighting();
     }
 
-    /// <summary>Evaluates the same lighting contract into an isolated target for a pre-overlay world capture.</summary>
+    /// <summary>Evaluates normal or isolated lighting targets under complete engine-state restoration.</summary>
     internal bool RenderLighting(DirectLightingTargets? isolated = null)
     {
         StateCache.Current.RequireOutsideEngineBoundary();
-        if (quadMeshRef is null || capi.Render.FrameWidth <= 0 || capi.Render.FrameHeight <= 0) return false;
-        var shader = PrepareBoundaryProgram();
-        if (shader is null) return false;
+        if (geometry is null || capi.Render.FrameWidth <= 0 || capi.Render.FrameHeight <= 0) return false;
+        var pipeline = PrepareBoundaryPipeline();
+        if (pipeline is null) return false;
         bool rendered = false;
-        if (!FullscreenBoundary.TryRun("PBR.DirectLighting", [LightingPipeline], [shader],
-            scope => rendered = RenderLightingWithinBoundary(scope, isolated)))
+        // This ordinary opaque callback executes outside conditional rendering and transform feedback.
+        if (!GraphicsCommandContext.TryRun("PBR.DirectLighting", [pipeline], true,
+            commands => rendered = RenderLightingWithinBoundary(commands, pipeline, isolated)))
             throw new InvalidOperationException("Direct lighting engine boundary unavailable.");
         return rendered;
     }
 
-    /// <summary>Prepares the executable before its resource footprint is captured.</summary>
-    internal PBRDirectLightingShaderProgram? PrepareBoundaryProgram()
+    /// <summary>Refreshes the borrowed realization only after a successful executable publication.</summary>
+    internal GraphicsPipeline? PrepareBoundaryPipeline()
     {
+        StateCache.Current.RequireOutsideEngineBoundary();
+        if (geometry is null) return null;
         var shader = GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
-        return shader?.EnsureReady() == true ? shader : null;
+        if (shader?.EnsureReady() != true) return null;
+        if (lightingPipeline is not null && ReferenceEquals(lightingPipeline.Shader, shader)
+            && lightingPipeline.ExecutableRevision == shader.ExecutableRevision) return lightingPipeline;
+        // Keep the previous realization until its replacement validates; native names are not identity.
+        var replacement = new GraphicsPipeline(pipelineLifetime,
+            new(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout, LightingTargets,
+                DynamicPipelineState.Viewport, label: "PBR.DirectLighting"), shader);
+        lightingPipeline?.Dispose();
+        lightingPipeline = replacement;
+        return replacement;
     }
 
     /// <summary>Draws shared lighting work without nesting an engine restoration boundary.</summary>
-    internal bool RenderLightingWithinBoundary(EngineBoundaryScope scope, DirectLightingTargets? isolated = null)
+    internal bool RenderLightingWithinBoundary(GraphicsCommandContext commands, GraphicsPipeline pipeline,
+        DirectLightingTargets? isolated = null)
     {
-        StateCache.Current.RequireEngineBoundary(scope);
-        if (quadMeshRef is null)
+        if (geometry is null)
         {
             return false;
         }
@@ -110,8 +123,6 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         {
             return false;
         }
-
-
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is null)
         {
@@ -129,68 +140,24 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
 
         // Shader program
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
-        if (shader is null || shader.RequiresPreparation || shader.IsRetired)
+        var shader = (PBRDirectLightingShaderProgram)pipeline.Shader;
+        if (shader.RequiresPreparation || shader.IsRetired)
         {
             return false;
         }
 
-        // Bind output MRT FBO
-        StateCache.Current.Apply(LightingPipeline);
+        // Target routing, clear masks and complete drawing state belong to submission owners.
         var target = isolated?.Framebuffer ?? bufferManager.DirectLightingFbo!;
-        target.BindWithViewport();
-        target.Clear(0, 0, 0, 0);
-
-
-
-        // Bind input textures
-        shader.PrimaryScene = primaryFb.ColorTextureIds[0];
-        shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-        shader.GBufferNormal = gBufferManager.NormalTextureId;
-        shader.GBufferPosition = gBufferManager.PositionTextureId;
-        shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;
-        shader.GBufferMaterial = gBufferManager.MaterialTextureId;
-
-        // Shadow maps (depth textures)
-        var shadowNearFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear];
-        var shadowFarFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapFar];
-        if (shadowNearFb != null) shader.ShadowMapNear = shadowNearFb.DepthTextureId;
-        if (shadowFarFb != null) shader.ShadowMapFar = shadowFarFb.DepthTextureId;
-
-        // Matrices
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.InvModelViewMatrix = invModelViewMatrix;
-        shader.ToShadowMapSpaceMatrixNear = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixNear;
-        shader.ToShadowMapSpaceMatrixFar = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixFar;
-
-        // Z planes
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
-
-        // Lighting
-        shader.RgbaAmbientIn = capi.Render.AmbientColor;
-        var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
-        shader.SetSolarLighting(atmosphere?.Sun ?? System.Numerics.Vector3.UnitY,
-            atmosphere?.Solar ?? System.Numerics.Vector3.Zero);
-
-        // Vanilla supplies view-space point lights; the shader compares them with view-space receivers.
-        shader.SetPointLights(
-            capi.Render.ShaderUniforms.PointLightsCount,
-            capi.Render.ShaderUniforms.PointLights3,
-            capi.Render.ShaderUniforms.PointLightColors3);
-
-        // Shadow params
-        shader.ShadowRangeNear = capi.Render.ShaderUniforms.ShadowRangeNear;
-        shader.ShadowRangeFar = capi.Render.ShaderUniforms.ShadowRangeFar;
-        shader.ShadowZExtendNear = capi.Render.ShaderUniforms.ShadowZExtendNear;
-        shader.ShadowZExtendFar = capi.Render.ShaderUniforms.ShadowZExtendFar;
-        shader.DropShadowIntensity = capi.Render.ShaderUniforms.DropShadowIntensity;
+        AssignInputs(shader, primaryFb);
 
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
         {
-            scope.Activate(shader);
-            capi.Render.RenderMesh(quadMeshRef);
+            commands.BeginPass(new(target!, LightingOutputs));
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.Draw(geometry, new(0, 6));
+            commands.EndPass();
         }
 
         return true;
@@ -202,11 +169,11 @@ public sealed class DirectLightingRenderer : IRenderer, IDisposable
     /// <summary>Releases the fullscreen mesh and unregisters the lighting callback.</summary>
     public void Dispose()
     {
-        if (quadMeshRef is not null)
-        {
-            capi.Render.DeleteMesh(quadMeshRef);
-            quadMeshRef = null;
-        }
+        lightingPipeline?.Dispose();
+        lightingPipeline = null;
+        pipelineLifetime.Dispose();
+        geometry?.Dispose();
+        geometry = null;
 
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
     }

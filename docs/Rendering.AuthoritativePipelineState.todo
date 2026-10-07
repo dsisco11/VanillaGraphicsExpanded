@@ -2,7 +2,7 @@ Authoritative graphics pipeline state
 ====================================
 
 Source proposal: Rendering.AuthoritativePipelineState.Proposal.md
-Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–6 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; Phases 7–9 remain pending.
+Approval: user approved the proposal on 2026-10-03. Bounded restoration foundations are implemented under the exception below; Phases 1–7 and Subphases 2.1–2.2, 3.1–3.2 and 4.1–4.2 are complete; Phases 8–9 remain pending.
 Project index: ../project.todo / Performance / PipelineState.
 
 Goal and execution contract
@@ -678,21 +678,27 @@ Phase 6: Immediate graphics submission
 Phase 7: Direct-lighting production migration
   Dependencies: Phases 1–6, including baseline evidence and first-consumer engine adapter.
   Outcome: first VGE production pass exercises the complete architecture.
+  Completed 2026-10-06 after second source review and independent audit-stage-completion.
+  Validation: 100 distinct headless cases per Debug/Release configuration, plus final 2/2 affected
+  comparison rechecks in each; no failures/skips, exact output matches. Live game acceptance remains user-run.
+  Source and evidence: Rendering.AuthoritativePipelineState.md / Direct-lighting production submission;
+  controlling contracts: proposal / Submission contract; implementation document / Geometry, target
+  and executable contracts; Restoration decisions by boundary; Deterministic reference and evidence boundaries.
 
-  ☐ Migrate DirectLightingRenderer and its normal/isolated targets to prepared pipeline/pass submission.
-    ☐ Preserve shader inputs, image formats, output routing, clear behavior and engine restoration.
-    ☐ Preserve resource lifetimes, resize handling and readiness/failure behavior.
-    ☐ Remove redundant local state setup only after the new owner covers it.
-    ☐ Use the unified category owners through pipeline/submission APIs; do not introduce renderer-side
+  ☑ Migrate DirectLightingRenderer and its normal/isolated targets to prepared pipeline/pass submission.
+    ☑ Preserve shader inputs, image formats, output routing, clear behavior and engine restoration.
+    ☑ Preserve resource lifetimes, resize handling and readiness/failure behavior.
+    ☑ Remove redundant local state setup only after the new owner covers it.
+    ☑ Use the unified category owners through pipeline/submission APIs; do not introduce renderer-side
       native-state copies or manipulate packed backing flags. Preserve explicitly partial boundary coverage.
-    ☐ Replace RenderLighting callback compatibility wiring only after complete submission supplies
+    ☑ Replace RenderLighting callback compatibility wiring only after complete submission supplies
       equivalent boundary coverage and failure cleanup through the existing shader lifecycle.
-  ☐ Delegate deterministic old/reference-versus-migrated output tests and focused consumer regressions.
-    ☐ Exercise first use, repeated draws, target resize, shader failure/reload and external state changes.
-    ☐ Record state calls, steady-state queries and preparation/submission costs separately.
-  ☐ Perform a second source review against the proposal and evidence; resolve discrepancies before
+  ☑ Delegate deterministic old/reference-versus-migrated output tests and focused consumer regressions.
+    ☑ Exercise first use, repeated draws, target resize, shader failure/reload and external state changes.
+    ☑ Record state calls, steady-state queries and preparation/submission costs separately.
+  ☑ Perform a second source review against the proposal and evidence; resolve discrepancies before
     migrating additional production consumers. Record remaining engine/live-runtime limitations.
-  ☐ Completion gate: direct-lighting output and restoration are preserved, required state is explicit,
+  ☑ Completion gate: direct-lighting output and restoration are preserved, required state is explicit,
     and changed inputs are never skipped by redundant-state suppression.
 
 Phase 8: Remaining VGE consumers and compatibility cleanup
