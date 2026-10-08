@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 vec2 uv;
 out vec4 outColor;
@@ -25,7 +26,7 @@ vec4 renderWorldProbeConfidenceDebug()
 #else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
-    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
 
     LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
     float c = clamp(wp.confidence, 0.0, 1.0);

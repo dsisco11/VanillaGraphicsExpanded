@@ -8,7 +8,7 @@ out vec4 outColor;
 void main()
 {
     vec2 uv = gl_FragCoord.xy / screenSize;
-    vec3 transmission = vec3(texture(directDiffuse, uv).a,
-        texture(directSpecular, uv).a, texture(emissive, uv).a);
+    vec3 transmission = vec3(texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).a,
+        texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).a, texture(directLighting, vec3(uv, VGE_DIRECT_EMISSIVE)).a);
     outColor = vec4(vgeTonemapReinhard(transmission), 1.0);
 }

@@ -624,7 +624,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Bind G-buffer textures
         shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+        shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         shader.PmjJitter = pmjJitter;
 
@@ -686,8 +686,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
 
-        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
+        shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex;
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex;
 
@@ -785,8 +784,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind probe anchor textures
-        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
+        shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
         // Phase 10: bind probe-resolution trace mask (when PIS is enabled, shader will prefer it).
         shader.ProbeTraceMask = primaryBuffers.ProbeTraceMaskTex;
@@ -796,7 +794,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Bind LumOn-owned albedo plus VGE material properties for hit radiance sampling.
         shader.SurfaceAlbedo = primaryBuffers.SurfaceAlbedoTex;
-        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+        shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         // Bind history for temporal preservation
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex!;
@@ -939,7 +937,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
 
         // Bind probe anchors for validity check
-        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
+        shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
         // Bind meta trace output (pass-through for now)
         shader.ScreenProbeAtlasMetaCurrent = bufferManager.ScreenProbeAtlasMetaTraceTex!;
@@ -1024,7 +1022,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
-        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
+        shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
         if (!shader.EnsureReady())
         {
@@ -1057,7 +1055,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (bufferManager.ProbeSh9Tex0 is null || bufferManager.ProbeSh9Tex6 is null)
+        if (bufferManager.ProbeSh9 is null)
         {
             lightingPassesComplete = false;
             return;
@@ -1089,21 +1087,15 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.NearFieldVisibility.Stage(shader, nearFieldScene);
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
+        shader.ProbeSh9 = bufferManager.ProbeSh9;
+
         // Keep the paired diagnostic's gather replacement consistent with its trace branch.
         shader.SuppressWorldProbeRadiance = comparisonPass;
-        shader.ProbeSh0 = bufferManager.ProbeSh9Tex0;
-        shader.ProbeSh1 = bufferManager.ProbeSh9Tex1!;
-        shader.ProbeSh2 = bufferManager.ProbeSh9Tex2!;
-        shader.ProbeSh3 = bufferManager.ProbeSh9Tex3!;
-        shader.ProbeSh4 = bufferManager.ProbeSh9Tex4!;
-        shader.ProbeSh5 = bufferManager.ProbeSh9Tex5!;
-        shader.ProbeSh6 = bufferManager.ProbeSh9Tex6;
 
-        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
+        shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
         shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+        shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
         shader.WorldProbeVis0 = hasWorldProbe ? worldProbeResources.ProbeVis0 : null;
@@ -1185,12 +1177,11 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlas = probeAtlas;
 
         // Bind probe anchors
-        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
-        shader.ProbeAnchorNormal = primaryBuffers.ProbeAnchorNormalTex!;
+        shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
         // Bind G-buffer for pixel info
         shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+        shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
         shader.WorldProbeVis0 = hasWorldProbe ? worldProbeResources.ProbeVis0 : null;
@@ -1291,7 +1282,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         shader.ScreenProbeAtlas = inputAtlas;
         shader.ScreenProbeAtlasMeta = inputMeta;
-        shader.ProbeAnchorPosition = primaryBuffers.ProbeAnchorPositionTex!;
+        shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
         // Minimal initial settings: 3x3 within-tile filter with moderate edge stopping.
         shader.FilterRadius = 1;
@@ -1340,7 +1331,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Retain G-buffer guides for edge-aware upsampling.
         shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+        shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         // Bilateral upsample parameters (SPG-008 Section 3.1)
         shader.UpsampleDepthSigma = config.LumOn.UpsampleDepthSigma;

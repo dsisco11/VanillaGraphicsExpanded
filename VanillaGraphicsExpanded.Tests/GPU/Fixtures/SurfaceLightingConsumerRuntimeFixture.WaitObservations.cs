@@ -20,7 +20,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture
     {
         // Confidence and anchors carried no correctness assertions in the old message. Keep their
         // readbacks failure-only; the five validated outputs above remain mandatory on success.
-        return $"Runtime failed to settle in {maximumFrames} frames; frames={Cache.Frames}, workerReads={World.WorkerReads}, final={observations.Final}, world={observations.World}, worldConfidence={WorldConfidence}, trace={observations.Trace}, filter={observations.Filter}, gather={observations.Gather}, anchors={string.Join(",",Screen.ProbeAnchorPositionTex!.ReadPixels())}, pending={HasPendingSurfaceLightingQueries}, programs={string.Join(',',LoadedPrograms)}, logs={string.Join('|',Cache.Logs.TakeLast(8))}";
+        return $"Runtime failed to settle in {maximumFrames} frames; frames={Cache.Frames}, workerReads={World.WorkerReads}, final={observations.Final}, world={observations.World}, worldConfidence={WorldConfidence}, trace={observations.Trace}, filter={observations.Filter}, gather={observations.Gather}, anchors={string.Join(",",LayeredTestTexture.Read(Screen.ProbeAnchors!, 0))}, pending={HasPendingSurfaceLightingQueries}, programs={string.Join(',',LoadedPrograms)}, logs={string.Join('|',Cache.Logs.TakeLast(8))}";
     }
     #endregion
 }

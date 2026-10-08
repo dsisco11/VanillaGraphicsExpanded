@@ -25,7 +25,9 @@ layout(location = 1) out vec4 outRadiance1;
 
 uniform sampler2D octahedralAtlas;   // RGBA16F, tiled 8x8 per probe
 uniform sampler2D probeAtlasMeta;    // RG32F, confidence + flags
-uniform sampler2D probeAnchorPosition; // xyz = posWS, w = valid
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 
 void main(void)
 {
@@ -33,7 +35,7 @@ void main(void)
     ivec2 gridMax = ivec2(probeGridSize) - 1;
     probeCoord = clamp(probeCoord, ivec2(0), gridMax);
 
-    float probeValid = texelFetch(probeAnchorPosition, probeCoord, 0).w;
+    float probeValid = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0).w;
     if (probeValid < 0.5)
     {
         outRadiance0 = vec4(0.0);

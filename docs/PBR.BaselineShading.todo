@@ -827,7 +827,7 @@ Tasks
         grouping can reduce it to 12. SH9 coefficients offer six fewer gather samplers. These are
         analytical savings; implementation, linked-program validation and timing remain future work.
 
-    ☐ Consolidate compatible VGE-owned textures into 2D texture arrays.
+    ☑ Consolidate compatible VGE-owned textures into 2D texture arrays.
       - Follow docs/PBR.Postprocessing.md, section "Texture-array consolidation analysis".
         Migrate direct diffuse/specular/emissive first, then the water optical/source pair and
         G-buffer normal/material/environment channels. Target composite sampler reductions of
@@ -855,6 +855,12 @@ Tasks
       - Record actual allocation/binding changes and matched-workload timing separately from
         analytical storage/fetch counts in docs/PBR.Postprocessing.md. Do not claim reduced
         bandwidth from fewer bindings; retain deferred user-run visual/performance acceptance.
+      - Completed: five arrays replace seventeen texture objects; composite has twelve active
+        samplers at units 0–11. Production build: zero warnings/errors; 434 production and
+        501 test shader variants compile. Focused GPU validation: 320 passed, three preexisting
+        skips; final production smoke: 30/30. Independent review found no production defect.
+        Results and the source-reviewed water-owner lifecycle limit are recorded in
+        docs/PBR.Postprocessing.md, section "Implemented array ownership".
 
     ☐ Replace base-game bloom with VGE-owned extraction, filtering and composition in the postprocessing pass.
       - Follow the shared fully VGE-owned postprocessing and final-composition task above.

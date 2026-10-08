@@ -294,20 +294,22 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: viewMatrix);
         UpdateAndBindLumOnWorldProbeUbo(programId, new(0,0,0), Vector3.Zero,
             originMinCorner: [blocked ? new(-400f,-400f,-400f) : new(-500f,-500f,-500f)], ringOffset: [Vector3.Zero]);
+        using var groupedCoefficients = LayeredTestTexture.Create(shDc, shZero, shZero, shZero, shZero, shZero, shCoverage);
+        using var groupedAnchors = LayeredTestTexture.Create(anchorPos, anchorNormal);
+        using var groupedSurface = LayeredTestTexture.Create(normal, null, null);
         if (sh != null)
         {
             sh.Intensity = 1; sh.IndirectTint = [1,1,1];
-            sh.ProbeSh0 = shDc; sh.ProbeSh1 = shZero; sh.ProbeSh2 = shZero; sh.ProbeSh3 = shZero;
-            sh.ProbeSh4 = shZero; sh.ProbeSh5 = shZero; sh.ProbeSh6 = shCoverage;
-            sh.ProbeAnchorPosition = anchorPos; sh.ProbeAnchorNormal = anchorNormal;
-            sh.PrimaryDepth = depth.TextureId; sh.GBufferNormal = normal.TextureId;
+            sh.ProbeSh9 = groupedCoefficients;
+            sh.ProbeAnchors = groupedAnchors;
+            sh.PrimaryDepth = depth.TextureId; sh.GBufferSurface = groupedSurface;
             sh.WorldProbeRadianceAtlas = worldProbeRadiance; sh.WorldProbeVis0 = worldProbeVis; sh.WorldProbeMeta0 = worldProbeMeta;
         }
         else
         {
             SetupGatherUniforms(atlas!, invProjection, viewMatrix);
-            atlas!.ScreenProbeAtlas = screenProbeAtlas; atlas.ProbeAnchorPosition = anchorPos; atlas.ProbeAnchorNormal = anchorNormal;
-            atlas.PrimaryDepth = depth.TextureId; atlas.GBufferNormal = normal.TextureId;
+            atlas!.ScreenProbeAtlas = screenProbeAtlas; atlas.ProbeAnchors = groupedAnchors;
+            atlas.PrimaryDepth = depth.TextureId; atlas.GBufferSurface = groupedSurface;
             atlas.WorldProbeRadianceAtlas = worldProbeRadiance; atlas.WorldProbeVis0 = worldProbeVis; atlas.WorldProbeMeta0 = worldProbeMeta;
         }
             TestFramework.RenderQuadTo(programId, output);
@@ -402,10 +404,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Bind inputs
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs3 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs3;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput3;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -493,10 +496,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs4 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs4;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput4;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -604,10 +608,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs5 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs5;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput5;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -715,10 +720,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs6 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs6;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput6;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -789,10 +795,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: (1f, 1f, 1f));
 
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs7 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs7;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput7;
 
         TestFramework.RenderQuadTo(programId, baselineOutput);
         var baselineData = baselineOutput[0].ReadPixels();
@@ -806,10 +813,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Re-bind textures after uniform setup
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs8 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs8;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput8;
 
         TestFramework.RenderQuadTo(programId, tintedOutput);
         var tintedData = tintedOutput[0].ReadPixels();
@@ -902,10 +910,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs9 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs9;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput9 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput9;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -969,10 +978,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs10 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs10;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput10 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput10;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1038,10 +1048,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             SetupGatherUniforms(programId, invProjection, viewMatrix);
 
             programId.ScreenProbeAtlas = atlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs11 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs11;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput11 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput11;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1066,10 +1077,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             SetupGatherUniforms(programId, invProjection, viewMatrix);
 
             programId.ScreenProbeAtlas = atlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs12 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs12;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput12 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput12;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1133,10 +1145,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
 
             programId.ScreenProbeAtlas = atlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs13 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs13;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput13 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput13;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1159,10 +1172,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
 
             programId.ScreenProbeAtlas = atlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs14 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs14;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput14 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput14;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1222,10 +1236,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         SetupGatherUniforms(programId, invProjection, viewMatrix);
 
         programId.ScreenProbeAtlas = atlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var anchorInputs15 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs15;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput15 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput15;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -1342,10 +1357,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.1f);
 
             programId.ScreenProbeAtlas = atlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs16 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs16;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput16 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput16;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1368,10 +1384,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.9f);
 
             programId.ScreenProbeAtlas = atlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs17 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs17;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput17 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput17;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1417,10 +1434,11 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         {
             SetupGatherUniforms(programId, invProjection, viewMatrix);
             programId.ScreenProbeAtlas = atlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs18 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs18;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput18 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput18;
 
             TestFramework.RenderQuadTo(programId, output);
 

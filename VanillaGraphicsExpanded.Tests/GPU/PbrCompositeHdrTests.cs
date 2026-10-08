@@ -45,9 +45,12 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var position = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f,
             Enumerable.Range(0, count).SelectMany(_ => new[] { 0f, 0f, -2f, 1f }).ToArray());
         using var output = CreateMRTRenderTarget(count, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
-        program.DirectDiffuse = color; program.DirectSpecular = zero; program.Emissive = zero;
-        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero.TextureId; program.GBufferMaterial = zero;
-        program.GBufferNormal = normal; program.GBufferPosition = position.TextureId; program.GBufferEnvironment = zero;
+        using var receiverDirectLighting = LayeredTestTexture.Create(color, zero, zero);
+        program.DirectLighting = receiverDirectLighting;
+        using var surface = LayeredTestTexture.Create(normal, zero, zero);
+        program.GBufferSurface = surface;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero.TextureId;
+        program.GBufferPosition = position.TextureId;
         program.PrimaryDepth = depth.TextureId;
         program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
         program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
@@ -101,14 +104,15 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.One, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f,0f,0f,1f))
         { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>loss)) };
         atmosphereOwner.Publish(snapshot);
+        using var surface = LayeredTestTexture.Create(normal, unused, environment);
+        using var fogDirectLighting = LayeredTestTexture.Create(direct, specular, emission);
         output.BindWithViewport();
         {
-            program.DirectDiffuse = direct; program.DirectSpecular = specular; program.Emissive = emission;
+            program.DirectLighting = fogDirectLighting;
             program.IndirectDiffuse = unused; program.GBufferAlbedo = unused.TextureId;
-            program.GBufferMaterial = unused; program.GBufferNormal = normal;
+            program.GBufferSurface = surface;
             program.GBufferPosition = position.TextureId;
             program.PrimaryDepth = depth.TextureId;
-            program.GBufferEnvironment = environment;
             program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1];
             program.SetAtmosphere(snapshot);
             // Publish the complete frame state, including the absence of a water-volume capture.
@@ -133,6 +137,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         // Receiver publication precedes camera transport. The specialized capture
         // must retain that exact pair while leaving the ordinary color owner alone.
         environment.UploadDataImmediate(new float[] { .25f, .5f, 1f, skyVisibility });
+        surface.UploadDataImmediate(new float[] { .25f, .5f, 1f, skyVisibility }, 0, 0, 2, 1, 1, 1);
         program.RefractionSourceEnabled = true;
         using var receiverOutputs = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba16f,
             PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
@@ -200,17 +205,20 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             AerialAttenuation = ImmutableArray.CreateRange(new float[96]) };
         atmosphereOwner.Publish(snapshot);
         output.BindWithViewport();
-        program.DirectDiffuse = direct; program.DirectSpecular = zero; program.Emissive = zero;
-        program.IndirectDiffuse = zero; program.GBufferAlbedo = sky ? direct.TextureId : zero.TextureId; program.GBufferMaterial = zero;
-        program.GBufferNormal = normal; program.GBufferPosition = zero.TextureId;
-        program.GBufferEnvironment = zero; program.PrimaryDepth = depth.TextureId;
+        using var waterDirectLighting = LayeredTestTexture.Create(direct, zero, zero);
+        program.DirectLighting = waterDirectLighting;
+        using var surface = LayeredTestTexture.Create(normal, zero, zero);
+        program.GBufferSurface = surface;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = sky ? direct.TextureId : zero.TextureId;
+        program.GBufferPosition = zero.TextureId; program.PrimaryDepth = depth.TextureId;
         program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1];
         program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
         program.SetAtmosphere(snapshot);
         program.SetUnderwater(underwater);
         program.RefractionSourceEnabled = true;
         program.FogDensityIn = 10; program.FogMinIn = 1; program.RgbaFogIn = new(1, 1, 1, 1);
-        program.SetWaterVolume(new WaterVolumeFrame(optical, source, underwater && mappedCamera ? medium : null));
+        using var waterArray = LayeredTestTexture.Create(optical, source);
+        program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null));
         var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
         Assert.Equal(272, cpuParameters.Length);
         Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 236));

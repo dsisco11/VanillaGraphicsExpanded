@@ -159,11 +159,12 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
         {
 
             // Bind textures to fixed units
-            programId.ProbeAnchorPosition = anchorPosTex;
-            programId.ProbeAnchorNormal = anchorNormalTex;
+            using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            programId.ProbeAnchors = anchorInputs1;
             programId.PrimaryDepth = depthTex.TextureId;
             programId.SurfaceAlbedo = directTex;
-            programId.GBufferMaterial = emissiveTex.TextureId;
+            using var surfaceInput1 = LayeredTestTexture.Create(null, emissiveTex, null);
+            programId.GBufferSurface = surfaceInput1;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
             programId.HzbDepth = hzbTex;
             programId.ScreenProbeAtlasMetaHistory = historyMetaTex;

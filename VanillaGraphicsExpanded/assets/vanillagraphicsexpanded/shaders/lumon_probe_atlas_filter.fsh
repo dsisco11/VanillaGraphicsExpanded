@@ -30,7 +30,9 @@ uniform sampler2D octahedralAtlas;
 uniform sampler2D probeAtlasMeta;
 
 // Probe anchors for validity check
-uniform sampler2D probeAnchorPosition;  // xyz = posWS, w = validity
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 
 // Filter parameters
 
@@ -50,7 +52,7 @@ void main(void)
     ivec2 probeGridSizeI = ivec2(probeGridSize);
     probeCoord = clamp(probeCoord, ivec2(0), probeGridSizeI - 1);
 
-    float probeValid = texelFetch(probeAnchorPosition, probeCoord, 0).w;
+    float probeValid = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0).w;
     if (probeValid < 0.5)
     {
         outRadiance = vec4(0.0);

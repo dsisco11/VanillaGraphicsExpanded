@@ -140,7 +140,8 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
         programId.ScreenProbeAtlas = atlasTex;
         programId.ScreenProbeAtlasMeta = metaTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs101 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs101;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outRgba = outputAtlas[0].ReadPixels();
@@ -188,7 +189,8 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
         programId.ScreenProbeAtlas = atlasTex;
         programId.ScreenProbeAtlasMeta = metaTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs102 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs102;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outRgba = outputAtlas[0].ReadPixels();
@@ -239,7 +241,8 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
             programId.ScreenProbeAtlas = atlasTex;
             programId.ScreenProbeAtlasMeta = metaTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs103 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs103;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outRgba = outputAtlas[0].ReadPixels();
@@ -273,7 +276,8 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
             programId.ScreenProbeAtlas = atlasTex;
             programId.ScreenProbeAtlasMeta = metaTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs104 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs104;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outRgba = outputAtlas[0].ReadPixels();

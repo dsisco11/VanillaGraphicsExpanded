@@ -183,9 +183,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         // Allocation and early exits remain inside the caller's restoration boundary.
 
         // Need direct pass outputs.
-        if (isolatedLighting is null && (directLightingBuffers.DirectDiffuseTex is null
-            || directLightingBuffers.DirectSpecularTex is null
-            || directLightingBuffers.EmissiveTex is null))
+        if (isolatedLighting is null && directLightingBuffers.Radiance is null)
         {
             return;
         }
@@ -228,20 +226,14 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         shader.PreOverlayColor = cleanSource?.Color;
         shader.PreOverlayDepth = cleanSource?.Depth;
 
-
-
         // Direct lighting radiance buffers (linear, fog-free)
-        shader.DirectDiffuse = isolatedLighting?.DirectDiffuse ?? directLightingBuffers.DirectDiffuseTex;
-        shader.DirectSpecular = isolatedLighting?.DirectSpecular ?? directLightingBuffers.DirectSpecularTex;
-        shader.Emissive = isolatedLighting?.Emissive ?? directLightingBuffers.EmissiveTex;
+        shader.DirectLighting = isolatedLighting?.Radiance ?? directLightingBuffers.Radiance;
 
         if (lumOnEnabled) shader.IndirectDiffuse = indirectTex;
-        shader.GBufferEnvironment = gBufferManager.EnvironmentTexture;
+        shader.GBufferSurface = gBufferManager.SurfaceTexture;
 
         // GBuffer inputs
         shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];
-        shader.GBufferMaterial = gBufferManager.MaterialTexture;
-        shader.GBufferNormal = gBufferManager.NormalTexture;
         shader.GBufferPosition = gBufferManager.PositionTextureId;
         shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
 

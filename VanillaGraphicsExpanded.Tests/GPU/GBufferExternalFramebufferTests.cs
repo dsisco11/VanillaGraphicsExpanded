@@ -147,7 +147,7 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
 
         using var manager = new GBufferManager(api.Object);
         manager.SetupGBuffers();
-        int[] owned = [manager.NormalTextureId, manager.MaterialTextureId, manager.PatchIdTextureId, manager.EnvironmentTextureId];
+        int[] owned = [manager.SurfaceTextureId, manager.PatchIdTextureId];
 
         Assert.Equal(4, frame.ColorTextureIds.Length);
         Assert.DoesNotContain(owned, texture => frame.ColorTextureIds.Contains(texture));
@@ -180,14 +180,14 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
 
         using var manager = new GBufferManager(api.Object);
         manager.SetupGBuffers();
-        int[] stale = [manager.NormalTextureId, manager.MaterialTextureId, manager.PatchIdTextureId, manager.EnvironmentTextureId];
+        int[] stale = [manager.SurfaceTextureId, manager.PatchIdTextureId];
         GL.DeleteTextures(stale.Length, stale);
         frame.Width = frame.Height = 4;
 
         manager.SetupGBuffers();
 
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        Assert.All([manager.NormalTextureId, manager.MaterialTextureId, manager.PatchIdTextureId, manager.EnvironmentTextureId],
+        Assert.All([manager.SurfaceTextureId, manager.PatchIdTextureId],
             texture => Assert.True(GL.IsTexture(texture)));
         GpuFramebuffer.Unbind();
     }
@@ -215,9 +215,8 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         Assert.True(buffers.EnsureBuffers(4, 4));
 
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        Assert.True(GL.IsTexture(buffers.DirectDiffuseTextureId));
-        Assert.True(GL.IsTexture(buffers.DirectSpecularTextureId));
-        Assert.True(GL.IsTexture(buffers.EmissiveTextureId));
+        Assert.True(GL.IsTexture(buffers.Radiance!.TextureId));
+        Assert.Equal(3, buffers.Radiance.Depth);
     }
     #endregion
 }

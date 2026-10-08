@@ -58,15 +58,13 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
             AerialAttenuation = ImmutableArray.CreateRange(new float[96])
         };
         atmosphere.Publish(snapshot);
-        program.DirectDiffuse = direct;
-        program.DirectSpecular = zero;
-        program.Emissive = zero;
+        using var directLighting = LayeredTestTexture.Create(direct, zero, zero);
+        program.DirectLighting = directLighting;
         program.IndirectDiffuse = zero;
         program.GBufferAlbedo = zero.TextureId;
-        program.GBufferMaterial = zero;
-        program.GBufferNormal = normal;
+        using var surface = LayeredTestTexture.Create(normal, zero, zero);
+        program.GBufferSurface = surface;
         program.GBufferPosition = position.TextureId;
-        program.GBufferEnvironment = zero;
         program.PrimaryDepth = depth.TextureId;
         program.InvProjectionMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 20, 0, 0, 0, 0, 1];
         program.ViewMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];

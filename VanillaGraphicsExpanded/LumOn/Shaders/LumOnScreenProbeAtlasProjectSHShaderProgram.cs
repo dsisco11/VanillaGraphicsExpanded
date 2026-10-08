@@ -58,7 +58,7 @@ public partial class LumOnScreenProbeAtlasProjectSHShaderProgram : LumOnShaderPr
     /// <summary>
     /// Probe anchor positions for validity checks.
     /// </summary>
-    public partial GpuTexture? ProbeAnchorPosition { set; }
+    public partial GpuTexture? ProbeAnchors { set; }
 
     #endregion
 

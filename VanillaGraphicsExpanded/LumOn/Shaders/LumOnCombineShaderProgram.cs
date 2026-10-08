@@ -82,12 +82,7 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     /// <summary>
     /// G-Buffer material properties (roughness, metallic, etc.).
     /// </summary>
-    public partial int GBufferMaterial { set; }
-
-    /// <summary>
-    /// G-Buffer world-space normals.
-    /// </summary>
-    public partial int GBufferNormal { set; }
+    public partial GpuTexture? GBufferSurface { set; }
 
     /// <summary>
     /// Primary depth texture for sky detection.

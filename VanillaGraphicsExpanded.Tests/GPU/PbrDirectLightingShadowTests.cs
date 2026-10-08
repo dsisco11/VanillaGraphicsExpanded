@@ -191,10 +191,9 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
         program.PrimaryScene = albedo.TextureId;
         program.PrimaryDepth = depth.TextureId;
-        program.GBufferNormal = normal.TextureId;
-        program.GBufferMaterial = material.TextureId;
+        using var surface = LayeredTestTexture.Create(normal, material, environment);
+        program.GBufferSurface = surface;
         program.GBufferPosition = position.TextureId;
-        program.GBufferEnvironment = environment.TextureId;
         program.ShadowMapNear = shadow.TextureId;
         program.ShadowMapFar = farShadow.TextureId;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -216,7 +215,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         program.RgbaAmbientIn = new(0f, 0f, 0f);
         program.SetPointLights(pointLight ? 1 : 0, pointLight ? [0f, 0f, 0f] : null, pointLight ? [1f, 1f, 1f] : null);
         output.BindWithViewport();
-        TestFramework.RenderQuad(program);
+        TestFramework.RenderQuadTo(program, output);
 
         var result = new float[12];
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, output.FboId);

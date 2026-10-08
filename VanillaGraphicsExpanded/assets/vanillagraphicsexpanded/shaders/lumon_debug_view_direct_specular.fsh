@@ -16,7 +16,7 @@ out vec4 outColor;
 /** Implements render direct specular debug for its explicit view entrypoint. */
 vec4 renderDirectSpecularDebug()
 {
-    return vec4(vgeTonemapReinhard(texture(directSpecular, uv).rgb), 1.0);
+    return vec4(vgeTonemapReinhard(texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).rgb), 1.0);
 }
 
 /** Renders only the DirectSpecular view; mode selection occurs before program loading. */

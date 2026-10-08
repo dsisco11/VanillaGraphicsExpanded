@@ -9,10 +9,13 @@ internal sealed class GBufferTextures : IDisposable
 {
     private readonly GpuResourceCollection resources = new();
 
-    public DynamicTexture2D Normal { get; }
-    public DynamicTexture2D Material { get; }
+    /// <summary>Layer indices used by terrain MRT attachments and surface consumers.</summary>
+    public const int NormalLayer = 0, MaterialLayer = 1, EnvironmentLayer = 2;
+
+    /// <summary>Shared storage for normal, material and environmental-light data.</summary>
+    public Texture3D Surface { get; }
+    /// <summary>Separate integer storage for exact terrain patch identities.</summary>
     public DynamicTexture2D PatchId { get; }
-    public DynamicTexture2D Environment { get; }
 
     #region Allocation
     /// <summary>Allocates companion terrain targets with the sampling policy used by raw-ID consumers.</summary>
@@ -20,10 +23,9 @@ internal sealed class GBufferTextures : IDisposable
     {
         try
         {
-            Normal = Create(width, height, PixelInternalFormat.Rgba16f, "gNormal");
-            Material = Create(width, height, PixelInternalFormat.Rgba16f, "gMaterial");
+            Surface = resources.Own(Texture3D.Create(width, height, 3, PixelInternalFormat.Rgba16f,
+                TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "GBuffer.Surface"));
             PatchId = Create(width, height, PixelInternalFormat.Rgba32ui, "gPatchId");
-            Environment = Create(width, height, PixelInternalFormat.Rgba16f, "gEnvironment");
         }
         catch { Dispose(); throw; }
     }

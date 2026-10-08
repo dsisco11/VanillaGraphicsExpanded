@@ -31,8 +31,7 @@ public sealed class ShaderSceneInputsTests : RenderTestBase
             Assert.Same(output,first.Engine.Output);
             first.Engine.Color.UploadDataImmediate(Enumerable.Repeat(frame*.25f,16).ToArray());
             first.Engine.Depth.UploadDataImmediate(Enumerable.Repeat(.5f,4).ToArray());
-            first.Terrain.Normal.UploadDataImmediate(new float[16]);
-            first.Terrain.Material.UploadDataImmediate(new float[16]);
+            first.Terrain.Surface.UploadDataImmediate(new float[48], 0, 0, 0, 2, 2, 3);
             var current = Borrow(first);
             for (int i=0;i<original.Length;i++)
             {
@@ -69,6 +68,6 @@ public sealed class ShaderSceneInputsTests : RenderTestBase
 
     /// <summary>Observes all scene attachments without taking over their lifetime.</summary>
     private static GpuTexture[] Borrow(ShaderSceneInputs scene) =>
-        [scene.Engine.Color,scene.Engine.Depth,scene.Terrain.Normal,scene.Terrain.Material,scene.Terrain.PatchId];
+        [scene.Engine.Color,scene.Engine.Depth,scene.Terrain.Surface,scene.Terrain.PatchId];
     #endregion
 }

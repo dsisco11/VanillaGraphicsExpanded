@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 vec2 uv;
 out vec4 outColor;
@@ -18,7 +19,7 @@ out vec4 outColor;
 /** Implements render material bands debug for its explicit view entrypoint. */
 vec4 renderMaterialBandsDebug()
 {
-    vec4 m = clamp(texture(gBufferMaterial, uv), 0.0, 1.0);
+    vec4 m = clamp(texture(gBufferSurface, vec3(uv, VGE_SURFACE_MATERIAL)), 0.0, 1.0);
 
     // Quantize to 8-bit per channel before hashing to make the visualization stable.
     uvec4 q = uvec4(m * 255.0 + 0.5);

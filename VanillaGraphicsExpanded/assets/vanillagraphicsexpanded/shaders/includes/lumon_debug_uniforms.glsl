@@ -1,3 +1,4 @@
+@import "./gbuffer_layers.glsl"
 // Shared uniforms/samplers for LumOn debug shaders.
 // Shared binding schema for independently compiled per-view entrypoints.
 
@@ -10,12 +11,13 @@
 
 // G-buffer textures
 uniform sampler2D primaryDepth;
-uniform sampler2D gBufferNormal;
+uniform sampler2DArray gBufferSurface;
 uniform usampler2D gBufferPatchId; // RGBA32UI: (chunkSlot, patchId, packedPatchUv, misc)
 
 // Probe textures
-uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
-uniform sampler2D probeAnchorNormal;
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 uniform sampler2D radianceTexture0;
 uniform sampler2D radianceTexture1;     // Second SH texture for full unpacking
 uniform sampler2D indirectHalf;
@@ -38,12 +40,12 @@ uniform sampler2D probePisEnergy;        // Probe-resolution R32F importance ene
 // Phase 15: compositing debug inputs
 uniform sampler2D indirectDiffuseFull;   // Upsampled indirect buffer (full-res)
 uniform sampler2D gBufferAlbedo;         // Albedo (fallback: captured scene)
-uniform sampler2D gBufferMaterial;       // Material properties (roughness/metallic/emissive/transmission)
 
 // Phase 16: direct lighting debug inputs
-uniform sampler2D directDiffuse;
-uniform sampler2D directSpecular;
-uniform sampler2D emissive;
+uniform sampler2DArray directLighting;
+const int VGE_DIRECT_DIFFUSE = 0;
+const int VGE_DIRECT_SPECULAR = 1;
+const int VGE_DIRECT_EMISSIVE = 2;
 
 // Phase 14: velocity buffer (RGBA32F)
 uniform sampler2D velocityTex;

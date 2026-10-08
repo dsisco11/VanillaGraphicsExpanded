@@ -48,8 +48,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var programs = new RuntimeLightingPrograms();
         using var drawing = new ShaderTestFramework();
         using var atmosphere = new AtmosphereModSystem();
-        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
+        using var materialTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
+        using var material = GpuFramebufferAttachment.FromTexture(materialTexture);
+        using var glowTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
+        using var glow = GpuFramebufferAttachment.FromTexture(glowTexture);
         using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var liquidDepth = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [1f, 1f, 1f, 1f]);
@@ -61,7 +63,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var engine = GpuFramebuffer.Create([material, glow, normalAttachment, positionAttachment], depth);
         var primary = new FrameBufferRef { FboId = engine.FboId, Width = 2, Height = 2, DepthTextureId = depth.TextureId,
             ColorTextureIds = [material.TextureId, glow.TextureId, normals.TextureId, positions.TextureId] };
-        using var postStorage = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
+        using var postStorageTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
+        using var postStorage = GpuFramebufferAttachment.FromTexture(postStorageTexture);
         var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
         frames[(int)EnumFrameBuffer.Primary] = primary;
         frames[(int)EnumFrameBuffer.Transparent] = new() { Width=2,Height=2,ColorTextureIds=[revealage.TextureId,revealage.TextureId] };

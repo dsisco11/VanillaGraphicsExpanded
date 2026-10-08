@@ -35,9 +35,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
             program.PrimaryScene = input.TextureId;
             program.PrimaryDepth = depth.TextureId;
             program.GBufferPosition = input.TextureId;
-            program.GBufferEnvironment = input.TextureId;
-            program.GBufferNormal = input.TextureId;
-            program.GBufferMaterial = input.TextureId;
+            using var surfaceInput1 = LayeredTestTexture.Create(input, null, null);
+            program.GBufferSurface = surfaceInput1;
             program.ShadowMapNear = depth.TextureId;
             program.ShadowMapFar = depth.TextureId;
             program.Use();

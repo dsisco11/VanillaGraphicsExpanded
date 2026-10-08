@@ -265,8 +265,8 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
     /// <summary>Compares shader-generated anchors against independent ray/box intersections in absolute world coordinates.</summary>
     private static void AssertAnchors(SurfaceLightingConsumerRuntimeFixture runtime,SpatialLightingScene scene)
     {
-        var anchors=runtime.Screen.ProbeAnchorPositionTex!.ReadPixels();
-        var normals=runtime.Screen.ProbeAnchorNormalTex!.ReadPixels();
+        var anchors=LayeredTestTexture.Read(runtime.Screen.ProbeAnchors!, 0);
+        var normals=LayeredTestTexture.Read(runtime.Screen.ProbeAnchors!, 1);
         for(int i=0;i<scene.VisiblePoints.Length;i++)
         {
             Assert.True(anchors[i*4+3]>=.5f);

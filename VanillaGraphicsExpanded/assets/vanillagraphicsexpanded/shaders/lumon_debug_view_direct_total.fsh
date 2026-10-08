@@ -16,8 +16,8 @@ out vec4 outColor;
 /** Implements render direct total debug for its explicit view entrypoint. */
 vec4 renderDirectTotalDebug()
 {
-    vec3 dd = texture(directDiffuse, uv).rgb;
-    vec3 ds = texture(directSpecular, uv).rgb;
+    vec3 dd = texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).rgb;
+    vec3 ds = texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).rgb;
     return vec4(vgeTonemapReinhard(dd + ds), 1.0);
 }
 

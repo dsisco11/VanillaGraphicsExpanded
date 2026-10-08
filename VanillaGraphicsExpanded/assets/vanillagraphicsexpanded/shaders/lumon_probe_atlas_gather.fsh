@@ -1,10 +1,11 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 out vec4 outColor;
 
 // ============================================================================
 // LumOn Octahedral Gather Pass
-// 
+//
 // Gathers irradiance at each pixel by integrating radiance from nearby probes'
 // octahedral tiles over the upper hemisphere aligned to the pixel's normal.
 //
@@ -38,12 +39,13 @@ out vec4 outColor;
 uniform sampler2D octahedralAtlas;
 
 // Probe anchors (world-space)
-uniform sampler2D probeAnchorPosition;  // xyz = posWS, w = validity
-uniform sampler2D probeAnchorNormal;    // xyz = normalWS (encoded)
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 
 // G-buffer for pixel info
 uniform sampler2D primaryDepth;
-uniform sampler2D gBufferNormal;
+uniform sampler2DArray gBufferSurface;
 
 // ============================================================================
 // World Probe Clipmap (Phase 18)
@@ -66,23 +68,23 @@ struct ProbeData {
 
 ProbeData loadProbe(ivec2 probeCoord, ivec2 probeGridSizeI) {
     ProbeData p;
-    
+
     // Clamp to grid bounds
     probeCoord = clamp(probeCoord, ivec2(0), probeGridSizeI - 1);
-    
+
     // Load anchor position and validity
-    vec4 anchorPos = texelFetch(probeAnchorPosition, probeCoord, 0);
+    vec4 anchorPos = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
     p.posWS = anchorPos.xyz;
     p.valid = anchorPos.w;
-    
+
     // Load anchor normal
-    vec4 anchorNormal = texelFetch(probeAnchorNormal, probeCoord, 0);
+    vec4 anchorNormal = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0);
     p.normalWS = lumonDecodeNormal(anchorNormal.xyz);
-    
+
     // Compute view-space depth for weighting
     vec4 posVS = viewMatrix * vec4(p.posWS, 1.0);
     p.depthVS = -posVS.z;  // Positive distance from camera
-    
+
     return p;
 }
 
@@ -109,43 +111,43 @@ vec3 integrateHemisphere(ivec2 probeCoord, vec3 normalWS, float pixelDepthVS,
     float totalWeight = 0.0;
     float hitDistSum = 0.0;
     int hitDistCount = 0;
-    
+
     // Calculate atlas offset for this probe's 8×8 tile
     ivec2 atlasOffset = probeCoord * LUMON_OCTAHEDRAL_SIZE;
-    
+
     // Determine stride (1 = 64 samples, 2 = 16 samples)
     int stride = max(1, sampleStride);
-    
+
     // Sample octahedral texels
     for (int y = 0; y < LUMON_OCTAHEDRAL_SIZE; y += stride) {
         for (int x = 0; x < LUMON_OCTAHEDRAL_SIZE; x += stride) {
             // Convert texel to world-space direction
             vec2 octUV = lumonTexelCoordToOctahedralUV(ivec2(x, y));
             vec3 dir = lumonOctahedralUVToDirection(octUV);
-            
+
             // Cosine weight - skip backfacing directions (lower hemisphere)
             float cosWeight = dot(dir, normalWS);
             if (cosWeight <= 0.0) continue;
-            
+
             // Sample radiance + hit distance from atlas
             ivec2 atlasCoord = atlasOffset + ivec2(x, y);
             vec4 sampleData = texelFetch(octahedralAtlas, atlasCoord, 0);
             vec3 radiance = sampleData.rgb;
             float hitDist = lumonDecodeHitDistance(sampleData.a);
-            
+
             // Accumulate with cosine weight
             irradiance += radiance * cosWeight;
             totalWeight += cosWeight;
-            
+
             // Track hit distances for probe weighting
             hitDistSum += hitDist;
             hitDistCount++;
         }
     }
-    
+
     // Compute average hit distance
     avgHitDist = (hitDistCount > 0) ? hitDistSum / float(hitDistCount) : pixelDepthVS;
-    
+
     // Normalize irradiance
     return (totalWeight > 0.001) ? irradiance / totalWeight : vec3(0.0);
 }
@@ -188,7 +190,7 @@ float computeProbeWeight(float bilinearWeight,
     if (probeValid < 0.5) {
         return 0.0;
     }
-    
+
     // Depth similarity - penalize probes at very different depths.
     // IMPORTANT: Near the camera, pixelDepthVS can be very small; normalizing solely
     // by pixelDepthVS makes depthDiff explode and collapses all weights to ~0,
@@ -196,16 +198,16 @@ float computeProbeWeight(float bilinearWeight,
     float depthDenom = max(max(pixelDepthVS, probeDepthVS), 1.0);
     float depthDiff = abs(pixelDepthVS - probeDepthVS) / depthDenom;
     float depthWeight = exp(-depthDiff * depthDiff * 8.0);
-    
+
     // Normal similarity - penalize probes with different surface orientation
     float normalDot = max(dot(pixelNormal, probeNormal), 0.0);
     float normalWeight = pow(normalDot, 4.0);
-    
+
     // Distance-based weight: prefer probes with similar scene distance.
     // Same stability concern as depthDiff: clamp denominator to avoid near-plane blowups.
     float distRatio = avgHitDist / depthDenom;
     float distWeight = exp(-abs(distRatio - 1.0) * 2.0);
-    
+
     // Combine all weights
     return bilinearWeight * depthWeight * normalWeight * distWeight;
 }
@@ -219,49 +221,49 @@ void main(void)
     ivec2 bestFull;
     float pixelDepth;
     vec3 pixelNormalWS;
-    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferNormal, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
+    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferSurface, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
     {
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
     vec2 screenUV = (vec2(bestFull) + 0.5) / screenSize;
-    
+
     // Reconstruct pixel position and get normal
     vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
     float pixelDepthVS = -pixelPosVS.z;  // Positive depth
-    
+
     // pixelNormalWS already selected from full-res G-buffer (see helper)
-    
+
     // Calculate which probes surround this pixel
     vec2 screenPos = screenUV * screenSize;
     vec2 probePos = lumonScreenToProbeAnchorPos(screenPos, float(probeSpacing));
-    
+
     // Get the four surrounding probe coordinates
     ivec2 probe00 = ivec2(floor(probePos));
     ivec2 probe10 = probe00 + ivec2(1, 0);
     ivec2 probe01 = probe00 + ivec2(0, 1);
     ivec2 probe11 = probe00 + ivec2(1, 1);
-    
+
     // Bilinear interpolation weights
     vec2 frac = fract(probePos);
     float bw00 = (1.0 - frac.x) * (1.0 - frac.y);
     float bw10 = frac.x * (1.0 - frac.y);
     float bw01 = (1.0 - frac.x) * frac.y;
     float bw11 = frac.x * frac.y;
-    
+
     ivec2 probeGridSizeI = ivec2(probeGridSize);
-    
+
     // Load probe data
     ProbeData p00 = loadProbe(probe00, probeGridSizeI);
     ProbeData p10 = loadProbe(probe10, probeGridSizeI);
     ProbeData p01 = loadProbe(probe01, probeGridSizeI);
     ProbeData p11 = loadProbe(probe11, probeGridSizeI);
-    
+
     // Integrate hemisphere for each valid probe
     float avgDist00, avgDist10, avgDist01, avgDist11;
-    
-    vec3 irr00 = (p00.valid >= 0.5) 
+
+    vec3 irr00 = (p00.valid >= 0.5)
         ? integrateHemisphere(probe00, pixelNormalWS, pixelDepthVS, probeGridSizeI, avgDist00)
         : vec3(0.0);
     vec3 irr10 = (p10.valid >= 0.5)
@@ -273,13 +275,13 @@ void main(void)
     vec3 irr11 = (p11.valid >= 0.5)
         ? integrateHemisphere(probe11, pixelNormalWS, pixelDepthVS, probeGridSizeI, avgDist11)
         : vec3(0.0);
-    
+
     // Initialize avgDist for invalid probes
     if (p00.valid < 0.5) avgDist00 = 999.0;
     if (p10.valid < 0.5) avgDist10 = 999.0;
     if (p01.valid < 0.5) avgDist01 = 999.0;
     if (p11.valid < 0.5) avgDist11 = 999.0;
-    
+
     vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
 
     // Compute edge-aware weights. Directional atlas distances reject probes separated
@@ -292,9 +294,9 @@ void main(void)
         * computeProbeToPixelVisibility(probe01, p01.posWS, pixelPosWS);
     float w11 = computeProbeWeight(bw11, pixelDepthVS, p11.depthVS, pixelNormalWS, p11.normalWS, avgDist11, p11.valid)
         * computeProbeToPixelVisibility(probe11, p11.posWS, pixelPosWS);
-    
+
     float totalWeight = w00 + w10 + w01 + w11;
-    
+
     // If edge-aware weighting collapses (common very near the camera), fall back to
     // bilinear weighting with normal similarity + validity (dropping depth/dist penalties)
     // so we avoid a hard black cutoff without reintroducing obvious normal leaks.
@@ -311,7 +313,7 @@ void main(void)
         totalWeight = w00 + w10 + w01 + w11;
 
     }
-    
+
     // Screen confidence (raw weight sum, clamped)
     float screenConfidence = clamp(totalWeight, 0.0, 1.0);
 

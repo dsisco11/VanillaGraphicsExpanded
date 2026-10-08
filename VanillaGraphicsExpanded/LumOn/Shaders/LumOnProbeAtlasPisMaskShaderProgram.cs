@@ -69,8 +69,6 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
 
-
-
     #region Static
 
     public static void Register(ICoreClientAPI api)
@@ -88,9 +86,7 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
 
     #region Texture Samplers
 
-    public partial GpuTexture? ProbeAnchorPosition { set; }
-
-    public partial GpuTexture? ProbeAnchorNormal { set; }
+    public partial GpuTexture? ProbeAnchors { set; }
 
     public partial GpuTexture? ScreenProbeAtlasHistory { set; }
 

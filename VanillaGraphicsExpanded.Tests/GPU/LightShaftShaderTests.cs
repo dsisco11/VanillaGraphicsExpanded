@@ -104,11 +104,28 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     {
         EnsureShaderTestAvailable();var shader=Programs.Create<VanillaGraphicsExpanded.PBR.PBRCompositeShaderProgram>();
         GL.GetProgram(shader.ProgramId,GetProgramParameterName.ActiveUniforms,out int count);
-        int samplers=0;
-        for(int i=0;i<count;i++){GL.GetActiveUniform(shader.ProgramId,i,out int size,out ActiveUniformType type);if(type is ActiveUniformType.Sampler2D or ActiveUniformType.Sampler3D)samplers+=size;}
-        GL.GetInteger(GetPName.MaxTextureImageUnits,out int driverLimit);
+        int samplers = 0;
+        var units = new HashSet<int>();
+        for (int index = 0; index < count; index++)
+        {
+            string name = GL.GetActiveUniform(shader.ProgramId, index, out int size, out ActiveUniformType type);
+            if (type is not (ActiveUniformType.Sampler2D or ActiveUniformType.Sampler3D or ActiveUniformType.Sampler2DArray)) continue;
+            samplers += size;
+            Assert.True(shader.ProgramLayout.TryGetContractSamplerUnit(name, out int unit));
+            Assert.InRange(unit, 0, 11);
+            Assert.True(units.Add(unit));
+            int location = shader.ProgramLayout.BinaryInterface!.GetUniformLocation(name);
+            GL.GetUniform(shader.ProgramId, location, out int actualUnit);
+            Assert.Equal(unit, actualUnit);
+        }
+        int driverLimit = GpuSupport.MaxTextureImageUnits;
         output.WriteLine($"Composite active samplers={samplers}; driver fragment limit={driverLimit}; required fragment sampler capacity={samplers}.");
-        Assert.InRange(samplers,0,driverLimit);
+        output.WriteLine($"Device array layers={GpuSupport.MaxArrayTextureLayers}; color attachments={GpuSupport.MaxColorAttachments}; draw buffers={GpuSupport.MaxDrawBuffers}.");
+        Assert.True(GpuSupport.MaxArrayTextureLayers >= 7);
+        Assert.True(GpuSupport.MaxColorAttachments >= 8);
+        Assert.Equal(12, samplers);
+        Assert.InRange(samplers, 0, driverLimit);
+        Assert.Equal(Enumerable.Range(0, 12), units.Order());
     }
     /// <summary>Measures a bounded four-pass shaft extraction/filter/publication workload without bloom or live-frame claims.</summary>
     [Fact]

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -122,7 +123,8 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         using var output = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight, Enumerable.Repeat(PixelInternalFormat.Rgba16f, 7).ToArray());
         var program = CompileProjectShader();
         SetupProjectUniforms(program);
-        program.ScreenProbeAtlas = atlasTexture; program.ScreenProbeAtlasMeta = metadata; program.ProbeAnchorPosition = anchors;
+        program.ScreenProbeAtlas = atlasTexture; program.ScreenProbeAtlasMeta = metadata; using var projectAnchors = LayeredTestTexture.Create(anchors, null);
+        program.ProbeAnchors = projectAnchors;
         TestFramework.RenderQuadTo(program, output);
         var result = new float[28];
         for (int target = 0; target < 7; target++) output[target].ReadPixels().AsSpan(0, 4).CopyTo(result.AsSpan(target << 2, 4));
@@ -149,9 +151,11 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         var program = CompileSh9GatherShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupSh9GatherUniforms(program, identity, identity);
-        program.ProbeSh0 = packed[0]; program.ProbeSh1 = packed[1]; program.ProbeSh2 = packed[2]; program.ProbeSh3 = packed[3];
-        program.ProbeSh4 = packed[4]; program.ProbeSh5 = packed[5]; program.ProbeSh6 = packed[6];
-        program.ProbeAnchorPosition = anchors; program.ProbeAnchorNormal = normals; program.PrimaryDepth = depth.TextureId; program.GBufferNormal = guides.TextureId;
+        using var shInputs2 = LayeredTestTexture.Create(packed[0], packed[1], packed[2], packed[3], packed[4], packed[5], packed[6]);
+        program.ProbeSh9 = shInputs2;
+        using var anchorInputs1 = LayeredTestTexture.Create(anchors, normals);
+        program.ProbeAnchors = anchorInputs1; program.PrimaryDepth = depth.TextureId; using var surfaceInput1 = LayeredTestTexture.Create(guides, null, null);
+        program.GBufferSurface = surfaceInput1;
         TestFramework.RenderQuadTo(program, output);
         var result = output[0].ReadPixels();
         return new(result[0], result[1], result[2], result[3]);

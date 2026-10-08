@@ -16,7 +16,7 @@ out vec4 outColor;
 /** Implements render direct emissive debug for its explicit view entrypoint. */
 vec4 renderDirectEmissiveDebug()
 {
-    return vec4(vgeTonemapReinhard(texture(emissive, uv).rgb), 1.0);
+    return vec4(vgeTonemapReinhard(texture(directLighting, vec3(uv, VGE_DIRECT_EMISSIVE)).rgb), 1.0);
 }
 
 /** Renders only the DirectEmissive view; mode selection occurs before program loading. */

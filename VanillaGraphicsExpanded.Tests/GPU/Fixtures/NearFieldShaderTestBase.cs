@@ -52,12 +52,14 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         var gbuffer = resources.Scene.Terrain;
         // External world resources are borrowed, with no redundant fallback atlas allocation.
         var worldInputs = worldResources ?? resources.EnsureWorldProbes(cacheResolution, 1, 16);
-        gbuffer.Material.UploadDataImmediate(CreateUniformColorData(4,4,0,0,screenEmission,0));
-        program.ProbeAnchorPosition = Populate(buffers.ProbeAnchorPositionTex!, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1);
-        program.ProbeAnchorNormal = Populate(buffers.ProbeAnchorNormalTex!, .5f, .5f, 1, 0);
+        gbuffer.Surface.UploadDataImmediate(CreateUniformColorData(4,4,0,0,screenEmission,0), 0, 0, 1, 4, 4, 1);
+        var anchors = buffers.ProbeAnchors!;
+        anchors.UploadDataImmediate(CreateUniformColorData(anchors.Width, anchors.Height, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1), 0, 0, 0, anchors.Width, anchors.Height, 1);
+        anchors.UploadDataImmediate(CreateUniformColorData(anchors.Width, anchors.Height, .5f, .5f, 1, 0), 0, 0, 1, anchors.Width, anchors.Height, 1);
+        program.ProbeAnchors = anchors;
         program.PrimaryDepth = Populate(terrain.Depth, screenDepth).TextureId;
         program.SurfaceAlbedo = Populate(buffers.SurfaceAlbedoTex!, 1, 1, 1, 1);
-        program.GBufferMaterial = gbuffer.Material.TextureId;
+        program.GBufferSurface = gbuffer.Surface;
         program.ScreenProbeAtlasHistory = history ?? Populate(buffers.ScreenProbeAtlasHistoryTex!, 0, 0, 0, 0);
         program.ScreenProbeAtlasMetaHistory = historyMeta ?? Populate(buffers.ScreenProbeAtlasMetaHistoryTex!, 0, 0);
         program.HzbDepth = Populate(buffers.HzbDepthTex!, screenDepth);

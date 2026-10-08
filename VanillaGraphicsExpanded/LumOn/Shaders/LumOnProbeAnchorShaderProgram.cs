@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Shader program for LumOn Probe Anchor pass.
 /// Determines probe positions from G-buffer depth/normals.
-/// 
+///
 /// Output is in WORLD-SPACE (matching UE5 Lumen's design) for temporal stability:
 /// - World-space directions remain valid across camera rotations
 /// - Radiance stored per world-space direction can be directly blended
@@ -87,7 +87,7 @@ public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnP
     /// <summary>
     /// G-buffer world-space normals.
     /// </summary>
-    public partial int GBufferNormal { set; }
+    public partial GpuTexture? GBufferSurface { set; }
 
     /// <summary>
     /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).

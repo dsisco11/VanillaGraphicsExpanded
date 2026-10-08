@@ -29,7 +29,9 @@ layout(location = 6) out vec4 outSH6;
 
 uniform sampler2D octahedralAtlas;
 uniform sampler2D probeAtlasMeta;
-uniform sampler2D probeAnchorPosition; // xyz = posWS, w = validity
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 
 /** Integrates the fixed 8x8 directional cells and publishes separate sample reliability. */
 void main(void)
@@ -38,7 +40,7 @@ void main(void)
     ivec2 gridSizeI = ivec2(probeGridSize);
     probeCoord = clamp(probeCoord, ivec2(0), gridSizeI - 1);
 
-    float probeValid = texelFetch(probeAnchorPosition, probeCoord, 0).w;
+    float probeValid = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0).w;
     if (probeValid < 0.5)
     {
         outSH0 = vec4(0.0);

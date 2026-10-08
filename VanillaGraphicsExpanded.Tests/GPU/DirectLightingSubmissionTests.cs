@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.PBR;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -32,15 +33,15 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
             int drawFbo = GL.GetInteger(GetPName.DrawFramebufferBinding), readFbo = GL.GetInteger(GetPName.ReadFramebufferBinding);
             Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Assert.Equal(before + 1, scene.Draws);
             Compare(scene, kind == 0);
-            if (kind == 2) Assert.Contains(scene.Actual.Emissive.ReadPixels(), value => value > .01f);
+            if (kind == 2) Assert.Contains(LayeredTestTexture.Read(scene.Actual.Radiance, DirectLightingTargets.EmissiveLayer), value => value > .01f);
             AssertHostile(width, height, drawFbo, readFbo);
             Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
             if (kind is 3 or 6)
             {
-                float[] shadowed = scene.Actual.DirectDiffuse.ReadPixels();
+                float[] shadowed = LayeredTestTexture.Read(scene.Actual.Radiance, DirectLightingTargets.DiffuseLayer);
                 scene.Uniforms.DropShadowIntensity = 0;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
-                Assert.True(scene.Actual.DirectDiffuse.ReadPixels().Zip(shadowed).Any(pair => pair.First > pair.Second + .001f));
+                Assert.Contains(LayeredTestTexture.Read(scene.Actual.Radiance, DirectLightingTargets.DiffuseLayer).Zip(shadowed), pair => pair.First > pair.Second + .001f);
                 scene.Uniforms.DropShadowIntensity = 1;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
             }
@@ -48,7 +49,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         scene.Neutral();
         Assert.True(scene.Candidate.RenderLighting());
         for (int attachment = 0; attachment < 3; attachment++)
-            Assert.Equal(scene.Actual.Framebuffer![attachment].ReadPixels(), scene.Normal[attachment].ReadPixels());
+            Assert.Equal(LayeredTestTexture.Read(scene.Actual.Radiance, attachment), LayeredTestTexture.Read(Assert.IsType<Texture3D>(scene.Normal.GetAttachment(FramebufferAttachment.ColorAttachment0 + attachment)!.Resource), attachment));
         var unchangedPipeline = scene.Candidate.PrepareBoundaryPipeline();
         // Publish the changed inputs through the candidate first, so reference activation cannot hide skipped updates.
         scene.Inputs(2, .25f); Hostile();
@@ -73,7 +74,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         shader.InvalidateAssets();
         Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Compare(scene, false);
         Assert.NotSame(pipeline, scene.Candidate.PrepareBoundaryPipeline());
-        Assert.True(scene.Expected.Resize(17, 13)); Assert.True(scene.Actual.Resize(17, 13));
+        scene.ResizeOutputs(17, 13);
         scene.DrawReference(); Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Compare(scene, false);
         Hostile();
         int failureDraw = GL.GetInteger(GetPName.DrawFramebufferBinding), failureRead = GL.GetInteger(GetPName.ReadFramebufferBinding);
@@ -92,8 +93,8 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
     {
         for (int attachment = 0; attachment < 3; attachment++)
         {
-            float[] expected = scene.Expected.Framebuffer![attachment].ReadPixels();
-            float[] actual = scene.Actual.Framebuffer![attachment].ReadPixels();
+            float[] expected = LayeredTestTexture.Read(scene.Expected.Radiance, attachment);
+            float[] actual = LayeredTestTexture.Read(scene.Actual.Radiance, attachment);
             Assert.Equal(expected.Length, actual.Length); float maximum = 0; int mismatches = 0;
             for (int i = 0; i < expected.Length; i++)
             {

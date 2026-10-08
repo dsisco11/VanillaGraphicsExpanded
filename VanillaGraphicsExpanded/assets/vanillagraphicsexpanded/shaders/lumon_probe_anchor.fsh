@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 // MRT outputs
 layout(location = 0) out vec4 outPosition;  // posWS.xyz, valid
@@ -6,7 +7,7 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 
 // ============================================================================
 // LumOn Probe Anchor Pass
-// 
+//
 // Determines probe positions and normals from the G-buffer.
 // Each pixel in the probe grid corresponds to a screen-space probe.
 // Probes sample the center of their cell to determine anchor position.
@@ -34,7 +35,7 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 
 // G-buffer textures
 uniform sampler2D primaryDepth;    // Depth buffer
-uniform sampler2D gBufferNormal;   // World-space normals
+uniform sampler2DArray gBufferSurface;
 
 uniform sampler2D pmjJitter;
 
@@ -54,23 +55,23 @@ uniform sampler2D pmjJitter;
 bool hasDepthDiscontinuity(vec2 centerUV, float centerDepth) {
     ivec2 maxFull = ivec2(screenSize) - 1;
     ivec2 centerPx = clamp(ivec2(centerUV * screenSize), ivec2(0), maxFull);
-    
+
     // Sample 4 neighbors (nearest) to avoid bilinear mixing at silhouettes
     float depthL = texelFetch(primaryDepth, clamp(centerPx + ivec2(-1, 0), ivec2(0), maxFull), 0).r;
     float depthR = texelFetch(primaryDepth, clamp(centerPx + ivec2( 1, 0), ivec2(0), maxFull), 0).r;
     float depthU = texelFetch(primaryDepth, clamp(centerPx + ivec2(0,  1), ivec2(0), maxFull), 0).r;
     float depthD = texelFetch(primaryDepth, clamp(centerPx + ivec2(0, -1), ivec2(0), maxFull), 0).r;
-    
+
     // Linearize for proper comparison (non-linear depth distorts distances)
     float linCenter = lumonLinearizeDepth(centerDepth, zNear, zFar);
     float linL = lumonLinearizeDepth(depthL, zNear, zFar);
     float linR = lumonLinearizeDepth(depthR, zNear, zFar);
     float linU = lumonLinearizeDepth(depthU, zNear, zFar);
     float linD = lumonLinearizeDepth(depthD, zNear, zFar);
-    
+
     // Check for large depth jumps (relative threshold based on center distance)
     float threshold = linCenter * depthDiscontinuityThreshold;
-    
+
     return abs(linCenter - linL) > threshold ||
            abs(linCenter - linR) > threshold ||
            abs(linCenter - linU) > threshold ||
@@ -85,10 +86,10 @@ void main(void)
 {
     // Get probe grid coordinates from fragment position
     ivec2 probeCoord = ivec2(gl_FragCoord.xy);
-    
+
     // Calculate the screen UV this probe samples (center of probe cell)
     vec2 baseUV = lumonProbeToScreenUV(probeCoord, float(probeSpacing), screenSize);
-    
+
     // Check if probe is within screen bounds
     if (baseUV.x >= 1.0 || baseUV.y >= 1.0 || baseUV.x < 0.0 || baseUV.y < 0.0)
     {
@@ -114,18 +115,18 @@ void main(void)
         vec2 uvPad = vec2(0.5) / screenSize;
         screenUV = clamp(screenUV + jitterUV, uvPad, vec2(1.0) - uvPad);
     }
-    
+
     // Sample depth at probe position
     ivec2 maxFull = ivec2(screenSize) - 1;
     ivec2 centerPx = clamp(ivec2(screenUV * screenSize), ivec2(0), maxFull);
     float depth = texelFetch(primaryDepth, centerPx, 0).r;
-    
+
     // ========================================================================
     // Validation Logic
     // ========================================================================
-    
+
     float valid = 1.0;
-    
+
     // Criterion 1: Reject sky pixels (no surface to anchor to)
     if (lumonIsSky(depth))
     {
@@ -133,21 +134,21 @@ void main(void)
         outNormal = vec4(0.5, 0.5, 1.0, 0.0);    // Encoded neutral normal
         return;
     }
-    
+
     // Criterion 2: Check for depth discontinuity (edge detection)
     // Edges are temporally unstable so mark with reduced validity
     if (hasDepthDiscontinuity(screenUV, depth))
     {
         valid = 0.5;  // Mark as edge (partial validity for reduced temporal weight)
     }
-    
+
     // Reconstruct view-space position, then transform to world-space
     vec3 posVS = lumonReconstructViewPos(screenUV, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
-    
+
     // Sample and decode world-space normal from G-buffer (already world-space)
-    vec3 normalRaw = texelFetch(gBufferNormal, centerPx, 0).xyz;
-    
+    vec3 normalRaw = texelFetch(gBufferSurface, ivec3(centerPx, VGE_SURFACE_NORMAL), 0).xyz;
+
     // Criterion 3: Reject invalid normals (degenerate G-buffer data)
     // Check BEFORE normalizing to avoid normalize(vec3(0)) undefined behavior
     vec3 normalDecoded = normalRaw * 2.0 - 1.0;
@@ -158,17 +159,17 @@ void main(void)
         outNormal = vec4(0.5, 0.5, 1.0, 0.0);
         return;
     }
-    
+
     // Now safe to normalize
     vec3 normalWS = normalDecoded / normalLen;
-    
+
     // ========================================================================
     // Output (world-space for temporal stability)
     // ========================================================================
-    
+
     // Store world-space position with validity flag
     outPosition = vec4(posWS, valid);
-    
+
     // Store world-space normal (encoded to [0,1] range for storage)
     outNormal = vec4(lumonEncodeNormal(normalWS), 0.0);
 }

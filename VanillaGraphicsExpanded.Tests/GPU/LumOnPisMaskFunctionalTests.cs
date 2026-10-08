@@ -65,8 +65,8 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
             for (int py = 0; py < 2; py++)
             for (int px = 0; px < 2; px++)
             for (int channel = 0; channel < 3; channel++) radiance[((py * 8 + 4) * 16 + px * 8 + 4) * 4 + channel] = 1;
-            program.ProbeAnchorPosition = Create( 2, 2, CreateUniformColorData(2, 2, 0, 0, -5, 1));
-            program.ProbeAnchorNormal = Create( 2, 2, CreateUniformColorData(2, 2, .5f, .5f, 1, 0));
+            using var anchorInputs1 = LayeredTestTexture.Create(Create( 2, 2, CreateUniformColorData(2, 2, 0, 0, -5, 1)), Create( 2, 2, CreateUniformColorData(2, 2, .5f, .5f, 1, 0)));
+            program.ProbeAnchors = anchorInputs1;
             program.ScreenProbeAtlasHistory = Create( 16, 16, radiance);
             program.ScreenProbeAtlasMetaHistory = Create( 16, 16, CreateUniformColorData(16, 16, 1, 0, 0, 0));
             UpdateAndBindLumOnFrameUbo(program);

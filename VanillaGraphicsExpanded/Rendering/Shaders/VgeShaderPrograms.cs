@@ -18,6 +18,7 @@ internal static class VgeShaderPrograms
         [
             new VgeDebugLinesShaderProgram(),
             new DebugView.DebugTextureShaderProgram(),
+            new DebugView.DebugSurfaceShaderProgram(),
             new VgeWorldProbeOrbsPointsShaderProgram(),
             new PBRDirectLightingShaderProgram(),
             new PBR.Atmosphere.AtmosphereSkyShaderProgram(),

@@ -32,7 +32,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         using var world = GpuUniformBuffer.Create();
         using var replacement = GpuUniformBuffer.Create();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        AssignRequiredTextures(program, texture);
+        using var inputs = AssignRequiredTextures(program, texture);
         // Contents are irrelevant to this binding-only contract; no draw reads these buffers.
         frame.UploadOrResize(new byte[16]);
         world.UploadOrResize(new byte[16]);
@@ -139,33 +139,42 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
 
     #region Production consumers and driver observations
     /// <summary>Supplies valid required samplers for binding-only tests that issue no draw.</summary>
-    private static void AssignRequiredTextures(LumOnShaderProgram program, GpuTexture texture)
+    private static GpuResourceCollection AssignRequiredTextures(LumOnShaderProgram program, GpuTexture texture)
     {
+        var inputs = new GpuResourceCollection();
         // These cases exercise the actual production declaration while buffer contents stay irrelevant.
         switch (program)
         {
             case LumOnScreenProbeAtlasTraceShaderProgram trace:
-                trace.PrimaryDepth = texture.TextureId; trace.GBufferMaterial = texture.TextureId;
-                trace.ProbeAnchorPosition = texture; trace.ProbeAnchorNormal = texture;
+                trace.PrimaryDepth = texture.TextureId; var surfaceInput1 = inputs.Own(LayeredTestTexture.Create(null, texture, null));
+        trace.GBufferSurface = surfaceInput1;
+                var anchorInputs1 = inputs.Own(LayeredTestTexture.Create(texture, texture));
+        trace.ProbeAnchors = anchorInputs1;
                 trace.SurfaceAlbedo = texture; trace.ScreenProbeAtlasHistory = texture;
                 trace.HzbDepth = texture; trace.ScreenProbeAtlasMetaHistory = texture;
                 trace.ProbeTraceMask = texture;
                 break;
             case LumOnScreenProbeAtlasGatherShaderProgram gather:
-                gather.PrimaryDepth = texture.TextureId; gather.GBufferNormal = texture.TextureId;
-                gather.ProbeAnchorPosition = texture; gather.ProbeAnchorNormal = texture;
+                gather.PrimaryDepth = texture.TextureId; var surfaceInput2 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+        gather.GBufferSurface = surfaceInput2;
+                var anchorInputs2 = inputs.Own(LayeredTestTexture.Create(texture, texture));
+        gather.ProbeAnchors = anchorInputs2;
                 gather.ScreenProbeAtlas = texture;
                 break;
             case LumOnProbeSh9GatherShaderProgram sh9:
-                sh9.PrimaryDepth = texture.TextureId; sh9.GBufferNormal = texture.TextureId;
-                sh9.ProbeAnchorPosition = texture; sh9.ProbeAnchorNormal = texture;
-                sh9.ProbeSh0 = texture; sh9.ProbeSh1 = texture; sh9.ProbeSh2 = texture;
-                sh9.ProbeSh3 = texture; sh9.ProbeSh4 = texture; sh9.ProbeSh5 = texture; sh9.ProbeSh6 = texture;
+                sh9.PrimaryDepth = texture.TextureId; var surfaceInput3 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+        sh9.GBufferSurface = surfaceInput3;
+                var anchorInputs3 = inputs.Own(LayeredTestTexture.Create(texture, texture));
+        sh9.ProbeAnchors = anchorInputs3;
+                var shInputs4 = inputs.Own(LayeredTestTexture.Create(texture, texture, texture, texture, texture, texture, texture));
+        sh9.ProbeSh9 = shInputs4;
                 break;
             case LumOnDebugShaderProgram debug:
-                debug.PrimaryDepth = texture.TextureId; debug.GBufferNormal = texture.TextureId;
+                debug.PrimaryDepth = texture.TextureId; var surfaceInput4 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+        debug.GBufferSurface = surfaceInput4;
                 break;
         }
+        return inputs;
     }
 
     /// <summary>Loads the actual trace, atlas gather, SH9 gather or world-probe debug consumer.</summary>

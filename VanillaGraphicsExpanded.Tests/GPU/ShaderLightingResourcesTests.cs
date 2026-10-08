@@ -106,13 +106,12 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
     /// <summary>Observes production attachment identities without repeating their formats or allocation rules.</summary>
     private static GpuTexture[] BorrowScreen(LumOnBufferManager screen) =>
     [
-        screen.ProbeAnchorPositionTex!, screen.ProbeAnchorNormalTex!, screen.ProbeTraceMaskTex!, screen.ProbePisEnergyTex!,
+        screen.ProbeAnchors!, screen.ProbeTraceMaskTex!, screen.ProbePisEnergyTex!,
         screen.ScreenProbeAtlasTraceTex!, screen.ScreenProbeAtlasMetaTraceTex!,
         screen.ScreenProbeAtlasCurrentTex!, screen.ScreenProbeAtlasMetaCurrentTex!,
         screen.ScreenProbeAtlasHistoryTex!, screen.ScreenProbeAtlasMetaHistoryTex!,
         screen.ScreenProbeAtlasFilteredTex!, screen.ScreenProbeAtlasMetaFilteredTex!,
-        screen.ProbeSh9Tex0!, screen.ProbeSh9Tex1!, screen.ProbeSh9Tex2!, screen.ProbeSh9Tex3!,
-        screen.ProbeSh9Tex4!, screen.ProbeSh9Tex5!, screen.ProbeSh9Tex6!,
+        screen.ProbeSh9!,
         screen.IndirectHalfTex!, screen.IndirectFullTex!, screen.SurfaceAlbedoTex!, screen.VelocityTex!, screen.HzbDepthTex!
     ];
 

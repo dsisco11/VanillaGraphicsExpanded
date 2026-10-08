@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 vec2 uv;
 out vec4 outColor;
@@ -26,7 +27,7 @@ vec4 renderWorldProbeIrradianceLevelDebug()
 #else
     vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
     vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
-    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
 
     int levels = VGE_LUMON_WORLDPROBE_LEVELS;
     int resolution = VGE_LUMON_WORLDPROBE_RESOLUTION;

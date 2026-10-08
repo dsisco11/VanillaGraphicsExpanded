@@ -23,7 +23,8 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     private readonly GBufferManager gbuffer;
     private readonly PBRDirectLightingShaderProgram shader;
     internal readonly DirectLightingRenderer Candidate;
-    internal readonly DirectLightingTargets Expected, Actual;
+    internal DirectLightingTargets Expected { get; private set; }
+    internal DirectLightingTargets Actual { get; private set; }
     internal readonly DefaultShaderUniforms Uniforms = new() { ZNear = .1f, ZFar = 100 };
     internal readonly int Width, Height;
     internal int Draws;
@@ -69,6 +70,15 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     #endregion
 
     #region Inputs and rendering
+    /// <summary>Replaces both immutable output arrays together while retaining the authored scene inputs.</summary>
+    internal void ResizeOutputs(int width, int height)
+    {
+        var expected = new DirectLightingTargets(width, height);
+        var actual = new DirectLightingTargets(width, height);
+        Expected.Dispose(); Actual.Dispose();
+        Expected = expected; Actual = actual;
+    }
+
     /// <summary>Publishes a deterministic receiver family, including explicit first-person coordinates.</summary>
     internal void Inputs(int kind, float intensity = 1)
     {
@@ -83,7 +93,7 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
             Pixels([kind == 2 ? 0 : kind == 5 ? 1 : .5f, kind == 2 ? 1f : 0f, kind == 2 ? intensity : 0f, 1]),
             Pixels([intensity * .7f, intensity * .3f, intensity * .2f, 1]));
         Upload(gbuffer.PositionTextureId, Pixels([0, 0, -2, 1]));
-        Upload(gbuffer.EnvironmentTextureId, Pixels([1, 1, 1, 1]));
+        gbuffer.SurfaceTexture!.UploadDataImmediate(Pixels([1, 1, 1, 1]), 0, 0, 2, Width, Height, 1);
     }
 
     /// <summary>Runs the retained renderer, optionally establishing the neutral baseline before a measurement batch.</summary>

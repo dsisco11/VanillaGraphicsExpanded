@@ -40,23 +40,24 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         program.GBufferPosition = position.TextureId;
         output.BindWithViewport();
         {
-            program.DirectDiffuse = zero; program.DirectSpecular = zero; program.Emissive = emission;
+            using var directLighting = LayeredTestTexture.Create(zero, zero, emission);
+            program.DirectLighting = directLighting;
             program.IndirectDiffuse = indirect; program.GBufferAlbedo = albedo.TextureId;
-            program.GBufferNormal = normal; program.GBufferMaterial = material;
-            program.GBufferEnvironment = environment; program.PrimaryDepth = depth.TextureId;
+            using var surface = LayeredTestTexture.Create(normal, material, environment);
+            program.GBufferSurface = surface; program.PrimaryDepth = depth.TextureId;
 
             program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
             program.FogDensityIn = 0; program.FogMinIn = 0;
-            TestFramework.RenderQuad(program);
+            TestFramework.RenderQuadTo(program, output);
             if (!lumon)
             {
                 int active = GL.GetInteger(GetPName.ActiveTexture);
-                GL.ActiveTexture(TextureUnit.Texture8);
-                int bound = GL.GetInteger(GetPName.TextureBinding2D);
+                GL.ActiveTexture(TextureUnit.Texture6);
+                int bound = GL.GetInteger(GetPName.TextureBinding2DArray);
                 GL.ActiveTexture((TextureUnit)active);
-                Assert.Equal(environment.TextureId, bound);
+                Assert.Equal(surface.TextureId, bound);
             }
         }
         float f0 = metallic == 1 ? .5f : .04f;

@@ -14,5 +14,9 @@ internal interface IWaterTransportBindings
     [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 6, ShaderStageKind.Fragment,
         TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.Default)]
     DynamicTexture3D AerialAttenuation { set; }
+    /// <summary>Supplies an explicit neutral or spatial atmospheric scattering-occlusion image.</summary>
+    [ShaderBinding("vge_lightShaftOcclusion", ShaderBindingKind.Sampler, 7, ShaderStageKind.Fragment,
+        TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp, Required = false)]
+    GpuTexture? LightShaftOcclusion { set; }
     #endregion
 }

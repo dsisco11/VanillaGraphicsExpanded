@@ -36,8 +36,8 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, framebuffer);
             GL.FramebufferTexture(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, terrain.Color.TextureId, 0);
             GL.FramebufferTexture(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment1, terrain.Depth.TextureId, 0);
-            GL.FramebufferTexture(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment4, buffers.NormalTextureId, 0);
-            GL.FramebufferTexture(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment5, buffers.MaterialTextureId, 0);
+            GL.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment4, buffers.SurfaceTexture!.TextureId, 0, 0);
+            GL.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment5, buffers.SurfaceTexture.TextureId, 0, 1);
             GL.DrawBuffers(6, [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.None,
                 DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment4, DrawBuffersEnum.ColorAttachment5]);
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.DrawFramebuffer));
@@ -55,10 +55,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     /// <summary>Reads the actual marker attachment after rasterization.</summary>
     public float ReadMarker(GBufferManager buffers)
     {
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, buffers.NormalTextureId);
-        float[] pixels = new float[4];
-        GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-        return pixels[3];
+        return LayeredTestTexture.Read(buffers.SurfaceTexture!, 0)[3];
     }
 
     /// <summary>Releases only this simulated engine draw's temporary objects.</summary>

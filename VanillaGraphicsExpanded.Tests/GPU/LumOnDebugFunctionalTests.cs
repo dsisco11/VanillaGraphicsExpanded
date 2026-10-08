@@ -293,9 +293,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput1;
+        using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs1;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -381,9 +382,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput2 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput2;
+        using var anchorInputs2 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs2;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -472,9 +474,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput3;
+        using var anchorInputs3 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs3;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -542,9 +545,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput4;
+        using var anchorInputs4 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs4;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -621,9 +625,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput5;
+        using var anchorInputs5 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs5;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -689,9 +694,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput6;
+        using var anchorInputs6 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs6;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -764,9 +770,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput7;
+        using var anchorInputs7 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs7;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -843,9 +850,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput8;
+        using var anchorInputs8 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs8;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -916,9 +924,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput9 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput9;
+        using var anchorInputs9 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs9;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -989,9 +998,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput10 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput10;
+        using var anchorInputs10 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs10;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;
@@ -1062,9 +1072,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
-        programId.ProbeAnchorPosition = anchorPosTex;
-        programId.ProbeAnchorNormal = anchorNormalTex;
+        using var surfaceInput11 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput11;
+        using var anchorInputs11 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        programId.ProbeAnchors = anchorInputs11;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
         programId.IndirectHalf = indirectHalfTex;

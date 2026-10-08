@@ -118,12 +118,7 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     /// Probe anchor positions (world-space).
     /// Format: xyz = posWS, w = validity
     /// </summary>
-    public partial GpuTexture? ProbeAnchorPosition { set; }
-
-    /// <summary>
-    /// Probe anchor normals (world-space, encoded).
-    /// </summary>
-    public partial GpuTexture? ProbeAnchorNormal { set; }
+    public partial GpuTexture? ProbeAnchors { set; }
 
     /// <summary>
     /// Primary depth texture (G-buffer).
@@ -133,7 +128,7 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     /// <summary>
     /// G-buffer normals (world-space, encoded).
     /// </summary>
-    public partial int GBufferNormal { set; }
+    public partial GpuTexture? GBufferSurface { set; }
 
     #endregion
 

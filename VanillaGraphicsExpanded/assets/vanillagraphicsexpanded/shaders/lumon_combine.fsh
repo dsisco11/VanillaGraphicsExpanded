@@ -1,10 +1,11 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 out vec4 outColor;
 
 // ============================================================================
 // LumOn Combine/Integrate Pass (SPG-009)
-// 
+//
 // Combines indirect diffuse lighting from LumOn with the scene's direct lighting.
 // Applies proper material modulation (albedo for diffuse, metallic rejection).
 //
@@ -37,8 +38,7 @@ uniform sampler2D indirectDiffuse;
 
 // G-Buffer for material properties
 uniform sampler2D gBufferAlbedo;      // Surface albedo/color
-uniform sampler2D gBufferMaterial;    // Material properties (roughness, metallic, etc.)
-uniform sampler2D gBufferNormal;      // World-space normals
+uniform sampler2DArray gBufferSurface;
 uniform sampler2D primaryDepth;       // Depth for sky detection
 
 // ============================================================================
@@ -63,29 +63,29 @@ void main(void)
     outColor = vec4(directLight, 1.0);
     return;
 #else
-    
+
     // Check for sky - no indirect lighting contribution
     float depth = texture(primaryDepth, uv).r;
     if (lumonIsSky(depth)) {
         outColor = vec4(directLight, 1.0);
         return;
     }
-    
+
     // Sample LumOn indirect diffuse
     vec3 indirect = texture(indirectDiffuse, uv).rgb;
-    
+
     // Sample material properties using shared utilities
     vec3 albedo = lumonGetAlbedo(gBufferAlbedo, uv);
     float roughness;
     float metallic;
     float emissive;
     float reflectivity;
-    lumonGetMaterialProperties(gBufferMaterial, uv, roughness, metallic, emissive, reflectivity);
+    lumonGetMaterialProperties(gBufferSurface, uv, roughness, metallic, emissive, reflectivity);
 
     // Apply user intensity + tint to the incoming indirect radiance
     indirect *= indirectIntensity;
     indirect *= indirectTint;
-    
+
     vec3 finalColor;
 
 #if !VGE_LUMON_PBR_COMPOSITE
@@ -98,7 +98,7 @@ void main(void)
     vec3 viewDirVS = normalize(-viewPosVS);
 
     // Normal comes in as world-space; convert to view-space for consistent dot products
-    vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+    vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
     vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
     // AO is not implemented yet. Keep it as a no-op (1.0).
@@ -138,10 +138,10 @@ void main(void)
 
     finalColor = directLight + indirectDiffuseContrib + indirectSpecularContrib;
 #endif // VGE_LUMON_PBR_COMPOSITE
-    
+
     // Clamp to prevent negative values (shouldn't happen, but safety)
     finalColor = max(finalColor, vec3(0.0));
-    
+
     outColor = vec4(finalColor, 1.0);
 #endif // VGE_LUMON_ENABLED
 }

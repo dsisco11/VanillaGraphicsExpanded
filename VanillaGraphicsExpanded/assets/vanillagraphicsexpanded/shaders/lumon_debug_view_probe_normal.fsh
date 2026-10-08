@@ -19,7 +19,7 @@ vec4 renderProbeNormalDebug(vec2 screenPos)
     ivec2 probeCoord = ivec2(screenPos / float(probeSpacing));
     probeCoord = clamp(probeCoord, ivec2(0), ivec2(probeGridSize) - 1);
 
-    vec4 posData = texelFetch(probeAnchorPosition, probeCoord, 0);
+    vec4 posData = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
     float valid = posData.a;
 
     if (valid < 0.1)
@@ -28,7 +28,7 @@ vec4 renderProbeNormalDebug(vec2 screenPos)
     }
 
     // Decode normal from [0,1] to [-1,1], then re-encode for visualization
-    vec3 probeNormalEncoded = texelFetch(probeAnchorNormal, probeCoord, 0).xyz;
+    vec3 probeNormalEncoded = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0).xyz;
     vec3 probeNormalDecoded = lumonDecodeNormal(probeNormalEncoded);
     // Display as color: remap [-1,1] to [0,1] so all directions are visible
     return vec4(probeNormalDecoded * 0.5 + 0.5, 1.0);

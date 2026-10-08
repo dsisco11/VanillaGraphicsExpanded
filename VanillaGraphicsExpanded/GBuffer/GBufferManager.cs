@@ -13,31 +13,30 @@ namespace VanillaGraphicsExpanded;
 /// - ColorAttachment5: Material properties (RGBA16F) - layout(location = 5)
 /// - ColorAttachment6: PatchId buffer (RGBA32UI) - layout(location = 6) out uvec4
 /// - ColorAttachment7: Local environment irradiance approximation (RGBA16F)
-/// 
+///
 /// Integrates with VS via Harmony hooks for framebuffer lifecycle management.
 /// </summary>
 public sealed partial class GBufferManager : IDisposable
 {
     #region Static Instance
-    
+
     /// <summary>
     /// Singleton instance accessible from Harmony hooks.
     /// </summary>
     public static GBufferManager? Instance { get; private set; }
-    
+
     #endregion
 
     #region Fields
-    
+
     private readonly ICoreClientAPI capi;
     private readonly Action unregisterResize;
-    
-    // G-buffer textures using DynamicTexture
+
+    // Owned floating-point array and separate integer patch storage
     private GBufferTextures? textures;
-    private DynamicTexture2D? normalTex;
-    private DynamicTexture2D? materialTex;
+    private Texture3D? surfaceTex;
+
     private DynamicTexture2D? patchIdTex;
-    private DynamicTexture2D? environmentTex;
 
     private const int NormalSlotId = 4;
     private const int MaterialSlotId = 5;
@@ -61,7 +60,7 @@ public sealed partial class GBufferManager : IDisposable
 
     private int lastWidth;
     private int lastHeight;
-    
+
     /// <summary>
     /// Whether the G-buffer textures have been created and are ready for attachment.
     /// </summary>
@@ -77,27 +76,14 @@ public sealed partial class GBufferManager : IDisposable
 
     #region Properties
 
+    /// <summary>Supplies normal, material and environment layers in one owned array.</summary>
+    public Texture3D? SurfaceTexture => surfaceTex;
+
     /// <summary>Persistent borrowed representation of the engine primary framebuffer with injected deferred attachments.</summary>
     public GpuFramebuffer PrimaryFramebuffer { get; } = GpuFramebuffer.Wrap(0, "GBuffer.Primary");
 
-    /// <summary>Returns the borrowed normal attachment owned by this manager.</summary>
-    public DynamicTexture2D? NormalTexture => normalTex;
-    /// <summary>Returns the borrowed material attachment owned by this manager.</summary>
-    public DynamicTexture2D? MaterialTexture => materialTex;
-    /// <summary>Returns the borrowed environmental-light attachment owned by this manager.</summary>
-    public DynamicTexture2D? EnvironmentTexture => environmentTex;
-
-    /// <summary>
-    /// The OpenGL texture ID for the normal G-buffer (ColorAttachment4).
-    /// Format: RGBA16F - packed world normals in XYZ; negative W selects an explicit receiver position.
-    /// </summary>
-    public int NormalTextureId => normalTex?.TextureId ?? 0;
-
-    /// <summary>
-    /// The OpenGL texture ID for the material G-buffer (ColorAttachment5).
-    /// Format: RGBA16F - (Roughness, Metallic, Emissive, Transmission).
-    /// </summary>
-    public int MaterialTextureId => materialTex?.TextureId ?? 0;
+    /// <summary>OpenGL name of the shared normal, material and environment array.</summary>
+    public int SurfaceTextureId => surfaceTex?.TextureId ?? 0;
 
     /// <summary>
     /// The OpenGL texture ID for the patch id G-buffer (ColorAttachment6).
@@ -105,14 +91,12 @@ public sealed partial class GBufferManager : IDisposable
     /// </summary>
     public int PatchIdTextureId => patchIdTex?.TextureId ?? 0;
 
-    /// <summary>Local block plus sky irradiance; independent of LumOn resources.</summary>
-    public int EnvironmentTextureId => environmentTex?.TextureId ?? 0;
 
     /// <summary>
     /// Whether the G-buffer textures have been created and are ready for attachment.
     /// </summary>
     public bool IsInitialized => isInitialized;
-    
+
     #endregion
 
     #region Constructor / Destructor
@@ -127,11 +111,11 @@ public sealed partial class GBufferManager : IDisposable
             OnScreenResized);
     }
 
-    
+
     #endregion
 
     #region Harmony Hook Methods
-    
+
     /// <summary>
     /// Creates or reattaches primary targets after engine framebuffer replacement or initial primary load.
     /// </summary>
@@ -194,7 +178,7 @@ public sealed partial class GBufferManager : IDisposable
 
         // Set draw buffers to include our attachments
         // VS sets 0-3; VGE publishes material and environment metadata at 4-7.
-        DrawBuffersEnum[] drawBuffers = [ 
+        DrawBuffersEnum[] drawBuffers = [
             DrawBuffersEnum.ColorAttachment0,  // VS: outColor (Albedo)
             DrawBuffersEnum.ColorAttachment1,  // VS: outGlow
             DrawBuffersEnum.ColorAttachment2,  // VS: outGNormal (SSAO)
@@ -205,7 +189,7 @@ public sealed partial class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment7   // VGE: Local environment
         ];
         GL.DrawBuffers(8, drawBuffers);
-        
+
         // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
         ApplyGBufferBlendState(forceDirty: true);
 
@@ -263,7 +247,7 @@ public sealed partial class GBufferManager : IDisposable
         // Check if blend is enabled/disabled for each buffer
         bool blend4Enabled = GL.IsEnabled(IndexedEnableCap.Blend, NormalSlotId);
         bool blend5Enabled = GL.IsEnabled(IndexedEnableCap.Blend, MaterialSlotId);
-        
+
         // Also check VS buffers for comparison
         bool blend2Enabled = GL.IsEnabled(IndexedEnableCap.Blend, 2);
         bool blend3Enabled = GL.IsEnabled(IndexedEnableCap.Blend, 3);
@@ -272,12 +256,12 @@ public sealed partial class GBufferManager : IDisposable
         // GL_BLEND_SRC_RGB = 0x80C9, GL_BLEND_DST_RGB = 0x80C8
         const int GL_BLEND_SRC_RGB = 0x80C9;
         const int GL_BLEND_DST_RGB = 0x80C8;
-        
+
         GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, NormalSlotId, out int srcRgb4);
         GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, NormalSlotId, out int dstRgb4);
         GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, MaterialSlotId, out int srcRgb5);
         GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, MaterialSlotId, out int dstRgb5);
-        
+
         // Compare with VS buffers
         GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, 2, out int srcRgb2);
         GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, 2, out int dstRgb2);
@@ -291,7 +275,7 @@ public sealed partial class GBufferManager : IDisposable
         capi.Logger.Notification($"[VGE]   Buffer 4 (VGE Normal):   Enabled={blend4Enabled}, Src={srcRgb4}, Dst={dstRgb4}");
         capi.Logger.Notification($"[VGE]   Buffer 5 (VGE Material): Enabled={blend5Enabled}, Src={srcRgb5}, Dst={dstRgb5}");
         capi.Logger.Notification($"[VGE]   (GL_ONE=1, GL_ZERO=0, GL_SRC_ALPHA=770, GL_ONE_MINUS_SRC_ALPHA=771)");
-        
+
         // Check for GL errors
         var error = GL.GetError();
         if (error != ErrorCode.NoError)
@@ -318,12 +302,10 @@ public sealed partial class GBufferManager : IDisposable
         // Prefer clearing the textures directly. This is robust even if VS unbinds the FBO
         // before our ClearFrameBuffer postfix runs (and also avoids draw-buffer state issues).
         // Fallback to glClearBuffer on the primary FBO if clear-texture isn't available.
-        bool clearedNormal = normalTex?.TryClearToZero() == true;
-        bool clearedMaterial = materialTex?.TryClearToZero() == true;
+        bool clearedSurface = surfaceTex?.TryClearToZero() == true;
         bool clearedPatchId = patchIdTex?.TryClearToZero() == true;
-        bool clearedEnvironment = environmentTex?.TryClearToZero() == true;
 
-        if (clearedNormal && clearedMaterial && clearedPatchId && clearedEnvironment)
+        if (clearedSurface && clearedPatchId)
         {
             return;
         }
@@ -352,17 +334,17 @@ public sealed partial class GBufferManager : IDisposable
         ];
         GL.DrawBuffers(8, drawBuffers);
 
-        if (!clearedNormal)
+        if (!clearedSurface)
         {
             GL.ClearBuffer(ClearBuffer.Color, NormalSlotId, clearColor);
         }
 
-        if (!clearedMaterial)
+        if (!clearedSurface)
         {
             GL.ClearBuffer(ClearBuffer.Color, MaterialSlotId, clearColor);
         }
 
-        if (!clearedEnvironment) GL.ClearBuffer(ClearBuffer.Color, EnvironmentSlotId, clearColor);
+        if (!clearedSurface) GL.ClearBuffer(ClearBuffer.Color, EnvironmentSlotId, clearColor);
 
         if (!clearedPatchId)
         {
@@ -418,13 +400,13 @@ public sealed partial class GBufferManager : IDisposable
             PrepareReceiverPosition(primaryFb, screenWidth, screenHeight);
             AttachToFramebuffer(primaryFb.FboId);
             PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, screenWidth, screenHeight, publishPassMetadata: true);
-            
+
             isInjected = true;
             capi.Logger.Debug($"[VGE] EnsureBuffers: Recreated G-buffer textures for {screenWidth}x{screenHeight}");
         }
 
         // Return true only if we have valid texture IDs
-        return isInitialized && NormalTextureId != 0 && MaterialTextureId != 0 && PatchIdTextureId != 0 && EnvironmentTextureId != 0;
+        return isInitialized && SurfaceTextureId != 0 && PatchIdTextureId != 0;
     }
 
     #endregion
@@ -444,11 +426,11 @@ public sealed partial class GBufferManager : IDisposable
         DeleteTextures();
 
         textures = new(width, height);
-        normalTex = textures.Normal; materialTex = textures.Material; patchIdTex = textures.PatchId; environmentTex = textures.Environment;
+        surfaceTex = textures.Surface; patchIdTex = textures.PatchId;
 
         isInitialized = true;
         capi.Logger.Notification($"[VGE] Created G-buffer textures: {width}x{height}");
-        capi.Logger.Notification($"[VGE]   Normal ID={NormalTextureId}, Material ID={MaterialTextureId}, PatchId ID={PatchIdTextureId}");
+        capi.Logger.Notification($"[VGE]   Surface array ID={SurfaceTextureId}, PatchId ID={PatchIdTextureId}");
     }
 
     private void DeleteTextures()
@@ -457,10 +439,7 @@ public sealed partial class GBufferManager : IDisposable
         fallbackPosition = null;
         PositionTextureId = 0;
 
-        bool externallyDeleted = RelinquishIfDeleted(normalTex)
-            | RelinquishIfDeleted(materialTex)
-            | RelinquishIfDeleted(patchIdTex)
-            | RelinquishIfDeleted(environmentTex);
+        bool externallyDeleted = RelinquishIfDeleted(surfaceTex) | RelinquishIfDeleted(patchIdTex);
         if (externallyDeleted)
         {
             StateCache.Current.InvalidateAll();
@@ -468,15 +447,13 @@ public sealed partial class GBufferManager : IDisposable
 
         textures?.Dispose();
         textures = null;
-        normalTex = null;
-        materialTex = null;
+        surfaceTex = null;
         patchIdTex = null;
-        environmentTex = null;
         isInitialized = false;
         isInjected = false;
     }
 
-    private static bool RelinquishIfDeleted(DynamicTexture2D? texture)
+    private static bool RelinquishIfDeleted(GpuTexture? texture)
     {
         if (texture is null || !texture.IsValid || GL.IsTexture(texture.TextureId))
         {
@@ -501,23 +478,12 @@ public sealed partial class GBufferManager : IDisposable
             TextureTarget.Texture2D, PositionTextureId, 0);
 
         // Attach normal texture as ColorAttachment4 (matches layout(location = 4))
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment4,
-            TextureTarget.Texture2D,
-            NormalTextureId,
-            0);
+        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment4, surfaceTex!.TextureId, 0, GBufferTextures.NormalLayer);
 
         // Attach material texture as ColorAttachment5 (matches layout(location = 5))
-        GL.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment5,
-            TextureTarget.Texture2D,
-            MaterialTextureId,
-            0);
+        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment5, surfaceTex!.TextureId, 0, GBufferTextures.MaterialLayer);
 
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7,
-            TextureTarget.Texture2D, EnvironmentTextureId, 0);
+        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7, surfaceTex!.TextureId, 0, GBufferTextures.EnvironmentLayer);
 
         // Attach patch id texture as ColorAttachment6 (matches layout(location = 6))
         GL.FramebufferTexture2D(
@@ -576,7 +542,7 @@ public sealed partial class GBufferManager : IDisposable
             TextureTarget.Texture2D, 0, 0);
 
         // Reset draw buffers to VS defaults (0-3)
-        DrawBuffersEnum[] drawBuffers = { 
+        DrawBuffersEnum[] drawBuffers = {
             DrawBuffersEnum.ColorAttachment0,
             DrawBuffersEnum.ColorAttachment1,
             DrawBuffersEnum.ColorAttachment2,
@@ -585,14 +551,14 @@ public sealed partial class GBufferManager : IDisposable
         GL.DrawBuffers(4, drawBuffers);
 
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        
+
         capi.Logger.Notification("[VGE] G-buffer detached from Primary framebuffer");
         if (PrimaryFramebuffer.IsValid && PrimaryFramebuffer.FboId == fboId)
         {
             PrimaryFramebuffer.RefreshWrappedFramebuffer(fboId, PrimaryFramebuffer.Width, PrimaryFramebuffer.Height, publishPassMetadata: true);
         }
     }
-    
+
     #endregion
 
     #region IDisposable
@@ -604,13 +570,13 @@ public sealed partial class GBufferManager : IDisposable
         PrimaryFramebuffer.Dispose();
         // Clean up textures (framebuffer attachment cleanup happens via UnloadGBuffer hook)
         DeleteTextures();
-        
+
         // Clear the static instance
         if (Instance == this)
         {
             Instance = null;
         }
     }
-    
+
     #endregion
 }

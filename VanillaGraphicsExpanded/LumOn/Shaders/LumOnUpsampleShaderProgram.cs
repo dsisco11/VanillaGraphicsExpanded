@@ -82,7 +82,7 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
     /// <summary>
     /// G-buffer normals for edge-aware upsampling.
     /// </summary>
-    public partial int GBufferNormal { set; }
+    public partial GpuTexture? GBufferSurface { set; }
 
     #endregion
 

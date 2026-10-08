@@ -48,7 +48,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         int engineAttachmentCount = terrain.Primary.ColorTextureIds.Length;
         using var direct = new DirectLightingBufferManager(api);
         Assert.True(direct.EnsureBuffers(1,1));
-        direct.DirectDiffuseTex!.TryClearToZero(); direct.DirectSpecularTex!.TryClearToZero(); direct.EmissiveTex!.TryClearToZero();
+        direct.Radiance!.UploadDataImmediate(new float[12], 0, 0, 0, 1, 1, 3);
         LumOnBufferManager? provider = null;
         int providerReads = 0;
         using var composite = new PBRCompositeRenderer(api, gbuffer, direct, config, () => { providerReads++; return provider; });
@@ -58,7 +58,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         float Compose()
         {
             terrain.UploadTerrain(gbuffer, [.25f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
-            GL.ClearTexImage(gbuffer.EnvironmentTextureId, 0, PixelFormat.Rgba, PixelType.Float, new[] { .5f,.5f,.5f,1f });
+            gbuffer.SurfaceTexture!.UploadDataImmediate([.5f,.5f,.5f,1f], 0, 0, 2, 1, 1, 1);
             composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
             return composite.SceneLinearColor!.ReadPixels()[0];
         }
@@ -143,7 +143,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         using (shader.UseScope())
         {
             int previousUnit = GL.GetInteger(GetPName.ActiveTexture);
-            GL.ActiveTexture(TextureUnit.Texture3);
+            GL.ActiveTexture(TextureUnit.Texture4);
             Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2D));
             GL.ActiveTexture((TextureUnit)previousUnit);
         }
@@ -161,16 +161,11 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
 
         Assert.True(gbuffer.EnsureBuffers(2,2));
         Assert.Equal(engineAttachmentCount, terrain.Primary.ColorTextureIds.Length);
-        Assert.DoesNotContain(gbuffer.EnvironmentTextureId, terrain.Primary.ColorTextureIds);
-        Assert.NotEqual(0, gbuffer.EnvironmentTextureId);
-        GL.ClearTexImage(gbuffer.EnvironmentTextureId, 0, PixelFormat.Rgba, PixelType.Float, new[] { 1f,1f,1f,1f });
+        Assert.DoesNotContain(gbuffer.SurfaceTextureId, terrain.Primary.ColorTextureIds);
+        Assert.NotEqual(0, gbuffer.SurfaceTextureId);
+        gbuffer.SurfaceTexture!.UploadDataImmediate(Enumerable.Repeat(1f, 16).ToArray(), 0, 0, 2, 2, 2, 1);
         gbuffer.ClearGBuffer(EnumFrameBuffer.Primary);
-        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, gbuffer.EnvironmentTextureId))
-        {
-            float[] pixels = new float[16];
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-            Assert.All(pixels, value => Assert.Equal(0f, value));
-        }
+        Assert.All(LayeredTestTexture.Read(gbuffer.SurfaceTexture!, 2), value => Assert.Equal(0f, value));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

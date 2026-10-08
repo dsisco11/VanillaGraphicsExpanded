@@ -374,5 +374,51 @@ Implementation validation should use existing typed program/GPU abstractions to 
 routing, exact channel preservation, no feedback, active sampler counts/indices, settings changes,
 odd dimensions, resize, reload, disposal and publication. Do not replace distinct per-layer
 semantics with shared clears. Benchmark matched scenes before claiming faster rendering;
-allocation/binding savings above are analytical. No build or GPU run is needed for this
-source-only analysis, and no runtime texture migration is included in this completed subtask.
+allocation/binding savings above are analytical. The original inventory was source-only;
+implementation and validation of the selected groups are recorded below.
+
+### Implemented array ownership
+
+The production owners now allocate the five selected groups directly as 2D texture arrays:
+
+| Owner | Array layers | Framebuffer output slots |
+| --- | --- | --- |
+| DirectLightingTargets.Radiance | Diffuse, specular, emissive | 0, 1, 2 |
+| GBufferTextures.Surface | Normal, material, environment | Primary 4, 5, 7 |
+| WaterVolumeRenderer transport | Optical transport, scattering source | 0, 1 |
+| LumOnTargets.ProbeAnchors | Position, normal | 0, 1 |
+| LumOnTargets.ProbeSh9 | Seven packed coefficient vectors | 0 through 6 |
+
+Patch identity retains its separate integer texture. Probe anchors and SH9 coefficients remain
+separate allocations because projection reads anchors while writing coefficients. All grouped
+images retain their dimensions, formats and sampling policy; there are no per-frame packing copies.
+Owners retire and recreate whole arrays at their existing rebuild boundaries. Layer attachments
+borrow those owners and cannot resize independently. Temporal/history textures remain separate.
+
+The composite binding contract now declares twelve densely numbered sampler units (0 through 11).
+SH9 gather uses one coefficient sampler and one anchor sampler. Debug views and tracing/gather
+consumers use array samplers with explicit layer selection. Together these groups replace
+seventeen texture objects with five; framebuffer output counts remain unchanged. These are interface/allocation-count reductions, not claims of reduced texel
+storage, fetch count or measured GPU time. Both shader catalogs compile (434 production and
+501 test variants), and the managed build passes. Focused GPU validation confirms twelve active composite samplers, numerical HDR/water
+composition, both probe gather paths, grouped owner replacement/disposal, fixture isolation
+and direct water-layer rasterization. Across the focused runs, 320 distinct cases pass and
+three preexisting cases are skipped; no failures remain. Linked composite units are exactly
+0 through 11. The validation device exposes 32 fragment units, 2048 array layers, and eight
+color attachments/draw buffers. SH9 gather binds its coefficient array at unit 0 and its
+separate anchor array at unit 1.
+
+The final production build reports zero warnings and zero errors; its 30-case smoke run passes.
+Independent production review found no lifecycle, feedback or sampler-policy defect.
+
+Receipts: `artifacts/SceneHdrRuntime/grouped-arrays-focused.trx`,
+`grouped-arrays-production-smoke.trx`, and subsequent targeted
+`grouped-arrays-*` build/test receipts. Intermediate receipts retain the fixture migration
+failures; the passing aggregate uses the latest result for each case.
+
+Matched-workload direct-lighting fixtures report zero numerical difference against their
+reference and 0.339–0.384 ms repeated CPU submission at 31×19 and 32×24. These are synthetic
+submission measurements, not a before/after array benchmark or evidence of a rendering speedup.
+Water owner resize/retirement has source review coverage; shader producers and consumers are
+GPU-tested, but the tests do not directly instantiate WaterVolumeRenderer. User-run visual
+acceptance and live GPU performance remain deferred.

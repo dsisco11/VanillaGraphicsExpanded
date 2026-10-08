@@ -121,7 +121,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         SetupProbeAnchorUniforms(programId, invProjection, invView, frameIndex: 0, anchorJitterEnabled: true, anchorJitterScale: jitterScale);
 
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput1;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var pos0 = outputGBuffer[0].ReadPixels();
 
@@ -365,7 +366,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Bind inputs and render
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput2 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput2;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -444,7 +446,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput3;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back normal output (second attachment)
@@ -517,7 +520,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput4;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -587,7 +591,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput5;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -667,7 +672,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput6;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -750,7 +756,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput7;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
@@ -821,7 +828,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput8;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back normal output

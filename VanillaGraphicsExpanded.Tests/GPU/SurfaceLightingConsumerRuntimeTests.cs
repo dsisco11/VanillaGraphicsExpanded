@@ -118,7 +118,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.Contains("lumon_upsample",runtime.LoadedPrograms);
         // Resident GPU commits do not load the CPU-only raster upload program.
         if(!gpu)Assert.Contains("lumon_worldprobe_radiance_tile_resolve",runtime.LoadedPrograms);
-        Assert.Contains(runtime.Screen.ProbeAnchorPositionTex!.ReadPixels().Where((_,i)=>i%4==3),v=>v>.5f);
+        Assert.Contains(LayeredTestTexture.Read(runtime.Screen.ProbeAnchors!, 0).Where((_,i)=>i%4==3),v=>v>.5f);
         foreach(int light in new[]{0,32})
         {
             runtime.Cache.ChangeBlockLight(light);

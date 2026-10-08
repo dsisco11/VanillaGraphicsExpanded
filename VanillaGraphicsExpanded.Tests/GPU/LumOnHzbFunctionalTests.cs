@@ -178,11 +178,12 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] invView = LumOnTestInputFactory.CreateIdentityView();
 
         // Render with coarse mip 0
-            progMip0.ProbeAnchorPosition = probePos;
-            progMip0.ProbeAnchorNormal = probeNorm;
+            using var anchorInputs1 = LayeredTestTexture.Create(probePos, probeNorm);
+            progMip0.ProbeAnchors = anchorInputs1;
             progMip0.PrimaryDepth = primaryDepth.TextureId;
             progMip0.SurfaceAlbedo = primaryColor;
-            progMip0.GBufferMaterial = material.TextureId;
+            using var surfaceInput1 = LayeredTestTexture.Create(null, material, null);
+            progMip0.GBufferSurface = surfaceInput1;
             progMip0.ScreenProbeAtlasMetaHistory = metaHistory;
             progMip0.ScreenProbeAtlasHistory = history;
             progMip0.HzbDepth = hzb;
@@ -205,11 +206,12 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] outCoarse;
         if (hzb.MipLevels > 1)
         {
-            progMip1.ProbeAnchorPosition = probePos;
-            progMip1.ProbeAnchorNormal = probeNorm;
+            using var anchorInputs2 = LayeredTestTexture.Create(probePos, probeNorm);
+            progMip1.ProbeAnchors = anchorInputs2;
             progMip1.PrimaryDepth = primaryDepth.TextureId;
             progMip1.SurfaceAlbedo = primaryColor;
-            progMip1.GBufferMaterial = material.TextureId;
+            using var surfaceInput2 = LayeredTestTexture.Create(null, material, null);
+            progMip1.GBufferSurface = surfaceInput2;
             progMip1.ScreenProbeAtlasMetaHistory = metaHistory;
             progMip1.ScreenProbeAtlasHistory = history;
             progMip1.HzbDepth = hzb;

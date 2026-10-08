@@ -63,7 +63,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
         // The debug consumer does not read screen-probe resources, so it never allocates that family.
         var screen = debug ? null : resources.EnsureScreen(guideSize, guideSize, Math.Max(1, guideSize / 2));
         {
-            // Match production sampler units, including SH9's sixteen-unit limit.
+            // Use the production grouped sampler contract.
             // Gather uses integer full-resolution guide fetches; every addressed texel
             // must exist rather than relying on undefined out-of-range sampling.
 
@@ -79,14 +79,13 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                 normals[i + 3] = 1;
             }
             terrain.Depth.UploadDataImmediate(depth);
-            terrainAttachments.Normal.UploadDataImmediate(normals);
+            terrainAttachments.Surface.UploadDataImmediate(normals, 0, 0, 0, guideSize, guideSize, 1);
             world.ProbeRadianceAtlas.UploadDataImmediate(atlas.Radiance);
             world.ProbeVis0.UploadDataImmediate(atlas.Visibility);
             world.ProbeMeta0.UploadDataImmediate(atlas.Metadata);
             if (screen != null)
             {
-                screen.ProbeAnchorPositionTex!.UploadDataImmediate(new float[screen!.ProbeAnchorPositionTex!.Width * screen.ProbeAnchorPositionTex.Height * 4]);
-                screen.ProbeAnchorNormalTex!.UploadDataImmediate(new float[screen.ProbeAnchorNormalTex.Width * screen.ProbeAnchorNormalTex.Height * 4]);
+                screen.ProbeAnchors!.UploadDataImmediate(new float[screen.ProbeAnchors.Width * screen.ProbeAnchors.Height * 8], 0, 0, 0, screen.ProbeAnchors.Width, screen.ProbeAnchors.Height, 2);
             }
             var geometry = shared ?? scene?.Backend;
             var traceSettings = shared is null
@@ -96,7 +95,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             {
                 case LumOnDebugShaderProgram viewProgram:
                     viewProgram.PrimaryDepth = terrain.Depth.TextureId;
-                    viewProgram.GBufferNormal = terrainAttachments.Normal.TextureId;
+                    viewProgram.GBufferSurface = terrainAttachments.Surface;
                     viewProgram.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas;
                     viewProgram.WorldProbeVis0 = world.ProbeVis0;
                     viewProgram.WorldProbeMeta0 = world.ProbeMeta0;
@@ -104,12 +103,10 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                     viewProgram.DebugMode = consumer;
                     break;
                 case LumOnProbeSh9GatherShaderProgram gather:
-                    for (int i = 0; i < 7; i++) ((DynamicTexture2D)screen!.ProbeSh9Fbo![i]).UploadDataImmediate(new float[screen!.ProbeAnchorPositionTex!.Width * screen.ProbeAnchorPositionTex.Height * 4]);
-                    gather.ProbeSh0 = screen!.ProbeSh9Fbo![0]; gather.ProbeSh1 = screen!.ProbeSh9Fbo[1];
-                    gather.ProbeSh2 = screen!.ProbeSh9Fbo[2]; gather.ProbeSh3 = screen!.ProbeSh9Fbo[3];
-                    gather.ProbeSh4 = screen!.ProbeSh9Fbo[4]; gather.ProbeSh5 = screen!.ProbeSh9Fbo[5]; gather.ProbeSh6 = screen!.ProbeSh9Fbo[6];
-                    gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
-                    gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
+                    screen!.ProbeSh9!.UploadDataImmediate(new float[screen.ProbeSh9.Width * screen.ProbeSh9.Height * 28], 0, 0, 0, screen.ProbeSh9.Width, screen.ProbeSh9.Height, 7);
+                    gather.ProbeSh9 = screen.ProbeSh9;
+                    gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferSurface = terrainAttachments.Surface;
+                    gather.ProbeAnchors = screen.ProbeAnchors;
                     gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
                     gather.NearFieldVisibility.Stage(gather, geometry, traceSettings);
                     gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SuppressWorldProbeRadiance = suppress;
@@ -117,8 +114,8 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
                 case LumOnScreenProbeAtlasGatherShaderProgram gather:
                     screen!.ScreenProbeAtlasFilteredTex!.UploadDataImmediate(new float[screen!.ScreenProbeAtlasFilteredTex.Width * screen!.ScreenProbeAtlasFilteredTex.Height * 4]);
                     gather.ScreenProbeAtlas = screen!.ScreenProbeAtlasFilteredTex;
-                    gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferNormal = terrainAttachments.Normal.TextureId;
-                    gather.ProbeAnchorPosition = screen.ProbeAnchorPositionTex; gather.ProbeAnchorNormal = screen.ProbeAnchorNormalTex;
+                    gather.PrimaryDepth = terrain.Depth.TextureId; gather.GBufferSurface = terrainAttachments.Surface;
+                    gather.ProbeAnchors = screen.ProbeAnchors;
                     gather.WorldProbeRadianceAtlas = world.ProbeRadianceAtlas; gather.WorldProbeVis0 = world.ProbeVis0; gather.WorldProbeMeta0 = world.ProbeMeta0;
                     gather.NearFieldVisibility.Stage(gather, geometry, traceSettings);
                     gather.Intensity = 1; gather.IndirectTint = [1,1,1]; gather.SampleStride = 1; gather.SuppressWorldProbeRadiance = suppress;

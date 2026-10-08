@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 vec2 uv;
 out vec4 outColor;
@@ -20,7 +21,7 @@ vec4 renderPomMetricsDebug()
 {
     // Patched chunk shaders optionally write a scalar diagnostic into gBufferNormal.w.
     // Interpretation is controlled by MaterialAtlas.PomDebugMode.
-    float v = clamp(texture(gBufferNormal, uv).w, 0.0, 1.0);
+    float v = clamp(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).w, 0.0, 1.0);
     vec3 c = vec3(1.0 - v, v, 0.0);
     return vec4(c, 1.0);
 }

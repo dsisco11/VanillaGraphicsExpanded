@@ -1,4 +1,5 @@
 #version 430 core
+@import "./includes/gbuffer_layers.glsl"
 
 // MRT output to probe atlas
 layout(location = 0) out vec4 outRadiance;  // RGB = radiance, A = log-encoded hit distance
@@ -6,7 +7,7 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 
 // ============================================================================
 // LumOn Octahedral Probe Trace Pass
-// 
+//
 // Traces rays from probes and stores radiance + hit distance in octahedral maps.
 // Uses 2D atlas layout for GL 3.3 compatibility: (probeCountX×8, probeCountY×8)
 // Each probe's 8×8 octahedral tile is tiled into the atlas.
@@ -45,8 +46,9 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 @import "./includes/lumon_probe_params_ubo.glsl"
 
 // Probe anchor textures (world-space)
-uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
-uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 
 // Phase 10: probe-resolution trace mask (RG32F packed uint bits).
 // When present and valid, it replaces legacy batch slicing.
@@ -56,7 +58,7 @@ uniform sampler2D probeTraceMask;
 uniform sampler2D primaryDepth;
 // LumOn-owned surface inputs for deriving hit radiance.
 uniform sampler2D surfaceAlbedo;
-uniform sampler2D gBufferMaterial;
+uniform sampler2DArray gBufferSurface;
 
 // Emissive GI scaling (boost emissive as an indirect light source)
 // Wired via VGE's runtime define system (VgeShaderProgram.SetDefine).
@@ -86,15 +88,15 @@ uniform sampler2D probeAtlasMetaHistory;
 bool legacyShouldTraceThisFrame(ivec2 octTexel, int probeIndex) {
     // Linear texel index within the probe's 8×8 tile
     int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
-    
+
     // Which "batch" does this texel belong to?
     // With 64 texels and 8 texels/frame, there are 8 batches
     int numBatches = (LUMON_OCTAHEDRAL_SIZE * LUMON_OCTAHEDRAL_SIZE) / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
     int batch = texelIndex / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
-    
+
     // Add per-probe jitter to avoid all probes tracing the same texels
     int jitteredFrame = (frameIndex + probeIndex) % numBatches;
-    
+
     return batch == jitteredFrame;
 }
 
@@ -135,22 +137,22 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
     result.exitedScreen = false;
     result.color = vec3(0.0);
     result.distance = VGE_LUMON_RAY_MAX_DISTANCE;
-    
+
     float stepSize = VGE_LUMON_RAY_MAX_DISTANCE / float(VGE_LUMON_RAY_STEPS);
-    
+
     for (int i = 1; i <= VGE_LUMON_RAY_STEPS; i++) {
         float t = stepSize * float(i);
         vec3 samplePos = originVS + directionVS * t;
-        
+
         // Project to screen
         vec2 sampleUV = lumonProjectToScreen(samplePos, projectionMatrix);
-        
+
         // Check bounds - break early if ray exits screen
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
             result.exitedScreen = true;
             break;
         }
-        
+
         // HZB coarse rejection (reduces full-res depth sampling)
         int mip = max(0, VGE_LUMON_HZB_COARSE_MIP);
         ivec2 hzbSize = textureSize(hzbDepth, mip);
@@ -171,28 +173,28 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
 
         // Sample full-res depth
         float sceneDepth = texture(primaryDepth, sampleUV).r;
-        
+
         // Skip sky regions (no valid geometry to hit)
         if (lumonIsSky(sceneDepth)) {
             continue;
         }
-        
+
         vec3 scenePos = lumonReconstructViewPos(sampleUV, sceneDepth, invProjectionMatrix);
-        
+
         // Depth test with thickness
         float depthDiff = scenePos.z - samplePos.z;
-        
+
         if (depthDiff > 0.0 && depthDiff < VGE_LUMON_RAY_THICKNESS) {
             // Hit!
             result.hit = true;
             vec3 albedo = texture(surfaceAlbedo, sampleUV).rgb;
-            float emissiveStrength = max(texture(gBufferMaterial, sampleUV).b, 0.0);
+            float emissiveStrength = max(texture(gBufferSurface, vec3(sampleUV, VGE_SURFACE_MATERIAL)).b, 0.0);
             result.color = albedo * emissiveStrength * LUMON_EMISSIVE_BOOST;
             result.distance = t;
             return result;
         }
     }
-    
+
     return result;
 }
 
@@ -206,16 +208,16 @@ void main(void)
     ivec2 atlasCoord = ivec2(gl_FragCoord.xy);
     ivec2 probeCoord = atlasCoord / LUMON_OCTAHEDRAL_SIZE;
     ivec2 octTexel = atlasCoord % LUMON_OCTAHEDRAL_SIZE;
-    
+
     // Convert probeGridSize to ivec2 for integer operations
     ivec2 probeGridSizeI = ivec2(probeGridSize);
-    
+
     // Clamp probe coord to valid range
     probeCoord = clamp(probeCoord, ivec2(0), probeGridSizeI - 1);
-    
+
     // Linear probe index for jitter
     int probeIndex = probeCoord.y * probeGridSizeI.x + probeCoord.x;
-    
+
     // Check if we should trace this texel this frame (temporal distribution)
     int texelIndex = octTexel.y * LUMON_OCTAHEDRAL_SIZE + octTexel.x;
 
@@ -241,44 +243,44 @@ void main(void)
         outMeta = texture(probeAtlasMetaHistory, atlasUV).xy;
         return;
     }
-    
+
     // Load probe anchor data (stored in world-space)
-    vec4 anchorData = texelFetch(probeAnchorPosition, probeCoord, 0);
+    vec4 anchorData = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
     vec3 probePosWS = anchorData.xyz;
     float valid = anchorData.w;
-    
+
     // If probe is invalid, output zero radiance
     if (valid < 0.5) {
         outRadiance = vec4(0.0, 0.0, 0.0, 0.0);
         outMeta = lumonEncodeMeta(0.0, 0u);
         return;
     }
-    
+
     // Get probe normal (stored in world-space)
-    vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
-    
+    vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0).xyz);
+
     // Convert octahedral texel to world-space ray direction
     vec2 octUV = lumonTexelCoordToOctahedralUV(octTexel);
     vec3 rayDirWS = lumonOctahedralUVToDirection(octUV);
-    
+
     // Transform probe position and ray direction to view-space for ray marching
     vec3 probePosVS = (viewMatrix * vec4(probePosWS, 1.0)).xyz;
     vec3 rayDirVS = normalize(mat3(viewMatrix) * rayDirWS);
     vec3 probeNormalVS = normalize(mat3(viewMatrix) * probeNormalWS);
-    
+
     // Offset origin slightly to avoid self-intersection
     vec3 rayOriginVS = probePosVS + probeNormalVS * 0.01;
-    
+
     // Trace ray
     RayHit hit = traceRay(rayOriginVS, rayDirVS);
-    
+
     vec3 radiance;
     float hitDistance;
     bool usedWorldProbeFallback = false;
     bool localUnresolved = false;
     float localLightingConfidence = 1.0;
     float worldProbeFallbackConfidence = 0.0;
-    
+
 #if VGE_LUMON_NEAR_FIELD_ENABLED
     int cacheLevel; float cacheRadius; float nearFieldDistance;
     bool cacheCovered = lumonNearFieldCacheCoverage(probePosWS, cacheLevel, cacheRadius, nearFieldDistance);
@@ -366,10 +368,10 @@ void main(void)
 #endif
         hitDistance = hit.hit ? hit.distance : VGE_LUMON_RAY_MAX_DISTANCE;
     }
-    
+
     // Encode hit distance for storage
     float encodedHitDist = lumonEncodeHitDistance(hitDistance);
-    
+
     // Output radiance + hit distance
     outRadiance = vec4(radiance, encodedHitDist);
 

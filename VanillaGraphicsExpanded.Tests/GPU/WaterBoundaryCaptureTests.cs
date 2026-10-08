@@ -46,7 +46,11 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             Assert.NotEmpty(assets.Overrides);
             output.WriteLine($"boundary-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)} binary={measuredBinary}");
         }
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var transport = Texture3D.Create(1, 1, 2, PixelInternalFormat.Rgba32f,
+            TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
+        using var opticalAttachment = GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.OpticalLayer);
+        using var sourceAttachment = GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.SourceLayer);
+        using var target = GpuFramebuffer.Create([opticalAttachment, sourceAttachment]);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f);
@@ -120,8 +124,8 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         if (scenario is not (4 or 5)) DrawBoundary(2, true);
         DrawBoundary(scenario is 4 or 5 ? 3 : 4, false);
         if (scenario == 1) { DrawBoundary(6, true); DrawBoundary(9, false); }
-        var optical = target[0].ReadPixels();
-        var source = target[1].ReadPixels();
+        var optical = LayeredTestTexture.Read(transport, WaterVolumeFrame.OpticalLayer);
+        var source = LayeredTestTexture.Read(transport, WaterVolumeFrame.SourceLayer);
         // The production vertex shader deliberately perturbs clip W by .0008 / Z;
         // its perspective interpolation moves these sloped intersections by under .0004 metres.
         const float rasterTolerance = .0005f;

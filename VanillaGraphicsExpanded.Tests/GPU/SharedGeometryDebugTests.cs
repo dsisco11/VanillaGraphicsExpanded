@@ -94,10 +94,10 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             program.NearFieldVisibility.Stage(program, scene);
             SceneInputs.EnsureSize(ScreenWidth,ScreenHeight);
             SceneInputs.Engine.Depth.UploadDataImmediate(CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
-            SceneInputs.Terrain.Normal.UploadDataImmediate(CreateUniformNormalData(ScreenWidth,ScreenHeight,0,0,1));
+            SceneInputs.Terrain.Surface.UploadDataImmediate(CreateUniformNormalData(ScreenWidth,ScreenHeight,0,0,1), 0, 0, 0, ScreenWidth, ScreenHeight, 1);
             SceneInputs.Terrain.PatchId.UploadDataImmediate(new uint[ScreenWidth * ScreenHeight * 4]);
             program.PrimaryDepth = SceneInputs.Engine.Depth.TextureId;
-            program.GBufferNormal = SceneInputs.Terrain.Normal.TextureId;
+            program.GBufferSurface = SceneInputs.Terrain.Surface;
             program.GBufferPatchId = SceneInputs.Terrain.PatchId.TextureId;
             program.TraceSceneLegacy = scene.Legacy;
             var output = SceneInputs.Engine.Output;

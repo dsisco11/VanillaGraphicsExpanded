@@ -62,11 +62,11 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
     {
         EnsureContextValid();
         using var textures = new GBufferTextures(3,5);
-        AssertStorage(textures.Normal,TextureTarget.Texture2D,PixelInternalFormat.Rgba16f);
-        AssertStorage(textures.Material,TextureTarget.Texture2D,PixelInternalFormat.Rgba16f);
+        AssertStorage(textures.Surface,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba16f);
+        Assert.Equal(3, textures.Surface.Depth);
         AssertStorage(textures.PatchId,TextureTarget.Texture2D,PixelInternalFormat.Rgba32ui);
         textures.Dispose();
-        Assert.False(textures.Normal.IsValid); Assert.False(textures.Material.IsValid); Assert.False(textures.PatchId.IsValid);
+        Assert.False(textures.Surface.IsValid); Assert.False(textures.PatchId.IsValid);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 

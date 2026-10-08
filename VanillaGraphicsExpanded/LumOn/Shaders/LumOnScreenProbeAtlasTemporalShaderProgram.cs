@@ -113,7 +113,7 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
     /// <summary>
     /// Probe anchor positions for validity check.
     /// </summary>
-    public partial GpuTexture? ProbeAnchorPosition { set; }
+    public partial GpuTexture? ProbeAnchors { set; }
 
     /// <summary>
     /// Current frame probe-atlas meta trace output.

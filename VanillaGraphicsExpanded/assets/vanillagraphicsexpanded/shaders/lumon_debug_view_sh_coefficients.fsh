@@ -19,7 +19,7 @@ vec4 renderSHCoefficientsDebug(vec2 screenPos)
     ivec2 probeCoord = ivec2(screenPos / float(probeSpacing));
     probeCoord = clamp(probeCoord, ivec2(0), ivec2(probeGridSize) - 1);
 
-    vec4 posData = texelFetch(probeAnchorPosition, probeCoord, 0);
+    vec4 posData = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
     float valid = posData.a;
 
     if (valid < 0.1)

@@ -76,20 +76,8 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
     public partial int GBufferPosition { set; }
 
-    /// <summary>Local environment attachment whose alpha stores propagated sunlight.</summary>
-    public partial int GBufferEnvironment { set; }
-
-    /// <summary>
-    /// G-buffer normal texture (Attachment4) (texture unit 2).
-    /// Packed normalWS = n*0.5+0.5
-    /// </summary>
-    public partial int GBufferNormal { set; }
-
-    /// <summary>
-    /// G-buffer material texture (Attachment5) (texture unit 3).
-    /// Contains: Roughness (R), Metallic (G), Emissive (B), Reflectivity (A).
-    /// </summary>
-    public partial int GBufferMaterial { set; }
+    /// <summary>Normal, material and environmental-irradiance layers for deferred lighting.</summary>
+    public partial GpuTexture? GBufferSurface { set; }
 
     /// <summary>
     /// Near shadow map (texture unit 4).

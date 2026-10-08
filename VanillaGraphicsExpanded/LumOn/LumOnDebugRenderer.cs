@@ -29,7 +29,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>
 /// Renders LumOn debug visualizations as a fullscreen overlay at the AfterBlit stage.
 /// This ensures debug output is visible on top of all other rendering.
-/// 
+///
 /// Debug Modes:
 /// 0 = Off (no debug rendering)
 /// 1 = Probe Grid (shows probe positions with validity coloring)
@@ -661,9 +661,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         // Phase 16 direct lighting debug modes rely on the direct lighting MRT outputs.
         if (IsDirectLightingMode(mode))
         {
-            if (directLightingBufferManager?.DirectDiffuseTex is null
-                || directLightingBufferManager.DirectSpecularTex is null
-                || directLightingBufferManager.EmissiveTex is null)
+            if (directLightingBufferManager?.Radiance is null)
             {
                 return;
             }
@@ -765,10 +763,9 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
         // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
         // encoded to [0,1] via the shader patching system
-        shader.GBufferNormal = gBufferManager?.NormalTextureId ?? 0;
+        shader.GBufferSurface = gBufferManager?.SurfaceTexture;
         shader.GBufferPatchId = gBufferManager?.PatchIdTextureId ?? 0;
-        shader.ProbeAnchorPosition = bufferManager?.ProbeAnchorPositionTex;
-        shader.ProbeAnchorNormal = bufferManager?.ProbeAnchorNormalTex;
+        shader.ProbeAnchors = bufferManager?.ProbeAnchors;
         shader.RadianceTexture0 = null;
         shader.RadianceTexture1 = null;
         shader.IndirectHalf = bufferManager?.IndirectHalfTex;
@@ -853,12 +850,10 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         shader.IndirectDiffuseFull = bufferManager?.IndirectFullTex;
         shader.WorldProbeSuppressedLighting = bufferManager?.WorldProbeSuppressedLighting;
         shader.GBufferAlbedo = bufferManager?.SurfaceAlbedoTex;
-        shader.GBufferMaterial = gBufferManager?.MaterialTextureId ?? 0;
+        shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         // Phase 16 direct lighting debug inputs
-        shader.DirectDiffuse = directLightingBufferManager?.DirectDiffuseTex;
-        shader.DirectSpecular = directLightingBufferManager?.DirectSpecularTex;
-        shader.Emissive = directLightingBufferManager?.EmissiveTex;
+        shader.DirectLighting = directLightingBufferManager?.Radiance;
 
         // Phase 14 velocity debug input
         shader.VelocityTex = bufferManager?.VelocityTex;
@@ -1503,8 +1498,6 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         UpdateAndBindFrameUbo(config.LumOn);
 
         bool importanceColorMode = config.LumOn.DebugMode == LumOnDebugMode.WorldProbeImportance;
-
-
 
         shader.ModelViewProjectionMatrix = currentViewProjMatrix;
         shader.WorldOffset = new Vec3f(0, 0, 0);

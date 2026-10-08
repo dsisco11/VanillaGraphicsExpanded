@@ -148,10 +148,8 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         // Bind input textures
         shader.PrimaryScene = primaryFb.ColorTextureIds[0];
         shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-        shader.GBufferNormal = gBufferManager.NormalTextureId;
+        shader.GBufferSurface = gBufferManager.SurfaceTexture;
         shader.GBufferPosition = gBufferManager.PositionTextureId;
-        shader.GBufferEnvironment = gBufferManager.EnvironmentTextureId;
-        shader.GBufferMaterial = gBufferManager.MaterialTextureId;
 
         // Shadow maps (depth textures)
         var shadowNearFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear];

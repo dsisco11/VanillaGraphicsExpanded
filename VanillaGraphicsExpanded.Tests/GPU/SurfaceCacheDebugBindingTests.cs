@@ -17,9 +17,9 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     #region Production array setters
     /// <summary>Array-backed cache resources bind and clear their declared array target without OpenGL errors.</summary>
     [Theory]
-    [InlineData(0, 30, PixelInternalFormat.R32ui)]
-    [InlineData(1, 31, PixelInternalFormat.Rgba16f)]
-    [InlineData(2, 32, PixelInternalFormat.Rgba8)]
+    [InlineData(0, 26, PixelInternalFormat.R32ui)]
+    [InlineData(1, 27, PixelInternalFormat.Rgba16f)]
+    [InlineData(2, 28, PixelInternalFormat.Rgba8)]
     public void SurfaceCacheSettersBindArrayTextures(int resource, int unit, PixelInternalFormat format)
     {
         EnsureContextValid();
@@ -28,7 +28,8 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var sentinel = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         program.PrimaryDepth = sentinel.TextureId;
-        program.GBufferNormal = sentinel.TextureId;
+        using var surfaceInput1 = LayeredTestTexture.Create(sentinel, null, null);
+        program.GBufferSurface = surfaceInput1;
         UpdateAndBindLumOnFrameUbo(program);
         sentinel.Bind(unit);
         Set(texture);

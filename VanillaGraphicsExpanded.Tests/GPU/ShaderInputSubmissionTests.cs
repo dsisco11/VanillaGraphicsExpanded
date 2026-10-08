@@ -204,8 +204,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         {
             var first = programs.Create<LumOnUpsampleShaderProgram>();
             var second = programs.Create<LumOnUpsampleShaderProgram>();
-            AssignResources(first, firstTexture, frame, 0.25f);
-            AssignResources(second, secondTexture, frame, 0.75f);
+            using var firstSurface = AssignResources(first, firstTexture, frame, 0.25f);
+            using var secondSurface = AssignResources(second, secondTexture, frame, 0.75f);
             using (first.UseScope())
             {
                 Assert.Equal(firstTexture.TextureId, BoundTextures()[0]);
@@ -254,7 +254,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.FrameUniformBuffer = frame;
             shader.IndirectHalf = texture;
             shader.PrimaryDepth = texture.TextureId;
-            shader.GBufferNormal = texture.TextureId;
+            using var surfaceInput1 = LayeredTestTexture.Create(texture, null, null);
+            shader.GBufferSurface = surfaceInput1;
             shader.UpsampleDepthSigma = 0.25f;
             shader.UpsampleNormalSigma = 12f;
             shader.UpsampleSpatialSigma = 2f;
@@ -310,7 +311,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             int[] priorTextures = BoundTextures();
             shader.FrameUniformBuffer = frame;
             shader.PrimaryDepth = texture.TextureId;
-            shader.GBufferNormal = texture.TextureId;
+            using var surfaceInput2 = LayeredTestTexture.Create(texture, null, null);
+            shader.GBufferSurface = surfaceInput2;
             shader.PmjJitter = texture;
             shader.DepthDiscontinuityThreshold = 0.25f;
             shader.DepthDiscontinuityThreshold = 0.75f;
@@ -366,7 +368,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 s.HoleFillEnabled = false;
             });
             Assert.Equal(GpuProgramLayout.ResolutionState.Missing,
-                shader.ProgramLayout.ResolveUniformLocation(shader.ProgramId, "gBufferNormal").State);
+                shader.ProgramLayout.ResolveUniformLocation(shader.ProgramId, "gBufferSurface").State);
             Assert.Equal(GpuProgramLayout.ResolutionState.Missing,
                 shader.ProgramLayout.ResolveUniformBlockActive(shader.ProgramId, LumOnUpsampleParamsUbo.BlockName).State);
             shader.FrameUniformBuffer = frame;
@@ -383,13 +385,15 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 
     #region Private
     /// <summary>Supplies required borrowed inputs while giving each owner distinct parameter bytes.</summary>
-    private static void AssignResources(LumOnUpsampleShaderProgram shader, GpuTexture texture, GpuUniformBuffer frame, float sigma)
+    private static Texture3D AssignResources(LumOnUpsampleShaderProgram shader, GpuTexture texture, GpuUniformBuffer frame, float sigma)
     {
         shader.FrameUniformBuffer = frame;
         shader.IndirectHalf = texture;
         shader.PrimaryDepth = texture.TextureId;
-        shader.GBufferNormal = texture.TextureId;
+        var surfaceInput3 = LayeredTestTexture.Create(texture, null, null);
+        shader.GBufferSurface = surfaceInput3;
         shader.UpsampleDepthSigma = sigma;
+        return surfaceInput3;
 
     }
 

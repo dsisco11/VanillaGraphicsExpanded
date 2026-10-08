@@ -36,8 +36,18 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         using var engineNormal = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var position = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var gbuffer = new GBufferTextures(1, 1);
-        using var target = GpuFramebuffer.CreateMRT([color, glow, engineNormal, position,
-            gbuffer.Normal, gbuffer.Material, gbuffer.PatchId, gbuffer.Environment], depth)!;
+        using var attachments = new GpuResourceCollection();
+        GpuFramebufferAttachment[] colors = [
+            attachments.Own(GpuFramebufferAttachment.FromTexture(color)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(glow)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(engineNormal)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(position)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.Surface, layer: 0)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.Surface, layer: 1)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.PatchId)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.Surface, layer: 2))];
+        var depthAttachment = attachments.Own(GpuFramebufferAttachment.FromTexture(depth));
+        using var target = GpuFramebuffer.Create(colors, depthAttachment);
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         StateCache.Current.UseProgram(program.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
@@ -72,15 +82,15 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         {
             // Deferred capture must publish unlit albedo and overwrite the cleared material target.
             Assert.InRange(foreground[0], .999f, 1.001f);
-            Assert.InRange(gbuffer.Material.ReadPixels()[0], .499f, .501f);
-            float[] normal = gbuffer.Normal.ReadPixels();
+            Assert.InRange(LayeredTestTexture.Read(gbuffer.Surface, 1)[0], .499f, .501f);
+            float[] normal = LayeredTestTexture.Read(gbuffer.Surface, 0);
             Assert.Equal(.5f, normal[0]);
             Assert.Equal(1f, normal[1]);
             Assert.Equal(.5f, normal[2]);
         }
         if (offsetVariant > 0 && route == 1)
         {
-            Assert.Equal(-1f, gbuffer.Normal.ReadPixels()[3]);
+            Assert.Equal(-1f, LayeredTestTexture.Read(gbuffer.Surface, 0)[3]);
             Assert.InRange(position.ReadPixels()[2], -.501f, -.499f);
         }
         // Draw a distinguishable farther opaque mesh after the first mesh. Depth must reject it.

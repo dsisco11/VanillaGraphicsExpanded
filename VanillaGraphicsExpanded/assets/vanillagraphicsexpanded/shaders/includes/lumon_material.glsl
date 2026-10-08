@@ -1,3 +1,4 @@
+@import "./gbuffer_layers.glsl"
 #ifndef LUMON_MATERIAL_FSH
 #define LUMON_MATERIAL_FSH
 // ═══════════════════════════════════════════════════════════════════════════
@@ -6,7 +7,7 @@
 // Shared functions for sampling and interpreting G-buffer material properties.
 // Include this file in any LumOn shader that needs material data.
 //
-// G-Buffer Material Layout (gBufferMaterial - RGBA8):
+// G-Buffer Material Layout (gBufferSurface material layer - RGBA16F):
 //   R = Roughness (0 = smooth, 1 = rough)
 //   G = Metallic (0 = dielectric, 1 = metal)
 //   B = Emissive strength
@@ -43,58 +44,58 @@ vec4 lumonGetAlbedoAlpha(sampler2D gBufferAlbedo, vec2 texCoord) {
 
 /**
  * Extract roughness from material buffer.
- * @param gBufferMaterial Material texture sampler
+ * @param gBufferSurface Surface array containing the material layer
  * @param texCoord        UV coordinates
  * @return Roughness value (0 = smooth/mirror, 1 = rough/diffuse)
  */
-float lumonGetRoughness(sampler2D gBufferMaterial, vec2 texCoord) {
-    return texture(gBufferMaterial, texCoord).r;
+float lumonGetRoughness(sampler2DArray gBufferSurface, vec2 texCoord) {
+    return texture(gBufferSurface, vec3(texCoord, VGE_SURFACE_MATERIAL)).r;
 }
 
 /**
  * Extract metallic value from material buffer.
- * @param gBufferMaterial Material texture sampler
+ * @param gBufferSurface Surface array containing the material layer
  * @param texCoord        UV coordinates
  * @return Metallic value (0 = dielectric, 1 = metal)
  */
-float lumonGetMetallic(sampler2D gBufferMaterial, vec2 texCoord) {
-    return texture(gBufferMaterial, texCoord).g;
+float lumonGetMetallic(sampler2DArray gBufferSurface, vec2 texCoord) {
+    return texture(gBufferSurface, vec3(texCoord, VGE_SURFACE_MATERIAL)).g;
 }
 
 /**
  * Extract emissive strength from material buffer.
- * @param gBufferMaterial Material texture sampler
+ * @param gBufferSurface Surface array containing the material layer
  * @param texCoord        UV coordinates
  * @return Emissive strength (0 = not emissive)
  */
-float lumonGetEmissive(sampler2D gBufferMaterial, vec2 texCoord) {
-    return texture(gBufferMaterial, texCoord).b;
+float lumonGetEmissive(sampler2DArray gBufferSurface, vec2 texCoord) {
+    return texture(gBufferSurface, vec3(texCoord, VGE_SURFACE_MATERIAL)).b;
 }
 
 /**
  * Extract reflectivity from material buffer.
- * @param gBufferMaterial Material texture sampler
+ * @param gBufferSurface Surface array containing the material layer
  * @param texCoord        UV coordinates
  * @return Reflectivity value
  */
-float lumonGetReflectivity(sampler2D gBufferMaterial, vec2 texCoord) {
-    return texture(gBufferMaterial, texCoord).g;
+float lumonGetReflectivity(sampler2DArray gBufferSurface, vec2 texCoord) {
+    return texture(gBufferSurface, vec3(texCoord, VGE_SURFACE_MATERIAL)).g;
 }
 
 /**
  * Extract all material properties at once.
  * More efficient than multiple texture() calls.
- * @param gBufferMaterial Material texture sampler
+ * @param gBufferSurface Surface array containing the material layer
  * @param texCoord        UV coordinates
  * @param roughness       Output: roughness value
  * @param metallic        Output: metallic value
  * @param emissive        Output: emissive strength
  * @param reflectivity    Output: reflectivity
  */
-void lumonGetMaterialProperties(sampler2D gBufferMaterial, vec2 texCoord,
+void lumonGetMaterialProperties(sampler2DArray gBufferSurface, vec2 texCoord,
                                 out float roughness, out float metallic,
                                 out float emissive, out float reflectivity) {
-    vec4 mat = texture(gBufferMaterial, texCoord);
+    vec4 mat = texture(gBufferSurface, vec3(texCoord, VGE_SURFACE_MATERIAL));
     roughness = mat.r;
     metallic = mat.g;
     emissive = mat.b;
@@ -170,11 +171,11 @@ vec3 lumonCombineLighting(vec3 directLight, vec3 indirect,
                           float intensity, vec3 tint) {
     // Modulate indirect with material properties
     vec3 indirectContrib = lumonModulateIndirectDiffuse(indirect, albedo, metallic);
-    
+
     // Apply intensity and tint
     indirectContrib *= intensity;
     indirectContrib *= tint;
-    
+
     // Combine: direct + indirect
     return directLight + indirectContrib;
 }

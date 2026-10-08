@@ -1,3 +1,4 @@
+@import "./gbuffer_layers.glsl"
 #ifndef LUMON_COMMON_ASH
 #define LUMON_COMMON_ASH
 // ═══════════════════════════════════════════════════════════════════════════
@@ -110,13 +111,13 @@ vec3 lumonCosineSampleHemisphere(vec2 u, vec3 normal) {
     float x = r * cos(theta);
     float y = r * sin(theta);
     float z = sqrt(max(0.0, 1.0 - u.x));
-    
+
     // Build tangent frame
-    vec3 tangent = abs(normal.y) < 0.999 
+    vec3 tangent = abs(normal.y) < 0.999
         ? normalize(cross(vec3(0.0, 1.0, 0.0), normal))
         : normalize(cross(vec3(1.0, 0.0, 0.0), normal));
     vec3 bitangent = cross(normal, tangent);
-    
+
     // Transform to world/view space
     return normalize(tangent * x + bitangent * y + normal * z);
 }
@@ -135,7 +136,7 @@ vec3 lumonCosineSampleHemisphere(vec2 u, vec3 normal) {
 bool lumonSelectGuidesForHalfResCoord(
     ivec2 halfCoord,
     sampler2D depthTex,
-    sampler2D normalTex,
+    sampler2DArray normalTex,
     ivec2 screenSizeI,
     out ivec2 outBestFullCoord,
     out float outDepthRaw,
@@ -175,7 +176,7 @@ bool lumonSelectGuidesForHalfResCoord(
 
     outBestFullCoord = bestFull;
     outDepthRaw = bestDepthRaw;
-    outNormal = lumonDecodeNormal(texelFetch(normalTex, bestFull, 0).xyz);
+    outNormal = lumonDecodeNormal(texelFetch(normalTex, ivec3(bestFull, VGE_SURFACE_NORMAL), 0).xyz);
     return true;
 }
 
@@ -195,11 +196,11 @@ bool lumonSelectGuidesForHalfResCoord(
 vec3 lumonGetSkyColor(vec3 rayDir, vec3 sunPosition, vec3 sunColor, vec3 ambientColor, float skyMissWeight) {
     float skyFactor = max(0.0, rayDir.y) * 0.5 + 0.5;
     vec3 skyColor = ambientColor * skyFactor;
-    
+
     // Add sun contribution
     float sunDot = max(0.0, dot(rayDir, normalize(sunPosition)));
     skyColor += sunColor * pow(sunDot, 32.0) * 0.5;
-    
+
     return skyColor * skyMissWeight;
 }
 
@@ -285,7 +286,7 @@ void lumonGetEnclosingProbes(vec2 screenUV, int probeSpacing, ivec2 screenSize,
     vec2 probeUV = screenUV * vec2(screenSize) / float(probeSpacing) - 0.5;
     ivec2 baseProbe = ivec2(floor(probeUV));
     weights = fract(probeUV);
-    
+
     probe00 = baseProbe;
     probe10 = baseProbe + ivec2(1, 0);
     probe01 = baseProbe + ivec2(0, 1);

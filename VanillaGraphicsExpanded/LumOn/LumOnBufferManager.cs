@@ -70,14 +70,10 @@ public sealed class LumOnBufferManager : IDisposable
     public Rendering.GpuFramebuffer? ProbeAnchorFbo => targets?.ProbeAnchorFbo;
 
     /// <summary>
-    /// Texture for probe anchor positions (posVS.xyz, valid).
+    /// Array containing probe positions in layer 0 and normals in layer 1.
     /// </summary>
-    public DynamicTexture2D? ProbeAnchorPositionTex => targets?.ProbeAnchorPositionTex;
+    public Texture3D? ProbeAnchors => targets?.ProbeAnchors;
 
-    /// <summary>
-    /// Texture for probe anchor normals (normalVS.xyz, reserved).
-    /// </summary>
-    public DynamicTexture2D? ProbeAnchorNormalTex => targets?.ProbeAnchorNormalTex;
 
     // ═══════════════════════════════════════════════════════════════
     // Probe Trace Mask
@@ -151,13 +147,9 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public Rendering.GpuFramebuffer? ProbeSh9Fbo => targets?.ProbeSh9Fbo;
 
-    public DynamicTexture2D? ProbeSh9Tex0 => targets?.ProbeSh9Tex0;
-    public DynamicTexture2D? ProbeSh9Tex1 => targets?.ProbeSh9Tex1;
-    public DynamicTexture2D? ProbeSh9Tex2 => targets?.ProbeSh9Tex2;
-    public DynamicTexture2D? ProbeSh9Tex3 => targets?.ProbeSh9Tex3;
-    public DynamicTexture2D? ProbeSh9Tex4 => targets?.ProbeSh9Tex4;
-    public DynamicTexture2D? ProbeSh9Tex5 => targets?.ProbeSh9Tex5;
-    public DynamicTexture2D? ProbeSh9Tex6 => targets?.ProbeSh9Tex6;
+    /// <summary>Seven array layers containing the packed SH9 projection coefficients.</summary>
+    public Texture3D? ProbeSh9 => targets?.ProbeSh9;
+
 
     /// <summary>
     /// FBO for probe-atlas current output.

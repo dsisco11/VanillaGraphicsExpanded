@@ -222,7 +222,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         // Bind inputs
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput1;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -301,7 +302,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             // Bind inputs
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput2 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput2;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             return outputGBuffer[0].ReadPixels();
@@ -377,7 +379,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput3;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -476,7 +479,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput4;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -545,7 +549,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput5;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -611,7 +616,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput6;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -676,7 +682,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput7;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -699,7 +706,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput8;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -755,7 +763,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput9 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput9;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -788,7 +797,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex.TextureId;
-            programId.GBufferNormal = normalTex.TextureId;
+            using var surfaceInput10 = LayeredTestTexture.Create(normalTex, null, null);
+            programId.GBufferSurface = surfaceInput10;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -861,7 +871,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex.TextureId;
-        programId.GBufferNormal = normalTex.TextureId;
+        using var surfaceInput11 = LayeredTestTexture.Create(normalTex, null, null);
+        programId.GBufferSurface = surfaceInput11;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();

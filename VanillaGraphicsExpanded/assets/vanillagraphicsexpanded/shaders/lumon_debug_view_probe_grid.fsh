@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 vec2 uv;
 out vec4 outColor;
@@ -23,7 +24,7 @@ vec4 renderProbeGridDebug(vec2 screenPos)
     if (!lumonIsSky(depth))
     {
         // Show darkened scene as background
-        vec3 normal = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+        vec3 normal = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
         baseColor = normal * 0.3 + 0.2;
     }
 
@@ -47,7 +48,7 @@ vec4 renderProbeGridDebug(vec2 screenPos)
             probeCoord.x < int(probeGridSize.x) && probeCoord.y < int(probeGridSize.y))
         {
             // Sample probe validity from anchor texture
-            vec4 probeData = texelFetch(probeAnchorPosition, probeCoord, 0);
+            vec4 probeData = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
             float valid = probeData.a;
 
             // Color by validity

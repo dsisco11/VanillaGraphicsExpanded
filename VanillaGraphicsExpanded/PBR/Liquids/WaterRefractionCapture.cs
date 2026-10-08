@@ -103,7 +103,7 @@ internal sealed class WaterRefractionCapture : IRenderer
                 new[] { directPipeline }.Concat(compositePipelines).ToArray(), true, commands =>
                 {
                     // Allocation belongs inside the same preservation contract as both draws.
-                    if (lighting?.IsValid != true || lighting.DirectDiffuse.Width != width || lighting.DirectDiffuse.Height != height)
+                    if (lighting?.IsValid != true || lighting.Radiance.Width != width || lighting.Radiance.Height != height)
                     {
                         scene.Dispose();
                         lighting?.Dispose();

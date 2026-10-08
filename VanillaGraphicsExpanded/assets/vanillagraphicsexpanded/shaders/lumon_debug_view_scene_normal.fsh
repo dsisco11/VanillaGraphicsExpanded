@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 vec2 uv;
 out vec4 outColor;
@@ -26,7 +27,7 @@ vec4 renderSceneNormalDebug()
     }
 
     // Decode normal from G-buffer [0,1] to [-1,1], then re-encode for visualization
-    vec3 normalEncoded = texture(gBufferNormal, uv).xyz;
+    vec3 normalEncoded = texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz;
     vec3 normalDecoded = lumonDecodeNormal(normalEncoded);
     // Display as color: remap [-1,1] to [0,1] so all directions are visible
     return vec4(normalDecoded * 0.5 + 0.5, 1.0);

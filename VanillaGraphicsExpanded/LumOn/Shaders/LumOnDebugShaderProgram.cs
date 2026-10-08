@@ -22,6 +22,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// </summary>
 public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugShaderProgramBindings
 {
+    /// <summary>Supplies all direct-lighting radiance layers.</summary>
+    public partial GpuTexture? DirectLighting { set; }
 
 
     #region Shader options
@@ -145,7 +147,7 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>
     /// G-buffer normals texture.
     /// </summary>
-    public partial int GBufferNormal { set; }
+    public partial GpuTexture? GBufferSurface { set; }
 
     /// <summary>
     /// PatchId G-buffer (RGBA32UI) used by LumonScene debug views.
@@ -155,12 +157,7 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid).
     /// </summary>
-    public partial GpuTexture? ProbeAnchorPosition { set; }
-
-    /// <summary>
-    /// Probe anchor normals.
-    /// </summary>
-    public partial GpuTexture? ProbeAnchorNormal { set; }
+    public partial GpuTexture? ProbeAnchors { set; }
 
     /// <summary>
     /// Radiance SH texture 0 (for SH debug view).
@@ -243,26 +240,6 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// Albedo source for composite debug views (fallback: captured scene).
     /// </summary>
     public partial GpuTexture? GBufferAlbedo { set; }
-
-    /// <summary>
-    /// Material properties (roughness/metallic/emissive/reflectivity) for composite debug views.
-    /// </summary>
-    public partial int GBufferMaterial { set; }
-
-    /// <summary>
-    /// Direct diffuse radiance (direct lighting debug views).
-    /// </summary>
-    public partial GpuTexture? DirectDiffuse { set; }
-
-    /// <summary>
-    /// Direct specular radiance (direct lighting debug views).
-    /// </summary>
-    public partial GpuTexture? DirectSpecular { set; }
-
-    /// <summary>
-    /// Emissive radiance (direct lighting debug views).
-    /// </summary>
-    public partial GpuTexture? Emissive { set; }
 
     /// <summary>
     /// Full-resolution velocity texture (RGBA32F): RG = velocityUv, A = packed flags.

@@ -143,6 +143,15 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
+            if (GBufferOverlayViewState.Mode is GBufferOverlayMode.Normals or GBufferOverlayMode.Material)
+            {
+                var surface = GpuShaderPrograms.Get<DebugSurfaceShaderProgram>(capi, "debug_surface");
+                if (surface is null || gBufferManager.SurfaceTexture is null) return;
+                surface.MaterialLayer = GBufferOverlayViewState.Mode == GBufferOverlayMode.Material;
+                surface.Scene = gBufferManager.SurfaceTexture;
+                submission.Draw("GBufferOverlay", surface, geometry, EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
+                return;
+            }
             int textureId = GetTextureId();
             if (textureId == 0)
             {
@@ -159,8 +168,6 @@ public static partial class VgeBuiltInDebugViews
         {
             return GBufferOverlayViewState.Mode switch
             {
-                GBufferOverlayMode.Normals => gBufferManager.NormalTextureId,
-                GBufferOverlayMode.Material => gBufferManager.MaterialTextureId,
                 GBufferOverlayMode.Depth => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].DepthTextureId,
                 GBufferOverlayMode.PrimaryColor => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].ColorTextureIds[0],
                 _ => 0

@@ -335,7 +335,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs101 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs101;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -420,7 +421,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs102 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs102;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -499,7 +501,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs103 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs103;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -581,7 +584,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs104 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs104;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -680,7 +684,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs105 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs105;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -772,7 +777,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs106 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs106;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -861,7 +867,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs107 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs107;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -898,7 +905,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs108 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs108;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -979,7 +987,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs109 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs109;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
         programId.VelocityTex = velocityTex;
@@ -1056,7 +1065,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs110 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs110;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1090,7 +1100,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs111 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs111;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1180,7 +1191,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs112 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs112;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1218,7 +1230,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs113 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs113;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1286,7 +1299,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs114 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs114;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1378,7 +1392,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs115 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs115;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1419,7 +1434,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs116 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs116;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1484,7 +1500,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs117 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs117;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
@@ -1543,7 +1560,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs118 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs118;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1614,7 +1632,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs119 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs119;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1669,7 +1688,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs120 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs120;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         var outputData = outputAtlas[0].ReadPixels();
@@ -1736,7 +1756,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs121 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs121;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();
@@ -1769,7 +1790,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            programId.ProbeAnchorPosition = anchorPosTex;
+            using var anchorInputs122 = LayeredTestTexture.Create(anchorPosTex, null);
+            programId.ProbeAnchors = anchorInputs122;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
             var outputData = outputAtlas[0].ReadPixels();

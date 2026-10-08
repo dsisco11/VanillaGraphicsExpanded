@@ -25,8 +25,9 @@ layout(location = 1) out float outEnergy;
 @import "./includes/squirrel3.glsl"
 
 // Probe anchor textures (world-space)
-uniform sampler2D probeAnchorPosition;  // posWS.xyz, valid
-uniform sampler2D probeAnchorNormal;    // normalWS.xyz, reserved
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 
 // History atlas (octahedral-mapped) and meta history (confidence, flags)
 uniform sampler2D octahedralHistory;
@@ -86,7 +87,7 @@ void main(void)
 
     int probeIndex = probeCoord.y * probeGridSizeI.x + probeCoord.x;
 
-    vec4 anchorData = texelFetch(probeAnchorPosition, probeCoord, 0);
+    vec4 anchorData = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
     float valid = anchorData.w;
     if (valid < 0.5)
     {
@@ -99,7 +100,7 @@ void main(void)
     // Always computed (even in fallback modes) so debug views have a stable signal.
     float energy = 0.0;
     {
-        vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
+        vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0).xyz);
         ivec2 atlasBase = probeCoord * LUMON_OCTAHEDRAL_SIZE;
 
         float minConfW = clamp(VGE_LUMON_PROBE_PIS_MIN_CONFIDENCE_WEIGHT, 0.0, 1.0);
@@ -182,7 +183,7 @@ void main(void)
     }
 
     // Compute importance weights and weighted-without-replacement keys.
-    vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
+    vec3 probeNormalWS = lumonDecodeNormal(texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0).xyz);
     ivec2 atlasBase = probeCoord * LUMON_OCTAHEDRAL_SIZE;
 
     float keys[LUMON_TILE_TEXELS];

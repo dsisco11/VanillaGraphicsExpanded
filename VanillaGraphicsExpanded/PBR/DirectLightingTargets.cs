@@ -4,58 +4,38 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>Owns the three linear radiance targets and their non-owning MRT framebuffer.</summary>
+/// <summary>Owns a layered linear-radiance allocation and its three-output framebuffer.</summary>
 internal sealed class DirectLightingTargets : IDisposable
 {
     private readonly GpuResourceCollection resources = new();
 
-    public DynamicTexture2D DirectDiffuse { get; }
-    public DynamicTexture2D DirectSpecular { get; }
-    public DynamicTexture2D Emissive { get; }
-    public GpuFramebuffer? Framebuffer { get; }
-    public bool IsValid => Framebuffer is { IsValid: true } && DirectDiffuse.IsValid
-        && DirectSpecular.IsValid && Emissive.IsValid;
+    #region Public API
+    /// <summary>Names the diffuse, specular and emission images within the radiance array.</summary>
+    public const int DiffuseLayer = 0, SpecularLayer = 1, EmissiveLayer = 2;
+    /// <summary>Supplies all three lighting contributions through one sampler.</summary>
+    public Texture3D Radiance { get; }
+    /// <summary>Routes independent fragment outputs to their corresponding array layers.</summary>
+    public GpuFramebuffer Framebuffer { get; }
+    /// <summary>Reports whether the allocation and its framebuffer remain live.</summary>
+    public bool IsValid => Framebuffer.IsValid && Radiance.IsValid;
 
-    #region Allocation
-    /// <summary>Allocates screen-space radiance with linear sampling and reclaims partial allocations on failure.</summary>
+    /// <summary>Allocates the shared storage before borrowing each layer for MRT rendering.</summary>
     public DirectLightingTargets(int width, int height)
     {
-        int previous = GpuFramebuffer.SaveBinding();
         try
         {
-            DirectDiffuse = resources.Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "DirectDiffuse"));
-            DirectSpecular = resources.Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "DirectSpecular"));
-            Emissive = resources.Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "Emissive"));
-            if (!DirectDiffuse.IsValid || !DirectSpecular.IsValid || !Emissive.IsValid) return;
-            var framebuffer = GpuFramebuffer.CreateMRT([DirectDiffuse, DirectSpecular, Emissive],
-                depthTexture: null, debugName: "DirectLightingFBO");
-            if (framebuffer is null) return;
-            Framebuffer = resources.Own(framebuffer);
-            // The factory logs incomplete targets; this owner also rejects them for publication.
-            Framebuffer.Bind();
-            if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
-                resources.Dispose();
+            Radiance = resources.Own(Texture3D.Create(width, height, 3, PixelInternalFormat.Rgba16f,
+                TextureFilterMode.Linear, TextureTarget.Texture2DArray, "DirectLighting.Radiance"));
+            var layers = new GpuFramebufferAttachment[3];
+            for (int layer = 0; layer < layers.Length; layer++)
+                layers[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(Radiance, layer: layer));
+            Framebuffer = resources.Own(GpuFramebuffer.Create(layers, debugName: "DirectLightingFBO"));
+            if (!Framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
         }
         catch { resources.Dispose(); throw; }
-        finally { GpuFramebuffer.RestoreBinding(previous); }
     }
 
-    /// <summary>Resizes storage in place and validates MRT completeness while preserving the caller's framebuffer.</summary>
-    public bool Resize(int width, int height)
-    {
-        int previous = GpuFramebuffer.SaveBinding();
-        try
-        {
-            Framebuffer!.Resize(width, height);
-            Framebuffer.Bind();
-            return GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) == FramebufferErrorCode.FramebufferComplete;
-        }
-        finally { GpuFramebuffer.RestoreBinding(previous); }
-    }
-    #endregion
-
-    #region Lifetime
-    /// <summary>Releases the framebuffer before its owned radiance textures.</summary>
+    /// <summary>Retires the framebuffer and layer attachments before their shared storage.</summary>
     public void Dispose() => resources.Dispose();
     #endregion
 }

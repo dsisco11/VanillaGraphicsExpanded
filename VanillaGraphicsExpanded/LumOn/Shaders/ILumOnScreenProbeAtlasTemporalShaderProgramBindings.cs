@@ -21,9 +21,9 @@ internal interface ILumOnScreenProbeAtlasTemporalShaderProgramBindings
     /// <summary>Declares the octahedralHistory Sampler slot.</summary>
     [ShaderBinding("octahedralHistory", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? ScreenProbeAtlasHistory { set; }
-    /// <summary>Declares the probeAnchorPosition Sampler slot.</summary>
-    [ShaderBinding("probeAnchorPosition", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? ProbeAnchorPosition { set; }
+    /// <summary>Declares the position and normal anchor array sampler.</summary>
+    [ShaderBinding("probeAnchors", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? ProbeAnchors { set; }
     /// <summary>Declares the probeAtlasMetaCurrent Sampler slot.</summary>
     [ShaderBinding("probeAtlasMetaCurrent", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTexture? ScreenProbeAtlasMetaCurrent { set; }

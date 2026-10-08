@@ -102,27 +102,21 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
 
     #region SH9 Textures
 
-    public partial GpuTexture? ProbeSh0 { set; }
-    public partial GpuTexture? ProbeSh1 { set; }
-    public partial GpuTexture? ProbeSh2 { set; }
-    public partial GpuTexture? ProbeSh3 { set; }
-    public partial GpuTexture? ProbeSh4 { set; }
-    public partial GpuTexture? ProbeSh5 { set; }
-    public partial GpuTexture? ProbeSh6 { set; }
+    public partial GpuTexture? ProbeSh9 { set; }
 
     #endregion
 
     #region Probe Anchors
 
-    public partial GpuTexture? ProbeAnchorPosition { set; }
-    public partial GpuTexture? ProbeAnchorNormal { set; }
+    public partial GpuTexture? ProbeAnchors { set; }
+
 
     #endregion
 
     #region GBuffer Inputs
 
     public partial int PrimaryDepth { set; }
-    public partial int GBufferNormal { set; }
+    public partial GpuTexture? GBufferSurface { set; }
 
     #endregion
 

@@ -455,13 +455,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
         // Samplers
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
-        programId.GBufferEnvironment = environment.TextureId;
+        using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
+        programId.GBufferSurface = surface;
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
         programId.GBufferPosition = position.TextureId;
         programId.PrimaryScene = primaryScene.TextureId;
         programId.PrimaryDepth = primaryDepth.TextureId;
-        programId.GBufferNormal = gBufferNormal.TextureId;
-        programId.GBufferMaterial = gBufferMaterial.TextureId;
         programId.ShadowMapNear = shadowNear.TextureId;
         programId.ShadowMapFar = shadowFar.TextureId;
 
@@ -510,7 +509,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.Disable(EnableCap.Blend);
 
         // Fullscreen triangle from ShaderTestFramework expects position at location 0.
-        TestFramework.RenderQuad(programId);
+        TestFramework.RenderQuadTo(programId, output);
 
         GpuFramebuffer.Unbind();
     }
@@ -533,17 +532,15 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
 
-        programId.DirectDiffuse = directDiffuse;
+        using var lightingArray = LayeredTestTexture.Create(directDiffuse, directSpecular, emissive);
+        programId.DirectLighting = lightingArray;
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
         programId.GBufferPosition = position.TextureId;
-        programId.GBufferEnvironment = environment;
-        programId.DirectSpecular = directSpecular;
-        programId.Emissive = emissive;
+        using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
+        programId.GBufferSurface = surface;
         programId.IndirectDiffuse = indirectDiffuse;
         programId.GBufferAlbedo = gBufferAlbedo.TextureId;
-        programId.GBufferMaterial = gBufferMaterial;
-        programId.GBufferNormal = gBufferNormal;
         programId.PrimaryDepth = primaryDepth.TextureId;
 
         // Disable LumOn + fog
@@ -571,7 +568,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.Disable(EnableCap.DepthTest);
         GL.Disable(EnableCap.Blend);
 
-        TestFramework.RenderQuad(programId);
+        TestFramework.RenderQuadTo(programId, output);
 
         GpuFramebuffer.Unbind();
     }

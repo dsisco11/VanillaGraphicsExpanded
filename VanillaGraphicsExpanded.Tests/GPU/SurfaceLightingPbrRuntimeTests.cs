@@ -39,7 +39,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
 
         // Compare to independently evaluated BRDF and attenuation using absolute scene points
         // only on the CPU. Production receives the engine's view-space light position.
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.Direct.DirectDiffuseTex!.ReadPixels(), (x, y) =>
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(LayeredTestTexture.Read(runtime.Direct.Radiance!, 0), (x, y) =>
         {
             int index = y * 4 + x;
             var point = scene.VisiblePoints[index];
@@ -53,7 +53,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
             float cosine = Math.Max(0, Vector3.Dot(scene.VisibleNormals[index], direction));
             return material.Albedo * ((1 - fresnel) * cosine * Math.Min(1 / distanceSquared, 1));
         }, .002f, "view-space point light");
-        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Direct.DirectDiffuseTex.ReadPixels()) > .01f);
+        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(LayeredTestTexture.Read(runtime.Direct.Radiance!, 0)) > .01f);
     }
 
     /// <summary>Four authored receiver regions constrain channel order, linear albedo scaling, black diffuse response and metallic rejection.</summary>
@@ -99,14 +99,13 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         runtime.Receiver = (_, _) => receiver;
         SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
         // The engine environment attachment carries propagated sunlight independently of solar irradiance.
-        OpenTK.Graphics.OpenGL.GL.ClearTexImage(runtime.Cache.Buffers.EnvironmentTextureId, 0,
-            OpenTK.Graphics.OpenGL.PixelFormat.Rgba, OpenTK.Graphics.OpenGL.PixelType.Float,
-            new[] { 0f, 0f, 0f, 1f });
+        var surface = runtime.Cache.Buffers.SurfaceTexture!;
+        surface.UploadDataImmediate(Enumerable.Range(0, surface.Width * surface.Height).SelectMany(_ => new[] { 0f, 0f, 0f, 1f }).ToArray(), 0, 0, 2, surface.Width, surface.Height, 1);
         for (int frame = 0; frame < 24; frame++) runtime.Frame();
         var incident = scene.SourceAlbedo.Value * (32 / MathF.PI);
-        var direct = runtime.Direct.DirectDiffuseTex!.ReadPixels();
-        var specular = runtime.Direct.DirectSpecularTex!.ReadPixels();
-        var emission = runtime.Direct.EmissiveTex!.ReadPixels();
+        var direct = LayeredTestTexture.Read(runtime.Direct.Radiance!, 0);
+        var specular = LayeredTestTexture.Read(runtime.Direct.Radiance!, 1);
+        var emission = LayeredTestTexture.Read(runtime.Direct.Radiance!, 2);
         Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(direct) > .01f);
         // A fully rough dielectric has a small but nonzero direct specular lobe.
         Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(specular) > .00001f);

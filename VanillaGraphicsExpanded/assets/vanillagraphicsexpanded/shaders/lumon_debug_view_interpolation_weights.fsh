@@ -33,10 +33,10 @@ vec4 renderInterpolationWeightsDebug(vec2 screenPos)
     ivec2 p01 = clamp(baseProbe + ivec2(0, 1), ivec2(0), ivec2(probeGridSize) - 1);
     ivec2 p11 = clamp(baseProbe + ivec2(1, 1), ivec2(0), ivec2(probeGridSize) - 1);
 
-    float v00 = texelFetch(probeAnchorPosition, p00, 0).a;
-    float v10 = texelFetch(probeAnchorPosition, p10, 0).a;
-    float v01 = texelFetch(probeAnchorPosition, p01, 0).a;
-    float v11 = texelFetch(probeAnchorPosition, p11, 0).a;
+    float v00 = texelFetch(probeAnchors, ivec3(p00, VGE_ANCHOR_POSITION), 0).a;
+    float v10 = texelFetch(probeAnchors, ivec3(p10, VGE_ANCHOR_POSITION), 0).a;
+    float v01 = texelFetch(probeAnchors, ivec3(p01, VGE_ANCHOR_POSITION), 0).a;
+    float v11 = texelFetch(probeAnchors, ivec3(p11, VGE_ANCHOR_POSITION), 0).a;
 
     // Apply validity to weights
     float w00 = bw00 * (v00 > 0.5 ? 1.0 : 0.0);

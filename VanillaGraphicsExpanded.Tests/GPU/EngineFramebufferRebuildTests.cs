@@ -117,7 +117,7 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
         int oldPosition = manager.PositionTextureId;
         using var direct = new DirectLightingBufferManager(api.Object);
         Assert.True(direct.EnsureBuffers(2, 2));
-        int[] originalOutputs = [direct.DirectDiffuseTextureId, direct.DirectSpecularTextureId, direct.EmissiveTextureId];
+        var originalOutput = direct.Radiance!;
         replacement = CreateFrames(size, enginePosition);
         var harmony = new Harmony("VGE.Tests.EngineFramebufferRebuild");
         try
@@ -135,10 +135,8 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
             [
                 ("primary color", 0, primary.ColorTextureIds[0]),
                 ("primary depth", 1, primary.DepthTextureId),
-                ("G-buffer normal", 2, manager.NormalTextureId),
-                ("G-buffer position", 6, manager.PositionTextureId),
-                ("G-buffer environment", 7, manager.EnvironmentTextureId),
-                ("G-buffer material", 3, manager.MaterialTextureId),
+                ("G-buffer surface", 3, manager.SurfaceTextureId),
+                ("G-buffer position", 2, manager.PositionTextureId),
                 ("near shadow depth", 4, replacement[(int)EnumFrameBuffer.ShadowmapNear].DepthTextureId),
                 ("far shadow depth", 5, replacement[(int)EnumFrameBuffer.ShadowmapFar].DepthTextureId)
             ];
@@ -146,7 +144,7 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
             var failures = new List<string>();
             for (int index = 0; index < inputs.Length; index++)
             {
-                StateCache.Current.BindTexture(TextureTarget.Texture2D, inputs[index].Unit, inputs[index].Texture);
+                StateCache.Current.BindTexture(inputs[index].Name == "G-buffer surface" ? TextureTarget.Texture2DArray : TextureTarget.Texture2D, inputs[index].Unit, inputs[index].Texture);
                 var error = GL.GetError();
                 if (error != ErrorCode.NoError) failures.Add($"{inputs[index].Name}: texture {inputs[index].Texture}, {error}");
             }
@@ -160,8 +158,13 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
             Assert.Equal(size, width);
             Assert.True(oldFrames[(int)EnumFrameBuffer.Primary].Disposed);
             Assert.Equal(4, primary.ColorTextureIds.Length);
-            Assert.Equal(originalOutputs, new[] { direct.DirectDiffuseTextureId, direct.DirectSpecularTextureId, direct.EmissiveTextureId });
-            foreach (int output in originalOutputs)
+            if (size == 2) Assert.Same(originalOutput, direct.Radiance);
+            else
+            {
+                Assert.True(originalOutput.IsDisposed);
+                Assert.NotSame(originalOutput, direct.Radiance);
+            }
+            foreach (int output in new[] { direct.Radiance!.TextureId })
             {
                 GL.GetTextureLevelParameter(output, 0, GetTextureParameter.TextureWidth, out int outputWidth);
                 GL.GetTextureLevelParameter(output, 0, GetTextureParameter.TextureHeight, out int outputHeight);
@@ -169,12 +172,18 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
                 Assert.Equal(size, outputHeight);
             }
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, primary.FboId);
-            int[] attachedTextures = [manager.PositionTextureId, manager.NormalTextureId, manager.MaterialTextureId, manager.PatchIdTextureId, manager.EnvironmentTextureId];
+            int[] attachedTextures = [manager.PositionTextureId, manager.SurfaceTextureId, manager.SurfaceTextureId, manager.PatchIdTextureId, manager.SurfaceTextureId];
             for (int slot = 3; slot <= 7; slot++)
             {
                 GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0 + slot,
                     FramebufferParameterName.FramebufferAttachmentObjectName, out int attachedTexture);
                 Assert.Equal(attachedTextures[slot - 3], attachedTexture);
+                if (slot is 4 or 5 or 7)
+                {
+                    GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0 + slot,
+                        FramebufferParameterName.FramebufferAttachmentTextureLayer, out int layer);
+                    Assert.Equal(slot == 4 ? 0 : slot == 5 ? 1 : 2, layer);
+                }
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

@@ -28,6 +28,7 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
             using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
 
             using var input = TestFramework.CreateTexture(4, 4, PixelInternalFormat.Rgba32f, Enumerable.Repeat(1f, 64).ToArray());
+            using var lightingArray = LayeredTestTexture.Create(input, input, input);
             using var target = TestFramework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
             for (int generation = 0; generation < 2; generation++)
             {
@@ -55,8 +56,7 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
                     {
                         UpdateAndBindLumOnFrameUbo(program);
                         program.DebugMode = 22;
-                        program.DirectDiffuse = input;
-                        program.DirectSpecular = input;
+                        program.DirectLighting = lightingArray;
 
                         TestFramework.RenderQuadTo(program, target, (1f, 0f, 0f, 0f));
                     }

@@ -22,7 +22,7 @@ vec4 renderTemporalWeightDebug(vec2 screenPos)
     ivec2 probeCoord = ivec2(screenPos / float(probeSpacing));
     probeCoord = clamp(probeCoord, ivec2(0), ivec2(probeGridSize) - 1);
 
-    vec4 posData = texelFetch(probeAnchorPosition, probeCoord, 0);
+    vec4 posData = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
     float valid = posData.a;
 
     if (valid < 0.1)
@@ -32,7 +32,7 @@ vec4 renderTemporalWeightDebug(vec2 screenPos)
 
     vec3 posWS = posData.xyz;
     vec3 posVS = worldToViewPos(posWS);
-    vec3 normalWS = lumonDecodeNormal(texelFetch(probeAnchorNormal, probeCoord, 0).xyz);
+    vec3 normalWS = lumonDecodeNormal(texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0).xyz);
     vec3 normalVS = normalize(mat3(getViewMatrix()) * normalWS);
     float currentDepthLin = -posVS.z;
 

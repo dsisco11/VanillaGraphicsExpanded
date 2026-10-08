@@ -16,7 +16,7 @@ out vec4 outColor;
 /** Implements render direct diffuse debug for its explicit view entrypoint. */
 vec4 renderDirectDiffuseDebug()
 {
-    return vec4(vgeTonemapReinhard(texture(directDiffuse, uv).rgb), 1.0);
+    return vec4(vgeTonemapReinhard(texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).rgb), 1.0);
 }
 
 /** Renders only the DirectDiffuse view; mode selection occurs before program loading. */

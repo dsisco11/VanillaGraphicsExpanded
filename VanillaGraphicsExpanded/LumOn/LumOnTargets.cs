@@ -10,8 +10,8 @@ internal sealed class LumOnTargets : IDisposable
     private readonly GpuResourceCollection resources = new();
 
     #region Typed targets
-    public DynamicTexture2D ProbeAnchorPositionTex { get; }
-    public DynamicTexture2D ProbeAnchorNormalTex { get; }
+    /// <summary>Owns position and normal layers for each screen probe.</summary>
+    public Texture3D ProbeAnchors { get; }
     public GpuFramebuffer ProbeAnchorFbo { get; }
     public DynamicTexture2D ProbeTraceMaskTex { get; }
     public DynamicTexture2D ProbePisEnergyTex { get; }
@@ -28,13 +28,8 @@ internal sealed class LumOnTargets : IDisposable
     public DynamicTexture2D ScreenProbeAtlasFilteredTex { get; }
     public DynamicTexture2D ScreenProbeAtlasMetaFilteredTex { get; }
     public GpuFramebuffer ScreenProbeAtlasFilteredFbo { get; }
-    public DynamicTexture2D ProbeSh9Tex0 { get; }
-    public DynamicTexture2D ProbeSh9Tex1 { get; }
-    public DynamicTexture2D ProbeSh9Tex2 { get; }
-    public DynamicTexture2D ProbeSh9Tex3 { get; }
-    public DynamicTexture2D ProbeSh9Tex4 { get; }
-    public DynamicTexture2D ProbeSh9Tex5 { get; }
-    public DynamicTexture2D ProbeSh9Tex6 { get; }
+    /// <summary>Owns seven packed SH9 coefficient layers.</summary>
+    public Texture3D ProbeSh9 { get; }
     public GpuFramebuffer ProbeSh9Fbo { get; }
     public DynamicTexture2D IndirectHalfTex { get; }
     public GpuFramebuffer IndirectHalfFbo { get; }
@@ -59,9 +54,9 @@ internal sealed class LumOnTargets : IDisposable
             // Create Probe Anchor Buffers
             // ═══════════════════════════════════════════════════════════════
 
-            ProbeAnchorPositionTex = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorPosition")!);
-            ProbeAnchorNormalTex = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeAnchorNormal")!);
-            ProbeAnchorFbo = resources.Own(GpuFramebuffer.CreateMRT("ProbeAnchorFBO", ProbeAnchorPositionTex, ProbeAnchorNormalTex)!);
+            ProbeAnchors = resources.Own(Texture3D.Create(probeCountX, probeCountY, 2, PixelInternalFormat.Rgba16f,
+                TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "ProbeAnchors"));
+            ProbeAnchorFbo = CreateLayeredFramebuffer(ProbeAnchors, "ProbeAnchorFBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Create Probe Trace Mask
@@ -115,17 +110,9 @@ internal sealed class LumOnTargets : IDisposable
 
             // Probe-atlas → SH9 projection output (Option B)
             // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)
-            ProbeSh9Tex0 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_0")!);
-            ProbeSh9Tex1 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_1")!);
-            ProbeSh9Tex2 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_2")!);
-            ProbeSh9Tex3 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_3")!);
-            ProbeSh9Tex4 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_4")!);
-            ProbeSh9Tex5 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_5")!);
-            ProbeSh9Tex6 = resources.Own(DynamicTexture2D.Create(probeCountX, probeCountY, PixelInternalFormat.Rgba16f, debugName: "ProbeSH9_6")!);
-            ProbeSh9Fbo = resources.Own(GpuFramebuffer.CreateMRT(
-                [ProbeSh9Tex0, ProbeSh9Tex1, ProbeSh9Tex2, ProbeSh9Tex3, ProbeSh9Tex4, ProbeSh9Tex5, ProbeSh9Tex6],
-                depthTexture: null,
-                debugName: "ProbeSH9FBO")!);
+            ProbeSh9 = resources.Own(Texture3D.Create(probeCountX, probeCountY, 7, PixelInternalFormat.Rgba16f,
+                TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "ProbeSH9"));
+            ProbeSh9Fbo = CreateLayeredFramebuffer(ProbeSh9, "ProbeSH9FBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Create Indirect Diffuse Output Buffers
@@ -166,6 +153,17 @@ internal sealed class LumOnTargets : IDisposable
 
         }
         catch { resources.Dispose(); throw; }
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Routes one existing fragment output to each owned array layer.</summary>
+    private GpuFramebuffer CreateLayeredFramebuffer(Texture3D texture, string name)
+    {
+        var attachments = new GpuFramebufferAttachment[texture.Depth];
+        for (int layer = 0; layer < attachments.Length; layer++)
+            attachments[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(texture, layer: layer));
+        return resources.Own(GpuFramebuffer.Create(attachments, debugName: name));
     }
     #endregion
 

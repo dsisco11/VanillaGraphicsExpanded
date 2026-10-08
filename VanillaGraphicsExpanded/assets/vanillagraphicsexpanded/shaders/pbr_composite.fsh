@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 #if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
 out vec4 outColor;
@@ -26,24 +27,25 @@ layout(location = 2) out float outRefractionDepth;
 
 @import "./includes/pbr_composite_params_ubo.glsl"
 @import "./includes/liquids/boundary_transport.glsl"
-layout(binding = 12) uniform sampler2D vge_waterOpticalDepth;
-layout(binding = 13) uniform sampler2D vge_waterSource;
+uniform sampler2DArray vge_waterTransport;
+const int VGE_WATER_OPTICAL = 0;
+const int VGE_WATER_SOURCE = 1;
+
 
 // Direct buffers (linear, fog-free)
-uniform sampler2D directDiffuse;
-uniform sampler2D directSpecular;
-uniform sampler2D emissive;
+uniform sampler2DArray directLighting;
+const int VGE_DIRECT_DIFFUSE = 0;
+const int VGE_DIRECT_SPECULAR = 1;
+const int VGE_DIRECT_EMISSIVE = 2;
 
 // Optional indirect (linear, fog-free)
 #if VGE_LUMON_ENABLED
 uniform sampler2D indirectDiffuse;
 #endif
-uniform sampler2D gBufferEnvironment;
+uniform sampler2DArray gBufferSurface;
 
 // G-Buffer
 uniform sampler2D gBufferAlbedo;
-uniform sampler2D gBufferMaterial;
-uniform sampler2D gBufferNormal;
 uniform sampler2D primaryDepth;
 uniform sampler2D gBufferPosition;
 uniform sampler2D preOverlayColor;
@@ -57,7 +59,7 @@ bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission
     out vec3 inScattering, out float waterLength)
 {
     bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
-    vec4 source = texelFetch(vge_waterSource, ivec2(gl_FragCoord.xy), 0);
+    vec4 source = texelFetch(vge_waterTransport, ivec3(ivec2(gl_FragCoord.xy), VGE_WATER_SOURCE), 0);
     transmission = vec3(1);
     inScattering = vec3(0);
     waterLength = 0.0;
@@ -68,7 +70,7 @@ bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission
         if (abs(terminal) > .01) return false;
     }
     source.rgb += vgePbrCompositeParams.waterCameraSource.rgb * length(receiverVS);
-    return VgeWaterBoundaryTransport(texelFetch(vge_waterOpticalDepth, ivec2(gl_FragCoord.xy), 0),
+    return VgeWaterBoundaryTransport(texelFetch(vge_waterTransport, ivec3(ivec2(gl_FragCoord.xy), VGE_WATER_OPTICAL), 0),
         source, vgePbrCompositeParams.waterAbsorption.rgb + vgePbrCompositeParams.waterScattering.rgb,
         startsInWater, length(receiverVS), transmission, inScattering, waterLength);
 }
@@ -91,12 +93,12 @@ void main(void)
     if (lumonIsSky(depth)) return;
 #endif
 
-    vec3 directLight = texture(directDiffuse, uv).rgb + texture(directSpecular, uv).rgb;
-    vec3 emissiveLight = texture(emissive, uv).rgb;
+    vec3 directLight = texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).rgb + texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).rgb;
+    vec3 emissiveLight = texture(directLighting, vec3(uv, VGE_DIRECT_EMISSIVE)).rgb;
     vec3 finalColor = directLight + emissiveLight;
 
     // First-person visibility depth cannot reconstruct a physical lighting or fog receiver.
-    vec3 receiverVS = texture(gBufferNormal, uv).a < 0.0
+    vec3 receiverVS = texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a < 0.0
         ? texelFetch(gBufferPosition, ivec2(gl_FragCoord.xy), 0).xyz
         : lumonReconstructViewPos(uv, depth, invProjectionMatrix);
 
@@ -132,7 +134,7 @@ void main(void)
         float metallic;
         float emissive;
         float reflectivity;
-        lumonGetMaterialProperties(gBufferMaterial, uv, roughness, metallic, emissive, reflectivity);
+        lumonGetMaterialProperties(gBufferSurface, uv, roughness, metallic, emissive, reflectivity);
 
         indirect *= indirectIntensity;
         indirect *= indirectTint;
@@ -144,7 +146,7 @@ void main(void)
         vec3 viewPosVS = receiverVS;
         vec3 viewDirVS = normalize(-viewPosVS);
 
-        vec3 normalWS = lumonDecodeNormal(texture(gBufferNormal, uv).xyz);
+        vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
         vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
         // AO is intentionally a no-op for now.
@@ -179,10 +181,10 @@ void main(void)
 #endif // VGE_LUMON_PBR_COMPOSITE
 #else
     vec3 albedo = texture(gBufferAlbedo, uv).rgb;
-    vec4 material = texture(gBufferMaterial, uv);
-    vec3 normalVS = normalize(mat3(viewMatrix) * lumonDecodeNormal(texture(gBufferNormal, uv).xyz));
+    vec4 material = texture(gBufferSurface, vec3(uv, VGE_SURFACE_MATERIAL));
+    vec3 normalVS = normalize(mat3(viewMatrix) * lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz));
     vec3 toEye = normalize(-receiverVS);
-    finalColor += VgeEnvironmentResponse(texture(gBufferEnvironment, uv).rgb,
+    finalColor += VgeEnvironmentResponse(texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).rgb,
         albedo, material.g, material.r, dot(normalVS, toEye));
 #endif // VGE_LUMON_ENABLED
 
@@ -191,12 +193,12 @@ void main(void)
     // Capture before water/atmospheric transport; the liquid evaluates its bent path once.
     if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.fogFloats0.w > .5)
     {
-        outRefractionColor = vec4(finalColor, texture(gBufferNormal, uv).a >= 0.0 ? 1.0 : 0.0);
+        outRefractionColor = vec4(finalColor, texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a >= 0.0 ? 1.0 : 0.0);
         outRefractionDepth = depth;
         // Restore both members of the clean pair only where first-person visibility replaced the world.
         // Optional missing captures bind the zero fallback and never establish a physical receiver.
 #if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
-        if (texture(gBufferNormal, uv).a < 0.0 && vgePbrCompositeParams.aoStrengths.z > .5)
+        if (texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a < 0.0 && vgePbrCompositeParams.aoStrengths.z > .5)
         {
             outRefractionColor = texelFetch(preOverlayColor, ivec2(gl_FragCoord.xy), 0);
             outRefractionDepth = texelFetch(preOverlayDepth, ivec2(gl_FragCoord.xy), 0).r;
@@ -214,7 +216,7 @@ void main(void)
 #if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
     bool waterResolved = false;
     bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;
-    bool hasPhysicalReceiver = texture(gBufferNormal, uv).a >= 0.0;
+    bool hasPhysicalReceiver = texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a >= 0.0;
     bool cameraAboveWater = vgePbrCompositeParams.fogFloats0.z < .5;
     bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
     bool cameraMediumSupported = cameraAboveWater || startsInWater;
@@ -229,7 +231,7 @@ void main(void)
             // Apply aerial perspective only to the aggregate air portion of the ray.
             vec3 airReceiver = transpose(mat3(viewMatrix)) * receiverVS
                 * max(0.0, 1.0 - waterLength / max(length(receiverVS), .001));
-            finalColor = VgeApplyAerial(finalColor, airReceiver, texture(gBufferEnvironment, uv).a,
+            finalColor = VgeApplyAerial(finalColor, airReceiver, texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a,
                 vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
             finalColor = finalColor * transmission + inScattering;
         }
@@ -241,7 +243,7 @@ void main(void)
     }
     else if (!waterResolved)
         finalColor = VgeApplyAerial(finalColor, transpose(mat3(viewMatrix)) * receiverVS,
-            texture(gBufferEnvironment, uv).a, vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
+            texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a, vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
 
     outColor = vec4(finalColor, 1.0);
 #endif

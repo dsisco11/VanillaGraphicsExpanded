@@ -6,11 +6,9 @@ namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>
 /// Manages GPU textures for the PBR direct lighting pass.
-/// Creates and maintains framebuffers for:
-/// - DirectDiffuseTex: diffuse BRDF contribution (RGBA16F)
-/// - DirectSpecularTex: specular BRDF contribution (RGBA16F)
-/// - EmissiveTex: emissive radiance (RGBA16F)
-/// 
+/// Owns one RGBA16F array containing diffuse, specular and emissive radiance,
+/// with a separate framebuffer output attached to each layer.
+///
 /// All outputs are linear, pre-tonemap HDR.
 /// </summary>
 public sealed class DirectLightingBufferManager : IDisposable
@@ -47,38 +45,8 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// </summary>
     public bool IsInitialized => isInitialized;
 
-    /// <summary>
-    /// Texture for direct diffuse radiance (RGBA16F).
-    /// RGB = diffuse BRDF contribution, A = reserved.
-    /// </summary>
-    public DynamicTexture2D? DirectDiffuseTex => targets?.DirectDiffuse;
-
-    /// <summary>
-    /// OpenGL texture ID for direct diffuse.
-    /// </summary>
-    public int DirectDiffuseTextureId => targets?.DirectDiffuse.TextureId ?? 0;
-
-    /// <summary>
-    /// Texture for direct specular radiance (RGBA16F).
-    /// RGB = specular BRDF contribution, A = reserved.
-    /// </summary>
-    public DynamicTexture2D? DirectSpecularTex => targets?.DirectSpecular;
-
-    /// <summary>
-    /// OpenGL texture ID for direct specular.
-    /// </summary>
-    public int DirectSpecularTextureId => targets?.DirectSpecular.TextureId ?? 0;
-
-    /// <summary>
-    /// Texture for emissive radiance (RGBA16F).
-    /// RGB = emissive contribution, A = reserved.
-    /// </summary>
-    public DynamicTexture2D? EmissiveTex => targets?.Emissive;
-
-    /// <summary>
-    /// OpenGL texture ID for emissive.
-    /// </summary>
-    public int EmissiveTextureId => targets?.Emissive.TextureId ?? 0;
+    /// <summary>Supplies diffuse, specular and emissive layers in one owned radiance array.</summary>
+    public Texture3D? Radiance => targets?.Radiance;
 
     /// <summary>
     /// Framebuffer for direct lighting MRT output.
@@ -127,9 +95,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         // tracks lifetime without querying the driver for every texture on every frame.
         bool resourcesValid = isInitialized
             && targets?.Framebuffer is { IsValid: true }
-            && targets?.DirectDiffuse is { IsValid: true }
-            && targets?.DirectSpecular is { IsValid: true }
-            && targets?.Emissive is { IsValid: true };
+            && targets?.Radiance is { IsValid: true };
 
         if (!resourcesValid)
         {
@@ -139,7 +105,7 @@ public sealed class DirectLightingBufferManager : IDisposable
         }
         else if (screenWidth != lastScreenWidth || screenHeight != lastScreenHeight)
         {
-            isInitialized = targets!.Resize(screenWidth, screenHeight);
+            CreateBuffers(screenWidth, screenHeight);
             lastScreenWidth = screenWidth;
             lastScreenHeight = screenHeight;
         }

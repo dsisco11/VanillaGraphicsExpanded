@@ -27,10 +27,11 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             normalBranch.Scene.EnsureSize(ScreenWidth, ScreenHeight);
             var terrain = normalBranch.Scene.Engine;
             var guides = normalBranch.Scene.Terrain;
-            var anchors = inputs.ProbeAnchorPositionTex!;
-            anchors.UploadDataImmediate(CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, 0, 0, -5, 1));
-            var normals = guides.Normal;
-            normals.UploadDataImmediate(CreateUniformData(ScreenWidth, ScreenHeight, 4, 0.5f, 0.5f, 1, 0));
+            var anchors = inputs.ProbeAnchors!;
+            anchors.UploadDataImmediate(CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, 0, 0, -5, 1), 0, 0, 0, ProbeGridWidth, ProbeGridHeight, 1);
+            anchors.UploadDataImmediate(CreateUniformData(ProbeGridWidth, ProbeGridHeight, 4, .5f, .5f, 1, 0), 0, 0, 1, ProbeGridWidth, ProbeGridHeight, 1);
+            var normals = guides.Surface;
+            normals.UploadDataImmediate(CreateUniformData(ScreenWidth, ScreenHeight, 4, 0.5f, 0.5f, 1, 0), 0, 0, 0, ScreenWidth, ScreenHeight, 1);
             // Project the accepted anchor at z=-5 into hardware depth.
             float depthValue = ZFar / (ZFar - ZNear) - ZFar * ZNear / ((ZFar - ZNear) * 5f);
             var depth = terrain.Depth;
@@ -57,7 +58,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                     temporal.ScreenProbeAtlasHistory = frame == 0 ? trace : first[0];
                     temporal.ScreenProbeAtlasMetaCurrent = frame == 0 ? meta : first[1];
                     temporal.ScreenProbeAtlasMetaHistory = frame == 0 ? meta : first[1];
-                    temporal.ProbeAnchorPosition = anchors;
+                    temporal.ProbeAnchors = anchors;
                     temporal.PmjJitter = GetOrCreatePmjJitterTexture(1);
                     temporal.VelocityTex = buffers.VelocityTex;
                     temporal.TemporalAlpha = .9f;
@@ -66,31 +67,30 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 }
                 {
                     UpdateAndBindLumOnFrameUbo(filter);
-                    filter.ScreenProbeAtlas = second[0]; filter.ScreenProbeAtlasMeta = second[1]; filter.ProbeAnchorPosition = anchors;
+                    filter.ScreenProbeAtlas = second[0]; filter.ScreenProbeAtlasMeta = second[1]; filter.ProbeAnchors = anchors;
                     filter.FilterRadius = 1; filter.HitDistanceSigma = 1;
                     TestFramework.RenderQuadTo(filter, filtered);
                 }
                 if (sh9)
                 {
                     UpdateAndBindLumOnFrameUbo(project);
-                    project.ScreenProbeAtlas = filtered[0]; project.ScreenProbeAtlasMeta = second[1]; project.ProbeAnchorPosition = anchors;
+                    project.ScreenProbeAtlas = filtered[0]; project.ScreenProbeAtlasMeta = second[1]; project.ProbeAnchors = anchors;
                     TestFramework.RenderQuadTo(project, projected);
                 }
                 {
                     UpdateAndBindLumOnFrameUbo(gather, invProjectionMatrix: LumOnTestInputFactory.CreateRealisticInverseProjection());
                     if (shGather != null)
                     {
-                        shGather.ProbeAnchorPosition = anchors; shGather.ProbeAnchorNormal = normals;
-                        shGather.PrimaryDepth = depth.TextureId; shGather.GBufferNormal = normals.TextureId;
-                        shGather.ProbeSh0 = projected[0]; shGather.ProbeSh1 = projected[1]; shGather.ProbeSh2 = projected[2];
-                        shGather.ProbeSh3 = projected[3]; shGather.ProbeSh4 = projected[4]; shGather.ProbeSh5 = projected[5]; shGather.ProbeSh6 = projected[6];
+                        shGather.ProbeAnchors = anchors;
+                        shGather.PrimaryDepth = depth.TextureId; shGather.GBufferSurface = normals;
+                        shGather.ProbeSh9 = buffers.ProbeSh9;
                         shGather.Intensity = 1; shGather.IndirectTint = [1,1,1];
                     }
                     else
                     {
                         atlasGather!.ScreenProbeAtlas = filtered[0];
-                        atlasGather.ProbeAnchorPosition = anchors; atlasGather.ProbeAnchorNormal = normals;
-                        atlasGather.PrimaryDepth = depth.TextureId; atlasGather.GBufferNormal = normals.TextureId;
+                        atlasGather.ProbeAnchors = anchors;
+                        atlasGather.PrimaryDepth = depth.TextureId; atlasGather.GBufferSurface = normals;
                         atlasGather.Intensity = 1; atlasGather.IndirectTint = [1,1,1];
                         atlasGather.LeakThreshold = .5f; atlasGather.SampleStride = 1;
                     }

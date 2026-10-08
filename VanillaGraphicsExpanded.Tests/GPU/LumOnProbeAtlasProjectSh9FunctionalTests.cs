@@ -188,7 +188,8 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
 
         programId.ScreenProbeAtlas = atlasTex;
         programId.ScreenProbeAtlasMeta = metaTex;
-        programId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs101 = LayeredTestTexture.Create(anchorPosTex, null);
+        programId.ProbeAnchors = anchorInputs101;
 
         TestFramework.RenderQuadTo(programId, outSh9);
 
@@ -274,7 +275,8 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
 
         projectId.ScreenProbeAtlas = atlasTex;
         projectId.ScreenProbeAtlasMeta = metaTex;
-        projectId.ProbeAnchorPosition = anchorPosTex;
+        using var anchorInputs102 = LayeredTestTexture.Create(anchorPosTex, null);
+        projectId.ProbeAnchors = anchorInputs102;
         TestFramework.RenderQuadTo(projectId, outSh9);
 
         // 2) SH9 gather using projected coefficients
@@ -283,18 +285,16 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         var sh9GatherId = CompileSh9GatherShader();
         SetupSh9GatherUniforms(sh9GatherId, identity, identity);
 
-        sh9GatherId.ProbeSh0 = outSh9[0];
-        sh9GatherId.ProbeSh1 = outSh9[1];
-        sh9GatherId.ProbeSh2 = outSh9[2];
-        sh9GatherId.ProbeSh3 = outSh9[3];
-        sh9GatherId.ProbeSh4 = outSh9[4];
-        sh9GatherId.ProbeSh5 = outSh9[5];
-        sh9GatherId.ProbeSh6 = outSh9[6];
+        using var shInputs3 = LayeredTestTexture.Create(outSh9[0], outSh9[1], outSh9[2], outSh9[3], outSh9[4], outSh9[5], outSh9[6]);
+        sh9GatherId.ProbeSh9 = shInputs3;
+        Assert.True(sh9GatherId.ProgramLayout.TryGetContractSamplerUnit("probeSh9", out int coefficientUnit));
+        Assert.Equal(0, coefficientUnit);
 
-        sh9GatherId.ProbeAnchorPosition = anchorPosTex;
-        sh9GatherId.ProbeAnchorNormal = anchorNormTex;
+        using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
+        sh9GatherId.ProbeAnchors = anchorInputs1;
         sh9GatherId.PrimaryDepth = depthTex.TextureId;
-        sh9GatherId.GBufferNormal = gbufNormTex.TextureId;
+        using var surfaceInput1 = LayeredTestTexture.Create(gbufNormTex, null, null);
+        sh9GatherId.GBufferSurface = surfaceInput1;
 
         TestFramework.RenderQuadTo(sh9GatherId, outIndirectSh9);
         var sh9Out = outIndirectSh9[0].ReadPixels();
@@ -306,10 +306,11 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         SetupAtlasGatherUniforms(atlasGatherId, identity, identity);
 
         atlasGatherId.ScreenProbeAtlas = atlasTex;
-        atlasGatherId.ProbeAnchorPosition = anchorPosTex;
-        atlasGatherId.ProbeAnchorNormal = anchorNormTex;
+        using var anchorInputs2 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
+        atlasGatherId.ProbeAnchors = anchorInputs2;
         atlasGatherId.PrimaryDepth = depthTex.TextureId;
-        atlasGatherId.GBufferNormal = gbufNormTex.TextureId;
+        using var surfaceInput2 = LayeredTestTexture.Create(gbufNormTex, null, null);
+        atlasGatherId.GBufferSurface = surfaceInput2;
 
         TestFramework.RenderQuadTo(atlasGatherId, outIndirectAtlas);
         var atlasOut = outIndirectAtlas[0].ReadPixels();

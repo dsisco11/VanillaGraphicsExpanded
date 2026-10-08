@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 in vec2 uv;
 
@@ -12,9 +13,7 @@ uniform sampler2D primaryDepth;
 uniform sampler2D gBufferPosition; // Unbiased first-person view position, selected by negative normal alpha.
 
 // VGE G-buffer inputs
-uniform sampler2D gBufferNormal;   // ColorAttachment4: normal packed (RGBA16F)
-uniform sampler2D gBufferEnvironment; // Alpha: propagated engine sunlight at the receiver.
-uniform sampler2D gBufferMaterial; // ColorAttachment5: Roughness, Metallic, Emissive, Transmission (RGBA16F)
+uniform sampler2DArray gBufferSurface;
 
 @import "./includes/pbr_direct_lighting_params_ubo.glsl"
 
@@ -58,7 +57,7 @@ void main()
         return;
     }
 
-    vec4 nPacked = texture(gBufferNormal, uv);
+    vec4 nPacked = texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL));
     vec3 viewPos = nPacked.a < 0.0
         ? texelFetch(gBufferPosition, ivec2(gl_FragCoord.xy), 0).xyz
         : reconstructViewPos(uv, depth);
@@ -68,7 +67,7 @@ void main()
 
     vec3 N = normalize(nPacked.rgb * 2.0 - 1.0);
 
-    vec4 m = texture(gBufferMaterial, uv);
+    vec4 m = texture(gBufferSurface, vec3(uv, VGE_SURFACE_MATERIAL));
     // Minimum roughness clamp: avoids GGX singularities that can overflow RGBA16F outputs.
     float roughness = clamp(m.r, 0.04, 1.0);
     float metallic = clamp(m.g, 0.0, 1.0);
@@ -89,7 +88,7 @@ void main()
     float sunPcfVis;
     pbrComputeSunShadowVisibility(worldPosRel, sunVis, sunPcfVis);
     // Match forward lighting: propagated sunlight supplements geometric shadow visibility.
-    float skyVisibility = texture(gBufferEnvironment, uv).a;
+    float skyVisibility = texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a;
     addDirectLight(
         baseColor,
         N,

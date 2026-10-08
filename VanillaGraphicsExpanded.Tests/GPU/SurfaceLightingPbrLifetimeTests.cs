@@ -30,7 +30,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
         var reference = runtime.SceneLinearPixels();
         var screen = runtime.Screen.IndirectFullTex;
-        var direct = runtime.Direct.DirectDiffuseTex;
+        var direct = runtime.Direct.Radiance;
         var atlas = runtime.Cache.IrradianceAtlas();
         var primary = PrimaryLighting(runtime);
         long stableRevision = runtime.Screen.HistoryRevision;
@@ -45,7 +45,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
             SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
             Assert.True(runtime.Screen.HistoryRevision > revision);
             Assert.Same(screen, runtime.Screen.IndirectFullTex);
-            Assert.Same(direct, runtime.Direct.DirectDiffuseTex);
+            Assert.Same(direct, runtime.Direct.Radiance);
             Assert.Same(atlas, runtime.Cache.IrradianceAtlas());
             Assert.Equal(primary, PrimaryLighting(runtime));
             var expectedIncident = scene.SourceAlbedo.Value * (light / MathF.PI);
@@ -132,9 +132,9 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     /// <summary>Observes the independently rendered primary lighting terms for a matched source-disabled baseline.</summary>
     private static float[] PrimaryLighting(SurfaceLightingConsumerRuntimeFixture runtime)
     {
-        var diffuse = runtime.Direct.DirectDiffuseTex!.ReadPixels();
-        var specular = runtime.Direct.DirectSpecularTex!.ReadPixels();
-        var emission = runtime.Direct.EmissiveTex!.ReadPixels();
+        var diffuse = LayeredTestTexture.Read(runtime.Direct.Radiance!, 0);
+        var specular = LayeredTestTexture.Read(runtime.Direct.Radiance!, 1);
+        var emission = LayeredTestTexture.Read(runtime.Direct.Radiance!, 2);
         for (int i = 0; i < diffuse.Length; i++) diffuse[i] += specular[i] + emission[i];
         return diffuse;
     }

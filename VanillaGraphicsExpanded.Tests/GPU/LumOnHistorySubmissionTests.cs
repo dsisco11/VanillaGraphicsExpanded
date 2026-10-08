@@ -29,11 +29,11 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
                 buffers.ScreenProbeAtlasCurrentTex!, buffers.ScreenProbeAtlasMetaCurrentTex!,
                 buffers.ScreenProbeAtlasHistoryTex!, buffers.ScreenProbeAtlasMetaHistoryTex!,
                 buffers.ScreenProbeAtlasFilteredTex!, buffers.ScreenProbeAtlasMetaFilteredTex!,
-                buffers.ProbeSh9Tex0!, buffers.ProbeSh9Tex1!, buffers.ProbeSh9Tex2!, buffers.ProbeSh9Tex3!,
-                buffers.ProbeSh9Tex4!, buffers.ProbeSh9Tex5!, buffers.ProbeSh9Tex6!,
                 buffers.IndirectHalfTex!, buffers.IndirectFullTex!, buffers.ProbeTraceMaskTex!, buffers.ProbePisEnergyTex!, buffers.VelocityTex!];
             foreach (var image in images)
                 image.UploadDataImmediate(Enumerable.Repeat(.75f, image.ReadPixels().Length).ToArray());
+            var coefficients = buffers.ProbeSh9!;
+            coefficients.UploadDataImmediate(Enumerable.Repeat(.75f, coefficients.Width * coefficients.Height * 28).ToArray(), 0, 0, 0, coefficients.Width, coefficients.Height, 7);
             buffers.HasPublishedIndirect = true;
             var revision = buffers.HistoryRevision;
             long draws = StateCache.Current.DrawSubmissions;
@@ -42,6 +42,8 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
                 buffers.ClearHistory();
                 hostile.AssertRestored();
                 Assert.All(images, image => Assert.All(image.ReadPixels(), value => Assert.Equal(0, value)));
+                for (int layer = 0; layer < 7; layer++)
+                    Assert.All(LayeredTestTexture.Read(coefficients, layer), value => Assert.Equal(0, value));
             }
             Assert.False(buffers.HasPublishedIndirect);
             Assert.True(buffers.HistoryRevision > revision);

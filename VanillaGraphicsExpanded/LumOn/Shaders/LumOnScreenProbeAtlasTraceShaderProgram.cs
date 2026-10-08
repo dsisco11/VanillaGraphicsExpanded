@@ -157,12 +157,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid) - stored in world-space.
     /// </summary>
-    public partial GpuTexture? ProbeAnchorPosition { set; }
-
-    /// <summary>
-    /// Probe anchor normals (normalWS.xyz, reserved) - stored in world-space.
-    /// </summary>
-    public partial GpuTexture? ProbeAnchorNormal { set; }
+    public partial GpuTexture? ProbeAnchors { set; }
 
     /// <summary>
     /// Primary depth texture for ray marching.
@@ -177,7 +172,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
     /// <summary>
     /// VGE material properties used to derive emissive radiance at ray hits.
     /// </summary>
-    public partial int GBufferMaterial { set; }
+    public partial GpuTexture? GBufferSurface { set; }
 
     /// <summary>
     /// History probe atlas (octahedral-mapped) for temporal preservation.

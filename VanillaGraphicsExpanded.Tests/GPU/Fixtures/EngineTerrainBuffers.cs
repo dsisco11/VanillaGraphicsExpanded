@@ -29,7 +29,8 @@ internal sealed class EngineTerrainBuffers : IDisposable
     public void UploadTerrain(GBufferManager buffers, float[] depth, float[] normals, float[] material, float[] color)
     {
         Depth.UploadDataImmediate(depth); Color.UploadDataImmediate(color);
-        Upload(buffers.NormalTextureId, normals); Upload(buffers.MaterialTextureId, material);
+        buffers.SurfaceTexture!.UploadDataImmediate(normals, 0, 0, 0, Primary.Width, Primary.Height, 1);
+        buffers.SurfaceTexture.UploadDataImmediate(material, 0, 0, 1, Primary.Width, Primary.Height, 1);
     }
 
     /// <summary>Publishes packed terrain patch identities using the production G-buffer attachment.</summary>
@@ -40,13 +41,6 @@ internal sealed class EngineTerrainBuffers : IDisposable
         GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,Primary.Width,Primary.Height,PixelFormat.RgbaInteger,PixelType.UnsignedInt,values);
     }
 
-    /// <summary>Uploads four source channels; OpenGL converts them to the production attachment's storage format.</summary>
-    private void Upload(int texture, float[] values)
-    {
-        Assert.Equal(Primary.Width*Primary.Height*4,values.Length);
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,texture);
-        GL.TexSubImage2D(TextureTarget.Texture2D,0,0,0,Primary.Width,Primary.Height,PixelFormat.Rgba,PixelType.Float,values);
-    }
     #endregion
 
     #region Lifetime

@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/gbuffer_layers.glsl"
 
 out vec4 outColor;
 
@@ -23,21 +24,16 @@ out vec4 outColor;
 @import "./includes/lumon_probe_params_ubo.glsl"
 
 // SH9 packed textures (7 MRT attachments from projection pass)
-uniform sampler2D probeSh0;
-uniform sampler2D probeSh1;
-uniform sampler2D probeSh2;
-uniform sampler2D probeSh3;
-uniform sampler2D probeSh4;
-uniform sampler2D probeSh5;
-uniform sampler2D probeSh6;
+uniform sampler2DArray probeSh9;
 
 // Probe anchors (world-space)
-uniform sampler2D probeAnchorPosition;  // xyz = posWS, w = validity
-uniform sampler2D probeAnchorNormal;    // xyz = normalWS (encoded)
+uniform sampler2DArray probeAnchors;
+const int VGE_ANCHOR_POSITION = 0;
+const int VGE_ANCHOR_NORMAL = 1;
 
 // G-buffer for pixel info
 uniform sampler2D primaryDepth;
-uniform sampler2D gBufferNormal;
+uniform sampler2DArray gBufferSurface;
 
 // Quality parameters
 
@@ -59,13 +55,13 @@ ProbeData loadProbe(ivec2 probeCoord, ivec2 probeGridSizeI)
     ProbeData p;
     probeCoord = clamp(probeCoord, ivec2(0), probeGridSizeI - 1);
 
-    vec4 anchorPos = texelFetch(probeAnchorPosition, probeCoord, 0);
+    vec4 anchorPos = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_POSITION), 0);
     p.posWS = anchorPos.xyz;
     p.valid = anchorPos.w;
-    p.lastCoefficients = texelFetch(probeSh6, probeCoord, 0);
+    p.lastCoefficients = texelFetch(probeSh9, ivec3(probeCoord, 6), 0);
     p.lastCoefficients.a = clamp(p.lastCoefficients.a, 0.0, 1.0);
 
-    vec4 anchorNormal = texelFetch(probeAnchorNormal, probeCoord, 0);
+    vec4 anchorNormal = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0);
     p.normalWS = lumonDecodeNormal(anchorNormal.xyz);
 
     vec4 posVS = viewMatrix * vec4(p.posWS, 1.0);
@@ -97,12 +93,12 @@ float computeProbeWeight(
 /** Evaluates Lambertian SH using the coefficient packet already fetched with probe reliability. */
 vec3 evaluateProbeIrradiance(ivec2 probeCoord, vec3 normalWS, vec4 lastCoefficients)
 {
-    vec4 t0 = texelFetch(probeSh0, probeCoord, 0);
-    vec4 t1 = texelFetch(probeSh1, probeCoord, 0);
-    vec4 t2 = texelFetch(probeSh2, probeCoord, 0);
-    vec4 t3 = texelFetch(probeSh3, probeCoord, 0);
-    vec4 t4 = texelFetch(probeSh4, probeCoord, 0);
-    vec4 t5 = texelFetch(probeSh5, probeCoord, 0);
+    vec4 t0 = texelFetch(probeSh9, ivec3(probeCoord, 0), 0);
+    vec4 t1 = texelFetch(probeSh9, ivec3(probeCoord, 1), 0);
+    vec4 t2 = texelFetch(probeSh9, ivec3(probeCoord, 2), 0);
+    vec4 t3 = texelFetch(probeSh9, ivec3(probeCoord, 3), 0);
+    vec4 t4 = texelFetch(probeSh9, ivec3(probeCoord, 4), 0);
+    vec4 t5 = texelFetch(probeSh9, ivec3(probeCoord, 5), 0);
     return lumonSH9EvaluateDiffusePacked(t0, t1, t2, t3, t4, t5, lastCoefficients, normalWS);
 }
 
@@ -112,7 +108,7 @@ void main(void)
     ivec2 bestFull;
     float pixelDepth;
     vec3 pixelNormalWS;
-    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferNormal, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
+    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferSurface, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
     {
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;

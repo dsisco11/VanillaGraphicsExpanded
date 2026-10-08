@@ -22,6 +22,8 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
         using var attenuation = DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D);
         aerial.UploadDataImmediate(new float[] {1,2,3,0, 0,0,0,0},0,0,0,1,2,1,0);
         attenuation.UploadDataImmediate([.2f,.4f,.6f,0],0,0,0,1,1,1,0);
+        using var neutralOcclusion = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
+        program.LightShaftOcclusion = neutralOcclusion;
         program.AerialRadiance = aerial; program.AerialAttenuation = attenuation;
         using var target = CreateMRTRenderTarget(4, 13, PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);

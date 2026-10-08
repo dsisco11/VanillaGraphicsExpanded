@@ -43,16 +43,16 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     private void Accumulate(GpuFramebuffer traced, SurfaceLightingHistoryFixture history)
     {
         var program = temporalProgram ??= Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = SurfaceLightingHistoryFixture.DirectionsPerFrame);
-        var anchor = history.Buffers.ProbeAnchorPositionTex!;
+        var anchor = history.Buffers.ProbeAnchors!;
         var mask = history.Buffers.ProbeTraceMaskTex!;
         var velocity = history.Buffers.VelocityTex!;
-        anchor.UploadDataImmediate(CreateUniformColorData(anchor.Width,anchor.Height,0,0,-3,1));
+        anchor.UploadDataImmediate(CreateUniformColorData(anchor.Width,anchor.Height,0,0,-3,1), 0, 0, 0, anchor.Width, anchor.Height, 1);
         mask.UploadDataImmediate(new float[mask.Width*mask.Height*2]);
         velocity.UploadDataImmediate(new float[velocity.Width*velocity.Height*4]);
         var jitter = GetOrCreatePmjJitterTexture(1, 0);
         program.ScreenProbeAtlasCurrent = traced[0];
         program.ScreenProbeAtlasHistory = history.Buffers.ScreenProbeAtlasHistoryTex;
-        program.ProbeAnchorPosition = anchor;
+        program.ProbeAnchors = anchor;
         program.ScreenProbeAtlasMetaCurrent = traced[1];
         program.ScreenProbeAtlasMetaHistory = history.Buffers.ScreenProbeAtlasMetaHistoryTex;
         program.VelocityTex = velocity;

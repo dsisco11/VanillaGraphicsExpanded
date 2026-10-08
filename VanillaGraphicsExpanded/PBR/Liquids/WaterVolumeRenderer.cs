@@ -20,6 +20,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
     private readonly Action unregisterResize;
     private static WaterVolumeRenderer? active;
     private GpuFramebuffer? target;
+    private Texture3D? transport;
     private GpuResourceCollection? targetResources;
     private WaterVolumeFrame? completed;
     private bool composed;
@@ -70,19 +71,21 @@ internal sealed class WaterVolumeRenderer : IRenderer
         if (program is null) return;
         try
         {
+            if (target is not null && (target.Width != primary.Width || target.Height != primary.Height)) Retire();
             if (target is null)
             {
                 var resources = new GpuResourceCollection();
                 try
                 {
-                    var optical = resources.Own(new GpuFramebufferAttachment(primary.Width, primary.Height, PixelInternalFormat.Rgba32f));
-                    var illumination = resources.Own(new GpuFramebufferAttachment(primary.Width, primary.Height, PixelInternalFormat.Rgba32f));
+                    transport = resources.Own(Texture3D.Create(primary.Width, primary.Height, 2, PixelInternalFormat.Rgba32f,
+                        TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Water.Transport"));
+                    var optical = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.OpticalLayer));
+                    var illumination = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.SourceLayer));
                     target = resources.Own(GpuFramebuffer.Create([optical, illumination]));
                     targetResources = resources;
                 }
                 catch { resources.Dispose(); throw; }
             }
-            if (target.Width != primary.Width || target.Height != primary.Height) target.Resize(primary.Width, primary.Height);
             if (!program.EnsureReady()) return;
             program.CaptureFrameInputs(api, source.TileSize);
             program.VolumeTransportEnabled = false;
@@ -113,7 +116,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
                 }
             })) return;
             if (!TryGetCameraMedium(out var medium, out var cameraSource)) return;
-            completed = new(target[0], target[1], medium, cameraSource);
+            completed = new(transport!, medium, cameraSource);
         }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
@@ -170,6 +173,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
         targetResources?.Dispose();
         targetResources = null;
         target = null;
+        transport = null;
     }
     #endregion
 }
