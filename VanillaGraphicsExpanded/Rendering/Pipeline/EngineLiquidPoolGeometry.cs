@@ -15,14 +15,15 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
     private static readonly AccessTools.FieldRef<MeshDataPool, MeshRef> ReadMesh = AccessTools.FieldRefAccess<MeshDataPool, MeshRef>("modelRef");
     private static readonly AccessTools.FieldRef<MeshDataPool, List<ModelDataPoolLocation>> ReadLocations =
         AccessTools.FieldRefAccess<MeshDataPool, List<ModelDataPoolLocation>>("poolLocations");
+    // AllocateEmptyMesh/AddCustoms expose packed flags and custom integers as unsigned integer attributes.
     internal static readonly VertexLayoutDesc Layout = new([
         new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12),
         new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 1, 0, 8),
         new(2, 4, VertexAttribPointerType.UnsignedByte, VertexInterpretation.Normalized, 2, 0, 4),
-        new(3, 1, VertexAttribPointerType.Int, VertexInterpretation.Integer, 3, 0, 4),
+        new(3, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 3, 0, 4),
         new(4, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 4, 0, 8),
-        new(5, 1, VertexAttribPointerType.Int, VertexInterpretation.Integer, 5, 0, 8),
-        new(6, 1, VertexAttribPointerType.Int, VertexInterpretation.Integer, 5, 4, 8)]);
+        new(5, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 5, 0, 8),
+        new(6, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)]);
     private readonly MeshDataPool pool;
     private readonly VAO mesh;
     private readonly int vao, elements, vertices, indices;

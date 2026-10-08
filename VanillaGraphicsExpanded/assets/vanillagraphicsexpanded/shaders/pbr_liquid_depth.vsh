@@ -1,8 +1,8 @@
 #version 330 core
 #extension GL_ARB_shading_language_420pack : require
 layout(location = 0) in vec3 xyz;
-layout(location = 3) in int renderFlags;
-layout(location = 6) in int waterFlagsIn;
+layout(location = 3) in uint renderFlagsPacked;
+layout(location = 6) in uint waterFlagsPacked;
 
 layout(std140, binding = 12) uniform VgeLiquidDepthFrameParams
 {
@@ -20,6 +20,9 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 /** Writes the shared displaced liquid mesh to the engine-owned liquid-depth target. */
 void main()
 {
+    // Match unsigned engine storage, then preserve the shared signed flag decoding contract.
+    int renderFlags = int(renderFlagsPacked);
+    int waterFlagsIn = int(waterFlagsPacked);
     vec3 relativePosition = xyz + liquidOrigin.xyz;
     vec3 displacedPosition;
     vec3 waveNormal;

@@ -20,10 +20,10 @@ layout(location = 22) out vec2 vge_waveWeights;
 layout(location = 0) in vec3 xyz;
 layout(location = 1) in vec2 uvIn;
 layout(location = 2) in vec4 rgbaLightIn;
-layout(location = 3) in int renderFlags;
+layout(location = 3) in uint renderFlagsPacked;
 layout(location = 4) in vec2 flowVector;
-layout(location = 5) in int colormapData;
-layout(location = 6) in int waterFlagsIn;
+layout(location = 5) in uint colormapDataPacked;
+layout(location = 6) in uint waterFlagsPacked;
 @import "./includes/vertex_flags.glsl"
 @import "./includes/liquids/waves.glsl"
 @import "./includes/colormap_noise.glsl"
@@ -31,6 +31,10 @@ layout(location = 6) in int waterFlagsIn;
 /** Prepares the existing liquid mesh layout without vanilla lighting or Fresnel alpha. */
 void main()
 {
+    // Match unsigned engine storage, then preserve the shared signed flag decoding contract.
+    int renderFlags = int(renderFlagsPacked);
+    int waterFlagsIn = int(waterFlagsPacked);
+    int colormapData = int(colormapDataPacked);
     vec4 truePos = vec4(xyz + origin, 1);
     vec4 worldPos = truePos;
     vec3 meshNormal = unpackNormal(renderFlags);
