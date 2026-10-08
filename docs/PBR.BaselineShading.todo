@@ -620,16 +620,6 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
-  ☐ Validate combined shading, configuration and performance before completion.
-    - Use subagents for focused build/shader/GPU tests and a separate implementation review. Cover
-      supported variants, lifecycle/resource ownership and failure/unsupported-capability paths.
-    - Compare matched scenes and quality settings with LumOn on/off and each optional feature toggled.
-      Record pass costs, frame time, memory and shader first-use separately; set budgets from evidence.
-    - Obtain user-run in-game acceptance for shadow readability, sky, liquids, surface relief and
-      clouds, including their interactions. Do not launch the game or treat tests as visual acceptance.
-    - Document settings, capability requirements, approximation limits and authoring examples. Link
-      evidence to completed tasks and remove temporary profiling/comparison code after preserving it.
-
   ☐ Extend scene-linear HDR rendering through the complete scene and postprocessing pipeline.
     - Coordinate HDR water/OIT integration with docs/PBR.WaterRefraction.todo; establish one
       shared producer/consumer and final-display contract without reciprocal task dependencies.
