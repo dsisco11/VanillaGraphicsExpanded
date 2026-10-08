@@ -5,10 +5,6 @@
 #error Forward PBR requires an explicit lighting mode before compilation.
 #endif
 
-#ifndef VGE_SCENE_LINEAR_INPUT
-#define VGE_SCENE_LINEAR_INPUT
-uniform int vge_sceneLinear;
-#endif
 
 #if DYNLIGHTS > 0
 uniform vec3 pointLights[DYNLIGHTS];
@@ -76,7 +72,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
         radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
     else
         radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
-    return VgeSceneOutput(radiance, gl_FragCoord.xy, vge_sceneLinear != 0);
+    return VgeSceneOutput(radiance, gl_FragCoord.xy, vge_pbrRoute != 0);
 }
 /** Preserves non-transmitting callers which have no material transmission metadata. */
 vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)

@@ -69,7 +69,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         Assert.InRange(glow[3], .39999f, .40001f);
     }
 
-    /// <summary>Luma preserves radiance and god-ray glare suppression remains nonzero for HDR input.</summary>
+    /// <summary>Luma preserves radiance while god rays generate bounded artistic radiance from display-domain samples.</summary>
     [Theory]
     [InlineData("luma.fsh", 0)]
     [InlineData("luma.fsh", 1)]
@@ -102,10 +102,13 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         }
         else
         {
-            float metric = radiance.Select(value => Encode(value / 9f)).Average();
-            float factor = linearScene == 0 ? 0 : 1 - Math.Max(metric - .7f, 0);
+            float[] display = radiance.Select(value => Encode(value / 9f)).ToArray();
+            float factor = linearScene == 0 ? 0 : 1 - Math.Max(display.Average() - .7f, 0);
             for (int channel = 0; channel < 3; channel++)
-                Assert.InRange(pixels[channel], radiance[channel] * factor - .00001f, radiance[channel] * factor + .00001f);
+            {
+                float expected = linearScene == 0 ? 0 : Decode(display[channel] * factor);
+                Assert.InRange(pixels[channel], expected - .00001f, expected + .00001f);
+            }
             Assert.Equal(1, pixels[3]);
         }
     }

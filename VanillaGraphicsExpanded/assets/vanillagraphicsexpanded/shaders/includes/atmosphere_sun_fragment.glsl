@@ -1,9 +1,5 @@
 #ifndef VGE_ATMOSPHERE_SUN_INPUTS
 uniform int vge_atmosphereSunDraw;
-#ifndef VGE_SCENE_LINEAR_INPUT
-#define VGE_SCENE_LINEAR_INPUT
-uniform int vge_sceneLinear;
-#endif
 uniform vec4 vge_atmosphereSun;
 uniform vec4 vge_atmosphereDisk;
 #endif
@@ -23,7 +19,7 @@ void VgeDrawAtmosphericSun()
     vec3 displayColor = applyUnderwaterEffects(VgeResolveDisplay(vge_atmosphereDisk.rgb), getSkyMurkiness());
     // HDR keeps the disk's physical radiance. Its water transport is owned by scene
     // composition; the legacy display tint remains only on the compatible SDR route.
-    outColor = vec4(vge_sceneLinear != 0 ? max(vge_atmosphereDisk.rgb, vec3(0.0))
+    outColor = vec4(vge_pbrRoute != 0 ? max(vge_atmosphereDisk.rgb, vec3(0.0))
         : VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
     // Feed the engine's bloom extraction separately from atmospheric scattering.
     // Use attenuated, underwater-adjusted color before dithering, so a dim disk

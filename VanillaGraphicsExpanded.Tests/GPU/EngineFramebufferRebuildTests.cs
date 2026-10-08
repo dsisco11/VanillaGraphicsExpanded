@@ -1,3 +1,5 @@
+using Vintagestory.Client;
+using VanillaGraphicsExpanded.PBR.SceneColor;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Moq;
@@ -16,8 +18,80 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     private static List<FrameBufferRef>? replacement;
+    private static int allocationCalls;
 
     #region Engine lifecycle
+    /// <summary>Startup replaces pre-mod normalized storage before borrowing and refuses an incompatible replacement.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void SceneColorStartupRebuildsBeforeBorrowing(bool compatibleReplacement, bool suppressed)
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
+        GC.SuppressFinalize(platform);
+        var previousPlatform = ScreenManager.Platform;
+        bool previousSuppression = ShaderRegistry.SupressShaderAndBufferReloads;
+        var frameField = AccessTools.Field(typeof(ClientPlatformWindows), "frameBuffers");
+        var oldFrames = CreateSceneFrames(false);
+        int oldColor = oldFrames[(int)EnumFrameBuffer.Primary].ColorTextureIds[0];
+        frameField.SetValue(platform, oldFrames);
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(() => (List<FrameBufferRef>)frameField.GetValue(platform)!);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+        replacement = CreateSceneFrames(compatibleReplacement);
+        allocationCalls = 0;
+        var harmony = new Harmony("VGE.Tests.SceneColorStartupRebuild");
+        try
+        {
+            ScreenManager.Platform = platform;
+            ShaderRegistry.SupressShaderAndBufferReloads = suppressed;
+            // Retain the installed replacement/publication/deletion body; only native
+            // window allocation is supplied by the same real-image fixture as rebuild tests.
+            harmony.Patch(AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.SetupDefaultFrameBuffers)),
+                prefix: new HarmonyMethod(typeof(EngineFramebufferRebuildTests), nameof(SupplyFramebuffers)));
+            if (compatibleReplacement && !suppressed)
+            {
+                SceneColorPipeline.InitializeStorage(api.Object);
+                Assert.Equal(1, allocationCalls);
+                using var manager = new GBufferManager(api.Object);
+                manager.SetupGBuffers();
+                Assert.Equal(replacement[(int)EnumFrameBuffer.Primary].ColorTextureIds[3], manager.PositionTextureId);
+                Assert.NotEqual(oldColor, replacement[(int)EnumFrameBuffer.Primary].ColorTextureIds[0]);
+                SceneColorPipeline.InitializeStorage(api.Object);
+                Assert.Equal(1, allocationCalls);
+            }
+            else
+            {
+                var error = Assert.Throws<InvalidOperationException>(() => SceneColorPipeline.InitializeStorage(api.Object));
+                Assert.Contains("could not initialize scene storage", error.Message);
+                Assert.Contains("Primary", error.Message);
+                Assert.Contains("Rgba8", error.Message);
+                Assert.Equal(suppressed ? 0 : 1, allocationCalls);
+            }
+            Assert.Same(suppressed ? oldFrames : replacement, render.Object.FrameBuffers);
+            Assert.Equal(!suppressed, oldFrames[(int)EnumFrameBuffer.Primary].Disposed);
+            Assert.Equal(suppressed, GL.IsTexture(oldColor));
+            AssertNoGLError("scene-color startup rebuild");
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            ScreenManager.Platform = previousPlatform;
+            ShaderRegistry.SupressShaderAndBufferReloads = previousSuppression;
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            AccessTools.Method(typeof(ClientPlatformWindows), "DisposeFrameBuffers").Invoke(platform, [frameField.GetValue(platform)]);
+            if (suppressed) AccessTools.Method(typeof(ClientPlatformWindows), "DisposeFrameBuffers").Invoke(platform, [replacement]);
+            replacement = null;
+            StateCache.Current.InvalidateAll();
+        }
+    }
+
+
     /// <summary>All direct-light inputs must survive the real engine rebuild, including equal-sized replacement.</summary>
     [Theory]
     [InlineData(true, 2)]
@@ -120,6 +194,7 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
     /// <summary>Returns real test allocations while preserving all production Harmony postfixes.</summary>
     private static bool SupplyFramebuffers(ref List<FrameBufferRef> __result)
     {
+        allocationCalls++;
         __result = replacement!;
         return false;
     }
@@ -151,12 +226,43 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
         return frames;
     }
 
+    /// <summary>Creates every mandatory scene publication with optional pre-mod normalized primary storage.</summary>
+    private static List<FrameBufferRef> CreateSceneFrames(bool hdr)
+    {
+        var frames = CreateFrames(2, true);
+        var primary = frames[(int)EnumFrameBuffer.Primary];
+        if (!hdr)
+        {
+            GL.DeleteTexture(primary.ColorTextureIds[0]);
+            primary.ColorTextureIds[0] = CreateTexture(2, false, SizedInternalFormat.Rgba8);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, primary.FboId);
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
+                TextureTarget.Texture2D, primary.ColorTextureIds[0], 0);
+        }
+        foreach (var kind in new[] { EnumFrameBuffer.Luma, EnumFrameBuffer.FindBright,
+            EnumFrameBuffer.BlurHorizontalMedRes, EnumFrameBuffer.BlurVerticalMedRes,
+            EnumFrameBuffer.BlurHorizontalLowRes, EnumFrameBuffer.BlurVerticalLowRes, EnumFrameBuffer.GodRays })
+        {
+            var frame = frames[(int)kind];
+            frame.Width = frame.Height = 2;
+            frame.FboId = GL.GenFramebuffer();
+            frame.ColorTextureIds = [CreateTexture(2, false)];
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, frame.FboId);
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
+                TextureTarget.Texture2D, frame.ColorTextureIds[0], 0);
+        }
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+        StateCache.Current.InvalidateAll();
+        return frames;
+    }
+
     /// <summary>Creates a texture object with complete immutable storage for engine deletion and production binding.</summary>
-    private static int CreateTexture(int size, bool depth)
+    private static int CreateTexture(int size, bool depth, SizedInternalFormat colorFormat = SizedInternalFormat.Rgba16f)
     {
         int texture = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, texture);
-        GL.TexStorage2D(TextureTarget2d.Texture2D, 1, depth ? SizedInternalFormat.DepthComponent32f : SizedInternalFormat.Rgba16f, size, size);
+        GL.TexStorage2D(TextureTarget2d.Texture2D, 1, depth ? SizedInternalFormat.DepthComponent32f : colorFormat, size, size);
         return texture;
     }
     #endregion

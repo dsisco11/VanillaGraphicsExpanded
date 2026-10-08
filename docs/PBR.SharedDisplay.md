@@ -14,42 +14,135 @@ Neutral inputs retain their previous response; near black the mapping approaches
 linear. This is a simple chromaticity-preserving SDR operator, not adaptive eye
 exposure or calibrated HDR presentation.
 
-## Current draw boundaries
+## Runtime scene handoff
 
-The table describes the retained legacy color route. Scene storage is now floating point,
-and selectable shader branches support scene-linear output and a single final conversion.
-Runtime activation is deferred to existing binding owners in the full-scene HDR task; the global
-shader-use hook and experimental coordinator are removed. The owned `pbr_sky` program retains display
-output at runtime and supplies a selectable linear branch for the future common handoff.
-See [PBR.WaterRefraction.md](PBR.WaterRefraction.md#hdr-producer-and-consumer-contract).
+VGE owns the scene color convention: scene rendering is always scene-linear HDR.
+SceneColorPipeline prepares floating-point scene/postprocess targets, the final display
+program, owned sky, direct lighting, composite and particle separation at Before order 1000.
+Missing mandatory dependencies raise rendering errors; they never select a legacy scene
+pipeline. Shader registry contents do not enable or disable HDR.
 
-| Path | Input | Conversion point |
-| --- | --- | --- |
-| Atmospheric sky | Scene-linear sky LUT radiance | Owned `pbr_sky`, before dome blending |
-| Sun | Atmosphere-attenuated disk radiance | Solar fragment path, before coverage blending |
-| Deferred terrain/entities | Composed lighting and aerial transport | `pbr_display_resolve`, before display-referred primary |
-| Forward/OIT/held surfaces | Forward lighting and aerial transport | `pbr_forward_surface.glsl`, before existing display-space blending |
+At client startup, before VGE borrows engine attachments, SceneColorPipeline.InitializeStorage
+validates the existing table. The engine creates its menu buffers before mod patches load;
+when that table is not HDR, VGE calls the engine RebuildFrameBuffers owner and validates
+the published replacement. This applies the allocation patch while preserving engine
+publication, deletion and dependent-resource notifications. Already valid HDR storage is
+retained; rendering does not repeatedly rebuild incompatible targets.
+The startup regression exercises the installed rebuild publication/deletion body with real
+textures, including normalized pre-mod storage, repeated initialization and suppressed or
+incompatible replacement. The scene-color and framebuffer-rebuild suites passed 90/90
+tests with no skips; the shader-enabled build passed with no errors. Receipts:
+artifacts/SceneHdrRuntime/startup-storage-build.log and startup-storage-tests.trx.
 
-Composition and display resolve bypass sky-depth pixels because those pixels are
-already converted. Applying the operator again would darken them. Alpha and
-coverage do not pass through RGB transfer. Moon textures and stars remain
-engine-authored display colors, rather than being interpreted as physical radiance.
+Storage validation imports actual texture formats and dimensions once per publication.
+The engine leaves some postprocess dimensions unset (notably BlurVerticalLowRes), so
+zero postprocess metadata does not invalidate allocated HDR storage. Positive published
+dimensions must match the image; primary scene dimensions remain mandatory. Failures
+identify the target and its missing attachment, incompatible format or size mismatch.
+The installed-engine attachment regression executes setupAttachment with zero wrapper
+dimensions, verifies the native 32x32 image, accepts RGBA16F and rejects RGBA8. The
+scene-color suite passed 83/83 tests with no skips; the shader-enabled build had no errors.
+Receipts: artifacts/SceneHdrRuntime/allocation-metadata-build.log and
+artifacts/SceneHdrRuntime/allocation-metadata-tests.trx.
 
-The owned `pbr_sky` resolves before underwater/night-vision effects on its legacy route;
-`final.fsh` applies user gamma, brightness and contrast later. The sky's linear branch keeps
-spatial effects before dome blending and decodes authored tint inputs. See
-[owned dome submission](PBR.Atmosphere.md#owned-dome-submission). The solar override bypasses vanilla solar
-tint/fog so atmospheric attenuation is not applied twice.
+| Owner | Scene behavior |
+| --- | --- |
+| Owned sky and solar disk | Unexposed radiance, no local dither |
+| Deferred terrain/entities | Linear lighting/transport and primary handoff |
+| Forward, OIT, held items and owned liquids | Linear lighting and transport before blending |
+| Authored engine effects and engine liquid adapter | Decode authored RGB before blending/integration |
+| Cube particles | Isolated radiance/depth capture; compose after material lighting |
+| Bloom and luma | Float intermediates; perceptual luma retains linear RGB |
+| God rays | Legacy glare response uses bounded display samples; generated contribution is decoded before HDR composition |
+| Engine final composition | One display conversion before grading; final dither |
 
-## HDR ordering and validation limits
+Surface shaders use vge_pbrRoute as their single selector: zero retains offscreen/UI
+shading, one captures material data, and two emits forward HDR radiance. The atmospheric
+solar branch in standard derives its color convention from that same route. These linked
+surface programs have no vge_sceneLinear uniform.
 
-One shared operator does not mean one fullscreen conversion on the legacy route. Its
-display-referred scene and existing OIT blending retain the boundaries above. The
-conditional scene-linear route keeps these contributors in floating-point buffers and
-selects the operator in final composition, disabling earlier conversions together.
-Complete-frame verification of that route is still required. HDR monitor output separately
-requires transfer-function and presentation support. The legacy sky bypass remains necessary
-because those pixels have already been converted on that route.
+PbrDrawRouteHook assigns the surface route on each binding, including nested offscreen
+reuse. Programs without that route use the separate scene-color binding for authored
+engine effects. Both owners require matching primary/OIT targets in Opaque, OIT or AfterOIT;
+offscreen/UI calls remain display-referred. Owned scene programs supply HDR through their
+typed inputs. There is no additional global shader-use patch.
+
+Postprocess inputs are selected at ClientPlatformWindows.RenderPostprocessingEffects
+and RenderFinalComposition shader activation calls. Their destination alone cannot
+identify their sampled scene. The narrow Harmony transpiler preserves each engine Use
+call and then assigns its input convention. Generic uses of final/colorgrade/luma/godrays
+remain display-referred. HasSceneInput tracks pending scene postprocessing, not HDR readiness.
+Final composition consumes that input, including exceptional exits, and world exit retires it.
+Resize/reload invalidate preparation metadata without changing the color convention of pending input.
+The alternate colorgrade program is not the live engine scene endpoint and retains
+legacy input outside an explicitly owned scene-input call.
+
+Third-party scene contributors must honor the HDR target contract. Merely registering an
+unclassified program does not affect VGE ownership, including programs used only for UI.
+The registry-wide compatibility gate has been removed. Missing required patched color
+bindings produce errors instead of silently writing or interpreting display RGB. Arbitrary
+third-party shader output is not automatically converted or guaranteed compatible.
+
+The engine god-ray radial blur is an authored glare effect calibrated for bounded display
+samples. VGE supplies that metric per sample, retains the engine suppression curve, and
+decodes the generated contribution before adding it to the HDR scene. The scene and bloom
+inputs retain their original radiance. Applying only a perceptual suppression metric to an
+unbounded HDR ray sum caused the solar footprint to become a large saturated disk.
+
+The broken-sun capture isolated that defect to the god-ray pass: replacing only its
+fragment shader reduced peak ray RGB from 737 to 0.592 and removed the oversized disk.
+The corrected primary is saved at artifacts/BrokenSun/capture-primary-corrected.png.
+Focused postprocess/runtime/sun tests passed 96/96 with no skips, including spatial
+comparison against the installed legacy glare algorithm and reproduction of the old HDR
+accumulator failure. Receipts: artifacts/SceneHdrRuntime/godray-domain-fixed-tests.trx
+and artifacts/BrokenSun/godray-corrected-result.json. Capture replay does not replace
+user-run visual acceptance; the separately reported refraction appearance remains unresolved.
+
+Bloom blur spacing is measured in destination pixels using derivatives of the center UV.
+The installed engine supplies full-window frameSize to every blur pass, including its
+half- and quarter-resolution targets; retaining those offsets leaves a tight solar halo.
+VGE retains the Gaussian weights and derives all 17 coordinates from the center, including
+the final coordinate the installed vertex shader leaves unset. Using destination spacing
+keeps horizontal and vertical spread equal when a pass also downsamples its input.
+The no-sun-bloom capture confirmed that extraction and final bloom composition were active;
+the change widens their footprint rather than increasing bloom intensity.
+Capture replay retained a nearly circular halo (18x17 quarter-resolution texels at
+10% of peak, versus 13x13 previously). The shader-enabled build and 98/98 focused tests
+passed, including rectangular half/quarter targets checked against all 17 Gaussian taps
+and HDR energy conservation. Receipts: artifacts/SceneHdrRuntime/bloom-destination-tests.trx
+and artifacts/NoSunBloom/blur-destination-ab.json. User-run appearance remains to be confirmed.
+
+## Display and validation limits
+
+Fixed unit exposure and the SDR operator remain unchanged. Alpha, revealage, depth, glow
+and SSAO metadata are not color-transfer inputs. Sky spatial perception effects stay at
+their existing location; authored underwater/night-vision tints are decoded on the linear
+route. Native HDR monitor presentation and adaptive exposure are separate work.
+
+The runtime GPU fixture prepares the actual producer owners, renders the owned sky above
+one, preserves it through direct/composite handoff, and draws the installed final shader
+against an independent single-conversion reference. It also reads actual bound uniforms
+across scene/offscreen reuse, checks missing-final errors without changing scene output,
+ignores unrelated shader registrations, and checks final/reload/world input lifetime. Installed engine methods accept the Harmony binding patch.
+Separate shader/storage/particle tests cover blends, effects and metadata. These fixtures
+do not execute a complete native game frame or establish live appearance, compatibility
+with every mod, or GPU cost. User-run scene comparisons remain required before the parent
+task is checked off.
+
+Mandatory-HDR validation passed **337/337 tests with no skips**, including runtime ownership
+and failure cases, installed Harmony integration, scene storage/particle paths, sky/forward/
+final shaders, lighting-mode lifecycle, water capture, transparency and refraction. The Debug
+build passed with zero errors. Receipts: artifacts/SceneHdrRuntime/mandatory-hdr-checked-build.log,
+mandatory-hdr-owner.trx and mandatory-hdr-regression.trx. The three-case owner run is included
+in the 337 cases. This replaces the earlier fallback-specific receipt; eight obsolete registry
+classification cases were removed and five direct-renderer cases added. No game was launched.
+
+Unified surface routing validation passed **341/341 tests with no skips**, including the
+surface route transitions, linked installed shaders without a duplicate scene-color uniform,
+forward HDR radiance and solar rendering. The focused 90-case run is included in that total.
+The shader-enabled Debug build passed with zero errors and existing warnings. Receipts:
+artifacts/SceneHdrRuntime/surface-route-build.log, surface-route-targeted.trx and
+surface-route-regression.trx. These checks do not establish in-game appearance.
 
 The display operator itself adds no textures, buffers, draw calls or LUT work. The shoulder
 replaces a vector denominator with two scalar maximum operations and a common

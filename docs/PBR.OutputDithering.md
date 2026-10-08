@@ -2,9 +2,9 @@
 
 The per-draw boundaries below describe the retained legacy color route. The conditional
 scene-linear route disables those calls and retains final encoded-output dithering. Primary
-storage is now floating point. Runtime HDR activation is deferred to existing binding-owner
-integration and the planned VGE-owned sky shader; full handoff and perception-effect verification remain
-open in [PBR.WaterRefraction.md](PBR.WaterRefraction.md#hdr-producer-and-consumer-contract).
+storage is floating point. VGE scene rendering requires HDR through the binding owners described
+in [PBR.SharedDisplay.md](PBR.SharedDisplay.md); missing dependencies report errors without a legacy fallback.
+Live handoff and perception-effect appearance still require user verification.
 
 `VgeDitherDisplay` in `pbr_color.glsl` adds ordered dither to encoded display RGB,
 after shared exposure, tone mapping and sRGB encoding. Its 8x8 Bayer tile visits

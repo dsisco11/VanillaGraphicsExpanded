@@ -70,7 +70,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         Rendering.Integration.EngineRenderContext.RegisterCurrent();
         // Begin renderer ownership with unknown state; later external mutations invalidate their affected categories.
         StateCache.Current.InvalidateAll();
-        // Menu framebuffers can predate mod hook installation; name the currently published table once.
+        // Establish HDR storage before any VGE system borrows the engine framebuffer images.
+        PBR.SceneColor.SceneColorPipeline.InitializeStorage(api);
+        // Name the current engine table before VGE adds its own attachments.
         Rendering.Diagnostics.EngineFramebufferDebugLabels.ApplyDefaults(api.Render.FrameBuffers);
         PBR.HeldLighting.HeldLightSystem.Start(api, message => api.Logger.Error(message));
 

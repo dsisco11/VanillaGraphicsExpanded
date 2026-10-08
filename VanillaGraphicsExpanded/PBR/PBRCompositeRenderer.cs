@@ -283,14 +283,14 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
             return;
         }
 
-        // Preserve HDR for a prepared linear frame; otherwise retain the legacy display resolve.
+        // Preserve HDR through the primary handoff; final composition owns display conversion.
         // The source is our scratch texture, so this draw has no color attachment feedback.
         // Borrow only primary color; this FBO owns its routing and never owns the engine texture.
 
         display!.PrimaryScene = compositeColorTex!.TextureId;
         display.PrimaryDepth = primaryFb.DepthTextureId;
-        // Runtime scene output remains display-referred until its existing binding owners adopt HDR.
-        display.SceneLinear = 0;
+        // Preserve radiance until the engine final display boundary on a prepared HDR frame.
+        display.SceneLinear = 1;
         var particleLayer = SceneColor.SceneColorParticleCapture.Layer(capi);
         display.ParticleLayer = particleLayer;
         display.ParticleLayerEnabled = particleLayer is null ? 0 : 1;

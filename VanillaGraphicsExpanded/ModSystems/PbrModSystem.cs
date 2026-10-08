@@ -25,6 +25,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.Liquids.WaterRefractionCapture? waterRefractionCapture;
     private PBR.SceneColor.SceneColorParticleCapture? particleCapture;
     private PBR.Atmosphere.AtmosphereSkyRenderer? skyRenderer;
+    private PBR.SceneColor.SceneColorPipeline? sceneColor;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -55,6 +56,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         base.Dispose();
         HarmonyPatches.PbrDrawRouteHook.Api = null;
 
+        sceneColor?.Dispose(); sceneColor = null;
         liquidRenderer?.Dispose();
         skyRenderer?.Dispose(); skyRenderer = null;
         particleCapture?.Dispose();
@@ -106,6 +108,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             ConfigModSystem.Config,
             lumOnSystem.GetLumOnBufferManagerOrNull,
             () => PbrShaderLightingMode.LumOnEnabled);
+        sceneColor ??= new PBR.SceneColor.SceneColorPipeline(capi, pbrCompositeRenderer,
+            directLightingRenderer, directLightingBufferManager, skyRenderer, particleCapture);
         waterRefractionCapture ??= new PBR.Liquids.WaterRefractionCapture(capi, directLightingRenderer, pbrCompositeRenderer);
 
         capi.Logger.Debug("[VGE] PbrModSystem ensured ({0})", reason);

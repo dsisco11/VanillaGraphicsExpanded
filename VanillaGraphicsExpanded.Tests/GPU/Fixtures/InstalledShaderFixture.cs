@@ -30,6 +30,7 @@ internal sealed class InstalledShaderFixture : IDisposable
             Layout = GpuProgramLayout.TryBuild(executable.ProgramId);
             Engine = name switch
             {
+                "standard" => new ShaderProgramStandard(),
                 "particlescube" => new ShaderProgramParticlescube(),
                 "sky" => new ShaderProgramSky(),
                 "final" => new ShaderProgramFinal(),

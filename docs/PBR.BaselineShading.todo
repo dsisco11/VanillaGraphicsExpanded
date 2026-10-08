@@ -111,7 +111,7 @@ Tasks
       inputs have a separate adapter; legacy cloud lookup content remains a compatibility dependency.
       Contract and limits: docs/PBR.Atmosphere.Publication.md.
     - Owned pbr_sky SPIR-V and typed inputs reuse the published atmosphere and primary framebuffer;
-      the renderer owns a procedural fullscreen triangle and reconstructs camera-relative rays per pixel. Runtime retains legacy output.
+      the renderer owns a procedural fullscreen triangle and reconstructs camera-relative rays per pixel. Runtime always emits scene-linear HDR.
       The earlier draw-hook/shader-handoff validation is historical and does not validate the revised
       ownership. User-run visual acceptance remains required before completion.
       Evidence: docs/PBR.Atmosphere.md / Owned fullscreen submission.
@@ -634,24 +634,22 @@ Tasks
     - Coordinate HDR water/OIT integration with docs/PBR.WaterRefraction.todo; establish one
       shared producer/consumer and final-display contract without reciprocal task dependencies.
     ☐ Establish the common HDR scene handoff for full-scene activation.
-      - Depends on the VGE-owned sky replacement above. Sky-specific HDR patches and their tests
-        were removed by user direction; the current sky retains display output.
-      - Integrate color-convention selection with existing surface, atmosphere and owned-program
-        binding owners; do not introduce a separate hook on every ShaderProgramBase.Use invocation.
-        Inventory uncovered engine contributors and use explicit owning boundaries for them.
-      - Define scene/postprocess/final and nested UI/offscreen transitions, stale-binding reset and
-        reload/failure behavior before activation. The experimental SceneColorFrame coordinator and
-        global binding/final/postprocess hooks were removed; runtime output remains legacy meanwhile.
+      - Uses the VGE-owned sky replacement and existing surface/owned-program binding owners.
+        SceneColorPipeline prepares the scene before drawing; PbrDrawRouteHook supplies scene
+        convention and resets nested offscreen bindings. Explicit engine postprocess call sites
+        supply their sampled-input convention without another global shader-use hook.
+        Runtime ownership, mandatory HDR preparation and lifecycle: docs/PBR.SharedDisplay.md.
       - Follow docs/PBR.WaterRefraction.md / HDR producer and consumer contract: floating-point
         scene storage, compatible opaque/sky/OIT/late and fallback contributors, linear merge and
         pre-display effects, then one final display boundary before grading/UI.
       - Verify highlight retention, linear blends, single conversion and coherent failure/lifecycle
         handling before full-scene HDR activation. Water Phase 2 can implement and verify its optical
         math and HDR/legacy output contracts independently; do not expand it into this scene migration.
-      - In progress: engine-owned scene/blur storage promotion and selectable linear output branches;
-        foundation tests passed 33/33; later producer/postprocess regressions passed 76/76.
-          These separate receipts do not satisfy the common-handoff gate. Runtime activation is
-          deferred to the binding-owner integration above; complete-frame execution remains unverified.
+      - Implemented mandatory scene HDR ownership for sky, surfaces, liquids, isolated cube particles,
+        deferred handoff and final display. Engine scene/blur storage and shader branch foundation
+        receipts remain historical; fresh runtime validation is recorded in PBR.SharedDisplay.md.
+        Fresh mandatory-HDR Debug build and 337/337 focused tests passed without skips, including runtime
+        sky-to-primary-to-final numerical verification. Complete live-frame visual acceptance remains open.
       - Preserve underlying material/depth for legacy cube-particle alpha blending at Opaque 0.6,
         before deferred lighting/composition. Do not mix completed radiance with material RGB,
         move engine callbacks or replay submissions. Evidence and remaining work: PBR.WaterRefraction.md.

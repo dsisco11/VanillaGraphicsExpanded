@@ -168,10 +168,17 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         // Select its convention at each submission, never retain the preceding frame's input.
         if (program.HasUniform("vge_sceneLinear")) program.Uniform("vge_sceneLinear", 0);
         var capture = active;
-        if (capture is not { prepared: true, targets: { IsCurrent: true } }
-            || capture.api.Render.CurrentRenderStage != EnumRenderStage.Opaque) return null;
+        if (capture is null || capture.api.Render.CurrentRenderStage != EnumRenderStage.Opaque) return null;
         var primary = capture.api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primary is null || capture.api.Render.CurrentFrameBuffer?.FboId != primary.FboId) return null;
+        if (!capture.prepared || capture.targets is not { IsCurrent: true })
+        {
+            // An owned HDR scene cannot blend display RGB into deferred material albedo
+            // when separation failed. Report the failure even if engine dispatch continued.
+            if (SceneColorPipeline.HasSceneInput)
+                throw new InvalidOperationException("VGE HDR particle capture was not prepared.");
+            return null;
+        }
         var scope = new SceneColorParticleDrawScope(capture.targets);
         try { program.Uniform("vge_sceneLinear", 1); return scope; }
         catch { scope.Dispose(); throw; }

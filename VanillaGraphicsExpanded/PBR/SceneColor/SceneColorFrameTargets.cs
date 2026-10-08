@@ -14,29 +14,50 @@ internal sealed class SceneColorFrameTargets
         EnumFrameBuffer.BlurHorizontalMedRes, EnumFrameBuffer.BlurVerticalMedRes,
         EnumFrameBuffer.BlurHorizontalLowRes, EnumFrameBuffer.BlurVerticalLowRes, EnumFrameBuffer.GodRays
     ];
-    private readonly Dictionary<int, (int Width, int Height, bool Linear)> images = new();
+    private readonly Dictionary<int, (int Width, int Height, PixelInternalFormat Format)> images = new();
 
     #region Public API
-    /// <summary>Rejects missing or integer scene color storage before selecting a linear frame.</summary>
-    internal bool Prepare(IReadOnlyList<FrameBufferRef> buffers)
+    /// <summary>Validates actual scene storage, accepting omitted postprocess dimensions in engine publications.</summary>
+    internal bool Prepare(IReadOnlyList<FrameBufferRef> buffers, out string? failure)
     {
+        failure = null;
         foreach (var kind in SceneTargets)
         {
             if (buffers.Count <= (int)kind || buffers[(int)kind] is not { } target
-                || target.Width <= 0 || target.Height <= 0
-                || target.ColorTextureIds is not { Length: > 0 } colors || colors[0] == 0) return false;
+                || target.ColorTextureIds is not { Length: > 0 } colors || colors[0] == 0)
+            {
+                failure = $"{kind} has no published color texture.";
+                return false;
+            }
+            if (kind == EnumFrameBuffer.Primary && (target.Width <= 0 || target.Height <= 0))
+            {
+                failure = $"Primary has invalid scene dimensions {target.Width}x{target.Height}.";
+                return false;
+            }
             int id = colors[0];
             if (!images.TryGetValue(id, out var cached)
-                || cached.Width != target.Width || cached.Height != target.Height)
+                || (target.Width > 0 && cached.Width != target.Width)
+                || (target.Height > 0 && cached.Height != target.Height))
             {
-                // The established attachment abstraction imports metadata at the
-                // publication boundary; ordinary frames reuse the recorded result.
+                // The engine omits dimensions on some postprocess publications (including
+                // BlurVerticalLowRes). The allocated image is authoritative in that case.
+                // Import once per publication; do not repeatedly query omitted metadata.
                 using var image = GpuFramebufferAttachment.FromTextureId(id);
-                cached = (image.Width, image.Height,
-                    image.InternalFormat is PixelInternalFormat.Rgba16f or PixelInternalFormat.Rgba32f);
+                cached = (image.Width, image.Height, image.InternalFormat);
                 images[id] = cached;
             }
-            if (!cached.Linear || cached.Width != target.Width || cached.Height != target.Height) return false;
+            if (cached.Format is not (PixelInternalFormat.Rgba16f or PixelInternalFormat.Rgba32f))
+            {
+                failure = $"{kind} color texture {id} uses {cached.Format}; floating-point RGBA storage is required.";
+                return false;
+            }
+            if ((target.Width > 0 && cached.Width != target.Width)
+                || (target.Height > 0 && cached.Height != target.Height))
+            {
+                failure = $"{kind} color texture {id} is {cached.Width}x{cached.Height}, "
+                    + $"but its publication specifies {target.Width}x{target.Height}.";
+                return false;
+            }
         }
         return true;
     }

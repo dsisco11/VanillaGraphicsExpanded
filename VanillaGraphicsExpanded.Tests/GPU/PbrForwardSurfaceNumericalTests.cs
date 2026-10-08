@@ -44,6 +44,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             .Replace("@import \"./common_constants.glsl\"", File.ReadAllText(Path.Combine(directory, "common_constants.glsl")));
         string header = """
             #version 330 core
+            uniform int vge_pbrRoute;
             #define SHADOWQUALITY 1
             #define DYNLIGHTS 1
             #define VGE_SURFACE_VIEW surfaceView
@@ -87,6 +88,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var inputs = new FixtureUniformInputs(program, 64);
             GL.UseProgram(program);
+            GL.Uniform1(GL.GetUniformLocation(program, "vge_pbrRoute"), 2);
             float[] view = scenario == 3 ? [0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1] : [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             inputs.Matrix(0, view);
             inputs.Publish();
@@ -130,14 +132,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
                 if (scenario == 12) linear = new[]{.04f,.09f,.16f}[channel];
                 radiance[channel] = linear;
             }
-            float peak = radiance.Max();
+            // Forward scene lighting is unexposed radiance; the final pass owns display conversion.
             for (int channel = 0; channel < 3; channel++)
-            {
-                float mapped = radiance[channel] / (1f + peak);
-                float expected = mapped <= .0031308f ? 12.92f * mapped : 1.055f * MathF.Pow(mapped, 1f / 2.4f) - .055f;
-                expected = Math.Clamp(expected - 31.5f / (64f * 255f), 0f, 1f);
-                Assert.InRange(actual[channel], expected - .0001f, expected + .0001f);
-            }
+                Assert.InRange(actual[channel], radiance[channel] - .0001f, radiance[channel] + .0001f);
             Assert.InRange(actual[3], .36999f, .37001f);
         }
         finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }

@@ -102,8 +102,8 @@ internal sealed class LiquidRenderer : IRenderer
             var store = MaterialAtlasSystem.Instance.TextureStore;
             program.CaptureFrameInputs(api, source.TileSize);
             program.VolumeTransportEnabled = WaterVolumeRenderer.WasComposed(api);
-            // Keep the compatible output adapter until scene binding owners establish an HDR frame.
-            program.SceneLinear = false;
+            // Scene color is always unexposed radiance until final composition.
+            program.SceneLinear = true;
             var refraction = waterSettings.WaterRefractionEnabled ? getRefractionScene() : null;
             // A settings event between publication and OIT cannot reuse an old-resolution pair.
             int backgroundScale = waterSettings.WaterRefractionBackgroundScale == 1 ? 2 : 1;

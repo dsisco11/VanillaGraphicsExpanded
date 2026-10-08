@@ -114,7 +114,9 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
     [InlineData(0, true, 0, 1, 3, FogCase)]
     [InlineData(9, true, 1, 1, 3, ShadowCase)]
     [InlineData(0, true, 0, 1, 3, FlowCase)]
-    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3, int compatibility = 0)
+    [InlineData(0, true, 0, 1, 0, 0, true)]
+    [InlineData(0, true, 0, 2, 0, 0, true)]
+    public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3, int compatibility = 0, bool captureReceiver = false)
     {
         EnsureContextValid();
         string? binaryDirectory = Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_BINARIES");
@@ -285,6 +287,16 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             drawing.RenderQuadTo(reduction, reductionTarget!);
             program.RefractionColorTexture = reducedColor;
             program.RefractionDepthTexture = reducedDepth;
+        }
+        // Consume the actual composite publication directly, including its reduced pair.
+        using var capturedReceiver = captureReceiver ? new RuntimeWaterReceiver(assets, frameSize,
+            Flatten(projection), deviceDepth, backgroundScale) : null;
+        if (capturedReceiver is not null)
+        {
+            Assert.True(capturedReceiver.Scene.Published);
+            program.RefractionColorTexture = capturedReceiver.Scene.Color;
+            program.RefractionDepthTexture = capturedReceiver.Scene.Depth;
+            Assert.True(capturedReceiver.Scene.Color!.ReadPixels().Max() > 1);
         }
         var state = StateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);

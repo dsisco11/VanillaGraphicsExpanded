@@ -33,7 +33,7 @@ internal static class VanillaShaderPatches
 
     /// <summary>Reports whether a shader stage receives any VGE pre- or post-processing edits.</summary>
     internal static bool Supports(string sourceName) => sourceName is
-        "chunkshadowmap.vsh" or "final.fsh" or "sky.fsh"
+        "chunkshadowmap.vsh" or "final.fsh" or "sky.fsh" or "blur.fsh"
         || PatchedChunkVertexShaders.Contains(sourceName)
         || PatchedChunkShaders.Contains(sourceName)
         || SceneColor.SceneColorPostprocessPatches.Supports(sourceName)
@@ -374,6 +374,11 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (sourceName == "blur.fsh")
+            {
+                SceneColor.SceneColorBloomPatches.Apply(tree);
+                return true;
+            }
             if (SceneColor.SceneColorLegacyPatches.Supports(sourceName))
             {
                 SceneColor.SceneColorLegacyPatches.Apply(tree, sourceName);

@@ -271,8 +271,7 @@ low-resolution interpolation rather than a full-resolution fragment ray march.
 
 The owned `pbr_sky` shader samples this table and uses the shared unit-exposure, RGB-ratio-preserving shoulder/sRGB
 display conversion on the retained legacy route. Its selectable scene-linear route preserves radiance
-above one and omits display conversion and dithering. Runtime continues to select legacy output until
-the common scene-HDR handoff is ready. The engine's night/fog alpha calculation is retained, as are subsequent
+above one and omits display conversion and dithering. Runtime always emits scene-linear HDR; see PBR.SharedDisplay.md. The engine's night/fog alpha calculation is retained, as are subsequent
 underwater/night-vision effects. Stars remain the separate engine night-sky draw before the atmosphere;
 the sun reuses the engine quad with atmospheric disk shading, while the moon retains its textured
 draw afterward. See [solar disk integration](PBR.Atmosphere.SolarDisk.md). Moonlight is not a second atmospheric light

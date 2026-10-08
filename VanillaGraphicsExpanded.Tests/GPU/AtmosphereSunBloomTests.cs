@@ -33,6 +33,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
         string includes = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
         int sunFragment = shaders.Compile(ShaderType.FragmentShader, """
             #version 430 core
+            uniform int vge_pbrRoute;
             #define VGE_SURFACE_PRIMARY_OUTPUTS 0
             #define SSAOLEVEL 0
             layout(location=0) out vec4 outColor;
@@ -67,6 +68,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
             source.BindWithViewport();
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
             StateCache.Current.UseProgram(sun.ProgramId);
+            GL.Uniform1(GL.GetUniformLocation(sun.ProgramId, "vge_pbrRoute"), 1);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereDisk"), radiance, radiance, radiance, .01f);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereSun"), 0f, 1f, 0f, 0f);
             inputs.Float(0, attenuation);

@@ -15,7 +15,18 @@ internal static class PbrDrawRouteHook
     [HarmonyPostfix]
     internal static void Postfix(ShaderProgramBase __instance)
     {
-        if (Api is null || !__instance.HasUniform("vge_pbrRoute")) return;
+        // Surface routing already owns both shading and its color convention.
+        // Only other engine shader families need a separate color binding.
+        if (!__instance.HasUniform("vge_pbrRoute"))
+        {
+            PBR.SceneColor.SceneColorProgramBindings.BindScene(__instance, Api);
+            return;
+        }
+        if (Api is null)
+        {
+            __instance.Uniform("vge_pbrRoute", 0);
+            return;
+        }
         var render = Api.Render;
         var buffers = render.FrameBuffers;
         __instance.Uniform("vge_pbrRoute", Route(render.CurrentRenderStage, render.CurrentFrameBuffer,

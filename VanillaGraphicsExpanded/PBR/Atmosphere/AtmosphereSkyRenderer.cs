@@ -47,7 +47,7 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage == EnumRenderStage.Opaque && ReferenceEquals(active, this)
-            && AtmosphereModSystem.Lighting is not null && Prepare())
+            && AtmosphereModSystem.Lighting is not null && PrepareFrame())
         {
             Draw();
         }
@@ -63,11 +63,8 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
         api.Event.ReloadShader -= Reload;
         Reset(); lifetime.Dispose();
     }
-    #endregion
-
-    #region Private
     /// <summary>Prepares owned drawing resources without changing sky-system ownership.</summary>
-    private bool Prepare()
+    internal bool PrepareFrame()
     {
         if (failed || api.Render.FrameWidth <= 0 || api.Render.FrameHeight <= 0
             || api.Render.WireframeDebugRender.Vertex) return false;
@@ -89,6 +86,9 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
             return false;
         }
     }
+    #endregion
+
+    #region Private
     /// <summary>Submits the owned fullscreen triangle without invoking or reactivating the engine sky callback.</summary>
     private void Draw()
     {
@@ -105,9 +105,8 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
             if (shader?.EnsureReady() != true) return;
             var target = gbuffer.PrimaryFramebuffer;
             if (target.FboId != primary.FboId || !target.HasRenderPassMetadata) return;
-            // The shared HDR owner has not activated a scene convention yet. The owned
-            // shader retains both branches, while this runtime boundary stays compatible.
-            shader.Capture(api, lighting, sceneLinear: false);
+            // Use the same convention as all other contributors to primary.
+            shader.Capture(api, lighting, sceneLinear: true);
             // Sky owns color and glow only; framebuffer clearing establishes background validity.
             var pass = new RenderPassDesc(target, [new(0), new(1)]);
             using var metadata = new RenderPassTargets(pass);

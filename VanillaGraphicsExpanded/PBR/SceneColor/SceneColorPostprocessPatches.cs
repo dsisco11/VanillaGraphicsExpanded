@@ -53,23 +53,28 @@ internal static class SceneColorPostprocessPatches
         else if (source == "godrays.fsh")
         {
             var function = tree.Select(Query.Syntax<GlFunctionNode>().Named("applyGodRays")).OfType<GlFunctionNode>().Single();
-            var children = function.Body.Children.ToArray();
-            // The legacy factor reaches zero for sufficiently bright radiance. Use its
-            // display-domain brightness metric for the existing suppression curve instead.
-            var boundary = children.Select((node, index) => (node, index))
-                .Single(pair => pair.node is SyntaxToken { Text: "col" } && pair.index + 3 < children.Length
-                    && children[pair.index + 1].ToText().Trim() == "."
-                    && children[pair.index + 2].ToText().Trim() == "rgb"
-                    && children[pair.index + 3].ToText().Trim() == "*=").node;
-            editor.InsertBefore(boundary, """
-            if (vge_sceneLinear != 0)
+            // The engine's radial blur is an authored glare effect calibrated for display
+            // samples. Feeding solar radiance into it saturates the whole ray footprint.
+            // Preserve that effect's response, then decode only the generated contribution
+            // for addition to the untouched HDR scene at final composition.
+            string body = function.ToText();
+            const string sample = "texture(inputTexture, uv)";
+            if (body.Split(sample, StringSplitOptions.None).Length != 3)
+                throw new InvalidOperationException("Missing god-ray source sampling boundaries.");
+            editor.Replace(function, """
+            vec3 VgeSrgbToLinear(vec3 color);
+            /** Supplies the legacy glare operator with bounded perceptual source samples. */
+            vec4 VgeGodRaySource(vec2 uv)
             {
-                vec3 displayMetric = VgeResolveDisplay(col.rgb);
-                float glare = max(dot(displayMetric, vec3(1.0 / 3.0)) - 0.7, 0.0);
-                col.rgb *= clamp(1.0 - glare, 0.0, 1.0);
-                col.a = min(1.0, col.a);
-                return col;
+                vec4 sampleColor = texture(inputTexture, uv);
+                if (vge_sceneLinear != 0) sampleColor.rgb = VgeResolveDisplay(sampleColor.rgb);
+                return sampleColor;
             }
+
+            """ + "\n" + body.Replace(sample, "VgeGodRaySource(uv)", StringComparison.Ordinal));
+            editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), """
+
+            if (vge_sceneLinear != 0) outColor.rgb = VgeSrgbToLinear(outColor.rgb);
 
             """);
         }

@@ -898,8 +898,8 @@ Before full-scene HDR activation, that owner must establish and verify:
    variants and custom shaders can acquire OIT includes through preprocessing. Opaque
    `particlescube` and authored celestial/effect draws also need explicit routing. Preserve alpha,
    depth, glow and render order; adapt existing effects rather than replacing their algorithms.
-   Unknown third-party scene contributors require an explicit compatibility boundary or rejection
-   of the HDR handoff, never silently treating their display RGB as radiance.
+   Third-party scene contributors must honor the HDR target contract or provide an explicit
+   color adapter. Their registrations must not switch VGE to a legacy scene pipeline.
 3. One final scene display boundary after linear composition/effects, before display grading and
    UI. Update `findbright`, blur/intermediate formats, `final` colour operations and FXAA ordering
    consistently. UI/inventory must not pass through scene exposure. Native HDR output and new bloom
@@ -908,12 +908,14 @@ Before full-scene HDR activation, that owner must establish and verify:
    do not retain per-draw dither in scene-linear radiance or apply an 8-bit amplitude to HDR storage.
 4. Executed producer/consumer fixtures proving values above one survive the handoff, linear
    transparency matches numerical references, output conversion occurs once, and unsupported or
-   failed setup retains an entirely compatible old path rather than mixing old and new routes.
+   failed mandatory setup reports an error without changing the scene color convention.
 
-This scene migration is currently **not complete or verified as a whole**. It does not block
+Mandatory HDR scene ownership is implemented by the binding owners described in
+[PBR.SharedDisplay.md](PBR.SharedDisplay.md). Complete live-frame visual acceptance remains open.
+This work does not block
 water-specific implementation or verification. Shared water optics consume linear receiver data
-and produce linear transport results; an output adapter preserves the existing display convention
-until full-scene HDR is available. Controlled producer/consumer fixtures can verify the water HDR
+and produce linear transport results; an output adapter follows the convention selected for
+the owned HDR scene. Missing HDR dependencies do not switch to legacy display output. Controlled producer/consumer fixtures can verify the water HDR
 branch without replacing the sky or activating HDR throughout the running scene. Sky replacement
 and complete-scene activation remain separate parent tasks. Completing the water contract does not
 claim their completion or HDR-monitor support. The approved authoritative-pipeline proposal constrains future
@@ -929,13 +931,13 @@ is checked directly, including primary color-before-glow and both SSAO branches.
 
 PBR forward/liquid output and the opaque handoff have explicit linear branches. In that branch,
 `VgeSceneOutput` retains nonnegative unexposed radiance, and local sphere-fog colors are decoded
-before interpolation. The sun branch also retains radiance; sky HDR support is deferred to the
-planned VGE-owned replacement. Legacy OIT adapters decode
+before interpolation. The sun branch also retains radiance; the VGE-owned sky selects the same prepared frame convention. Legacy OIT adapters decode
 straight color before engine premultiplication; volumetric clouds decode the authored color
 sample before integration. Postprocessing preserves linear RGB, uses display-derived alpha for
 FXAA contrast, and selects one display conversion before final grading. The god-ray glare metric
-uses display brightness without clipping its linear RGB. Runtime activation of these branches is deferred to existing binding-owner integration in the parent scene-HDR task. No whole-scene HDR activation
-or all-producer coverage is claimed from these branches.
+uses display brightness without clipping its linear RGB. Mandatory HDR preparation is owned by SceneColorPipeline and supplied through existing scene
+bindings, typed owned inputs and explicit engine postprocess call sites. The historical shader
+branch receipts below do not themselves validate the newer runtime selection; see PBR.SharedDisplay.md.
 
 Fresh subagent-run foundation validation passed 33/33 tests with no skips in
 `artifacts/PbrColor/scene-color-foundation-tests.log`: installed allocation/Harmony checks,
@@ -956,7 +958,7 @@ assertion failure. These counts are separate receipts, not a summed distinct-tes
 | Shared scene-HDR work | Controlling requirements | Current evidence |
 | --- | --- | --- |
 | Engine scene storage | Parent common-handoff task; HDR contract items 1 and 4; authoritative state proposal's engine ownership boundary | `SceneColorAllocation`/`SceneColorAllocationHook`; original installed IL, Harmony installation, headless storage and rebuild checks. Native window allocation has not been executed by these fixtures. |
-| Selectable producer output and fog | HDR contract item 2; `PBR.MaterialColorAndDisplay.md`; `PBR.Liquids.md` six-output and alpha contract | `VgeSceneOutput`, liquid frame/handoff bindings and producer shader patches; helper, handoff and retained legacy-output checks. Conditional frame activation is wired; complete-frame execution remains unverified. |
+| Selectable producer output and fog | HDR contract item 2; `PBR.MaterialColorAndDisplay.md`; `PBR.Liquids.md` six-output and alpha contract | `VgeSceneOutput`, liquid frame/handoff bindings and producer shader patches; helper, handoff and retained legacy-output checks. Runtime scene output is mandatory HDR; complete live-frame acceptance remains open. |
 | Legacy OIT and existing effects | HDR contract items 2 and 3; `PBR.SharedDisplay.md`; `PBR.OutputDithering.md` final-output requirement | `SceneColorLegacyPatches`, `SceneColorPostprocessPatches`, final patch; installed GLSL compilation and independently predicted numerical cases in the 76-test receipt. No new bloom algorithm or HDR monitor output. |
 | Ordered opaque particles | HDR contract items 1, 2 and 4; parent common-handoff particle requirement; authoritative state proposal's engine ownership boundary | `SceneColorParticleTargets`, receiver separation shader, draw scope, capture hook and optional opaque handoff layer; focused receipts below. Conditional preparation and activation are wired; complete-frame execution remains outstanding. |
 
@@ -975,7 +977,7 @@ pre-particle material depth where particle visibility survives, or selects a lat
 receiver and suppresses the particle layer where visibility changed. This comparison uses the
 same depth representation without a geometric tolerance. Equal-depth replacement is not
 distinguishable from depth alone; the intended engine boundary uses strict `Less` depth testing.
-Unknown draws using a different depth convention require rejection by HDR readiness.
+Third-party draws must honor the receiver-depth contract; a different convention needs an explicit adapter.
 
 The opaque handoff shader has an explicitly enabled optional particle layer. It combines
 `background * (1 - coverage) + premultipliedParticleRGB` on the linear route after opaque air/water
@@ -1021,8 +1023,8 @@ and composition consume that depth. Engine visibility depth remains unchanged fo
 and interface clipping. The opaque handoff receives the separated particle layer after material
 transport. Before-stage invalidation withdraws the previous frame, and resize/world/disposal
 boundaries retire owned snapshots. `PrepareFrame` preflights resources and the patched cube shader;
-runtime activation is deferred. Future scene-HDR binding-owner integration must prepare it after
-the Before 8.5 reset and reject an incomplete handoff. Complete-frame execution remains outstanding.
+SceneColorPipeline prepares it after the Before 8.5 reset and rejects an incomplete handoff.
+Complete live-frame visual acceptance remains outstanding.
 
 Shader compatibility now uses the existing executable-capability registry:
 `SceneColorConvention` is declared only after the relevant fragment patch succeeds and is
@@ -1090,14 +1092,11 @@ The frame decision must therefore cover the engine postprocess/final methods exp
 than infer their role from `CurrentRenderStage` alone. A registry inventory also does not establish
 that arbitrary third-party Before callbacks are safe scene contributors.
 
-`SceneColorShaderInventory` now reads that engine registry instead of maintaining a separate
-registration list. Scene contributors require current linked color-convention or material-capture
-capabilities. Known auxiliary passes require linked engine classes using engine file assets;
-unknown programs, third-party subclasses and memory programs cannot claim that exemption merely
-by copying a pass name. VGE-owned programs still require preparation by their consuming owners.
-An empty registry does not itself establish frame readiness; the coordinator must separately
-require the actual scene and final consumers. Future scene-HDR activation must use this classification
-as one of its preparation gates.
+The former SceneColorShaderInventory gate and its registry-classification tests were removed
+when HDR became mandatory. Merely registering a shader cannot change the scene pipeline.
+Required owned consumers still validate their resources and patched executable contracts,
+and missing dependencies raise errors. UI/offscreen program reuse is classified by the actual
+stage/target boundary; third-party scene producers are responsible for HDR-compatible output.
 
 The installed registry always includes `woittest` and `colorgrade`. Field-use inspection identifies
 `woittest` as an optional framebuffer-debug OIT producer, so its patch decodes straight authored
@@ -1113,18 +1112,13 @@ The particle path allocates a nominal 28 bytes per pixel of owned scratch storag
 when SSAO metadata is retained. It adds two depth copies, one receiver-separation draw and an
 optional SSAO-restoration draw. These are format/pass counts, not measured GPU costs.
 
-Runtime scene-HDR activation is deferred to the parent full-scene task. The experimental
-`SceneColorFrame` coordinator, global shader-use hook, postprocess/final hooks and their dedicated
-tests were removed. There is no new callback on every engine shader activation and no Before-stage
-HDR preflight. The owned liquid and opaque handoff explicitly select legacy output; the water HDR
-shader branch remains independently tested. Shader reload no longer invokes the removed coordinator.
+The earlier experimental SceneColorFrame coordinator and global shader-use hook were removed.
+Those coordinator-specific receipts are historical. The parent full-scene task now supplies
+mandatory SceneColorPipeline preparation, convention binding through the existing PbrDrawRouteHook, typed
+owned sky/liquid/composite inputs, and shader activation wrappers only in the two engine
+postprocess owners. This activates particle separation after its reset and reports errors
+when mandatory preparation fails. There is no legacy scene fallback or registry-wide veto. Current ownership and validation: PBR.SharedDisplay.md.
 
-Future activation must integrate with existing surface, atmosphere and owned-program binding
-owners, with explicit boundaries for uncovered engine consumers. It must handle nested offscreen/UI
-uses, postprocess/final ordering, failed preparation and lifecycle resets without stale convention
-values. Retained target validation, inventory and shader output helpers are groundwork, not an active
-frame controller. Earlier coordinator-specific receipts are historical and do not validate a current
-activation path. Sky HDR patches remain removed; the owned-sky replacement is a separate task.
 After this deferral, a fresh build and 55/55 focused tests passed with zero skips in
 `artifacts/PbrColor/water-deferred-coordinator-regressions.log`: the 40 water checks, lighting-mode
 lifecycle, opaque handoff and final-output regressions. Water transport completion is unchanged.

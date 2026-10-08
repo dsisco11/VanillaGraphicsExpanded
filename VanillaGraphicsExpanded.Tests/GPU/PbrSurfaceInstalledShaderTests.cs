@@ -52,6 +52,11 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            if (family != "chunkliquid")
+            {
+                Assert.True(GL.GetUniformLocation(program, "vge_pbrRoute") >= 0);
+                Assert.Equal(-1, GL.GetUniformLocation(program, "vge_sceneLinear"));
+            }
             bool oitOutput = family is "chunktransparent" or "chunkliquid" || (family == "entityanimated" && oit > 0);
             Assert.Equal(oitOutput ? -1 : 4, GL.GetFragDataLocation(program, "vge_outNormal"));
             Assert.Equal(oitOutput ? -1 : 5, GL.GetFragDataLocation(program, "vge_outMaterial"));
