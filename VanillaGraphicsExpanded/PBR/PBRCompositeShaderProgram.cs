@@ -74,6 +74,9 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     /// <summary>Matching clean world depth.</summary>
     public partial DynamicTexture2D? PreOverlayDepth { set; }
 
+    /// <summary>Supplies the current atmospheric visibility image.</summary>
+    public partial GpuTexture? LightShaftOcclusion { set; }
+
     public partial GpuTexture? DirectDiffuse { set; }
 
     public partial GpuTexture? DirectSpecular { set; }
@@ -118,6 +121,7 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     internal void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
         Params.SetAtmosphere(lighting);
+        LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
         AtmosphereAerialRadiance = ModSystems.AtmosphereModSystem.AerialRadianceTexture;
         AtmosphereAerialAttenuation = ModSystems.AtmosphereModSystem.AerialAttenuationTexture;
     }

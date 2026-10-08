@@ -59,7 +59,7 @@ public sealed class AtmosphereProgramBindingsTests
             return name is "vge_atmosphereSolar";
         });
         Assert.Equal(AtmosphereBindings.Solar, active);
-        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereAerialParams", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation", "vge_atmosphereSunDirection", "vge_atmosphereSunDraw" }, inspected);
+        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereAerialParams", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation", "vge_atmosphereSunDirection", "vge_atmosphereSunDraw", "vge_lightShaftOcclusion" }, inspected);
     }
     #endregion
 

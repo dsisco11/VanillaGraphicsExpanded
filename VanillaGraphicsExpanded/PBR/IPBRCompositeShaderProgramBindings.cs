@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.PBR;
 internal interface IPBRCompositeShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies current-frame occlusion for atmospheric in-scattering only.</summary>
+    [ShaderBinding("vge_lightShaftOcclusion", ShaderBindingKind.Sampler, 16, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp, Required = false)]
+    GpuTexture? LightShaftOcclusion { set; }
     /// <summary>Clean radiance retained before first-person framebuffer overwrites.</summary>
     [ShaderBinding("preOverlayColor", ShaderBindingKind.Sampler, 14, ShaderStageKind.Fragment, Required = false, Sampler = ShaderSamplerPolicy.NearestClamp)]
     DynamicTexture2D? PreOverlayColor { set; }

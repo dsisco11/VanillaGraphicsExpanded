@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal interface ILiquidShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies current-frame occlusion for atmospheric in-scattering only.</summary>
+    [ShaderBinding("vge_lightShaftOcclusion", ShaderBindingKind.Sampler, 11, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp, Required = false)]
+    GpuTexture? LightShaftOcclusion { set; }
     /// <summary>Declares optional immutable opaque radiance.</summary>
     [ShaderBinding("vge_refractionColor", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
     DynamicTexture2D? RefractionColorTexture { set; }

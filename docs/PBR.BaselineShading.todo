@@ -665,7 +665,7 @@ Tasks
       controlled no-sun-bloom capture replay confirmed both receiver contribution and spatial
       distortion; receipts: artifacts/RefractionCaptureCheck/paired-refraction-disabled-result.json
       and paired-distortion-zero-result.json. Vanilla bloom appearance is deferred to the separate
-      VGE-owned bloom/god-ray replacement tasks. Broader combined acceptance, performance measurements
+      VGE-owned bloom/light-shaft replacement tasks. Broader combined acceptance, performance measurements
       and completion review were not newly performed for this status change; they remain within
       the existing combined shading/configuration/performance validation task.
 
@@ -680,7 +680,7 @@ Tasks
     - Meter scene-linear luminance after scene/OIT/late composition and before display conversion.
       Evaluate bounded GPU histogram/percentile or log-luminance reduction with robust rejection of
       isolated solar/emissive peaks and near-black outliers. Exclude UI/offscreen draws and define
-      metering relative to bloom/god rays so generated glare cannot drive an exposure feedback loop.
+      metering relative to bloom/light shafts so generated glare cannot drive an exposure feedback loop.
     - Define exposure compensation, a middle-gray target, minimum/maximum exposure in stops and
       configurable metering behavior. Adapt over elapsed time with independently bounded brightening
       and darkening rates; prevent pumping, flicker and frame-rate-dependent transitions.
@@ -707,7 +707,7 @@ Tasks
       - Capture the existing staged implementation as the first commit-sized baseline: GPU histogram
         metering, bounded temporal exposure, automatic/manual controls, reset/history lifecycle and
         integration with the shared display transform. See docs/PBR.CameraExposure.md.
-      - Include the current owned postprocess handoff and bloom/god-ray submissions, retained
+      - Include the current owned postprocess handoff and bloom/light-shaft submissions, retained
         SSAO/bilateral/luma submission, typed sampler contracts, BorrowedTexture, named resource
         references managed by GpuResourceCollection, and native graphics settings authority.
       - Record the intentional intermediate ownership in docs/PBR.Postprocessing.md and
@@ -725,7 +725,7 @@ Tasks
         starting the next subtask. Leave this item unchecked until that work is actually complete.
 
     ☑ Establish fully VGE-owned postprocessing and final composition.
-      - Shared infrastructure for camera exposure, bloom, god rays and ambient occlusion; their
+      - Shared infrastructure for camera exposure, bloom, light shafts and ambient occlusion; their
         algorithm tasks remain separate. Record ownership and acceptance in docs/PBR.Postprocessing.md
         and the display/scheduling contract in docs/PBR.SharedDisplay.md. Owned final composition and
         intermediate storage are implemented; validation and user-run acceptance are tracked there.
@@ -734,7 +734,7 @@ Tasks
         preserving overlay/UI scheduling and the presentation handoff. Keep algorithm policy in its
         respective owner and the coordinator responsible for scheduling and coherent publication.
       - Fully own all postprocessing intermediate output textures and framebuffer targets in VGE,
-        including bloom, god rays, SSAO, bilateral filtering and luma/FXAA preparation. Replace borrowed
+        including bloom, light shafts, SSAO, bilateral filtering and luma/FXAA preparation. Replace borrowed
         engine intermediate outputs with VGE allocations; own formats, resize, reload and disposal
         through existing resource collections and the screen-resource lifecycle. Use sized storage
         matching shader outputs. Pending the AO replacement below, publish neutral visibility and
@@ -742,7 +742,7 @@ Tasks
       - Borrow only upstream scene inputs whose producers remain external, refreshing references at
         attachment publication. Prevent framebuffer feedback and per-frame resource allocation.
         Engine final shaders must no longer consume VGE scene postprocessing outputs after replacement.
-      - Compose scene, SSAO, bloom and god rays; apply camera exposure, tone mapping, independently authored grading and edge smoothing,
+      - Compose scene, SSAO, bloom and light shafts; apply camera exposure, tone mapping, independently authored grading and edge smoothing,
         vignettes and output dithering in the verified order with exactly one display conversion.
         Keep lighting/refraction inputs unexposed and preserve SDR output with future HDR compatibility.
       - Reuse VGE render commands, StateCache, shader assets, generated bindings and SPIR-V compilation
@@ -751,7 +751,7 @@ Tasks
         inputs. Define explicit failure handling without legacy scene fallback or partial publication.
       - Remove SceneColorPostprocessBindingHook, PbrFinalDisplayPatches and superseded final-shader/
         binding routes once their responsibilities are owned. Coordinate effect-specific patch removal
-        with the bloom/god-ray tasks; remove obsolete allocations only after auditing remaining consumers.
+        with the bloom/light-shaft tasks; remove obsolete allocations only after auditing remaining consumers.
         Preserve non-scene consumers until separately replaced, without routing VGE scenes through them.
       - Do not copy base-game shader implementations or helpers. Use independently authored final
         display code; native control values do not imply pixel-equivalent native effects.
@@ -764,12 +764,12 @@ Tasks
         In-game visual/performance acceptance remains deferred to the completed overall work;
         it does not block completion of this ownership subtask.
 
-    ☐ Replace the base-game god-ray shader with a VGE-owned effect in the postprocessing pass.
+    ☑ Replace the base-game light-shaft shader with a VGE-owned effect in the postprocessing pass.
       - Follow the shared fully VGE-owned postprocessing and final-composition task above. Own effect shaders, outputs and submissions; reuse existing typed bindings,
         PSOs, resource collections and GLSL 330 support. Document the contract in PBR.Postprocessing.md.
-      - Use the atmosphere owner's published sun inputs and native god-ray enable/quality settings;
+      - Use the atmosphere owner's published sun inputs and native light-shaft enable/quality settings;
         do not add duplicate effect switches. Preserve HDR units and one final display transfer.
-      ☐ Refactor pbr_godrays.fsh to use separate light-shaft occlusion and bloom paths.
+      ☑ Refactor pbr_lightshafts.fsh to use separate light-shaft occlusion and bloom paths.
         - Replace single solar-visibility integration with a depth-distance occlusion mask and HDR
           scene-color shaft-bloom extraction. Apply screen-edge treatment and exposure-consistent
           luminance thresholding, a color-preserving brightness ceiling, tint and depth/source masks.
@@ -786,9 +786,41 @@ Tasks
       - Run focused subagent tests for occluders, intensity bounds, moving lights/cameras, viewport
         aspect, edge continuity, disabled output, resize/reload/teardown and both LumOn modes.
         Retain the oversized HDR solar-disk regression and verify bounded shafts without hiding bloom.
-        Measure GPU time/bandwidth separately from ordinary bloom and obtain user-run visual acceptance.
-      - Remove the engine god-ray dependency and superseded SceneColorPostprocessPatches adaptation
+        Measure synthetic GPU cost and document logical bandwidth/storage separately from ordinary bloom.
+        User-run visual and representative performance acceptance is deferred until all remaining
+        postprocessing work is finished, per user direction.
+      - Implemented separate depth-only occlusion before aerial composition and exposure-relative
+        HDR shaft bloom after metering. Occlusion affects in-scattering only; source tint, bounds,
+        native quality, spatial-only operation and screen-space limits are documented in
+        docs/PBR.Postprocessing.md. Build passed; 131 unique focused checks passed, including
+        the final 20-check typed-binding/PSO and lifecycle rerun. Live acceptance remains deferred.
+        The fully featured composite requires 17 fragment samplers; the validated device provides 32.
+      - Remove the engine light-shaft dependency and superseded SceneColorPostprocessPatches adaptation
         after validation; final-shader and binding-hook removal belongs to the shared postprocessing/final-composition task.
+
+    ☐ Analyze all VGE-owned textures for consolidation into 2D texture arrays.
+      - Inventory every VGE-owned texture across rendering subsystems, including lighting, atmosphere,
+        liquids, LumOn, material resources and postprocessing. Record allocation owner, dimensions,
+        internal format, mip/sample counts, sampling policies, producers, consumers and lifetime;
+        distinguish externally owned borrowed inputs from owned storage.
+      - Identify compatible groups sharing dimensions, format, mip/sample layout and lifecycle.
+        Assess resolution/quality changes, optional features, both LumOn modes and storage wasted by
+        grouping resources that are not simultaneously needed. Record exclusions with reasons.
+      - Trace read/write dependencies per draw and framebuffer attachment. Determine which layers
+        can be written together through separate MRT attachments and subsequently sampled through
+        one sampler2DArray. Keep sampler limits distinct from attachment and draw-buffer limits;
+        do not assume different layers alone make simultaneous sampling and rendering safe.
+      - Inventory existing GpuTexture array, texture-view, framebuffer-layer attachment, typed binding,
+        PSO and resource-collection support before proposing extensions. State required OpenGL
+        capabilities separately from the GLSL 330 language baseline; identify where restricted views,
+        explicit barriers or separate ping-pong allocations would be required.
+      - Quantify sampler reductions per consumer, prioritizing the 17-sampler composite, and estimate
+        storage, copies, allocation and binding costs. Do not equate fewer bindings with fewer texture
+        fetches or lower bandwidth. Preserve native settings, ownership and resize/reload/teardown.
+      - Record a source-backed grouping table and recommended migration order in
+        docs/PBR.Postprocessing.md, with linked subsystem contracts where applicable. Account for
+        planned bloom/AO replacements so proposed groups fit their intended resource layouts.
+        This subtask produces analysis and actionable migration recommendations, not texture migration.
 
     ☐ Replace base-game bloom with VGE-owned extraction, filtering and composition in the postprocessing pass.
       - Follow the shared fully VGE-owned postprocessing and final-composition task above.

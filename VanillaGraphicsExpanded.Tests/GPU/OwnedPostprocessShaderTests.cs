@@ -2,6 +2,7 @@ using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -13,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+    private PostprocessDraw? draw;
+
     #region Public API
     /// <summary>Exposure-relative extraction has a soft threshold and normalized reconstruction preserves constant radiance.</summary>
     [Fact]
@@ -71,41 +74,26 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture) : Lum
         }
     }
 
-    /// <summary>Visibility is bounded, occluders and night suppress shafts, and offscreen traversal cannot clamp streaks to the edge.</summary>
-    [Theory]
-    [InlineData(1f,1f,1f,.5f,.5f,1f)]
-    [InlineData(1000f,1f,1f,.5f,.5f,1f)]
-    [InlineData(1f,.5f,1f,.5f,.5f,0f)]
-    [InlineData(1f,1f,0f,.5f,.5f,0f)]
-    [InlineData(1f,1f,1f,100f,100f,0f)]
-    public void ShaftsIntegrateOnlyBoundedVisibleSky(float visibility,float depth,float daylight,float sunX,float sunY,float expected)
-    {
-        EnsureShaderTestAvailable();
-        var shader=Programs.Create<GodRayShaderProgram>();
-        using var mask=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,visibility,0f,1f]);
-        using var depths=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[depth]);
-        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-        shader.VisibilityImage=mask; shader.DepthImage=depths;
-        shader.Capture(Vector4.Zero,new(32,1,0,0),new(sunX,sunY,daylight,0),new(1,.5f,.25f,0));
-        Draw(shader,target);
-        float[] result=target[0].ReadPixels();
-        Assert.InRange(result[0],expected-.00001f,expected+.00001f);
-        Assert.InRange(result[1],expected*.5f-.00001f,expected*.5f+.00001f);
-        Assert.Equal(1,result[3]);
-    }
     #endregion
 
     #region Private
     /// <summary>Submits the production procedural triangle with deterministic raster state after any readback.</summary>
-    private static void Draw(GpuProgram program,GpuFramebuffer target)
+    private void Draw(GpuProgram program,GpuFramebuffer target)
     {
-        target.BindWithViewport();
-        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-        GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.FramebufferSrgb); GL.ColorMask(true,true,true,true);
-        StateCache.Current.InvalidateAll();
-        using var vao=GpuVao.Create();
-        using(program.UseScope()) using(vao.BindScope()) GL.DrawArrays(PrimitiveType.Triangles,0,3);
+        draw??=new PostprocessDraw();
+        var pipeline=draw.Prepare(program,target);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.Postprocess",[pipeline],true,
+            commands=>draw.Submit(commands,pipeline,target)));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+
+    #region Protected API
+    /// <summary>Retires the retained graphics pipeline and geometry before the test shader owners.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        if(disposing){draw?.Dispose();draw=null;}
+        base.Dispose(disposing);
     }
     #endregion
 }

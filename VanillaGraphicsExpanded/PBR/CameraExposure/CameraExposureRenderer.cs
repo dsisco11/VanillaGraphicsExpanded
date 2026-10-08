@@ -71,7 +71,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         deltaTime = float.IsFinite(dt) ? Math.Clamp(dt, 0, 1) : 0;
         captured = true;
     }
-    /// <summary>Runs at the engine postprocessing boundary after late scene contributors and before bloom/god rays.</summary>
+    /// <summary>Runs at the engine postprocessing boundary after late scene contributors and before bloom/light shafts.</summary>
     internal static void MeterScene()
     {
         if (!SceneColorPipeline.HasSceneInput) return;

@@ -200,11 +200,11 @@
         }
       },
       "POST_GODRAYSAMPLES": {
-        "code": "Postprocessing.GodRaySamples",
+        "code": "Postprocessing.LightShaftSamples",
         "clientSide": true,
-        "name": "Postprocessing/GodRaySamples",
-        "ingui": "vanillagraphicsexpanded:config-post-godraysamples",
-        "comment": "vanillagraphicsexpanded:config-post-godraysamples-tooltip",
+        "name": "Postprocessing/LightShaftSamples",
+        "ingui": "vanillagraphicsexpanded:config-post-lightshaftsamples",
+        "comment": "vanillagraphicsexpanded:config-post-lightshaftsamples-tooltip",
         "default": 32,
         "weight": 24.4,
         "values": [
@@ -501,11 +501,11 @@
         }
       },
       "POST_GODRAYSTRENGTH": {
-        "code": "Postprocessing.GodRayStrength",
+        "code": "Postprocessing.LightShaftStrength",
         "clientSide": true,
-        "name": "Postprocessing/GodRayStrength",
-        "ingui": "vanillagraphicsexpanded:config-post-godraystrength",
-        "comment": "vanillagraphicsexpanded:config-post-godraystrength-tooltip",
+        "name": "Postprocessing/LightShaftStrength",
+        "ingui": "vanillagraphicsexpanded:config-post-lightshaftstrength",
+        "comment": "vanillagraphicsexpanded:config-post-lightshaftstrength-tooltip",
         "default": 0.25,
         "weight": 24.3,
         "range": {
@@ -515,11 +515,11 @@
         }
       },
       "POST_GODRAYLIMIT": {
-        "code": "Postprocessing.GodRayLimit",
+        "code": "Postprocessing.LightShaftLimit",
         "clientSide": true,
-        "name": "Postprocessing/GodRayLimit",
-        "ingui": "vanillagraphicsexpanded:config-post-godraylimit",
-        "comment": "vanillagraphicsexpanded:config-post-godraylimit-tooltip",
+        "name": "Postprocessing/LightShaftLimit",
+        "ingui": "vanillagraphicsexpanded:config-post-lightshaftlimit",
+        "comment": "vanillagraphicsexpanded:config-post-lightshaftlimit-tooltip",
         "default": 0.5,
         "weight": 24.35,
         "range": {

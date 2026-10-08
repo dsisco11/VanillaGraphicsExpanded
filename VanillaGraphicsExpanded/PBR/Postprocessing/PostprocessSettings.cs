@@ -12,16 +12,16 @@ public sealed class PostprocessSettings
     public float BloomKnee { get; set; }=.5f;
     /// <summary>Bounds the downsample pyramid between three and six levels.</summary>
     public int BloomLevels { get; set; }=5;
-    /// <summary>Scales the atmosphere's solar irradiance for the authored screen-space glare.</summary>
-    public float GodRayStrength { get; set; }=.25f;
-    /// <summary>Bounds shaft radiance before exposure, without applying a display transfer.</summary>
-    public float GodRayLimit { get; set; }=.5f;
-    /// <summary>Selects 16, 32 or 64 radial visibility samples.</summary>
-    public int GodRaySamples { get; set; }=32;
+    /// <summary>Scales exposure-relative HDR extraction for light-shaft bloom.</summary>
+    public float LightShaftStrength { get; set; }=.25f;
+    /// <summary>Bounds exposed peak shaft radiance while preserving unexposed storage.</summary>
+    public float LightShaftLimit { get; set; }=.5f;
+    /// <summary>Caps radial work at 16, 32 or 64 samples per pass under native quality.</summary>
+    public int LightShaftSamples { get; set; }=32;
     /// <summary>Produces finite bounded parameters without mutating persisted UI values.</summary>
     internal PostprocessParameters Snapshot() => new(Finite(BloomStrength,.08f,0,2),Finite(BloomThreshold,1,.01f,16),
-        Finite(BloomKnee,.5f,0,1),Math.Clamp(BloomLevels,3,6),Finite(GodRayStrength,.25f,0,2),
-        Finite(GodRayLimit,.5f,0,4),GodRaySamples<=16?16:GodRaySamples<=32?32:64);
+        Finite(BloomKnee,.5f,0,1),Math.Clamp(BloomLevels,3,6),Finite(LightShaftStrength,.25f,0,2),
+        Finite(LightShaftLimit,.5f,0,4),LightShaftSamples<=16?16:LightShaftSamples<=32?32:64);
     #endregion
     #region Private
     /// <summary>Rejects invalid persisted arithmetic before GPU publication.</summary>

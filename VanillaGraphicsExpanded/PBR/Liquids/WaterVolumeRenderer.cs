@@ -97,6 +97,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             program.TerrainTexture = atlases[0];
             program.MaterialParamsTexture = initialMaterial.MaterialParamsTexture;
             LiquidRenderer.BindWaterMedium(program, MaterialAtlasSystem.Instance.TextureStore, atlases[0]);
+            program.LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
             program.AerialRadianceTexture = ModSystems.AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = ModSystems.AtmosphereModSystem.AerialAttenuationTexture;
             if (!submission.Run(program, pools[..atlases.Length], new(target, LiquidPipelineStates.VolumeOutputs),

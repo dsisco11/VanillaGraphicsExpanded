@@ -15,11 +15,16 @@ standard blending for the following overlay stage.
 
 ## Responsibilities and order
 
+Before deferred composition, LightShaftOcclusionRenderer runs at Opaque order 8.75, after
+opaque receivers and before direct lighting (9), water transport (10.5), and final PBR composition
+(11). It publishes current-frame depth-distance occlusion for aerial in-scattering. Its Before
+callback withdraws the previous frame, so forward draws preceding publication see neutral occlusion.
+
 PostprocessPipeline coordinates separate algorithm owners:
 
 1. CameraExposureRenderer meters the completed unexposed scene and publishes temporal EV.
 2. BloomRenderer extracts and filters scene-linear HDR bloom.
-3. GodRayRenderer integrates a bounded solar visibility mask.
+3. LightShaftRenderer extracts and radially filters exposure-relative HDR light-shaft bloom.
 4. RetainedPostprocessRenderer supplies a neutral AO placeholder and prepares owned RGBA16F
    scene/luminance output for antialiasing (or copies scene RGBA when disabled).
 5. The owned final shader applies optional edge smoothing, then AO to scene RGB, adds owned glare, applies camera
@@ -27,7 +32,7 @@ PostprocessPipeline coordinates separate algorithm owners:
 
 All scene postprocess draws use typed VGE programs, GLSL 330, PSOs, render passes and one
 restoring GraphicsCommandContext boundary. Camera metering and final composition each have
-their own restoring boundary before and after the effects. No original engine findbright, blur, god-ray, SSAO, bilateral or luma
+their own restoring boundary before and after the effects. No original engine findbright, blur, light-shaft, SSAO, bilateral or luma
 shader is invoked by the replaced HDR pass. The copied SSAO implementation and its kernel
 adapter have been removed. SSAO intentionally outputs visibility one until the planned
 horizon-integrated algorithm is implemented. The unused bilateral entry point is removed;
@@ -53,8 +58,8 @@ are removed. Copied display helpers and obsolete reference-patch fixtures have b
 No base-game shader implementation is copied into the owned final path. Gamma/brightness/contrast
 controls drive an independently authored display transform, followed by luminance-based warm
 tinting and procedural damage/frost/glitch treatments. The edge filter uses the owned perceptual
-alpha metric and bounded neighboring samples. Existing bloom and shaft shaders were independently
-authored and remain until their planned Gaussian and radial-occlusion refactors. AO is neutral
+alpha metric and bounded neighboring samples. Bloom retains its independently authored pyramid
+until the planned Gaussian refactor. Light shafts now use the independent radial algorithm below. AO is neutral
 by explicit user direction, not a fallback to engine rendering.
 
 ## Bloom
@@ -76,32 +81,56 @@ Bloom is added after scene SSAO; it is no longer divided by the legacy ambient-b
 or used as an SSAO bypass factor. Its strength/threshold/knee/pyramid controls live in the
 existing graphics configuration, and the game's bloom enable remains respected.
 
-## Solar shafts
+## Light shafts
 
-Solar shafts are authored screen-space glare, not atmospheric multiple scattering or Mie
-scattering. The effect never samples or radially accumulates scene RGB. It integrates the
-composed glow attachment's green visibility channel along a ray toward the atmosphere's
-projected sun, using 16, 32 or 64 samples at half resolution. The HDR solar producer writes
-visibility one with disk coverage; opaque depth blocks samples and the existing attachment
-blend carries cloud/transparency attenuation. This remains an approximation dependent on
-contributors honoring the glow/visibility attachment contract.
+The independently authored light-shaft implementation separates distance occlusion from HDR
+shaft bloom. Early extraction reconstructs positive view depth from the current projection and
+opaque depth, then smooths visibility over a 128-metre interval. Two or three normalized radial
+passes increase their reach toward the projected atmospheric sun. Publication converts visibility
+to an occlusion amount: zero is neutral. A full-resolution output gives shared aerial consumers
+an unambiguous screen-coordinate mapping. Only aerial in-scattering is multiplied by visibility;
+extinction, direct/indirect surface radiance, emission, ordinary bloom and underwater transport
+are not darkened by this mask. The physical sky itself is not multiplied by a foreground mask.
 
-The source color is the atmosphere owner's attenuated solar lighting scaled by shaft strength
-and limited by a configured **linear radiance** ceiling using one RGB-preserving scale.
-Normalized exponential sample weights prevent sample-count-dependent intensity. The effect
-cannot reproduce the old unbounded HDR radial-sum disk. It adds no central unblurred source
-term, does not use an sRGB suppression curve, and does not compensate for missing bloom.
+After complete scene composition and camera metering, a separate extraction reads HDR scene RGB.
+Rec.709 luminance determines the exposure-relative excess above the bloom threshold. One RGB
+scale bounds exposed peak radiance before filtering, including the shaft strength. Storage stays
+unexposed. The atmospheric sun supplies projection, daylight gating and normalized tint, without
+multiplying scene radiance by solar irradiance again. Solar visibility from glow green, sky depth,
+an aspect-correct source aperture and a smooth image-edge fade restrict the source. Four balanced
+samples cover the reduced pixel footprint. The result is filtered with normalized radial passes
+and published separately for additive HDR final composition. There is no unblurred solar source
+added by this effect; ordinary bloom and directional shaft bloom are distinct bounded glare lobes,
+not replacement solar lighting or compensation for missing bloom. Their configurable strengths
+are artistic contributions, not an energy-conserving lens simulation.
 
-Behind-camera sunlight produces zero. The source fades over a 15% screen-edge margin;
-out-of-image taps contribute zero without edge-clamped streaks. A horizon fade and published
-solar intensity handle day/night transitions. Underwater views suppress this screen-space
-shaft effect; volumetric underwater transport remains separately owned. Visibility and solar
-attenuation carry weather effects without feeding generated glare back into exposure.
+The fully featured composite now has 17 active fragment samplers; shader linking requires
+that capacity (the validation device exposes 32). GLSL source remains version 330, but this
+exceeds the OpenGL 3.3 minimum of 16 fragment samplers. Unsupported linking is an explicit
+readiness failure, not a legacy rendering fallback.
+
+Native quality 1 uses quarter-resolution filtering, two passes and at most 16 taps per pass;
+quality 2 uses half resolution, three passes and at most 32 taps; quality 3 uses half resolution,
+three passes and at most 64 taps. The configured sample limit can further bound those counts.
+Filter reaches are 0.12/0.36 or 0.04/0.12/0.36 of the vector toward the sun. UV radial interpolation
+is aspect-independent; only circular source support requires aspect correction. Outside-screen
+taps contribute zero bloom and clear visibility, preventing clamp streaks or artificial border
+occluders. Behind-camera, below-horizon and underwater light publish neutral occlusion/zero bloom;
+a 15-percent screen-edge margin fades the projected source continuously.
+
+Occlusion uses opaque depth, so translucent geometry and clouds without depth writes do not
+cast occlusion into aerial scattering. Shaft bloom uses the composed scene and visibility mask,
+which can carry their attenuation. Offscreen occluders and volumetric shadowing remain outside
+this screen-space approximation. Refraction samples the screen mask at its receiving pixel; it
+is not a bent-ray volumetric shadow solution. No temporal history is allocated: the current pass
+has no validated motion/reprojection contract. This explicit spatial-only path avoids stale
+history on camera cuts, teleportation, resizing, reload and world transitions.
 
 ## Resources, settings and limits
 
 Bloom owns half-resolution and progressively reduced RGBA16F images, plus separate upsample
-images to prevent feedback. Shafts own one half-resolution RGBA16F image. The AO placeholder owns one 1x1 RGBA16F target when enabled; there are no bilateral targets.
+images to prevent feedback. Light shafts own two reduced-resolution ping-pong images and one bloom output for the late path;
+the early path owns two reduced-resolution ping-pong images and one full-resolution occlusion output. The AO placeholder owns one 1x1 RGBA16F target when enabled; there are no bilateral targets.
 Luma owns full-resolution RGBA16F storage. Sized formats match the vec4 shader outputs,
 removing dependence on unsized engine RGB AO storage. Sampler contracts receive typed textures; external
 upstream engine handles are wrapped by BorrowedTexture without allocating or owning native storage.
@@ -118,17 +147,19 @@ are no longer promoted to HDR or validated as scene requirements. Only primary s
 allocations are neither promoted nor consumed by VGE scene postprocessing. Removing menu allocations requires separately
 replacing that display-referred path, not deleting images beneath a remaining consumer.
 
-The base game graphics settings exclusively control bloom, god rays, SSAO quality and FXAA.
+The base game graphics settings exclusively control bloom, light shafts, SSAO quality and FXAA.
 EnginePostprocessInputs reads bloom/fxaa booleans and godRays/ssaoQuality integers through
 the client settings API, preserving the engine DoPostProcessingEffects gate.
 VGE exposes no duplicate effect switches. The HDR Postprocessing group retains algorithm-specific
 bloom strength/threshold/knee/levels and shaft strength/radiance limit/sample count.
 Camera exposure controls are described in PBR.CameraExposure.md.
 
-For W by H scene pixels, half-resolution shaft storage costs approximately 2WH bytes. A bloom
+For W by H scene pixels, light-shaft RGBA16F storage costs approximately 8WH + 40WH/d² bytes,
+where d is the native quality divisor (4 or 2), before dimension rounding. A bloom
 pyramid with both reconstruction chains approaches 16WH/3 bytes (RGBA16F), with exact size
 depending on level count and rounded dimensions. Bloom uses four fetches per reduced pixel
-and ten per reconstructed pixel; shafts use two texture fetches per selected radial sample.
+and ten per reconstructed pixel. Each shaft radial pass uses one packed fetch per selected tap;
+early extraction uses depth, and late extraction uses four scene/depth/visibility/exposure samples.
 These are logical storage/work counts, not measured driver allocation or physical bandwidth.
 
 The independent final shader measured median GPU times of 0.0164 ms at 720p, 0.0338 ms at
@@ -145,3 +176,18 @@ not a temporary AO algorithm. Real-game halo appearance, shafts through
 clouds/transparency, underwater transitions, temporal stability and representative GPU cost
 still require user-run visual/performance acceptance. The implementation does not establish
 native HDR monitor presentation.
+
+Light-shaft algorithm and atmospheric integration validation passed 131 unique focused checks
+across light-shafts.trx, light-shafts-corrected.trx and light-shafts-abstractions.trx
+under artifacts/SceneHdrRuntime. The final abstraction-cleanup run passed 20/20 checks, including
+all six lifecycle cases, with no failures or skips. Its build completed with zero errors and
+102 existing warnings (light-shafts-abstractions-build.log). Aerial tests use typed shader inputs;
+aerial, shaft and bloom submissions use PostprocessDraw and GraphicsCommandContext, without raw
+uniform writes, raster mutation, draw calls or blanket cache invalidation.
+
+The final PSO-path synthetic measurement for four late shaft passes at 320x180 and 16 radial taps,
+using uniform 1x1 source textures, was 0.0297/0.0307/0.0307 ms minimum/median/maximum. Its three
+RGBA16F targets contain 1,382,400 bytes. This measures neither the early full-resolution occlusion
+path nor live-game frame cost or physical bandwidth. Receipt: light-shafts-abstractions.trx.
+Live visual and representative performance acceptance remains deferred until the remaining
+postprocessing work is finished, per user direction.

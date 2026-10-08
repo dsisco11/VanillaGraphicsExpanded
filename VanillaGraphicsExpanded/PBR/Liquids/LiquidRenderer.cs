@@ -117,6 +117,7 @@ internal sealed class LiquidRenderer : IRenderer
             program.DepthTexture = buffers[(int)EnumFrameBuffer.Primary].DepthTextureId;
             program.ShadowMapNear = buffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;
             program.ShadowMapFar = buffers[(int)EnumFrameBuffer.ShadowmapFar]?.DepthTextureId ?? 0;
+            program.LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
             program.AerialRadianceTexture = AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = AtmosphereModSystem.AerialAttenuationTexture;
             // Establish complete initial state before entering the engine pool loop.

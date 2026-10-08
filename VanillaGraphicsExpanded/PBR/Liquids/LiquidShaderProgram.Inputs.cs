@@ -45,7 +45,9 @@ internal sealed partial class LiquidShaderProgram
     public partial int ShadowMapNear { set; }
     /// <summary>Retains the borrowed ShadowMapFar with its declared target and sampler.</summary>
     public partial int ShadowMapFar { set; }
-    /// <summary>Retains the borrowed AerialRadianceTexture with its declared target and sampler.</summary>
+    /// <summary>Stages current-frame occlusion for aerial in-scattering.</summary>
+    public partial GpuTexture? LightShaftOcclusion { set; }
+    /// <summary>Stages atmospheric radiance.</summary>
     public partial DynamicTexture3D? AerialRadianceTexture { set; }
     /// <summary>Retains the borrowed AerialAttenuationTexture with its declared target and sampler.</summary>
     public partial DynamicTexture3D? AerialAttenuationTexture { set; }

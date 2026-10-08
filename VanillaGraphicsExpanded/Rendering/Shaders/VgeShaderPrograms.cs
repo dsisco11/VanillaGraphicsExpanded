@@ -25,7 +25,7 @@ internal static class VgeShaderPrograms
             new PBR.CameraExposure.CameraAdaptShaderProgram(),
             new PBR.Postprocessing.FinalDisplayShaderProgram(),
             new PBR.Postprocessing.BloomShaderProgram(),
-            new PBR.Postprocessing.GodRayShaderProgram(),
+            new PBR.Postprocessing.LightShaftShaderProgram(),
             new PBR.Postprocessing.PostLumaShaderProgram(),
             new PBR.Postprocessing.PostSsaoShaderProgram(),
             new PBR.Liquids.LiquidShaderProgram(),

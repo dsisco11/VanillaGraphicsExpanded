@@ -107,6 +107,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         var previousExposure = ConfigModSystem.Config.CameraExposure;
         using var camera = new CameraExposureRenderer(api.Object);
         using var post = new PostprocessPipeline(api.Object);
+        using var shaftOcclusion = new LightShaftOcclusionRenderer(api.Object);
+        api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
+        Vintagestory.Client.ScreenManager.Platform.DoPostProcessingEffects = true;
         var harmony = new Harmony("VGE.Tests.SceneColorRuntime");
         try
         {
@@ -130,6 +133,17 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.True(engine[0].ReadPixels()[0] > 1f, "Owned sky must retain HDR radiance in primary.");
 
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.Null(LightShaftOcclusionRenderer.Texture);
+            Assert.True(shaftOcclusion.RenderOrder < composite.RenderOrder);
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            int earlyOcclusion = LightShaftOcclusionRenderer.Texture!.TextureId;
+            Assert.Equal(2, LightShaftOcclusionRenderer.Texture.Width);
+            Assert.Equal(2, LightShaftOcclusionRenderer.Texture.Height);
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.Null(LightShaftOcclusionRenderer.Texture);
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            Assert.Equal(earlyOcclusion, LightShaftOcclusionRenderer.Texture!.TextureId);
             float[] skyPixels = engine[0].ReadPixels();
             Assert.True(direct.RenderLighting());
             composite.OnRenderFrame(0, EnumRenderStage.Opaque);
@@ -175,6 +189,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             var postprocess = AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderPostprocessingEffects));
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(identity, new(true, true, ssaoQuality > 0, true, ssaoQuality));
+            Assert.Equal(earlyOcclusion, LightShaftOcclusionRenderer.Texture!.TextureId);
             int publishedExposure = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
             Assert.True(GL.IsTexture(publishedExposure));
             int ownedBloom = ((GpuTexture)AccessTools.Field(typeof(PostprocessPipeline), "bloomTexture").GetValue(post)!).TextureId;
@@ -261,6 +276,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             int beforeResize = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
             ScreenResourceManager.HandleScreenResize();
             Assert.False(GL.IsTexture(beforeResize));
+            Assert.False(GL.IsTexture(earlyOcclusion));
+            Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(ownedBloom));
             Assert.False(GL.IsTexture(ownedRays));
             Assert.True(GL.IsTexture(material.TextureId));
@@ -272,7 +289,19 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(identity, new(false, false, false, true, 0));
             int beforeReload = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            int beforeNativeDisable = LightShaftOcclusionRenderer.Texture!.TextureId;
+            api.SetupGet(value => value.Settings.Int["godRays"]).Returns(0);
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            Assert.Null(LightShaftOcclusionRenderer.Texture);
+            Assert.False(GL.IsTexture(beforeNativeDisable));
+            api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            int beforeShaftReload = LightShaftOcclusionRenderer.Texture!.TextureId;
             events.Raise(value => value.ReloadShader += null!);
+            Assert.Null(LightShaftOcclusionRenderer.Texture);
+            Assert.False(GL.IsTexture(beforeShaftReload));
             Assert.False(GL.IsTexture(beforeReload));
             Assert.True(GL.IsTexture(material.TextureId));
             Assert.True(GL.IsTexture(postStorage.TextureId));

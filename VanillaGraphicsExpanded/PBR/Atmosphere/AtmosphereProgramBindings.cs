@@ -17,7 +17,8 @@ internal enum AtmosphereBindings
     AerialParams = 256,
     AerialRadiance = 512,
     AerialAttenuation = 1024,
-    Aerial = AerialParams | AerialRadiance | AerialAttenuation
+    LightShaftOcclusion = 2048,
+    Aerial = AerialParams | AerialRadiance | AerialAttenuation | LightShaftOcclusion
 }
 
 /// <summary>Stores the active atmospheric interface once per linked engine program.</summary>
@@ -25,6 +26,7 @@ internal static class AtmosphereProgramBindings
 {
     internal const int AerialRadianceTextureUnit = 11;
     internal const int AerialAttenuationTextureUnit = 12;
+    internal const int LightShaftOcclusionTextureUnit = 13;
     private static readonly ConditionalWeakTable<ShaderProgramBase, LinkedBindings> programs = new();
 
     /// <summary>Keeps linked metadata tied to the managed program lifetime, not a reusable GL identifier.</summary>
@@ -55,6 +57,7 @@ internal static class AtmosphereProgramBindings
         if ((expected & AtmosphereBindings.SunDirection) != 0 && hasUniform("vge_atmosphereSunDirection")) active |= AtmosphereBindings.SunDirection;
         if ((expected & AtmosphereBindings.SunDisk) != 0 && hasUniform("vge_atmosphereSunDraw")
             && hasUniform("vge_atmosphereSun") && hasUniform("vge_atmosphereDisk")) active |= AtmosphereBindings.SunDisk;
+        if ((expected & AtmosphereBindings.LightShaftOcclusion) != 0 && hasUniform("vge_lightShaftOcclusion")) active |= AtmosphereBindings.LightShaftOcclusion;
         return active;
     }
     #endregion
@@ -91,6 +94,8 @@ internal static class AtmosphereProgramBindings
                 layout.RegisterSamplerUnit("vge_atmosphereAerialRadiance", AerialRadianceTextureUnit);
             if ((active & AtmosphereBindings.AerialAttenuation) != 0)
                 layout.RegisterSamplerUnit("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
+            if ((active & AtmosphereBindings.LightShaftOcclusion) != 0)
+                layout.RegisterSamplerUnit("vge_lightShaftOcclusion", LightShaftOcclusionTextureUnit);
             layout.ApplyContract(source.ProgramId);
         }
     }

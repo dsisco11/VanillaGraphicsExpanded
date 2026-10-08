@@ -17,6 +17,7 @@ public sealed class EnginePostprocessInputsTests
     [InlineData(true, false, 0, 0, false)]
     [InlineData(true, true, -1, 1, false)]
     [InlineData(false, true, 2, 2, true)]
+    [InlineData(true, false, 5, 0, false)]
     public void CaptureUsesNativeSettingsAndEngineGate(bool enabled, bool bloom, int godRays, int ssao, bool fxaa)
     {
         // Avoid constructing a native window: capture only needs the native postprocessing gate.
@@ -35,10 +36,11 @@ public sealed class EnginePostprocessInputsTests
         var inputs = EnginePostprocessInputs.Capture(platform, api.Object);
 
         Assert.Equal(enabled && bloom, inputs.Bloom);
-        Assert.Equal(enabled && godRays > 0, inputs.GodRays);
+        Assert.Equal(enabled && godRays > 0, inputs.LightShafts);
         Assert.Equal(enabled && ssao > 0, inputs.Ssao);
         Assert.Equal(enabled && fxaa, inputs.Fxaa);
         Assert.Equal(ssao, inputs.SsaoQuality);
+        Assert.Equal(Math.Clamp(godRays,0,3), inputs.LightShaftQuality);
     }
     #endregion
 }

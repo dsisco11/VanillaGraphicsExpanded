@@ -49,6 +49,14 @@ internal static class AtmosphereShaderBindingHook
             cache.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTextureId);
             cache.UnbindSampler(AerialAttenuationTextureUnit);
         }
+        if ((bindings & AtmosphereBindings.LightShaftOcclusion) != 0)
+        {
+            const int unit=AtmosphereProgramBindings.LightShaftOcclusionTextureUnit;
+            __instance.Uniform("vge_lightShaftOcclusion",unit);
+            var texture=PBR.Postprocessing.LightShaftOcclusionRenderer.Texture;
+            Rendering.StateCache.Current.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture2D,unit,texture?.TextureId??0);
+            Rendering.StateCache.Current.UnbindSampler(unit);
+        }
         // Resource initialization is owned by the Before renderer.
         if (lighting is null) return;
         if ((bindings & AtmosphereBindings.Environment) != 0)

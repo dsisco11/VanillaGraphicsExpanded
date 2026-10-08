@@ -66,7 +66,7 @@ artifacts/SceneHdrRuntime/allocation-metadata-tests.trx.
 | Authored engine effects and engine liquid adapter | Decode authored RGB before blending/integration |
 | Cube particles | Isolated radiance/depth capture; compose after material lighting |
 | Bloom and luma | Float intermediates; perceptual luma retains linear RGB |
-| God rays | Owned bounded solar-visibility glare in scene-linear RGB |
+| Light shafts | Owned bounded solar-visibility glare in scene-linear RGB |
 | Owned final composition | Original edge smoothing, neutral AO, additive glare, one display conversion, original grading/vignettes and final dither |
 
 Surface shaders use vge_pbrRoute as their single selector: zero retains offscreen/UI
@@ -82,7 +82,7 @@ typed inputs. There is no additional global shader-use patch.
 
 Scene postprocessing and final composition are replaced at their existing engine invocation
 boundaries by OwnedPostprocessHook and OwnedFinalCompositionHook. SceneColorPipeline requires
-the owned final executable; engine final/colorgrade/luma/god-ray programs are untouched for
+the owned final executable; engine final/colorgrade/luma/light-shaft programs are untouched for
 non-scene consumers. HasSceneInput tracks pending scene processing, not HDR readiness.
 The final handoff consumes that input even on failure and rejects missing effect publication.
 All intermediate targets are VGE-owned; only upstream scene inputs and the primary presentation
@@ -98,13 +98,13 @@ The registry-wide compatibility gate has been removed. Missing required patched 
 bindings produce errors instead of silently writing or interpreting display RGB. Arbitrary
 third-party shader output is not automatically converted or guaranteed compatible.
 
-The engine god-ray radial blur is an authored glare effect calibrated for bounded display
+The engine light-shaft radial blur is an authored glare effect calibrated for bounded display
 samples. VGE supplies that metric per sample, retains the engine suppression curve, and
 decodes the generated contribution before adding it to the HDR scene. The scene and bloom
 inputs retain their original radiance. Applying only a perceptual suppression metric to an
 unbounded HDR ray sum caused the solar footprint to become a large saturated disk.
 
-The broken-sun capture isolated that defect to the god-ray pass: replacing only its
+The broken-sun capture isolated that defect to the light-shaft pass: replacing only its
 fragment shader reduced peak ray RGB from 737 to 0.592 and removed the oversized disk.
 The corrected primary is saved at artifacts/BrokenSun/capture-primary-corrected.png.
 Focused postprocess/runtime/sun tests passed 96/96 with no skips, including spatial

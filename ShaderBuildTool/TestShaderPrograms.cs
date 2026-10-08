@@ -54,6 +54,7 @@ internal static class TestShaderPrograms
         {
             bindings.UniformLocations.Add("vge_atmosphereAerialRadiance", 8);
             bindings.UniformLocations.Add("vge_atmosphereAerialAttenuation", 12);
+            bindings.UniformLocations.Add("vge_lightShaftOcclusion", 13);
         }
         else if (!name.StartsWith("sun-", StringComparison.Ordinal))
         {
@@ -64,6 +65,7 @@ internal static class TestShaderPrograms
         {
             bindings.RegisterSamplerUnit("vge_atmosphereAerialRadiance", 11, required: false);
             bindings.RegisterSamplerUnit("vge_atmosphereAerialAttenuation", 12, required: false);
+            bindings.RegisterSamplerUnit("vge_lightShaftOcclusion", 13, required: false);
         }
         else if (!name.StartsWith("sun-", StringComparison.Ordinal))
         {

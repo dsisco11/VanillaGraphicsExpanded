@@ -57,7 +57,7 @@ scene display endpoint.
 CameraExposureRenderer captures timing and a finite settings snapshot at Before order 1001.
 The VGE-owned PostprocessPipeline invokes metering at the RenderPostprocessingEffects
 replacement boundary before its owned bloom and solar-shaft passes. Metering samples primary after scene/OIT/late composition,
-before generated bloom and god rays; those effects cannot feed back into exposure. UI is
+before generated bloom and light shafts; those effects cannot feed back into exposure. UI is
 composed later. Owned bloom uses this same exposure for its threshold while retaining unexposed output
 radiance. See PBR.Postprocessing.md for the complete replacement contract.
 

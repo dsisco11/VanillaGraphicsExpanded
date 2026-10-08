@@ -15,7 +15,7 @@ internal sealed class PostprocessPipeline : IRenderer
     private readonly ICoreClientAPI api;
     private readonly Action unregisterResize;
     private readonly BloomRenderer bloom=new();
-    private readonly GodRayRenderer rays=new();
+    private readonly LightShaftRenderer rays=new();
     private readonly RetainedPostprocessRenderer retained=new();
     private GpuResourceCollection resources=new();
     private BorrowedTexture? scene,glow,depth;
@@ -118,10 +118,10 @@ internal sealed class PostprocessPipeline : IRenderer
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         draw??=new(); neutral??=new(1,1,"Postprocess.Neutral",clear:true);
         bool useBloom=engine.Bloom&&settings.BloomStrength>0;
-        bool useRays=engine.GodRays&&settings.GodRayStrength>0&&settings.GodRayLimit>0;
+        bool useRays=engine.LightShafts&&settings.LightShaftStrength>0&&settings.LightShaftLimit>0;
         var pipelines=new List<GraphicsPipeline>();
         if(useBloom) pipelines.Add(bloom.Prepare(api,draw,primary.Width,primary.Height,settings.BloomLevels)); else bloom.Dispose();
-        if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height)); else rays.Dispose();
+        if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height,engine.LightShaftQuality,settings.LightShaftSamples)); else rays.Dispose();
         // Capture typed inputs once for this framebuffer publication, before entering a pass.
         scene??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[0]));
         if(useRays) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
@@ -130,7 +130,7 @@ internal sealed class PostprocessPipeline : IRenderer
         if(!GraphicsCommandContext.TryRun("Postprocess.Scene",pipelines,true,commands=>{
             // Metering precedes generated glare; glare cannot feed back into the camera.
             if(useBloom) bloom.Render(commands,draw,scene,exposure,settings);
-            if(useRays) rays.Render(commands,draw,api,projection,glow!,depth!,settings);
+            if(useRays) rays.Render(commands,draw,api,projection,scene,glow!,depth!,exposure,settings);
             retained.Render(commands,draw,engine,scene,exposure);
         })) throw new InvalidOperationException("VGE postprocessing graphics boundary was rejected.");
         frameEffects=engine;

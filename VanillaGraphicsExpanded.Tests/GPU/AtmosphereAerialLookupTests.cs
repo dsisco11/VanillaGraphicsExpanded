@@ -4,6 +4,8 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -12,19 +14,15 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Executes finite-path lookup against independent angular and distance ramps.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Lookup reconstruction
     /// <summary>Physical distance, angular direction, identity and enclosure gates select the intended volume coordinates.</summary>
     [Fact]
     public void SamplesAngularDistanceGridAndPreservesIdentity()
     {
-        EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
-        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/aerial-lookup.fsh");
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        EnsureShaderTestAvailable();
+        var program=Programs.Create<AerialLookupProgram>();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         using var owner = new AtmosphereModSystem();
@@ -44,16 +42,9 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
         owner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.CreateRange(new float[width * height * 4]))
         { Width = width, Height = height, AerialRadiance = ImmutableArray.CreateRange(scatter), AerialAttenuation = ImmutableArray.CreateRange(loss), AerialMie = ImmutableArray.CreateRange(mie) });
-        using var inputs = new PackedUniformBuffer(16);
-        byte[] inputBytes = new byte[16];
-        var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/aerial-lookup.fsh");
-        StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
-        using var r = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
-        using var a = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
-        StateCache.Current.UnbindSampler(11); StateCache.Current.UnbindSampler(12);
-        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+        using var neutral=framework.CreateTexture(1,1,PixelInternalFormat.R32f,[0f]);
+        program.Radiance=AtmosphereModSystem.AerialRadianceTexture;program.Attenuation=AtmosphereModSystem.AerialAttenuationTexture;program.Occlusion=neutral;
+        using var draw=new PostprocessDraw();
         foreach (float row in new[] { .25f, .5f, .75f })
         foreach (float slice in new[] { .2f, .8f })
         foreach (float visibility in new[] { 0f, 1f })
@@ -62,12 +53,9 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             float elevation = AtmosphereSkyMapping.Elevation(row, 0);
             float distance = MathF.Exp(MathF.Log(2500001f) * slice) - 1;
             Vector3 direction = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
-            target.BindWithViewport();
-            UboPacking.WriteVec3(inputBytes, 0, direction.X * distance, direction.Y * distance, direction.Z * distance);
-            UboPacking.WriteFloat(inputBytes, 12, visibility);
-            inputs.SetBytes(inputBytes);
-            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            program.Capture(direction*distance,visibility);
+            var pipeline=draw.Prepare(program,target);
+            Assert.True(GraphicsCommandContext.TryRun("Tests.Aerial",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
             float[] actual = target[0].ReadPixels();
             float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y) * visibility;
             for (int c = 0; c < 3; c++) actual[c] -= lobe;
@@ -75,12 +63,36 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Ren
             Assert.InRange(MathF.Abs(actual[1] - (1 + row * visibility)), 0, .001f);
             Assert.InRange(MathF.Abs(actual[2] - (1 + (azimuth == 0 ? .375f : .125f) * visibility)), 0, .001f);
         }
-        target.BindWithViewport();
-        UboPacking.WriteVec3(inputBytes, 0, 0f, 0f, 0f);
-        inputs.SetBytes(inputBytes);
-        Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        program.Capture(Vector3.Zero,1);
+        var identityPipeline=draw.Prepare(program,target);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.AerialIdentity",[identityPipeline],true,commands=>draw.Submit(commands,identityPipeline,target)));
         Assert.Equal(new[] { 1f, 1f, 1f, 1f }, target[0].ReadPixels());
+    }
+    /// <summary>Spatial shaft occlusion removes atmospheric in-scattering without changing surface transmission or enclosure identity.</summary>
+    [Fact]
+    public void LightShaftOcclusionModulatesOnlyAerialScattering()
+    {
+        EnsureShaderTestAvailable();var program=Programs.Create<AerialLookupProgram>();
+        using var framework=new ShaderTestFramework();
+        using var target=framework.CreateTestGBuffer(2,1,PixelInternalFormat.Rgba32f);
+        using var mask=framework.CreateTexture(2,1,PixelInternalFormat.R32f,[0f,1f]);
+        using var owner=new AtmosphereModSystem();const int width=4,height=5,depth=24;
+        float[] scatter=Enumerable.Repeat(new[]{2f,1f,.5f,1f},width*height*depth).SelectMany(x=>x).ToArray();
+        float[] loss=Enumerable.Repeat(new[]{.4f,.4f,.4f,1f},width*height*depth).SelectMany(x=>x).ToArray();
+        owner.Publish(new(Vector3.UnitY,Vector3.Zero,Vector3.Zero,Vector3.Zero,Vector3.Zero,ImmutableArray.CreateRange(new float[width*height*4]))
+        {Width=width,Height=height,AerialRadiance=ImmutableArray.CreateRange(scatter),AerialAttenuation=ImmutableArray.CreateRange(loss),AerialMie=ImmutableArray.CreateRange(new float[scatter.Length])});
+        program.Radiance=AtmosphereModSystem.AerialRadianceTexture;program.Attenuation=AtmosphereModSystem.AerialAttenuationTexture;program.Occlusion=mask;
+        using var draw=new PostprocessDraw();
+        foreach(float availability in new[]{1f,0f})
+        {
+            program.Capture(new(100,0,0),availability);
+            var pipeline=draw.Prepare(program,target);
+            Assert.True(GraphicsCommandContext.TryRun("Tests.AerialOcclusion",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+            float[] actual=target[0].ReadPixels();
+            float[] expected=availability>0?new[]{2.6f,1.6f,1.1f,1f,.6f,.6f,.6f,1f}:Enumerable.Repeat(1f,8).ToArray();
+            for(int i=0;i<8;i++)Assert.InRange(actual[i],expected[i]-.002f,expected[i]+.002f);
+        }
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
 }

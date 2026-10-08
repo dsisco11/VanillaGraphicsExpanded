@@ -4,6 +4,7 @@
 @import "./atmosphere_aerial_mapping.glsl"
 uniform sampler3D vge_atmosphereAerialRadiance;
 uniform sampler3D vge_atmosphereAerialAttenuation;
+uniform sampler2D vge_lightShaftOcclusion;
 
 // Angular coordinates share the sky. Distance slices share fixed metre ranges across
 // every direction, preventing ground/space neighbours from mixing different ray lengths.
@@ -25,6 +26,9 @@ vec3 VgeApplyAerial(vec3 radiance, vec3 worldDisplacement, float skyVisibility, 
     // Receiver sky availability gates both terms: closed interiors cannot absorb
     // light into an outdoor medium while receiving none of its in-scattering.
     float availability = clamp(skyVisibility, 0.0, 1.0);
-    return radiance * (vec3(1.0) - loss * availability) + scatter * availability;
+    // Screen-space shafts modulate only incoming atmospheric light, never extinction or surface radiance.
+    vec2 shaftSize=vec2(max(textureSize(vge_lightShaftOcclusion,0),ivec2(1)));
+    float shaftVisibility=1.0-clamp(texture(vge_lightShaftOcclusion,gl_FragCoord.xy/shaftSize).r,0.0,1.0);
+    return radiance * (vec3(1.0) - loss * availability) + scatter * availability * shaftVisibility;
 }
 #endif
