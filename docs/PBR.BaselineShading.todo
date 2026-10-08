@@ -620,10 +620,10 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
-  ☐ Extend scene-linear HDR rendering through the complete scene and postprocessing pipeline.
+  ☑ Extend scene-linear HDR rendering through the complete scene and postprocessing pipeline.
     - Coordinate HDR water/OIT integration with docs/PBR.WaterRefraction.todo; establish one
       shared producer/consumer and final-display contract without reciprocal task dependencies.
-    ☐ Establish the common HDR scene handoff for full-scene activation.
+    ☑ Establish the common HDR scene handoff for full-scene activation.
       - Uses the VGE-owned sky replacement and existing surface/owned-program binding owners.
         SceneColorPipeline prepares the scene before drawing; PbrDrawRouteHook supplies scene
         convention and resets nested offscreen bindings. Explicit engine postprocess call sites
@@ -639,7 +639,7 @@ Tasks
         deferred handoff and final display. Engine scene/blur storage and shader branch foundation
         receipts remain historical; fresh runtime validation is recorded in PBR.SharedDisplay.md.
         Fresh mandatory-HDR Debug build and 337/337 focused tests passed without skips, including runtime
-        sky-to-primary-to-final numerical verification. Complete live-frame visual acceptance remains open.
+        sky-to-primary-to-final numerical verification. Later capture replay verified complete-frame HDR composition; see the acceptance note below.
       - Preserve underlying material/depth for legacy cube-particle alpha blending at Opaque 0.6,
         before deferred lighting/composition. Do not mix completed radiance with material RGB,
         move engine callbacks or replay submissions. Evidence and remaining work: PBR.WaterRefraction.md.
@@ -647,7 +647,7 @@ Tasks
         tests. Engine callback/depth-consumer wiring and selective SSAO metadata restoration pass
         a separate 31/31 focused integration suite. Current frame routing, target/fallback checks
           and installed-shader GLSL compilation are recorded in PBR.WaterRefraction.md; successful
-        complete-frame execution remains outstanding. The overlapping receipts must not be summed.
+        complete-frame execution is additionally covered by the captures below. The overlapping receipts must not be summed.
     - Audit render-target formats, copies, blending and shader outputs across opaque terrain,
       entities, transparency/OIT, liquids, sky, clouds and late held items. Preserve HDR radiance
       in floating-point targets through scene composition; changing primary format alone is insufficient.
@@ -661,6 +661,42 @@ Tasks
     - Validate highlight preservation, blending, emission, exposure, UI, resize/reload and both
       lighting modes through focused tests and user-run visual acceptance. Measure bandwidth,
       memory and pass costs. Extend docs/PBR.MaterialColorAndDisplay.md with the final boundaries.
+    - Completed by user direction on 2026-10-08. Refraction was accepted as resolved after
+      controlled no-sun-bloom capture replay confirmed both receiver contribution and spatial
+      distortion; receipts: artifacts/RefractionCaptureCheck/paired-refraction-disabled-result.json
+      and paired-distortion-zero-result.json. Vanilla bloom appearance is deferred to the separate
+      VGE-owned bloom/god-ray replacement tasks. Broader combined acceptance, performance measurements
+      and completion review were not newly performed for this status change; they remain within
+      the existing combined shading/configuration/performance validation task.
+
+  ☐ Implement industry-standard dynamic camera contrast adjustment for the HDR scene.
+    - Investigate established automatic exposure and adaptive tone-mapping approaches; define the
+      intended camera response, metering units and contrast behavior before selecting an algorithm.
+      Distinguish exposure adaptation from changes to the tone curve; do not substitute independent
+      per-frame minimum/maximum normalization for a temporally stable camera model.
+    - Meter scene-linear luminance after scene/OIT/late composition and before display conversion.
+      Evaluate bounded GPU histogram/percentile or log-luminance reduction with robust rejection of
+      isolated solar/emissive peaks and near-black outliers. Exclude UI/offscreen draws and define
+      metering relative to bloom/god rays so generated glare cannot drive an exposure feedback loop.
+    - Define exposure compensation, a middle-gray target, minimum/maximum exposure in stops and
+      configurable metering behavior. Adapt over elapsed time with independently bounded brightening
+      and darkening rates; prevent pumping, flicker and frame-rate-dependent transitions.
+    - Define highlight shoulder, shadow toe and midtone contrast while preserving color ratios,
+      highlight detail and dark-scene intent. Evaluate whether exposure plus a stable tone curve
+      satisfies the requirement before adding local contrast adaptation or its additional history.
+    - Apply the camera response once at the shared final display boundary. Keep lighting caches,
+      atmospheric radiance and reflection/refraction inputs unexposed; coordinate any exposure-relative
+      bloom thresholds with the owned postprocessing tasks. Preserve grading order and final dithering.
+    - Use existing VGE shader, binding, PSO and resource owners with the GLSL 330 baseline; bound
+      reduction cost and history storage and avoid synchronous per-frame CPU luminance readback.
+      Define startup, camera-cut, teleport, world change, resize/reload and settings-reset behavior.
+    - Expose persisted controls through the existing graphics configuration, including a disable/manual
+      mode that retains predictable fixed exposure. Support both LumOn modes and current SDR output;
+      keep future native-HDR presentation compatible without making it an implementation prerequisite.
+    - Validate bright exterior/dark interior transitions, sun entering/leaving the frame, emissive
+      objects, underwater views, day/night changes and stationary scenes at varied frame rates.
+      Use focused subagent numerical/GPU tests for metering, adaptation, bounds, lifecycle and single
+      display conversion; obtain user-run visual acceptance and measure GPU time, bandwidth and memory.
 
   ☐ Establish a fully VGE-owned postprocessing render pass for bloom and god rays.
     - Build on the common scene-linear HDR handoff above; trace the installed postprocessing and
