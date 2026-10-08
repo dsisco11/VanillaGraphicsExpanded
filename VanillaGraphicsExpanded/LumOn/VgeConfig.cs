@@ -1397,6 +1397,14 @@ public class VgeConfig
     [JsonProperty]
     public DebugConfig Debug { get; set; } = new();
 
+    /// <summary>Controls scene-linear camera metering and the final display exposure.</summary>
+    [JsonProperty]
+    public PBR.CameraExposure.CameraExposureSettings CameraExposure { get; set; } = new();
+
+    /// <summary>Controls owned HDR bloom and solar shafts.</summary>
+    [JsonProperty]
+    public PBR.Postprocessing.PostprocessSettings Postprocessing { get; set; } = new();
+
     /// <summary>Enables bounded screen-space water refraction and optional opaque snapshots.</summary>
     [JsonProperty]
     public bool WaterRefractionEnabled { get; set; } = false;
@@ -1475,6 +1483,8 @@ public class VgeConfig
     /// </summary>
     public void Sanitize()
     {
+        CameraExposure ??= new();
+        Postprocessing ??= new();
         // Preserve the saved enable flag while restoring unsupported quality/resolution values to defaults.
         if (WaterRefractionQuality is < 0 or > 3) WaterRefractionQuality = 3;
         if (WaterRefractionBackgroundScale is not (1 or 2)) WaterRefractionBackgroundScale = 2;

@@ -13,6 +13,7 @@ internal static class SceneColorProgramBindings
     internal static void BindScene(ShaderProgramBase program, ICoreClientAPI? api)
     {
         if (program is GpuProgram || !program.HasUniform("vge_sceneLinear")) return;
+        CameraExposure.CameraExposureDisplayBindings.Reset(program);
         bool linear = false;
         if (api is not null)
         {
@@ -46,12 +47,14 @@ internal static class SceneColorProgramBindings
     /// <summary>Preserves engine activation, then supplies the known scene-input convention at its owning call site.</summary>
     internal static void UsePostprocess(ShaderProgramBase program)
     {
+        CameraExposure.CameraExposureDisplayBindings.EndBinding();
         program.Use();
         bool sceneInput = SceneColorPipeline.HasSceneInput
             && program.PassName is "final" or "luma" or "godrays";
         if (sceneInput) RequireConvention(program);
         if (program.HasUniform("vge_sceneLinear"))
             program.Uniform("vge_sceneLinear", sceneInput ? 1 : 0);
+        CameraExposure.CameraExposureDisplayBindings.Bind(program, sceneInput);
     }
     #endregion
 

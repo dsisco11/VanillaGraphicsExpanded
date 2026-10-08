@@ -22,7 +22,7 @@ public sealed class PbrFinalDisplayPatchesTests
         const string call = "outColor.rgb = VgeDitherFinalDisplay(outColor.rgb, gl_FragCoord.xy);";
         Assert.Equal(1, after.Split(call).Length - 1);
         Assert.True(after.IndexOf(call, StringComparison.Ordinal) > after.LastIndexOf("outColor.a=1;", StringComparison.Ordinal));
-        const string resolve = "if (vge_sceneLinear != 0) color.rgb = VgeResolveDisplay(color.rgb);";
+        const string resolve = "if (vge_sceneLinear != 0) color.rgb = VgeResolveDisplay(VgeExposeCamera(color.rgb + vge_bloomContribution));";
         Assert.Equal(1, after.Split(resolve).Length - 1);
         Assert.True(after.IndexOf(resolve, StringComparison.Ordinal) < after.IndexOf("vec4 gradedColor = ColorGrade(color);", StringComparison.Ordinal));
         Assert.Matches(@"if\s*\(vge_sceneLinear\s*==\s*0\)\s*color\.rgb\s*=\s*min\(color\.rgb,\s*vec3\(1\)\);", after);
@@ -45,11 +45,11 @@ public sealed class PbrFinalDisplayPatchesTests
         string patched = tree.ToText();
         Assert.Contains("/* grading anchor */", patched);
         Assert.Contains("/* clamp anchor */", patched);
-        Assert.Equal(1, patched.Split("VgeResolveDisplay(color.rgb)").Length - 1);
+        Assert.Equal(1, patched.Split("VgeResolveDisplay(VgeExposeCamera(color.rgb + vge_bloomContribution))").Length - 1);
         Assert.Equal(1, patched.Split("VgeDitherFinalDisplay(outColor.rgb, gl_FragCoord.xy)").Length - 1);
         Assert.True(patched.IndexOf("if (vge_sceneLinear == 0)", StringComparison.Ordinal)
             < patched.IndexOf("/* clamp anchor */", StringComparison.Ordinal));
-        Assert.True(patched.IndexOf("VgeResolveDisplay(color.rgb)", StringComparison.Ordinal)
+        Assert.True(patched.IndexOf("VgeResolveDisplay(VgeExposeCamera(color.rgb + vge_bloomContribution))", StringComparison.Ordinal)
             < patched.IndexOf("/* grading anchor */", StringComparison.Ordinal));
     }
     #endregion

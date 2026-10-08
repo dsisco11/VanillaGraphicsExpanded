@@ -137,8 +137,8 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         using var bindRays = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 2, rays.TextureId);
         framework.RenderQuadTo(program.ProgramId, target);
         float[] actual = target[0].ReadPixels();
-        // Existing bloom mix: (8 + 1*1.5)/2; rays add 4, giving 8.75 before display.
-        float encoded = linearScene == 0 ? 1 : Encode(8.75f / 9.75f);
+        // Owned HDR composition adds scene 8, already weighted bloom 1, and rays 4 before display.
+        float encoded = linearScene == 0 ? 1 : Encode(13f / 14f);
         float expected = MathF.Floor(Math.Clamp(encoded - .4921875f / 255f, 0, 1) * 255f + .5f) / 255f;
         for (int channel = 0; channel < 3; channel++) Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
         Assert.Equal(1, actual[3]);

@@ -97,15 +97,15 @@ public sealed class SceneColorAllocationTests(HeadlessGLFixture fixture) : Rende
         }
     }
 
-    /// <summary>Postprocess color stays floating point while OIT metadata and SSAO stay data targets.</summary>
+    /// <summary>Only retained luma is promoted; menu glare, OIT metadata and SSAO keep their native data formats.</summary>
     [Theory]
-    [InlineData(EnumFrameBuffer.FindBright, true)]
+    [InlineData(EnumFrameBuffer.FindBright, false)]
     [InlineData(EnumFrameBuffer.Luma, true)]
-    [InlineData(EnumFrameBuffer.BlurHorizontalMedRes, true)]
-    [InlineData(EnumFrameBuffer.BlurVerticalMedRes, true)]
-    [InlineData(EnumFrameBuffer.BlurHorizontalLowRes, true)]
-    [InlineData(EnumFrameBuffer.BlurVerticalLowRes, true)]
-    [InlineData(EnumFrameBuffer.GodRays, true)]
+    [InlineData(EnumFrameBuffer.BlurHorizontalMedRes, false)]
+    [InlineData(EnumFrameBuffer.BlurVerticalMedRes, false)]
+    [InlineData(EnumFrameBuffer.BlurHorizontalLowRes, false)]
+    [InlineData(EnumFrameBuffer.BlurVerticalLowRes, false)]
+    [InlineData(EnumFrameBuffer.GodRays, false)]
     [InlineData(EnumFrameBuffer.Transparent, false)]
     [InlineData(EnumFrameBuffer.SSAO, false)]
     [InlineData(EnumFrameBuffer.SSAOBlurHorizontal, false)]

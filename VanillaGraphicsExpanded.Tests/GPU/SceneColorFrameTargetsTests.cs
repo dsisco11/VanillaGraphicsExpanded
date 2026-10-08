@@ -63,10 +63,10 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
         Assert.True(targets.Prepare(frames, out _));
         Assert.True(image.IsValid);
     }
-    /// <summary>The installed low-resolution allocation omits wrapper dimensions while creating valid native storage.</summary>
+    /// <summary>Unused menu glare may retain normalized storage and omitted dimensions without blocking the owned HDR scene.</summary>
     [Theory]
     [InlineData(PixelInternalFormat.Rgba16f, true)]
-    [InlineData(PixelInternalFormat.Rgba8, false)]
+    [InlineData(PixelInternalFormat.Rgba8, true)]
     public void InstalledLowResolutionAttachmentUsesNativeDimensions(PixelInternalFormat format, bool expected)
     {
         EnsureContextValid();
@@ -102,7 +102,7 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
             frames[(int)EnumFrameBuffer.BlurVerticalLowRes] = low;
             var targets = new SceneColorFrameTargets();
             Assert.Equal(expected, targets.Prepare(frames, out string? failure));
-            if (!expected) Assert.Contains(nameof(PixelInternalFormat.Rgba8), failure);
+            Assert.Null(failure);
             Assert.Equal(expected, targets.Prepare(frames, out _));
             Assert.Equal((0, 0), (low.Width, low.Height));
         }

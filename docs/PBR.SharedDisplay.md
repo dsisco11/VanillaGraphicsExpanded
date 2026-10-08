@@ -1,9 +1,14 @@
-# Shared SDR exposure and tone mapping
+# Shared HDR scene and display conversion
+
+The scene and camera exposure operate in floating-point, scene-linear HDR. SDR describes
+only the current final presentation target: the exposed HDR scene is tone-mapped and
+sRGB-encoded for display. This is separate from native HDR monitor presentation.
 
 `includes/pbr_color.glsl` owns the display policy for atmospheric sky, the solar
 disk, deferred PBR surfaces and forward PBR surfaces. Both LumOn and standalone
-lighting supply unexposed scene-linear RGB. Fixed unit exposure is declared once
-as `VGE_DISPLAY_EXPOSURE`; there is no sky-only or sun-only exposure scale.
+lighting supply unexposed scene-linear RGB. The shared curve retains unit calibration
+as `VGE_DISPLAY_EXPOSURE`; dynamic camera exposure is applied at final display as
+described in [PBR.CameraExposure.md](PBR.CameraExposure.md). There is no sky-only or sun-only exposure scale.
 Atmospheric extinction, disk size and reflectance remain lighting inputs.
 
 The operator clamps negative radiance, applies exposure, then divides all channels
@@ -11,8 +16,15 @@ by `1 + max(R, G, B)`. Exact linear-to-sRGB encoding follows. One denominator
 preserves linear RGB ratios through the highlight shoulder without channel
 clipping. The old per-channel shoulders pushed bright colored inputs toward white.
 Neutral inputs retain their previous response; near black the mapping approaches
-linear. This is a simple chromaticity-preserving SDR operator, not adaptive eye
-exposure or calibrated HDR presentation.
+linear. This is a stable chromaticity-preserving SDR operator. Camera exposure adapts
+separately; native HDR presentation remains outside its contract.
+
+## Owned scene postprocessing
+
+[PBR.Postprocessing.md](PBR.Postprocessing.md) defines the VGE-owned replacement for the complete
+HDR scene postprocess pass: camera exposure, bloom, solar shafts, retained SSAO/bilateral filtering,
+and luma preparation. Engine glare shaders and allocations described in historical receipts below
+are no longer scene dependencies. Final composition and overlay/presentation scheduling remain.
 
 ## Runtime scene handoff
 
@@ -67,8 +79,8 @@ engine effects. Both owners require matching primary/OIT targets in Opaque, OIT 
 offscreen/UI calls remain display-referred. Owned scene programs supply HDR through their
 typed inputs. There is no additional global shader-use patch.
 
-Postprocess inputs are selected at ClientPlatformWindows.RenderPostprocessingEffects
-and RenderFinalComposition shader activation calls. Their destination alone cannot
+Scene postprocessing is replaced at ClientPlatformWindows.RenderPostprocessingEffects.
+The remaining engine display input is selected at RenderFinalComposition activation calls. Their destination alone cannot
 identify their sampled scene. The narrow Harmony transpiler preserves each engine Use
 call and then assigns its input convention. Generic uses of final/colorgrade/luma/godrays
 remain display-referred. HasSceneInput tracks pending scene postprocessing, not HDR readiness.
@@ -96,7 +108,8 @@ Focused postprocess/runtime/sun tests passed 96/96 with no skips, including spat
 comparison against the installed legacy glare algorithm and reproduction of the old HDR
 accumulator failure. Receipts: artifacts/SceneHdrRuntime/godray-domain-fixed-tests.trx
 and artifacts/BrokenSun/godray-corrected-result.json. Capture replay does not replace
-user-run visual acceptance; the separately reported refraction appearance remains unresolved.
+user-run visual acceptance. Refraction was subsequently accepted as resolved after controlled
+capture replay; the completion note in PBR.BaselineShading.todo records those receipts.
 
 Bloom blur spacing is measured in destination pixels using derivatives of the center UV.
 The installed engine supplies full-window frameSize to every blur pass, including its
@@ -114,10 +127,11 @@ and artifacts/NoSunBloom/blur-destination-ab.json. User-run appearance remains t
 
 ## Display and validation limits
 
-Fixed unit exposure and the SDR operator remain unchanged. Alpha, revealage, depth, glow
+The SDR operator remains unchanged; dynamic camera exposure now precedes it at final display.
+See PBR.CameraExposure.md for metering, history, controls and validation. Alpha, revealage, depth, glow
 and SSAO metadata are not color-transfer inputs. Sky spatial perception effects stay at
 their existing location; authored underwater/night-vision tints are decoded on the linear
-route. Native HDR monitor presentation and adaptive exposure are separate work.
+route. Native HDR monitor presentation remains separate work.
 
 The runtime GPU fixture prepares the actual producer owners, renders the owned sky above
 one, preserves it through direct/composite handoff, and draws the installed final shader
@@ -126,8 +140,8 @@ across scene/offscreen reuse, checks missing-final errors without changing scene
 ignores unrelated shader registrations, and checks final/reload/world input lifetime. Installed engine methods accept the Harmony binding patch.
 Separate shader/storage/particle tests cover blends, effects and metadata. These fixtures
 do not execute a complete native game frame or establish live appearance, compatibility
-with every mod, or GPU cost. User-run scene comparisons remain required before the parent
-task is checked off.
+with every mod, or GPU cost. The HDR migration was later marked complete by user direction
+with the deferrals recorded in PBR.BaselineShading.todo; camera exposure has its own acceptance.
 
 Mandatory-HDR validation passed **337/337 tests with no skips**, including runtime ownership
 and failure cases, installed Harmony integration, scene storage/particle paths, sky/forward/

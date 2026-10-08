@@ -5,15 +5,17 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks solar bloom handoff through the installed engine extraction shader.</summary>
+/// <summary>Checks solar visibility metadata and the retained offscreen bloom handoff.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Bloom extraction
-    /// <summary>Production disk outputs preserve attenuation and feed positive engine bloom without ambient boost.</summary>
-    [Fact]
-    public void AttenuatedSolarDiskFeedsInstalledBloomExtraction()
+    /// <summary>HDR disks publish bounded visibility while offscreen disks retain authored engine bloom metadata.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void SolarMetadataSeparatesOwnedAndOffscreenBloom(int route)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
@@ -68,7 +70,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
             source.BindWithViewport();
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
             StateCache.Current.UseProgram(sun.ProgramId);
-            GL.Uniform1(GL.GetUniformLocation(sun.ProgramId, "vge_pbrRoute"), 1);
+            GL.Uniform1(GL.GetUniformLocation(sun.ProgramId, "vge_pbrRoute"), route);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereDisk"), radiance, radiance, radiance, .01f);
             ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereSun"), 0f, 1f, 0f, 0f);
             inputs.Float(0, attenuation);
@@ -79,8 +81,9 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
             if (radiance > 0)
             {
                 float mapped = 1.055f * MathF.Pow(radiance / (1 + radiance), 1 / 2.4f) - .055f;
-                Assert.InRange(emission[0], mapped * attenuation - 1e-6f, mapped * attenuation + 1e-6f);
-                Assert.Equal(.7f, emission[1]);
+                float expectedMarker = route == 0 ? mapped * attenuation : 0;
+                Assert.InRange(emission[0], expectedMarker - 1e-6f, expectedMarker + 1e-6f);
+                Assert.Equal(route == 0 ? .7f : 1f, emission[1]);
                 Assert.Equal(1f, emission[3]);
             }
             else Assert.All(emission, value => Assert.Equal(0f, value));
@@ -95,8 +98,12 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderT
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float actual = output[0].ReadPixels()[0];
             Assert.InRange(actual, solar[0] * 3 * emission[0] - 1e-6f, solar[0] * 3 * emission[0] + 1e-6f);
-            Assert.True(actual < previous);
-            if (radiance > 0) Assert.True(actual > 0);
+            if (route == 0)
+            {
+                Assert.True(actual < previous);
+                if (radiance > 0) Assert.True(actual > 0);
+                else Assert.Equal(0f, actual);
+            }
             else Assert.Equal(0f, actual);
             previous = actual;
         }

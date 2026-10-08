@@ -13,10 +13,9 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 internal static class SceneColorPostprocessBindingHook
 {
     #region Public API
-    /// <summary>Selects the two owners of scene intermediates and the final display endpoint.</summary>
+    /// <summary>Selects the retained final display endpoint; scene postprocessing is independently owned.</summary>
     internal static IEnumerable<MethodBase> TargetMethods()
     {
-        yield return AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderPostprocessingEffects));
         yield return AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderFinalComposition));
     }
 
@@ -25,6 +24,8 @@ internal static class SceneColorPostprocessBindingHook
     {
         var use = AccessTools.Method(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Use));
         var replacement = AccessTools.Method(typeof(SceneColorProgramBindings), nameof(SceneColorProgramBindings.UsePostprocess));
+        var bloomSetter = AccessTools.PropertySetter(typeof(ShaderProgramFinal), nameof(ShaderProgramFinal.BloomParts2D));
+        var raysSetter = AccessTools.PropertySetter(typeof(ShaderProgramFinal), nameof(ShaderProgramFinal.GodrayParts2D));
         bool replaced = false;
         foreach (var instruction in instructions)
         {
@@ -33,6 +34,13 @@ internal static class SceneColorPostprocessBindingHook
                 replaced = true;
                 instruction.opcode = OpCodes.Call;
                 instruction.operand = replacement;
+            }
+            if (instruction.Calls(bloomSetter) || instruction.Calls(raysSetter))
+            {
+                bool bloom = instruction.Calls(bloomSetter);
+                instruction.opcode = OpCodes.Call;
+                instruction.operand = AccessTools.Method(typeof(PBR.Postprocessing.PostprocessPipeline),
+                    bloom ? nameof(PBR.Postprocessing.PostprocessPipeline.BindBloom) : nameof(PBR.Postprocessing.PostprocessPipeline.BindGodRays));
             }
             yield return instruction;
         }
@@ -43,9 +51,13 @@ internal static class SceneColorPostprocessBindingHook
     [HarmonyFinalizer]
     internal static void Finalizer(MethodBase __originalMethod, Exception? __exception = null)
     {
-        // A failed intermediate still leaves HDR scene input pending; it must not
-        // cause a later final composition to interpret that input as display RGB.
-        if (__originalMethod.Name == nameof(ClientPlatformWindows.RenderFinalComposition)) SceneColorPipeline.EndScene();
+        try { PBR.CameraExposure.CameraExposureDisplayBindings.EndBinding(); }
+        finally
+        {
+            // A failed intermediate still leaves HDR scene input pending. Final consumption
+            // ends the frame even if restoration itself reports an invalid borrowed resource.
+            if (__originalMethod.Name == nameof(ClientPlatformWindows.RenderFinalComposition)) SceneColorPipeline.EndScene();
+        }
     }
     #endregion
 }

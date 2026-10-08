@@ -10,9 +10,7 @@ internal sealed class SceneColorFrameTargets
 {
     private static readonly EnumFrameBuffer[] SceneTargets =
     [
-        EnumFrameBuffer.Primary, EnumFrameBuffer.Luma, EnumFrameBuffer.FindBright,
-        EnumFrameBuffer.BlurHorizontalMedRes, EnumFrameBuffer.BlurVerticalMedRes,
-        EnumFrameBuffer.BlurHorizontalLowRes, EnumFrameBuffer.BlurVerticalLowRes, EnumFrameBuffer.GodRays
+        EnumFrameBuffer.Primary, EnumFrameBuffer.Luma
     ];
     private readonly Dictionary<int, (int Width, int Height, PixelInternalFormat Format)> images = new();
 
@@ -39,8 +37,7 @@ internal sealed class SceneColorFrameTargets
                 || (target.Width > 0 && cached.Width != target.Width)
                 || (target.Height > 0 && cached.Height != target.Height))
             {
-                // The engine omits dimensions on some postprocess publications (including
-                // BlurVerticalLowRes). The allocated image is authoritative in that case.
+                // The allocated image is authoritative when an engine publication omits dimensions.
                 // Import once per publication; do not repeatedly query omitted metadata.
                 using var image = GpuFramebufferAttachment.FromTextureId(id);
                 cached = (image.Width, image.Height, image.InternalFormat);

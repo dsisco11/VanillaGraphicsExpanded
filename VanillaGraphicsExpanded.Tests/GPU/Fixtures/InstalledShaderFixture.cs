@@ -15,15 +15,17 @@ internal sealed class InstalledShaderFixture : IDisposable
 
     #region Public API
     /// <summary>Uses original engine sources and reflected driver locations without a separate binary contract.</summary>
-    internal InstalledShaderFixture(string name, int ssao = 0)
+    internal InstalledShaderFixture(string name, int ssao = 0, bool effects = false)
     {
         ShaderCapability capabilities = ShaderCapability.None;
         int oit = name == "particlesquad2d" ? 1 : 0;
         using var stages = new TerrainShaderTestFixture();
         int vertex = stages.Compile(ShaderType.VertexShader,
-            PbrSurfaceInstalledShaderTests.Build(name + ".vsh", 0, oit, ssao, 0, 0));
+            PbrSurfaceInstalledShaderTests.Build(name + ".vsh", 0, oit, ssao, 0, 0)
+                .Replace("#version 330 core", "#version 330 core\n#define BLOOM " + (effects ? 1 : 0) + "\n#define GODRAYS " + (effects ? 1 : 0)));
         int fragment = stages.Compile(ShaderType.FragmentShader,
-            PbrSurfaceInstalledShaderTests.Build(name + ".fsh", 0, oit, ssao, 0, 0, value => capabilities |= value));
+            PbrSurfaceInstalledShaderTests.Build(name + ".fsh", 0, oit, ssao, 0, 0, value => capabilities |= value)
+                .Replace("#version 330 core", "#version 330 core\n#define BLOOM " + (effects ? 1 : 0) + "\n#define GODRAYS " + (effects ? 1 : 0)));
         executable = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         try
         {

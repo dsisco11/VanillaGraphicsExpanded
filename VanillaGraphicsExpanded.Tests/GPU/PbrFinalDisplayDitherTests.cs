@@ -63,7 +63,8 @@ public sealed class PbrFinalDisplayDitherTests(HeadlessGLFixture fixture) : Rend
             }
             """, GlslSchema.Instance);
         PbrFinalDisplayPatches.Apply(tree);
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
+        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"))
+            + "\n" + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/camera_exposure_display.glsl"));
         string source = tree.ToText().Replace("#version 430 core", "#version 430 core\n#define ADD_HALO " + (addHalo ? "1" : "0") + "\n" + helper);
         int fragment = shaders.Compile(ShaderType.FragmentShader, source);
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));

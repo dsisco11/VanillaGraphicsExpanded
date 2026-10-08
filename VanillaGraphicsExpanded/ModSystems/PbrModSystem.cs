@@ -26,6 +26,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.SceneColor.SceneColorParticleCapture? particleCapture;
     private PBR.Atmosphere.AtmosphereSkyRenderer? skyRenderer;
     private PBR.SceneColor.SceneColorPipeline? sceneColor;
+    private PBR.CameraExposure.CameraExposureRenderer? cameraExposure;
+    private PBR.Postprocessing.PostprocessPipeline? postprocessing;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -56,6 +58,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         base.Dispose();
         HarmonyPatches.PbrDrawRouteHook.Api = null;
 
+        postprocessing?.Dispose(); postprocessing = null;
+        cameraExposure?.Dispose(); cameraExposure = null;
         sceneColor?.Dispose(); sceneColor = null;
         liquidRenderer?.Dispose();
         skyRenderer?.Dispose(); skyRenderer = null;
@@ -110,6 +114,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             () => PbrShaderLightingMode.LumOnEnabled);
         sceneColor ??= new PBR.SceneColor.SceneColorPipeline(capi, pbrCompositeRenderer,
             directLightingRenderer, directLightingBufferManager, skyRenderer, particleCapture);
+        cameraExposure ??= new PBR.CameraExposure.CameraExposureRenderer(capi);
+        postprocessing ??= new PBR.Postprocessing.PostprocessPipeline(capi);
         waterRefractionCapture ??= new PBR.Liquids.WaterRefractionCapture(capi, directLightingRenderer, pbrCompositeRenderer);
 
         capi.Logger.Debug("[VGE] PbrModSystem ensured ({0})", reason);

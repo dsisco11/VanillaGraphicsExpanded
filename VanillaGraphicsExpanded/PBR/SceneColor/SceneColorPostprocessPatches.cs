@@ -15,6 +15,7 @@ internal static class SceneColorPostprocessPatches
     internal static void Preprocess(SyntaxTree tree) => tree.CreateEditor()
         .InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), """
         @import "./includes/pbr_color.glsl"
+        @import "./includes/camera_exposure_display.glsl"
 
         """).Commit();
 
@@ -24,14 +25,14 @@ internal static class SceneColorPostprocessPatches
         var editor = tree.CreateEditor();
         var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("extension")).LastOrDefault()
             ?? tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
-        editor.InsertAfter(header, "\nuniform int vge_sceneLinear;\nvec3 VgeResolveDisplay(vec3 radiance);\n");
+        editor.InsertAfter(header, "\nuniform int vge_sceneLinear;\nvec3 VgeResolveDisplay(vec3 radiance);\nvec3 VgeExposeCamera(vec3 radiance);\n");
         if (source == "luma.fsh")
         {
             // FXAA reads perceptual contrast from alpha, but filters unexposed linear RGB.
             // This metric is not a color output conversion and does not change the scene energy.
             editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), """
 
-            if (vge_sceneLinear != 0) outColor.a = luma(VgeResolveDisplay(outColor.rgb));
+            if (vge_sceneLinear != 0) outColor.a = luma(VgeResolveDisplay(VgeExposeCamera(outColor.rgb)));
 
             """);
         }

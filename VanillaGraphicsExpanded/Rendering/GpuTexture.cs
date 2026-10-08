@@ -28,7 +28,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
     public PixelInternalFormat InternalFormat => internalFormat;
     public TextureTarget TextureTarget => textureTarget;
     /// <summary>Reports the mip levels allocated by this texture owner without querying driver storage.</summary>
-    internal int StorageMipLevels { get; private set; } = 1;
+    internal int StorageMipLevels { get; private protected set; } = 1;
     public TextureFilterMode FilterMode => filterMode;
     public string? DebugName => debugName;
 

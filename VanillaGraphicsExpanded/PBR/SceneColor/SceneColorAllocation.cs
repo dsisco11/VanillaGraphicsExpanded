@@ -30,10 +30,8 @@ internal struct SceneColorAllocation
             return color ? PixelInternalFormat.Rgba16f : format;
         }
 
-        return framebuffer is EnumFrameBuffer.FindBright or EnumFrameBuffer.Luma
-            or EnumFrameBuffer.BlurHorizontalMedRes or EnumFrameBuffer.BlurVerticalMedRes
-            or EnumFrameBuffer.BlurHorizontalLowRes or EnumFrameBuffer.BlurVerticalLowRes
-            or EnumFrameBuffer.GodRays ? PixelInternalFormat.Rgba16f : format;
+        // Engine glare images remain menu-only; scene glare owns separate floating-point storage.
+        return framebuffer == EnumFrameBuffer.Luma ? PixelInternalFormat.Rgba16f : format;
     }
     #endregion
 }

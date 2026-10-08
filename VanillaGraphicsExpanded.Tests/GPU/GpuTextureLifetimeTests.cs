@@ -68,5 +68,53 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
             TextureStreamingSystem.Dispose();
         }
     }
+    /// <summary>Retiring a typed borrower withdraws its handle without deleting or mutating the external image.</summary>
+    [Fact]
+    public void BorrowedTextureRetirementPreservesExternalStorage()
+    {
+        EnsureContextValid();
+        using var external = DynamicTexture2D.CreateWithData(2,1,PixelInternalFormat.Rgba32f,[8f,4f,2f,.3f,1f,2f,3f,.7f]);
+        external.Bind(3);
+        int handle = external.TextureId;
+        using var borrowed = new BorrowedTexture(handle);
+        Assert.Equal(handle,borrowed.TextureId);
+        Assert.Equal((2,1),(borrowed.Width,borrowed.Height));
+        Assert.True(borrowed.IsValid);
+        Assert.Throws<NotSupportedException>(()=>borrowed.Detach());
+        borrowed.Dispose();
+        Assert.False(borrowed.IsValid);
+        Assert.Equal(0,borrowed.TextureId);
+        Assert.True(GL.IsTexture(handle));
+        Assert.Equal(handle,StateCache.Current.GetBoundTexture(TextureTarget.Texture2D,3));
+        Assert.Equal(new[]{8f,4f,2f,.3f,1f,2f,3f,.7f},external.ReadPixels());
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        external.Dispose();
+        Assert.False(GL.IsTexture(handle));
+    }
+    /// <summary>Borrowing preserves native target, spatial dimensions, array extent and allocated mip metadata.</summary>
+    [Theory]
+    [InlineData(TextureTarget.Texture1D,8,1,1)]
+    [InlineData(TextureTarget.Texture3D,8,4,4)]
+    [InlineData(TextureTarget.Texture2DArray,8,4,7)]
+    public void BorrowedTextureRetainsNonTwoDimensionalStorage(TextureTarget target,int width,int height,int depth)
+    {
+        EnsureContextValid();
+        GL.CreateTextures(target,1,out int texture);
+        try
+        {
+            if(target==TextureTarget.Texture1D) GL.TextureStorage1D(texture,3,SizedInternalFormat.Rgba16f,width);
+            else GL.TextureStorage3D(texture,3,SizedInternalFormat.Rgba16f,width,height,depth);
+            using(var borrowed=new BorrowedTexture(texture))
+            {
+                Assert.Equal(target,borrowed.TextureTarget);
+                Assert.Equal((width,height,depth),(borrowed.Width,borrowed.Height,borrowed.Depth));
+                Assert.Equal(PixelInternalFormat.Rgba16f,borrowed.InternalFormat);
+                Assert.Equal(3,borrowed.StorageMipLevels);
+            }
+            Assert.True(GL.IsTexture(texture));
+            Assert.Equal(ErrorCode.NoError,GL.GetError());
+        }
+        finally { StateCache.Current.DeleteTexture(texture); }
+    }
     #endregion
 }

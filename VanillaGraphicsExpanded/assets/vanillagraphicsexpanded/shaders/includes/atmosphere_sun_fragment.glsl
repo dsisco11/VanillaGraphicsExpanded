@@ -21,11 +21,11 @@ void VgeDrawAtmosphericSun()
     // composition; the legacy display tint remains only on the compatible SDR route.
     outColor = vec4(vge_pbrRoute != 0 ? max(vge_atmosphereDisk.rgb, vec3(0.0))
         : VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
-    // Feed the engine's bloom extraction separately from atmospheric scattering.
-    // Use attenuated, underwater-adjusted color before dithering, so a dim disk
-    // fades its bloom too. Coverage is applied by the existing attachment blending.
+    // Owned HDR bloom extracts actual radiance. Green is solar visibility only;
+    // attachment blending carries coverage/occlusion to the owned shaft pass.
+    // Display-referred offscreen draws retain the engine metadata convention.
     float bloom = clamp(max(displayColor.r, max(displayColor.g, displayColor.b)), 0.0, 1.0);
-    outGlow = vec4(bloom, extraGodray, 0.0, coverage);
+    outGlow = vec4(vge_pbrRoute != 0 ? 0.0 : bloom, vge_pbrRoute != 0 ? 1.0 : extraGodray, 0.0, coverage);
     #if SSAOLEVEL > 0
     outGPosition = vec4(0.0, 0.0, 0.0, 1.0);
     outGNormal = vec4(0.0);

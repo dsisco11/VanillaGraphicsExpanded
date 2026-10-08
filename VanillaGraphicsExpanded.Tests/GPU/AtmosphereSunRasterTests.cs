@@ -92,7 +92,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             for (int pixel = 0; pixel < pixels.Length; pixel += 4)
             {
                 Assert.Equal(pixels[pixel + 3], glowPixels[pixel + 3]);
-                if (pixels[pixel + 3] == 0) Assert.Equal(0f, glowPixels[pixel]);
+                if (pixels[pixel + 3] == 0 || !displayTransfer) Assert.Equal(0f, glowPixels[pixel]);
                 else Assert.InRange(glowPixels[pixel], .88f, 1f);
             }
             if (iteration == 0)
