@@ -798,7 +798,7 @@ Tasks
       - Remove the engine light-shaft dependency and superseded SceneColorPostprocessPatches adaptation
         after validation; final-shader and binding-hook removal belongs to the shared postprocessing/final-composition task.
 
-    ☐ Analyze all VGE-owned textures for consolidation into 2D texture arrays.
+    ☑ Analyze all VGE-owned textures for consolidation into 2D texture arrays.
       - Inventory every VGE-owned texture across rendering subsystems, including lighting, atmosphere,
         liquids, LumOn, material resources and postprocessing. Record allocation owner, dimensions,
         internal format, mip/sample counts, sampling policies, producers, consumers and lifetime;
@@ -821,6 +821,40 @@ Tasks
         docs/PBR.Postprocessing.md, with linked subsystem contracts where applicable. Account for
         planned bloom/AO replacements so proposed groups fit their intended resource layouts.
         This subtask produces analysis and actionable migration recommendations, not texture migration.
+      - Completed: source-backed inventory, dependency exclusions, abstraction gaps and migration order
+        in docs/PBR.Postprocessing.md, section "Texture-array consolidation analysis". Direct lighting
+        alone reduces the proposed composite interface from 17 to 15 samplers; G-buffer and water
+        grouping can reduce it to 12. SH9 coefficients offer six fewer gather samplers. These are
+        analytical savings; implementation, linked-program validation and timing remain future work.
+
+    ☐ Consolidate compatible VGE-owned textures into 2D texture arrays.
+      - Follow docs/PBR.Postprocessing.md, section "Texture-array consolidation analysis".
+        Migrate direct diffuse/specular/emissive first, then the water optical/source pair and
+        G-buffer normal/material/environment channels. Target composite sampler reductions of
+        17 to 15, then 12 after all three groups, without format changes or per-frame copies.
+      - Group LumOn's seven SH9 coefficient images and, separately, its two probe-anchor images.
+        Preserve seven/two MRT outputs respectively; reduce coefficient inputs from seven to one
+        and anchor inputs from two to one in consumers that read both. Keep SH projection inputs
+        separate from its outputs and preserve both SH9 and directional-atlas gather paths.
+      - Reuse existing GpuTexture array allocation, GpuFramebufferAttachment layer selection,
+        GpuResourceCollection, typed sampler contracts and PSO/render-pass APIs. Replace individual
+        sampler2D inputs with sampler2DArray and named layer indices; update all production,
+        diagnostic and test consumers and compact texture-unit assignments.
+      - Preserve formats, filtering, clears, integer patch identity, attachment slots, indexed
+        blending and render order. Recreate each backing array once at its owning size/publication
+        boundary; publish layer attachments together and retire dependent submissions before storage.
+        Preserve native settings, optional allocations, standalone PBR and LumOn enable/disable.
+      - Keep iterative ping-pong images and previous-frame history allocations separate. Do not
+        combine atmosphere 3D LUTs, external engine storage or resources requiring padding/format
+        promotion. Material pairs and small light-level tables remain lower-priority candidates;
+        final glare grouping belongs with the planned bloom layout, and AO with its replacement.
+      - Run focused subagent shader/GPU validation for layer routing, channel preservation, active
+        sampler counts and unit indices, feedback-free draws, odd sizes, resize, reload, teardown,
+        settings changes and both lighting modes. Confirm the fully featured composite reaches
+        the expected 12 inputs and SH9 gather saves six coefficient samplers.
+      - Record actual allocation/binding changes and matched-workload timing separately from
+        analytical storage/fetch counts in docs/PBR.Postprocessing.md. Do not claim reduced
+        bandwidth from fewer bindings; retain deferred user-run visual/performance acceptance.
 
     ☐ Replace base-game bloom with VGE-owned extraction, filtering and composition in the postprocessing pass.
       - Follow the shared fully VGE-owned postprocessing and final-composition task above.
@@ -873,6 +907,34 @@ Tasks
       - Document the contract in docs/PBR.Postprocessing.md. Run focused subagent tests for corners,
         contact detail, flat surfaces, thin geometry, foliage, motion, resolution changes and lifecycle;
         measure GPU/history costs and obtain user-run visual acceptance before completion.
+
+  ☐ Refactor camera exposure to use compute shaders and GPU buffer storage.
+    - Replace the raster histogram and one-pixel adaptation passes with independently authored
+      compute shaders through existing GPU program, typed binding, dispatch and resource APIs.
+      Follow docs/PBR.CameraExposure.md and docs/PBR.SharedDisplay.md; update both contracts
+      and docs/PBR.Postprocessing.md to reflect the final data flow and resource ownership.
+    - Build the histogram by classifying each selected HDR scene sample once. Accumulate local
+      histograms in workgroup shared memory, then merge/reduce them with bounded atomic work.
+      Preserve weighted metering and luminance statistics; define numeric encoding, precision,
+      overflow bounds and invalid-sample handling rather than assuming float atomic support.
+    - Compute percentile reduction and temporal exposure adaptation on the GPU. Replace exposure
+      textures with owned buffer-backed exposure/history and migrate bloom, LightShafts and final
+      composition to typed buffer inputs, removing their exposure samplers and obsolete FBOs.
+      Preserve manual exposure, compensation, limits, asymmetric adaptation, reset/cut behavior,
+      empty-histogram handling and exactly-once exposure at the display boundary.
+    - Express dispatch dependencies and required memory barriers through existing command APIs.
+      Keep previous/current exposure publication race-free, retain resources across stable frames,
+      and preserve resize, reload, world teardown and both standalone and LumOn modes. Avoid
+      synchronous CPU readback and per-frame GPU allocation.
+    - Require compute/SSBO runtime capabilities through GpuSupport and use an appropriate shader
+      language version for compute programs; keep the existing GLSL 330 graphics-shader baseline
+      distinct from runtime requirements. Do not add a legacy raster-exposure fallback.
+    - Run focused subagent numerical/GPU tests comparing histogram statistics and exposure against
+      reference results, including bright/dark transitions, weighted/percentile metering, invalid
+      samples, manual mode, reset and lifecycle cases. Use production GPU/shader abstractions.
+      Measure histogram/adaptation GPU cost at matched sample counts and record storage, sampler
+      and dispatch changes separately from timing. Retire obsolete raster shaders and tests only
+      after their behavioral coverage is preserved; retain deferred user-run visual acceptance.
 
   ☐ Profile and optimize cached material-atlas restoration with batched uploads.
     - Establish a matched warm-cache world-load baseline, separating cache reads/decompression,
