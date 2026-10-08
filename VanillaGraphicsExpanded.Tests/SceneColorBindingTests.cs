@@ -33,32 +33,15 @@ public sealed class SceneColorBindingTests(ITestOutputHelper output)
     [Fact]
     public void InstalledPostprocessOwnersAcceptHarmonyBindingPatch()
     {
-        var use = AccessTools.Method(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Use));
-        var wrapper = AccessTools.Method(typeof(SceneColorProgramBindings), nameof(SceneColorProgramBindings.UsePostprocess));
-        var targets = SceneColorPostprocessBindingHook.TargetMethods().ToArray();
-        Assert.Single(targets);
-        foreach (var target in targets)
-        {
-            var original = PatchProcessor.GetOriginalInstructions(target).ToArray();
-            int calls = original.Count(instruction => instruction.Calls(use));
-            Assert.True(calls > 0);
-            var patched = SceneColorPostprocessBindingHook.Transpiler(original.Select(instruction => new CodeInstruction(instruction))).ToArray();
-            Assert.Equal(original.Length, patched.Length);
-            Assert.Equal(calls, patched.Count(instruction => instruction.Calls(wrapper)));
-            Assert.DoesNotContain(patched, instruction => instruction.Calls(use));
-        }
         var harmony = new Harmony("VGE.Tests.SceneColorPostprocessBindings");
         try
         {
-            harmony.CreateClassProcessor(typeof(SceneColorPostprocessBindingHook)).Patch();
             harmony.CreateClassProcessor(typeof(OwnedPostprocessHook)).Patch();
-            var ownedTarget = AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderPostprocessingEffects));
-            Assert.Contains(Harmony.GetPatchInfo(ownedTarget)!.Prefixes, patch => patch.owner == harmony.Id);
-            foreach (var target in targets)
+            harmony.CreateClassProcessor(typeof(OwnedFinalCompositionHook)).Patch();
+            foreach (string name in new[] { nameof(ClientPlatformWindows.RenderPostprocessingEffects), nameof(ClientPlatformWindows.RenderFinalComposition) })
             {
-                var patches = Harmony.GetPatchInfo(target)!;
-                Assert.Contains(patches.Transpilers, patch => patch.owner == harmony.Id);
-                Assert.Contains(patches.Finalizers, patch => patch.owner == harmony.Id);
+                var target = AccessTools.Method(typeof(ClientPlatformWindows), name);
+                Assert.Contains(Harmony.GetPatchInfo(target)!.Prefixes, patch => patch.owner == harmony.Id);
             }
         }
         finally { harmony.UnpatchAll(harmony.Id); }

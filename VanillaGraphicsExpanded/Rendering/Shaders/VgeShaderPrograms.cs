@@ -23,11 +23,11 @@ internal static class VgeShaderPrograms
             new PBR.Atmosphere.AtmosphereSkyShaderProgram(),
             new PBR.CameraExposure.CameraHistogramShaderProgram(),
             new PBR.CameraExposure.CameraAdaptShaderProgram(),
+            new PBR.Postprocessing.FinalDisplayShaderProgram(),
             new PBR.Postprocessing.BloomShaderProgram(),
             new PBR.Postprocessing.GodRayShaderProgram(),
             new PBR.Postprocessing.PostLumaShaderProgram(),
             new PBR.Postprocessing.PostSsaoShaderProgram(),
-            new PBR.Postprocessing.PostBilateralShaderProgram(),
             new PBR.Liquids.LiquidShaderProgram(),
             // Keep both liquid executables resident; changing a compile-time mode replaces an executable.
             new PBR.Liquids.LiquidShaderProgram { PassName = PBR.Liquids.LiquidShaderProgram.VolumePassName, CaptureMode = 3 },

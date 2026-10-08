@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks installed legacy and postprocess boundaries under both scene color conventions.</summary>
+/// <summary>Checks installed scene producer boundaries under both color conventions.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
@@ -22,8 +22,6 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
     [InlineData("cloudvolumetric.fsh")]
     [InlineData("aurora.fsh")]
     [InlineData("blockhighlights.fsh")]
-    [InlineData("luma.fsh")]
-    [InlineData("godrays.fsh")]
     public void InstalledFragmentCompiles(string name)
     {
         EnsureContextValid();
@@ -69,80 +67,6 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         Assert.InRange(glow[3], .39999f, .40001f);
     }
 
-    /// <summary>Luma preserves radiance while god rays generate bounded artistic radiance from display-domain samples.</summary>
-    [Theory]
-    [InlineData("luma.fsh", 0)]
-    [InlineData("luma.fsh", 1)]
-    [InlineData("godrays.fsh", 0)]
-    [InlineData("godrays.fsh", 1)]
-    public void InstalledPostprocessUsesCorrectBrightnessDomain(string name, int linearScene)
-    {
-        EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        string source = PbrSurfaceInstalledShaderTests.Build(name, 1, 0, 0, 0, 0);
-        using var program = Link(shaders, source);
-        using var framework = new ShaderTestFramework();
-        using var input = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { 8f, 4f, 2f, .25f });
-        using var glow = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { 1f, 1f, 1f, 1f });
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
-        GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
-        GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, name == "luma.fsh" ? "scene" : "inputTexture"), 0);
-        GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "glowParts"), 1);
-        using var bindInput = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, input.TextureId);
-        using var bindGlow = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, glow.TextureId);
-        framework.RenderQuadTo(program.ProgramId, target);
-        float[] pixels = target[0].ReadPixels();
-        float[] radiance = [8, 4, 2];
-        if (name == "luma.fsh")
-        {
-            Assert.Equal(radiance, pixels[..3]);
-            float[] metric = linearScene == 0 ? radiance : radiance.Select(value => Encode(value / 9f)).ToArray();
-            float expected = metric[0] * .299f + metric[1] * .587f + metric[2] * .114f;
-            Assert.InRange(pixels[3], expected - .00001f, expected + .00001f);
-        }
-        else
-        {
-            float[] display = radiance.Select(value => Encode(value / 9f)).ToArray();
-            float factor = linearScene == 0 ? 0 : 1 - Math.Max(display.Average() - .7f, 0);
-            for (int channel = 0; channel < 3; channel++)
-            {
-                float expected = linearScene == 0 ? 0 : Decode(display[channel] * factor);
-                Assert.InRange(pixels[channel], expected - .00001f, expected + .00001f);
-            }
-            Assert.Equal(1, pixels[3]);
-        }
-    }
-    /// <summary>The installed final combines above-one bloom and rays before its single display operator.</summary>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public void InstalledFinalResolvesCombinedRadianceOnce(int linearScene)
-    {
-        EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        string source = PbrSurfaceInstalledShaderTests.Build("final.fsh", 1, 0, 0, 0, 0)
-            .Replace("#version 330 core", "#version 330 core\n#define BLOOM 1\n#define GODRAYS 1\n#define FXAA 0");
-        using var program = Link(shaders, source);
-        using var framework = new ShaderTestFramework();
-        using var scene = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { 8f, 8f, 8f, 1f });
-        using var bloom = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { 1f, 1f, 1f, 1f });
-        using var rays = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { 4f, 4f, 4f, 1f });
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
-        foreach (var pair in new[] { ("primaryScene", 0), ("bloomParts", 1), ("glowParts", 1), ("godrayParts", 2), ("vge_sceneLinear", linearScene) })
-            GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, pair.Item1), pair.Item2);
-        foreach (var pair in new[] { ("gammaLevel", 1f), ("brightnessLevel", 1f), ("ambientBloomLevel", 2f) })
-            GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, pair.Item1), pair.Item2);
-        using var bindScene = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.TextureId);
-        using var bindBloom = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, bloom.TextureId);
-        using var bindRays = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 2, rays.TextureId);
-        framework.RenderQuadTo(program.ProgramId, target);
-        float[] actual = target[0].ReadPixels();
-        // Owned HDR composition adds scene 8, already weighted bloom 1, and rays 4 before display.
-        float encoded = linearScene == 0 ? 1 : Encode(13f / 14f);
-        float expected = MathF.Floor(Math.Clamp(encoded - .4921875f / 255f, 0, 1) * 255f + .5f) / 255f;
-        for (int channel = 0; channel < 3; channel++) Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
-        Assert.Equal(1, actual[3]);
-    }
     /// <summary>The installed traversal integrates decoded cloud samples while retaining extinction and alpha.</summary>
     [Theory]
     [InlineData(0)]

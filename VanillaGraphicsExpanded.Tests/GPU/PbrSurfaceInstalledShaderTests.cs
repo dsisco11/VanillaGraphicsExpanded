@@ -153,7 +153,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             return included.Add(path) ? Expand(File.ReadAllText(path), Path.GetDirectoryName(path)!) : "";
         });
         tree = SyntaxTree.Parse(Expand(tree.ToText(), Path.Combine(AppContext.BaseDirectory, "assets/shaders")), GlslSchema.Instance);
-        if (name is not ("sky.vsh" or "particlescube.vsh" or "particlesquad2d.vsh" or "final.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
+        if (name is not ("final.fsh" or "luma.fsh" or "godrays.fsh" or "colorgrade.fsh" or "blur.fsh" or "sky.vsh" or "particlescube.vsh" or "particlesquad2d.vsh" or "final.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
         if (name == "standard.fsh")
         {
             string main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single().ToText();

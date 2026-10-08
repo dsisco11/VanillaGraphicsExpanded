@@ -2,8 +2,9 @@
 
 VGE owns the complete scene postprocessing invocation. OwnedPostprocessHook replaces
 ClientPlatformWindows.RenderPostprocessingEffects for a pending HDR scene; it never executes
-the original scene pass after an owned failure. The engine's ScreenManager scheduling and
-final presentation remain intact. Non-scene menu rendering outside HDR scene ownership keeps
+the original scene pass after an owned failure. OwnedFinalCompositionHook likewise replaces
+RenderFinalComposition for that scene with FinalDisplayShaderProgram. The engine's ScreenManager
+scheduling, overlay callbacks and presentation blit remain intact. Non-scene menu rendering outside HDR scene ownership keeps
 its display-referred engine path, rather than being interpreted as an HDR scene.
 
 Installed 1.22.7 IL confirms: transparent merge, AfterOIT, return from RenderToPrimary,
@@ -19,24 +20,42 @@ PostprocessPipeline coordinates separate algorithm owners:
 1. CameraExposureRenderer meters the completed unexposed scene and publishes temporal EV.
 2. BloomRenderer extracts and filters scene-linear HDR bloom.
 3. GodRayRenderer integrates a bounded solar visibility mask.
-4. RetainedPostprocessRenderer preserves SSAO receiver reconstruction and bilateral filtering,
-   then prepares the engine-owned luma output for final FXAA (or copies scene RGBA if FXAA is off).
-5. The existing final shader applies SSAO to scene RGB, adds owned glare, applies camera
+4. RetainedPostprocessRenderer supplies a neutral AO placeholder and prepares owned RGBA16F
+   scene/luminance output for antialiasing (or copies scene RGBA when disabled).
+5. The owned final shader applies optional edge smoothing, then AO to scene RGB, adds owned glare, applies camera
    exposure and the shared tone curve once, then retains grading, vignettes and dithering.
 
 All scene postprocess draws use typed VGE programs, GLSL 330, PSOs, render passes and one
-restoring GraphicsCommandContext boundary. Camera metering has its own restoring boundary
-before the effects. No original engine findbright, blur, god-ray, SSAO, bilateral or luma
-shader is invoked by the replaced HDR pass. The retained SSAO math is derived from the
-installed algorithm; its eleven-tap bilateral filter initializes both symmetric endpoints,
-including the endpoint the original vertex shader left uninitialized.
+restoring GraphicsCommandContext boundary. Camera metering and final composition each have
+their own restoring boundary before and after the effects. No original engine findbright, blur, god-ray, SSAO, bilateral or luma
+shader is invoked by the replaced HDR pass. The copied SSAO implementation and its kernel
+adapter have been removed. SSAO intentionally outputs visibility one until the planned
+horizon-integrated algorithm is implemented. The unused bilateral entry point is removed;
+filtering remains part of that later task. No temporary AO algorithm or filtering chain is being implemented or qualified.
 
-The final-composition transpiler routes its existing bloom/god-ray setters to successfully
-published owned images on the existing units 2 and 3. It does not replace the engine shader
-object or rewrite its framebuffer table. Publication is atomic across effects and retained
-operations; missing, stale or failed publication raises an error. Disabled effects publish
-one persistent black image and release their effect-only storage. Camera manual mode is
-independent and still uses the owned HDR pipeline.
+Final composition binds typed owned scene/luma, bloom, shaft, AO and exposure inputs directly.
+It writes only primary color through a private framebuffer borrowing the presentation image;
+no sampled texture aliases that output. The engine framebuffer table and overlay/presentation
+schedule are unchanged. Final grading, luminance-guided edge smoothing and screen effects are independently authored
+in owned shader assets, followed by one final dither. Native controls are read, but the grading,
+antialiasing and vignette appearance is not a pixel-equivalent reproduction of engine shaders.
+The native FXAA switch selects this edge filter; the filter is not the FXAA algorithm. The engine final executable is not used for HDR scenes.
+
+Publication is atomic across effects and retained operations; missing, stale or failed publication
+raises an error. Final consumption is allowed once and the handoff ends scene publication even
+on failure. Disabled glare publishes one persistent black image and releases effect storage;
+disabled AO skips the placeholder submission and retires its storage. Manual camera exposure is independent.
+SceneColorPostprocessBindingHook, PbrFinalDisplayPatches and the old exposure texture-unit scope
+are removed. Copied display helpers and obsolete reference-patch fixtures have been removed.
+
+## Original display implementation and deferred effects
+
+No base-game shader implementation is copied into the owned final path. Gamma/brightness/contrast
+controls drive an independently authored display transform, followed by luminance-based warm
+tinting and procedural damage/frost/glitch treatments. The edge filter uses the owned perceptual
+alpha metric and bounded neighboring samples. Existing bloom and shaft shaders were independently
+authored and remain until their planned Gaussian and radial-occlusion refactors. AO is neutral
+by explicit user direction, not a fallback to engine rendering.
 
 ## Bloom
 
@@ -82,10 +101,10 @@ attenuation carry weather effects without feeding generated glare back into expo
 ## Resources, settings and limits
 
 Bloom owns half-resolution and progressively reduced RGBA16F images, plus separate upsample
-images to prevent feedback. Shafts own one half-resolution RGBA16F image. Retained SSAO and
-luma outputs are borrowed engine images behind private persistent FBO wrappers; engine
-ownership and final consumers remain unchanged. Sampler contracts receive typed textures; external
-engine handles are wrapped by BorrowedTexture without allocating or owning native storage.
+images to prevent feedback. Shafts own one half-resolution RGBA16F image. The AO placeholder owns one 1x1 RGBA16F target when enabled; there are no bilateral targets.
+Luma owns full-resolution RGBA16F storage. Sized formats match the vec4 shader outputs,
+removing dependence on unsized engine RGB AO storage. Sampler contracts receive typed textures; external
+upstream engine handles are wrapped by BorrowedTexture without allocating or owning native storage.
 Named input and output references are retained for each framebuffer publication; render
 submissions do not look up texture handles. GpuResourceCollection retires private framebuffers,
 attachments and borrowed wrappers while leaving engine storage alive.
@@ -95,8 +114,8 @@ exit retire PSOs before images/views. Stable frames allocate no GPU resources. Q
 size changes recreate only affected storage.
 
 Engine glare allocations remain because the non-scene menu path still consumes them. They
-are no longer promoted to HDR or validated as scene requirements. Primary color and luma
-remain required floating-point engine storage. Removing menu allocations requires separately
+are no longer promoted to HDR or validated as scene requirements. Only primary scene color remains required floating-point engine storage; native luma and SSAO
+allocations are neither promoted nor consumed by VGE scene postprocessing. Removing menu allocations requires separately
 replacing that display-referred path, not deleting images beneath a remaining consumer.
 
 The base game graphics settings exclusively control bloom, god rays, SSAO quality and FXAA.
@@ -112,7 +131,17 @@ depending on level count and rounded dimensions. Bloom uses four fetches per red
 and ten per reconstructed pixel; shafts use two texture fetches per selected radial sample.
 These are logical storage/work counts, not measured driver allocation or physical bandwidth.
 
-Focused GPU/runtime validation is in progress. Real-game halo appearance, shafts through
+The independent final shader measured median GPU times of 0.0164 ms at 720p, 0.0338 ms at
+1080p and 0.0573 ms at 1440p across five warm samples with uniform 1x1 inputs and edge
+smoothing enabled. These synthetic timings do not represent a live frame or physical bandwidth.
+Receipt: artifacts/SceneHdrRuntime/owned-final-independent.trx.
+
+The independent final implementation builds successfully (zero errors; 102 existing warnings).
+Focused validation passed 67 unique checks. The six runtime cases cover both LumOn modes and
+native SSAO qualities 0/1/2 without engine final shaders or legacy intermediate outputs.
+Receipts: artifacts/SceneHdrRuntime/owned-final-independent.trx and owned-final-runtime.trx;
+build: owned-final-independent-build4.log. These checks cover implemented behavior and ownership,
+not a temporary AO algorithm. Real-game halo appearance, shafts through
 clouds/transparency, underwater transitions, temporal stability and representative GPU cost
 still require user-run visual/performance acceptance. The implementation does not establish
 native HDR monitor presentation.

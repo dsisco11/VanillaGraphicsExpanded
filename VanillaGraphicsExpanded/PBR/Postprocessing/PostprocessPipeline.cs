@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.PBR.SceneColor;
@@ -21,13 +20,15 @@ internal sealed class PostprocessPipeline : IRenderer
     private GpuResourceCollection resources=new();
     private BorrowedTexture? scene,glow,depth;
     private PostprocessDraw? draw;
+    private GpuFramebuffer? finalTarget;
+    private EnginePostprocessInputs frameEffects;
     private PostprocessImage? neutral;
     private PostprocessParameters settings;
     private bool captured,published,disposed;
     private GpuTexture? bloomTexture,rayTexture;
     #region Public API
     #region Lifetime
-    /// <summary>Registers frame publication and attachment lifecycle without replacing final presentation.</summary>
+    /// <summary>Registers owned postprocessing and final composition while preserving the presentation handoff.</summary>
     internal PostprocessPipeline(ICoreClientAPI api)
     {
         this.api=api;
@@ -68,13 +69,46 @@ internal sealed class PostprocessPipeline : IRenderer
         platform.GlToggleBlend(true,EnumBlendMode.Standard);
         return true;
     }
-    /// <summary>Binds the published owned bloom image at the existing final composition sampler.</summary>
-    internal static void BindBloom(ShaderProgramFinal program,int legacyTexture)
-        => program.BloomParts2D=SceneColorPipeline.HasSceneInput?Published().bloomTexture!.TextureId:legacyTexture;
-    /// <summary>Binds the published owned solar-shaft image at the existing final composition sampler.</summary>
-    internal static void BindGodRays(ShaderProgramFinal program,int legacyTexture)
-        => program.GodrayParts2D=SceneColorPipeline.HasSceneInput?Published().rayTexture!.TextureId:legacyTexture;
-    /// <summary>Executes owned algorithms and retained SSAO/luma responsibilities, publishing only after complete success.</summary>
+    /// <summary>Consumes the HDR publication at the existing final scheduling boundary, leaving menus independent.</summary>
+    internal static bool ReplaceFinalPass(ClientPlatformWindows platform)
+    {
+        if(!SceneColorPipeline.HasSceneInput) return false;
+        try
+        {
+            var owner=Published();
+            owner.RenderFinal(FinalDisplayParameters.Capture(owner.api));
+            // The following overlay stage expects the native final pass's depth/blend exit state.
+            platform.GlDisableDepthTest();
+            platform.GlToggleBlend(true,EnumBlendMode.Standard);
+            return true;
+        }
+        finally { SceneColorPipeline.EndScene(); }
+    }
+    /// <summary>Composes owned intermediate outputs directly into the primary presentation image.</summary>
+    internal void RenderFinal(FinalDisplayParameters display)
+    {
+        if(!published) throw new InvalidOperationException("Owned postprocessing outputs were not published for this frame.");
+        var shader=Rendering.Shaders.GpuShaderPrograms.Get<FinalDisplayShaderProgram>(api,"pbr_final");
+        if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned final display shader unavailable.");
+        // Only the presentation destination is borrowed; every sampled postprocess output is owned.
+        if(finalTarget is null)
+        {
+            var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(scene!));
+            finalTarget=resources.Own(GpuFramebuffer.Create([attachment],debugName:"Postprocess.Final"));
+        }
+        var exposure=CameraExposureRenderer.DisplayExposure();
+        shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
+        shader.OcclusionImage=retained.Occlusion??neutral!.Texture;
+        shader.ExposureImage=exposure.Texture??neutral!.Texture;
+        shader.Capture(new(1f/finalTarget.Width,1f/finalTarget.Height,frameEffects.Fxaa?1:0,
+            frameEffects.Ssao?frameEffects.SsaoQuality:0),display,new(exposure.ManualEV,exposure.Texture is null?0:1,0,0));
+        var pipeline=draw!.Prepare(shader,finalTarget);
+        if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
+            commands=>draw.Submit(commands,pipeline,finalTarget)))
+            throw new InvalidOperationException("VGE final composition graphics boundary was rejected.");
+        published=captured=false;
+    }
+    /// <summary>Executes owned algorithms and SSAO/luma responsibilities, publishing only after complete success.</summary>
     internal void Render(float[] projection,EnginePostprocessInputs engine)
     {
         if(published) return;
@@ -90,15 +124,16 @@ internal sealed class PostprocessPipeline : IRenderer
         if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height)); else rays.Dispose();
         // Capture typed inputs once for this framebuffer publication, before entering a pass.
         scene??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[0]));
-        if(useRays||engine.Ssao) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
+        if(useRays) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         if(useRays) glow??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[1]));
         pipelines.AddRange(retained.Prepare(api,draw,engine.Ssao));
         if(!GraphicsCommandContext.TryRun("Postprocess.Scene",pipelines,true,commands=>{
             // Metering precedes generated glare; glare cannot feed back into the camera.
             if(useBloom) bloom.Render(commands,draw,scene,exposure,settings);
             if(useRays) rays.Render(commands,draw,api,projection,glow!,depth!,settings);
-            retained.Render(commands,draw,projection,engine,scene,depth,exposure);
+            retained.Render(commands,draw,engine,scene,exposure);
         })) throw new InvalidOperationException("VGE postprocessing graphics boundary was rejected.");
+        frameEffects=engine;
         bloomTexture=useBloom?bloom.Texture:neutral.Texture;
         rayTexture=useRays?rays.Texture:neutral.Texture;
         published=true;
@@ -116,7 +151,7 @@ internal sealed class PostprocessPipeline : IRenderer
     private void Retire()
     {
         published=captured=false; bloomTexture=rayTexture=null;
-        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); resources.Dispose(); resources=new(); scene=glow=depth=null; neutral?.Dispose(); neutral=null;
+        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
     }
     /// <summary>Withdraws all executable-dependent publication during shader reload.</summary>
     private bool Reload() { Retire(); return true; }

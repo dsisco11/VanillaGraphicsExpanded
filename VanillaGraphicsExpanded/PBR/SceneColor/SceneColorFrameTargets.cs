@@ -10,7 +10,7 @@ internal sealed class SceneColorFrameTargets
 {
     private static readonly EnumFrameBuffer[] SceneTargets =
     [
-        EnumFrameBuffer.Primary, EnumFrameBuffer.Luma
+        EnumFrameBuffer.Primary
     ];
     private readonly Dictionary<int, (int Width, int Height, PixelInternalFormat Format)> images = new();
 

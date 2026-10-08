@@ -33,10 +33,9 @@ internal static class VanillaShaderPatches
 
     /// <summary>Reports whether a shader stage receives any VGE pre- or post-processing edits.</summary>
     internal static bool Supports(string sourceName) => sourceName is
-        "chunkshadowmap.vsh" or "final.fsh" or "sky.fsh" or "blur.fsh"
+        "chunkshadowmap.vsh" or "sky.fsh"
         || PatchedChunkVertexShaders.Contains(sourceName)
         || PatchedChunkShaders.Contains(sourceName)
-        || SceneColor.SceneColorPostprocessPatches.Supports(sourceName)
         || SceneColor.SceneColorLegacyPatches.Supports(sourceName)
         || PbrSurfaceShaderPatches.Supports(sourceName);
 
@@ -232,18 +231,8 @@ flat in uint vge_faceId;
                 SceneColor.SceneColorLegacyPatches.Preprocess(tree);
                 return true;
             }
-            if (SceneColor.SceneColorPostprocessPatches.Supports(sourceName))
-            {
-                SceneColor.SceneColorPostprocessPatches.Preprocess(tree);
-                return true;
-            }
             if (sourceName == "chunkshadowmap.vsh")
                 return Tessellation.TerrainDisplacementPatches.Apply(tree, sourceName);
-            if (sourceName == "final.fsh")
-            {
-                PbrFinalDisplayPatches.Preprocess(tree);
-                return true;
-            }
             if (PbrSurfaceShaderPatches.Supports(sourceName))
             {
                 var editor = tree.CreateEditor();
@@ -374,26 +363,9 @@ flat in uint vge_faceId;
     {
         try
         {
-            if (sourceName == "blur.fsh")
-            {
-                SceneColor.SceneColorBloomPatches.Apply(tree);
-                return true;
-            }
             if (SceneColor.SceneColorLegacyPatches.Supports(sourceName))
             {
                 SceneColor.SceneColorLegacyPatches.Apply(tree, sourceName);
-                declare?.Invoke(ShaderCapability.SceneColorConvention);
-                return true;
-            }
-            if (SceneColor.SceneColorPostprocessPatches.Supports(sourceName))
-            {
-                SceneColor.SceneColorPostprocessPatches.Apply(tree, sourceName);
-                declare?.Invoke(ShaderCapability.SceneColorConvention);
-                return true;
-            }
-            if (sourceName == "final.fsh")
-            {
-                PbrFinalDisplayPatches.Apply(tree);
                 declare?.Invoke(ShaderCapability.SceneColorConvention);
                 return true;
             }

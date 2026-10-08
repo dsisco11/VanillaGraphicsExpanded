@@ -30,12 +30,19 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     #region Public API
     /// <summary>Prepared sky radiance survives primary while reused programs reset on offscreen and final boundaries.</summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void OwnedSceneRetainsHdrAcrossFailuresAndUnclassifiedRegistrations(int ssaoQuality)
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    public void OwnedSceneRetainsHdrAcrossFailuresAndUnclassifiedRegistrations(int ssaoQuality, bool lumOn)
     {
         EnsureContextValid();
+        bool? previousGeneration = PbrShaderLightingMode.GenerationLumOnEnabled;
+        PbrShaderLightingMode.GenerationLumOnEnabled = lumOn;
+        bool previousLumOn = ConfigModSystem.Config.LumOn.Enabled;
+        ConfigModSystem.Config.LumOn.Enabled = lumOn;
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var programs = new RuntimeLightingPrograms();
@@ -49,12 +56,6 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var normals = drawing.CreateTexture(2,2,PixelInternalFormat.Rgba16f,Enumerable.Repeat(new[]{0f,0f,1f,0f},4).SelectMany(value=>value).ToArray());
         using var positions = drawing.CreateTexture(2,2,PixelInternalFormat.Rgba16f,Enumerable.Repeat(new[]{1f,0f,-1f,0f},4).SelectMany(value=>value).ToArray());
         using var revealage = drawing.CreateTexture(2,2,PixelInternalFormat.R16f,[1f,1f,1f,1f]);
-        // Installed SSAO allocates unsized RGB; bilateral outputs use RGBA8.
-        using var ao = DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgb);
-        GL.GetTextureLevelParameter(ao.TextureId, 0, GetTextureParameter.TextureInternalFormat, out int nativeAoFormat);
-        output.WriteLine($"Installed-style SSAO internal format: {(PixelInternalFormat)nativeAoFormat}");
-        using var aoHorizontal = DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba8);
-        using var aoVertical = DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba8);
         using var normalAttachment = GpuFramebufferAttachment.FromTexture(normals);
         using var positionAttachment = GpuFramebufferAttachment.FromTexture(positions);
         using var engine = GpuFramebuffer.Create([material, glow, normalAttachment, positionAttachment], depth);
@@ -64,14 +65,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
         frames[(int)EnumFrameBuffer.Primary] = primary;
         frames[(int)EnumFrameBuffer.Transparent] = new() { Width=2,Height=2,ColorTextureIds=[revealage.TextureId,revealage.TextureId] };
-        frames[(int)EnumFrameBuffer.SSAO] = new() { Width=2,Height=2,ColorTextureIds=[ao.TextureId] };
-        frames[(int)EnumFrameBuffer.SSAOBlurHorizontal] = new() { Width=2,Height=2,ColorTextureIds=[aoHorizontal.TextureId] };
-        frames[(int)EnumFrameBuffer.SSAOBlurVertical] = new() { Width=2,Height=2,ColorTextureIds=[aoVertical.TextureId] };
         frames[(int)EnumFrameBuffer.LiquidDepth] = new FrameBufferRef { DepthTextureId = liquidDepth.TextureId, Width = 2, Height = 2 };
-        foreach (var kind in new[] { EnumFrameBuffer.Luma, EnumFrameBuffer.FindBright,
-            EnumFrameBuffer.BlurHorizontalMedRes, EnumFrameBuffer.BlurVerticalMedRes,
-            EnumFrameBuffer.BlurHorizontalLowRes, EnumFrameBuffer.BlurVerticalLowRes, EnumFrameBuffer.GodRays })
-            frames[(int)kind] = new FrameBufferRef { Width = 2, Height = 2, ColorTextureIds = [postStorage.TextureId] };
+        // Legacy postprocess slots remain absent: the owner must allocate every intermediate itself.
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         var uniforms = new DefaultShaderUniforms { ZNear = .1f, ZFar = 100, WaterMurkColor = new Vec4f() };
         typeof(DefaultShaderUniforms).GetField("SkyDaylight", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(uniforms, 1f);
@@ -102,7 +97,6 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var particles = new SceneColorParticleCapture(api.Object, gbuffer);
         using var cube = new InstalledShaderFixture("particlescube");
         using var surface = new InstalledShaderFixture("standard");
-        using var final = new InstalledShaderFixture("final", effects: true);
         using var oit = new InstalledShaderFixture("particlesquad2d");
         using var scene = new SceneColorPipeline(api.Object, composite, direct, directTargets, sky, particles);
         var registry = AccessTools.Field(typeof(ShaderRegistry), "shaderPrograms");
@@ -119,23 +113,14 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             ConfigModSystem.Config.CameraExposure = new() { Enabled = false };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             // Supply a controlled installed registry; unknown registrations are tested below.
-            registry.SetValue(null, new ShaderProgram[] { cube.Engine, final.Engine, oit.Engine });
+            registry.SetValue(null, new ShaderProgram[] { cube.Engine, oit.Engine });
             ShaderPrograms.Particlescube = (ShaderProgramParticlescube)cube.Engine;
-            ShaderPrograms.Final = (ShaderProgramFinal)final.Engine;
+            ShaderPrograms.Final = null;
             PbrDrawRouteHook.Api = api.Object;
             harmony.CreateClassProcessor(typeof(PbrDrawRouteHook)).Patch();
             atmosphere.Publish(new(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.Zero, Vector3.Zero,
                 ImmutableArray.Create(8f, 4f, 2f, 1f)) { Width = 1, Height = 1 });
             particles.OnRenderFrame(0, EnumRenderStage.Before);
-            ShaderPrograms.Final = null;
-            var failure = Assert.Throws<InvalidOperationException>(() => scene.OnRenderFrame(0, EnumRenderStage.Before));
-            Assert.Contains("final display", failure.Message);
-            Assert.True(SceneColorPipeline.HasSceneInput);
-            cube.Engine.Use();
-            AssertMode(cube.Engine, 1);
-            Assert.Throws<InvalidOperationException>(() => SceneColorParticleCapture.BeginDraw(1));
-            cube.Engine.Stop();
-            ShaderPrograms.Final = (ShaderProgramFinal)final.Engine;
             scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput, string.Join(Environment.NewLine, assets.Logs));
             engine.BindWithViewport();
@@ -189,23 +174,14 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
             var postprocess = AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderPostprocessingEffects));
             post.OnRenderFrame(0, EnumRenderStage.Before);
-            post.Render(identity, new(true, true, ssaoQuality > 0, true, ssaoQuality, new float[192]));
-            if (ssaoQuality > 0) Assert.All(aoVertical.ReadPixels(), value => Assert.InRange(value, .999f, 1.001f));
+            post.Render(identity, new(true, true, ssaoQuality > 0, true, ssaoQuality));
             int publishedExposure = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
             Assert.True(GL.IsTexture(publishedExposure));
-            final.Engine.Use();
-            PostprocessPipeline.BindBloom((ShaderProgramFinal)final.Engine, postStorage.TextureId);
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.GetInteger(GetPName.TextureBinding2D, out int ownedBloom);
+            int ownedBloom = ((GpuTexture)AccessTools.Field(typeof(PostprocessPipeline), "bloomTexture").GetValue(post)!).TextureId;
+            int ownedRays = ((GpuTexture)AccessTools.Field(typeof(PostprocessPipeline), "rayTexture").GetValue(post)!).TextureId;
             Assert.NotEqual(postStorage.TextureId, ownedBloom);
-            Assert.True(GL.IsTexture(ownedBloom));
-            PostprocessPipeline.BindGodRays((ShaderProgramFinal)final.Engine, postStorage.TextureId);
-            GL.ActiveTexture(TextureUnit.Texture3);
-            GL.GetInteger(GetPName.TextureBinding2D, out int ownedRays);
             Assert.NotEqual(postStorage.TextureId, ownedRays);
-            Assert.True(GL.IsTexture(ownedRays));
-            final.Engine.Stop();
-            StateCache.Current.InvalidateAll();
+            Assert.True(GL.IsTexture(ownedBloom)); Assert.True(GL.IsTexture(ownedRays));
             using (var borrowed = GpuFramebufferAttachment.FromTextureId(publishedExposure))
             using (var readback = GpuFramebuffer.Create([borrowed]))
             {
@@ -215,25 +191,6 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
                 float[] evPixel = new float[1];
                 GL.ReadPixels(0, 0, 1, 1, PixelFormat.Red, PixelType.Float, evPixel);
                 Assert.InRange(evPixel[0], expectedEv - .002f, expectedEv + .002f);
-            }
-            using (var textureScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 15, postStorage.TextureId))
-            using (var samplerScope = StateCache.Current.BindSamplerScope(15, GpuSamplers.LinearClamp.SamplerId))
-            {
-                SceneColorProgramBindings.UsePostprocess(final.Engine);
-                GL.GetUniform(final.Engine.ProgramId, GL.GetUniformLocation(final.Engine.ProgramId, "vge_cameraExposureEnabled"), out int enabled);
-                Assert.Equal(1, enabled);
-                final.Engine.Stop();
-                SceneColorPostprocessBindingHook.Finalizer(postprocess);
-                GL.ActiveTexture(TextureUnit.Texture15);
-                GL.GetInteger(GetPName.TextureBinding2D, out int restoredTexture);
-                GL.GetInteger(GetPName.SamplerBinding, out int restoredSampler);
-                Assert.Equal(postStorage.TextureId, restoredTexture);
-                Assert.Equal(GpuSamplers.LinearClamp.SamplerId, restoredSampler);
-                StateCache.Current.InvalidateAll();
-                final.Engine.Use();
-                GL.GetUniform(final.Engine.ProgramId, GL.GetUniformLocation(final.Engine.ProgramId, "vge_cameraExposureEnabled"), out enabled);
-                Assert.Equal(0, enabled);
-                final.Engine.Stop();
             }
             // Device queries surround both warmed passes, with no per-frame image readback.
             var milliseconds = new List<double>();
@@ -253,40 +210,40 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Equal(0, CameraExposureRenderer.DisplayExposure().ManualEV);
             Assert.False(GL.IsTexture(beforeRetire));
 
-            final.Engine.Use();
-            AssertMode(final.Engine, 0);
-            final.Engine.Stop();
-            SceneColorProgramBindings.UsePostprocess(final.Engine);
-            AssertMode(final.Engine, 1);
-            using var zeroEffects = drawing.CreateTexture(1,1,PixelInternalFormat.Rgba16f,[0f,0f,0f,0f]);
-            ((ShaderProgramFinal)final.Engine).BloomParts2D = zeroEffects.TextureId;
-            ((ShaderProgramFinal)final.Engine).GodrayParts2D = zeroEffects.TextureId;
-            final.Engine.Uniform("primaryScene", 0);
-            final.Engine.Uniform("gammaLevel", 1f);
-            final.Engine.Uniform("brightnessLevel", 1f);
-            using (var output = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f))
-            using (var source = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, material.TextureId))
+            // The owned final reads owned luma and writes primary once, without the engine final program.
+            post.OnRenderFrame(0, EnumRenderStage.Before);
+            post.Render(identity, new(false, false, ssaoQuality > 0, false, ssaoQuality));
+            var displayParameters = new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,Vector4.Zero);
+            engine.BindWithViewport();
+            GL.GetInteger(GetPName.DrawBuffer0, out int beforeDrawRoute);
+            using (var textureScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 15, postStorage.TextureId))
+            using (var samplerScope = StateCache.Current.BindSamplerScope(15, GpuSamplers.LinearClamp.SamplerId))
             {
-                drawing.RenderQuadTo(final.Engine.ProgramId, output);
-                float[] display = output[0].ReadPixels();
-                float peak = Math.Max(handedOff[0], Math.Max(handedOff[1], handedOff[2]));
-                for (int channel = 0; channel < 3; channel++)
-                {
-                    float value = handedOff[channel] / (1 + peak);
-                    float expected = value <= .0031308f ? 12.92f * value : 1.055f * MathF.Pow(value, 1 / 2.4f) - .055f;
-                    Assert.InRange(display[channel], expected - 1f / 255, expected + 1f / 255);
-                }
+                post.RenderFinal(displayParameters);
+                GL.ActiveTexture(TextureUnit.Texture15);
+                GL.GetInteger(GetPName.TextureBinding2D, out int restoredTexture);
+                GL.GetInteger(GetPName.SamplerBinding, out int restoredSampler);
+                Assert.Equal(postStorage.TextureId, restoredTexture);
+                Assert.Equal(GpuSamplers.LinearClamp.SamplerId, restoredSampler);
+                StateCache.Current.InvalidateAll();
             }
-            final.Engine.Stop();
-            SceneColorPostprocessBindingHook.Finalizer(AccessTools.Method(typeof(ClientPlatformWindows),
-                nameof(ClientPlatformWindows.RenderPostprocessingEffects)), new InvalidOperationException("Intermediate failed"));
-            Assert.True(SceneColorPipeline.HasSceneInput);
-            SceneColorPostprocessBindingHook.Finalizer(AccessTools.Method(typeof(ClientPlatformWindows),
-                nameof(ClientPlatformWindows.RenderFinalComposition)));
+            GL.GetInteger(GetPName.DrawFramebufferBinding, out int restoredFramebuffer);
+            GL.GetInteger(GetPName.DrawBuffer0, out int restoredDrawRoute);
+            Assert.Equal(engine.FboId, restoredFramebuffer);
+            Assert.Equal(beforeDrawRoute, restoredDrawRoute);
+            float[] display = engine[0].ReadPixels();
+            float peak = Math.Max(handedOff[0], Math.Max(handedOff[1], handedOff[2]));
+            for (int channel = 0; channel < 3; channel++)
+            {
+                float value = handedOff[channel] / (1 + peak);
+                float expected = value <= .0031308f ? 12.92f * value : 1.055f * MathF.Pow(value, 1 / 2.4f) - .055f;
+                Assert.InRange(display[channel], expected - 1f / 255, expected + 1f / 255);
+            }
+            Assert.Equal(1, display[3]);
+            Assert.Throws<InvalidOperationException>(() => post.RenderFinal(displayParameters));
+            Assert.Throws<InvalidOperationException>(() => PostprocessPipeline.ReplaceFinalPass(
+                (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows))));
             Assert.False(SceneColorPipeline.HasSceneInput);
-            SceneColorProgramBindings.UsePostprocess(final.Engine);
-            AssertMode(final.Engine, 0);
-            final.Engine.Stop();
 
             // Unrelated shader registrations cannot change the VGE scene convention.
             registry.SetValue(null, new ShaderProgram[] { cube.Engine, new() { PassName = "unclassified", ProgramId = 1 } });
@@ -295,7 +252,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             cube.Engine.Use();
             AssertMode(cube.Engine, 1);
             cube.Engine.Stop();
-            registry.SetValue(null, new ShaderProgram[] { cube.Engine, final.Engine });
+            registry.SetValue(null, new ShaderProgram[] { cube.Engine });
             scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput, string.Join(Environment.NewLine, assets.Logs));
             ConfigModSystem.Config.CameraExposure = new() { Enabled = true };
@@ -313,7 +270,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             CameraExposureRenderer.MeterScene();
             // Recreate borrowed luma resources after resize and verify collection retirement never owns engine storage.
             post.OnRenderFrame(0, EnumRenderStage.Before);
-            post.Render(identity, new(false, false, false, true, 0, []));
+            post.Render(identity, new(false, false, false, true, 0));
             int beforeReload = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
             events.Raise(value => value.ReloadShader += null!);
             Assert.False(GL.IsTexture(beforeReload));
@@ -330,8 +287,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         }
         finally
         {
-            CameraExposureDisplayBindings.EndBinding();
             ConfigModSystem.Config.CameraExposure = previousExposure;
+            ConfigModSystem.Config.LumOn.Enabled = previousLumOn;
+            PbrShaderLightingMode.GenerationLumOnEnabled = previousGeneration;
             harmony.UnpatchAll(harmony.Id);
             PbrDrawRouteHook.Api = previousApi;
             ShaderPrograms.Particlescube = previousCube;

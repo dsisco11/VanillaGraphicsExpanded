@@ -47,11 +47,10 @@ Exposure changes which radiances occupy that fixed response; the curve itself do
 change over time. Local contrast adaptation would need a separate demonstrated visual need.
 
 Final composition adds scene and glare in linear space, applies exp2(EV) once, then resolves
-the shared shoulder and sRGB transfer before existing grading, vignettes and final dithering.
-The FXAA luma prepass computes its perceptual alpha with the same exposure while retaining
-unexposed RGB. Alpha, depth, glow and other data are not multiplied by exposure. Generic UI
-and offscreen uses reset camera uniforms. The unused alternate colorgrade scene endpoint
-retains its existing contract; it is not the live camera display boundary.
+the shared shoulder and sRGB transfer before independently authored grading, vignettes and final dithering.
+The antialiasing luma prepass computes its perceptual alpha with the same exposure while retaining
+unexposed RGB. Alpha, depth, glow and other data are not multiplied by exposure. UI and offscreen engine shaders do not bind camera exposure; they remain outside the owned
+scene display endpoint.
 
 ## Scheduling and ownership
 
@@ -68,9 +67,9 @@ image. Adaptation writes one of two 1x1 R32F images while sampling the other. Su
 submission swaps publication; failure never exposes partially written history. There are no
 compute shaders, atomics, CPU luminance readbacks or per-frame GPU allocations.
 
-The retained final shader borrows texture unit 15, above the installed final shader's units 0..4.
-StateCache texture and sampler scopes restore that unit after engine submission, including
-exceptional exits. The final shader samples history directly; the CPU never reads EV.
+The owned FinalDisplayShaderProgram binds exposure through its typed sampler contract. Its
+restoring graphics boundary manages texture/sampler state; no engine shader-use hook or reserved
+legacy texture unit is required. The final shader samples history directly; the CPU never reads EV.
 Automatic shader/boundary failures are reported instead of selecting a legacy display route.
 
 Startup and resource retirement initialize directly to the current measured target. Settings
@@ -93,7 +92,7 @@ The portable implementation performs 64 * 64 * 36 = 147,456 scene texel fetches 
 frame, plus at most 128 histogram fetches and one history fetch. Its fixed sample grid makes
 metering work independent of display resolution. It intentionally avoids newer compute/atomic
 requirements. Image payload is 512 histogram bytes plus 8 history bytes, excluding driver
-allocation granularity, FBO/VAO objects, pipelines and UBO bookkeeping. Final and owned FXAA luma
+allocation granularity, FBO/VAO objects, pipelines and UBO bookkeeping. Final and owned antialiasing luma
 add one cached 1x1 fetch per fragment. These are algorithmic counts, not measured physical
 memory bandwidth or complete-frame GPU time.
 

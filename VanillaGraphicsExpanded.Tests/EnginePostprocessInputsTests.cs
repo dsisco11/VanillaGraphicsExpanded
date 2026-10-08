@@ -19,11 +19,9 @@ public sealed class EnginePostprocessInputsTests
     [InlineData(false, true, 2, 2, true)]
     public void CaptureUsesNativeSettingsAndEngineGate(bool enabled, bool bloom, int godRays, int ssao, bool fxaa)
     {
-        // Avoid constructing a native window: capture only needs the gate and existing SSAO kernel.
+        // Avoid constructing a native window: capture only needs the native postprocessing gate.
         var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
         platform.DoPostProcessingEffects = enabled;
-        var kernel = new float[192];
-        AccessTools.Field(typeof(ClientPlatformWindows), "ssaoKernel").SetValue(platform, kernel);
         AccessTools.Field(typeof(ClientPlatformWindows), "RenderBloom").SetValue(platform, !bloom);
         AccessTools.Field(typeof(ClientPlatformWindows), "RenderGodRays").SetValue(platform, godRays <= 0);
         AccessTools.Field(typeof(ClientPlatformWindows), "RenderSSAO").SetValue(platform, ssao <= 0);
@@ -41,7 +39,6 @@ public sealed class EnginePostprocessInputsTests
         Assert.Equal(enabled && ssao > 0, inputs.Ssao);
         Assert.Equal(enabled && fxaa, inputs.Fxaa);
         Assert.Equal(ssao, inputs.SsaoQuality);
-        Assert.Same(kernel, inputs.Kernel);
     }
     #endregion
 }

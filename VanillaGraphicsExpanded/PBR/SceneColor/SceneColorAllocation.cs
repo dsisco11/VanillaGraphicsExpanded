@@ -31,7 +31,7 @@ internal struct SceneColorAllocation
         }
 
         // Engine glare images remain menu-only; scene glare owns separate floating-point storage.
-        return framebuffer == EnumFrameBuffer.Luma ? PixelInternalFormat.Rgba16f : format;
+        return format;
     }
     #endregion
 }

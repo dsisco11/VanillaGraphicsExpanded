@@ -22,9 +22,10 @@ separately; native HDR presentation remains outside its contract.
 ## Owned scene postprocessing
 
 [PBR.Postprocessing.md](PBR.Postprocessing.md) defines the VGE-owned replacement for the complete
-HDR scene postprocess pass: camera exposure, bloom, solar shafts, retained SSAO/bilateral filtering,
-and luma preparation. Engine glare shaders and allocations described in historical receipts below
-are no longer scene dependencies. Final composition and overlay/presentation scheduling remain.
+HDR scene postprocess pass: camera exposure, bloom, solar shafts, neutral AO placeholder,
+luma preparation and final composition. Engine final/glare/luma/SSAO shaders and intermediate
+allocations described in historical receipts below are no longer scene dependencies. The engine
+overlay scheduling and presentation blit remain unchanged.
 
 ## Runtime scene handoff
 
@@ -65,8 +66,8 @@ artifacts/SceneHdrRuntime/allocation-metadata-tests.trx.
 | Authored engine effects and engine liquid adapter | Decode authored RGB before blending/integration |
 | Cube particles | Isolated radiance/depth capture; compose after material lighting |
 | Bloom and luma | Float intermediates; perceptual luma retains linear RGB |
-| God rays | Legacy glare response uses bounded display samples; generated contribution is decoded before HDR composition |
-| Engine final composition | One display conversion before grading; final dither |
+| God rays | Owned bounded solar-visibility glare in scene-linear RGB |
+| Owned final composition | Original edge smoothing, neutral AO, additive glare, one display conversion, original grading/vignettes and final dither |
 
 Surface shaders use vge_pbrRoute as their single selector: zero retains offscreen/UI
 shading, one captures material data, and two emits forward HDR radiance. The atmospheric
@@ -79,15 +80,17 @@ engine effects. Both owners require matching primary/OIT targets in Opaque, OIT 
 offscreen/UI calls remain display-referred. Owned scene programs supply HDR through their
 typed inputs. There is no additional global shader-use patch.
 
-Scene postprocessing is replaced at ClientPlatformWindows.RenderPostprocessingEffects.
-The remaining engine display input is selected at RenderFinalComposition activation calls. Their destination alone cannot
-identify their sampled scene. The narrow Harmony transpiler preserves each engine Use
-call and then assigns its input convention. Generic uses of final/colorgrade/luma/godrays
-remain display-referred. HasSceneInput tracks pending scene postprocessing, not HDR readiness.
-Final composition consumes that input, including exceptional exits, and world exit retires it.
-Resize/reload invalidate preparation metadata without changing the color convention of pending input.
-The alternate colorgrade program is not the live engine scene endpoint and retains
-legacy input outside an explicitly owned scene-input call.
+Scene postprocessing and final composition are replaced at their existing engine invocation
+boundaries by OwnedPostprocessHook and OwnedFinalCompositionHook. SceneColorPipeline requires
+the owned final executable; engine final/colorgrade/luma/god-ray programs are untouched for
+non-scene consumers. HasSceneInput tracks pending scene processing, not HDR readiness.
+The final handoff consumes that input even on failure and rejects missing effect publication.
+All intermediate targets are VGE-owned; only upstream scene inputs and the primary presentation
+destination are borrowed. Framebuffer publication/reload retires the owned intermediates and
+borrowed references coherently. The original engine postprocess binding transpiler and final
+shader patches are no longer registered or present in production. Copied display helpers and
+SSAO/filter algorithms were removed; native controls now drive original display code, with
+neutral AO pending its separate algorithm task. No native visual-equivalence claim is made.
 
 Third-party scene contributors must honor the HDR target contract. Merely registering an
 unclassified program does not affect VGE ownership, including programs used only for UI.

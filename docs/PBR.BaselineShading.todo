@@ -724,11 +724,11 @@ Tasks
       - Complete review, commit the validated baseline, and record its commit identifier before
         starting the next subtask. Leave this item unchecked until that work is actually complete.
 
-    ☐ Establish fully VGE-owned postprocessing and final composition.
+    ☑ Establish fully VGE-owned postprocessing and final composition.
       - Shared infrastructure for camera exposure, bloom, god rays and ambient occlusion; their
         algorithm tasks remain separate. Record ownership and acceptance in docs/PBR.Postprocessing.md
-        and the display/scheduling contract in docs/PBR.SharedDisplay.md. Current effect submission
-        is owned, but final composition and borrowed intermediate outputs still require replacement.
+        and the display/scheduling contract in docs/PBR.SharedDisplay.md. Owned final composition and
+        intermediate storage are implemented; validation and user-run acceptance are tracked there.
       - Trace the installed scene/OIT/late-contributor, overlay and presentation boundaries. Own
         postprocessing and final-composition shaders, typed inputs, PSOs and draw submissions while
         preserving overlay/UI scheduling and the presentation handoff. Keep algorithm policy in its
@@ -736,12 +736,13 @@ Tasks
       - Fully own all postprocessing intermediate output textures and framebuffer targets in VGE,
         including bloom, god rays, SSAO, bilateral filtering and luma/FXAA preparation. Replace borrowed
         engine intermediate outputs with VGE allocations; own formats, resize, reload and disposal
-        through existing resource collections and the screen-resource lifecycle. Preserve the baseline
-        SSAO compatibility fix with sized storage matching the shader output contract.
+        through existing resource collections and the screen-resource lifecycle. Use sized storage
+        matching shader outputs. Pending the AO replacement below, publish neutral visibility and
+        omit filtering; do not implement or validate a temporary AO algorithm.
       - Borrow only upstream scene inputs whose producers remain external, refreshing references at
         attachment publication. Prevent framebuffer feedback and per-frame resource allocation.
         Engine final shaders must no longer consume VGE scene postprocessing outputs after replacement.
-      - Compose scene, SSAO, bloom and god rays; apply camera exposure, tone mapping, grading, FXAA,
+      - Compose scene, SSAO, bloom and god rays; apply camera exposure, tone mapping, independently authored grading and edge smoothing,
         vignettes and output dithering in the verified order with exactly one display conversion.
         Keep lighting/refraction inputs unexposed and preserve SDR output with future HDR compatibility.
       - Reuse VGE render commands, StateCache, shader assets, generated bindings and SPIR-V compilation
@@ -752,11 +753,16 @@ Tasks
         binding routes once their responsibilities are owned. Coordinate effect-specific patch removal
         with the bloom/god-ray tasks; remove obsolete allocations only after auditing remaining consumers.
         Preserve non-scene consumers until separately replaced, without routing VGE scenes through them.
-      - Validate scene publication, scheduling, output equivalence, single display conversion and
+      - Do not copy base-game shader implementations or helpers. Use independently authored final
+        display code; native control values do not imply pixel-equivalent native effects.
+      - Validate scene publication, scheduling, composition, single display conversion and
         PSO/cache state restoration with focused subagent tests and capture-derived regressions.
         Cover resize, shader reload, world teardown, settings changes, disabled effects and both LumOn
-        modes; obtain user-run visual acceptance and measure GPU time, bandwidth and memory.
-      - Implementation remains deferred while the remaining architectural concerns are discussed.
+        modes. Defer user-run visual acceptance and representative GPU time, bandwidth and memory
+        validation until all remaining postprocessing work is finished, per user direction.
+      - Completed: owned implementation builds successfully and 67 focused tests passed.
+        In-game visual/performance acceptance remains deferred to the completed overall work;
+        it does not block completion of this ownership subtask.
 
     ☐ Replace the base-game god-ray shader with a VGE-owned effect in the postprocessing pass.
       - Follow the shared fully VGE-owned postprocessing and final-composition task above. Own effect shaders, outputs and submissions; reuse existing typed bindings,
@@ -813,14 +819,14 @@ Tasks
       - Remove SceneColorBloomPatches and obsolete engine findbright/blur dependencies after validation;
         final-shader and binding-hook removal belongs to the shared postprocessing/final-composition task. Record limits.
 
-    ☐ Refactor pbr_post_ssao.fsh and pbr_post_bilateral.fsh to use horizon-integrated ambient occlusion.
+    ☐ Implement horizon-integrated ambient occlusion and its spatial filter.
       - Use the shared fully VGE-owned postprocessing and final-composition task above for target
         ownership, scheduling and integration; preserve the baseline SSAO target-format fix.
-      - Replace the projected hemisphere-kernel estimator with depth-reconstructed view positions,
+      - Replace the neutral AO placeholder with depth-reconstructed view positions,
         normal-aware directional horizon searches and analytic visibility integration over slices.
         Use hierarchical depth sampling, projected world-space radius, bounded quality-dependent
-        directions/steps, thickness handling and distance fade; remove the borrowed engine sample kernel.
-      - Replace inherited foliage-specific heuristics and arbitrary darkness clamps with explicit
+        directions/steps, thickness handling and distance fade; use no borrowed engine sample kernel.
+      - Use explicit
         material/transparency attenuation and a documented occlusion response. Define screen-edge,
         background, thin-surface and disocclusion behavior without hiding errors through global clamps.
       - Refactor filtering into depth/normal-aware spatial denoising and reconstruction from reduced

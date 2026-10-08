@@ -13,7 +13,6 @@ internal static class SceneColorProgramBindings
     internal static void BindScene(ShaderProgramBase program, ICoreClientAPI? api)
     {
         if (program is GpuProgram || !program.HasUniform("vge_sceneLinear")) return;
-        CameraExposure.CameraExposureDisplayBindings.Reset(program);
         bool linear = false;
         if (api is not null)
         {
@@ -22,8 +21,7 @@ internal static class SceneColorProgramBindings
             linear = SelectScene(render.CurrentRenderStage, render.CurrentFrameBuffer,
                 buffers.Count > (int)EnumFrameBuffer.Primary ? buffers[(int)EnumFrameBuffer.Primary] : null,
                 buffers.Count > (int)EnumFrameBuffer.Transparent ? buffers[(int)EnumFrameBuffer.Transparent] : null);
-            // These programs interpret sampled inputs, not their destination. Their actual
-            // engine call sites select HDR after Use; a generic or nested use remains legacy.
+            // These programs interpret sampled inputs, not their destination. Owned HDR composition never uses them; menu/offscreen uses remain display-referred.
             if (program.PassName is "final" or "colorgrade" or "luma" or "godrays") linear = false;
         }
         if (linear) RequireConvention(program);
@@ -44,18 +42,6 @@ internal static class SceneColorProgramBindings
         return expected is not null && current.FboId == expected.FboId;
     }
 
-    /// <summary>Preserves engine activation, then supplies the known scene-input convention at its owning call site.</summary>
-    internal static void UsePostprocess(ShaderProgramBase program)
-    {
-        CameraExposure.CameraExposureDisplayBindings.EndBinding();
-        program.Use();
-        bool sceneInput = SceneColorPipeline.HasSceneInput
-            && program.PassName is "final" or "luma" or "godrays";
-        if (sceneInput) RequireConvention(program);
-        if (program.HasUniform("vge_sceneLinear"))
-            program.Uniform("vge_sceneLinear", sceneInput ? 1 : 0);
-        CameraExposure.CameraExposureDisplayBindings.Bind(program, sceneInput);
-    }
     #endregion
 
     #region Private

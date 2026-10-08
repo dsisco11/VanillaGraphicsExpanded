@@ -97,10 +97,10 @@ public sealed class SceneColorAllocationTests(HeadlessGLFixture fixture) : Rende
         }
     }
 
-    /// <summary>Only retained luma is promoted; menu glare, OIT metadata and SSAO keep their native data formats.</summary>
+    /// <summary>Engine postprocess, OIT metadata and SSAO keep their native formats because scene intermediates are owned.</summary>
     [Theory]
     [InlineData(EnumFrameBuffer.FindBright, false)]
-    [InlineData(EnumFrameBuffer.Luma, true)]
+    [InlineData(EnumFrameBuffer.Luma, false)]
     [InlineData(EnumFrameBuffer.BlurHorizontalMedRes, false)]
     [InlineData(EnumFrameBuffer.BlurVerticalMedRes, false)]
     [InlineData(EnumFrameBuffer.BlurHorizontalLowRes, false)]
