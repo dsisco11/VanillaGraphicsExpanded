@@ -672,6 +672,47 @@ Tasks
       lighting modes through focused tests and user-run visual acceptance. Measure bandwidth,
       memory and pass costs. Extend docs/PBR.MaterialColorAndDisplay.md with the final boundaries.
 
+  ☐ Establish a fully VGE-owned postprocessing render pass for bloom and god rays.
+    - Build on the common scene-linear HDR handoff above; trace the installed postprocessing and
+      final-composition call sites to select one explicit scheduling boundary after scene/OIT/late
+      contributors and before final exposure, grading and UI. Record the contract in PBR.SharedDisplay.md.
+    - Reuse existing VGE render commands, PSOs, StateCache, shader assets, typed/generated bindings
+      and SPIR-V compilation with the GLSL 330 baseline. Keep bloom and god-ray algorithms in their
+      respective owners; the pass coordinates inputs, scheduling and publication.
+    - Own floating-point effect targets and persistent scratch resources through the existing
+      screen-resource lifecycle. Borrow scene/depth inputs with explicit lifetimes, refresh them on
+      attachment publication, and prevent active-framebuffer feedback or per-frame allocation.
+    - Suppress only the superseded engine extraction, bloom blur and god-ray submissions. Preserve
+      unrelated postprocessing, SSAO, luma/FXAA, final grading and presentation until separately replaced.
+      Publish owned outputs to final composition exactly once; remove stale engine texture bindings
+      and redundant allocation where no remaining consumer needs the engine effect targets.
+    - Preserve independent bloom/god-ray settings and bounded quality controls. Disabling an effect
+      skips its work and retires effect-only resources, supplies a neutral composition input, and
+      never re-enables vanilla rendering. Define explicit initialization/reload failure handling
+      without a per-frame legacy fallback or partially published output set.
+    - Cover resize, shader reload, world teardown, settings changes and both LumOn modes. Verify
+      scheduling and state restoration through the existing PSO/cache contracts, not local invalidation.
+    - Complete the owned bloom and god-ray tasks below, then remove superseded source patches,
+      postprocess binding routes and allocation special cases only after their remaining consumers
+      have been audited. Retain capture-derived regression cases as owned-pass tests.
+
+  ☐ Replace the base-game god-ray shader with a VGE-owned effect in the postprocessing pass.
+    - Follow the owned-pass scheduling/resource contract above and consume the atmosphere owner's
+      published sun direction and radiance. Define depth/cloud/transparency occlusion, offscreen and
+      behind-camera sun behavior, underwater views and night/weather transitions explicitly.
+    - Select and document a bounded screen-space light-shaft algorithm and quality budget. Distinguish
+      its approximation from atmospheric multiple scattering, sky Mie scattering and bloom; prevent
+      duplicate solar/atmospheric energy and do not use the effect to compensate for missing bloom.
+    - Define source units, weighting, glare limits and linear-output composition deliberately. Replace
+      the interim display-domain legacy adaptation in SceneColorPostprocessPatches rather than copying
+      its assumptions into the owned shader. Preserve HDR scene radiance and one final display transfer.
+    - Own shader inputs, targets, sampling and draw submission through the shared pass. Remove the
+      engine god-ray shader dependency and its compatibility patch after the replacement is validated.
+    - Run focused subagent tests for occlusion, intensity ranges, sun motion, viewport aspect, edges,
+      disabled output and lifecycle. Reproduce the captured oversized HDR disk failure and verify
+      bounded, graded shafts without hiding bloom. Measure GPU time/bandwidth separately from bloom
+      and obtain user-run visual acceptance before completion.
+
   ☐ Investigate and implement native HDR monitor output with an SDR fallback.
     - First trace the game's OpenGL context, window framebuffer and presentation ownership.
       Establish whether VGE can configure HDR presentation directly or needs a platform-specific
@@ -688,9 +729,10 @@ Tasks
       supported HDR displays and SDR fallback. Record presentation/interop costs and limitations;
       do not claim monitor-output support from floating-point framebuffer tests alone.
 
-  ☐ Improve bloom quality and efficiency using the completed scene-linear rendering pipeline.
-    - Re-audit the installed engine's extraction, downsampling, blur and composition passes after
-      the preceding tasks land. Record actual formats, color spaces, pass ownership and measured
+  ☐ Replace base-game bloom with VGE-owned extraction, filtering and composition in the postprocessing pass.
+    - Follow the owned postprocessing pass contract above. Re-audit the installed engine's
+      extraction, downsampling, blur and composition at the HDR handoff. Record actual formats,
+      color spaces, pass ownership and measured
       costs; the inspected findbright formula alone does not establish the whole pipeline's limits.
     - Build on the scene-linear HDR task's bloom/color-space integration rather than duplicating it.
       Extract from linear HDR radiance before tone mapping, define exposure-relative thresholding
@@ -698,19 +740,23 @@ Tasks
       Revisit the interim solar outGlow marker derived from display color under the final contract;
       retain atmospheric attenuation, disk coverage and occlusion without amplifying Mie scattering.
     - Evaluate a bounded multiresolution downsample/upsample filter for narrow and broad glare.
-      Reuse suitable engine passes and existing GPU/resource owners; replace only where quality or
-      matched GPU measurements justify it. Bound quality, storage and work, preserving bloom disable.
+      Use VGE-owned shader programs and submissions through existing GPU/resource owners; engine
+      bloom shaders/passes are comparison baselines, not runtime dependencies. Bound quality, storage
+      and work, preserving bloom disable.
     - Account for preceding PBR liquids, optional caustics and volumetric clouds when selecting bloom
       inputs: include their composed radiance and correct transparency/cloud attenuation, preserve
       OIT attachment ownership, and keep offscreen GUI/UI outside scene bloom. Cover late held items.
-    - Composite bloom before the final shared tone mapping/output transfer. Follow the native-HDR
-      task's established SDR/HDR luminance and presentation contracts without requiring an HDR monitor;
+    - Composite bloom before the final shared tone mapping/output transfer. Preserve the current SDR
+      contract and allow later native-HDR presentation; this task does not depend on HDR monitor support;
       retain one final format-appropriate dithering boundary and avoid reintroducing early clipping.
     - Use the preceding generated shader-binding contracts and established demand-loading/lifecycle
       abstractions for any new programs; preserve resize, reload, teardown and both LumOn modes.
     - Run focused subagent numerical/GPU tests for bright/dim/occluded sun, emission, threshold
       continuity, exposure changes, transparency, UI exclusion and SDR/HDR output. Compare halo shape,
       temporal stability, GPU time and bandwidth at matched workloads against the then-current bloom.
+      Retain the no-sun-bloom capture regression: validate visible halo spread, symmetric sampling
+      across reduced-resolution targets, complete filter taps and HDR energy preservation. Remove
+      SceneColorBloomPatches and obsolete engine findbright/blur dependencies after owned-pass validation.
       Obtain user-run visual acceptance; document costs and remaining limits before marking complete.
 
   ☐ Profile and optimize cached material-atlas restoration with batched uploads.
