@@ -42,6 +42,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         harmony = new HarmonyLib.Harmony(Constants.ModId);
         PBR.Tessellation.TerrainTessellationPrograms.Log = message => api.Logger.Warning(message);
         harmony.PatchAll();
+        // Rebuild render API callers only after their native state callees have been routed.
+        EngineRenderApiStatePatches.Apply(harmony);
 
         // Atlas binding is injected by the renderer transpiler; retain frame-level mapping refresh.
         TerrainLumonSceneChunkSlotUniformBindingHook.ApplyPatches(harmony, api.Logger.Notification);

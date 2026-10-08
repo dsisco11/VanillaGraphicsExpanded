@@ -10,6 +10,12 @@ The engine's supported native state calls are replaced at their managed call sit
 
 [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) resolves adapters by exact method name, parameter types, and return type. An adapter without a matching native signature fails map initialization. The transpiler replaces the call operand only, preserving evaluated arguments, instruction count, branch labels and exception blocks. Unsupported methods are left unchanged. Another transpiler's replacement is not forcibly overwritten.
 
+## Previously compiled render API callers
+
+Immediately after `Harmony.PatchAll()` installs the native-call replacements, [EngineRenderApiStatePatches](../VanillaGraphicsExpanded/HarmonyPatches/EngineRenderApiStatePatches.cs) applies the same transpiler to declared managed methods and instance constructors on engine types implementing `IRenderAPI`. Selection includes private helpers and property accessors, without individual method names. Abstract bodies, open generics and static initializers are excluded. Both passes use the mod's Harmony owner and existing unpatch lifecycle.
+
+The menu can compile render API methods before mod startup. The JIT can inline platform GL wrappers into those bodies, so patching the platform wrappers alone leaves native calls in already compiled callers. Rebuilding the render API bodies after the wrappers are patched removes that bypass. Where no mapped GL call exists, the transpiler preserves the original IL; Harmony still generates a replacement body. Existing copies in unselected higher callers are not automatically rebuilt, and this selection does not claim complete coverage of arbitrary mod code.
+
 ## Supported operations
 
 [EngineStateCalls](../VanillaGraphicsExpanded/Rendering/EngineStateCalls.cs) supplies signature-compatible adapters for:
@@ -24,7 +30,7 @@ The engine's supported native state calls are replaced at their managed call sit
 
 Only exact mapped overloads are substituted. The installed-engine coverage test exercises discovered targets; adapters for currently unused operations provide coverage when those exact calls appear in the engine. This is not a claim that every OpenTK overload is supported.
 
-The cache does not currently own viewport, scissor rectangles, blend equations, stencil configuration, vertex attribute formats or depth range. Those calls remain native. Capability adapters similarly preserve untracked capability behavior rather than extending the cache's fixed-function state model.
+The complete graphics-state adapters also route viewport, scissor rectangles, blend equations, stencil configuration and depth range through their cache owners. Exact mapped signatures remain the boundary; unsupported operations and capability values retain native behavior. See [authoritative pipeline state](Rendering.AuthoritativePipelineState.md) for the complete ownership contract.
 
 ## Cache consistency fixes
 
@@ -86,3 +92,7 @@ The source review checked the exact-signature boundary, builtin assembly selecti
 The engine adapter now uses `BindTextureOnActiveUnit` rather than querying the active unit and calling the explicit-unit binding API. Focused regression coverage verifies no active-unit query or reselection in that path, one native texture bind, known-unit bookkeeping, unknown-unit selective target invalidation, and sampler preservation. All 19 selected engine-switching, inventory, shader-binding and texture-lifetime tests passed with zero skips.
 
 The full build encountered a shader-cache atomic file-move access error; the serialized shader retry was stopped after it stalled. Validation compiled the production C# project with `EnableSpirv=false`, then compiled tests with `BuildProjectReferences=false`, reusing existing shader artifacts. Both C# builds passed. This fix changes no shaders; it does not establish that a fresh shader rebuild succeeds. Receipts: `artifacts/active-texture-fix-production-build.log`, `artifacts/active-texture-fix-build.log`, and `artifacts/active-texture-fix-tests.log`.
+
+### Render API caller rebuilding validation
+
+The standard Debug build passed with zero errors. Both warmed scissor regressions passed individually in fresh test hosts, covering direct API calls and PushScissor/PopScissor before subsequent cache restoration. The broader state and atmosphere selection passed 384 tests with five opt-in measurement skips. Installed coverage verifies 216 render API bodies, repeated application without duplicate transpilers, and owner-scoped removal. Receipts: `artifacts/RenderApiStatePatches/build.log`, `artifacts/RenderApiStatePatches/broad.trx`, and the fresh-host scissor receipts in that directory. No game was launched; live visual acceptance remains user-run.
