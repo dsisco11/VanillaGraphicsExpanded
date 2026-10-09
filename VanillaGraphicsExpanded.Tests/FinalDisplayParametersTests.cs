@@ -6,12 +6,13 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks the native display settings and environmental effect adapter independently of GPU packing.</summary>
+[Collection("GPU")]
 public sealed class FinalDisplayParametersTests
 {
     #region Public API
-    /// <summary>Native controls retain their installed scaling and combine environmental contributions once.</summary>
+    /// <summary>Native gamma is relative to its neutral setting while other controls retain their installed scaling and combine environmental contributions once.</summary>
     [Fact]
-    public void CapturePreservesNativeGradingAndScreenEffects()
+    public void CaptureNormalizesNativeGammaAndPreservesScreenEffects()
     {
         var uniforms=new DefaultShaderUniforms
         {
@@ -21,7 +22,7 @@ public sealed class FinalDisplayParametersTests
         var api=new Mock<ICoreClientAPI>{DefaultValue=DefaultValue.Mock};
         api.SetupGet(value=>value.Render.ShaderUniforms).Returns(uniforms);
         var captured=FinalDisplayParameters.Capture(api.Object);
-        Assert.Equal(ClientSettings.GammaLevel,captured.Grading.X);
+        Assert.Equal(ClientSettings.GammaLevel / 3f,captured.Grading.X);
         Assert.Equal(ClientSettings.ExtraGammaLevel,captured.Grading.Y);
         Assert.Equal(ClientSettings.BrightnessLevel+(1.3f*2-1.66f)/3,captured.Grading.Z);
         Assert.Equal(.2f,captured.Grading.W);

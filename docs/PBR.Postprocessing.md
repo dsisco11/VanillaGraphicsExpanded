@@ -56,8 +56,9 @@ are removed. Copied display helpers and obsolete reference-patch fixtures have b
 ## Original display implementation and deferred effects
 
 No base-game shader implementation is copied into the owned final path. Gamma/brightness/contrast
-controls drive an independently authored display transform, followed by luminance-based warm
-tinting and procedural damage/frost/glitch treatments. The edge filter uses the owned perceptual
+controls drive an independently authored display transform. Native gamma 3 maps to neutral
+grading after the single sRGB transfer; changing the slider applies a relative adjustment.
+Grading is followed by luminance-based warm tinting and procedural damage/frost/glitch treatments. The edge filter uses the owned perceptual
 alpha metric and bounded neighboring samples. Bloom uses the independently authored multiscale Gaussian pipeline below. Light shafts now use the independent radial algorithm below. AO is neutral
 by explicit user direction, not a fallback to engine rendering.
 

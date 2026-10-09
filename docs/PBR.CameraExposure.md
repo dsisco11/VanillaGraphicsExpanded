@@ -7,16 +7,17 @@ radiance. Both LumOn modes use the same camera response.
 
 ## Camera model
 
-The design follows established histogram auto-exposure practice described in
-[Epic's auto exposure documentation](https://dev.epicgames.com/documentation/unreal-engine/auto-exposure-in-unreal-engine):
-log-luminance metering, percentile rejection, bounded exposure, a metering mask and independent
+The design uses log-luminance metering, percentile rejection, bounded exposure, a metering mask and independent
 adaptation speeds. VGE uses scene-relative stops, not calibrated photographic EV100: the
 scene does not currently declare an absolute photometric camera calibration.
 
 Exposure EV is log2 of the RGB multiplier. One stop doubles radiance at the display operator.
 The desired EV is log2(middleGray) minus the trimmed weighted mean of log2(luminance), plus
 compensation, clamped to the configured minimum/maximum. Default middle gray is 0.18 **before**
-the tone curve; it is not a promised final encoded pixel value.
+the tone curve; it is not a promised final encoded pixel value. The default EV interval is
+[-4, 4]. This is a deliberate exposure limit: a scene whose metered luminance exceeds 2.88
+cannot be reduced to 0.18 within the default interval. Lower the minimum EV when a wider
+darkening range is desired; saved exposure limits remain authoritative.
 
 The histogram contains 64 bins across log2 luminance (-12,16). A fixed 64 by 36 grid samples
 the completed primary scene with nearest texel reads. Rec.709 linear RGB coefficients produce
@@ -48,6 +49,9 @@ change over time. Local contrast adaptation would need a separate demonstrated v
 
 Final composition adds scene and glare in linear space, applies exp2(EV) once, then resolves
 the shared shoulder and sRGB transfer before independently authored grading, vignettes and final dithering.
+The native gamma slider is normalized around its default of 3: that setting supplies a neutral
+grading multiplier of 1, because sRGB encoding has already happened. Extra gamma remains a
+relative adjustment with a neutral value of 1.
 The antialiasing luma prepass computes its perceptual alpha with the same exposure while retaining
 unexposed RGB. Alpha, depth, glow and other data are not multiplied by exposure. UI and offscreen engine shaders do not bind camera exposure; they remain outside the owned
 scene display endpoint.
