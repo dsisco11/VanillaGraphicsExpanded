@@ -6,7 +6,7 @@ public sealed class PostprocessSettings
     #region Public API
     /// <summary>Sets linear bloom contribution strength.</summary>
     public float BloomStrength { get; set; }=.08f;
-    /// <summary>Sets the bloom threshold in exposed linear scene units.</summary>
+    /// <summary>Sets the bloom threshold in exposed linear scene units; zero bypasses highlight selection.</summary>
     public float BloomThreshold { get; set; }=1;
     /// <summary>Sets the fractional width of the soft threshold.</summary>
     public float BloomKnee { get; set; }=.5f;
@@ -19,7 +19,7 @@ public sealed class PostprocessSettings
     /// <summary>Caps radial work at 16, 32 or 64 samples per pass under native quality.</summary>
     public int LightShaftSamples { get; set; }=32;
     /// <summary>Produces finite bounded parameters without mutating persisted UI values.</summary>
-    internal PostprocessParameters Snapshot() => new(Finite(BloomStrength,.08f,0,2),Finite(BloomThreshold,1,.01f,16),
+    internal PostprocessParameters Snapshot() => new(Finite(BloomStrength,.08f,0,2),Finite(BloomThreshold,1,0,16),
         Finite(BloomKnee,.5f,0,1),Math.Clamp(BloomLevels,3,6),Finite(LightShaftStrength,.25f,0,2),
         Finite(LightShaftLimit,.5f,0,4),LightShaftSamples<=16?16:LightShaftSamples<=32?32:64);
     #endregion

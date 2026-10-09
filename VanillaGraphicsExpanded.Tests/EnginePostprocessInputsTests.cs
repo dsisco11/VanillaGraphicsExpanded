@@ -42,5 +42,16 @@ public sealed class EnginePostprocessInputsTests
         Assert.Equal(ssao, inputs.SsaoQuality);
         Assert.Equal(Math.Clamp(godRays,0,3), inputs.LightShaftQuality);
     }
+    /// <summary>Persisted bloom controls retain bypass semantics and bound finite graph work.</summary>
+    [Fact]
+    public void BloomSnapshotPreservesBypassAndBoundsGraph()
+    {
+        var settings=new PostprocessSettings {BloomThreshold=0,BloomKnee=0,BloomLevels=99};
+        var snapshot=settings.Snapshot();
+        Assert.Equal(0,snapshot.BloomThreshold);Assert.Equal(0,snapshot.BloomKnee);Assert.Equal(6,snapshot.BloomLevels);
+        settings.BloomThreshold=float.NaN;settings.BloomStrength=float.PositiveInfinity;settings.BloomLevels=-1;
+        snapshot=settings.Snapshot();
+        Assert.Equal(1,snapshot.BloomThreshold);Assert.Equal(.08f,snapshot.BloomStrength);Assert.Equal(3,snapshot.BloomLevels);
+    }
     #endregion
 }

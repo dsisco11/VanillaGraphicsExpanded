@@ -1,112 +1,83 @@
+using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks solar visibility metadata and the retained offscreen bloom handoff.</summary>
+/// <summary>Checks actual solar raster radiance feeding owned bloom without engine bloom metadata.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
-    #region Bloom extraction
-    /// <summary>HDR disks publish bounded visibility while offscreen disks retain authored engine bloom metadata.</summary>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public void SolarMetadataSeparatesOwnedAndOffscreenBloom(int route)
+    #region Public API
+    /// <summary>Extinction, horizon coverage and opaque occlusion govern solar bloom through scene RGB alone.</summary>
+    [Fact]
+    public void OwnedBloomRetainsSolarRadianceAndCoverageWithoutRedGlowMarker()
     {
-        EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
-            #version 430 core
-            out vec2 texcoord;
-            out vec3 vge_sunDirection;
-            out vec2 vge_sunPlane;
-            void main() {
-                vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));
-                gl_Position=vec4(p[gl_VertexID],0,1);
-                texcoord=p[gl_VertexID]*.5+.5;
-                vge_sunDirection=vec3(0,1,0);
-                vge_sunPlane=vec2(0);
-            }
-            """);
-        string includes = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        int sunFragment = shaders.Compile(ShaderType.FragmentShader, """
-            #version 430 core
-            uniform int vge_pbrRoute;
-            #define VGE_SURFACE_PRIMARY_OUTPUTS 0
-            #define SSAOLEVEL 0
-            layout(location=0) out vec4 outColor;
-            layout(location=1) out vec4 outGlow;
-            layout(std140) uniform TestInputs { float attenuation; };
-            const float extraGodray=.7;
-            float getSkyMurkiness() { return 0; }
-            vec3 applyUnderwaterEffects(vec3 color,float murk) { return color*attenuation; }
-            """ + "\n" + File.ReadAllText(Path.Combine(includes, "pbr_color.glsl")) + "\n"
-            + File.ReadAllText(Path.Combine(includes, "atmosphere_sun_fragment.glsl"))
-            + "\nvoid main() { VgeDrawAtmosphericSun(); }");
-        string game = Environment.GetEnvironmentVariable("VINTAGE_STORY")!;
-        int bloomFragment = shaders.Compile(ShaderType.FragmentShader,
-            File.ReadAllText(Path.Combine(game, "assets/game/shaders/findbright.fsh")));
-        using var sun = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, sunFragment));
-        using var bloom = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, bloomFragment));
-        using var vao = GpuVao.Create();
-        using var color = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var glow = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var source = GpuFramebuffer.CreateMRT([color, glow])!;
-        using var framework = new ShaderTestFramework();
-        using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        using var inputs = new FixtureUniformInputs(sun.ProgramId, 16);
-        var sunLayout = GpuProgramLayout.TryBuild(sun.ProgramId);
-        var bloomLayout = GpuProgramLayout.TryBuild(bloom.ProgramId);
-        StateCache.Current.BindVertexArray(vao.VertexArrayId);
-        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-        float previous = float.PositiveInfinity;
-        // Bright, attenuated underwater, dim, and fully extinguished solar inputs.
-        foreach (var (radiance, attenuation) in new[] { (100f, 1f), (100f, .5f), (.01f, 1f), (0f, 1f) })
+        EnsureShaderTestAvailable();
+        var sun=Programs.Create<SolarRasterProgram>();
+        var bloom=Programs.Create<BloomShaderProgram>();
+        using var color=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
+        using var glow=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
+        using var depth=new DepthTexture(64,64,PixelInternalFormat.DepthComponent32f);
+        using var scene=GpuFramebuffer.CreateMRT([color,glow],depth)!;
+        using var extracted=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
+        using var horizontal=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
+        using var halo=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
+        using var lifetime=new GraphicsPipelineLifetime();
+        var layout=new VertexLayoutDesc([]);
+        using var geometry=new ArrayGraphicsGeometry(layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:6);
+        using var metadata=new RenderPassTargets(new RenderPassDesc(scene,[new(0),new(1)]));
+        var coverageBlend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendingFactorSrc.SrcAlpha,DestinationRgb=BlendingFactorDest.OneMinusSrcAlpha};
+        using var solarPipeline=new GraphicsPipeline(lifetime,new(sun.GraphicsIdentity!,layout,metadata.Signature,DynamicPipelineState.Viewport,
+            depthStencil:new(){DepthTest=true,DepthWrite=true},blending:[coverageBlend,coverageBlend]),sun);
+        using var draw=new PostprocessDraw();
+        double baseline=0;
+        // Native sky attenuation has already been applied to disk RGB. Bloom never adds another solar source.
+        foreach(var (radiance,horizon,blocked,ev,ratio) in new[]{(100f,-1f,false,0f,1f),(25f,-1f,false,0f,.25f),(100f,0f,false,0f,.5f),(.01f,-1f,false,0f,0f),(100f,-1f,true,0f,0f),(0f,-1f,false,0f,0f),(100f,-1f,false,-20f,0f)})
         {
-            source.BindWithViewport();
-            GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
-            StateCache.Current.UseProgram(sun.ProgramId);
-            GL.Uniform1(GL.GetUniformLocation(sun.ProgramId, "vge_pbrRoute"), route);
-            ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereDisk"), radiance, radiance, radiance, .01f);
-            ShaderTestFramework.SetUniform(sunLayout.GetUniformLocation(sun.ProgramId, "vge_atmosphereSun"), 0f, 1f, 0f, 0f);
-            inputs.Float(0, attenuation);
-            inputs.Publish();
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-            float[] solar = source[0].ReadPixels();
-            float[] emission = source[1].ReadPixels();
-            if (radiance > 0)
+            sun.Capture(new(radiance,radiance*.5f,radiance*.25f),horizon);
+            var pass=new RenderPassDesc(scene,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))],
+                new(DepthLoad:AttachmentLoad.Clear,ClearDepth:blocked ? .5f : 1f));
+            Assert.True(GraphicsCommandContext.TryRun("Tests.SolarBloomSource",[solarPipeline],true,commands=>
             {
-                float mapped = 1.055f * MathF.Pow(radiance / (1 + radiance), 1 / 2.4f) - .055f;
-                float expectedMarker = route == 0 ? mapped * attenuation : 0;
-                Assert.InRange(emission[0], expectedMarker - 1e-6f, expectedMarker + 1e-6f);
-                Assert.Equal(route == 0 ? .7f : 1f, emission[1]);
-                Assert.Equal(1f, emission[3]);
-            }
-            else Assert.All(emission, value => Assert.Equal(0f, value));
-            output.BindWithViewport();
-            StateCache.Current.UseProgram(bloom.ProgramId);
-            using var colorBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, color.TextureId);
-            using var glowBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, glow.TextureId);
-            ShaderTestFramework.SetUniform(bloomLayout.GetUniformLocation(bloom.ProgramId, "colorTex"), 0);
-            ShaderTestFramework.SetUniform(bloomLayout.GetUniformLocation(bloom.ProgramId, "glowTex"), 1);
-            ShaderTestFramework.SetUniform(bloomLayout.GetUniformLocation(bloom.ProgramId, "ambientBloomLevel"), 0f);
-            ShaderTestFramework.SetUniform(bloomLayout.GetUniformLocation(bloom.ProgramId, "extraBloom"), 0f);
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-            float actual = output[0].ReadPixels()[0];
-            Assert.InRange(actual, solar[0] * 3 * emission[0] - 1e-6f, solar[0] * 3 * emission[0] + 1e-6f);
-            if (route == 0)
+                commands.BeginPass(pass);commands.SetPipeline(solarPipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                commands.Draw(geometry,new(0,6));commands.EndPass();
+            }));
+            float[] solar=color.ReadPixels();
+            float[] markers=glow.ReadPixels();
+            for(int i=0;i<markers.Length;i+=4)Assert.Equal(0,markers[i]);
+            bloom.SourceImage=color;bloom.SecondaryImage=color;bloom.Capture(Vector4.Zero,new(1,0,1,ev));
+            SubmitBloom(draw,bloom,extracted);
+            bloom.SourceImage=extracted[0];bloom.CaptureGaussian(4,false);SubmitBloom(draw,bloom,horizontal);
+            bloom.SourceImage=horizontal[0];bloom.CaptureGaussian(4,true);SubmitBloom(draw,bloom,halo);
+            float[] result=halo[0].ReadPixels();
+            double energy=result.Where((_,i)=>i%4==0).Sum(v=>(double)v);
+            if(baseline==0) { baseline=energy;Assert.True(energy>1); }
+            Assert.InRange(energy,baseline*ratio-baseline*.04,baseline*ratio+baseline*.04);
+            if(ratio==0)Assert.Equal(0,energy);
+            else for(int i=0;i<result.Length;i+=4)
             {
-                Assert.True(actual < previous);
-                if (radiance > 0) Assert.True(actual > 0);
-                else Assert.Equal(0f, actual);
+                Assert.InRange(result[i+1],result[i]*.5f-.0001f,result[i]*.5f+.0001f);
+                Assert.InRange(result[i+2],result[i]*.25f-.0001f,result[i]*.25f+.0001f);
             }
-            else Assert.Equal(0f, actual);
-            previous = actual;
+            Assert.Equal(solar,color.ReadPixels());
         }
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Submits each owned bloom stage through a prepared pipeline after any preceding image readback.</summary>
+    private static void SubmitBloom(PostprocessDraw draw,BloomShaderProgram shader,GpuFramebuffer target)
+    {
+        var pipeline=draw.Prepare(shader,target);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.SolarBloom",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
     }
     #endregion
 }

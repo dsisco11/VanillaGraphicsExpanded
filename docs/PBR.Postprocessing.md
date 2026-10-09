@@ -58,28 +58,102 @@ are removed. Copied display helpers and obsolete reference-patch fixtures have b
 No base-game shader implementation is copied into the owned final path. Gamma/brightness/contrast
 controls drive an independently authored display transform, followed by luminance-based warm
 tinting and procedural damage/frost/glitch treatments. The edge filter uses the owned perceptual
-alpha metric and bounded neighboring samples. Bloom retains its independently authored pyramid
-until the planned Gaussian refactor. Light shafts now use the independent radial algorithm below. AO is neutral
+alpha metric and bounded neighboring samples. Bloom uses the independently authored multiscale Gaussian pipeline below. Light shafts now use the independent radial algorithm below. AO is neutral
 by explicit user direction, not a fallback to engine rendering.
 
 ## Bloom
 
-Bloom starts at half resolution with normalized symmetric box filtering. Extraction uses
-peak linear RGB and an exposure-relative soft threshold: the configured threshold is divided
-by exp2(EV) to express it in unexposed scene units. The extracted radiance is scaled once by
-bloom strength, then reduced through three to six levels. A normalized nine-tap tent filter
-upsamples each level and mixes equally with its matching finer level. Constant fields retain
-their value rather than accumulating gain with pyramid depth. Narrow and broad components
-share the same exposure, with no premature display conversion.
+Bloom reads only the completed scene-linear HDR primary color, after liquids, transparency,
+clouds and late held items. Metering runs first; generated glare never feeds camera exposure.
+Native graphics settings own bloom enable. Disabled bloom publishes the persistent black image
+and retires the pyramid; there is no second VGE enable switch or engine bloom shader dependency.
 
-The solar disk contributes through its actual composed radiance. HDR solar outGlow.r is
-zero; it no longer drives a second display-derived bloom multiplier. Actual geometry,
-liquids, transparent composition, clouds and late AfterOIT contributors are already present
-in the metered/bloomed primary image. UI and the later overlay stages are excluded.
+Extraction starts at ceil-half resolution. Four symmetric bilinear source samples are selected
+individually before averaging, so a small bright source is not rejected solely because averaging
+it with a dark neighbor puts it below the threshold. Rec.709 luminance is multiplied by exp2(EV)
+only for selection. For threshold T and fractional knee K, the RGB selection weight is
+smoothstep(T-TK, T+TK, exposed luminance); it is bounded from zero to one. K=0 selects a hard
+threshold. T=0 explicitly bypasses selection. One shared RGB weight preserves source chromaticity;
+strength scales extracted radiance once. Storage remains unexposed, with no display transform or
+extra exposure multiplication. The final display shader applies exposure once to scene plus glare.
 
-Bloom is added after scene SSAO; it is no longer divided by the legacy ambient-bloom mix
-or used as an SSAO bypass factor. Its strength/threshold/knee/pyramid controls live in the
-existing graphics configuration, and the game's bloom enable remains respected.
+A four-tap reduction chain is completed before filtering. Each level receives horizontal and
+vertical dense Gaussian passes, with coefficients proportional to exp(-16.7 tap²/radius²) at
+every integer texel from -radius through +radius, normalized to sum to one. Sigma is radius/sqrt(33.4), so the
+support ends roughly 5.78 standard deviations from the center. Its unnormalized boundary
+weight is exp(-16.7), about 0.00000559% of the center, avoiding a visible truncated shoulder. CPU-precomputed adjacent coefficient pairs become weighted bilinear
+samples, requiring only five to nine fetches per axis for the configured radii 3–8. Source
+and destination dimensions match for each Gaussian pass, so those pairs exactly cover the
+discrete kernel. Spreading a fixed tap set over larger gaps is deliberately avoided: it
+produced alternating holes in bright-source profiles at radii 6–8. Each axis uses its own
+source dimension, including odd and non-square images. Texture
+sampling is linear and clamp-to-edge. Every selected scale has an explicit support radius,
+neutral RGB tint and energy weight:
+
+| Level (half resolution is 0) | Support radius (level texels) | Tint | Relative energy |
+| --- | --- | --- | --- |
+| 0 | 3 | (1,1,1) | .25 |
+| 1 | 4 | (1,1,1) | .22 |
+| 2 | 5 | (1,1,1) | .19 |
+| 3 | 6 | (1,1,1) | .15 |
+| 4 | 7 | (1,1,1) | .11 |
+| 5 | 8 | (1,1,1) | .08 |
+
+Weights are normalized over the actual allocated levels, including tiny images whose chain
+ends at 1×1. Descending reconstruction adds each filtered scale exactly once with its normalized
+tint/energy weight. Bilinear upsampling only resamples the already filtered coarse sum; there is
+no extra tent kernel or recursive 50/50 mixing. Constant-field gain therefore equals extraction
+strength independently of scale count. The radii and relative weights are an authored profile,
+not a reproduction of another engine's defaults or a diffraction/FFT lens simulation.
+
+Two RGBA16F images per level suffice: horizontal scratch becomes the reconstruction destination
+after all Gaussian filtering completes. Input and output texture objects are distinct in every
+draw; no texture-array feedback, copies, texture views or barriers are needed. Storage is rebuilt
+only on size/level changes, and the shared postprocess owner withdraws publication on resize,
+shader reload and world teardown. Three to six scales are configurable; five is the default.
+
+For L allocated levels and A total level texels, cost is 4L fullscreen draws, 4A fragment outputs
+and 16A bytes of logical color storage. Sampling work is four taps per reduction, five to nine
+fetches per filter axis (covering seven to seventeen texels), and one/two per reconstruction (plus one exposure fetch per extraction fragment in automatic
+mode). These count shader samples, not physical memory traffic or measured bandwidth. At 1920×1080,
+the default five levels occupy 10.54 MiB and issue 20 draws; six levels occupy 10.55 MiB and issue
+24 draws. GPU timing and visual validation are recorded separately from these analytical counts.
+
+The solar disk contributes through its actual attenuated, coverage-blended scene radiance.
+HDR solar outGlow.r stays zero; no display-derived marker or extra solar/Mie multiplier enters
+bloom. Geometry, water, cloud and transparency occlusion already affect the sampled scene. Material
+emission enters that scene once. UI and the later overlay stages are excluded. Bloom is added
+after scene SSAO and before the single final exposure, tone-map, transfer and dither boundary.
+The same HDR publication can feed a future HDR-monitor output transform without changing bloom.
+Bloom and final light-shaft images remain separate: native shaft quality can select quarter
+resolution or disable shafts entirely, whereas bloom reconstructs at half resolution. Sharing
+those allocations would add conditional layer ownership or copies for only one saved final
+sampler; the final interface already fits the baseline sampler budget.
+
+The dense-kernel change passed 65 distinct focused checks with no remaining failures or skips.
+After matching the steeper coefficient profile, 39/39 bloom/solar/graph regressions pass,
+including explicit boundary-weight checks at radii 3–8 and unchanged energy/centroid/no-gap
+checks. Receipt: `artifacts/SceneHdrRuntime/gaussian-bloom-kernel-weights-focused.trx`. Coverage includes independent
+dense Gaussian impulse/tap expectations, luminance and exposure selection, threshold bypass/continuity,
+colored HDR preservation, actual 3–6 scale graphs, odd/1×1 dimensions, resize/retirement, solar
+coverage and occlusion with zero red bloom marker, native settings, scene/UI ordering, both LumOn
+modes and owned final composition. Production and test catalogs compile 434 and 501 shader
+variants respectively. The earlier packaged-binary smoke passed 15/15. Subsequent moving-highlight
+coverage reproduced gaps in 11 of 24 radius/phase cases with the stretched kernel; all 24 now
+pass against a dense reference with tight mass, centroid and no-trough checks. Paired-sample
+coefficient tolerances account for the validation device's measured 1/256 bilinear interpolation
+precision. Receipts under `artifacts/SceneHdrRuntime`: `gaussian-bloom-trough-repro.trx`,
+`gaussian-bloom-dense-focused.trx` and `gaussian-bloom-dense-precision.trx`; the last receipt
+supersedes precision-only failures in the focused run.
+
+Before the steeper Gaussian falloff adjustment, a warmed complete-graph measurement at 1280×720, five scales and 20 draws, with a constant HDR
+source reports 0.1321 ms minimum, 1.2186 ms median and 3.1580 ms maximum over five samples
+after two warmups. This is a synthetic headless measurement, not a before/after benchmark, live
+frame cost or physical bandwidth measurement. Independent source review found no confirmed
+resource-feedback, lifetime, normalization or exposure defect.
+
+User-run halo appearance, temporal stability and matched-scene performance acceptance remain
+pending. Numerical tests and analytical sample counts do not establish those live results.
 
 ## Light shafts
 
@@ -156,9 +230,9 @@ Camera exposure controls are described in PBR.CameraExposure.md.
 
 For W by H scene pixels, light-shaft RGBA16F storage costs approximately 8WH + 40WH/d² bytes,
 where d is the native quality divisor (4 or 2), before dimension rounding. A bloom
-pyramid with both reconstruction chains approaches 16WH/3 bytes (RGBA16F), with exact size
-depending on level count and rounded dimensions. Bloom uses four fetches per reduced pixel
-and ten per reconstructed pixel. Each shaft radial pass uses one packed fetch per selected tap;
+pyramid with scale/scratch storage approaches 16WH/3 bytes (RGBA16F), with exact size
+depending on level count and rounded dimensions. Bloom uses four fetches per reduction,
+five to nine per Gaussian axis and one/two per additive reconstruction pixel. Each shaft radial pass uses one packed fetch per selected tap;
 early extraction uses depth, and late extraction uses four scene/depth/visibility/exposure samples.
 These are logical storage/work counts, not measured driver allocation or physical bandwidth.
 
@@ -234,7 +308,7 @@ precision reduction, padding or mandatory allocation of disabled features is ass
 | [WaterRefractionScene](../VanillaGraphicsExpanded/PBR/Liquids/WaterRefractionScene.cs) | SourceColor: W×H RGBA16F; SourceDepth: W×H R32F; optional reducedColor: ceil(W/2)×ceil(H/2) RGBA16F; reducedDepth: same reduced size RGBA32F. Sampling policies remain per consumer | Pre-overlay capture and final opaque publication have distinct instances; reduction → liquid refraction. Color/depth formats mismatch. Do not merge pre-overlay and final publications: final composite reads the former while writing the latter. compositeColor and final SourceColor are co-produced compatible outputs, but have different publication consumers/lifetimes and give no reduction to the 17-input composite. Keep separate. |
 | [AtmosphereTextureSet](../VanillaGraphicsExpanded/PBR/Atmosphere/AtmosphereTextureSet.cs) | Sky: a×2b RGBA16F; aerial Radiance: a×2b×d RGBA16F 3D; Attenuation: a×b×d RGBA16F 3D. L, repeat azimuth/clamp other axes; disabled aerial uses reduced neutral dimensions | Atmosphere publication uploads → sky, direct/forward lighting, composite, liquids and LumOn. **Exclude from a mechanical 2D-array conversion**: 3D distance interpolation and packed angular lobes are part of lookup semantics, and the dimensions differ. Combining them needs a separate LUT-layout/interpolation redesign, not just new bindings. |
 | [CameraExposureTargets](../VanillaGraphicsExpanded/PBR/CameraExposure/CameraExposureTargets.cs) | Histogram: 64×1 RG32F; two EV histories: 1×1 R32F, N | Meter → adapt(previous EV) → current EV/final and glare thresholds. Keep histogram and histories separate. Histories match physically but only one is sampled per adaptation draw, so one array adds feedback handling without sampler savings. Auto-exposure owns reset/cut/enable lifetime. |
-| [BloomRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/BloomRenderer.cs) | RGBA16F down/up pyramids; start ceil half-size, clamp each dimension to 1; 3–6 levels; reconstruction outputs match corresponding finer levels | Extract/downsample → upsample/combine → final. Different scales cannot be different layers without padding; same-size down/up images have producer/consumer dependencies. **Do not migrate the outgoing algorithm.** Planned Gaussian filtering should retain separate horizontal/vertical working stores; consider mip chains as a separate layout choice, with explicit safe mip access. |
+| [BloomRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/BloomRenderer.cs) | Two RGBA16F images per Gaussian scale; start ceil half-size, clamp each dimension to 1; 3–6 levels | Extract/downsample → horizontal/vertical Gaussian → weighted additive reconstruction → final. Different scales cannot be different layers without padding. Same-size scale/scratch images alternate read/write roles and remain separate objects to avoid feedback. |
 | [LightShaftRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/LightShaftRenderer.cs) | Two RGBA16F reduced ping-pong images per early/late instance; early output W×H RGBA16F; late output ceil(W/d)×ceil(H/d) RGBA16F, d=4 or 2 | Depth/radiance extraction → radial passes → early aerial occlusion or late final glare. Keep each ping-pong pair separate by default: each pass samples one while writing the other, and currently uses only one working-image sampler. Grouping them saves allocations, not sampler inputs, and adds feedback requirements. Early/late scratch reuse is a separate lifetime optimization, not array consolidation. |
 | [RetainedPostprocessRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/RetainedPostprocessRenderer.cs), [PostprocessPipeline](../VanillaGraphicsExpanded/PBR/Postprocessing/PostprocessPipeline.cs) | Full-size RGBA16F luma/scene; enabled neutral AO 1×1 RGBA16F; persistent black glare 1×1 RGBA16F | Completed scene → luma → final. AO is a placeholder, black is a disabled-effect identity. Do not allocate full-size layers for neutral images. Planned horizon AO needs its own quality-sized visibility/filter/history/depth resources; do not lock its layout to this placeholder. |
 

@@ -862,7 +862,7 @@ Tasks
         Results and the source-reviewed water-owner lifecycle limit are recorded in
         docs/PBR.Postprocessing.md, section "Implemented array ownership".
 
-    ☐ Replace base-game bloom with VGE-owned extraction, filtering and composition in the postprocessing pass.
+    ✔ Replace base-game bloom with VGE-owned extraction, filtering and composition in the postprocessing pass. @done(26-10-08 18:51)
       - Follow the shared fully VGE-owned postprocessing and final-composition task above.
         Own effect shaders, targets and submissions through existing typed bindings, PSOs and resource
         owners with GLSL 330 support; document formats, HDR units and costs in PBR.Postprocessing.md.
@@ -871,7 +871,7 @@ Tasks
         transparency and late held items. Preserve OIT/input ownership and exclude offscreen GUI/UI.
         Retain solar attenuation, disk coverage and occlusion without amplifying Mie scattering;
         retire obsolete display-derived solar bloom markers under the final composition contract.
-      ☐ Refactor pbr_bloom.fsh to use multiscale separable Gaussian bloom.
+      ☑ Refactor pbr_bloom.fsh to use multiscale separable Gaussian bloom.
         - Replace peak-channel soft-knee extraction with exposure-relative luminance thresholding
           and a bounded transition weight. Define threshold bypass and exposure handling; preserve
           material emission without double counting, exposure feedback or applying exposure twice.
@@ -890,6 +890,14 @@ Tasks
         GPU time and bandwidth at matched workloads; obtain user-run visual acceptance before completion.
       - Remove SceneColorBloomPatches and obsolete engine findbright/blur dependencies after validation;
         final-shader and binding-hook removal belongs to the shared postprocessing/final-composition task. Record limits.
+      - Implementation and focused validation complete: luminance selection, normalized separable
+        Gaussian scales and weighted HDR reconstruction; native enable and owned composition retained.
+        65 focused checks pass, including the owned sun-bloom regression, both LumOn modes
+        and 24 moving-highlight radius/phase cases. Dense paired Gaussian taps fix the reproduced
+        wide-kernel sampling gaps without increasing the maximum nine fetches per axis.
+        No scene findbright/SceneColorBloomPatches dependency remains. Algorithm, storage/work
+        counts and synthetic GPU timing are recorded in docs/PBR.Postprocessing.md.
+        Parent remains open for user-run halo/temporal and matched-scene performance acceptance.
 
     ☐ Implement horizon-integrated ambient occlusion and its spatial filter.
       - Use the shared fully VGE-owned postprocessing and final-composition task above for target
