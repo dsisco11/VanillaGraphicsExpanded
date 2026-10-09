@@ -1,76 +1,93 @@
-# Unified PBR material-property table
+# Shared material records and atlas-coordinate indirection
 
-Status: proposed; implementation requires review and explicit approval.
+Status: proposed; implementation requires review and approval.
 
 ## Intent
 
-Replace the separate material-property textures with one shared uniform buffer object (UBO) containing an array of resolved material records, and an R32UI material-ID texture mapping atlas texels to record indices. Generate material noise in production shaders instead of baking noise into property textures.
+Replace the baked PBR material-property atlas with two persistent shared UBOs: an atlas-cell-to-material-ID lookup table and a material-information table. Derive the lookup index from the surface's existing packed atlas coordinates using integer shifts and bit concatenation. Evaluate material noise during rendering using position-based RGB hashing and parameters stored in each material record.
 
-The expected benefits are fewer property samplers, less atlas-sized property storage, and property updates without regenerating noisy atlas tiles. These are expectations to measure, not established performance results.
+This revision supersedes the earlier R32UI material-ID atlas proposal. No material-property or material-ID atlas texture is part of the proposed lookup path. Engine diffuse artwork and genuinely spatial normal/height data remain textures. Removing those images is not the purpose of this proposal.
 
-## Scope and existing behavior
+Expected benefits are fewer material-property samplers, less atlas-sized property storage, and updates without baking procedural noise into textures. Upload, storage and GPU execution improvements must be measured.
 
-The current material atlas stores roughness, metallic, emissive and transmission in RGBA16F; see [transmission](PBR.Transmission.md) and the [atlas build pipeline](MaterialAtlas.BuildPipeline.md). Water has additional index and coefficient textures. Displacement also requires per-tile metadata. All such material-property lookup resources should move into the common table and ID lookup.
+## Current contracts and feasibility
 
-Engine diffuse/albedo artwork, normal/height maps and other genuinely spatial image data remain textures. Any constant diffuse tint or other constant shading value belongs in the material record. This proposal changes property storage and evaluation, while preserving material resolution, inheritance, face selection, priorities, override scales and physical units.
+Current material parameters are sampled through includes/vge_material.glsl and captured into the surface G-buffer material layer. Deferred consumers read that layer through includes/lumon_material.glsl. The existing VgeMaterialUBO declaration holds only one material and has no active publisher; it must become a shared record table rather than a per-draw material upload.
 
-## Resource contract
+The existing AtlasSnapshot and AtlasRectResolver retain page dimensions and individual atlas rectangles. They do not establish that every entry has identical dimensions or power-of-two-aligned origins. Equal, power-of-two tile size is a proposed indexing precondition that must be verified against actual engine packing, padding, texture packs, animation and modded assets before implementation. Equal artwork size alone does not prove aligned packing pitch.
 
-- One shared material UBO contains every active resolved property record across atlas pages. It is owned by the material system and reused across draws.
-- One R32UI ID texture accompanies each engine atlas page. Together these page textures form the single logical material-ID atlas; drawing a page binds its ID texture and the same shared UBO. Review must confirm this interpretation of the multi-page engine atlas.
-- Each ID texel contains an exact unsigned record index. Index zero selects an explicit neutral/default record, including unfilled regions. The record defines defaults rather than relying on zero-filled memory to produce correct shading.
-- Shaders use an integer sampler and exact integer fetches. IDs are never linearly filtered or averaged into mip levels. The lookup uses the same atlas region and boundary rules as the sampled surface; filtering and distant sampling behavior require explicit validation.
-- A generation publishes its UBO, record count and ID pages coherently. IDs are valid only for that generation. Updates cannot expose new IDs against an old table or retire resources still used by submitted draws.
+Preserve resolved material inheritance, face selection, priorities, property units and overrides. An atlas entry identifies a surface texture/material binding, not necessarily a unique block: different block faces may use different entries, and multiple blocks may share an entry. UV lookup alone cannot distinguish blocks sharing the same texture but requiring different materials; those cases need an explicit discriminator or a reviewed authoring restriction.
 
-## Record contents and layout
+## Lookup algorithm
 
-Use one documented CPU/GLSL layout with explicit std140-compatible vec4/uvec4 fields and array stride. The initial record should cover:
+For a page with a validated grid of square cells of size S = 2^k texels and 2^b addressable columns:
 
-- Base roughness, metallic, emissive and transmission, plus any constant diffuse tint supported by authoring.
-- Noise amplitudes and the parameters needed to evaluate existing property noise in production shaders.
-- Stable noise seed derived from the asset key and established salts; tile bounds or an equivalent atlas-to-local coordinate transform.
-- Effective RGB water absorption and scattering coefficients in inverse metres, anisotropy and an explicit medium-presence flag. Preserve the existing density application and validation contract.
-- Displacement amplitude and any tile metadata required by displacement consumers.
-- Flags or other resolved values required by the audited production consumers.
+1. Decode the existing packed UV representation into atlas texel coordinates, accounting for its actual quantization, page dimensions and padding convention.
+2. Compute cellX = texelX >> k and cellY = texelY >> k.
+3. Concatenate the integer coordinates: localIndex = (cellY << b) | cellX.
+4. Select lookupIndex = pageBase + localIndex using the page identity already associated with the draw.
+5. Read materialId from the indirection UBO and use it to index the shared material-information UBO.
 
-This is a proposed content list, not a frozen binary layout. Review must establish the complete consumer inventory and calculate the actual stride before approval. Authoring metadata such as notes and priority stays on the CPU after resolution.
+Use a power-of-two row stride for bit concatenation; account for unused slots when a page has fewer columns. Validate coordinates before indexing. Interior interpolated UVs must remain inside the owning cell, including exact edges, atlas padding, rotated faces, partial faces and displaced UV sampling. Resolve identity from the original surface UV before parallax or filtering can cross into a neighboring entry. Define whether identity is resolved per vertex with flat propagation or per fragment after inspecting actual mesh/UV contracts.
 
-A record represents a resolved atlas binding, not necessarily a unique authored material name. The same authored material can require distinct records for face-specific values, tile coordinates or noise seeds. Deduplicate only records with identical complete evaluation behavior.
+Indices are deterministic within an atlas layout and publication generation. Repacking can change them; they are not persistent material identities. Material IDs reference resolved records, with zero reserved for an explicit neutral/default record. Stable asset-derived seeds are independent of table ordering and atlas placement.
 
-## Production-shader noise
+If entries span multiple aligned cells, those cells may map to the same material ID. If two distinct entries occupy one cell, the proposed index is ambiguous. Investigate a smaller aligned cell size and its storage cost; do not silently assume compatibility, introduce a texture fallback, or drop content. Nonconforming packing requires revising this proposal before implementation.
 
-Noise is not baked into the ID atlas or another property texture. Shared production shader code evaluates noise from record parameters, stable asset-derived seeds and tile-local coordinates, then applies the established scaling and clamping semantics. The ID texture describes material assignment rather than noise samples.
+## UBO layout and capacity
 
-Audit the existing noise algorithm before defining the shader evaluator: preserve channel salts, amplitude meaning, coordinate frequency and ordering relative to override scales. Document any deliberately changed visual distribution for approval. Atlas packing, page reassignment and reload must not change the material's noise pattern.
+Use one published lookup UBO and one shared material-information UBO, with explicit std140 layouts, binding contracts and CPU packing. Reuse existing typed shader bindings, GPU resource ownership and capability APIs. The lookup UBO stores four unsigned IDs per uvec4; fetch vector index lookupIndex >> 2 and component lookupIndex & 3. Avoid a scalar uint array whose std140 array stride would waste space.
 
-All consumers needing the same effective properties must share the evaluation contract, including liquid, opaque, displacement and cached lighting paths where applicable. A CPU consumer needing evaluated properties uses the same resolved record and a documented equivalent evaluator. Normal-generation noise must be audited separately: retaining normal/height image storage does not authorize retaining baked material-property noise.
+Illustrative payload arithmetic: a 4096 by 4096 atlas on a 32-texel grid needs 128 by 128 IDs, or 65,536 bytes before metadata. A 16-texel grid needs 262,144 bytes. Multiple pages add their slot counts. These are examples, not verified engine dimensions or supported block sizes. Query the device's uniform-block size and validate both tables independently; compact coordinate arithmetic does not guarantee either table fits.
 
-Measure shader evaluation cost, derivatives, aliasing and distant-view stability. Specify noise filtering without filtering material IDs; do not introduce frame-dependent seeds or view-dependent shimmer.
+Compute material capacity from the final record stride, metadata and supported block size. Align fixed shader bounds, runtime counts and CPU layouts. Publish no truncated tables. If representative content exceeds a single block, report the feasibility conflict and revise the design explicitly rather than silently substituting an SSBO or multiple per-draw tables.
 
-## Authored spatial property overrides
+## Material-information records
 
-Authored property images are distinct from procedural noise. Inventory their use and preserve current channel, alpha-mask and scale semantics. Under the proposed resource contract, genuinely varying property values can be represented by distinct resolved records selected per texel by the ID atlas, with deduplication of identical payloads. This can greatly increase record count.
+Evolve VgeMaterialUBO into a table of resolved material records containing:
 
-Approval must establish whether actual override assets fit the UBO and whether this representation preserves required precision and filtering behavior. If they do not, explicitly decide supported authoring restrictions or revise the architecture before implementation. Do not silently discard overrides, quantize their values, retain parallel property textures or substitute an SSBO for the requested single UBO.
+- Base roughness, metallic, emission and sunlight transmission, plus supported constant color/tint factors.
+- Noise channel amplitudes, spatial frequency/scale, stable seed and any offsets or shaping parameters required by the agreed evaluator.
+- Flags and local-coordinate transforms where needed by surface evaluation.
+- Water absorption/scattering coefficients, anisotropy and medium flags where applicable, preserving existing physical units and density semantics.
+- Displacement amplitude and other material constants required by audited consumers.
 
-## Capacity and publication
+Freeze a documented CPU/GLSL binary layout only after the consumer inventory and capacity analysis. Keep authoring-only metadata on the CPU. Deduplicate records only when their complete evaluation behavior is identical; separate IDs may be needed for resolved face overrides or coordinate-dependent semantics.
 
-Query the supported uniform-block size and budget the complete record layout. Capacity is the available block bytes minus headers, divided by the std140 record stride, including the neutral record. A fixed shader array bound, CPU packing and runtime record count must agree. R32UI's index range does not remove the UBO capacity limit.
+## Runtime procedural noise
 
-Collect record counts across representative worlds, multiple atlas pages, face overrides and authored property images. Define diagnostics and a deterministic capacity rejection policy before allocating or publishing a generation; never publish a truncated table. If required content exceeds the capacity, the proposal needs revision and approval.
+Generate a deterministic three-channel hash from a stable surface position and material seed. Use independent channel salts for roughness, metallic and emission variation; describe any transmission variation explicitly. Store noise amplitudes and frequency in the record, then apply documented scale, override and physical clamping rules in shared shader code.
 
-Use the established material-system ownership, streaming and GPU resource retirement APIs. Keep the table persistent across draws instead of copying it through per-draw parameter updates. Decide whole-generation replacement versus bounded updates using measured reload and streaming workloads. Preserve cancellation, teardown, resize where relevant and coherent CPU snapshots used by other systems.
+Choose and document the coordinate domain: block-local coordinates repeat within each block; stable world coordinates vary across blocks; object-local coordinates keep animated objects' patterns attached to their surfaces. Never hash camera-relative positions without restoring a stable origin. Atlas repacking, camera motion and frame index must not change a stationary surface's noise pattern.
 
-## Migration and validation
+Audit existing baked noise and describe any intentional distribution change from replacing it with simple RGB hashing. Define distance/footprint attenuation or filtering to avoid aliasing and shimmer. All forward, deferred, liquid, displacement and cached-lighting consumers must evaluate equivalent properties at the same surface point. Provide a matching CPU evaluator where required. Normal/height-generation noise remains a separate contract from material-property noise.
 
-Inventory every property sampler and CPU reader, then migrate them to one common record/evaluation contract. Retire the old property textures and their binding descriptors when their consumers have migrated. Preserve generated shader-binding contracts and the existing synchronous/asynchronous atlas publication rules.
+## Deferred rendering and G-buffer replacement
 
-Version or invalidate affected property caches. Retain caches for spatial artwork and normal/height data where their payload remains valid. Changes to transmission, water coefficients or noise parameters must use current resolved records rather than stale cached property values.
+Remove the dedicated per-pixel material-property payload once every consumer can obtain a material record and evaluate its noise. This does not remove the need for surface identity in deferred passes: a fullscreen shader cannot recover the original atlas UV or material ID from depth alone.
 
-Required validation includes CPU/GLSL packing and stride, integer IDs, neutral and out-of-range behavior, atlas seams, multiple pages, face resolution, stable noise across repacking, property override semantics, capacity exhaustion, reload/cancellation and resource retirement. Exercise opaque and liquid rendering, water transport, displacement and relevant LumOn modes. Builds and tests run through subagents; live visual acceptance remains user-run.
+The proposed deferred bridge is a compact exact material ID written by the geometry pass, using a suitable existing attachment/channel if its precision and ownership permit, otherwise an owned integer attachment. IDs are never blended or interpolated as material values. Establish exact clear, resolve and read semantics. This replaces stored roughness/metallic/emission/transmission values with identity; it is not a material-property atlas.
 
-Compare the current system and the proposed system at matched workloads: property texture and UBO memory, sampler usage, upload bytes and calls, startup/reload time, shader/GPU time and noise stability. Include representative noisy materials and override-heavy content. Fewer samplers alone do not establish a net improvement.
+Reconstruct surface position from depth for world-space noise. If block/object-local noise requires additional orientation or identity, specify how that survives into deferred evaluation before removing existing data. Preserve albedo, normals, depth and unrelated surface channels. Forward consumers resolve IDs directly from their atlas coordinates. Audit AO transmission reads, direct lighting, composition, refraction, liquids, displacement, LumOn capture and debug views before retiring the material layer.
 
-## Approval decisions
+If eliminating every material-related screen-space attachment is required, a different visibility/identity reconstruction design is needed; that is not supplied by UV indirection alone.
 
-Review must resolve the complete record layout, multi-page resource interpretation, supported UBO capacity, production noise algorithm and filtering, authored spatial override representation, consumer parity and publication ownership. Record accepted behavior changes and the measured validation plan. Obtain explicit user approval before deriving an implementation task list or beginning the refactor.
+## Authored spatial overrides
+
+A single material ID per atlas cell cannot encode arbitrary per-texel roughness or other authored property images. Inventory current overrides and resolve their representation before migration. Constant overrides fit records; procedural variation fits record parameters. Arbitrary images require a separately approved representation or explicit authoring change. Do not silently discard images, quantize them, or preserve the old property atlas as an undocumented fallback.
+
+## Ownership and publication
+
+The existing material system owns coherent generations of page metadata, lookup entries and material records independently of LumOn. Publish once per material/atlas change and reuse bindings across draws. Keep lookup IDs and records from the same generation, preserve asynchronous cancellation and retire buffers only after dependent submissions no longer use them.
+
+Coordinate generation changes with deferred material IDs and cached lighting data; no consumer may interpret old IDs through newly reordered records. Invalidate affected property caches while preserving valid artwork and normal/height caches. Avoid per-frame allocations, per-draw table uploads and rebaking property noise.
+
+## Validation and review
+
+Before implementation, verify real atlas layouts and packed vertex UV formats, padding and boundary rules, multi-page identity, material sharing, required record counts, authored overrides and both UBO capacities. Resolve the deferred identity format and noise coordinate domain. Use existing material-system APIs rather than introducing parallel registries.
+
+Focused subagent-run tests must cover CPU/shader packing, integer decoding, cell boundaries, page isolation, default IDs, capacity rejection, face overrides, noise stability under camera motion/repacking, forward/deferred agreement, reload/cancellation, resource retirement and both lighting modes. Exercise liquids, transmission, displacement and spatial overrides explicitly.
+
+Measure lookup and record storage, removed atlas/G-buffer bytes, sampler counts, upload calls/bytes, startup/reload time and matched-workload GPU time. Hash ALU and dependent UBO reads may offset bandwidth savings. Retain user-run visual acceptance; do not infer performance or appearance from storage arithmetic alone.
+
+Review this proposal and resolve its open contracts before deriving implementation subtasks. Related documents: [atlas build pipeline](MaterialAtlas.BuildPipeline.md), [transmission](PBR.Transmission.md), [baseline tasks](PBR.BaselineShading.todo).
