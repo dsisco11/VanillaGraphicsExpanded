@@ -11,15 +11,18 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Coverage preservation
-    /// <summary>Authored alpha survives material interception and reaches engine OIT revealage unchanged.</summary>
+    /// <summary>Deferred capture resolves opaque coverage while forward and OIT retain authored alpha.</summary>
     [Theory]
     [InlineData("standard", 0, 1, 1f)]
+    [InlineData("standard", 0, 1, .25f)]
     [InlineData("standard", 0, 2, 1f)]
     [InlineData("standard", 0, 2, .25f)]
     [InlineData("entityanimated", 0, 1, 1f)]
+    [InlineData("entityanimated", 0, 1, .25f)]
     [InlineData("entityanimated", 0, 2, 1f)]
     [InlineData("entityanimated", 0, 2, .25f)]
     [InlineData("entityanimated", 1, 1, 1f)]
+    [InlineData("entityanimated", 1, 1, .25f)]
     [InlineData("entityanimated", 1, 2, 1f)]
     [InlineData("entityanimated", 1, 2, .25f)]
     public void InstalledFragmentPreservesCoverage(string family, int oit, int route, float alpha)
@@ -58,7 +61,7 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         target.BindWithViewport(); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         float[] actual = target[oit > 0 ? 1 : 0].ReadPixels();
-        float expected = oit > 0 ? 1 - alpha : alpha;
+        float expected = oit > 0 ? 1 - alpha : route == 1 ? 1 : alpha;
         Assert.InRange(actual[3], expected - 1e-6f, expected + 1e-6f);
         if (oit > 0)
         {

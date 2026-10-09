@@ -10,6 +10,8 @@ internal static class TestShaderPrograms
     internal static ShaderVariantResolver Create()
     {
         var programs = GpuShaderContracts.Registry.Programs.Values.ToList();
+        foreach (string name in new[] { "terrain-capture-opaque", "terrain-capture-topsoil" })
+            programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         foreach (string name in new[] { "complete-state", "rasterizer", "first-person" })
             programs.Add(new("tests/" + name, [Fixture(name, "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         programs.Add(new("tests/deletion", [Fixture("deletion", "vsh", ShaderStageKind.Vertex), Fixture("complete-state", "fsh", ShaderStageKind.Fragment)], 1));
@@ -34,7 +36,7 @@ internal static class TestShaderPrograms
     {
         var bindings = new GpuBindingContract();
         if (name == "temporal-debug") bindings.RegisterShaderStorageBlockBinding("Result", 0);
-        string? block = name switch { "temporal-debug" => "TemporalDebugInputs", "rasterizer" => "RasterizerInputs", "particle-draw" => "ParticleDrawInputs", "normal-input" or "foliage-transmission" or "liquid-interface" => "TestInputs", _ => null };
+        string? block = name switch { "temporal-debug" => "TemporalDebugInputs", "rasterizer" => "RasterizerInputs", "particle-draw" => "ParticleDrawInputs", "terrain-capture-opaque" or "terrain-capture-topsoil" => "TerrainCaptureInputs", "normal-input" or "foliage-transmission" or "liquid-interface" => "TestInputs", _ => null };
         if (block != null) bindings.RegisterUniformBlockBinding(block, 28);
         if (name == "sampler-handoff") bindings.RegisterSamplerUnit("ordinaryTexture", 5);
         return new("tests/" + name + "." + suffix, "tests/" + name + "." + suffix, kind, bindings);

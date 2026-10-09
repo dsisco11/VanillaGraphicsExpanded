@@ -255,7 +255,8 @@ internal static class PbrSurfaceShaderPatches
                 vge_outEnvironment = vec4(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance), vge_skyVisibility);
                 if (vge_pbrRoute == 1)
                 {
-                    {{output}}.rgb = vge_materialColor;
+                    // A surviving deferred fragment owns this material sample; background radiance is not albedo.
+                    {{output}} = vec4(vge_materialColor, 1.0);
                 }
                 else
                 #endif

@@ -74,6 +74,14 @@ shading, one captures material data, and two emits forward HDR radiance. The atm
 solar branch in standard derives its color convention from that same route. These linked
 surface programs have no vge_sceneLinear uniform.
 
+Deferred material capture preserves the engine coverage/discard decisions, then writes
+alpha 1 for surviving opaque fragments. Material albedo replaces the background; it must
+not blend with HDR sky or solar radiance when inherited alpha is slightly below one.
+In the sun-through-terrain capture, texture alpha was exactly one but the interpolated
+vertex alpha was one float step below one; the RGBA16F blended result retained solar radiance.
+Forward/OIT output keeps its authored alpha. Overriding only opaque capture alpha removed
+the solar mark while terrain depth and the late solar query were already correct.
+
 PbrDrawRouteHook assigns the surface route on each binding, including nested offscreen
 reuse. Programs without that route use the separate scene-color binding for authored
 engine effects. Both owners require matching primary/OIT targets in Opaque, OIT or AfterOIT;

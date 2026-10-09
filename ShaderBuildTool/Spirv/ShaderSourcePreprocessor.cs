@@ -50,6 +50,10 @@ internal sealed class ShaderSourcePreprocessor
             var mapped = LineDirectiveInjector.TryInject(output, result.SourceMap, resourceId => sources[resourceId]);
             if (mapped.Success) output = mapped.OutputTree;
         }
+        // Numerical fixtures exercise the exact terrain AST transformation before binary compilation.
+        if (relative is "tests/terrain-capture-opaque.fsh" or "tests/terrain-capture-topsoil.fsh")
+            VanillaGraphicsExpanded.PBR.PbrTerrainColorPatches.ApplyFragment(output,
+                relative.EndsWith("opaque.fsh", StringComparison.Ordinal) ? "chunkopaque.fsh" : "chunktopsoil.fsh");
         return SourceCodeImportsProcessor.StripNonAscii(output.ToText());
     }
     #endregion

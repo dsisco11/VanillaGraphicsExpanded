@@ -39,7 +39,7 @@ internal static class PbrTerrainColorPatches
             """);
     }
 
-    /// <summary>Captures color-mapped terrain before forward effects without changing coverage or glow outputs.</summary>
+    /// <summary>Captures opaque material color after the engine resolves coverage, retaining its discard and glow decisions.</summary>
     internal static void ApplyFragment(SyntaxTree tree, string sourceName)
     {
         if (sourceName is not ("chunkopaque.fsh" or "chunktopsoil.fsh")) return;
@@ -78,7 +78,9 @@ internal static class PbrTerrainColorPatches
                 """
 
                 #if NORMALVIEW == 0
-                    outColor.rgb = vge_materialColor;
+                    // Coverage has already been resolved by the engine discard tests.
+                    // Deferred albedo must replace background radiance, even if interpolated alpha is just below one.
+                    outColor = vec4(vge_materialColor, 1.0);
                 #endif
 
                 """);

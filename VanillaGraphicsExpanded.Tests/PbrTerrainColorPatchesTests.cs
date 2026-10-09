@@ -16,7 +16,7 @@ public sealed class PbrTerrainColorPatchesTests
         var tree = SyntaxTree.Parse(ReadShader(name), GlslSchema.Instance);
         Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name));
         string actual = tree.ToText();
-        Assert.Equal(ScopeAt(actual, "vec3 vge_materialColor ="), ScopeAt(actual, "outColor.rgb = vge_materialColor;"));
+        Assert.Equal(ScopeAt(actual, "vec3 vge_materialColor ="), ScopeAt(actual, "outColor = vec4(vge_materialColor, 1.0);"));
     }
 
     /// <summary>Capture runs after color mapping and before forward effects, preserving the original body exactly once.</summary>
@@ -32,10 +32,10 @@ public sealed class PbrTerrainColorPatchesTests
         PbrTerrainColorPatches.ApplyFragment(tree, name);
         string after = tree.ToText().ReplaceLineEndings("\n");
         string capture = $"vec3 vge_materialColor = VgeSrgbToLinear({color});\n";
-        const string restore = "\n#if NORMALVIEW == 0\n    outColor.rgb = vge_materialColor;\n#endif\n";
+        const string restore = "\n#if NORMALVIEW == 0\n    // Coverage has already been resolved by the engine discard tests.\n    // Deferred albedo must replace background radiance, even if interpolated alpha is just below one.\n    outColor = vec4(vge_materialColor, 1.0);\n#endif\n";
         Assert.Contains(capture, after);
         Assert.True(after.IndexOf(capture, StringComparison.Ordinal) < after.IndexOf("float murkiness", StringComparison.Ordinal));
-        Assert.Equal(ScopeAt(after, "vec3 vge_materialColor ="), ScopeAt(after, "outColor.rgb = vge_materialColor;"));
+        Assert.Equal(ScopeAt(after, "vec3 vge_materialColor ="), ScopeAt(after, "outColor = vec4(vge_materialColor, 1.0);"));
         Assert.Equal(before, after.Replace(capture, "", StringComparison.Ordinal).Replace(restore, "", StringComparison.Ordinal));
     }
 
@@ -68,8 +68,8 @@ public sealed class PbrTerrainColorPatchesTests
         var tree = SyntaxTree.Parse("void main() { vec4 texColor=vec4(1); float murkiness=0;\n#if NORMALVIEW > 0\noutColor=texColor;\n#endif\n}", GlslSchema.Instance);
         PbrTerrainColorPatches.ApplyFragment(tree, "chunkopaque.fsh");
         string actual = tree.ToText();
-        Assert.Equal(ScopeAt(actual, "vec3 vge_materialColor ="), ScopeAt(actual, "outColor.rgb = vge_materialColor;"));
-        Assert.True(actual.LastIndexOf("outColor.rgb = vge_materialColor;", StringComparison.Ordinal) > actual.IndexOf("#endif", StringComparison.Ordinal));
+        Assert.Equal(ScopeAt(actual, "vec3 vge_materialColor ="), ScopeAt(actual, "outColor = vec4(vge_materialColor, 1.0);"));
+        Assert.True(actual.LastIndexOf("outColor = vec4(vge_materialColor, 1.0);", StringComparison.Ordinal) > actual.IndexOf("#endif", StringComparison.Ordinal));
     }
 
     /// <summary>Transparent and liquid paths remain outside the deferred material capture change.</summary>

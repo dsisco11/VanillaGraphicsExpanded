@@ -71,6 +71,47 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
+    /// <summary>Far solar geometry respects opaque depths, and the installed late-query color policy emits no scene or glow pixels.</summary>
+    [Theory]
+    [InlineData(.5f, false, false)]
+    [InlineData(.99f, false, false)]
+    [InlineData(.9999f, false, false)]
+    [InlineData(.999999f, false, false)]
+    [InlineData(1f, false, true)]
+    [InlineData(.5f, true, false)]
+    [InlineData(1f, true, false)]
+    public void SolarDepthAndLateQueryMasksRejectOccludedContribution(float wallDepth, bool queryOnly, bool visible)
+    {
+        EnsureShaderTestAvailable();
+        var sun = Programs.Create<SolarRasterProgram>();
+        sun.Capture(new(100, 50, 25), -1);
+        using var color = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);
+        using var glow = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);
+        using var depth = new DepthTexture(32, 32, PixelInternalFormat.DepthComponent32f);
+        using var scene = GpuFramebuffer.CreateMRT([color, glow], depth)!;
+        using var lifetime = new GraphicsPipelineLifetime();
+        var layout = new VertexLayoutDesc([]);
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 6);
+        using var metadata = new RenderPassTargets(new RenderPassDesc(scene, [new(0), new(1)]));
+        var mask = new ColorBlendDesc { WriteRed = !queryOnly, WriteGreen = !queryOnly, WriteBlue = !queryOnly, WriteAlpha = !queryOnly };
+        using var pipeline = new GraphicsPipeline(lifetime, new(sun.GraphicsIdentity!, layout, metadata.Signature, DynamicPipelineState.Viewport,
+            depthStencil: new() { DepthTest = true, DepthWrite = !queryOnly }, blending: [mask, mask]), sun);
+        // The clear stands for already-rasterized opaque geometry; the query's color masks must also hold on clear sky.
+        var pass = new RenderPassDesc(scene, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)), new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))],
+            new(DepthLoad: AttachmentLoad.Clear, ClearDepth: wallDepth));
+        Assert.True(GraphicsCommandContext.TryRun("Tests.SolarOcclusion", [pipeline], true, commands =>
+        {
+            commands.BeginPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.Draw(geometry, new(0, 6));
+            commands.EndPass();
+        }));
+        Assert.Equal(visible, color.ReadPixels().Any(value => value > 0));
+        Assert.Equal(visible, glow.ReadPixels().Any(value => value > 0));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     #endregion
     #region Private
     /// <summary>Submits each owned bloom stage through a prepared pipeline after any preceding image readback.</summary>

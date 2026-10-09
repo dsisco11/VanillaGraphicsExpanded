@@ -15,7 +15,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public PbrTerrainCaptureGpuTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Engine material capture
-    /// <summary>Production patching restores decoded material RGB after forward effects while preserving output alpha.</summary>
+    /// <summary>Production patching restores decoded material RGB after forward effects after resolving opaque coverage.</summary>
     [Theory]
     [InlineData("chunkopaque.fsh")]
     [InlineData("chunktopsoil.fsh")]
@@ -57,7 +57,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
-            float[] expected = [Linear(.2f), Linear(.4f), Linear(.8f), .25f];
+            float[] expected = [Linear(.2f), Linear(.4f), Linear(.8f), 1f];
             for (int channel = 0; channel < 4; channel++) Assert.InRange(actual[channel], expected[channel] - .00001f, expected[channel] + .00001f);
         }
         finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
