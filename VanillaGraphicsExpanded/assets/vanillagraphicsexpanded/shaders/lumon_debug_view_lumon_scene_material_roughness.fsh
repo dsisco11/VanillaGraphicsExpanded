@@ -86,7 +86,7 @@ vec4 renderLumonSceneMaterialRoughnessDebug()
 /** Renders only the LumonSceneMaterialRoughness view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderLumonSceneMaterialRoughnessDebug();
 }

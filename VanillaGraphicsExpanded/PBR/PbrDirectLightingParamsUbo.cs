@@ -5,48 +5,30 @@ namespace VanillaGraphicsExpanded.PBR;
 
     /// <summary>
 /// CPU-side UBO for PBR direct lighting shader parameters.
-/// Layout matches VgePbrDirectLightingParamsUBO in GLSL (3552 bytes).
+/// Layout matches VgePbrDirectLightingParamsUBO in GLSL (3424 bytes).
 /// </summary>
 internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
 {
     public const string BlockName = "VgePbrDirectLightingParamsUBO";
 
-    private const int OffsetInvProjection = 0;          // mat4 at 0
-    private const int OffsetInvModelView = 64;          // mat4 at 64
-    private const int OffsetToShadowNear = 128;         // mat4 at 128
-    private const int OffsetToShadowFar = 192;          // mat4 at 192
-    private const int OffsetZPlanes = 256;              // vec4 at 256 (zNear, zFar, shadowRangeNear, shadowRangeFar)
-    private const int OffsetShadowExtend = 272;         // vec4 at 272 (shadowZExtendNear, shadowZExtendFar, dropShadowIntensity, reserved)
-    private const int OffsetLightDirection = 288;       // vec4 at 288
-    private const int OffsetRgbaAmbient = 304;          // vec4 at 304
-    private const int OffsetRgbaLight = 320;            // vec4 at 320
-    private const int OffsetPointLightsCount = 336;     // ivec4 at 336 (count, 0, 0, 0)
-    private const int OffsetPointLightsPos = 352;       // vec4[100] at 352 (1600 bytes)
-    private const int OffsetPointLightsColor = 1952;    // vec4[100] at 1952 (1600 bytes)
-    // Total: 3552 bytes
+    private const int OffsetToShadowNear = 0;
+    private const int OffsetToShadowFar = 64;
+    private const int OffsetShadowRanges = 128;
+    private const int OffsetShadowExtend = 144;
+    private const int OffsetLightDirection = 160;
+    private const int OffsetRgbaAmbient = 176;
+    private const int OffsetRgbaLight = 192;
+    private const int OffsetPointLightsCount = 208;
+    private const int OffsetPointLightsPos = 224;
+    private const int OffsetPointLightsColor = 1824;
+    // Total: 3424 bytes
 
     /// <summary>Allocates the packed lighting parameters shared with the GLSL block.</summary>
-    public PbrDirectLightingParamsUbo() : base(3552)
+    public PbrDirectLightingParamsUbo() : base(3424)
     {
     }
 
     #region Matrices
-
-    public float[] InvProjectionMatrix
-    {
-        set
-        {
-            WriteMatrix4(OffsetInvProjection, value);
-        }
-    }
-
-    public float[] InvModelViewMatrix
-    {
-        set
-        {
-            WriteMatrix4(OffsetInvModelView, value);
-        }
-    }
 
     public float[] ToShadowMapSpaceMatrixNear
     {
@@ -66,16 +48,16 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
 
     #endregion
 
-    #region Z Planes and Shadow Ranges
+    #region Shadow controls
 
     /// <summary>
-    /// Camera Z planes and shadow ranges.
+    /// Shadow ranges are effect-specific; camera clip planes come from the shared frame.
     /// </summary>
-    public (float zNear, float zFar, float shadowRangeNear, float shadowRangeFar) ZPlanesAndShadowRanges
+    public (float near, float far) ShadowRanges
     {
         set
         {
-            WriteVector4(OffsetZPlanes, new(value.zNear, value.zFar, value.shadowRangeNear, value.shadowRangeFar));
+            WriteVector4(OffsetShadowRanges, new(value.near, value.far, 0, 0));
         }
     }
 

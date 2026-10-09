@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.LumOn.Shaders;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.LumOn;
@@ -67,7 +68,8 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         var api = Api(assets);
         using var programs = new ComponentShaderPrograms();
         var shader = programs.Create<VgeDebugLinesShaderProgram>();
-        shader.ModelViewProjectionMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        using var frameCamera = TestFrameCamera.CreateIdentity(8, 8);
+        shader.FrameInputs = frameCamera;
         shader.WorldOffset = new(0, 0, 0);
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 28),
             new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 28)]);
@@ -138,13 +140,12 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         using var programs = new ComponentShaderPrograms();
         var shader = programs.Create<VgeWorldProbeOrbsPointsShaderProgram>();
         shader.EnsureWorldProbeClipmapDefines(true, 1, 1, 1, 8, 64, 2);
-        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-        shader.ModelViewProjectionMatrix = identity; shader.WorldOffset = new(0, 0, 0); shader.CameraPos = new(0, 0, 0);
+        shader.WorldOffset = new(0, 0, 0);
         shader.PointSize = 6; shader.FadeNear = 10; shader.FadeFar = 20; shader.ImportanceColorMode = true;
         using var frame = GpuUniformBuffer.Create(); using var world = GpuUniformBuffer.Create();
-        float[] frameValues = new float[136];
-        for (int matrix = 0; matrix < 6; matrix++) identity.CopyTo(frameValues, matrix * 16);
-        frame.UploadData(frameValues); world.UploadData(new float[72]);
+        using var frameCamera = TestFrameCamera.CreateIdentity(8, 8);
+        ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
+        frame.UploadData(new float[28]); world.UploadData(new float[72]);
         shader.FrameUniformBuffer = frame; shader.WorldProbeUniformBuffer = world;
         shader.WorldProbeRadianceAtlas = probes.Resources.ProbeRadianceAtlas;
         shader.WorldProbeVis0 = probes.Resources.ProbeVis0; shader.WorldProbeDebugState0 = probes.Resources.ProbeDebugState0;

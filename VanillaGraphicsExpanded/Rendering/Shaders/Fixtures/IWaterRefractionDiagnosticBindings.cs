@@ -7,6 +7,9 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 internal interface IWaterRefractionDiagnosticBindings
 {
     #region Public API
+    /// <summary>Reuses the optical fixture camera through the universal frame contract.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Publishes the complete retained optical input block.</summary>
     [ShaderBinding("WaterRefractionDiagnosticInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }
@@ -19,8 +22,6 @@ internal interface IWaterRefractionDiagnosticBindings
     /// <summary>Selects the independently authored optical geometry.</summary>
     int Scenario { get; set; }
 
-    /// <summary>Supplies full-frame projection dimensions.</summary>
-    Vector2 FrameSize { get; set; }
 
     /// <summary>Supplies an optional independently reconstructed surface for diagnostic scenario twelve.</summary>
     Vector3 Surface { get; set; }
@@ -40,10 +41,6 @@ internal interface IWaterRefractionDiagnosticBindings
     /// <summary>Selects an underwater exit for custom optical geometry.</summary>
     int Underwater { get; set; }
 
-    /// <summary>Supplies the CPU-authored projection used to generate the receiver depths.</summary>
-    Matrix4x4 Projection { get; set; }
 
-    /// <summary>Supplies its CPU inverse for production receiver reconstruction.</summary>
-    Matrix4x4 InverseProjection { get; set; }
     #endregion
 }

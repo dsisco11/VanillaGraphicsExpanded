@@ -9,19 +9,19 @@ namespace VanillaGraphicsExpanded.LumOn;
 internal interface ILumOnDebugShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies common camera and frame values from the universal view snapshot.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies the diffuse, specular and emissive radiance array.</summary>
     [ShaderBinding("directLighting", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.LinearClamp, Required = false)]
     GpuTexture? DirectLighting { set; }
 
     /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.LumOnFrame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the LumOnWorldProbeUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuUniformBuffer? LumOnWorldProbe { get; }
-    /// <summary>Declares the LumOnTerrainBridgeUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnTerrainBridgeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.TerrainBridge, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuUniformBuffer? LumOnTerrainBridge { set; }
     /// <summary>Declares the VgeLumOnDebugParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnDebugParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer Parameters { get; }

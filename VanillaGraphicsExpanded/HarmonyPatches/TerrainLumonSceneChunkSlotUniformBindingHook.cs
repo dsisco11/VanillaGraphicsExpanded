@@ -18,7 +18,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
 {
     private static readonly Dictionary<int, int> genSamplerLocCache = new();
 
-    private static readonly Dictionary<int, int> terrainBridgeBlockIndexCache = new();
     private static readonly Dictionary<int, int> slotBlockIndexCache = new();
 
     private static readonly Dictionary<int, int> lastAppliedVersionByProgramId = new();
@@ -53,7 +52,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         ApplyUniformsIfNeeded(__instance);
     }
 
-    /// <summary>Restores both slot mapping and world-coordinate resources required by terrain feedback.</summary>
+    /// <summary>Restores slot mapping resources required by terrain feedback.</summary>
     private static void ApplyUniformsIfNeeded(ShaderProgramBase program)
     {
         // Only run for valid program ids; ignore early init/shutdown.
@@ -67,26 +66,20 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
         {
             int genLoc = GetUniformLocCached(genSamplerLocCache, programId, LumonSceneChunkSlotUniformState.GenerationSamplerUniform);
 
-            int blockIndex = GetUniformBlockIndexCached(terrainBridgeBlockIndexCache, programId, LumOnTerrainBridgeUboState.BlockName);
             int slotBlockIndex = GetUniformBlockIndexCached(slotBlockIndexCache, programId, LumonSceneChunkSlotUniformState.BlockName);
 
             // Fast path: if this program doesn't have any of the LumOn uniforms/UBO, ignore it.
-            if (genLoc < 0 && blockIndex < 0 && slotBlockIndex < 0)
+            if (genLoc < 0 && slotBlockIndex < 0)
             {
                 return;
             }
 
-            int version = HashCode.Combine(LumonSceneChunkSlotUniformState.Version, LumOnTerrainBridgeUboState.Version);
+            int version = LumonSceneChunkSlotUniformState.Version;
             bool stateChanged = !lastAppliedVersionByProgramId.TryGetValue(programId, out int last) || last != version;
             if (stateChanged)
             {
                 lastAppliedVersionByProgramId[programId] = version;
 
-                // Bind the terrain bridge UBO (if the shader declares it). The binding point is per-program.
-                if (blockIndex >= 0)
-                {
-                    GL.UniformBlockBinding(programId, blockIndex, LumOnTerrainBridgeUboState.Binding);
-                }
                 if (slotBlockIndex >= 0)
                     GL.UniformBlockBinding(programId, slotBlockIndex, LumonSceneChunkSlotUniformState.Binding);
 
@@ -112,14 +105,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                 StateCache.Current.ActiveTexture(0);
             }
 
-            if (blockIndex >= 0)
-            {
-                int bufferId = LumOnTerrainBridgeUboState.BufferId;
-                if (bufferId != 0)
-                {
-                    StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, LumOnTerrainBridgeUboState.Binding, bufferId);
-                }
-            }
             // Compute passes reuse the Object binding; a version check alone cannot restore it.
             if (slotBlockIndex >= 0) LumonSceneChunkSlotUniformState.BindParameters();
         }
@@ -169,7 +154,6 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
     public static void ClearUniformCache()
     {
         genSamplerLocCache.Clear();
-        terrainBridgeBlockIndexCache.Clear();
         slotBlockIndexCache.Clear();
         lastAppliedVersionByProgramId.Clear();
     }

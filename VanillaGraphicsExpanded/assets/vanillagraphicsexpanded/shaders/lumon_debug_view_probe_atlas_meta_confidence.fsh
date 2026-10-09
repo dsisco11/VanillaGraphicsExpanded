@@ -23,7 +23,7 @@ vec4 renderProbeAtlasMetaConfidenceDebug()
 /** Renders only the ProbeAtlasMetaConfidence view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderProbeAtlasMetaConfidenceDebug();
 }

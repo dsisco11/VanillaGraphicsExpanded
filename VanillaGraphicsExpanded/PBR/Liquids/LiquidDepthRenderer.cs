@@ -75,9 +75,8 @@ internal sealed class LiquidDepthRenderer : IDisposable
         {
             if (!LiquidRenderer.CanTakeOwnership(api, atlases) || !program.EnsureReady()) return false;
             var waves = LiquidWaveFrame.Capture(api);
-            program.ProjectionMatrix = render.CurrentProjectionMatrix;
             program.WaveFrame = waves;
-            program.ModelViewMatrix = render.CameraMatrixOriginf;
+            program.ResetModelTransform();
             if (!submission.Run(program, pools[..atlases.Length], new(submission.Borrow(target), LiquidPipelineStates.DepthOutputs),
                 LiquidPipelineStates.Depth, LiquidPipelineStates.DepthBlending, () =>
                 {

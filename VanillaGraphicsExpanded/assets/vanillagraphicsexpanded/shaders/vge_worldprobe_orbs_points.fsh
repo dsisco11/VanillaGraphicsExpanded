@@ -40,9 +40,9 @@ void main(void)
     // Convert view-facing normal into world-space direction.
     // Use explicit matrix-vector multiplies to avoid row/column-major confusion.
     // Note: view-space +Z points toward the camera (OpenGL camera looks down -Z).
-    vec3 rightWS = normalize((invViewMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
-    vec3 upWS = normalize((invViewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-    vec3 viewZWS = normalize((invViewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
+    vec3 rightWS = normalize((vgeFrame.invViewMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
+    vec3 upWS = normalize((vgeFrame.invViewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+    vec3 viewZWS = normalize((vgeFrame.invViewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
 
     // Camera-facing sphere normal in world space.
     vec3 N = normalize(rightWS * p.x + upWS * p.y + viewZWS * z);

@@ -9,8 +9,11 @@ namespace VanillaGraphicsExpanded.LumOn;
 internal interface ILumOnCombineShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies common camera and frame values from the universal view snapshot.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.LumOnFrame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the VgeLumOnCombineParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnCombineParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]

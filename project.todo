@@ -1,6 +1,6 @@
 Issues:
   Current:
-    ☑ Retired `StateCache.CaptureLegacyFixedFunctionState()` after all 11 source invocations were migrated or removed with evidence. Dispositions: docs/Rendering.AuthoritativePipelineState.md / Legacy scope inventory and disposition. Prerequisites/removal owner: docs/Rendering.AuthoritativePipelineState.todo / Phase 8. Retained mechanism and acceptance evidence: docs/Rendering.AuthoritativePipelineState.md / Engine-boundary restoration (original proposal and plan retired). Engine observation does not replace restoration.
+    ☐ SpirvBuild seems to always rebuild ALL shaders even for minor changes.
     ☐ Normal maps not loading from material atlas baking system?
     ☐ Tessellation not working (possibly due to the normal maps not loading?).
     ☐ Add edge beveling for geometry normals prior to direct lighting so that lighting appears smoother along edges and corners.

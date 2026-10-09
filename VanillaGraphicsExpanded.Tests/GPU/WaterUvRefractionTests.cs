@@ -335,10 +335,11 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         }
         var program = Programs.Create<WaterUvRefractionShaderProgram>();
         var inputs = (IWaterUvRefractionBindings)program;
-        inputs.Surface = surface; inputs.Normal = normal; inputs.Projection = projection;
+        inputs.Surface = surface; inputs.Normal = normal; 
         Assert.True(Matrix4x4.Invert(projection, out var inverse));
-        inputs.InverseProjection = inverse;
-        inputs.FrameSize = new(Width,Height); inputs.Underwater = underwater ? 1 : 0;
+        using var frameCamera = TestFrameCamera.CreateFromProjection(projection, Width, Height);
+        program.FrameInputs = frameCamera;
+        inputs.Underwater = underwater ? 1 : 0;
         inputs.Color = reducedColor ?? color; inputs.Depth = reducedDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);

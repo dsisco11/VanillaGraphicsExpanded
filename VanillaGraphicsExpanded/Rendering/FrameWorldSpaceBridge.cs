@@ -1,10 +1,10 @@
 using System;
 using VanillaGraphicsExpanded.Numerics;
 
-namespace VanillaGraphicsExpanded.LumOn;
+namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Converts engine render-relative positions to absolute world cells with a precise origin split.</summary>
-internal static class LumOnFrameWorldSpaceBridge
+internal static class FrameWorldSpaceBridge
 {
     private const double ChunkSize = 32.0;
 

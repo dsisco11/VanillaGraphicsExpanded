@@ -129,6 +129,8 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
     #endregion
     #region Binding sources
     /// <summary>Supplies current frame storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnProbeAtlasPisMaskShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnProbeAtlasPisMaskShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
     GpuUniformBuffer? ILumOnProbeAtlasPisMaskShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

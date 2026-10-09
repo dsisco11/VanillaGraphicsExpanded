@@ -5,51 +5,28 @@
 // parameters.
 //
 // Notes:
-// - GLSL < 420 cannot compile layout(binding=...) without 420pack.
-// - For GLSL fallback paths, bindings are assigned from C# via glUniformBlockBinding.
-// - Keep fields vec4/ivec4-aligned to simplify CPU-side packing.
+// - GLSL 330 consumers require 420pack for explicit uniform-block bindings.
+// - CPU packing follows std140 offsets, including typed scalar frame fields.
 // ============================================================================
 
 #ifndef VGE_COMMON_UBOS_GLSL
 #define VGE_COMMON_UBOS_GLSL
 
-@import "./vge_ubo_bindings.glsl"
+#extension GL_ARB_shading_language_420pack : require
 
-#if __VERSION__ >= 420
-  #define VGE_UBO_LAYOUT(BINDING) layout(std140, binding = BINDING)
-#else
-  #define VGE_UBO_LAYOUT(BINDING) layout(std140)
-#endif
+@import "./vge_ubo_bindings.glsl"
 
 // ---------------------------------------------------------------------------
 // Frame/View block (per-frame constants)
 // ---------------------------------------------------------------------------
 
-VGE_UBO_LAYOUT(VGE_UBO_FRAME_BINDING) uniform VgeFrameUBO
-{
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    mat4 invProjectionMatrix;
-    mat4 invViewMatrix;
-
-    mat4 prevViewProjMatrix;
-    mat4 currViewProjMatrix;
-
-    // screenSize.xy, timeSeconds.z, frameIndex.w
-    vec4 frame0;
-
-    // cameraPosWS.xyz, reserved.w
-    vec4 cameraPosWS;
-
-    // fogColor.xyz, fogDensity.w
-    vec4 fog0;
-} vgeFrame;
+@import "./vge_frame_ubo.glsl"
 
 // ---------------------------------------------------------------------------
 // Object block (per-draw / per-dispatch constants)
 // ---------------------------------------------------------------------------
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeObjectUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeObjectUBO
 {
     mat4 modelMatrix;
 
@@ -61,7 +38,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeObjectUBO
 // Material block (material parameters)
 // ---------------------------------------------------------------------------
 
-VGE_UBO_LAYOUT(VGE_UBO_MATERIAL_BINDING) uniform VgeMaterialUBO
+layout(std140, binding = VGE_UBO_MATERIAL_BINDING) uniform VgeMaterialUBO
 {
     // baseColor.rgb, alpha.w
     vec4 baseColor;
@@ -78,7 +55,7 @@ VGE_UBO_LAYOUT(VGE_UBO_MATERIAL_BINDING) uniform VgeMaterialUBO
   #define VGE_MAX_LIGHTS 64
 #endif
 
-VGE_UBO_LAYOUT(VGE_UBO_LIGHTS_BINDING) uniform VgeLightsUBO
+layout(std140, binding = VGE_UBO_LIGHTS_BINDING) uniform VgeLightsUBO
 {
     // x = lightCount
     ivec4 lights0;
@@ -90,6 +67,6 @@ VGE_UBO_LAYOUT(VGE_UBO_LIGHTS_BINDING) uniform VgeLightsUBO
     vec4 lightColor[VGE_MAX_LIGHTS];
 } vgeLights;
 
-#undef VGE_UBO_LAYOUT
+
 
 #endif // VGE_COMMON_UBOS_GLSL

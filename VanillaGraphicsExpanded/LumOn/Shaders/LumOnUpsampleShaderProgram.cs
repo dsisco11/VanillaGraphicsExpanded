@@ -173,6 +173,8 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
     #endregion
     #region Binding sources
     /// <summary>Supplies shared frame storage through the existing uniform-block contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnUpsampleShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnUpsampleShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies packed parameters for one generated publication per use.</summary>
     CpuUniformBuffer ILumOnUpsampleShaderProgramBindings.Parameters => Params;

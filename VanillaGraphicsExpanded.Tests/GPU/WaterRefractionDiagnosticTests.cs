@@ -61,9 +61,10 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
         float focal = scenario == 8 ? .1f : MathF.Sqrt(3);
         var projection = new Matrix4x4(focal,0,0,0, 0,focal,0,0, 0,0,-100.1f/99.9f,-1, 0,0,-20f/99.9f,0);
         Assert.True(Matrix4x4.Invert(projection, out var inverse));
-        inputs.Projection = projection; inputs.InverseProjection = inverse;
+        using var frameCamera = TestFrameCamera.CreateFromProjection(projection, size, size);
+        program.FrameInputs = frameCamera;
         inputs.Budget = budget;
-        inputs.FrameSize = new(size, size);
+        
         inputs.Color = color;
         inputs.Depth = depth;
         using var halfColor = half ? DynamicTexture2D.Create(size / 2,size / 2,PixelInternalFormat.Rgba32f) : null;

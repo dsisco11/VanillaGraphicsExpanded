@@ -32,7 +32,6 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     internal override GpuShaderContract ProgramContract => Contract;
 
     // Cached state for compound properties
-    private float _fogDensity, _fogMin;
     private System.Numerics.Vector3 _indirectTint;
     private float _indirectIntensity;
     private float _diffuseAO, _specularAO;
@@ -132,58 +131,16 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
         Params.SetUnderwater(underwater);
     }
 
-    public Vec4f RgbaFogIn
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.RgbaFogIn = new System.Numerics.Vector4(value.X, value.Y, value.Z, value.W);
-        }
-    }
-
-    public float FogDensityIn
-    {
-        set
-        {
-            RequireInputMutation();
-            _fogDensity = value;
-            Params.FogParams = (_fogDensity, _fogMin);
-        }
-    }
-
-    public float FogMinIn
-    {
-        set
-        {
-            RequireInputMutation();
-            _fogMin = value;
-            Params.FogParams = (_fogDensity, _fogMin);
-        }
-    }
-
     #endregion
 
-    #region Matrices
-
-    public float[] InvProjectionMatrix
+    /// <summary>Borrows a frame snapshot for alternate views or fixtures; world draws use the shared publisher.</summary>
+    private VgeFrameUniformBuffer? frameInputs;
+    internal VgeFrameUniformBuffer? FrameInputs
     {
-        set
-        {
-            RequireInputMutation();
-            Params.InvProjectionMatrix = value;
-        }
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
     }
 
-    public float[] ViewMatrix
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.ViewMatrix = value;
-        }
-    }
-
-    #endregion
 
     #region Composite Controls
 
@@ -250,5 +207,7 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     #region Binding sources
     /// <summary>Supplies packed parameters for one publication per use.</summary>
     CpuUniformBuffer IPBRCompositeShaderProgramBindings.Parameters => Params;
+    /// <summary>Publishes the existing camera version without copying it into composite parameters.</summary>
+    CpuUniformBuffer IPBRCompositeShaderProgramBindings.FrameInputs => FrameInputs ?? VgeFrameRenderer.Current;
     #endregion
 }

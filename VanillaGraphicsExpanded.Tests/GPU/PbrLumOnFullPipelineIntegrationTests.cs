@@ -137,13 +137,13 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // The shader now aliases former uniform names to this UBO; without binding it, outputs will be black.
 
             {
-                pbrDirectProg.InvProjectionMatrix = invProj;
-                pbrDirectProg.InvModelViewMatrix = identity;
+                using var directCamera = TestFrameCamera.CreateFromInverseView(invProj, identity);
+                pbrDirectProg.FrameInputs = directCamera;
 
                 // Shadows are wired but effectively disabled for this test.
                 pbrDirectProg.ToShadowMapSpaceMatrixNear = identity;
                 pbrDirectProg.ToShadowMapSpaceMatrixFar = identity;
-                pbrDirectProg.ZPlanesAndShadowRanges = (zNear: ZNear, zFar: ZFar, shadowRangeNear: 0f, shadowRangeFar: 0f);
+                pbrDirectProg.ShadowRanges = (0f, 0f);
                 pbrDirectProg.ShadowZExtendNear = 0; pbrDirectProg.ShadowZExtendFar = 0; pbrDirectProg.DropShadowIntensity = 0;
 
 
@@ -510,7 +510,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Stage: PBR Composite
             // -----------------------------------------------------------------
             // Full composite (indirect from pipeline)
-            SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
+            using var compositeCamera1 = SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
             using var fullDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = fullDirectLighting;
@@ -534,7 +534,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertAllFinite(compositeFull, "Stage: Composite (full)");
 
             // Baseline (same wiring, but indirectDiffuse is forced to 0)
-            SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
+            using var compositeCamera2 = SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
             using var baselineDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = baselineDirectLighting;
@@ -568,7 +568,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             // Indirect-injected sanity: bypass LumOn, bind a known constant indirect and prove
             // composite brightens vs baseline. This isolates composite binding/uniform logic.
-            SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
+            using var compositeCamera3 = SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
             using var injectedDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = injectedDirectLighting;
@@ -840,13 +840,12 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
     }
 
     /// <summary>Uses production setters for composition parameters, preserving the controlled lighting comparison.</summary>
-    private static void SetupPbrCompositeUniforms(PBRCompositeShaderProgram program, float[] invProjection, float[] viewMatrix, int lumOnEnabled)
+    private static VgeFrameUniformBuffer SetupPbrCompositeUniforms(PBRCompositeShaderProgram program, float[] invProjection, float[] viewMatrix, int lumOnEnabled)
     {
-        program.InvProjectionMatrix = invProjection;
-        program.ViewMatrix = viewMatrix;
-        program.RgbaFogIn = new(0,0,0,0);
-        program.FogDensityIn = 0; program.FogMinIn = 0;
+        var frameCamera = TestFrameCamera.Create(invProjection, viewMatrix);
+        program.FrameInputs = frameCamera;
         program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
         program.DiffuseAOStrength = 1; program.SpecularAOStrength = 1;
+        return frameCamera;
     }
 }

@@ -92,13 +92,15 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             var pixels=new float[256*4]; for(int i=0;i<256;i++) pixels[i*4+3]=(mode is 10 or 11) && i%16>=8 ? 0 : height;
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,pixels);
             using var target=framework.CreateTestGBuffer(16,16,PixelInternalFormat.Rgba32f);
+            using var camera = TestFrameCamera.CreateIdentity(128,128);
+            Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             var layout = GpuProgramLayout.TryBuild(program);
             target.BindWithViewport(); StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
             amplitude.Bind(0); atlas.Bind(1); records.Bind(2);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationDistance"),10f,20f);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationPixels"),128f,128f,16f,8f);
+            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationPixels"),16f,8f);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementEnabled"),1);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementReactive"),0);

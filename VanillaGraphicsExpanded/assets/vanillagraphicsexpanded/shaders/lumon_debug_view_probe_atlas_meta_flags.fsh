@@ -37,7 +37,7 @@ vec4 renderProbeAtlasMetaFlagsDebug()
 /** Renders only the ProbeAtlasMetaFlags view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderProbeAtlasMetaFlagsDebug();
 }

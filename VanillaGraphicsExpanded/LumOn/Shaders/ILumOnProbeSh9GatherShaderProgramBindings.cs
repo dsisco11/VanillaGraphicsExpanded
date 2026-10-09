@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.LumOn;
 internal interface ILumOnProbeSh9GatherShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies common camera and frame values from the universal view snapshot.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the packed SH9 coefficient array sampler.</summary>
     [ShaderBinding("probeSh9", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? ProbeSh9 { set; }
@@ -31,7 +34,7 @@ internal interface ILumOnProbeSh9GatherShaderProgramBindings
     [ShaderBinding("worldProbeMeta0", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? WorldProbeMeta0 { set; }
     /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.LumOnFrame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the VgeLumOnProbeParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnProbeParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]

@@ -24,9 +24,9 @@ internal sealed partial class CameraHistogramShaderProgram : GpuProgram, ICamera
     /// <summary>Stages the SceneRadiance texture for submission.</summary>
     public partial GpuTexture? SceneRadiance { set; }
     /// <summary>Captures the complete metering parameters for one submission.</summary>
-    internal void Capture(CameraExposureParameters settings, float deltaTime, bool reset)
+    internal void Capture(CameraExposureParameters settings, bool reset)
     {
-        inputs.Capture(settings, deltaTime, reset);
+        inputs.Capture(settings, reset);
     }
     /// <summary>Publishes the parameter block through its shader contract.</summary>
     CpuUniformBuffer ICameraHistogramShaderProgramBindings.Inputs => inputs;

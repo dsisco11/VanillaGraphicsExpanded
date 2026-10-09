@@ -147,14 +147,6 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
     // Matrix buffers
     private readonly LumOnUniformBuffers uniformBuffers = new();
     private readonly System.Func<LumOnCameraState?> readCamera;
-    private readonly float[] invProjectionMatrix = new float[16];
-    private readonly float[] invViewMatrix = new float[16];
-    private readonly LumOnTemporalReprojection temporalReprojection = new();
-    private readonly float[] currentViewProjMatrix = new float[16];
-    private readonly float[] invCurrViewProjMatrix = new float[16];
-    private readonly float[] tempProjectionMatrix = new float[16];
-    private readonly float[] tempModelViewMatrix = new float[16];
-    private int frameIndex;
 
     #endregion
 
@@ -486,31 +478,9 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         return new Vec3f((float)d.X, (float)d.Y, (float)d.Z);
     }
 
-    /// <summary>
-    /// Updates the previous view-projection matrix for temporal debug visualization.
-    /// Called automatically at the end of each frame.
-    /// </summary>
-    private void StorePrevViewProjMatrix()
-    {
-        temporalReprojection.Commit();
-    }
-
-    /// <summary>
-    /// Computes the current view-projection matrix.
-    /// </summary>
-    private void UpdateCurrentViewProjMatrix()
-    {
-        Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
-        Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
-        MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
-        var camera = readCamera();
-        temporalReprojection.Capture(currentViewProjMatrix,
-            camera?.CameraX ?? 0, camera?.CameraY ?? 0, camera?.CameraZ ?? 0);
-    }
-
+    /// <summary>Publishes only probe, history and lighting controls for diagnostic rendering.</summary>
     private void UpdateAndBindFrameUbo(VgeConfig.LumOnSettingsConfig lum)
     {
-        MatrixHelper.Invert(currentViewProjMatrix, invCurrViewProjMatrix);
 
         Vec3f sunPosF = new(0, 1, 0);
         Vec3f sunColF = new(1, 1, 1);
@@ -524,40 +494,19 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
         }
 
-        var camera = readCamera();
-        var frameBridge = camera is null
-            ? (default(VectorInt3), default(Vector3d))
-            : LumOnFrameWorldSpaceBridge.Compute(
-                camera.Value.CameraX,
-                camera.Value.CameraY,
-                camera.Value.CameraZ);
-
         int halfW = bufferManager?.HalfResWidth ?? (capi.Render.FrameWidth / 2);
         int halfH = bufferManager?.HalfResHeight ?? (capi.Render.FrameHeight / 2);
 
         int probeCountX = bufferManager?.ProbeCountX ?? 0;
         int probeCountY = bufferManager?.ProbeCountY ?? 0;
 
-        int uboFrameIndex = frameIndex;
-        frameIndex = unchecked(frameIndex + 1);
 
         uniformBuffers.UpdateFrame(
-            invProjectionMatrix: invProjectionMatrix,
-            projectionMatrix: capi.Render.CurrentProjectionMatrix,
-            viewMatrix: capi.Render.CameraMatrixOriginf,
-            invViewMatrix: invViewMatrix,
-            prevViewProjMatrix: temporalReprojection.PreviousViewProjection,
-            invCurrViewProjMatrix: invCurrViewProjMatrix,
-            screenWidth: capi.Render.FrameWidth,
-            screenHeight: capi.Render.FrameHeight,
             halfResWidth: halfW,
             halfResHeight: halfH,
             probeGridWidth: probeCountX,
             probeGridHeight: probeCountY,
-            zNear: capi.Render.ShaderUniforms.ZNear,
-            zFar: capi.Render.ShaderUniforms.ZFar,
             probeSpacing: lum.ProbeSpacingPx,
-            frameIndex: uboFrameIndex,
             historyValid: 0,
             anchorJitterEnabled: lum.AnchorJitterEnabled ? 1 : 0,
             pmjCycleLength: 0,
@@ -566,9 +515,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             velocityRejectThreshold: lum.VelocityRejectThreshold,
             sunPosition: sunPosF,
             sunColor: sunColF,
-            ambientColor: capi.Render.AmbientColor,
-            matrixSpaceWorldChunkCoordOffset: frameBridge.Item1,
-            matrixSpaceWorldBlockOffsetRem: frameBridge.Item2);
+            ambientColor: capi.Render.AmbientColor);
     }
 
     #endregion
@@ -668,10 +615,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         }
 
         // Update matrices
-        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
-        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
         // Temporal debug reprojection must retain the same camera adjustment as the full view matrix.
-        UpdateCurrentViewProjMatrix();
         UpdateAndBindFrameUbo(lum);
 
         // Define-backed toggles must be set before Use() so the correct variant is bound.
@@ -756,8 +700,6 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             shader.WorldProbeUniformBuffer = worldProbeUbo;
         }
 
-        var terrainBridgeUbo = LumOnTerrainBridgeUboState.UboOrNull;
-        shader.LumOnTerrainBridge = terrainBridgeUbo;
 
         // Bind textures
         shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
@@ -932,7 +874,6 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
 
         // Store current matrix for next frame's reprojection
-        StorePrevViewProjMatrix();
     }
 
     private void OnDebugModeChanged(LumOnDebugMode prev, LumOnDebugMode current)
@@ -1021,9 +962,6 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Match the engine's high-precision rendering convention: vertices are
         // world - CameraPos, then transformed by the full CameraMatrixOriginf.
-        UpdateCurrentViewProjMatrix();
-
-        shader.ModelViewProjectionMatrix = currentViewProjMatrix;
         shader.WorldOffset = new Vec3f(0, 0, 0);
         debugSubmission.Draw("LumOn.Bounds", shader, clipmapBoundsGeometry, DebugLineLayout,
             new(0, clipmapBoundsCount), PrimitiveType.Lines, depthTest: true, lineWidth: 2);
@@ -1097,10 +1035,6 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         int stride = Marshal.SizeOf<LineVertex>();
         clipmapQueuedTraceRaysVbo.UploadData(clipmapQueuedTraceRayVertices, clipmapQueuedTraceRayVertexCount * stride);
-
-        UpdateCurrentViewProjMatrix();
-
-        shader.ModelViewProjectionMatrix = currentViewProjMatrix;
         shader.WorldOffset = new Vec3f(0, 0, 0);
         debugSubmission.Draw("LumOn.TraceRays", shader, clipmapQueuedTraceRaysGeometry, DebugLineLayout,
             new(0, clipmapQueuedTraceRayVertexCount), PrimitiveType.Lines, depthTest: true, lineWidth: 1.5f);
@@ -1492,16 +1426,10 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         // Match the engine's high-precision rendering convention: vertices are
         // world - CameraPos, then transformed by the full CameraMatrixOriginf.
-        UpdateCurrentViewProjMatrix();
-        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
-        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invViewMatrix);
         UpdateAndBindFrameUbo(config.LumOn);
 
         bool importanceColorMode = config.LumOn.DebugMode == LumOnDebugMode.WorldProbeImportance;
-
-        shader.ModelViewProjectionMatrix = currentViewProjMatrix;
         shader.WorldOffset = new Vec3f(0, 0, 0);
-        shader.CameraPos = new Vec3f(0, 0, 0);
         shader.PointSize = 18f;
         shader.ImportanceColorMode = importanceColorMode;
         float maxSpacing = clipmapDebugBaseSpacing * (1 << Math.Max(clipmapDebugLevels - 1, 0));
@@ -1519,7 +1447,8 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         shader.WorldProbeDebugState0 = res.ProbeDebugState0;
 
         // Publish + bind world-probe UBO (Phase 23). This debug pass only needs the sky tint.
-        System.Numerics.Vector3 camPosWs = new(invViewMatrix[12], invViewMatrix[13], invViewMatrix[14]);
+        var inverseView = VgeFrameRenderer.Current.InverseView;
+        System.Numerics.Vector3 camPosWs = new(inverseView[12], inverseView[13], inverseView[14]);
         uniformBuffers.UpdateWorldProbe(
             skyTint: capi.Render.AmbientColor,
             cameraPosWS: camPosWs,
@@ -1537,7 +1466,6 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             var markerShader = GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
             if (markerShader.EnsureReady())
             {
-                markerShader.ModelViewProjectionMatrix = currentViewProjMatrix;
                 markerShader.WorldOffset = new Vec3f(0, 0, 0);
                 debugSubmission.Draw("LumOn.OrbMarker", markerShader, closestProbeMarkerGeometry,
                     DebugPointLayout, new(0, 1), PrimitiveType.Points, pointSize: 12);

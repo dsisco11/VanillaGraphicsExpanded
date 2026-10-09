@@ -40,6 +40,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     private readonly ShaderTestFramework framework=new();
     private readonly Dictionary<string,GpuProgramObject> programs=new();
     private readonly GpuVao vao=GpuVao.Create();
+    private readonly VgeFrameUniformBuffer camera;
     private readonly Action bindTarget;
     private readonly Func<float[]> readTarget;
     private readonly List<IDisposable> resources=new();
@@ -51,6 +52,8 @@ internal sealed class TerrainDetailWorkload : IDisposable
     /// <summary>Creates static stage variants and identical render inputs before warmup begins.</summary>
     internal TerrainDetailWorkload(bool depthBias = false, bool observeClipDelta = false)
     {
+        camera = TestFrameCamera.CreateIdentity(256,256);
+        resources.Add(camera);
         string source=depthBias ? VertexSource.Replace("vec4(p,0,1)","vec4(p,p.y*.4,1)")
             .Replace("renderFlags=0;", "renderFlags=2<<8;gl_Position.w+=2*.00025/((gl_Position.z+3)*.05);") : VertexSource;
         string fragment=depthBias ? FragmentSource.Replace("worldPos.z,vge_surfaceDisplaced","gl_FragCoord.z,vge_surfaceDisplaced") : FragmentSource;
@@ -111,6 +114,8 @@ internal sealed class TerrainDetailWorkload : IDisposable
         topology=mode is "triangles" or "relief" or "reliefOff" ? PrimitiveType.Triangles : PrimitiveType.Patches;
         StateCache.Current.UseProgram(id);StateCache.Current.BindVertexArray(vao.VertexArrayId);StateCache.Current.SetPatchVertices(3);
         bindTarget();bindHeight(mode);
+        // Publish this fixture's actual view instead of inheriting a prior test's camera range.
+        Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
         var layout=GpuProgramLayout.TryBuild(id);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);
@@ -118,12 +123,11 @@ internal sealed class TerrainDetailWorkload : IDisposable
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementEnabled"),eligible && mode != "adaptiveDisabled"?1:0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementReactive"),reactive?1:0);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),256f,256f,8f,8f);
+        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),8f,8f);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),256f);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationDistance"),mode=="adaptiveFaded"?0f:10f,mode=="adaptiveFaded"?.1f:20f);
         float[] identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
         ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(id,"modelViewMatrix"),identity);
-        ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(id,"projectionMatrix"),identity);
     }
 
     /// <summary>Submits sixteen identical faces without readback or per-draw resource mutation.</summary>

@@ -12,7 +12,7 @@ out vec4 outColor;
 @import "./includes/squirrel3.glsl"
 @import "./includes/lumon_near_field_scene.glsl"
 @import "./includes/lumon_trace_scene_trace.glsl"
-@import "./includes/lumon_frame_worldspace_bridge.glsl"
+@import "./includes/vge_frame_worldspace.glsl"
 @import "./includes/lumon_debug_uniforms.glsl"
 
 
@@ -24,11 +24,11 @@ vec4 renderNearFieldGeometryDebug()
     if (size <= 0) return vec4(0.1, 0.2, 0.8, 1.0);
     // Inverse-view translation is the camera position relative to the terrain render origin.
     // Retain the absolute chunk component as integers; never convert the world origin to float.
-    vec3 camera = (invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz + matrixSpaceWorldBlockOffsetRem;
-    ivec3 cameraCell = ivec3(floor(camera)) + matrixSpaceWorldChunkCoordOffset * 32;
+    vec3 camera = (vgeFrame.invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz + vgeFrame.renderOriginBlockRemainder.xyz;
+    ivec3 cameraCell = ivec3(floor(camera)) + vgeFrame.renderOriginChunkCoord.xyz * 32;
     vec3 origin = vec3(cameraCell - traceNearMin.xyz) + fract(camera);
-    vec3 viewRay = lumonReconstructViewPos(uv, 0.5, invProjectionMatrix);
-    vec3 direction = normalize((invViewMatrix * vec4(normalize(viewRay), 0.0)).xyz);
+    vec3 viewRay = lumonReconstructViewPos(uv, 0.5, vgeFrame.invProjectionMatrix);
+    vec3 direction = normalize((vgeFrame.invViewMatrix * vec4(normalize(viewRay), 0.0)).xyz);
     // Clip to the local volume so observers outside its bounds can still inspect it.
     float enter = 0.0;
     float leave = 1e30;
@@ -108,7 +108,7 @@ vec4 renderNearFieldGeometryDebug()
 /** Renders only the NearFieldGeometry view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderNearFieldGeometryDebug();
 }

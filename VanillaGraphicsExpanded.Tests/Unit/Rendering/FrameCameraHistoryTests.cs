@@ -1,9 +1,10 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.LumOn;
 
-namespace VanillaGraphicsExpanded.Tests.Unit.LumOn;
+namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
 /// <summary>Verifies temporal matrices retain the render origin belonging to their committed frame.</summary>
-public sealed class LumOnTemporalReprojectionTests
+public sealed class FrameCameraHistoryTests
 {
     #region Frame lifecycle
     /// <summary>Rebasing composes through every perspective row, including homogeneous clip W.</summary>
@@ -11,7 +12,7 @@ public sealed class LumOnTemporalReprojectionTests
     public void CaptureComposesOriginDeltaThroughPerspectiveW()
     {
         float[] perspective = [2, 0, 0, 0, 0, 3, 0, 0, 0, 0, -1.02f, -1, 0, 0, -.202f, 0];
-        var history = new LumOnTemporalReprojection();
+        var history = new FrameCameraHistory();
         history.Capture(perspective, 16777216.25, 32, -16777216.25);
         history.Commit();
         history.Capture(perspective, 16777216.5, 32.5, -16777216.125);
@@ -29,7 +30,7 @@ public sealed class LumOnTemporalReprojectionTests
     {
         float[] first = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, .125f, -.25f, 0, 1];
         float[] second = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -.5f, .25f, 0, 1];
-        var history = new LumOnTemporalReprojection();
+        var history = new FrameCameraHistory();
         history.Capture(first, origin, 32, -origin);
         Assert.Equal(first, history.PreviousViewProjection);
         history.Commit();

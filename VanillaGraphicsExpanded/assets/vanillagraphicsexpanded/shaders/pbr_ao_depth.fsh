@@ -1,5 +1,6 @@
 #version 330 core
-layout(std140) uniform PostprocessInputs { vec4 pass; vec4 effect; vec4 sun; vec4 solar; };
+#extension GL_ARB_shading_language_420pack : require
+layout(std140, binding = 28) uniform PostprocessInputs { vec4 pass; vec4 effect; vec4 sun; vec4 solar; };
 uniform sampler2D sourceImage;
 layout(location=0) out vec2 outDepthRange;
 /** Reduces valid 2x2 footprints, including the last row/column of odd-sized inputs. */

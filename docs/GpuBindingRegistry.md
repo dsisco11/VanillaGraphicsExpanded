@@ -38,12 +38,13 @@ Rationale:
 
 These are global GL state. VGE reserves the following binding points:
 
-- 12: Frame UBO (per-frame constants) (`LumOnFrameUBO` today)
+- 12: Universal camera and frame UBO (`VgeFrameUBO`)
 - 13: WorldProbe UBO (`LumOnWorldProbeUBO` today)
 - 14: Object UBO (reserved)
 - 15: Material UBO (reserved)
 - 16: Lights UBO (reserved)
-- 27: Terrain bridge UBO (`LumOnTerrainBridgeUBO`)
+- 17: LumOn probe, history and lighting controls (`LumOnFrameUBO`)
+- 28: Program-owned numeric shader inputs
 
 Code source of truth: [VanillaGraphicsExpanded/Rendering/GpuBindingRegistry.cs](../VanillaGraphicsExpanded/Rendering/GpuBindingRegistry.cs)
 

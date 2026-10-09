@@ -25,7 +25,6 @@ internal sealed class CameraExposureRenderer : IRenderer
     private ArrayGraphicsGeometry? geometry;
     private GraphicsPipeline? histogramPipeline, adaptationPipeline;
     private CameraExposureParameters settings;
-    private float deltaTime;
     private bool reset = true;
     private bool published, captured, disposed;
 
@@ -68,7 +67,6 @@ internal sealed class CameraExposureRenderer : IRenderer
         var position = api.World.Player.Entity.Pos;
         reset |= history.Capture(settings, dt, position.X, position.Y, position.Z,
             position.Yaw, position.Pitch, position.Dimension, (int)api.Render.CameraType);
-        deltaTime = float.IsFinite(dt) ? Math.Clamp(dt, 0, 1) : 0;
         captured = true;
     }
     /// <summary>Runs at the engine postprocessing boundary after late scene contributors and before bloom/light shafts.</summary>
@@ -114,8 +112,9 @@ internal sealed class CameraExposureRenderer : IRenderer
         if (primary?.ColorTextureIds is not { Length: > 0 } colors || colors[0] == 0)
             throw new InvalidOperationException("VGE camera metering requires the completed HDR primary scene.");
         if (sceneTexture?.TextureId != colors[0]) { sceneTexture?.Dispose(); sceneTexture = new(colors[0]); }
-        histogram.Capture(settings, deltaTime, reset); histogram.SceneRadiance = sceneTexture;
-        adaptation.Capture(settings, deltaTime, reset);
+        reset |= VgeFrameRenderer.Current.CameraCut;
+        histogram.Capture(settings, reset); histogram.SceneRadiance = sceneTexture;
+        adaptation.Capture(settings, reset);
         adaptation.Histogram = targets.Histogram; adaptation.PreviousExposure = targets.Exposure;
         PreparePipeline(ref histogramPipeline, histogram, targets.HistogramTarget);
         PreparePipeline(ref adaptationPipeline, adaptation, targets.WriteTarget);

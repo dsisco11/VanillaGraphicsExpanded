@@ -64,6 +64,8 @@ public partial class LumOnScreenProbeAtlasProjectSh9ShaderProgram : LumOnShaderP
     // Per-frame state (probeGridSize) is provided via LumOnFrameUBO.
     #region Binding sources
     /// <summary>Supplies current frame storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasProjectSh9ShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnScreenProbeAtlasProjectSh9ShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
     GpuUniformBuffer? ILumOnScreenProbeAtlasProjectSh9ShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

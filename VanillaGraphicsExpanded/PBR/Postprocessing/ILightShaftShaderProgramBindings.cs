@@ -6,6 +6,9 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal interface ILightShaftShaderProgramBindings
 {
     #region Public API
+    /// <summary>Reuses the shared projection for scene-depth reconstruction.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies coherent draw parameters.</summary>
     [ShaderBinding("PostprocessInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }

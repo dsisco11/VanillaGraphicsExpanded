@@ -12,7 +12,7 @@ out vec4 outColor;
 @import "./includes/squirrel3.glsl"
 @import "./includes/lumon_near_field_scene.glsl"
 @import "./includes/lumon_trace_scene_trace.glsl"
-@import "./includes/lumon_frame_worldspace_bridge.glsl"
+@import "./includes/vge_frame_worldspace.glsl"
 @import "./includes/lumon_debug_uniforms.glsl"
 @import "./includes/debug/trace_scene_debug_sample.glsl"
 
@@ -21,7 +21,7 @@ out vec4 outColor;
 /** Renders only the TraceScenePayloadL0 view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = traceSceneDebugSample(screenPos, 57);
 }

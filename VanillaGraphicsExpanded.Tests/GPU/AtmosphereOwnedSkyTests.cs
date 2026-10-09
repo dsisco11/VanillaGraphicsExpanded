@@ -24,7 +24,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
 {
     #region Public API
     #region Engine inputs
-    /// <summary>Captures the installed sky's matrices, altitude and fivefold wind animation rate at its draw boundary.</summary>
+    /// <summary>Captures altitude and fivefold wind animation while shared camera fields remain outside the sky effect block.</summary>
     [Fact]
     public void CaptureBuildsCameraRelativeInputs()
     {
@@ -60,22 +60,16 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         using var inputs = new AtmosphereSkyInputs();
         inputs.Capture(api.Object, lighting, true);
         float[] actual = MemoryMarshal.Cast<byte, float>(inputs.Bytes).ToArray();
-        camera.Translation = Vector3.Zero;
-        Matrix4x4 expected = camera * Perspective(1.2f, 1.7f);
-        Assert.True(Matrix4x4.Invert(expected, out var inverse));
-        AssertClose(Elements(inverse), actual[..16]);
-        AssertClose(Elements(expected), actual[16..32]);
+        Assert.Equal(80, inputs.SizeBytes);
         Assert.Equal(originalView, view);
         view[12] = -345; view[13] = 900; view[14] = 12;
         inputs.Capture(api.Object, lighting, true);
         Assert.Equal(actual, MemoryMarshal.Cast<byte, float>(inputs.Bytes).ToArray());
-        Assert.Equal(new float[] { 0, 1, 0, -.2f }, actual[32..36]);
-        Assert.Equal(1, actual[39]);
-        Assert.Equal(23, actual[42]);
-        Assert.Equal(7, actual[43]);
-        Assert.Equal(new float[] { .1f, 1000, 1280, 720 }, actual[44..48]);
-        Assert.Equal(new float[] { .2f, .3f, .4f, .8f }, actual[48..52]);
-        Assert.Equal(new float[] { .5f, .25f, 10, 1 }, actual[52..56]);
+        Assert.Equal(new float[] { 0, 1, 0, -.2f }, actual[..4]);
+        Assert.Equal(23, actual[10]);
+        Assert.Equal(7, actual[11]);
+        Assert.Equal(new float[] { .2f, .3f, .4f, .8f }, actual[12..16]);
+        Assert.Equal(new float[] { .5f, .25f, 10, 1 }, actual[16..20]);
     }
 
     #endregion
@@ -343,7 +337,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
     {
         private readonly AtmosphereSkyShaderProgram program;
         private readonly AtmosphereModSystem atmosphere = new();
-        private readonly FixtureUniformInputs inputs = new(224);
+        private readonly FixtureUniformInputs inputs = new(80);
+        private readonly VgeFrameUniformBuffer cameraInputs = new();
         private readonly GpuVao vao = GpuVao.Create();
 
         private readonly DynamicTexture2D depth;
@@ -381,15 +376,17 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             Vector3 up = MathF.Abs(direction.Y) > .99f ? Vector3.UnitZ : Vector3.UnitY;
             Matrix4x4 viewProjection = transform ?? Matrix4x4.CreateLookAt(Vector3.Zero, direction, up) * Perspective(1.2f, 1);
             Assert.True(Matrix4x4.Invert(viewProjection, out var inverse));
-            inputs.Matrix(0, Elements(inverse));
-            inputs.Matrix(64, Elements(viewProjection));
+            float[] identity = Elements(Matrix4x4.Identity);
+            cameraInputs.Capture(Elements(viewProjection), identity, Elements(inverse), identity,
+                Elements(viewProjection), Elements(viewProjection), new(width, height), 0, 0,
+                Vector3.Zero, Vector3.Zero, 0, new(.1f, 100));
+            program.FrameInputs = cameraInputs;
             Vector3 source = sun ?? Vector3.UnitY;
-            inputs.Vector(128, source.X, source.Y, source.Z); inputs.Float(140, horizon);
-            inputs.Vector(144, 0, fogMin, flatFogDensity); inputs.Float(156, flatFogStart);
-            inputs.Vector(160, daylight, 0, 0); inputs.Float(172, 0);
-            inputs.Vector(176, .1f, 100, width); inputs.Float(188, height);
-            inputs.Vector(192, .5f, .25f, .125f); inputs.Float(204, underwater);
-            inputs.Vector(208, nightVision, psychedelic, 0); inputs.Float(220, linear ? 1 : 0);
+            inputs.Vector(0, source.X, source.Y, source.Z); inputs.Float(12, horizon);
+            inputs.Vector(16, 0, fogMin, flatFogDensity); inputs.Float(28, flatFogStart);
+            inputs.Vector(32, daylight, 0, 0); inputs.Float(44, 0);
+            inputs.Vector(48, .5f, .25f, .125f); inputs.Float(60, underwater);
+            inputs.Vector(64, nightVision, psychedelic, 0); inputs.Float(76, linear ? 1 : 0);
             program.SkyLookup = AtmosphereModSystem.SkyTextureId;
             program.LiquidDepth = depth.TextureId;
             Target.BindWithViewport();
@@ -413,7 +410,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         }
         /// <summary>Retires the test publication and geometry before their shared context closes.</summary>
         public void Dispose()
-        { inputs.Dispose(); vao.Dispose(); atmosphere.Dispose(); }
+        { inputs.Dispose(); cameraInputs.Dispose(); vao.Dispose(); atmosphere.Dispose(); }
         #endregion
     }
     #endregion

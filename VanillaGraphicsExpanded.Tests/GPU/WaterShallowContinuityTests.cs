@@ -81,7 +81,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         inputs.Scenario = 12; inputs.Quality = quality; inputs.Budget = 1 << quality; inputs.SelectReceiver = 1;
-        inputs.FrameSize = new(size); inputs.Normal = Vector3.Normalize(new Vector3(curved ? -.7f : -.4f,0,1));
+        inputs.Normal = Vector3.Normalize(new Vector3(curved ? -.7f : -.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
@@ -90,8 +90,9 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3,1,.1f,100);
         projection.M33 = -100.1f/99.9f; projection.M43 = -20f/99.9f;
         Assert.True(Matrix4x4.Invert(projection,out var inverse));
-        inputs.Projection = projection; inputs.InverseProjection = inverse;
-        filterInputs.InverseProjection = inverse; filterInputs.FullFrameSize = new(size);
+        using var frameCamera = TestFrameCamera.CreateFromProjection(projection, size, size);
+        program.FrameInputs = frameCamera;
+        filter.FrameInputs = frameCamera;
         filterInputs.Normal = inputs.Normal; filterInputs.Color = halfColor ?? color; filterInputs.Depth = halfDepth ?? depth;
         using var filterTarget = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
         float maximumJump = 0, maximumAssociationError = 0;

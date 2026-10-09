@@ -10,13 +10,13 @@
 layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnSceneFeedbackGatherParamsUBO
 {
     // x = maxRequests
-    // y = frameIndex (stored as uint)
+    // y reserved; randomized sampling uses VgeFrameUBO.frameIndex
     // z = sampleCount
     // w reserved
     uvec4 u0;
 
-    // x = screenWidth
-    // y = screenHeight
+    // x = patch-ID source width
+    // y = patch-ID source height
     // z/w reserved
     uvec4 u1;
 } vgeFeedbackGatherParams;

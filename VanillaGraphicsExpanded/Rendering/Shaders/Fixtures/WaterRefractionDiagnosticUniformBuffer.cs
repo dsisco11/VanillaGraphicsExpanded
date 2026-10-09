@@ -8,20 +8,13 @@ internal sealed class WaterRefractionDiagnosticUniformBuffer : CpuUniformBuffer
 {
     #region Public API
     /// <summary>Creates zero-default inputs with immutable single-frame publication.</summary>
-    internal WaterRefractionDiagnosticUniformBuffer() : base(192) { }
+    internal WaterRefractionDiagnosticUniformBuffer() : base(64) { }
 
     /// <summary>Selects the independently authored optical geometry.</summary>
     internal int Scenario
     {
         get => MemoryMarshal.Read<int>(Bytes.Slice(0));
         set => WriteInt32(0, value);
-    }
-
-    /// <summary>Supplies full-frame projection dimensions.</summary>
-    internal Vector2 FrameSize
-    {
-        get => MemoryMarshal.Read<Vector2>(Bytes.Slice(8));
-        set => WriteVector2(8, value);
     }
 
     /// <summary>Supplies an optional independently reconstructed surface for diagnostic scenario twelve.</summary>
@@ -66,18 +59,5 @@ internal sealed class WaterRefractionDiagnosticUniformBuffer : CpuUniformBuffer
         set => WriteInt32(56, value);
     }
 
-    /// <summary>Supplies the CPU-authored projection used to generate the receiver depths.</summary>
-    internal Matrix4x4 Projection
-    {
-        get => MemoryMarshal.Read<Matrix4x4>(Bytes.Slice(64));
-        set => WriteMatrix4(64, value);
-    }
-
-    /// <summary>Supplies its CPU inverse for production receiver reconstruction.</summary>
-    internal Matrix4x4 InverseProjection
-    {
-        get => MemoryMarshal.Read<Matrix4x4>(Bytes.Slice(128));
-        set => WriteMatrix4(128, value);
-    }
     #endregion
 }

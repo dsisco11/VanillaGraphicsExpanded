@@ -7,6 +7,9 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 internal interface IWaterPixelNormalRefractionBindings
 {
     #region Public API
+    /// <summary>Reuses the optical fixture camera through the universal frame contract.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Publishes the complete retained optical input block.</summary>
     [ShaderBinding("WaterPixelNormalRefractionInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }
@@ -22,17 +25,11 @@ internal interface IWaterPixelNormalRefractionBindings
     /// <summary>Supplies the oriented view-space interface normal.</summary>
     Vector3 Normal { get; set; }
 
-    /// <summary>Projects optical geometry using the complete camera projection.</summary>
-    Matrix4x4 Projection { get; set; }
 
-    /// <summary>Supplies original view dimensions independently of background resolution.</summary>
-    Vector2 FrameSize { get; set; }
 
     /// <summary>Selects the submerged-camera exit interface.</summary>
     int Underwater { get; set; }
 
-    /// <summary>Reconstructs receivers with the CPU inverse of the supplied camera projection.</summary>
-    Matrix4x4 InverseProjection { get; set; }
 
     /// <summary>Supplies the underlying geometric normal before wave detail.</summary>
     Vector3 BaseNormal { get; set; }

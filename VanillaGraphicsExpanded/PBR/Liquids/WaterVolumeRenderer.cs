@@ -91,7 +91,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             program.VolumeTransportEnabled = false;
             program.RefractionEnabled = false;
             program.WaveFrame = waves;
-            program.ModelViewMatrix = api.Render.CameraMatrixOriginf;
+            program.ResetModelTransform();
             program.ForcedTransparency = 0;
             program.DepthTexture = SceneColor.SceneColorParticleCapture.ReceiverDepth(api, primary.DepthTextureId);
             program.ShadowMapNear = api.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;

@@ -1,5 +1,6 @@
 #version 330 core
 @import "./includes/camera_exposure_inputs.glsl"
+@import "./includes/vge_frame_ubo.glsl"
 uniform sampler2D histogram;
 uniform sampler2D previousExposure;
 layout(location=0) out float exposureEV;
@@ -34,6 +35,6 @@ void main()
     }
     float target=accepted>0.0 ? clamp(log2(exposureRange.w)-sum/accepted+exposureRange.z,
         exposureRange.x,exposureRange.y) : previous;
-    exposureEV=clamp(adaptation.w>.5 ? target : adaptEV(previous,target,max(adaptation.x,0.0)),
+    exposureEV=clamp(adaptation.w>.5 ? target : adaptEV(previous,target,max(vgeFrame.deltaTime,0.0)),
         exposureRange.x,exposureRange.y);
 }

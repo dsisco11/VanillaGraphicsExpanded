@@ -6,14 +6,10 @@
 #define VGE_WORLDPROBE_ORBS_POINTS_PARAMS_UBO_GLSL
 
 @import "./vge_ubo_layout.glsl"
+@import "./vge_frame_ubo.glsl"
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeWorldProbeOrbsPointsParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeWorldProbeOrbsPointsParamsUBO
 {
-    mat4 modelViewProjectionMatrix;
-
-    // cameraPos.xyz, reserved.w
-    vec4 cameraPos0;
-
     // worldOffset.xyz, pointSize.w
     vec4 worldOffset_pointSize;
 
@@ -21,8 +17,6 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeWorldProbeOrbsPointsParamsUBO
     vec4 fade0;
 } vgeWorldProbeOrbsPointsParams;
 
-#define modelViewProjectionMatrix (vgeWorldProbeOrbsPointsParams.modelViewProjectionMatrix)
-#define cameraPos (vgeWorldProbeOrbsPointsParams.cameraPos0.xyz)
 #define worldOffset (vgeWorldProbeOrbsPointsParams.worldOffset_pointSize.xyz)
 #define pointSize (vgeWorldProbeOrbsPointsParams.worldOffset_pointSize.w)
 #define fadeNear (vgeWorldProbeOrbsPointsParams.fade0.x)

@@ -10,6 +10,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisplayShaderProgramBindings
 {
     private readonly FinalDisplayInputs inputs;
+    private VgeFrameUniformBuffer? frameInputs;
     #region Public API
     /// <summary>Declares the owned executable identity.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
@@ -28,9 +29,17 @@ internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisp
     public partial GpuTexture? ShaftImage { set; }
     /// <summary>Stages the ExposureImage sampler.</summary>
     public partial GpuTexture? ExposureImage { set; }
-    /// <summary>Stages frame dimensions, native grading and published camera exposure.</summary>
-    internal void Capture(Vector4 frame,FinalDisplayParameters display,Vector4 exposure)=>inputs.Capture(frame,display,exposure);
+    /// <summary>Borrows a camera/frame snapshot for alternate views and fixtures.</summary>
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
+    /// <summary>Stages native grading, antialiasing and published camera exposure.</summary>
+    internal void Capture(bool antialias,FinalDisplayParameters display,Vector4 exposure)=>inputs.Capture(antialias,display,exposure);
     /// <summary>Supplies the generated block binding.</summary>
     CpuUniformBuffer IFinalDisplayShaderProgramBindings.Inputs=>inputs;
+    /// <summary>Reuses the existing shared view publication for full-resolution pixel spacing.</summary>
+    CpuUniformBuffer IFinalDisplayShaderProgramBindings.FrameInputs=>frameInputs ?? VgeFrameRenderer.Current;
     #endregion
 }

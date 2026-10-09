@@ -10,6 +10,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal sealed partial class LightShaftShaderProgram : GpuProgram, ILightShaftShaderProgramBindings
 {
     private readonly PostprocessInputs inputs;
+    private VgeFrameUniformBuffer? frameInputs;
     #region Public API
     /// <summary>Declares compilation and reload identity.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
@@ -30,6 +31,10 @@ internal sealed partial class LightShaftShaderProgram : GpuProgram, ILightShaftS
     /// <summary>Captures the complete draw parameters for the shader contract.</summary>
     internal void Capture(Vector4 pass, Vector4 effect, Vector4 sun = default, Vector4 solar = default)
         => inputs.Capture(pass, effect, sun, solar);
+    /// <summary>Selects a retained alternate-view snapshot for controlled offscreen submissions.</summary>
+    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
+    /// <summary>Shares the world camera unless the submitting owner supplies a distinct view.</summary>
+    CpuUniformBuffer ILightShaftShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Publishes the retained input block.</summary>
     CpuUniformBuffer ILightShaftShaderProgramBindings.Inputs => inputs;
     #endregion

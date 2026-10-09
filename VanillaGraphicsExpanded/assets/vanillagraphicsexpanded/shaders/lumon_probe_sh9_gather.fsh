@@ -64,7 +64,7 @@ ProbeData loadProbe(ivec2 probeCoord, ivec2 probeGridSizeI)
     vec4 anchorNormal = texelFetch(probeAnchors, ivec3(probeCoord, VGE_ANCHOR_NORMAL), 0);
     p.normalWS = lumonDecodeNormal(anchorNormal.xyz);
 
-    vec4 posVS = viewMatrix * vec4(p.posWS, 1.0);
+    vec4 posVS = vgeFrame.viewMatrix * vec4(p.posWS, 1.0);
     p.depthVS = -posVS.z;
 
     return p;
@@ -91,7 +91,7 @@ float computeProbeWeight(
 }
 
 /** Evaluates Lambertian SH using the coefficient packet already fetched with probe reliability. */
-vec3 evaluateProbeIrradiance(ivec2 probeCoord, vec3 normalWS, vec4 lastCoefficients)
+vec3 evaluateProbeIrradiance(ivec2 probeCoord, vec3 normalWS, vec4 lastCoefficients, inout float confidence)
 {
     vec4 t0 = texelFetch(probeSh9, ivec3(probeCoord, 0), 0);
     vec4 t1 = texelFetch(probeSh9, ivec3(probeCoord, 1), 0);
@@ -99,7 +99,7 @@ vec3 evaluateProbeIrradiance(ivec2 probeCoord, vec3 normalWS, vec4 lastCoefficie
     vec4 t3 = texelFetch(probeSh9, ivec3(probeCoord, 3), 0);
     vec4 t4 = texelFetch(probeSh9, ivec3(probeCoord, 4), 0);
     vec4 t5 = texelFetch(probeSh9, ivec3(probeCoord, 5), 0);
-    return lumonSH9EvaluateDiffusePacked(t0, t1, t2, t3, t4, t5, lastCoefficients, normalWS);
+    return lumonSH9EvaluateSupportedDiffusePacked(t0, t1, t2, t3, t4, t5, lastCoefficients, normalWS, confidence);
 }
 
 /** Interpolates supported screen projections and delegates unavailable lighting to the existing fallback policy. */
@@ -108,20 +108,20 @@ void main(void)
     ivec2 bestFull;
     float pixelDepth;
     vec3 pixelNormalWS;
-    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferSurface, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
+    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferSurface, ivec2(vgeFrame.screenSize), bestFull, pixelDepth, pixelNormalWS))
     {
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
-    vec2 screenUV = (vec2(bestFull) + 0.5) / screenSize;
+    vec2 screenUV = (vec2(bestFull) + 0.5) / vgeFrame.screenSize;
 
-    vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
+    vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, vgeFrame.invProjectionMatrix);
     float pixelDepthVS = -pixelPosVS.z;
 
     // pixelNormalWS already selected from full-res G-buffer (see helper)
 
-    vec2 screenPos = screenUV * screenSize;
+    vec2 screenPos = screenUV * vgeFrame.screenSize;
     vec2 probePos = lumonScreenToProbeAnchorPos(screenPos, float(probeSpacing));
 
     ivec2 probe00 = ivec2(floor(probePos));
@@ -141,6 +141,12 @@ void main(void)
     ProbeData p10 = loadProbe(probe10, probeGridSizeI);
     ProbeData p01 = loadProbe(probe01, probeGridSizeI);
     ProbeData p11 = loadProbe(probe11, probeGridSizeI);
+
+    // Validate directional reconstruction before confidence chooses screen or world support.
+    vec3 irr00 = evaluateProbeIrradiance(clamp(probe00, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p00.lastCoefficients, p00.lastCoefficients.a);
+    vec3 irr10 = evaluateProbeIrradiance(clamp(probe10, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p10.lastCoefficients, p10.lastCoefficients.a);
+    vec3 irr01 = evaluateProbeIrradiance(clamp(probe01, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p01.lastCoefficients, p01.lastCoefficients.a);
+    vec3 irr11 = evaluateProbeIrradiance(clamp(probe11, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p11.lastCoefficients, p11.lastCoefficients.a);
 
     float w00 = computeProbeWeight(bw00, pixelDepthVS, p00.depthVS, pixelNormalWS, p00.normalWS, p00.valid, p00.lastCoefficients.a);
     float w10 = computeProbeWeight(bw10, pixelDepthVS, p10.depthVS, pixelNormalWS, p10.normalWS, p10.valid, p10.lastCoefficients.a);
@@ -176,11 +182,6 @@ void main(void)
         w01 *= invW;
         w11 *= invW;
 
-        vec3 irr00 = (p00.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe00, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p00.lastCoefficients) : vec3(0.0);
-        vec3 irr10 = (p10.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe10, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p10.lastCoefficients) : vec3(0.0);
-        vec3 irr01 = (p01.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe01, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p01.lastCoefficients) : vec3(0.0);
-        vec3 irr11 = (p11.valid >= 0.5) ? evaluateProbeIrradiance(clamp(probe11, ivec2(0), probeGridSizeI - 1), pixelNormalWS, p11.lastCoefficients) : vec3(0.0);
-
         screenIrradiance = irr00 * w00 + irr10 * w10 + irr01 * w01 + irr11 * w11;
         screenIrradiance = max(screenIrradiance, vec3(0.0));
     }
@@ -189,7 +190,7 @@ void main(void)
         screenConfidence = 0.0;
     }
 
-    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+    vec3 pixelPosWS = (vgeFrame.invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
     LumOnWorldProbeGatherResult gatherResult = lumonResolveWorldProbeGather(
         screenIrradiance,
         screenConfidence,

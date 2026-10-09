@@ -40,12 +40,12 @@ internal sealed class LightShaftRenderer : IDisposable
         return pipeline=draw.Prepare(shader,first.Target);
     }
     /// <summary>Extracts unexposed HDR glare, filters both independent signals, and publishes separate outputs.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,ICoreClientAPI api,float[] projection,
+    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,ICoreClientAPI api,VgeFrameUniformBuffer frame,
         GpuTexture scene,GpuTexture glow,GpuTexture depth,(GpuTexture? Texture,float ManualEV) exposure,PostprocessParameters settings,bool occlusionOnly=false)
     {
         var lighting=AtmosphereModSystem.Lighting??throw new InvalidOperationException("Atmospheric lighting is unavailable for solar shafts.");
-        Span<float> transform=stackalloc float[16];
-        MatrixHelper.Multiply(projection,api.Render.CameraMatrixOriginf,transform);
+        var transform=frame.CurrentViewProjection;
+        shader!.FrameInputs=frame;
         Vector3 direction=lighting.Sun;
         float x=transform[0]*direction.X+transform[4]*direction.Y+transform[8]*direction.Z;
         float y=transform[1]*direction.X+transform[5]*direction.Y+transform[9]*direction.Z;
@@ -63,7 +63,7 @@ internal sealed class LightShaftRenderer : IDisposable
         var solar=new Vector4(tint,128);
         shader!.SourceImage=scene; shader.VisibilityImage=glow; shader.DepthImage=depth;
         shader.ExposureImage=exposure.Texture??scene;
-        shader.Capture(new(projection[10],projection[14],occlusionOnly?4:0,exposure.Texture is null?0:1),
+        shader.Capture(new(0,0,occlusionOnly?4:0,exposure.Texture is null?0:1),
             new(settings.BloomThreshold,settings.LightShaftLimit,settings.LightShaftStrength,exposure.ManualEV),sun,solar);
         draw.Submit(commands,pipeline!,first!.Target);
         // Ping-pong keeps every sampling source distinct from the active draw attachment.

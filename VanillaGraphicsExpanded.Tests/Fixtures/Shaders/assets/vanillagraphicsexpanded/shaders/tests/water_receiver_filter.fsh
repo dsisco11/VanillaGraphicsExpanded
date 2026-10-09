@@ -1,11 +1,14 @@
 #version 450 core
+@import "../includes/vge_frame_ubo.glsl"
+// Imported optical kernels reuse the universal camera without private fixture copies.
+#define projectionMatrix (vgeFrame.projectionMatrix)
+#define inverseProjectionMatrix (vgeFrame.invProjectionMatrix)
+#define frameSize (vgeFrame.screenSize)
 layout(std140, binding = 28) uniform WaterReceiverFilterInputs
 {
     vec2 sampleUv;
     vec3 surfaceVS;
     vec3 normalVS;
-    mat4 inverseProjection;
-    vec2 frameSize;
 };
 
 
@@ -26,7 +29,7 @@ layout(location=2) out vec4 receiverOperations;
 void main()
 {
     vec3 position = vec3(0), radiance = vec3(0);
-    bool valid = VgeRefractionFilter(sampleUv, surfaceVS, normalVS, inverseProjection, position, radiance);
+    bool valid = VgeRefractionFilter(sampleUv, surfaceVS, normalVS, inverseProjectionMatrix, position, radiance);
     receiverPosition = vec4(position, valid ? 1 : 0);
     receiverColor = vec4(radiance, valid ? 1 : 0);
     receiverOperations = vec4(receiverWork);

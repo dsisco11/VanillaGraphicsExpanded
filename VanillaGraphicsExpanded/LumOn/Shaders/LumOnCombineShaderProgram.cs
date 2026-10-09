@@ -168,6 +168,8 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     #endregion
     #region Binding sources
     /// <summary>Supplies shared lighting storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnCombineShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnCombineShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies packed parameters for one publication per use.</summary>
     CpuUniformBuffer ILumOnCombineShaderProgramBindings.Parameters => Params;

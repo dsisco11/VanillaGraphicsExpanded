@@ -8,7 +8,7 @@ layout(location=0) out vec4 outOcclusion;
 /** Applies a joint depth/normal filter, then reconstructs full-resolution visibility from matched receivers. */
 void main() {
     ivec2 sourceSize=textureSize(sourceImage,0);
-    vec2 uv=gl_FragCoord.xy/(aoFrame.w<0.5?vec2(sourceSize):aoFrame.xy);
+    vec2 uv=gl_FragCoord.xy/(aoFrame.w<0.5?vec2(sourceSize):vgeFrame.screenSize);
     ivec2 center=clamp(ivec2(uv*vec2(sourceSize)),ivec2(0),sourceSize-1);
     vec4 receiver=texelFetch(sourceImage,center,0);
     vec3 normal=VgeAoDecodeNormal(receiver.ba);
@@ -20,7 +20,7 @@ void main() {
         }
         float receiverDepth=-VgeAoPosition(uv,d).z;
         if(receiverDepth>=aoDistance.y) {outOcclusion=vec4(1,0,0,0);return;}
-        normal=normalize(mat3(aoView)*(encoded.xyz*2.0-1.0));
+        normal=normalize(mat3(vgeFrame.viewMatrix)*(encoded.xyz*2.0-1.0));
         receiver=vec4(1,receiverDepth,VgeAoEncodeNormal(normal));
     }
     if(receiver.g<=0.0) {outOcclusion=vec4(1,0,0,0);return;}

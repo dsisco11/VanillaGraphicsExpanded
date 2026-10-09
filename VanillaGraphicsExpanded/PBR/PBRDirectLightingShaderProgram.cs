@@ -29,7 +29,7 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     internal override GpuShaderContract ProgramContract => Contract;
 
     // Cached state for compound properties
-    private float _zNear, _zFar, _shadowRangeNear, _shadowRangeFar;
+    private float _shadowRangeNear, _shadowRangeFar;
     private float _shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity;
 
     protected override GpuProgramLayout CreateLayout() => new PbrDirectLightingProgramLayout();
@@ -95,22 +95,12 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
 
     #region Matrices
 
-    public float[] InvProjectionMatrix
+    /// <summary>Borrows a common frame snapshot for alternate views and fixtures.</summary>
+    private VgeFrameUniformBuffer? frameInputs;
+    internal VgeFrameUniformBuffer? FrameInputs
     {
-        set
-        {
-            RequireInputMutation();
-            Params.InvProjectionMatrix = value;
-        }
-    }
-
-    public float[] InvModelViewMatrix
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.InvModelViewMatrix = value;
-        }
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
     }
 
     public float[] ToShadowMapSpaceMatrixNear
@@ -133,61 +123,39 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
 
     #endregion
 
-    #region Z Planes and Shadow Ranges
+    #region Shadow ranges
 
-    /// <summary>
-    /// Sets all Z planes and shadow ranges at once (use for batch updates).
-    /// </summary>
-    public (float zNear, float zFar, float shadowRangeNear, float shadowRangeFar) ZPlanesAndShadowRanges
+    /// <summary>Sets the effect-specific cascade ranges without republishing camera clip planes.</summary>
+    public (float near, float far) ShadowRanges
     {
         set
         {
             RequireInputMutation();
-            _zNear = value.zNear;
-            _zFar = value.zFar;
-            _shadowRangeNear = value.shadowRangeNear;
-            _shadowRangeFar = value.shadowRangeFar;
-            Params.ZPlanesAndShadowRanges = value;
+            _shadowRangeNear = value.near;
+            _shadowRangeFar = value.far;
+            Params.ShadowRanges = value;
         }
     }
 
-    public float ZNear
-    {
-        set
-        {
-            RequireInputMutation();
-            _zNear = value;
-            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
-        }
-    }
-
-    public float ZFar
-    {
-        set
-        {
-            RequireInputMutation();
-            _zFar = value;
-            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
-        }
-    }
-
+    /// <summary>Sets the near cascade range while retaining the far cascade range.</summary>
     public float ShadowRangeNear
     {
         set
         {
             RequireInputMutation();
             _shadowRangeNear = value;
-            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
+            Params.ShadowRanges = (_shadowRangeNear, _shadowRangeFar);
         }
     }
 
+    /// <summary>Sets the far cascade range while retaining the near cascade range.</summary>
     public float ShadowRangeFar
     {
         set
         {
             RequireInputMutation();
             _shadowRangeFar = value;
-            Params.ZPlanesAndShadowRanges = (_zNear, _zFar, _shadowRangeNear, _shadowRangeFar);
+            Params.ShadowRanges = (_shadowRangeNear, _shadowRangeFar);
         }
     }
 
@@ -295,5 +263,7 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     #region Binding sources
     /// <summary>Supplies packed parameters for one publication per use.</summary>
     CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.Parameters => Params;
+    /// <summary>Reuses the published camera block across direct and composite passes.</summary>
+    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.FrameInputs => FrameInputs ?? VgeFrameRenderer.Current;
     #endregion
 }

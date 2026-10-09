@@ -10,6 +10,9 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 internal interface ILumonSceneRelightVoxelDdaComputeShaderBindings
 {
     #region Public API
+    /// <summary>Reuses the shared integer rendering frame for randomized sampling.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Compute)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the VgeLumOnSceneRelightParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnSceneRelightParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
     CpuUniformBuffer Parameters { get; }
@@ -40,9 +43,6 @@ internal interface ILumonSceneRelightVoxelDdaComputeShaderBindings
     /// <summary>Declares the VgePatchMetadata StorageBlock slot.</summary>
     [ShaderBinding("VgePatchMetadata", ShaderBindingKind.StorageBlock, 1, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer PatchMetadata { set; }
-    /// <summary>Retains external terrain lighting parameters.</summary>
-    [ShaderBinding("LumOnTerrainBridgeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.TerrainBridge, ShaderStageKind.Compute)]
-    GpuUniformBuffer? TerrainBridge { set; }
     /// <summary>Retains diagnostic counters without clearing their contents.</summary>
     [ShaderBinding("vge_dbgRays", ShaderBindingKind.AtomicCounter, 0, ShaderStageKind.Compute, Required = false)]
     GpuAtomicCounterBuffer? DebugCounters { set; }

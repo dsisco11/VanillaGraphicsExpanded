@@ -58,6 +58,8 @@ public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnP
     }
 
     /// <summary>Supplies shared frame storage through the existing uniform-block contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnProbeAnchorShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnProbeAnchorShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies packed parameters for one generated publication per use.</summary>
     CpuUniformBuffer ILumOnProbeAnchorShaderProgramBindings.Parameters => Params;

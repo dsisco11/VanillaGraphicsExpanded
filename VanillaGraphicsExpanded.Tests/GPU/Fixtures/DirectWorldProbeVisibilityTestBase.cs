@@ -128,7 +128,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             float[] inverseView = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,viewY,0,1];
             float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-viewY,0,1];
             var origin = playerOrigin ?? new Vector3d(worldOffset.X, worldOffset.Y, worldOffset.Z);
-            var bridge = LumOnFrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
+            var bridge = FrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
             float[] inverse = [span,0,0,0, 0,span,0,0, 0,0,1,0, sampleCenter.X,sampleCenter.Y-viewY,sampleCenter.Z,1];
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverse,
                 invViewMatrix: inverseView, viewMatrix: view,

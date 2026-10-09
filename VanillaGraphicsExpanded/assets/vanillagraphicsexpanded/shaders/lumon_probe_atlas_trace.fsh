@@ -95,7 +95,7 @@ bool legacyShouldTraceThisFrame(ivec2 octTexel, int probeIndex) {
     int batch = texelIndex / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
 
     // Add per-probe jitter to avoid all probes tracing the same texels
-    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
+    int jitteredFrame = int((vgeFrame.frameIndex + uint(probeIndex)) % uint(numBatches));
 
     return batch == jitteredFrame;
 }
@@ -145,7 +145,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         vec3 samplePos = originVS + directionVS * t;
 
         // Project to screen
-        vec2 sampleUV = lumonProjectToScreen(samplePos, projectionMatrix);
+        vec2 sampleUV = lumonProjectToScreen(samplePos, vgeFrame.projectionMatrix);
 
         // Check bounds - break early if ray exits screen
         if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
@@ -160,7 +160,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
         float coarseDepth = texelFetch(hzbDepth, hzbCoord, mip).r;
 
         if (!lumonIsSky(coarseDepth)) {
-            vec4 clip = projectionMatrix * vec4(samplePos, 1.0);
+            vec4 clip = vgeFrame.projectionMatrix * vec4(samplePos, 1.0);
             float ndcZ = clip.z / max(1e-6, clip.w);
             float sampleDepthRaw = ndcZ * 0.5 + 0.5;
 
@@ -179,7 +179,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
             continue;
         }
 
-        vec3 scenePos = lumonReconstructViewPos(sampleUV, sceneDepth, invProjectionMatrix);
+        vec3 scenePos = lumonReconstructViewPos(sampleUV, sceneDepth, vgeFrame.invProjectionMatrix);
 
         // Depth test with thickness
         float depthDiff = scenePos.z - samplePos.z;
@@ -264,9 +264,9 @@ void main(void)
     vec3 rayDirWS = lumonOctahedralUVToDirection(octUV);
 
     // Transform probe position and ray direction to view-space for ray marching
-    vec3 probePosVS = (viewMatrix * vec4(probePosWS, 1.0)).xyz;
-    vec3 rayDirVS = normalize(mat3(viewMatrix) * rayDirWS);
-    vec3 probeNormalVS = normalize(mat3(viewMatrix) * probeNormalWS);
+    vec3 probePosVS = (vgeFrame.viewMatrix * vec4(probePosWS, 1.0)).xyz;
+    vec3 rayDirVS = normalize(mat3(vgeFrame.viewMatrix) * rayDirWS);
+    vec3 probeNormalVS = normalize(mat3(vgeFrame.viewMatrix) * probeNormalWS);
 
     // Offset origin slightly to avoid self-intersection
     vec3 rayOriginVS = probePosVS + probeNormalVS * 0.01;
@@ -285,8 +285,8 @@ void main(void)
     int cacheLevel; float cacheRadius; float nearFieldDistance;
     bool cacheCovered = lumonNearFieldCacheCoverage(probePosWS, cacheLevel, cacheRadius, nearFieldDistance);
     if (!cacheCovered) nearFieldDistance = VGE_LUMON_RAY_MAX_DISTANCE;
-    vec3 matrixOrigin = probePosWS + probeNormalWS * 0.001 + matrixSpaceWorldBlockOffsetRem;
-    ivec3 startCell = ivec3(floor(matrixOrigin)) + matrixSpaceWorldChunkCoordOffset * 32;
+    vec3 matrixOrigin = probePosWS + probeNormalWS * 0.001 + vgeFrame.renderOriginBlockRemainder.xyz;
+    ivec3 startCell = ivec3(floor(matrixOrigin)) + vgeFrame.renderOriginChunkCoord.xyz * 32;
     // A screen hit supplies depth, not reflected radiance. Resolve its supported voxel
     // surface with the same first-hit traversal and lighting source used off screen.
     // Include the screen thickness and origin-offset difference at the segment end.

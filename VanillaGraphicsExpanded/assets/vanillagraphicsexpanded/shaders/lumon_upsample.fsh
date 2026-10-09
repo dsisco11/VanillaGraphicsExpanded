@@ -41,13 +41,13 @@ uniform sampler2DArray gBufferSurface;
  */
 vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
     // UE-style plane weighting: evaluate distance-to-plane in view space.
-    ivec2 maxFull = ivec2(screenSize) - 1;
-    ivec2 centerPx = clamp(ivec2(fullResUV * screenSize), ivec2(0), maxFull);
+    ivec2 maxFull = ivec2(vgeFrame.screenSize) - 1;
+    ivec2 centerPx = clamp(ivec2(fullResUV * vgeFrame.screenSize), ivec2(0), maxFull);
     float centerDepthRaw = texelFetch(primaryDepth, centerPx, 0).r;
-    vec3 centerPosVS = lumonReconstructViewPos(fullResUV, centerDepthRaw, invProjectionMatrix);
+    vec3 centerPosVS = lumonReconstructViewPos(fullResUV, centerDepthRaw, vgeFrame.invProjectionMatrix);
     float centerDepthVS = max(-centerPosVS.z, 1.0);
 
-    vec3 centerNormalVS = normalize(mat3(viewMatrix) * centerNormal);
+    vec3 centerNormalVS = normalize(mat3(vgeFrame.viewMatrix) * centerNormal);
     // Map to half-res coordinates
     vec2 halfResCoord = fullResUV * halfResSize - 0.5;
     ivec2 baseCoord = ivec2(floor(halfResCoord));
@@ -68,15 +68,15 @@ vec3 bilateralUpsample(vec2 fullResUV, float centerDepth, vec3 centerNormal) {
             ivec2 bestFull;
             float sampleDepthRaw;
             vec3 sampleNormal;
-            if (!lumonSelectGuidesForHalfResCoord(sampleCoord, primaryDepth, gBufferSurface, ivec2(screenSize), bestFull, sampleDepthRaw, sampleNormal))
+            if (!lumonSelectGuidesForHalfResCoord(sampleCoord, primaryDepth, gBufferSurface, ivec2(vgeFrame.screenSize), bestFull, sampleDepthRaw, sampleNormal))
             {
                 continue;
             }
 
-            float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
+            float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
 
-            vec2 sampleUV = (vec2(bestFull) + 0.5) / screenSize;
-            vec3 samplePosVS = lumonReconstructViewPos(sampleUV, sampleDepthRaw, invProjectionMatrix);
+            vec2 sampleUV = (vec2(bestFull) + 0.5) / vgeFrame.screenSize;
+            vec3 samplePosVS = lumonReconstructViewPos(sampleUV, sampleDepthRaw, vgeFrame.invProjectionMatrix);
 
             // Bilinear weight
             float bx = (dx == 0) ? (1.0 - fracCoord.x) : fracCoord.x;
@@ -151,12 +151,12 @@ vec3 holeFillResolve(vec2 fullResUV, float centerDepth, vec3 centerNormal)
             ivec2 bestFull;
             float sampleDepthRaw;
             vec3 sampleNormal;
-            if (!lumonSelectGuidesForHalfResCoord(sampleCoord, primaryDepth, gBufferSurface, ivec2(screenSize), bestFull, sampleDepthRaw, sampleNormal))
+            if (!lumonSelectGuidesForHalfResCoord(sampleCoord, primaryDepth, gBufferSurface, ivec2(vgeFrame.screenSize), bestFull, sampleDepthRaw, sampleNormal))
             {
                 continue;
             }
 
-            float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
+            float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
 
             float dist = length(vec2(float(dx), float(dy)));
             float spatialW = exp(-dist * dist / (2.0 * spatialSigma * spatialSigma));
@@ -198,8 +198,8 @@ vec3 spatialDenoise(vec2 fullResUV, vec3 centerColor, float centerDepth, vec3 ce
     float totalWeight = 1.0;
 
     // 3x3 kernel
-    vec2 texelSize = 1.0 / screenSize;
-    ivec2 maxFull = ivec2(screenSize) - 1;
+    vec2 texelSize = 1.0 / vgeFrame.screenSize;
+    ivec2 maxFull = ivec2(vgeFrame.screenSize) - 1;
 
     for (int dy = -1; dy <= 1; dy++) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -213,9 +213,9 @@ vec3 spatialDenoise(vec2 fullResUV, vec3 centerColor, float centerDepth, vec3 ce
                 continue;
             }
 
-            ivec2 samplePx = clamp(ivec2(sampleUV * screenSize), ivec2(0), maxFull);
+            ivec2 samplePx = clamp(ivec2(sampleUV * vgeFrame.screenSize), ivec2(0), maxFull);
             float sampleDepthRaw = texelFetch(primaryDepth, samplePx, 0).r;
-            float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, zNear, zFar);
+            float sampleDepth = lumonLinearizeDepth(sampleDepthRaw, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
             vec3 sampleNormal = lumonDecodeNormal(texelFetch(gBufferSurface, ivec3(samplePx, VGE_SURFACE_NORMAL), 0).xyz);
 
             // Spatial weight (Gaussian)
@@ -252,10 +252,10 @@ vec3 spatialDenoise(vec2 fullResUV, vec3 centerColor, float centerDepth, vec3 ce
 
 void main(void)
 {
-    vec2 fullResUV = gl_FragCoord.xy / screenSize;
+    vec2 fullResUV = gl_FragCoord.xy / vgeFrame.screenSize;
 
     // Sample center depth and normal
-    ivec2 maxFull = ivec2(screenSize) - 1;
+    ivec2 maxFull = ivec2(vgeFrame.screenSize) - 1;
     ivec2 centerPx = clamp(ivec2(gl_FragCoord.xy), ivec2(0), maxFull);
     float centerDepthRaw = texelFetch(primaryDepth, centerPx, 0).r;
 
@@ -265,7 +265,7 @@ void main(void)
         return;
     }
 
-    float centerDepth = lumonLinearizeDepth(centerDepthRaw, zNear, zFar);
+    float centerDepth = lumonLinearizeDepth(centerDepthRaw, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
     vec3 centerNormal = lumonDecodeNormal(texelFetch(gBufferSurface, ivec3(centerPx, VGE_SURFACE_NORMAL), 0).xyz);
 
     // Low-confidence detection comes from the half-res gather output alpha.

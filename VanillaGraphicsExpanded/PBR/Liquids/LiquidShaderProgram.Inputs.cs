@@ -8,8 +8,15 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed partial class LiquidShaderProgram
 {
     #region Draw inputs
-    /// <summary>Sets ModelViewMatrix for the next draw submission.</summary>
-    internal float[] ModelViewMatrix { set { draw.SetModelView(value); } }
+    /// <summary>Adapts an engine combined transform into object-only draw storage.</summary>
+    internal float[] ModelViewMatrix { set { draw.SetModelView(value, frameInputs ?? VgeFrameRenderer.Current); } }
+
+    /// <summary>Starts ordinary pool rendering with the shared camera and no object transform.</summary>
+    internal void ResetModelTransform()
+    {
+        RequireInputMutation();
+        draw.ResetModelTransform();
+    }
     /// <summary>Sets Origin for the next draw submission.</summary>
     internal Vector3 Origin { set { draw.SetOrigin(value); } }
     /// <summary>Sets ForcedTransparency for the next draw submission.</summary>

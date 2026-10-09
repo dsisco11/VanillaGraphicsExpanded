@@ -1,5 +1,6 @@
 #version 330 core
 @import "./includes/postprocess_inputs.glsl"
+@import "./includes/vge_frame_ubo.glsl"
 uniform sampler2D sourceImage;
 uniform sampler2D visibilityImage;
 uniform sampler2D depthImage;
@@ -15,7 +16,7 @@ float sourceSupport(vec2 p) {
 /** Extracts bounded, unexposed shaft bloom and an independent distance-based sky visibility. */
 vec4 extractSource(vec2 p) {
     float depth=texture(depthImage,p).r;
-    float distance=abs(passInfo.y/max(abs(depth*2.0-1.0+passInfo.x),1e-6));
+    float distance=abs(vgeFrame.projectionMatrix[3][2]/max(abs(depth*2.0-1.0+vgeFrame.projectionMatrix[2][2]),1e-6));
     float visibility=smoothstep(0.0,max(solar.w,1.0),distance);
     float ev=passInfo.w>0.5?texelFetch(exposureImage,ivec2(0),0).r:effect.w;
     float exposureScale=exp2(clamp(ev,-24.0,24.0));
@@ -49,7 +50,7 @@ void main() {
     if(sun.z<=0.0) { outColor=vec4(0,0,0,1); return; }
     if(passInfo.z>3.5) {
         float depth=texture(depthImage,uv).r;
-        float distance=abs(passInfo.y/max(abs(depth*2.0-1.0+passInfo.x),1e-6));
+        float distance=abs(vgeFrame.projectionMatrix[3][2]/max(abs(depth*2.0-1.0+vgeFrame.projectionMatrix[2][2]),1e-6));
         outColor=vec4(0,0,0,smoothstep(0.0,max(solar.w,1.0),distance));
     } else if(passInfo.z<0.5) {
         // Four balanced samples retain small sources without directional downsample bias.

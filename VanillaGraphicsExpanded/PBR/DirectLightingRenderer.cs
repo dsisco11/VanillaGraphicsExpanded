@@ -38,8 +38,6 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     private readonly GraphicsPipelineLifetime pipelineLifetime = new();
     private GraphicsPipeline? lightingPipeline;
 
-    private readonly float[] invProjectionMatrix = new float[16];
-    private readonly float[] invModelViewMatrix = new float[16];
 
     public double RenderOrder => RenderOrderValue;
 
@@ -136,8 +134,6 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
         }
 
         // Compute inverse matrices
-        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
-        MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
 
         // Shader program
         var shader = (PBRDirectLightingShaderProgram)pipeline.Shader;

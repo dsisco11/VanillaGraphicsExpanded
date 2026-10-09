@@ -66,8 +66,9 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         program.GBufferSurface = surface;
         program.GBufferPosition = position.TextureId;
         program.PrimaryDepth = depth.TextureId;
-        program.InvProjectionMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 20, 0, 0, 0, 0, 1];
-        program.ViewMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        using var frameCamera = TestFrameCamera.Create([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 20, 0, 0, 0, 0, 1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+        program.FrameInputs = frameCamera;
+
         program.SetAtmosphere(snapshot);
         program.SetWaterVolume(null);
         program.SetUnderwater(false);
@@ -76,9 +77,6 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         // Missing capture deliberately leaves optional samplers absent; the availability guard must prevent fetches.
         program.PreOverlayColor = captured ? cleanColor : null;
         program.PreOverlayDepth = captured ? cleanDepth : null;
-        program.FogDensityIn = 0;
-        program.FogMinIn = 0;
-        program.RgbaFogIn = new(0, 0, 0, 0);
         TestFramework.RenderQuadTo(program, target);
         float[] presentation = target[0].ReadPixels();
         float[] source = target[1].ReadPixels();

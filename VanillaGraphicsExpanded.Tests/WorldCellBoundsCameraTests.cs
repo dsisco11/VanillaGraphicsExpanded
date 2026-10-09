@@ -2,12 +2,14 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-/// <summary>Exercises the actual bounds renderer's stage wiring and projection construction without a game world.</summary>
+/// <summary>Exercises the bounds renderer's stage wiring and shared camera projection without a game world.</summary>
 public sealed class WorldCellBoundsCameraTests
 {
     #region Scene camera contract
@@ -32,7 +34,7 @@ public sealed class WorldCellBoundsCameraTests
         Assert.Equal(new[] { ("RegisterRenderer", EnumRenderStage.OIT), ("UnregisterRenderer", EnumRenderStage.OIT) }, calls);
     }
 
-    /// <summary>Nonzero eye/bob translations survive the real matrix producer and project a fixed point like terrain.</summary>
+    /// <summary>Nonzero eye/bob translations survive the shared frame snapshot and project a fixed point like terrain.</summary>
     [Theory]
     [InlineData(-.25f)]
     [InlineData(0f)]
@@ -41,21 +43,13 @@ public sealed class WorldCellBoundsCameraTests
     {
         float[] projection = [2,0,0,0, 0,3,0,0, 0,0,-1,-1, 0,0,-2,0];
         float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, -.3f,-1.6f-bob,.2f,1];
-        var render = Proxy<IRenderAPI>((method, _) => method.Name switch
-        {
-            "get_CurrentProjectionMatrix" => projection,
-            "get_CameraMatrixOriginf" => view,
-            _ => throw new InvalidOperationException(method.Name)
-        });
-        using var renderer = CreateRenderer(Client(Proxy<IClientEventAPI>((_, _) => null), render));
-        var type = renderer.GetType();
-        type.GetMethod("UpdateCurrentViewProjMatrix", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(renderer, null);
-        var matrix = (float[])type.GetField("currentViewProjMatrix", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(renderer)!;
+        using var frameCamera = TestFrameCamera.Create(Mat4f.Invert(new float[16], projection), view, 1920, 1080);
+        using var shader = new VgeDebugLinesShaderProgram { FrameInputs = frameCamera };
+        Assert.Same(frameCamera, ((IVgeDebugLinesShaderProgramBindings)shader).FrameInputs);
         // Independent scalar oracle applies view then projection, with a nonzero position and homogeneous W.
         float[] point = [1.25f, 2.5f, -8, 1];
         float[] expected = Transform(projection, Transform(view, point));
-        var parameters = new VgeDebugLinesParamsUbo { ModelViewProjectionMatrix = matrix };
-        float[] uploadedMatrix = MemoryMarshal.Cast<byte, float>(parameters.Bytes)[..16].ToArray();
+        float[] uploadedMatrix = frameCamera.CurrentViewProjection.ToArray();
         float[] actual = Transform(uploadedMatrix, point);
         for (int i = 0; i < 4; i++) Assert.InRange(actual[i], expected[i] - .00001f, expected[i] + .00001f);
     }

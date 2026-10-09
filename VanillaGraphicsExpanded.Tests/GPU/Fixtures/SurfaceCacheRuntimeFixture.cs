@@ -24,6 +24,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     private LumonSceneRelightUpdateRenderer relight = null!;
     private readonly DebugViewController? controller;
     private readonly bool productionOwned;
+    private readonly VgeFrameRenderer? frameCamera;
     private readonly bool enclosure, exposedWall;
     private readonly uint[] feedbackPatches;
     private readonly SpatialLightingScene? spatial;
@@ -131,7 +132,8 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         LumOnCameraState? Camera() => spatial?.Camera ?? new LumOnCameraState(CameraX, 32, 0, CameraX, 32, 0, 0);
         if(spatial!=null) { cfg.NearRadiusChunks=cfg.FarRadiusChunks=2; cfg.NearPagesPerChunkBudget=48; }
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
-        world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
+        world.SetupGet(api => api.Player).Returns(RuntimeEngineServices.CameraPlayer(Camera));
+        world.SetupGet(api => api.ElapsedMilliseconds).Returns(() => Frames * 16L);
         world.SetupGet(api => api.MapSizeY).Returns(fallbackWorld?.MapSizeY ?? 256);
         if (fallbackWorld != null)
             world.SetupGet(api => api.BlockAccessor).Returns(ControlledBlockAccessor.Create(fallbackWorld));
@@ -150,6 +152,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         Buffers = new(api);
         Assert.True(Buffers.EnsureBuffers(edge, edge));
         if (productionOwned) return;
+        frameCamera = new VgeFrameRenderer(api);
         LumOnDebugShaderProgramFamily.Register(api);
         Geometry = new(api, Config, partitions, CreateSource, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
@@ -196,6 +199,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     public void Frame()
     {
         TestUniformRing.BeginFrame();
+        Events.Render(EnumRenderStage.Before);
         Events.Render(EnumRenderStage.Opaque);
         if(spatial!=null)
         {
@@ -331,7 +335,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Disposes production owners before their mocked engine and material dependencies.</summary>
     public void Dispose()
     {
-        controller?.Dispose(); debug?.Dispose();
+        controller?.Dispose(); debug?.Dispose(); frameCamera?.Dispose();
         if (!productionOwned) { relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); }
         partitions.Dispose();
         if (!productionOwned)

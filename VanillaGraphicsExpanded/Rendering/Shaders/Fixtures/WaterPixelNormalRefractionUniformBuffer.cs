@@ -8,7 +8,7 @@ internal sealed class WaterPixelNormalRefractionUniformBuffer : CpuUniformBuffer
 {
     #region Public API
     /// <summary>Creates zero-default inputs with immutable single-frame publication.</summary>
-    internal WaterPixelNormalRefractionUniformBuffer() : base(192) { }
+    internal WaterPixelNormalRefractionUniformBuffer() : base(48) { }
 
     /// <summary>Supplies the view-space interface point.</summary>
     internal Vector3 Surface
@@ -24,32 +24,11 @@ internal sealed class WaterPixelNormalRefractionUniformBuffer : CpuUniformBuffer
         set => WriteVector3(16, value);
     }
 
-    /// <summary>Projects optical geometry using the complete camera projection.</summary>
-    internal Matrix4x4 Projection
-    {
-        get => MemoryMarshal.Read<Matrix4x4>(Bytes.Slice(48));
-        set => WriteMatrix4(48, value);
-    }
-
-    /// <summary>Supplies original view dimensions independently of background resolution.</summary>
-    internal Vector2 FrameSize
-    {
-        get => MemoryMarshal.Read<Vector2>(Bytes.Slice(176));
-        set => WriteVector2(176, value);
-    }
-
     /// <summary>Selects the submerged-camera exit interface.</summary>
     internal int Underwater
     {
-        get => MemoryMarshal.Read<int>(Bytes.Slice(184));
-        set => WriteInt32(184, value);
-    }
-
-    /// <summary>Reconstructs receivers with the CPU inverse of the supplied camera projection.</summary>
-    internal Matrix4x4 InverseProjection
-    {
-        get => MemoryMarshal.Read<Matrix4x4>(Bytes.Slice(112));
-        set => WriteMatrix4(112, value);
+        get => MemoryMarshal.Read<int>(Bytes.Slice(44));
+        set => WriteInt32(44, value);
     }
 
     /// <summary>Supplies the underlying geometric normal before wave detail.</summary>

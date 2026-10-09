@@ -14,6 +14,7 @@ internal static class RuntimeEngineServices
         Func<float[]> projection, Action draw, DefaultShaderUniforms? uniforms = null, bool nativeDraw = false)
     {
         var render = new Mock<IRenderAPI>(MockBehavior.Strict);
+        render.SetupGet(api => api.CameraType).Returns(EnumCameraMode.FirstPerson);
         render.SetupGet(api => api.FrameWidth).Returns(edge);
         render.SetupGet(api => api.FrameHeight).Returns(edge);
         render.SetupGet(api => api.CameraMatrixOriginf).Returns(view);
@@ -51,6 +52,25 @@ internal static class RuntimeEngineServices
         api.SetupGet(value => value.ModLoader).Returns(mods!);
         api.SetupGet(value => value.Input).Returns(input!);
         return api.Object;
+    }
+
+    /// <summary>Creates a real installed engine player whose camera follows the authored scene at each frame read.</summary>
+    public static Func<IClientPlayer> CameraPlayer(Func<VanillaGraphicsExpanded.LumOn.LumOnCameraState?> camera)
+    {
+        // Castle cannot proxy this installed player interface; populate only the engine's entity ownership fields.
+        var entity = new EntityPlayer();
+        var player = (Vintagestory.Client.NoObf.ClientPlayer)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.Client.NoObf.ClientPlayer));
+        var data = (Vintagestory.Client.NoObf.ClientWorldPlayerData)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.Client.NoObf.ClientWorldPlayerData));
+        const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+        data.GetType().GetField("entityplayer", fields)!.SetValue(data, entity);
+        player.GetType().GetField("worlddata", fields)!.SetValue(player, data);
+        return () =>
+        {
+            var current = camera() ?? throw new InvalidOperationException("The fixture camera is unavailable.");
+            entity.CameraPos.Set(current.CameraX, current.CameraY, current.CameraZ);
+            entity.Pos.SetPos(current.PositionX, current.PositionY, current.PositionZ);
+            return player;
+        };
     }
 
     /// <summary>Accepts game hotkey registration without introducing a window or keyboard device.</summary>

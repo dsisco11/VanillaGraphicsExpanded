@@ -84,7 +84,7 @@ void main(void)
 
     float depth = texture(primaryDepth, uv).r;
     // Sky and first-person visibility proxies cannot establish a refracted hit.
-    if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.fogFloats0.w > .5)
+    if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.mediumFlags.y > .5)
     {
         outRefractionDepth = 1.0;
         outRefractionColor = vec4(0);
@@ -111,7 +111,7 @@ void main(void)
         // Preserve the base scene color here (sky shader output lives in gBufferAlbedo).
         vec3 skyColor = texture(gBufferAlbedo, uv).rgb;
         bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;
-        bool cameraAboveWater = vgePbrCompositeParams.fogFloats0.z < .5;
+        bool cameraAboveWater = vgePbrCompositeParams.mediumFlags.x < .5;
         bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
         bool cameraMediumSupported = cameraAboveWater || startsInWater;
         if (waterCaptureEnabled && cameraMediumSupported)
@@ -195,7 +195,7 @@ void main(void)
     finalColor = max(finalColor, vec3(0.0));
 
     // Capture before water/atmospheric transport; the liquid evaluates its bent path once.
-    if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.fogFloats0.w > .5)
+    if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.mediumFlags.y > .5)
     {
         outRefractionColor = vec4(finalColor, texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a >= 0.0 ? 1.0 : 0.0);
         outRefractionDepth = depth;
@@ -221,7 +221,7 @@ void main(void)
     bool waterResolved = false;
     bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;
     bool hasPhysicalReceiver = texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a >= 0.0;
-    bool cameraAboveWater = vgePbrCompositeParams.fogFloats0.z < .5;
+    bool cameraAboveWater = vgePbrCompositeParams.mediumFlags.x < .5;
     bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
     bool cameraMediumSupported = cameraAboveWater || startsInWater;
     if (waterCaptureEnabled && hasPhysicalReceiver && cameraMediumSupported)
@@ -240,7 +240,7 @@ void main(void)
             finalColor = finalColor * transmission + inScattering;
         }
     }
-    if (!waterResolved && vgePbrCompositeParams.fogFloats0.z > .5)
+    if (!waterResolved && vgePbrCompositeParams.mediumFlags.x > .5)
     {
         float fogAmount = clamp(fogMinIn + 1.0 - exp(-length(receiverVS) * fogDensityIn), 0.0, 1.0);
         finalColor = mix(finalColor, VgeSrgbToLinear(rgbaFogIn.rgb), fogAmount);

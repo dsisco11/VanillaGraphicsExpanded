@@ -63,22 +63,6 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
-    public float[] ModelViewProjectionMatrix
-    {
-        set
-        {
-            paramsUbo.ModelViewProjectionMatrix = value;
-        }
-    }
-
-    public Vec3f CameraPos
-    {
-        set
-        {
-            paramsUbo.CameraPos = value;
-        }
-    }
-
     public Vec3f WorldOffset
     {
         set
@@ -146,6 +130,8 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
     /// <summary>Supplies retained packed parameters for generated submission.</summary>
     CpuUniformBuffer IVgeWorldProbeOrbsPointsShaderProgramBindings.Parameters => paramsUbo;
     /// <summary>Supplies shared frame storage.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer IVgeWorldProbeOrbsPointsShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? IVgeWorldProbeOrbsPointsShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies shared world-probe storage.</summary>
     GpuUniformBuffer? IVgeWorldProbeOrbsPointsShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

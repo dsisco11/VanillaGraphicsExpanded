@@ -169,7 +169,8 @@ LumOnSH9RGB lumonSH9RGBUnpack(vec4 t0, vec4 t1, vec4 t2, vec4 t3, vec4 t4, vec4 
     return sh;
 }
 
-vec3 lumonSH9EvaluateDiffuse(
+/** Evaluates the cosine convolution without hiding negative reconstruction errors. */
+vec3 lumonSH9EvaluateDiffuseUnclamped(
     vec3 c0, vec3 c1, vec3 c2, vec3 c3,
     vec3 c4, vec3 c5, vec3 c6, vec3 c7, vec3 c8,
     vec3 normal)
@@ -194,7 +195,15 @@ vec3 lumonSH9EvaluateDiffuse(
     irradiance += c8 * (b8 * SH9_A2);
 
     // Convert irradiance to outgoing diffuse by dividing by π
-    return max(vec3(0.0), irradiance) / LUMON_SH9_PI;
+    return irradiance / LUMON_SH9_PI;
+}
+
+/** Returns nonnegative outgoing diffuse for consumers that do not perform support selection. */
+vec3 lumonSH9EvaluateDiffuse(
+    vec3 c0, vec3 c1, vec3 c2, vec3 c3,
+    vec3 c4, vec3 c5, vec3 c6, vec3 c7, vec3 c8, vec3 normal)
+{
+    return max(vec3(0), lumonSH9EvaluateDiffuseUnclamped(c0,c1,c2,c3,c4,c5,c6,c7,c8,normal));
 }
 
 /// Evaluate diffuse irradiance from SH9RGB struct.
@@ -221,6 +230,25 @@ vec3 lumonSH9EvaluateDiffusePacked(vec4 t0, vec4 t1, vec4 t2, vec4 t3, vec4 t4, 
     vec3 c0, c1, c2, c3, c4, c5, c6, c7, c8;
     lumonSH9Unpack(t0, t1, t2, t3, t4, t5, t6, c0, c1, c2, c3, c4, c5, c6, c7, c8);
     return lumonSH9EvaluateDiffuse(c0, c1, c2, c3, c4, c5, c6, c7, c8, normal);
+}
+
+/** Rejects materially negative reconstruction while retaining genuinely resolved black samples. */
+vec3 lumonSH9EvaluateSupportedDiffusePacked(
+    vec4 t0, vec4 t1, vec4 t2, vec4 t3, vec4 t4, vec4 t5, vec4 t6,
+    vec3 normal, inout float confidence)
+{
+    vec3 c0,c1,c2,c3,c4,c5,c6,c7,c8;
+    lumonSH9Unpack(t0,t1,t2,t3,t4,t5,t6,c0,c1,c2,c3,c4,c5,c6,c7,c8);
+    vec3 value = lumonSH9EvaluateDiffuseUnclamped(c0,c1,c2,c3,c4,c5,c6,c7,c8,normal);
+    // Low-order SH can ring below zero near sharp angular changes. Such a result
+    // is unsupported in this direction, whereas coefficients resolving to zero remain valid.
+    vec3 tolerance = 1e-4 * max(abs(c0), vec3(1));
+    if (any(isnan(value)) || any(isinf(value)) || any(lessThan(value, -tolerance)))
+    {
+        confidence = 0.0;
+        return vec3(0);
+    }
+    return max(value, vec3(0));
 }
 
 #endif

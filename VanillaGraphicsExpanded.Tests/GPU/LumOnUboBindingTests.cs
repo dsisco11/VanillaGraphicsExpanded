@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class LumOnUboBindingTests : IDisposable
 {
-    private const int FrameBinding = 12;
+    private const int FrameBinding = 17;
     private const int WorldProbeBinding = 13;
 
     private readonly HeadlessGLFixture fixture;
@@ -48,26 +48,26 @@ public sealed class LumOnUboBindingTests : IDisposable
         helper?.Dispose();
     }
 
-    public static TheoryData<string, string> FrameUboShaderPairs => new()
+    public static TheoryData<string, string, bool> FrameUboShaderPairs => new()
     {
-        { "lumon_velocity.vsh", "lumon_velocity.fsh" },
-        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh" },
-        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh" },
-        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh" },
-        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh" },
-        { "lumon_probe_atlas_project_sh.vsh", "lumon_probe_atlas_project_sh.fsh" },
-        { "lumon_probe_atlas_project_sh9.vsh", "lumon_probe_atlas_project_sh9.fsh" },
-        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh" },
-        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh" },
-        { "lumon_upsample.vsh", "lumon_upsample.fsh" },
-        { "lumon_combine.vsh", "lumon_combine.fsh" },
-        { "lumon_debug.vsh", "lumon_debug_view_scene_depth.fsh" },
-        { "lumon_debug.vsh", "lumon_debug_view_world_probe_irradiance_combined.fsh" },
+        { "lumon_velocity.vsh", "lumon_velocity.fsh", true },
+        { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh", true },
+        { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh", true },
+        { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh", true },
+        { "lumon_probe_atlas_filter.vsh", "lumon_probe_atlas_filter.fsh", true },
+        { "lumon_probe_atlas_project_sh.vsh", "lumon_probe_atlas_project_sh.fsh", true },
+        { "lumon_probe_atlas_project_sh9.vsh", "lumon_probe_atlas_project_sh9.fsh", true },
+        { "lumon_probe_atlas_gather.vsh", "lumon_probe_atlas_gather.fsh", true },
+        { "lumon_probe_sh9_gather.vsh", "lumon_probe_sh9_gather.fsh", true },
+        { "lumon_upsample.vsh", "lumon_upsample.fsh", true },
+        { "lumon_combine.vsh", "lumon_combine.fsh", false },
+        { "lumon_debug.vsh", "lumon_debug_view_scene_depth.fsh", false },
+        { "lumon_debug.vsh", "lumon_debug_view_world_probe_irradiance_combined.fsh", false },
     };
 
     [Theory]
     [MemberData(nameof(FrameUboShaderPairs))]
-    public void Shader_Exposes_LumOnFrameUBO(string vertexShader, string fragmentShader)
+    public void Shader_Exposes_LumOnFrameUBO(string vertexShader, string fragmentShader, bool consumesEffectFrame)
     {
         fixture.EnsureContextValid();
         Assert.SkipWhen(helper == null, "ShaderTestHelper not available - assets may be missing");
@@ -77,8 +77,18 @@ public sealed class LumOnUboBindingTests : IDisposable
             : helper!.CompileAndLink(vertexShader, fragmentShader);
         Assert.True(linkResult.IsSuccess, linkResult.ErrorMessage);
 
-        AssertUniformBlockPresent(linkResult.ProgramId, "LumOnFrameUBO");
-        AssertUniformBlockBindingMatchesLayoutWhenAvailable(linkResult.ProgramId, "LumOnFrameUBO", FrameBinding);
+        if (consumesEffectFrame)
+        {
+            AssertUniformBlockPresent(linkResult.ProgramId, "LumOnFrameUBO");
+            AssertUniformBlockBindingMatchesLayoutWhenAvailable(linkResult.ProgramId, "LumOnFrameUBO", FrameBinding);
+        }
+        else
+        {
+            // Camera-only consumers deliberately have no active effect frame storage.
+            Assert.Equal(-1, GL.GetUniformBlockIndex(linkResult.ProgramId, "LumOnFrameUBO"));
+            AssertUniformBlockPresent(linkResult.ProgramId, "VgeFrameUBO");
+            AssertUniformBlockBindingMatchesLayoutWhenAvailable(linkResult.ProgramId, "VgeFrameUBO", 12);
+        }
     }
 
     [Fact]

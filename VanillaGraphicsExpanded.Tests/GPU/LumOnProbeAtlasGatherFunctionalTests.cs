@@ -219,15 +219,18 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
     #region Test: InvalidScreenProbes_UseWorldProbeFallback
 
-    /// <summary>Both gather modes preserve selected sample confidence when world radiance is suppressed.</summary>
+    /// <summary>Supported black remains screen lighting while negative directional reconstruction selects world replacement.</summary>
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
-    public void WorldProbeSuppression_PreservesFallbackSelection(bool sh9, bool validScreenProbes, bool blocked)
+    [InlineData(false, false, false, false, false)]
+    [InlineData(true, false, false, false, false)]
+    [InlineData(false, true, false, false, false)]
+    [InlineData(true, true, false, false, false)]
+    [InlineData(false, false, true, false, false)]
+    [InlineData(true, false, true, false, false)]
+    [InlineData(true, true, false, true, false)]
+    [InlineData(true, true, false, false, true)]
+    public void WorldProbeSuppression_PreservesFallbackSelection(bool sh9, bool validScreenProbes, bool blocked,
+        bool negativeReconstruction, bool resolvedBlack)
     {
         EnsureShaderTestAvailable();
 
@@ -269,11 +272,16 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         // Each gather receives its own production input layout. SH9 uses a DC coefficient
         // for constant white radiance and zero higher bands.
         using var shDc = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
-            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 3.5449077f, 3.5449077f, 3.5449077f, 0));
+            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, resolvedBlack ? 0 : 3.5449077f,
+                resolvedBlack ? 0 : 3.5449077f, resolvedBlack ? 0 : 3.5449077f, negativeReconstruction ? -10 : 0));
         using var shZero = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 0));
         using var shCoverage = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 1));
+        // The Y linear band reconstructs a negative value at the authored +Y receiver despite positive coverage.
+        using var shLinear = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, negativeReconstruction ? -10 : 0,
+                negativeReconstruction ? -10 : 0, 0, 0));
         LumOnProbeSh9GatherShaderProgram? sh = null;
         LumOnScreenProbeAtlasGatherShaderProgram? atlas = null;
         if (sh9)
@@ -294,7 +302,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: viewMatrix);
         UpdateAndBindLumOnWorldProbeUbo(programId, new(0,0,0), Vector3.Zero,
             originMinCorner: [blocked ? new(-400f,-400f,-400f) : new(-500f,-500f,-500f)], ringOffset: [Vector3.Zero]);
-        using var groupedCoefficients = LayeredTestTexture.Create(shDc, shZero, shZero, shZero, shZero, shZero, shCoverage);
+        using var groupedCoefficients = LayeredTestTexture.Create(shDc, shLinear, shZero, shZero, shZero, shZero, shCoverage);
         using var groupedAnchors = LayeredTestTexture.Create(anchorPos, anchorNormal);
         using var groupedSurface = LayeredTestTexture.Create(normal, null, null);
         if (sh != null)
@@ -320,9 +328,13 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 foreach (float value in output[0].ReadPixels()) Assert.Equal(0f, value);
                 return;
             }
-            Assert.True(r + g + b > 0.5f, "Expected positive accepted lighting");
+            if (resolvedBlack)
+                Assert.Equal(new float[] { 0, 0, 0 }, new float[] { r, g, b });
+            else
+                Assert.True(r + g + b > 0.5f, "Expected positive accepted lighting");
+            bool worldFallback = !validScreenProbes || negativeReconstruction;
             Assert.True(confidence > (validScreenProbes ? 0.5f : 0.9f), $"Expected confident selected lighting, got {confidence:F3}");
-            if (!validScreenProbes)
+            if (worldFallback)
                 Assert.True(r > 0.5f && g < 0.1f && b < 0.1f, "Expected red world fallback");
             var reference = output[0].ReadPixels();
 
@@ -335,7 +347,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             {
                 Assert.Equal(reference[i + 3], suppressed[i + 3]);
                 for (int channel = 0; channel < 3; channel++)
-                    Assert.Equal(validScreenProbes ? reference[i + channel] : 0f, suppressed[i + channel]);
+                    Assert.Equal(worldFallback ? 0f : reference[i + channel], suppressed[i + channel]);
             }
     }
 

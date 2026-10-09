@@ -1,12 +1,14 @@
 #version 450 core
+@import "../includes/vge_frame_ubo.glsl"
+// Imported optical kernels reuse the universal camera without private fixture copies.
+#define projectionMatrix (vgeFrame.projectionMatrix)
+#define inverseProjectionMatrix (vgeFrame.invProjectionMatrix)
+#define frameSize (vgeFrame.screenSize)
 layout(std140, binding = 28) uniform WaterPixelNormalRefractionInputs
 {
     vec3 surfaceVS;
     vec3 normalVS;
     vec3 baseNormalVS;
-    mat4 projectionMatrix;
-    mat4 inverseProjectionMatrix;
-    vec2 frameSize;
     int underwater;
 };
 

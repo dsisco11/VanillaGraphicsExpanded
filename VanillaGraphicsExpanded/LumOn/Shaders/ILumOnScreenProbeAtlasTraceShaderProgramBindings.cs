@@ -11,6 +11,9 @@ namespace VanillaGraphicsExpanded.LumOn;
 internal interface ILumOnScreenProbeAtlasTraceShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies common camera and frame values from the universal view snapshot.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the traceSceneFaces Sampler slot.</summary>
     [ShaderBinding("traceSceneFaces", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? TraceSceneFaces { set; }
@@ -60,7 +63,7 @@ internal interface ILumOnScreenProbeAtlasTraceShaderProgramBindings
     [ShaderBinding("nearFieldMaterials", ShaderBindingKind.Sampler, 15, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuTexture? NearFieldMaterials { set; }
     /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
-    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.LumOnFrame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the LumOnWorldProbeUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]

@@ -32,7 +32,7 @@ vec4 renderVelocityPrevUvDebug()
 /** Renders only the VelocityPrevUv view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderVelocityPrevUvDebug();
 }

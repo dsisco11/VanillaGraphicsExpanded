@@ -29,7 +29,7 @@ vec4 renderPomMetricsDebug()
 /** Renders only the PomMetrics view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderPomMetricsDebug();
 }

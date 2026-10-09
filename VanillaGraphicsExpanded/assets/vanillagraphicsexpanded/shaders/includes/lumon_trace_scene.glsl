@@ -1,10 +1,7 @@
 #ifndef LUMON_TRACE_SCENE_GLSL
 #define LUMON_TRACE_SCENE_GLSL
-#ifdef LUMON_TRACE_SCENE_COMPUTE
+@import "./vge_ubo_layout.glsl"
 layout(std140, binding = 15) uniform LumOnNearFieldUBO
-#else
-layout(std140) uniform LumOnNearFieldUBO
-#endif
 {
     ivec4 nearFieldOriginResolution;
     ivec4 nearFieldBudget;

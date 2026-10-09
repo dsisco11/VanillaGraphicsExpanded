@@ -1,3 +1,5 @@
+using HarmonyLib;
+using Moq;
 using System.Text.RegularExpressions;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -7,6 +9,7 @@ using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Vintagestory.Client.NoObf;
 using Vintagestory.API.Client;
 
@@ -42,6 +45,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
     public void TerrainHook_PublishesChunkWindowAndRebindsAfterAnotherPass(bool movingPlayer, int face, int boundary)
     {
         EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
         TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
         string includes = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
         // Execute the same output snippet injected into terrain rather than a parallel test implementation.
@@ -53,7 +57,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
 
             layout(local_size_x=1) in;
             layout(std430,binding=0) buffer Result { uvec4 value; vec4 patchUv; };
-            layout(std140) uniform TestInputs { vec3 position; vec3 normal; };
+            layout(std140, binding=28) uniform TestInputs { vec3 position; vec3 normal; };
             void main() {
                 vec4 worldPos=vec4(position,1); uvec4 vge_outPatchId;
                 vec3 vge_surfaceBasePosition=position;
@@ -69,8 +73,6 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
         using var generations = Texture2D.Create(289, 1, PixelInternalFormat.R32ui, TextureFilterMode.Nearest);
         using var assets = new BinaryShaderApiFixture();
         var events = new RuntimeRenderEvents();
-        var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name == "get_Event"
-            ? events.Api : method.Invoke(assets.Api, args));
         var config = new VgeConfig();
         config.LumOn.Enabled = config.LumOn.LumonScene.Enabled = true;
         double[] surface = face < 0 ? [512030.11, 3, 511990.5] : [2.25, 6.5, 10.75];
@@ -97,7 +99,16 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
         }
         double surfaceX = surface[0], surfaceY = surface[1], surfaceZ = surface[2];
         LumOnCameraState camera = new(surfaceX, surfaceY, surfaceZ, surfaceX, surfaceY, surfaceZ, 0);
-        using var publisher = new LumOnTerrainBridgeUpdateRenderer(api, config, () => camera);
+        var world = new Mock<IClientWorldAccessor>();
+        world.SetupGet(value => value.Player).Returns(RuntimeEngineServices.CameraPlayer(() => camera));
+        world.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
+        float[] identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        var render = RuntimeEngineServices.Render(1, [], () => identity, () => identity, () => { });
+        var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, assets.Api.Shader);
+        using var publisher = new VgeFrameRenderer(api);
+        var hook = new Harmony("tests.terrain-frame." + Guid.NewGuid());
+        FrameShaderBindingHook.ApplyPatches(hook, _ => { });
+        FrameShaderBindingHook.ClearUniformCache();
         try
         {
             GL.ShaderSource(shader, source); GL.CompileShader(shader);
@@ -108,7 +119,6 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             using var inputs = new FixtureUniformInputs(program, 32);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             generations.UploadDataImmediate(Enumerable.Range(0, 289).Select(i => (uint)(1000 + i)).ToArray());
-            LumOnTerrainBridgeUboState.Update(new(16000, 0, 15999), new(30.11, 3, 22.5));
             LumonSceneChunkSlotUniformState.Update(new(15992, 0, 15991), new(17, 1, 17), new(3, 0, 5), generations.TextureId);
             if (face >= 0) LumonSceneChunkSlotUniformState.Update(new(-2, -2, -2), new(5, 5, 5), new(1, 2, 3), generations.TextureId);
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, output);
@@ -120,12 +130,15 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             uint[] finalMapping = [];
             foreach (double displacement in movingPlayer ? new[] { 0, .25, -.4, 2.25, 31.99, 32.25 } : new[] { 0.0, 0.0 })
             {
-                camera = camera with { PositionX = surfaceX + displacement, PositionZ = surfaceZ - displacement,
+                if (movingPlayer) camera = camera with { PositionX = surfaceX + displacement, PositionZ = surfaceZ - displacement,
                     CameraX = surfaceX + displacement + .1, CameraY = surfaceY + 1.6 + displacement * .01, CameraZ = surfaceZ - displacement - .2 };
-                if (movingPlayer) events.Render(EnumRenderStage.Opaque);
+                events.Render(EnumRenderStage.Before);
+                events.Render(EnumRenderStage.Opaque);
                 // A zeroed foreign object block reproduces the missing window binding deterministically.
                 GL.BindBufferBase(BufferRangeTarget.UniformBuffer, GpuBindingRegistry.Ubo.Object, unrelated);
-                GL.UseProgram(program);
+                // Reproduce a foreign pass overwriting both object and camera slots before engine shader reuse.
+                GL.BindBufferBase(BufferRangeTarget.UniformBuffer, GpuBindingRegistry.Ubo.Frame, unrelated);
+                engineProgram.Use();
                 TerrainLumonSceneChunkSlotUniformBindingHook.Use_Postfix(engineProgram);
                 inputs.Vector(16, normal[0], normal[1], normal[2]);
                 // The engine subtracts CameraPos from poolOrigin before adding terrain vertices.
@@ -150,7 +163,9 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
         {
             TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
             LumonSceneChunkSlotUniformState.Disable();
-            LumOnTerrainBridgeUboState.Dispose();
+            hook.UnpatchAll(hook.Id);
+            FrameShaderBindingHook.ClearUniformCache();
+            ShaderProgramBase.CurrentShaderProgram = null;
             GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(shader);
             GL.DeleteBuffer(output); GL.DeleteBuffer(unrelated);
             StateCache.Current.InvalidateAll();

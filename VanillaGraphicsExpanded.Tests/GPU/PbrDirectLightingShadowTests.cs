@@ -199,14 +199,14 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         float[] inverseProjection = (float[])identity.Clone();
         inverseProjection[12] = projectionOffset;
-        program.InvProjectionMatrix = inverseProjection;
-        program.InvModelViewMatrix = identity;
+        using var frameCamera = TestFrameCamera.CreateFromInverseView(inverseProjection, identity);
+        program.FrameInputs = frameCamera;
         // Center depth zero reconstructs (0,0,-1), which maps to shadow UV/depth (.5,.5,.5).
         // Its distance of one gives full near coverage at range 100, and .65 near/.35 far at range 2.
         float[] shadowMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, .5f, .5f, 1.5f, 1];
         program.ToShadowMapSpaceMatrixNear = shadowMatrix;
         program.ToShadowMapSpaceMatrixFar = shadowMatrix;
-        program.ZPlanesAndShadowRanges = (.1f, 100f, nearRange, farRange);
+        program.ShadowRanges = (nearRange, farRange);
         program.ShadowZExtendNear = 1f;
         program.ShadowZExtendFar = 1f;
         program.DropShadowIntensity = intensity;

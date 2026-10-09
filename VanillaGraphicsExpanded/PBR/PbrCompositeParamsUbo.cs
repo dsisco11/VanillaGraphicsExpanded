@@ -3,130 +3,60 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>
-/// CPU-side UBO for PBR composite shader parameters.
-/// Layout matches VgePbrCompositeParamsUBO in GLSL (272 bytes).
-/// </summary>
+/// <summary>Packs composition-specific controls into eight std140 vectors; camera and fog data remain shared.</summary>
 internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 {
     public const string BlockName = "VgePbrCompositeParamsUBO";
+    private bool underwater, refractionSource, preOverlaySource, ambientOcclusion;
 
-    private const int OffsetInvProjection = 0;       // mat4 at 0
-    private const int OffsetViewMatrix = 64;         // mat4 at 64
-    private const int OffsetFogColor = 128;          // vec4 at 128
-    private const int OffsetFogFloats = 144;         // vec4 at 144 (fogDensity, fogMin, 0, 0)
-    private const int OffsetIndirectTintIntensity = 160; // vec4 at 160 (tint.rgb, intensity)
-    private const int OffsetAOStrengths = 176;       // vec4 at 176 (diffuseAO, specularAO, preOverlaySource, ambientOcclusion)
-    private bool underwater;
-    private bool refractionSource;
-    private bool preOverlaySource;
-    private bool ambientOcclusion;
-    // Total: 192 bytes
+    #region Public API
+    /// <summary>Allocates the 128-byte composition contract.</summary>
+    public PbrCompositeParamsUbo() : base(128) { }
 
-    public PbrCompositeParamsUbo() : base(272)
-    {
-    }
-
-    #region Matrices
-
-    public float[] InvProjectionMatrix
-    {
-        set
-        {
-            WriteMatrix4(OffsetInvProjection, value);
-        }
-    }
-
-    public float[] ViewMatrix
-    {
-        set
-        {
-            WriteMatrix4(OffsetViewMatrix, value);
-        }
-    }
-
-    #endregion
-
-    #region Fog
     /// <summary>Enables the clean pre-overlay pair only after successful current-frame capture.</summary>
     internal bool PreOverlaySourceEnabled
     {
-        set { preOverlaySource = value; WriteFloat(OffsetAOStrengths + 8, value ? 1 : 0); }
+        set { preOverlaySource = value; WriteFloat(40, value ? 1 : 0); }
     }
-    /// <summary>Controls optional pre-transport outputs in the reserved fog component.</summary>
+    /// <summary>Controls optional pre-transport outputs without changing shared fog data.</summary>
     internal bool RefractionSourceEnabled
     {
-        set { refractionSource = value; WriteFloat(OffsetFogFloats + 12, value ? 1 : 0); }
+        set { refractionSource = value; WriteFloat(4, value ? 1 : 0); }
     }
-    /// <summary>Publishes valid boundary capture and the camera's starting medium in SI units.</summary>
-    internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
-    {
-        var medium = frame?.CameraMedium;
-        WriteVector4(224, new(medium?.AbsorptionPerMetre ?? Vector3.Zero, frame.HasValue ? 1 : 0));
-        WriteVector4(240, new(medium?.EffectiveScatteringPerMetre ?? Vector3.Zero, medium.HasValue ? 1 : 0));
-        WriteVector4(256, new(frame?.CameraScatteringSource ?? Vector3.Zero, 0));
-    }
-
-    /// <summary>Publishes coordinates from the same generation as the bound finite-path volumes.</summary>
-    public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
-    {
-        WriteVector4(192, new(lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 0));
-        WriteVector4(208, new(lighting?.Sun.X ?? 0, lighting?.Sun.Y ?? 1, lighting?.Sun.Z ?? 0, 0));
-    }
-
-    /// <summary>Restricts legacy engine fog to the underwater medium, independently of atmospheric availability.</summary>
+    /// <summary>Selects engine underwater fog without applying it again to atmospheric air.</summary>
     internal void SetUnderwater(bool value)
     {
         underwater = value;
-        WriteFloat(OffsetFogFloats + 8, value ? 1f : 0f);
-
+        WriteVector4(0, new(underwater ? 1 : 0, refractionSource ? 1 : 0, 0, 0));
     }
-
-    public Vector4 RgbaFogIn
+    /// <summary>Publishes coordinates from the same generation as the finite-path atmosphere volumes.</summary>
+    public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
-        set
-        {
-            WriteVector4(OffsetFogColor, new(value.X, value.Y, value.Z, value.W));
-        }
+        WriteVector4(48, new(lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 0));
+        WriteVector4(64, new(lighting?.Sun.X ?? 0, lighting?.Sun.Y ?? 1, lighting?.Sun.Z ?? 0, 0));
     }
-
-    public (float fogDensity, float fogMin) FogParams
+    /// <summary>Publishes boundary capture and the camera's starting water medium in SI units.</summary>
+    internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
     {
-        set
-        {
-            WriteVector4(OffsetFogFloats, new(value.fogDensity, value.fogMin, underwater ? 1f : 0f, refractionSource ? 1f : 0f));
-        }
+        var medium = frame?.CameraMedium;
+        WriteVector4(80, new(medium?.AbsorptionPerMetre ?? Vector3.Zero, frame.HasValue ? 1 : 0));
+        WriteVector4(96, new(medium?.EffectiveScatteringPerMetre ?? Vector3.Zero, medium.HasValue ? 1 : 0));
+        WriteVector4(112, new(frame?.CameraScatteringSource ?? Vector3.Zero, 0));
     }
-
-    #endregion
-
-    #region Indirect Lighting
-
+    /// <summary>Sets the effect's indirect-lighting tint and scale.</summary>
     public (Vector3 tint, float intensity) IndirectTintAndIntensity
     {
-        set
-        {
-            WriteVector4(OffsetIndirectTintIntensity, new(value.tint.X, value.tint.Y, value.tint.Z, value.intensity));
-        }
+        set { WriteVector4(16, new(value.tint, value.intensity)); }
     }
-
-    #endregion
-
-    #region AO Strengths
-
-    /// <summary>Enables only a current-frame ambient visibility publication.</summary>
+    /// <summary>Enables only a current-frame ambient-visibility publication.</summary>
     internal bool AmbientOcclusionEnabled
     {
-        set { ambientOcclusion = value; WriteFloat(OffsetAOStrengths + 12, value ? 1 : 0); }
+        set { ambientOcclusion = value; WriteFloat(44, value ? 1 : 0); }
     }
-
+    /// <summary>Sets independent diffuse and specular attenuation while retaining publication flags.</summary>
     public (float diffuse, float specular) AOStrengths
     {
-        set
-        {
-            WriteVector4(OffsetAOStrengths, new(value.diffuse, value.specular, preOverlaySource ? 1f : 0f, ambientOcclusion ? 1f : 0f));
-        }
+        set { WriteVector4(32, new(value.diffuse, value.specular, preOverlaySource ? 1 : 0, ambientOcclusion ? 1 : 0)); }
     }
-
     #endregion
 }

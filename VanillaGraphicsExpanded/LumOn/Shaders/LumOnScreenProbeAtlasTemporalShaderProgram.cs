@@ -192,6 +192,8 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
     #endregion
     #region Binding sources
     /// <summary>Supplies current frame storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasTemporalShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnScreenProbeAtlasTemporalShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
     GpuUniformBuffer? ILumOnScreenProbeAtlasTemporalShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

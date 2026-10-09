@@ -25,9 +25,9 @@ internal static partial class GpuBindingRegistry
         public const int Object = 14;
         public const int Material = 15;
         public const int Lights = 16;
+        /// <summary>LumOn-specific frame/effect parameters, separate from the universal camera snapshot.</summary>
+        public const int LumOnFrame = 17;
 
-        // Small, dedicated bridge UBO for vanilla-terrain world-space reconstruction.
-        public const int TerrainBridge = 27;
 
         /// <summary>Program-owned numeric inputs, rebound on each prepared submission.</summary>
         public const int ShaderInputs = 28;

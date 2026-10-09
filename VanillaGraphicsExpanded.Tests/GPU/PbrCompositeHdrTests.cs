@@ -52,8 +52,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.IndirectDiffuse = zero; program.GBufferAlbedo = zero.TextureId;
         program.GBufferPosition = position.TextureId;
         program.PrimaryDepth = depth.TextureId;
-        program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-        program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+        program.FrameInputs = frameCamera;
+
         program.SetAtmosphere(null); program.SetWaterVolume(null); program.SetUnderwater(false);
         program.RefractionSourceEnabled = true;
         program.PreOverlaySourceEnabled = restoredOverlay;
@@ -113,13 +114,12 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             program.GBufferSurface = surface;
             program.GBufferPosition = position.TextureId;
             program.PrimaryDepth = depth.TextureId;
-            program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1];
+            using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: new(.5f, .25f, .125f), fogDensity: fog > 0 ? .0002f : 0, fogMinimum: fog);
+            program.FrameInputs = frameCamera;
             program.SetAtmosphere(snapshot);
             // Publish the complete frame state, including the absence of a water-volume capture.
             program.SetWaterVolume(null);
             program.SetUnderwater(fog > 0);
-            program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-            program.FogDensityIn = fog > 0 ? .0002f : 0; program.FogMinIn = fog; program.RgbaFogIn = new(.5f, .25f, .125f, 1);
             TestFramework.RenderQuadTo(program, output);
         }
         var actual = output[0].ReadPixels();
@@ -211,18 +211,18 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.GBufferSurface = surface;
         program.IndirectDiffuse = zero; program.GBufferAlbedo = sky ? direct.TextureId : zero.TextureId;
         program.GBufferPosition = zero.TextureId; program.PrimaryDepth = depth.TextureId;
-        program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1];
-        program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: Vector3.One, fogDensity: 10, fogMinimum: 1);
+        program.FrameInputs = frameCamera;
+
         program.SetAtmosphere(snapshot);
         program.SetUnderwater(underwater);
         program.RefractionSourceEnabled = true;
-        program.FogDensityIn = 10; program.FogMinIn = 1; program.RgbaFogIn = new(1, 1, 1, 1);
         using var waterArray = LayeredTestTexture.Create(optical, source);
         program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null));
         var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
-        Assert.Equal(272, cpuParameters.Length);
-        Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 236));
-        Assert.Equal(underwater && mappedCamera ? 1f : 0f, BitConverter.ToSingle(cpuParameters, 252));
+        Assert.Equal(128, cpuParameters.Length);
+        Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 92));
+        Assert.Equal(underwater && mappedCamera ? 1f : 0f, BitConverter.ToSingle(cpuParameters, 108));
         TestFramework.RenderQuadTo(program, output);
         if (heldOverlay)
         {

@@ -15,21 +15,6 @@ internal sealed partial class LiquidShaderProgram
     private bool boundaryCapture;
 
     #region Frame inputs
-    /// <summary>Stages a coherent column-major projection/inverse pair; Use submits the completed frame.</summary>
-    internal ReadOnlySpan<float> ProjectionMatrix
-    {
-        set
-        {
-            RequireInputMutation();
-            // Invert once when capturing the camera, not in each fragment or fallback.
-            // Keep both matrices unchanged if the supplied projection cannot be inverted.
-            Span<float> inverse = stackalloc float[16];
-            if (!MatrixHelper.Invert(value, inverse))
-                throw new ArgumentException("Liquid projection must be invertible.", nameof(value));
-            frame.ProjectionMatrix = value;
-            frame.InverseProjectionMatrix = inverse;
-        }
-    }
     /// <summary>Stages the column-major near-cascade transform; Use submits the completed frame.</summary>
     internal ReadOnlySpan<float> ShadowMatrixNear { set => frame.ShadowMatrixNear = value; }
     /// <summary>Stages the column-major far-cascade transform; Use submits the completed frame.</summary>
@@ -42,8 +27,6 @@ internal sealed partial class LiquidShaderProgram
     internal Vector4 PlayerPosition { set => frame.PlayerPosition = value; }
     /// <summary>Stages tile UV dimensions in XY and atlas pixel dimensions in ZW; Use submits the completed frame.</summary>
     internal Vector4 AtlasMetrics { set => frame.AtlasMetrics = value; }
-    /// <summary>Stages near/far depth planes in XY and viewport pixels in ZW; Use submits the completed frame.</summary>
-    internal Vector4 DepthRangeAndFrameSize { set => frame.DepthRangeAndFrameSize = value; }
     /// <summary>Stages season fraction, sea level, atlas height, and seasonal temperature; Use submits the completed frame.</summary>
     internal Vector4 Season { set => frame.Season = value; }
     /// <summary>Stages world sun direction in XYZ; W is reserved; Use submits the completed frame.</summary>
@@ -79,7 +62,6 @@ internal sealed partial class LiquidShaderProgram
         var render = api.Render;
         var u = render.ShaderUniforms;
         var atmosphere = AtmosphereModSystem.Lighting;
-        ProjectionMatrix = render.CurrentProjectionMatrix;
         ShadowMatrixNear = u.ToShadowMapSpaceMatrixNear;
         ShadowMatrixFar = u.ToShadowMapSpaceMatrixFar;
         Animation = new(u.WaterStillCounter, u.WaterFlowCounter, 0, u.WindWaveCounter);
@@ -87,7 +69,6 @@ internal sealed partial class LiquidShaderProgram
         ShadowRanges = new(shadows > 1 ? u.ShadowRangeNear : 0, shadows > 0 ? u.ShadowRangeFar : 0, 0, 0);
         PlayerPosition = new(u.PlayerPos.X, u.PlayerPos.Y, u.PlayerPos.Z, 0);
         AtlasMetrics = new(tileSize.X, tileSize.Y, api.BlockTextureAtlas.Size.Width, api.BlockTextureAtlas.Size.Height);
-        DepthRangeAndFrameSize = new(u.ZNear, u.ZFar, render.FrameWidth, render.FrameHeight);
         Season = new(u.SeasonRel, u.SeaLevel, u.BlockAtlasHeight, u.SeasonTemperature);
         SunDirection = new(atmosphere?.Sun ?? Vector3.UnitY, 0);
         SolarIrradiance = new(atmosphere?.Solar ?? Vector3.Zero, 0);

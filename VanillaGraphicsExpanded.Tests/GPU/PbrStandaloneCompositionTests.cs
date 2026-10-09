@@ -46,10 +46,10 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
             using var surface = LayeredTestTexture.Create(normal, material, environment);
             program.GBufferSurface = surface; program.PrimaryDepth = depth.TextureId;
 
-            program.InvProjectionMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-            program.ViewMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+            using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+            program.FrameInputs = frameCamera;
+
             program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
-            program.FogDensityIn = 0; program.FogMinIn = 0;
             TestFramework.RenderQuadTo(program, output);
             if (!lumon)
             {

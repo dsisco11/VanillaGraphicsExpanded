@@ -27,7 +27,7 @@ void main() {
         vec2 lo = rect.xy;
         vec2 size = rect.zw;
         bool eligible = materialValid && VgeFinite2(vge_tessellationDistance) && vge_tessellationDistance.x >= 0.0
-            && vge_tessellationDistance.y > vge_tessellationDistance.x && vge_tessellationPixels.z > 0.0
+            && vge_tessellationDistance.y > vge_tessellationDistance.x && vge_tessellationPixels.x > 0.0
             && VgeRectValid(lo, size)
             && renderFlags[0] == renderFlags[1] && renderFlags[0] == renderFlags[2];
         eligible = eligible && vge_displacementEnabled != 0;

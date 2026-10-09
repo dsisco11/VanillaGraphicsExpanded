@@ -7,6 +7,9 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 internal interface IWaterReceiverFilterBindings
 {
     #region Public API
+    /// <summary>Reuses the optical fixture camera through the universal frame contract.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Publishes the complete retained optical input block.</summary>
     [ShaderBinding("WaterReceiverFilterInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }
@@ -25,10 +28,6 @@ internal interface IWaterReceiverFilterBindings
     /// <summary>Supplies the oriented local interface normal.</summary>
     Vector3 Normal { get; set; }
 
-    /// <summary>Reconstructs receiver positions independently of background dimensions.</summary>
-    Matrix4x4 InverseProjection { get; set; }
 
-    /// <summary>Distinguishes original framebuffer dimensions from reduced background dimensions.</summary>
-    Vector2 FullFrameSize { get; set; }
     #endregion
 }

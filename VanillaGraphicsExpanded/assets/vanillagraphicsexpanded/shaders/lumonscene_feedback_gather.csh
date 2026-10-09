@@ -1,5 +1,7 @@
 #version 430 core
 
+@import "./includes/vge_frame_ubo.glsl"
+
 // Phase 22.6: Feedback-driven residency gather (v1)
 // Reads PatchIdGBuffer (RGBA32UI written as uvec4) and appends page requests.
 //
@@ -28,7 +30,7 @@ layout(std430, binding = 0) buffer VgePageRequests
 @import "./includes/lumonscene_feedback_gather_params_ubo.glsl"
 
 uint vge_maxRequests() { return vgeFeedbackGatherParams.u0.x; }
-uint vge_frameIndex() { return vgeFeedbackGatherParams.u0.y; }
+uint vge_frameIndex() { return vgeFrame.frameIndex; }
 uvec2 vge_screenSize() { return vgeFeedbackGatherParams.u1.xy; }
 uint vge_sampleCount() { return vgeFeedbackGatherParams.u0.z; }
 

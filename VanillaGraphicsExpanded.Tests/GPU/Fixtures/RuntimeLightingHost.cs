@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class RuntimeLightingHost : IDisposable
 {
     private readonly LumOnModSystem lighting;
+    private readonly VanillaGraphicsExpanded.Rendering.VgeFrameRenderer frameCamera;
     private readonly WorldProbeModSystem world;
     private readonly DirectLightingBufferManager direct;
     private readonly DirectLightingRenderer? directRenderer;
@@ -28,6 +29,7 @@ internal sealed class RuntimeLightingHost : IDisposable
         Func<LumOnCameraState?> camera, bool pbrComposition = false)
     {
         this.world = world;
+        frameCamera = new(api);
         lighting = new(() => cache.Config, _ => camera(), (_, materials) => cache.CreateSource(materials));
         int resolution = cache.Config.WorldProbeClipmap.ClipmapResolution;
         world.StartClientSide(api);
@@ -54,7 +56,7 @@ internal sealed class RuntimeLightingHost : IDisposable
     public void Dispose()
     {
         compositeRenderer?.Dispose(); directRenderer?.Dispose();
-        world.Dispose(); lighting.Dispose(); direct.Dispose();
+        world.Dispose(); lighting.Dispose(); direct.Dispose(); frameCamera.Dispose();
     }
     #endregion
 }

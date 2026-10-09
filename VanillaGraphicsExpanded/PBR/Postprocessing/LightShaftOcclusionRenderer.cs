@@ -45,7 +45,7 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
         draw??=new(); depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         var pipeline=shafts.Prepare(api,draw,primary.Width,primary.Height,native.LightShaftQuality,settings.LightShaftSamples,occlusionOnly:true);
         if(!GraphicsCommandContext.TryRun("LightShafts.Occlusion",[pipeline],true,commands=>
-            shafts.Render(commands,draw,api,api.Render.CurrentProjectionMatrix,depth,depth,depth,(null,0),settings,occlusionOnly:true)))
+            shafts.Render(commands,draw,api,VgeFrameRenderer.Current,depth,depth,depth,(null,0),settings,occlusionOnly:true)))
             throw new InvalidOperationException("Light-shaft occlusion graphics boundary was rejected.");
         published=true;
     }

@@ -1,11 +1,12 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Numerics;
 using Xunit;
 
-namespace VanillaGraphicsExpanded.Tests.Unit.LumOn;
+namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
 /// <summary>Checks signed chunk boundaries and sub-block precision of the player-origin bridge.</summary>
-public sealed class LumOnFrameWorldSpaceBridgeTests
+public sealed class FrameWorldSpaceBridgeTests
 {
     #region Origin Decomposition
     /// <summary>Negative origins use floor division and large origins retain their fractional remainder.</summary>
@@ -17,7 +18,7 @@ public sealed class LumOnFrameWorldSpaceBridgeTests
     [InlineData(-16777216.25, -524289, 31.75)]
     public void PlayerOrigin_PreservesSignedCellAndFraction(double origin, int chunk, double remainder)
     {
-        var result = LumOnFrameWorldSpaceBridge.Compute(origin, origin, origin);
+        var result = FrameWorldSpaceBridge.Compute(origin, origin, origin);
         Assert.Equal(new VectorInt3(chunk, chunk, chunk), result.ChunkOffset);
         Assert.Equal(remainder, result.BlockOffsetRemainder.X);
         Assert.Equal(remainder, result.BlockOffsetRemainder.Y);

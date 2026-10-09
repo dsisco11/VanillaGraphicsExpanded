@@ -5,21 +5,19 @@
 #ifndef PBR_DIRECT_LIGHTING_PARAMS_UBO_GLSL
 #define PBR_DIRECT_LIGHTING_PARAMS_UBO_GLSL
 
-@import "./vge_ubo_layout.glsl"
+@import "./vge_frame_ubo.glsl"
 
 #ifndef VGE_PBR_MAX_POINT_LIGHTS
   #define VGE_PBR_MAX_POINT_LIGHTS 100
 #endif
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
 {
-    mat4 invProjectionMatrix;
-    mat4 invModelViewMatrix;
     mat4 toShadowMapSpaceMatrixNear;
     mat4 toShadowMapSpaceMatrixFar;
 
-    // zNear.x, zFar.y, shadowRangeNear.z, shadowRangeFar.w
-    vec4 zPlanes_shadowRanges;
+    // shadowRangeNear.x, shadowRangeFar.y, reserved.zw
+    vec4 shadowRanges;
 
     // shadowZExtendNear.x, shadowZExtendFar.y, dropShadowIntensity.z, reserved.w
     vec4 shadowFloats0;
@@ -44,16 +42,16 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
 } vgePbrDirect;
 
 // Matrices
-#define invProjectionMatrix (vgePbrDirect.invProjectionMatrix)
-#define invModelViewMatrix (vgePbrDirect.invModelViewMatrix)
+#define invProjectionMatrix (vgeFrame.invProjectionMatrix)
+#define invModelViewMatrix (vgeFrame.invViewMatrix)
 #define toShadowMapSpaceMatrixNear (vgePbrDirect.toShadowMapSpaceMatrixNear)
 #define toShadowMapSpaceMatrixFar (vgePbrDirect.toShadowMapSpaceMatrixFar)
 
-#define zNear (vgePbrDirect.zPlanes_shadowRanges.x)
-#define zFar (vgePbrDirect.zPlanes_shadowRanges.y)
+#define zNear (vgeFrame.clipPlanes.x)
+#define zFar (vgeFrame.clipPlanes.y)
 
-#define shadowRangeNear (vgePbrDirect.zPlanes_shadowRanges.z)
-#define shadowRangeFar (vgePbrDirect.zPlanes_shadowRanges.w)
+#define shadowRangeNear (vgePbrDirect.shadowRanges.x)
+#define shadowRangeFar (vgePbrDirect.shadowRanges.y)
 
 #define shadowZExtendNear (vgePbrDirect.shadowFloats0.x)
 #define shadowZExtendFar (vgePbrDirect.shadowFloats0.y)

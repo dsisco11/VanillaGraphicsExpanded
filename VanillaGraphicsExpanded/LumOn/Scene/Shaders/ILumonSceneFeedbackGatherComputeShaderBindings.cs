@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 internal interface ILumonSceneFeedbackGatherComputeShaderBindings
 {
     #region Public API
+    /// <summary>Reuses the shared integer rendering frame for randomized sampling.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Compute)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the VgeLumOnSceneFeedbackGatherParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeLumOnSceneFeedbackGatherParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
     CpuUniformBuffer Parameters { get; }

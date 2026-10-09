@@ -91,7 +91,8 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
         {
             EngineUniforms.SunPosition3D = new Vintagestory.API.MathTools.Vec3f(0, 0, -1);
         }
-        world.SetupGet(api => api.Player).Returns((IClientPlayer)null!);
+        world.SetupGet(api => api.Player).Returns(RuntimeEngineServices.CameraPlayer(Camera));
+        world.SetupGet(api => api.ElapsedMilliseconds).Returns(() => Cache.Frames * 16L);
         world.SetupGet(api => api.BlockAccessor).Returns(()=>WorldAccessorAvailable ? World.Accessor : null!);
         world.SetupGet(api => api.Calendar).Returns((IClientGameCalendar)null!);
         world.SetupGet(api => api.MapSizeY).Returns(256);

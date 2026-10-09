@@ -12,7 +12,7 @@ layout(location = 1) out float outEnergy;
 // Import global defines (loop-bound knobs)
 @import "./includes/vge_global_defines.glsl"
 
-// Import UBO aliases (frameIndex, probeGridSize, etc)
+// Import UBO aliases (vgeFrame.frameIndex, probeGridSize, etc)
 @import "./includes/lumon_ubos.glsl"
 
 // Import octahedral mapping
@@ -59,7 +59,7 @@ bool lumonLegacyIsTracedThisFrame(int texelIndex, int probeIndex)
     int numBatches = max(1, LUMON_TILE_TEXELS / texelsPerFrame);
 
     int batch = texelIndex / texelsPerFrame;
-    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
+    int jitteredFrame = int((vgeFrame.frameIndex + uint(probeIndex)) % uint(numBatches));
     return batch == jitteredFrame;
 }
 
@@ -157,14 +157,14 @@ void main(void)
 
     // Deterministic exploration selection based on legacy batch slicing, but cycling within the batch.
     int numBatches = max(1, LUMON_TILE_TEXELS / texelsPerFrame);
-    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
+    int jitteredFrame = int((vgeFrame.frameIndex + uint(probeIndex)) % uint(numBatches));
     int batchStart = jitteredFrame * texelsPerFrame;
 
-    int cycle = (frameIndex + probeIndex) / numBatches;
+    uint cycle = (vgeFrame.frameIndex + uint(probeIndex)) / uint(numBatches);
     int withinBatchOffset = 0;
     if (exploreCount > 0)
     {
-        withinBatchOffset = (cycle * exploreCount) % max(1, texelsPerFrame);
+        withinBatchOffset = int((cycle * uint(exploreCount)) % uint(max(1, texelsPerFrame)));
     }
 
     int selectedCount = 0;
@@ -219,7 +219,7 @@ void main(void)
         }
 
         // Efraimidis-Spirakis key method (log form): key = log(u) / w, select the K largest keys.
-        float u = clamp(Squirrel3HashF(probeIndex, frameIndex, i), 1e-6, 1.0);
+        float u = clamp(Squirrel3HashF(uint(probeIndex), vgeFrame.frameIndex, uint(i)), 1e-6, 1.0);
         keys[i] = log(u) / w;
     }
 

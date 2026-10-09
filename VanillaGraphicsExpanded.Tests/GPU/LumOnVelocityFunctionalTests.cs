@@ -133,7 +133,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         previous[12] = .015625f;
         previous[13] = -.03125f;
         float[] current = LumOnTestInputFactory.CreateIdentityMatrix();
-        var temporal = new LumOnTemporalReprojection();
+        var temporal = new FrameCameraHistory();
         temporal.Capture(previous, origin, 32, -origin);
         temporal.Commit();
         temporal.Capture(current, origin + .0625, 32.125, -origin - .03125);

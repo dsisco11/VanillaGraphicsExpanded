@@ -23,14 +23,10 @@ public sealed partial class DirectLightingRenderer
         if (shadowFarFb != null) shader.ShadowMapFar = shadowFarFb.DepthTextureId;
 
         // Matrices
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.InvModelViewMatrix = invModelViewMatrix;
         shader.ToShadowMapSpaceMatrixNear = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixNear;
         shader.ToShadowMapSpaceMatrixFar = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixFar;
 
         // Z planes
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Lighting
         shader.RgbaAmbientIn = capi.Render.AmbientColor;

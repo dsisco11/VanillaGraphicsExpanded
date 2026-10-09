@@ -166,12 +166,13 @@ reason to suppress the surface reflection or a submerged camera's absorption.
 Frame capture follows the selected liquid contract: boundary mode stages zero point-light and
 fog-sphere counts and omits those array copies, since neither stage consumes them. The shared
 vertex executable still evaluates climate/season colormap coordinates, so all 40 colormap
-rectangles remain current in boundary mode. Camera projection/inverse, shadow transforms,
+rectangles remain current in boundary mode. Camera projection/inverse and viewport/depth-plane
+inputs come from the shared VgeFrameUBO. Shadow transforms,
 animation, atlas metadata and solar/environment inputs keep their common capture path; wave
 and draw transforms retain their existing caller-owned staging. Surface capture refreshes its
 active point-light/fog prefixes and counts, including after a mode change. The production
 volume and surface programs retain independent frame storage. Submission still uploads the
-complete 4704-byte frame block; this optimization reduces CPU preparation, not upload bandwidth.
+complete 4560-byte liquid effect block; this optimization reduces CPU preparation, not upload bandwidth.
 The capture owner caches its mode classification against the existing immutable requested
 settings snapshot. Real settings changes refresh it before capture; unchanged batches and
 shader reload retain the same valid classification. This avoids the generated option getter's

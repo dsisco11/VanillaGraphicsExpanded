@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 internal sealed partial class AtmosphereSkyShaderProgram : GpuProgram, IAtmosphereSkyShaderProgramBindings
 {
     private readonly AtmosphereSkyInputs inputs;
+    private VgeFrameUniformBuffer? frameInputs;
 
     #region Public API
     /// <summary>Uses the offline sky declaration for demand loading and reload.</summary>
@@ -31,7 +32,14 @@ internal sealed partial class AtmosphereSkyShaderProgram : GpuProgram, IAtmosphe
     /// <summary>Samples engine liquid depth for shoreline and underwater masking.</summary>
     public partial int LiquidDepth { set; }
 
-    /// <summary>Stages current camera transforms and compatibility effects before submission.</summary>
+    /// <summary>Borrows a frame snapshot for alternate views and fixtures.</summary>
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
+
+    /// <summary>Stages compatibility effects before submission.</summary>
     internal void Capture(ICoreClientAPI api, AtmosphereLighting lighting, bool sceneLinear)
     {
         inputs.Capture(api, lighting, sceneLinear);
@@ -41,5 +49,7 @@ internal sealed partial class AtmosphereSkyShaderProgram : GpuProgram, IAtmosphe
 
     /// <summary>Publishes the matching view-ray transforms and spatial effects in one block.</summary>
     CpuUniformBuffer IAtmosphereSkyShaderProgramBindings.Inputs => inputs;
+    /// <summary>Shares the camera snapshot without per-sky matrix publication.</summary>
+    CpuUniformBuffer IAtmosphereSkyShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     #endregion
 }

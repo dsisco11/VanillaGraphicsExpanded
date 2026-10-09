@@ -7,7 +7,7 @@ out vec4 outColor;
 /** Displays only the actual deferred sunlight transmission, tone mapped against black. */
 void main()
 {
-    vec2 uv = gl_FragCoord.xy / screenSize;
+    vec2 uv = gl_FragCoord.xy / vgeFrame.screenSize;
     vec3 transmission = vec3(texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).a,
         texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).a, texture(directLighting, vec3(uv, VGE_DIRECT_EMISSIVE)).a);
     outColor = vec4(vgeTonemapReinhard(transmission), 1.0);

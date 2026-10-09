@@ -1,11 +1,12 @@
 #version 330 core
+#extension GL_ARB_shading_language_420pack : require
 @import "./includes/pbr_color.glsl"
 @import "./includes/lumon_common.glsl"
 
 uniform sampler2D primaryScene;
 uniform sampler2D primaryDepth;
 uniform sampler2D particleLayer;
-layout(std140) uniform DisplayResolveInputs
+layout(std140, binding = 28) uniform DisplayResolveInputs
 {
     int sceneLinear;
     int particleLayerEnabled;

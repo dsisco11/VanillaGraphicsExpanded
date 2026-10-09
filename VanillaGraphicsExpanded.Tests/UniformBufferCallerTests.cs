@@ -26,7 +26,7 @@ public sealed class UniformBufferCallerTests
         colors[5] = 13;
         buffer.SetPointLights(2, positions, colors);
         Assert.True(buffer.IsDirty);
-        Assert.Equal(13f, UboPacking.ReadFloat(buffer.Bytes, 1952 + 16 + 8));
+        Assert.Equal(13f, UboPacking.ReadFloat(buffer.Bytes, 1824 + 16 + 8));
     }
 
     /// <summary>Changes confined to the second atmosphere vector cannot be short-circuited.</summary>
@@ -41,7 +41,7 @@ public sealed class UniformBufferCallerTests
         Assert.False(buffer.IsDirty);
         buffer.SetAtmosphere(lighting with { Sun = Vector3.UnitX });
         Assert.True(buffer.IsDirty);
-        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 208));
+        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 64));
     }
 
     /// <summary>A shared disabled mapping does not create temporary domain changes on repeated calls.</summary>

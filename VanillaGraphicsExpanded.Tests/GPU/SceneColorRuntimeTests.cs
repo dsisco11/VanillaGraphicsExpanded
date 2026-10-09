@@ -206,7 +206,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
             var postprocess = AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderPostprocessingEffects));
             post.OnRenderFrame(0, EnumRenderStage.Before);
-            post.Render(identity, new(true, true, ssaoQuality > 0, true, ssaoQuality));
+            post.Render(new(true, true, ssaoQuality > 0, true, ssaoQuality));
             Assert.Equal(earlyOcclusion, LightShaftOcclusionRenderer.Texture!.TextureId);
             int publishedExposure = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
             Assert.True(GL.IsTexture(publishedExposure));
@@ -245,7 +245,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
 
             // The owned final reads owned luma and writes primary once, without the engine final program.
             post.OnRenderFrame(0, EnumRenderStage.Before);
-            post.Render(identity, new(false, false, ssaoQuality > 0, false, ssaoQuality));
+            post.Render(new(false, false, ssaoQuality > 0, false, ssaoQuality));
             var displayParameters = new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,Vector4.Zero);
             engine.BindWithViewport();
             GL.GetInteger(GetPName.DrawBuffer0, out int beforeDrawRoute);
@@ -305,7 +305,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             CameraExposureRenderer.MeterScene();
             // Recreate borrowed luma resources after resize and verify collection retirement never owns engine storage.
             post.OnRenderFrame(0, EnumRenderStage.Before);
-            post.Render(identity, new(false, false, false, true, 0));
+            post.Render(new(false, false, false, true, 0));
             int beforeReload = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int beforeNativeDisable = LightShaftOcclusionRenderer.Texture!.TextureId;

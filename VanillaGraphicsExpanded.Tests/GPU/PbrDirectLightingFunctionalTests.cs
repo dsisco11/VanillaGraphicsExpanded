@@ -493,11 +493,11 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             pointLightPositions3 = [pointLightPos0.x, pointLightPos0.y, pointLightPos0.z];
             pointLightColors3 = [pointLightColor0.r, pointLightColor0.g, pointLightColor0.b];
         }
-        programId.InvProjectionMatrix = identity;
-        programId.InvModelViewMatrix = inverseView;
+        using var frameCamera = TestFrameCamera.CreateFromInverseView(identity, inverseView);
+        programId.FrameInputs = frameCamera;
         programId.ToShadowMapSpaceMatrixNear = identity;
         programId.ToShadowMapSpaceMatrixFar = identity;
-        programId.ZPlanesAndShadowRanges = (zNear: 0.1f, zFar: 100f, shadowRangeNear: 1f, shadowRangeFar: 1f);
+        programId.ShadowRanges = (1f, 1f);
         programId.ShadowZExtendNear = 1; programId.ShadowZExtendFar = 1; programId.DropShadowIntensity = 0;
         programId.LightDirection = new(lightDirection.x, lightDirection.y, lightDirection.z);
         programId.SetSolarIrradiance(new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b));
@@ -547,10 +547,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         programId.IndirectIntensity = 0f;
         programId.IndirectTint = new(1f, 1f, 1f);
 
-        programId.RgbaFogIn = new(0f, 0f, 0f, 0f);
-        programId.FogDensityIn = 0f;
-        programId.FogMinIn = 0f;
-
         // Ambient-occlusion controls are inactive when indirect lighting is disabled.
         programId.DiffuseAOStrength = 1f;
         programId.SpecularAOStrength = 1f;
@@ -562,8 +558,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             0, 0, 1, 0,
             0, 0, 0, 1
         ];
-        programId.InvProjectionMatrix = identity;
-        programId.ViewMatrix = identity;
+        using var frameCamera = TestFrameCamera.Create(identity, identity);
+        programId.FrameInputs = frameCamera;
 
         GL.Disable(EnableCap.DepthTest);
         GL.Disable(EnableCap.Blend);

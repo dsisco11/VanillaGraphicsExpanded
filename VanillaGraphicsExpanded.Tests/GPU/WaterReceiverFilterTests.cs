@@ -98,10 +98,11 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, fullWidth / (float)fullHeight, .1f, 100);
         projection.M33 = -100.1f / 99.9f; projection.M43 = -20f / 99.9f;
         Assert.True(Matrix4x4.Invert(projection, out var inverse));
-        inputs.InverseProjection = inverse;
+        using var frameCamera = TestFrameCamera.CreateFromProjection(projection, fullWidth, fullHeight);
+        program.FrameInputs = frameCamera;
         inputs.SampleUv = new(.75f / width, .75f / height);
         inputs.Surface = new(0,0,-2); inputs.Normal = Vector3.UnitZ;
-        inputs.FullFrameSize = new(fullWidth, fullHeight);
+        
         inputs.Color = color; inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
@@ -203,7 +204,8 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         var inputs = (IWaterReceiverFilterBindings)program;
         inputs.SampleUv = new((origin + .75f) / size);
         inputs.Surface = new(0,0,-2); inputs.Normal = normal;
-        inputs.InverseProjection = inverse; inputs.FullFrameSize = new(fullSize);
+        using var frameCamera = TestFrameCamera.CreateFromProjection(projection, fullSize, fullSize);
+        program.FrameInputs = frameCamera;
         inputs.Color = color; inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
@@ -255,7 +257,8 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         Assert.True(Matrix4x4.Invert(projection,out var inverse));
         var program = Programs.Create<WaterReceiverFilterShaderProgram>();
         var inputs = (IWaterReceiverFilterBindings)program;
-        inputs.InverseProjection = inverse; inputs.FullFrameSize = new(fullSize);
+        using var frameCamera = TestFrameCamera.CreateFromProjection(projection, fullSize, fullSize);
+        program.FrameInputs = frameCamera;
         inputs.SampleUv = new((origin+.75f)/size);
         inputs.Surface = new(0,0,-2); inputs.Normal = Vector3.UnitZ;
         inputs.Color = color; inputs.Depth = depth;

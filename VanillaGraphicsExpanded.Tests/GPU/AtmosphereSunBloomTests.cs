@@ -22,6 +22,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     {
         EnsureShaderTestAvailable();
         var sun=Programs.Create<SolarRasterProgram>();
+        using var camera = TestFrameCamera.CreateSolar(64,64);
+        sun.FrameInputs = camera;
         var bloom=Programs.Create<BloomShaderProgram>();
         using var color=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
         using var glow=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
@@ -84,6 +86,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     {
         EnsureShaderTestAvailable();
         var sun = Programs.Create<SolarRasterProgram>();
+        using var camera = TestFrameCamera.CreateSolar(32,32);
+        sun.FrameInputs = camera;
         sun.Capture(new(100, 50, 25), -1);
         using var color = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);
         using var glow = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);

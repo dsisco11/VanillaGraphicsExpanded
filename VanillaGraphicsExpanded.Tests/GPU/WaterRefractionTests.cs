@@ -193,7 +193,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         program.SunDirection = new(Vector3.UnitY, 0);
         program.SolarIrradiance = Vector4.Zero;
         program.EnvironmentIrradiance = Vector4.Zero;
-        program.DepthRangeAndFrameSize = new(near, far, frameSize, frameSize);
+
         program.AtlasMetrics = Vector4.One;
         program.SetCounts(0, 0);
         if (compatibility == FogCase)
@@ -232,7 +232,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, near, far);
         projection.M33 = -(far + near) / (far - near);
         projection.M43 = -2 * far * near / (far - near);
-        program.ProjectionMatrix = Flatten(projection);
+        using var frameCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), frameSize, frameSize, near, far);
+        program.FrameInputs = frameCamera;
         Matrix4x4 modelView = scenario switch
         {
             11 => Matrix4x4.CreateRotationY(1.2f),
@@ -336,7 +337,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         var edgeBaseline = target[1].ReadPixelsRegion(8, 0, 1, 8);
         if (compatibility == FlowCase) program.Animation = new(0, 1, 0, 0);
         program.RefractionEnabled = true;
-        Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(4632, 4)));
+        Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(4552, 4)));
         target.Clear(0, 0, 0, 0);
         DrawBoundary(2, true);
         var actual = target[1].ReadPixelsRegion(center, center, 1, 1);
@@ -384,9 +385,10 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 var diagnosticInputs = (IWaterRefractionDiagnosticBindings)diagnostic;
                 diagnosticInputs.Scenario = 12;
                 Assert.True(Matrix4x4.Invert(projection, out var inverse));
-                diagnosticInputs.Projection = projection; diagnosticInputs.InverseProjection = inverse;
+                using var diagnosticCamera = TestFrameCamera.CreateFromProjection(projection, frameSize, frameSize);
+                diagnostic.FrameInputs = diagnosticCamera;
                 diagnosticInputs.Budget = refractionQuality == 1 ? 2 : refractionQuality == 2 ? 4 : 8;
-                diagnosticInputs.FrameSize = new(frameSize);
+                
                 Vector3 viewRay = new((2f * (center + .5f) / frameSize - 1) / MathF.Sqrt(3),
                     (2f * (center + .5f) / frameSize - 1) / MathF.Sqrt(3), -1);
                 Vector3 worldRay = Vector3.TransformNormal(viewRay, worldFromView);

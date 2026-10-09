@@ -65,14 +65,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     private EngineFullscreenGeometry? geometry;
 
     // Matrix buffers
-    private readonly float[] invProjectionMatrix = new float[16];
-    private readonly float[] invModelViewMatrix = new float[16];
-    private readonly LumOnTemporalReprojection temporalReprojection = new();
-    private readonly float[] currentViewProjMatrix = new float[16];
-    private readonly float[] invCurrentViewProjMatrix = new float[16];
 
     // Frame counter for ray jittering
-    private int frameIndex;
+    private int completedFrames;
 
     // First frame detection (no valid history)
     private bool isFirstFrame = true;
@@ -290,7 +285,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // History validity for this frame must be decided before we potentially clear/reset it.
         // If history is invalid, velocity should be marked invalid regardless of matrix values.
-        bool historyValid = !isFirstFrame;
+        bool historyValid = !isFirstFrame && !VgeFrameRenderer.Current.CameraCut;
 
         // Handle first frame (no valid history)
         if (isFirstFrame)
@@ -303,8 +298,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Capture LumOn-owned surface inputs before ray tracing.
         bufferManager.CaptureSurfaceAlbedo();
 
-        // Update matrices
-        UpdateMatrices();
         UpdateAndBindFrameUbo(historyValid);
         UpdateAndBindWorldProbeUbo();
 
@@ -395,7 +388,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Pass 6 (combine) is handled by PBRCompositeRenderer.
 
         // Store current view-projection matrix for next frame
-        temporalReprojection.Commit();
 
         // Swap radiance buffers for temporal accumulation
         bufferManager.SwapRadianceBuffers();
@@ -403,7 +395,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Store camera position for teleport detection
         StoreCameraPosition();
 
-        frameIndex++;
+        completedFrames++;
         return true;
     }
 
@@ -413,10 +405,10 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Require a minimum frame gap and suppress duplicates.
         const int minFrameGap = 30;
 
-        if (frameIndex - lastHistoryResetNotifyFrameIndex < minFrameGap && lastHistoryResetNotifyReason == reason)
+        if (completedFrames - lastHistoryResetNotifyFrameIndex < minFrameGap && lastHistoryResetNotifyReason == reason)
             return;
 
-        lastHistoryResetNotifyFrameIndex = frameIndex;
+        lastHistoryResetNotifyFrameIndex = completedFrames;
         lastHistoryResetNotifyReason = reason;
 
         capi.Logger.Notification($"[LumOn] History reset: {reason}");
@@ -455,26 +447,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         lastCameraZ = camPos.CameraZ;
     }
 
-    /// <summary>Captures the current projection and render origin for temporal reprojection.</summary>
-    private void UpdateMatrices()
-    {
-        ReadOnlySpan<float> projection = capi.Render.CurrentProjectionMatrix;
-        ReadOnlySpan<float> view = capi.Render.CameraMatrixOriginf;
-
-        // Compute inverse matrices
-        MatrixHelper.Invert(projection, invProjectionMatrix);
-        MatrixHelper.Invert(view, invModelViewMatrix);
-
-        // Compute current view-projection matrix for next frame's reprojection
-        MatrixHelper.Multiply(projection, view, currentViewProjMatrix);
-        var camera = readCamera();
-        temporalReprojection.Capture(currentViewProjMatrix,
-            camera?.CameraX ?? 0, camera?.CameraY ?? 0, camera?.CameraZ ?? 0);
-
-        // Compute inverse current view-projection for depth-based reprojection.
-        MatrixHelper.Invert(currentViewProjMatrix, invCurrentViewProjMatrix);
-    }
-
+    /// <summary>Publishes probe, history and lighting controls independently of the shared camera.</summary>
     private void UpdateAndBindFrameUbo(bool historyValid)
     {
         Vec3f sunPosF = new(0, 1, 0);
@@ -489,31 +462,12 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             sunColF = new Vec3f(sunCol.R, sunCol.G, sunCol.B);
         }
 
-        var camera = readCamera();
-        (VectorInt3 ChunkOffset, Vector3d BlockOffsetRemainder) frameBridge = camera is null
-            ? (default, default)
-            : LumOnFrameWorldSpaceBridge.Compute(
-                camera.Value.CameraX,
-                camera.Value.CameraY,
-                camera.Value.CameraZ);
-
         uniformBuffers.UpdateFrame(
-            invProjectionMatrix: invProjectionMatrix,
-            projectionMatrix: capi.Render.CurrentProjectionMatrix,
-            viewMatrix: capi.Render.CameraMatrixOriginf,
-            invViewMatrix: invModelViewMatrix,
-            prevViewProjMatrix: temporalReprojection.PreviousViewProjection,
-            invCurrViewProjMatrix: invCurrentViewProjMatrix,
-            screenWidth: capi.Render.FrameWidth,
-            screenHeight: capi.Render.FrameHeight,
             halfResWidth: bufferManager.HalfResWidth,
             halfResHeight: bufferManager.HalfResHeight,
             probeGridWidth: bufferManager.ProbeCountX,
             probeGridHeight: bufferManager.ProbeCountY,
-            zNear: capi.Render.ShaderUniforms.ZNear,
-            zFar: capi.Render.ShaderUniforms.ZFar,
             probeSpacing: config.LumOn.ProbeSpacingPx,
-            frameIndex: frameIndex,
             historyValid: historyValid ? 1 : 0,
             anchorJitterEnabled: config.LumOn.AnchorJitterEnabled ? 1 : 0,
             pmjCycleLength: pmjJitter.CycleLength,
@@ -522,9 +476,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             velocityRejectThreshold: config.LumOn.VelocityRejectThreshold,
             sunPosition: sunPosF,
             sunColor: sunColF,
-            ambientColor: capi.Render.AmbientColor,
-            matrixSpaceWorldChunkCoordOffset: frameBridge.Item1,
-            matrixSpaceWorldBlockOffsetRem: frameBridge.Item2);
+            ambientColor: capi.Render.AmbientColor);
     }
 
     private void UpdateAndBindWorldProbeUbo()

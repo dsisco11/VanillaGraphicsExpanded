@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 internal interface IVgeDebugLinesShaderProgramBindings
 {
     #region Public API
+    /// <summary>Declares the shared camera transform used by debug line geometry.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the VgeDebugLinesParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgeDebugLinesParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer Parameters { get; }

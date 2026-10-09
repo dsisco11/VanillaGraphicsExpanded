@@ -18,8 +18,11 @@ internal interface ILiquidShaderProgramBindings
     /// <summary>Declares optional immutable opaque depth.</summary>
     [ShaderBinding("vge_refractionDepth", ShaderBindingKind.Sampler, 10, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
     DynamicTexture2D? RefractionDepthTexture { set; }
+    /// <summary>Supplies the universal camera snapshot shared with other world passes.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the VgeLiquidFrameParams UniformBlock slot.</summary>
-    [ShaderBinding("VgeLiquidFrameParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    [ShaderBinding("VgeLiquidFrameParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer FrameParameters { get; }
     /// <summary>Declares the VgeLiquidDrawParams UniformBlock slot.</summary>
     [ShaderBinding("VgeLiquidDrawParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]

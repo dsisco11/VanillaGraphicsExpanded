@@ -273,7 +273,9 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         relightComputeProgram.BindIrradianceAtlasImage(irradianceAtlas);
 
             relightComputeProgram.SetAtlasLayout((uint)(uint)tileSize, (uint)(uint)tilesPerAxis, (uint)(uint)tilesPerAtlas, (uint)0u);
-        relightComputeProgram.SetRelightParams(frameIndex++, (uint)(tileSize * tileSize), 1u, 16u, 0u != 0);
+        using var sharedFrame = TestFrameCamera.CreateIdentity(tileSize,tileSize,frameIndex:(uint)frameIndex++);
+        relightComputeProgram.FrameInputs = sharedFrame;
+        relightComputeProgram.SetRelightParams( (uint)(tileSize * tileSize), 1u, 16u, 0u != 0);
         relightComputeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
             relightComputeProgram.Dispatch((tileSize + 7) / 8, (tileSize + 7) / 8, relightCount);

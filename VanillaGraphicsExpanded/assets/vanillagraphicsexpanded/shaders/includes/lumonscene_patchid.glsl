@@ -51,7 +51,7 @@ void VgeLumonSceneComputeVoxelPatchIdAndUv(
 
     // Bias toward the surface interior so floor() resolves the owning block consistently.
     // Matrix-space -> world: keep a float copy for stable per-voxel fractional coordinates (UV within the face).
-    vec3 w = worldPosRel + vge_lumonSceneWorldBlockOffsetRem;
+    vec3 w = worldPosRel + vgeFrame.renderOriginBlockRemainder.xyz;
 
     ivec3 block = VgeMatrixSpacePosToWorldCell(worldPosRel - axisN * 1e-4);
     outOwningBlock = block;

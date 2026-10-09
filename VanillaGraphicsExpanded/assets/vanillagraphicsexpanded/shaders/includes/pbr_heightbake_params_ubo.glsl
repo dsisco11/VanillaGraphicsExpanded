@@ -10,7 +10,7 @@
 // Packed gaussian weights: 17*vec4 = 68 weights (we use 65).
 #define VGE_HEIGHTBAKE_GAUSS_WEIGHTS_VEC4 17
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrHeightBakeParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrHeightBakeParamsUBO
 {
     // u_fineSize.xy
     ivec4 uFineSize;

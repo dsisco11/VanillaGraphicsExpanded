@@ -14,7 +14,7 @@ out vec4 outColor;
 @import "./includes/lumonscene_material_packing.glsl"
 @import "./includes/lumon_near_field_scene.glsl"
 @import "./includes/lumon_trace_scene_trace.glsl"
-@import "./includes/lumon_frame_worldspace_bridge.glsl"
+@import "./includes/vge_frame_worldspace.glsl"
 @import "./includes/lumon_debug_uniforms.glsl"
 @import "./includes/debug/render_lumon_scene_irradiance_debug.glsl"
 @import "./includes/debug/trace_scene_status_color.glsl"
@@ -37,8 +37,8 @@ vec3 VgeHashColorU(uint key)
 /** Implements render debug lum on scenes overview for its explicit view entrypoint. */
 vec4 RenderDebug_LumOnScenesOverview(vec2 screenPos)
 {
-    float x = screenPos.x / screenSize.x;
-    if (abs(x - 1.0/3.0) < 1.0/screenSize.x || abs(x - 2.0/3.0) < 1.0/screenSize.x) return vec4(0.0, 0.0, 0.0, 1.0);
+    float x = screenPos.x / vgeFrame.screenSize.x;
+    if (abs(x - 1.0/3.0) < 1.0/vgeFrame.screenSize.x || abs(x - 2.0/3.0) < 1.0/vgeFrame.screenSize.x) return vec4(0.0, 0.0, 0.0, 1.0);
     if (x < 1.0/3.0) return renderLumonSceneIrradianceDebug();
     if (x < 2.0/3.0) return traceSceneDebugSample(screenPos, 56);
     float depth = texelFetch(primaryDepth, ivec2(screenPos), 0).r;
@@ -52,7 +52,7 @@ vec4 RenderDebug_LumOnScenesOverview(vec2 screenPos)
 /** Renders only the LumOnScenesOverview view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = RenderDebug_LumOnScenesOverview(screenPos);
 }

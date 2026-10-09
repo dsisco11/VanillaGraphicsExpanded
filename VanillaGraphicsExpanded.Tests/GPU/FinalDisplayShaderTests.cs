@@ -14,10 +14,10 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     #region Public API
     /// <summary>Already lit scene radiance receives additive effects, then one exposure and display transform.</summary>
     [Theory]
-    [InlineData(0, -2f, false)]
-    [InlineData(1, 0f, false)]
-    [InlineData(2, 2f, true)]
-    public void CompositionResolvesOnceAndPreservesInputs(int quality, float ev, bool automatic)
+    [InlineData(-2f, false)]
+    [InlineData(0f, false)]
+    [InlineData(2f, true)]
+    public void CompositionResolvesOnceAndPreservesInputs(float ev, bool automatic)
     {
         EnsureShaderTestAvailable();
         var shader = Programs.Create<FinalDisplayShaderProgram>();
@@ -26,9 +26,11 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var shafts = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[2f,2f,2f,1f]);
         using var history = TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[ev]);
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var camera = TestFrameCamera.CreateIdentity(1, 1);
+        shader.FrameInputs = camera;
         shader.SceneImage=scene; shader.BloomImage=bloom; shader.ShaftImage=shafts;
         shader.ExposureImage=history;
-        shader.Capture(new(1,1,0,quality),new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),new(automatic?-ev:ev,automatic?1:0,0,0));
+        shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),new(automatic?-ev:ev,automatic?1:0,0,0));
         Draw(shader,target);
         float radiance=(4f+3f)*MathF.Pow(2,ev);
         float expected=Display(radiance);
@@ -49,8 +51,10 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,2f,1f,.5f]);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(width,height,PixelInternalFormat.Rgba16f);
+        using var camera = TestFrameCamera.CreateIdentity(width, height);
+        shader.FrameInputs = camera;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
-        shader.Capture(new(1f/width,1f/height,1,0),new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
+        shader.Capture(true,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         Draw(shader,target);
         var samples=new List<double>();
         for(int i=0;i<5;i++)
@@ -72,13 +76,15 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,.3f]);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(17,9,PixelInternalFormat.Rgba32f);
+        using var camera = TestFrameCamera.CreateIdentity(17, 9);
+        shader.FrameInputs = camera;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
-        shader.Capture(new(1f/17,1f/9,0,0),new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);Draw(shader,target);
+        shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);Draw(shader,target);
         float[] baseline=target[0].ReadPixels();
         var controls=treatment==0?new FinalDisplayParameters(new(2,1,1,0),Vector4.Zero,Vector4.Zero):
             treatment==1?new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,new(1,.5f,0,0)):
             new FinalDisplayParameters(new(1,1,1,0),new(0,2,.5f,0),new(0,0,1,0));
-        shader.Capture(new(1f/17,1f/9,0,0),controls,Vector4.Zero);Draw(shader,target);
+        shader.Capture(false,controls,Vector4.Zero);Draw(shader,target);
         float[] changed=target[0].ReadPixels();
         Assert.Contains(Enumerable.Range(0,changed.Length),i=>i%4!=3&&Math.Abs(changed[i]-baseline[i])>.02f);
         for(int i=0;i<changed.Length;i++)

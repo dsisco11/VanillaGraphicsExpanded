@@ -1,9 +1,9 @@
 using System;
 
-namespace VanillaGraphicsExpanded.LumOn;
+namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Pairs temporal matrices with their render origins and rebases history for current positions.</summary>
-internal sealed class LumOnTemporalReprojection
+internal sealed class FrameCameraHistory
 {
     private readonly float[] currentMatrix = new float[16];
     private readonly float[] previousMatrix = new float[16];
@@ -53,6 +53,9 @@ internal sealed class LumOnTemporalReprojection
         previousZ = currentZ;
         hasHistory = true;
     }
+
+    /// <summary>Withdraws temporal history when a view or world lifetime changes.</summary>
+    public void Reset() => hasHistory = false;
 
     #endregion
 }

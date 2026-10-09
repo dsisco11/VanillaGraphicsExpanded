@@ -10,6 +10,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal sealed partial class PostSsaoShaderProgram : GpuProgram, IPostSsaoShaderProgramBindings
 {
     private readonly AmbientOcclusionInputs inputs;
+    private VgeFrameUniformBuffer? frameInputs;
     #region Public API
     /// <summary>Declares executable and reload identity.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
@@ -30,9 +31,15 @@ internal sealed partial class PostSsaoShaderProgram : GpuProgram, IPostSsaoShade
     /// <summary>Stages depthEighth without transferring ownership.</summary>
     public partial GpuTexture? DepthEighth { set; }
     /// <summary>Stages the complete operation parameters before submission.</summary>
-    internal void Capture(float[] inverseProjection, float[] view, Vector4 frame, Vector4 sampling, Vector4 distance)
-        => inputs.Capture(inverseProjection,view,frame,sampling,distance);
+    internal void Capture(VgeFrameUniformBuffer camera, Vector4 frame, Vector4 sampling, Vector4 distance)
+    {
+        RequireInputMutation();
+        frameInputs = camera ?? throw new System.ArgumentNullException(nameof(camera));
+        inputs.Capture(frame, sampling, distance);
+    }
     /// <summary>Publishes the retained uniform block through the generated binding layout.</summary>
     CpuUniformBuffer IPostSsaoShaderProgramBindings.Inputs => inputs;
+    /// <summary>Borrows the common camera snapshot without assigning it to the shader lifetime.</summary>
+    CpuUniformBuffer IPostSsaoShaderProgramBindings.FrameInputs => frameInputs ?? throw new System.InvalidOperationException("AO requires a shared camera snapshot.");
     #endregion
 }

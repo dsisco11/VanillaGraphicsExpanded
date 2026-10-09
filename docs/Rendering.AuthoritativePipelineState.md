@@ -1715,6 +1715,13 @@ compatibility exceptions below. The original source inventory is reconciled with
 map, exact retained engine interfaces, CPU owners and runtime-test dispositions. Broader-suite
 baseline failures and live/performance limitations remain explicit in the verification record.
 
+This inventory records the numeric-input migration at that date. Common camera fields in owned
+programs and numerical fixtures subsequently move to the universal frame contract documented in
+[ShaderAuthoring.md](ShaderAuthoring.md). Its current camera ABI and shared publication rules
+supersede the historical camera members and offsets below; those tables remain evidence of the
+earlier migration. Engine combined object/view and light-specific shadow transforms keep their
+per-draw contracts.
+
 Controlling lifetime sources: Rendering.UniformBufferLifetime.md and its archived proposal/checklist
 at revision `62bcc898^` (removed by `62bcc898`, "docs: remove completed documents").
 Reuse CpuUniformBuffer packing/revisions, UniformPublication, existing transient/persistent allocators,

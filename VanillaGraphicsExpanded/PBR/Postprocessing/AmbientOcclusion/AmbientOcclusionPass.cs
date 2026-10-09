@@ -50,25 +50,25 @@ internal sealed class AmbientOcclusionPass : IDisposable
         return [depthPipeline,horizonPipeline,filterPipeline];
     }
     /// <summary>Builds separate depth images, integrates horizons and reconstructs visibility without feedback or history.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,float[] inverseProjection,float[] view)
+    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,VgeFrameUniformBuffer camera)
     {
         for(int i=0;i<3;i++) {
             reduction!.SourceImage=i==0?depth:depths[i-1];
             reduction.Capture(i!=0);
             draw.Submit(commands,depthPipeline!,depthTargets[i]!);
         }
-        var frame=new System.Numerics.Vector4(output!.Width,output.Height,quality.Divisor,0);
+        var frame=new System.Numerics.Vector4(0,0,quality.Divisor,0);
         var sampling=new System.Numerics.Vector4(1.25f,0.25f,quality.Directions,quality.Steps);
         var distance=new System.Numerics.Vector4(64,96,0,0);
         horizon!.DepthImage=depth;horizon.SurfaceImage=surface;
         horizon.DepthHalf=depths[0];horizon.DepthQuarter=depths[1];horizon.DepthEighth=depths[2];
-        horizon.Capture(inverseProjection,view,frame,sampling,distance);
+        horizon.Capture(camera,frame,sampling,distance);
         draw.Submit(commands,horizonPipeline!,rawTarget!);
         filter!.DepthImage=depth;filter.SurfaceImage=surface;filter.SourceImage=raw;
-        filter.Capture(inverseProjection,view,frame,sampling,distance);
+        filter.Capture(camera,frame,sampling,distance);
         draw.Submit(commands,filterPipeline!,filteredTarget!);
         filter.SourceImage=filtered;frame.W=1;
-        filter.Capture(inverseProjection,view,frame,sampling,distance);
+        filter.Capture(camera,frame,sampling,distance);
         draw.Submit(commands,filterPipeline!,outputTarget!);
     }
     /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>

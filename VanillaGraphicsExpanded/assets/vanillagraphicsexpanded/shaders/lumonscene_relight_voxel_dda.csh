@@ -1,4 +1,6 @@
 #version 430 core
+
+@import "./includes/vge_frame_ubo.glsl"
 #define LUMON_TRACE_SCENE_COMPUTE 1
 
 // Surface indirect irradiance estimator (GL 4.3 compute, voxel DDA).
@@ -67,7 +69,7 @@ layout(binding = 0, offset = 12) uniform atomic_uint vge_dbgOobStarts;
 #define vge_tilesPerAtlas         (vgeRelightParams.atlasLayout.z)
 #define vge_borderTexels          (vgeRelightParams.atlasLayout.w)
 
-#define vge_frameIndex            (vgeRelightParams.relightInts0.x)
+#define vge_frameIndex            (vgeFrame.frameIndex)
 #define vge_occResolution         (vgeRelightParams.relightInts0.y)
 
 #define vge_texelsPerPagePerFrame (vgeRelightParams.relightUints0.x)

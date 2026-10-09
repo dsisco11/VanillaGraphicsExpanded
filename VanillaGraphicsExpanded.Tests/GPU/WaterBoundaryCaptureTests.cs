@@ -80,14 +80,15 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         program.SunDirection = new(Vector3.UnitY, 0);
         program.SolarIrradiance = scenario >= 6 ? new(12.56637061436f, 12.56637061436f, 12.56637061436f, 0) : Vector4.Zero;
         program.EnvironmentIrradiance = new(12.56637061436f, 12.56637061436f, 12.56637061436f, 0);
-        program.DepthRangeAndFrameSize = new(near, far, 1, 1);
+
         program.AtlasMetrics = Vector4.One;
         program.SetCounts(0, 0);
         program.MediumLookupEnabled = scenario >= 6;
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, near, far);
         projection.M33 = -(far + near) / (far - near);
         projection.M43 = -2 * far * near / (far - near);
-        program.ProjectionMatrix = Flatten(projection);
+        using var frameCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), 1, 1, near, far);
+        program.FrameInputs = frameCamera;
         program.ModelViewMatrix = Flatten(Matrix4x4.Identity);
         var state = StateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
@@ -162,7 +163,9 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             program.SolarIrradiance = new(10, 10, 10, 0);
             program.DepthTexture = measuredDepth.TextureId;
             program.WaterMediumIndicesTexture = indicesTexture; program.WaterMediumRecordsTexture = recordsTexture;
-            program.DepthRangeAndFrameSize = new(near, far, size, size);
+
+            using var measuredCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), size, size, near, far);
+            program.FrameInputs = measuredCamera;
             measuredTarget.BindWithViewport(); measuring = true;
             float[]? isotropicPixels = null, anisotropicPixels = null;
             foreach (string workload in phaseMeasurement ? new[] { "isotropic", "anisotropic", "checker" } : new[] { "clear", "scattering", "checker" })

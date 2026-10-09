@@ -24,6 +24,51 @@ it to prepared submission. Numeric UniformLocation properties are rejected by th
 linked owned executables reject active standalone numeric uniforms. Sampler/image locations remain
 resource metadata; specialization constants remain structural selections.
 
+Camera consumers import `includes/vge_frame_ubo.glsl` and declare the matching typed
+`VgeFrameUBO` binding at `GpuBindingRegistry.Ubo.Frame` (12). The retained
+`VgeFrameUniformBuffer` snapshot supplies projection, view, their inverses, previous/current
+view-projection, inverse current view-projection, full-view pixel dimensions, time, an exact
+unsigned frame index, camera position, fog, clip planes, frame duration and a precise render-origin bridge. Its std140 layout is 544 bytes;
+`screenSize`, `timeSeconds` and `frameIndex` occupy offsets 384, 392 and 396.
+The camera position occupies 400 and `fogMinimum` occupies its following scalar at 412.
+Fog color/density remain in `fog0`; effects reuse these fields instead of uploading private fog copies.
+The near/far clip pair occupies 496; `deltaTime` occupies 504, followed by unsigned `frameFlags` at 508. Bit zero marks a camera cut; temporal consumers
+reject prior camera history on startup, world/view discontinuities and long frame gaps.
+Camera adaptation reads that shared duration rather than republishing it with effect settings.
+The integer chunk origin at 512 and bounded block remainder at 528 restore camera-relative
+positions without subtracting large floating-point world coordinates.
+
+The world camera owner publishes before sky and opaque lighting, independently of lighting mode.
+Shaders reuse that snapshot instead of capturing matrices or viewport dimensions in their effect
+blocks. Alternate-view fixtures supply their own actual frame snapshot through the typed binding.
+Prepared submissions use the existing versioned uniform allocator, so unchanged snapshots reuse
+the same publication and later writes cannot replace storage already referenced by submitted draws.
+`screenSize` describes the source view; reduced-resolution target dimensions, pool/model transforms
+and clocks specific to an effect remain in their owning effect or draw contract.
+Engine mesh-pool `modelViewMatrix` is a combined per-draw transform: mini-dimensions replace it
+with their object transform composed with the camera and restore it after drawing. It is not
+interchangeable with the shared world view matrix; preserve that object-space contract and
+light-specific shadow transforms. Owned liquid shaders adapt native combined matrices into an
+object-only draw block using the shared inverse view, then compose that object transform with
+`vgeFrame.viewMatrix` in the shader. Ordinary pools and native restoration writes retain an exact
+identity object transform, so each pool no longer republishes the common camera matrix.
+Terrain subdivision retains a frozen angular metric captured before shadow rendering so shadow
+and visible edges choose identical subdivision. Its effect contract carries only the target edge
+size, subdivision cap and fade parameters; visible projection fallback reads shared frame dimensions.
+Shadow rendering does not consume an unpublished world camera.
+Random sampling tied to rendering uses the shared unsigned
+`frameIndex`, including compute consumers; work budgets and source-image dimensions stay local.
+
+Shared-frame migration validation on 2026-10-09 passed four focused batches: 21 liquid
+transform/interface checks, 86 lifecycle/binding/spatial checks, 35 native draw/water/compute/solar
+consumer checks and 88 tessellation/displacement checks. The latter includes shadow execution
+with no world-frame binding and both lighting modes. Receipts are in
+`artifacts/frame-ubo-validation/`: `liquid-object-transform-windows-env.log`,
+`frame-lifecycle-resumed.log`, `frame-consumers-final.log` and
+`tessellation-shared-viewport-final.log`. The final incremental build reused all 438 production
+and 507 test shader variants with no compiler invocations. These are headless functional
+checks; they do not establish in-game visual acceptance or GPU frame cost.
+
 The approved engine GLSL compatibility exceptions retain their existing numeric APIs and activation
 behavior, including VGE-added atmosphere, scene-color and terrain inputs. They do not extend the
 world-frame publication epoch. See the [migration inventory](Rendering.AuthoritativePipelineState.md#standalone-numeric-input-migration-inventory)

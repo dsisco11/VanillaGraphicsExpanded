@@ -24,7 +24,7 @@ uniform usampler2D gBufferPatchId;
 
 void main(void)
 {
-    vec2 currUv = gl_FragCoord.xy / screenSize;
+    vec2 currUv = gl_FragCoord.xy / vgeFrame.screenSize;
 
     uint flags = 0u;
     vec2 velocityUv = vec2(0.0);
@@ -50,7 +50,7 @@ void main(void)
     }
 
     vec4 currClip = vec4(currUv * 2.0 - 1.0, depthRaw * 2.0 - 1.0, 1.0);
-    vec4 worldPosH = invCurrViewProjMatrix * currClip;
+    vec4 worldPosH = vgeFrame.invCurrViewProjMatrix * currClip;
 
     if (abs(worldPosH.w) < 1e-8)
     {
@@ -63,7 +63,7 @@ void main(void)
 
     // The uploaded matrix includes current-origin to previous-origin translation.
     // The reconstructed position remains current-relative; do not apply that translation twice.
-    vec4 prevClip = prevViewProjMatrix * vec4(renderRelativePos, 1.0);
+    vec4 prevClip = vgeFrame.prevViewProjMatrix * vec4(renderRelativePos, 1.0);
     if (prevClip.w <= 1e-8)
     {
         flags |= LUMON_VEL_FLAG_PREV_BEHIND_CAMERA;

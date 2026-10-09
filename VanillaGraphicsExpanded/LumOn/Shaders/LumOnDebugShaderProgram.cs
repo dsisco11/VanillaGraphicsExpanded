@@ -298,7 +298,7 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>Binds the shared packed light payload for geometry diagnostics.</summary>
     public partial GpuTexture? TraceSceneLegacy { set; }
 
-    // Per-frame state (sizes, matrices, zNear/zFar, probe grid params) is provided via LumOnFrameUBO.
+    // Camera and frame data come from VgeFrameUBO; probe controls remain in LumOnFrameUBO.
 
     #region Temporal Config Uniforms
 
@@ -416,6 +416,8 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     #endregion
     #region Binding sources
     /// <summary>Supplies shared lighting storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnDebugShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnDebugShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies shared lighting storage through the binding contract.</summary>
     GpuUniformBuffer? ILumOnDebugShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

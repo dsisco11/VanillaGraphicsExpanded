@@ -68,7 +68,7 @@ void main(void)
         // Octahedral direction is defined in world-space; convert to view-space for SH.
         vec2 octUV = lumonTexelCoordToOctahedralUV(octTexel);
         vec3 dirWS = lumonOctahedralUVToDirection(octUV);
-        vec3 dirVS = normalize(mat3(viewMatrix) * dirWS);
+        vec3 dirVS = normalize(mat3(vgeFrame.viewMatrix) * dirWS);
 
         shProjectRGB(shR, shG, shB, dirVS, radianceSample.rgb, conf);
         weightSum += conf;

@@ -15,7 +15,7 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnSceneRelightPar
     // texelsPerPagePerFrame, raysPerTexel, maxDdaSteps, debugCountersEnabled
     uvec4 relightUints0;
 
-    // frameIndex (x), occResolution (y), reserved (z,w)
+    // reserved (x), occResolution (y), reserved (z,w)
     ivec4 relightInts0;
 
     // occOriginMinCell0.xyz

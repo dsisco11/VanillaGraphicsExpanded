@@ -30,8 +30,8 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             Enumerable.Range(0,64*64).SelectMany(_ => new[] {.8f,.5f,.9f,.25f}).ToArray());
         using var indices = drawing.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
         using var records = drawing.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);
-        using var inputs = new PackedUniformBuffer(96);
-        byte[] inputBytes = new byte[96];
+        using var inputs = new PackedUniformBuffer(32);
+        byte[] inputBytes = new byte[32];
         int vs = BuiltShaderFixture.LoadFixture("tests/eye-relative.vsh", ShaderType.VertexShader), fs = BuiltShaderFixture.LoadFixture("tests/eye-relative.fsh", ShaderType.FragmentShader);
         int program = GL.CreateProgram(), vao = GL.GenVertexArray();
         try
@@ -40,13 +40,15 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             var layout = BuiltShaderFixture.Layout(program, "tests/eye-relative.vsh", "tests/eye-relative.fsh");
-            GL.UseProgram(program); GL.BindVertexArray(vao);
-            GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
+            StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
+            texture.Bind(0);
+            // This fixture owns non-mipmapped atlas sampling, independent of earlier render passes.
+            GpuSampler.Unbind(0); GpuSampler.Unbind(1); GpuSampler.Unbind(2);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             indices.Bind(1); records.Bind(2);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementTex"),1);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
-            GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+            StateCache.Current.SetCapability(EnableCap.DepthTest,false); StateCache.Current.SetCapability(EnableCap.Blend,false); StateCache.Current.SetCapability(EnableCap.CullFace,false);
             foreach(float distance in new[] {10f,16f})
             {
                 Vector3 point = new(2,1,-distance);
@@ -59,7 +61,7 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
                 Assert.InRange(vector[3],point.Length()-.00002f,point.Length()+.00002f);
                 float[] shaded = Render(eye, angle, point + eye, 1);
                 for(int i=0;i<4;i++) Assert.InRange(shaded[i],baseline[i]-.00002f,baseline[i]+.00002f);
-                if(distance==10) Assert.True(MathF.Abs(baseline[0]-.5f)>.00001f,"POM must displace the authored nonflat surface.");
+                if(distance==10) Assert.True(MathF.Abs(baseline[0]-.5f)>.00001f,$"POM must displace the authored nonflat surface; baseline={string.Join(",",baseline.Select(value=>value.ToString("G9")))}.");
                 float t=Math.Clamp((point.Length()-8)/16,0,1), blend=1-t*t*(3-2*t);
                 Vector3 normal=Vector3.Normalize(Vector3.Lerp(Vector3.UnitZ,new(.6f,0,.8f),blend));
                 Assert.InRange(shaded[2],normal.X*.5f+.5f-.00002f,normal.X*.5f+.5f+.00002f);
@@ -70,9 +72,10 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             {
                 float c=MathF.Cos(radians),s=MathF.Sin(radians);
                 float[] view=[c,s,0,0,-s,c,0,0,0,0,1,0,-c*eye.X+s*eye.Y,-s*eye.X-c*eye.Y,-eye.Z,1];
-                System.Runtime.InteropServices.MemoryMarshal.AsBytes(view.AsSpan()).CopyTo(inputBytes);
-                UboPacking.WriteVec3(inputBytes, 64, position.X, position.Y, position.Z);
-                UboPacking.WriteInt32(inputBytes, 76, mode);
+                using var frameCamera = TestFrameCamera.Create(Vintagestory.API.MathTools.Mat4f.Create(), view, 2, 2);
+                Assert.True(frameCamera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+                UboPacking.WriteVec3(inputBytes, 0, position.X, position.Y, position.Z);
+                UboPacking.WriteInt32(inputBytes, 12, mode);
                 inputs.SetBytes(inputBytes);
                 Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
                 target.BindWithViewport(); GL.DrawArrays(PrimitiveType.Triangles,0,3);
@@ -82,7 +85,7 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
         }
         finally
         {
-            GL.UseProgram(0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
+            StateCache.Current.UseProgram(0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
             StateCache.Current.InvalidateAll();
         }
     }

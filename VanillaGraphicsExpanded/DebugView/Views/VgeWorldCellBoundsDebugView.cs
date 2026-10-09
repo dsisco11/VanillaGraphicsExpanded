@@ -150,9 +150,6 @@ public static partial class VgeBuiltInDebugViews
         private readonly LineVertex[] vertices = new LineVertex[MaxLineVertices];
         private LumonSceneRegionCellDebugSnapshot[] snapshots = new LumonSceneRegionCellDebugSnapshot[MaxCellsDrawn];
 
-        private readonly float[] currentViewProjMatrix = new float[16];
-        private readonly float[] tempProjectionMatrix = new float[16];
-        private readonly float[] tempModelViewMatrix = new float[16];
 
         public double RenderOrder => RenderOrderValue;
         public int RenderRange => RenderRangeValue;
@@ -259,25 +256,12 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            UpdateCurrentViewProjMatrix();
-
-            shader.ModelViewProjectionMatrix = currentViewProjMatrix;
             shader.WorldOffset = new Vec3f(0, 0, 0);
             int stride = Marshal.SizeOf<LineVertex>();
             using (var binding = vbo!.BindScope()) vbo.UploadData(vertices, written * stride);
             submission.Draw(WorldCellBoundsViewState.DepthTest ? "WorldCells.Depth" : "WorldCells.Overlay",
                 shader, geometry!, LineLayout, new(0, written), PrimitiveType.Lines,
                 depthTest: WorldCellBoundsViewState.DepthTest, lineWidth: 2);
-        }
-
-        /// <summary>Preserves the engine camera adjustment when projecting camera-relative world bounds.</summary>
-        private void UpdateCurrentViewProjMatrix()
-        {
-            Array.Copy(capi.Render.CurrentProjectionMatrix, tempProjectionMatrix, 16);
-            Array.Copy(capi.Render.CameraMatrixOriginf, tempModelViewMatrix, 16);
-
-            // Vertices already subtract CameraPos. Keep the full view transform so bounds share terrain's camera bob.
-            MatrixHelper.Multiply(tempProjectionMatrix, tempModelViewMatrix, currentViewProjMatrix);
         }
 
         /// <summary>Creates a private line layout over the renderer-owned streaming buffer.</summary>

@@ -94,12 +94,12 @@ void main(void)
                                       1.0, vec3(1.0));
 #else
     // Reconstruct view direction in view-space
-    vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 viewPosVS = lumonReconstructViewPos(uv, depth, vgeFrame.invProjectionMatrix);
     vec3 viewDirVS = normalize(-viewPosVS);
 
     // Normal comes in as world-space; convert to view-space for consistent dot products
     vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
-    vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
+    vec3 normalVS = normalize((vgeFrame.viewMatrix * vec4(normalWS, 0.0)).xyz);
 
     // AO is not implemented yet. Keep it as a no-op (1.0).
     // NOTE: gBufferMaterial.a is transmission, not AO.

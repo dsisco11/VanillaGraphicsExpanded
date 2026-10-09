@@ -1,3 +1,5 @@
+@import "./vge_frame_ubo.glsl"
+
 #ifndef VGE_ATMOSPHERE_SUN_INPUTS
 uniform int vge_atmosphereSunDraw;
 uniform vec4 vge_atmosphereSun; // admitted direction, planetary horizon elevation
@@ -6,7 +8,7 @@ uniform vec4 vge_atmosphereDisk; // scene-linear disk radiance, angular radius
 out vec3 vge_sunDirection;
 out vec2 vge_sunPlane;
 
-// Reuse the engine quad and draw ordering with an explicit angular size and rotation-only view.
+/** Uses the engine quad with the shared rotation-only camera projection and explicit angular size. */
 void VgeDrawAtmosphericSun()
 {
     vec3 sun = normalize(vge_atmosphereSun.xyz);
@@ -17,6 +19,6 @@ void VgeDrawAtmosphericSun()
     vge_sunDirection = sun + tan(vge_atmosphereDisk.w) * (right * vge_sunPlane.x + up * vge_sunPlane.y);
     // W=0 removes camera translation/bobbing. Stay just inside clear depth so the
     // engine's Less-depth occlusion query counts unobstructed solar fragments.
-    gl_Position = projectionMatrix * viewMatrix * vec4(vge_sunDirection, 0.0);
+    gl_Position = vgeFrame.currViewProjMatrix * vec4(vge_sunDirection, 0.0);
     gl_Position.z = gl_Position.w * .999999;
 }

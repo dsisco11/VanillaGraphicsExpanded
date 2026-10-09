@@ -82,7 +82,7 @@ ProbeData loadProbe(ivec2 probeCoord, ivec2 probeGridSizeI) {
     p.normalWS = lumonDecodeNormal(anchorNormal.xyz);
 
     // Compute view-space depth for weighting
-    vec4 posVS = viewMatrix * vec4(p.posWS, 1.0);
+    vec4 posVS = vgeFrame.viewMatrix * vec4(p.posWS, 1.0);
     p.depthVS = -posVS.z;  // Positive distance from camera
 
     return p;
@@ -221,22 +221,22 @@ void main(void)
     ivec2 bestFull;
     float pixelDepth;
     vec3 pixelNormalWS;
-    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferSurface, ivec2(screenSize), bestFull, pixelDepth, pixelNormalWS))
+    if (!lumonSelectGuidesForHalfResCoord(ivec2(gl_FragCoord.xy), primaryDepth, gBufferSurface, ivec2(vgeFrame.screenSize), bestFull, pixelDepth, pixelNormalWS))
     {
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
-    vec2 screenUV = (vec2(bestFull) + 0.5) / screenSize;
+    vec2 screenUV = (vec2(bestFull) + 0.5) / vgeFrame.screenSize;
 
     // Reconstruct pixel position and get normal
-    vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, invProjectionMatrix);
+    vec3 pixelPosVS = lumonReconstructViewPos(screenUV, pixelDepth, vgeFrame.invProjectionMatrix);
     float pixelDepthVS = -pixelPosVS.z;  // Positive depth
 
     // pixelNormalWS already selected from full-res G-buffer (see helper)
 
     // Calculate which probes surround this pixel
-    vec2 screenPos = screenUV * screenSize;
+    vec2 screenPos = screenUV * vgeFrame.screenSize;
     vec2 probePos = lumonScreenToProbeAnchorPos(screenPos, float(probeSpacing));
 
     // Get the four surrounding probe coordinates
@@ -282,7 +282,7 @@ void main(void)
     if (p01.valid < 0.5) avgDist01 = 999.0;
     if (p11.valid < 0.5) avgDist11 = 999.0;
 
-    vec3 pixelPosWS = (invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
+    vec3 pixelPosWS = (vgeFrame.invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
 
     // Compute edge-aware weights. Directional atlas distances reject probes separated
     // from the shaded point by an occluder, preventing cross-wall light leaks.

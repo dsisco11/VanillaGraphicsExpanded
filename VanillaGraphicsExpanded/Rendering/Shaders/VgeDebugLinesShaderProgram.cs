@@ -21,11 +21,18 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLi
     internal override GpuShaderContract ProgramContract => Contract;
 
     private readonly VgeDebugLinesParamsUbo paramsUbo = new();
+    private VgeFrameUniformBuffer? frameInputs;
+    /// <summary>Supplies an explicit view snapshot or reuses the shared world view.</summary>
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
 
     /// <summary>Registers the draw contract and guards retained parameter writes.</summary>
     public VgeDebugLinesShaderProgram()
     {
-        ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
+        foreach (var stage in Contract.Stages) ProgramLayout.RegisterContract(stage.Bindings);
         paramsUbo.SetWriteGuard(RequireInputMutation);
 
     }
@@ -42,14 +49,7 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLi
         global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
-    public float[] ModelViewProjectionMatrix
-    {
-        set
-        {
-            paramsUbo.ModelViewProjectionMatrix = value;
-        }
-    }
-
+    /// <summary>Offsets the line geometry within the shared camera-relative space.</summary>
     public Vec3f WorldOffset
     {
         set
@@ -57,6 +57,8 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLi
             paramsUbo.WorldOffset = value;
         }
     }
+    /// <summary>Reuses the shared camera publication for line projection.</summary>
+    CpuUniformBuffer IVgeDebugLinesShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Supplies retained packed parameters for generated submission.</summary>
     CpuUniformBuffer IVgeDebugLinesShaderProgramBindings.Parameters => paramsUbo;
 }

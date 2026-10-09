@@ -5,6 +5,6 @@
 /** Implements get view matrix for its explicit view entrypoint. */
 mat4 getViewMatrix()
 {
-    return inverse(invViewMatrix);
+    return vgeFrame.viewMatrix;
 }
 #endif

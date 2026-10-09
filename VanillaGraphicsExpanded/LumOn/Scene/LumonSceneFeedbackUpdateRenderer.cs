@@ -616,7 +616,6 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         slotRing = default;
         lastAnchorChunk = default;
         LumonSceneChunkSlotUniformState.Disable();
-        LumonSceneWorldCoordUniformState.Disable();
 
         feedbackMarkDebugCounters?.Dispose();
         feedbackMarkDebugCounters = null;
@@ -1076,9 +1075,8 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
             // Match ChunkRenderer's CameraPos-relative vertices. Inverse-view translation
             // is already handled by reconstruction and must not be subtracted here.
-            var (chunkOffset, blockRemainder) = LumOnFrameWorldSpaceBridge.Compute(
+            var (chunkOffset, blockRemainder) = FrameWorldSpaceBridge.Compute(
                 camera.CameraX, camera.CameraY, camera.CameraZ);
-            LumonSceneWorldCoordUniformState.Update(chunkOffset, blockRemainder);
             lastWorldChunkCoordOffset = chunkOffset;
             lastWorldBlockOffsetRem = blockRemainder;
         }

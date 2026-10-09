@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
@@ -27,22 +28,18 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
         runtime.Cache.Config.LumOn.DebugMode = debug ? LumOnDebugMode.WorldProbeConfidence : LumOnDebugMode.Off;
         Type type = debug ? typeof(LumOnDebugRenderer) : typeof(LumOnRenderer);
         object renderer = Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(), type.IsInstanceOfType);
-        const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
-        var currentField = type.GetField("currentViewProjMatrix", fields)!;
-        var buffers = (LumOnUniformBuffers)type.GetField("uniformBuffers", fields)!.GetValue(renderer)!;
         for (int i = 0; i < 8; i++) runtime.Frame();
-        float[] previous = ((float[])currentField.GetValue(renderer)!).ToArray();
+        float[] previous = MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(320, 64)).ToArray();
         Assert.Contains(previous, value => value != 0);
         scene.Position += new System.Numerics.Vector3(.125f, 0, -.0625f);
         scene.Bob = .0625f;
         runtime.Frame();
-        using var mapped = buffers.FrameUbo.MapRange<float>(256, 16, MapBufferAccessMask.MapReadBit);
-        Assert.True(mapped.IsMapped);
+        float[] alignedPrevious = MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(256, 64)).ToArray();
         for (int row = 0; row < 4; row++)
         {
             float expected = previous[row] * .125f + previous[4 + row] * .0625f
                 + previous[8 + row] * -.0625f + previous[12 + row];
-            Assert.InRange(mapped.Span[12 + row], expected - .00001f, expected + .00001f);
+            Assert.InRange(alignedPrevious[12 + row], expected - .00001f, expected + .00001f);
         }
     }
 
@@ -83,14 +80,12 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
         var renderer = (LumOnRenderer)Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
             item => item is LumOnRenderer);
         const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
-        var index = typeof(LumOnRenderer).GetField("frameIndex", fields)!;
+        uint previousIndex = MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]);
         var first = typeof(LumOnRenderer).GetField("isFirstFrame", fields)!;
-        int previousIndex = (int)index.GetValue(renderer)!;
+
         var current = runtime.Screen.ScreenProbeAtlasCurrentTex;
         var history = runtime.Screen.ScreenProbeAtlasHistoryTex;
-        var temporal = (LumOnTemporalReprojection)typeof(LumOnRenderer).GetField("temporalReprojection", fields)!.GetValue(renderer)!;
-        var committedX = typeof(LumOnTemporalReprojection).GetField("previousX", fields)!;
-        double previousX = (double)committedX.GetValue(temporal)!;
+        byte[] previousCamera = VgeFrameRenderer.Current.Bytes.ToArray();
         scene.Position += new System.Numerics.Vector3(.125f, 0, 0);
         var priorOwner = Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram;
         try
@@ -98,16 +93,16 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
             Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram = new Vintagestory.Client.NoObf.ShaderProgramParticlescube();
             renderer.OnRenderFrame(.016f, Vintagestory.API.Client.EnumRenderStage.Opaque);
             Assert.False(runtime.Screen.HasPublishedIndirect);
-            Assert.Equal(previousIndex, (int)index.GetValue(renderer)!);
+            Assert.Equal(previousIndex, MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]));
             Assert.Same(current, runtime.Screen.ScreenProbeAtlasCurrentTex);
             Assert.Same(history, runtime.Screen.ScreenProbeAtlasHistoryTex);
-            Assert.Equal(previousX, (double)committedX.GetValue(temporal)!);
+            Assert.Equal(previousCamera, VgeFrameRenderer.Current.Bytes.ToArray());
             Assert.True((bool)first.GetValue(renderer)!);
         }
         finally { Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram = priorOwner; }
         runtime.Frame();
         Assert.True(runtime.Screen.HasPublishedIndirect);
-        Assert.True((int)index.GetValue(renderer)! > previousIndex);
+        Assert.True(MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]) > previousIndex);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

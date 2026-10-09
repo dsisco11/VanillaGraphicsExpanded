@@ -8,7 +8,7 @@ internal sealed class WaterReceiverFilterUniformBuffer : CpuUniformBuffer
 {
     #region Public API
     /// <summary>Creates zero-default inputs with immutable single-frame publication.</summary>
-    internal WaterReceiverFilterUniformBuffer() : base(128) { }
+    internal WaterReceiverFilterUniformBuffer() : base(48) { }
 
     /// <summary>Locates the requested normalized background sample.</summary>
     internal Vector2 SampleUv
@@ -31,18 +31,5 @@ internal sealed class WaterReceiverFilterUniformBuffer : CpuUniformBuffer
         set => WriteVector3(32, value);
     }
 
-    /// <summary>Reconstructs receiver positions independently of background dimensions.</summary>
-    internal Matrix4x4 InverseProjection
-    {
-        get => MemoryMarshal.Read<Matrix4x4>(Bytes.Slice(48));
-        set => WriteMatrix4(48, value);
-    }
-
-    /// <summary>Distinguishes original framebuffer dimensions from reduced background dimensions.</summary>
-    internal Vector2 FullFrameSize
-    {
-        get => MemoryMarshal.Read<Vector2>(Bytes.Slice(112));
-        set => WriteVector2(112, value);
-    }
     #endregion
 }

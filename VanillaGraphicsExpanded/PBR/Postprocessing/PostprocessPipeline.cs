@@ -57,11 +57,11 @@ internal sealed class PostprocessPipeline : IRenderer
     #endregion
     #region Engine handoff
     /// <summary>Replaces HDR scene postprocessing, leaving non-scene menu rendering at its existing display boundary.</summary>
-    internal static bool ReplaceEnginePass(ClientPlatformWindows platform,float[]? projection)
+    internal static bool ReplaceEnginePass(ClientPlatformWindows platform)
     {
         if(!SceneColorPipeline.HasSceneInput) return false;
         var owner=active??throw new InvalidOperationException("VGE postprocessing owner is unavailable.");
-        owner.Render(projection??throw new InvalidOperationException("Scene postprocessing requires a projection."),EnginePostprocessInputs.Capture(platform,owner.api));
+        owner.Render(EnginePostprocessInputs.Capture(platform,owner.api));
         // Preserve the installed method's documented exit target/state for the following overlay stage.
         var primary=owner.api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         platform.LoadFrameBuffer(EnumFrameBuffer.Primary);
@@ -99,8 +99,7 @@ internal sealed class PostprocessPipeline : IRenderer
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
         shader.ExposureImage=exposure.Texture??neutral!.Texture;
-        shader.Capture(new(1f/finalTarget.Width,1f/finalTarget.Height,frameEffects.Fxaa?1:0,
-            0),display,new(exposure.ManualEV,exposure.Texture is null?0:1,0,0));
+        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Texture is null?0:1,0,0));
         var pipeline=draw!.Prepare(shader,finalTarget);
         if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
             commands=>draw.Submit(commands,pipeline,finalTarget)))
@@ -108,7 +107,7 @@ internal sealed class PostprocessPipeline : IRenderer
         published=captured=false;
     }
     /// <summary>Executes owned glare and luminance preparation, publishing only after complete success.</summary>
-    internal void Render(float[] projection,EnginePostprocessInputs engine)
+    internal void Render(EnginePostprocessInputs engine)
     {
         if(published) return;
         if(!captured) throw new InvalidOperationException("VGE postprocessing frame was not captured.");
@@ -129,7 +128,7 @@ internal sealed class PostprocessPipeline : IRenderer
         if(!GraphicsCommandContext.TryRun("Postprocess.Scene",pipelines,true,commands=>{
             // Metering precedes generated glare; glare cannot feed back into the camera.
             if(useBloom) bloom.Render(commands,draw,scene,exposure,settings);
-            if(useRays) rays.Render(commands,draw,api,projection,scene,glow!,depth!,exposure,settings);
+            if(useRays) rays.Render(commands,draw,api,VgeFrameRenderer.Current,scene,glow!,depth!,exposure,settings);
             retained.Render(commands,draw,engine,scene,exposure);
         })) throw new InvalidOperationException("VGE postprocessing graphics boundary was rejected.");
         frameEffects=engine;

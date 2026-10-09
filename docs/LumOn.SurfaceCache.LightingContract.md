@@ -4,7 +4,7 @@ This is the controlling contract for Sections 4–7 and 9–13 of `LumOn.Surface
 
 ## Terrain coordinates and camera motion
 
-Terrain `worldPos` is player-relative before the view transform. Both `LumOnTerrainBridgeUpdateRenderer` and `LumonSceneFeedbackUpdateRenderer` must publish `Entity.Pos` through `LumOnFrameWorldSpaceBridge.Compute`, retaining double precision until the integer chunk and fractional remainder are separated. Camera position and inverse-view translation do not belong in that origin conversion: using `CameraPos - inverseView.translation` makes stationary voxel identities and patch UVs depend on camera bob.
+Terrain `worldPos` is relative to `Entity.CameraPos` before the view transform, matching the origin subtracted by the engine mesh-pool renderer. `VgeFrameRenderer` publishes that exact origin in `VgeFrameUBO`, retaining double precision until `FrameWorldSpaceBridge.Compute` separates the integer chunk and bounded fractional remainder. Terrain feedback and debug shader consumers reuse this shared snapshot; they do not upload another origin block. Inverse-view translation remains part of view reconstruction and must not be subtracted from the render origin.
 
 SurfaceCache irradiance, material, page-ready and patch-UV views consume the terrain PatchId buffer. Their alignment therefore depends on this producer contract even when the fullscreen debug shader does not reconstruct a position. Camera movement alone must not change the world cell, patch identity or patch UV of a stationary surface.
 

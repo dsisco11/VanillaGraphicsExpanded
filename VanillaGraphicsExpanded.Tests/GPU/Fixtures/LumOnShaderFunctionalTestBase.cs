@@ -97,6 +97,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private ShaderTestHelper? _shaderHelper;
     private ShaderTestFramework? _testFramework;
     private LumOnUniformBuffers? _lumOnUbos;
+    private readonly List<VgeFrameUniformBuffer> frameCameras = [];
     private bool _disposed;
     private ShaderLightingResources? lightingResources;
     private ComponentShaderPrograms? programs;
@@ -145,30 +146,32 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         int screenWidth = ScreenWidth, int screenHeight = ScreenHeight,
         VectorInt3 matrixSpaceWorldChunkCoordOffset = default, Vector3d matrixSpaceWorldBlockOffsetRem = default)
     {
-        invProjectionMatrix ??= IdentityMat4;
-        projectionMatrix ??= IdentityMat4;
-        viewMatrix ??= IdentityMat4;
-        invViewMatrix ??= IdentityMat4;
-        prevViewProjMatrix ??= IdentityMat4;
-        invCurrViewProjMatrix ??= IdentityMat4;
-
+        // Every pass receives a coherent camera snapshot; whichever transform the test supplies
+        // determines its inverse rather than leaving the other side at an unrelated identity.
+        if (invCurrViewProjMatrix is not null && invProjectionMatrix is null && projectionMatrix is null
+            && viewMatrix is null && invViewMatrix is null)
+            invProjectionMatrix = invCurrViewProjMatrix;
+        projectionMatrix ??= invProjectionMatrix is null ? IdentityMat4 : LumOnTestInputFactory.CreateInverseMatrix(invProjectionMatrix);
+        invProjectionMatrix ??= LumOnTestInputFactory.CreateInverseMatrix(projectionMatrix);
+        viewMatrix ??= invViewMatrix is null ? IdentityMat4 : LumOnTestInputFactory.CreateInverseMatrix(invViewMatrix);
+        invViewMatrix ??= LumOnTestInputFactory.CreateInverseMatrix(viewMatrix);
+        float[] currentViewProjection = new float[16];
+        MatrixHelper.Multiply(projectionMatrix, viewMatrix, currentViewProjection);
+        var camera = new VgeFrameUniformBuffer();
+        frameCameras.Add(camera);
+        camera.Capture(projectionMatrix, viewMatrix, invProjectionMatrix, invViewMatrix,
+            prevViewProjMatrix ?? currentViewProjection, currentViewProjection,
+            new System.Numerics.Vector2(screenWidth, screenHeight), 0, checked((uint)frameIndex),
+            System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero, 0,
+            new System.Numerics.Vector2(ZNear, ZFar), matrixSpaceWorldChunkCoordOffset,
+            new System.Numerics.Vector3((float)matrixSpaceWorldBlockOffsetRem.X,
+                (float)matrixSpaceWorldBlockOffsetRem.Y, (float)matrixSpaceWorldBlockOffsetRem.Z));
         LumOnUbos.UpdateFrame(
-            invProjectionMatrix: invProjectionMatrix,
-            projectionMatrix: projectionMatrix,
-            viewMatrix: viewMatrix,
-            invViewMatrix: invViewMatrix,
-            prevViewProjMatrix: prevViewProjMatrix,
-            invCurrViewProjMatrix: invCurrViewProjMatrix,
-            screenWidth: screenWidth,
-            screenHeight: screenHeight,
             halfResWidth: screenWidth / 2,
             halfResHeight: screenHeight / 2,
             probeGridWidth: ProbeGridWidth,
             probeGridHeight: ProbeGridHeight,
-            zNear: ZNear,
-            zFar: ZFar,
             probeSpacing: probeSpacing,
-            frameIndex: frameIndex,
             historyValid: historyValid,
             anchorJitterEnabled: anchorJitterEnabled,
             pmjCycleLength: pmjCycleLength,
@@ -177,12 +180,18 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             velocityRejectThreshold: velocityRejectThreshold,
             sunPosition: sunPosition ?? new Vec3f(0f, 0f, 0f),
             sunColor: sunColor ?? new Vec3f(0f, 0f, 0f),
-            ambientColor: ambientColor ?? new Vec3f(0f, 0f, 0f),
-            matrixSpaceWorldChunkCoordOffset: matrixSpaceWorldChunkCoordOffset,
-            matrixSpaceWorldBlockOffsetRem: matrixSpaceWorldBlockOffsetRem);
-
-        if (program is not null) program.FrameUniformBuffer = LumOnUbos.FrameUbo;
-        else LumOnUbos.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding); // Retired L1 comparison has no production owner.
+            ambientColor: ambientColor ?? new Vec3f(0f, 0f, 0f));
+        if (program is not null)
+        {
+            program.FrameUniformBuffer = LumOnUbos.FrameUbo;
+            program.FrameInputs = camera;
+        }
+        else
+        {
+            // The retired comparison executable has no typed owner, but consumes these exact shared blocks.
+            LumOnUbos.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
+            Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+        }
     }
 
     /// <summary>Uploads controlled inputs through the production buffer owner and shader block contract.</summary>
@@ -555,6 +564,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             {
                 lightingResources?.Dispose();
                 programs?.Dispose();
+                foreach (var camera in frameCameras) camera.Dispose();
+                frameCameras.Clear();
                 programs = null;
                 lightingResources = null;
                 _shaderHelper?.Dispose();

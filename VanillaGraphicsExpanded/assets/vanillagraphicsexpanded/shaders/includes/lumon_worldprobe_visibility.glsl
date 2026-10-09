@@ -18,8 +18,8 @@ bool lumonWorldProbeCanReachSample(
 #if VGE_LUMON_DIRECT_LOCAL_VISIBILITY
     // The cache and reconstructed receiver share matrix-relative coordinates.
     // Keep the absolute world origin integer to preserve large-world precision.
-    vec3 origin = probeCenter + matrixSpaceWorldBlockOffsetRem;
-    ivec3 cell = ivec3(floor(origin)) + matrixSpaceWorldChunkCoordOffset * 32;
+    vec3 origin = probeCenter + vgeFrame.renderOriginBlockRemainder.xyz;
+    ivec3 cell = ivec3(floor(origin)) + vgeFrame.renderOriginChunkCoord.xyz * 32;
     if (distanceToSample <= 1e-6)
     {
         uint geometry;

@@ -56,7 +56,7 @@ void main() {
                 // Transform a direction once instead of projecting both full positions.
                 float originalDepth = gl_Position.z;
                 vec4 cameraDelta = modelViewMatrix * vec4(displacement, 0.0);
-                gl_Position += projectionMatrix * cameraDelta;
+                gl_Position += vgeFrame.projectionMatrix * cameraDelta;
             #if defined(VGE_TESS_HAS_shadowCoordsFar) || defined(VGE_TESS_HAS_shadowCoordsNear)
                 calcShadowMapCoords(modelViewMatrix, worldPos);
             #endif

@@ -6,39 +6,25 @@ using VanillaGraphicsExpanded.LumOn;
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
 /// <summary>
-/// CPU-side wrapper for VgeWorldProbeOrbsPointsParamsUBO (std140, 112 bytes).
+/// CPU-side wrapper for VgeWorldProbeOrbsPointsParamsUBO (std140, 32 bytes).
 /// </summary>
 public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
 {
     public const string BlockName = "VgeWorldProbeOrbsPointsParamsUBO";
-    public const int UboSizeBytes = 112;
+    public const int UboSizeBytes = 32;
 
+    /// <summary>Allocates point geometry and fading controls independently of the shared camera.</summary>
     public VgeWorldProbeOrbsPointsParamsUbo() : base(UboSizeBytes)
     {
     }
 
-    public float[] ModelViewProjectionMatrix
-    {
-        set
-        {
-            WriteMatrix4(0, value);
-        }
-    }
-
-    public Vec3f CameraPos
-    {
-        set
-        {
-            WriteVector4(64, new(value.X, value.Y, value.Z, 0f));
-        }
-    }
-
+    /// <summary>Offsets point positions and preserves their requested screen size.</summary>
     public Vec3f WorldOffset
     {
         set
         {
-            var (_, _, _, pointSize) = UboPacking.ReadVec4(DataReadOnly, 80);
-            WriteVector4(80, new(value.X, value.Y, value.Z, pointSize));
+            var (_, _, _, pointSize) = UboPacking.ReadVec4(DataReadOnly, 0);
+            WriteVector4(0, new(value.X, value.Y, value.Z, pointSize));
         }
     }
 
@@ -46,8 +32,8 @@ public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
     {
         set
         {
-            var (x, y, z, _) = UboPacking.ReadVec4(DataReadOnly, 80);
-            WriteVector4(80, new(x, y, z, value));
+            var (x, y, z, _) = UboPacking.ReadVec4(DataReadOnly, 0);
+            WriteVector4(0, new(x, y, z, value));
         }
     }
 
@@ -55,7 +41,7 @@ public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
     {
         set
         {
-            WriteFloat(96, value);
+            WriteFloat(16, value);
         }
     }
 
@@ -63,9 +49,9 @@ public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
     {
         set
         {
-            WriteFloat(100, value);
+            WriteFloat(20, value);
         }
     }
     /// <summary>Selects importance coloring in the retained draw parameters.</summary>
-    public bool ImportanceColorMode { set => WriteFloat(104, value ? 1f : 0f); }
+    public bool ImportanceColorMode { set => WriteFloat(24, value ? 1f : 0f); }
 }

@@ -7,7 +7,11 @@ internal sealed partial class WaterReceiverFilterShaderProgram
 {
     private readonly WaterReceiverFilterUniformBuffer inputs;
 
+    private VgeFrameUniformBuffer? frameInputs;
+
     #region Public API
+    /// <summary>Retains the shared camera used to author this optical fixture.</summary>
+    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
     /// <summary>Attaches input lifetime and mutation validation to the shader owner.</summary>
     public WaterReceiverFilterShaderProgram() => inputs = OwnUniformBuffer(new WaterReceiverFilterUniformBuffer());
 
@@ -20,14 +24,11 @@ internal sealed partial class WaterReceiverFilterShaderProgram
     /// <summary>Supplies the oriented local interface normal.</summary>
     public Vector3 Normal { get => inputs.Normal; set => inputs.Normal = value; }
 
-    /// <summary>Reconstructs receiver positions independently of background dimensions.</summary>
-    public Matrix4x4 InverseProjection { get => inputs.InverseProjection; set => inputs.InverseProjection = value; }
-
-    /// <summary>Distinguishes original framebuffer dimensions from reduced background dimensions.</summary>
-    public Vector2 FullFrameSize { get => inputs.FullFrameSize; set => inputs.FullFrameSize = value; }
     #endregion
 
     #region Binding sources
+    /// <summary>Supplies the explicit fixture snapshot or current world camera.</summary>
+    CpuUniformBuffer IWaterReceiverFilterBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Supplies the owned block to generated prepared submission.</summary>
     CpuUniformBuffer IWaterReceiverFilterBindings.Inputs => inputs;
     #endregion

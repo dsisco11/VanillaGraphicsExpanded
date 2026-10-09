@@ -30,7 +30,13 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
     private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
     private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
+    private VgeFrameUniformBuffer? frameInputs;
+
     #region Public API
+    /// <summary>Retains an explicit view snapshot for isolated dispatches.</summary>
+    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
+    /// <summary>Uses the shared publication unless this dispatch owns an alternate view.</summary>
+    CpuUniformBuffer ILumonSceneRelightVoxelDdaComputeShaderBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Creates the executable before adopting its retained input owner.</summary>
     public static bool TryCreate(
         ICoreAPI api,
@@ -67,9 +73,6 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
         return true;
     }
 
-    /// <summary>Retains TerrainBridgeUbo for the next dispatch submission.</summary>
-    public void BindTerrainBridgeUbo(GpuUniformBuffer? ubo)
-    { TerrainBridge = ubo; }
 
     /// <summary>Retains RelightWorkSsbo for the next dispatch submission.</summary>
     public void BindRelightWorkSsbo(GpuShaderStorageBuffer ssbo)
@@ -119,8 +122,8 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
         StageParameters();
     }
 
-    /// <summary>Stages RelightParams without uploading partial parameters.</summary>
-    public void SetRelightParams(int frameIndex, uint texelsPerPagePerFrame, uint raysPerTexel, uint maxDdaSteps, bool debugCountersEnabled)
+    /// <summary>Stages relighting budgets independently of the shared rendering frame.</summary>
+    public void SetRelightParams(uint texelsPerPagePerFrame, uint raysPerTexel, uint maxDdaSteps, bool debugCountersEnabled)
     {
         RequireInputMutation();
         UboPacking.WriteUVec4(
@@ -132,7 +135,7 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
             debugCountersEnabled ? 1u : 0u);
 
         int occResolution = ReadI32(RelightInts0OffsetBytes + 4);
-        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, frameIndex, occResolution, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, 0, occResolution, 0, 0);
         StageParameters();
     }
 
@@ -143,8 +146,7 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
         UboPacking.WriteIVec4(paramsBytes, OccOriginMinCell0OffsetBytes, originMinCellX, originMinCellY, originMinCellZ, 0);
         UboPacking.WriteIVec4(paramsBytes, OccRing0OffsetBytes, ringX, ringY, ringZ, 0);
 
-        int frameIndex = ReadI32(RelightInts0OffsetBytes);
-        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, frameIndex, resolution, 0, 0);
+        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, 0, resolution, 0, 0);
         StageParameters();
     }
 

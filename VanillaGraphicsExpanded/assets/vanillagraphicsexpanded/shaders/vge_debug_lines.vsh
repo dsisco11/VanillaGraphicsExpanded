@@ -8,8 +8,9 @@ layout(location = 1) in vec4 color;
 
 out vec4 vColor;
 
+/** Projects camera-relative debug geometry using the universal frame snapshot. */
 void main(void)
 {
     vColor = color;
-    gl_Position = modelViewProjectionMatrix * vec4(vertex + worldOffset, 1.0);
+    gl_Position = vgeFrame.currViewProjMatrix * vec4(vertex + worldOffset, 1.0);
 }

@@ -1,3 +1,7 @@
+#if !VGE_TESS_SHADOW
+// Visible subdivision uses the shared camera even when a caller supplies effect inputs.
+@import "../vge_frame_ubo.glsl"
+#endif
 uniform sampler2D vge_displacementTex;
 uniform sampler2D vge_normalDepthTex;
 #ifndef VGE_TESSELLATION_INPUTS
@@ -5,12 +9,11 @@ uniform sampler2D vge_normalDepthTex;
 uniform mat4 mvpMatrix;
 #else
 uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
 #endif
 uniform float vge_tessellationFocalPixels;
 uniform int vge_displacementEnabled;
-// xy = viewport pixels, z = target pixels per segment, w = maximum subdivision.
-uniform vec4 vge_tessellationPixels;
+// x = target pixels per segment, y = maximum subdivision.
+uniform vec2 vge_tessellationPixels;
 // x/y = displacement fade start/end in metres; zero/invalid values disable displacement.
 uniform vec2 vge_tessellationDistance;
 #endif
@@ -45,32 +48,32 @@ float VgeHeight(vec2 uvValue, vec2 lo, vec2 size, float amplitude, vec3 position
 }
 float VgeEdgeLevel(vec3 a, vec3 b) {
     if (any(isnan(vge_tessellationPixels)) || any(isinf(vge_tessellationPixels))) return 1.0;
-    float limit = floor(clamp(vge_tessellationPixels.w, 1.0, 8.0));
+    float limit = floor(clamp(vge_tessellationPixels.y, 1.0, 8.0));
     // Fractional-odd spacing grows edge segments continuously; round the cap down to
     // an odd segment count so hardware rounding can never exceed the requested bound.
     limit = 2.0 * floor((limit - 1.0) * 0.5) + 1.0;
-    if (!VgeFinite(a) || !VgeFinite(b) || !(vge_tessellationPixels.z > 0.0)
-        || !VgeFinite2(vge_tessellationPixels.xy)) return 1.0;
+    if (!VgeFinite(a) || !VgeFinite(b) || !(vge_tessellationPixels.x > 0.0)) return 1.0;
     if (max(length(a), length(b)) >= vge_tessellationDistance.y) return 1.0;
     // Production uses one camera-derived angular metric for visible and shadow passes.
     // It depends only on shared endpoints, so light projection cannot change subdivision.
     if (vge_tessellationFocalPixels > 0.0) {
         float distance = max(0.05, min(length(a), length(b)));
         float pixels = length(b - a) * vge_tessellationFocalPixels / distance;
-        float level = clamp(pixels / vge_tessellationPixels.z, 1.0, limit);
+        float level = clamp(pixels / vge_tessellationPixels.x, 1.0, limit);
         return mix(1.0, level, min(VgeDistanceFade(a), VgeDistanceFade(b)));
     }
 #if VGE_TESS_SHADOW
-    vec4 ca = mvpMatrix * vec4(a, 1);
-    vec4 cb = mvpMatrix * vec4(b, 1);
+    // Shadows run before world-camera publication. If the frozen angular metric is
+    // unavailable, preserve the subdivision cap without borrowing a viewport or light projection.
+    return limit;
 #else
-    vec4 ca = projectionMatrix * modelViewMatrix * vec4(a, 1);
-    vec4 cb = projectionMatrix * modelViewMatrix * vec4(b, 1);
-#endif
+    vec4 ca = vgeFrame.projectionMatrix * modelViewMatrix * vec4(a, 1);
+    vec4 cb = vgeFrame.projectionMatrix * modelViewMatrix * vec4(b, 1);
     // Never divide by a near-plane crossing; bound it conservatively instead.
     if (min(ca.w, cb.w) <= 0.0001) return limit;
-    float pixels = length((ca.xy / ca.w - cb.xy / cb.w) * vge_tessellationPixels.xy * 0.5);
+    float pixels = length((ca.xy / ca.w - cb.xy / cb.w) * vgeFrame.screenSize * 0.5);
     if (isnan(pixels) || isinf(pixels)) return limit;
-    float level = clamp(pixels / vge_tessellationPixels.z, 1.0, limit);
+    float level = clamp(pixels / vge_tessellationPixels.x, 1.0, limit);
     return mix(1.0, level, min(VgeDistanceFade(a), VgeDistanceFade(b)));
+#endif
 }

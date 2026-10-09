@@ -24,8 +24,10 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
     public void ProductionAngularMetricMatchesCameraDistance(float distance)
     {
         EnsureContextValid();
-        using var inputs = new PackedUniformBuffer(256);
-        byte[] inputBytes = new byte[256];
+        using var inputs = new PackedUniformBuffer(176);
+        byte[] inputBytes = new byte[176];
+        using var camera = TestFrameCamera.CreateIdentity(128,128);
+        Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
         using var shaders=new TerrainShaderTestFixture();
         int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
         int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-metric.fsh");
@@ -34,10 +36,10 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         int id=program.ProgramId;var layout=BuiltShaderFixture.Layout(id,"tests/displacement-metric.fsh");
         target.BindWithViewport();StateCache.Current.UseProgram(id);StateCache.Current.BindVertexArray(vao.VertexArrayId);
-        UboPacking.WriteFloat(inputBytes, 252,distance);
-        UboPacking.WriteFloat(inputBytes, 192,1024f);
-        UboPacking.WriteVec4(inputBytes, 208,128f,128f,8f,8f);
-        UboPacking.WriteVec2(inputBytes, 224,8f,24f);
+        UboPacking.WriteFloat(inputBytes, 172,distance);
+        UboPacking.WriteFloat(inputBytes, 128,1024f);
+        UboPacking.WriteVec2(inputBytes, 136,8f,8f);
+        UboPacking.WriteVec2(inputBytes, 144,8f,24f);
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
         inputs.SetBytes(inputBytes);
         Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
@@ -47,6 +49,44 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         Assert.InRange(result[0],expected-.00001f,expected+.00001f);
         Assert.Equal(result[0],result[1]);Assert.Equal(1f,result[2]);Assert.InRange(result[0],1f,7f);
         StateCache.Current.UseProgram(0);StateCache.Current.BindVertexArray(0);
+    }
+
+    /// <summary>Shadow subdivision stays bounded without a world camera when its frozen angular metric is unavailable.</summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    public void ShadowWithoutAngularMetricUsesConservativeCap(float focalPixels)
+    {
+        EnsureContextValid();
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader,"#version 430 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
+        string directory = Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
+        string contract = File.ReadAllText(Path.Combine(directory,"tests","displacement_inputs.glsl"));
+        string kernel = TerrainEyeRelativeShadingTests.Expand(Path.Combine(directory,"tessellation","terrain_displacement.glsl"));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n#define VGE_TESS_SHADOW 1\n" + contract + kernel + """
+            out vec4 result;
+            void main() {
+                vec3 a=vec3(-.5,0,-2),b=vec3(.5,0,-2);
+                result=vec4(VgeEdgeLevel(a,b),VgeEdgeLevel(b,a),VgeEdgeLevel(vec3(0,0,-30),vec3(1,0,-30)),1);
+            }
+            """);
+        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
+        using var inputs = new PackedUniformBuffer(176);
+        byte[] bytes = new byte[176];
+        UboPacking.WriteFloat(bytes,128,focalPixels);
+        UboPacking.WriteVec2(bytes,136,8f,8f);
+        UboPacking.WriteVec2(bytes,144,8f,24f);
+        inputs.SetBytes(bytes);
+        Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
+        // A shadow pass precedes world publication and must not activate the shared camera block.
+        StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
+        Assert.Equal(-1,GL.GetUniformBlockIndex(program.ProgramId,"VgeFrameUBO"));
+        using var framework = new ShaderTestFramework();
+        using var target = framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        framework.RenderQuadTo(program.ProgramId,target);
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        Assert.Equal(new float[] {7,7,1,1},target[0].ReadPixels());
     }
 
     /// <summary>Height mapping is signed and bounded; neutral, boundary and invalid samples remain undisplaced.</summary>
@@ -66,8 +106,10 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
     public void HeightAndSharedEdgeRespectBounds(float height,float u,float v,float amplitude,float expected)
     {
         EnsureContextValid();
-        using var inputs = new PackedUniformBuffer(256);
-        byte[] inputBytes = new byte[256];
+        using var inputs = new PackedUniformBuffer(176);
+        byte[] inputBytes = new byte[176];
+        using var camera = TestFrameCamera.CreateIdentity(128,128);
+        Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
         using var shaders = new TerrainShaderTestFixture();
         int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
         int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-height.fsh");
@@ -84,12 +126,11 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             var layout = BuiltShaderFixture.Layout(program,"tests/displacement-height.fsh");
             target.BindWithViewport(); StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
             atlas.Bind(0); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
-            UboPacking.WriteVec3(inputBytes, 240,u,v,amplitude);
-            UboPacking.WriteVec2(inputBytes, 224,10f,20f);
-            UboPacking.WriteVec4(inputBytes, 208,128f,128f,16f,8f);
+            UboPacking.WriteVec3(inputBytes, 160,u,v,amplitude);
+            UboPacking.WriteVec2(inputBytes, 144,10f,20f);
+            UboPacking.WriteVec2(inputBytes, 136,16f,8f);
             float[] identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
             System.Runtime.InteropServices.MemoryMarshal.AsBytes(identity.AsSpan()).CopyTo(inputBytes.AsSpan(64));
-            System.Runtime.InteropServices.MemoryMarshal.AsBytes(identity.AsSpan()).CopyTo(inputBytes.AsSpan(128));
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             inputs.SetBytes(inputBytes);
             Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));

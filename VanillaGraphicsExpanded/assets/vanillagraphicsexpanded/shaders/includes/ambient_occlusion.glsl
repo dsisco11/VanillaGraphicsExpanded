@@ -1,14 +1,14 @@
 #ifndef VGE_AMBIENT_OCCLUSION
 #define VGE_AMBIENT_OCCLUSION
-layout(std140) uniform AmbientOcclusionInputs {
-    mat4 aoInverseProjection; mat4 aoView;
-    vec4 aoFrame; // full width/height, reduction divisor, operation
+@import "./vge_frame_ubo.glsl"
+layout(std140, binding = 28) uniform AmbientOcclusionInputs {
+    vec4 aoFrame; // reserved.xy, reduction divisor, operation
     vec4 aoSampling; // world radius, thickness, slices, radial steps
     vec4 aoDistance; // fade start/end, reserved
 };
 /** Reconstructs the receiver in view space from OpenGL hardware depth. */
 vec3 VgeAoPosition(vec2 uv, float depth) {
-    vec4 p=aoInverseProjection*vec4(uv*2.0-1.0,depth*2.0-1.0,1.0);
+    vec4 p=vgeFrame.invProjectionMatrix*vec4(uv*2.0-1.0,depth*2.0-1.0,1.0);
     return p.xyz/p.w;
 }
 /** Stores a unit normal with two signed octahedral coordinates. */

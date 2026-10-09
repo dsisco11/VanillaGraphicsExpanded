@@ -80,8 +80,7 @@ internal static class TerrainDisplacementRuntime
             program.Uniform("vge_displacementReactive", changed ? 1 : 0);
         }
         program.Uniform("vge_tessellationDistance", settings.FadeStartMetres, settings.FadeEndMetres);
-        program.Uniform("vge_tessellationPixels", (float)(Api?.Render.FrameWidth ?? 1),
-            (float)(Api?.Render.FrameHeight ?? 1), settings.TargetEdgePixels, (float)settings.MaximumLevel);
+        program.Uniform("vge_tessellationPixels", settings.TargetEdgePixels, (float)settings.MaximumLevel);
         program.Uniform("vge_tessellationFocalPixels", Math.Max(1, focalPixels));
     }
 

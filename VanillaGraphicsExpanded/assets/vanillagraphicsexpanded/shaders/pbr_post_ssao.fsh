@@ -51,14 +51,14 @@ void main() {
     vec2 uv=(vec2(receiver)+0.5)/vec2(size);
     vec3 position=VgeAoPosition(uv,depth);
     vec4 encoded=texelFetch(surfaceImage,ivec3(receiver,VGE_SURFACE_NORMAL),0);
-    vec3 normal=mat3(aoView)*(encoded.xyz*2.0-1.0);
+    vec3 normal=mat3(vgeFrame.viewMatrix)*(encoded.xyz*2.0-1.0);
     if(dot(normal,normal)<0.01 || encoded.a<0.0) {outOcclusion=vec4(1,-position.z,0,0);return;}
     normal=normalize(normal);
     float fade=1.0-smoothstep(aoDistance.x,aoDistance.y,-position.z);
     if(fade<=0.0) {outOcclusion=vec4(1,0,0,0);return;}
     vec3 view=normalize(-position);
     float radius=aoSampling.x;
-    float pixels=min(radius*float(size.y)/(2.0*max(-position.z,0.001)*abs(aoInverseProjection[1][1])),float(max(size.x,size.y)));
+    float pixels=min(radius*float(size.y)/(2.0*max(-position.z,0.001)*abs(vgeFrame.invProjectionMatrix[1][1])),float(max(size.x,size.y)));
     float jitter=fract(dot(vec2(receiver),vec2(0.754877666,0.569840296)));
     float visible=0.0,unoccluded=0.0;
     for(int slice=0;slice<6;slice++) {

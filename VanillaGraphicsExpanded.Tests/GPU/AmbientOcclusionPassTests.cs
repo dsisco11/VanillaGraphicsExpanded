@@ -142,6 +142,11 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         float a = -(far + near) / (far - near), b = -2 * far * near / (far - near);
         float[] inverse = [aspect,0,0,0, 0,1,0,0, 0,0,0,1/b, 0,0,-1,a/b];
         float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+        float[] projection = [1/aspect,0,0,0, 0,1,0,0, 0,0,a,-1, 0,0,b,0];
+        // The fixture depth is rendered by this camera; AO borrows the same universal snapshot.
+        using var camera = new VgeFrameUniformBuffer();
+        camera.Capture(projection, view, inverse, view, projection, projection,
+            new Vector2(width, height), 0, 0, Vector3.Zero, Vector3.Zero, 0);
         float[] depths = new float[width * height], normals = new float[width * height * 4], materials = new float[width * height * 4];
         for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
         {
@@ -163,7 +168,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var surface = LayeredTestTexture.Create(normal, material, null);
         var pipelines = owner.Prepare(draw, width, height, quality, horizon, reduction, filter);
         Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusion", pipelines, true,
-            commands => owner.Render(commands, draw, depth, surface, inverse, view)));
+            commands => owner.Render(commands, draw, depth, surface, camera)));
         if (measure)
         {
             var samples = new List<double>();
@@ -172,7 +177,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
                 using var timer = GpuTimerQuery.Create();
                 timer.Begin();
                 Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusionTiming", pipelines, true,
-                    commands => owner.Render(commands, draw, depth, surface, inverse, view)));
+                    commands => owner.Render(commands, draw, depth, surface, camera)));
                 timer.End(); samples.Add(timer.GetResultNanoseconds() / 1e6);
             }
             log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, six draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; owned payload={owner.StorageBytes} bytes. Not live cost or physical bandwidth.");

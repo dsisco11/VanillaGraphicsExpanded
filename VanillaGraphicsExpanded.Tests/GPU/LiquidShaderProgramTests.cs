@@ -25,12 +25,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         var surface = GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, "pbr_liquid")!;
         var volume = GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, LiquidShaderProgram.VolumePassName)!;
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
-        AssignTextures(surface, texture, atmosphere); AssignTextures(volume, texture, atmosphere);
+        AssignTextures(surface, texture, atmosphere, sharedCamera); AssignTextures(volume, texture, atmosphere, sharedCamera);
         surface.Origin = new(1, 2, 3); volume.Origin = new(4, 5, 6);
         using var ring = new GpuUniformRingBuffer(4 * 1024 * 1024, 2, false);
         ring.BeginFrame(0); GpuUniformRingSystem.SetCurrent(ring);
@@ -81,6 +82,8 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         float[] projection = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         var api = CreateFrameCaptureApi(uniforms, projection);
         var program = new LiquidShaderProgram { CaptureMode = mode };
+        using var sharedCamera = TestFrameCamera.CreateFromProjection(projection, 512, 512, .1f, 100);
+        program.FrameInputs = sharedCamera;
         var tile = new Vec2f(.125f, .125f);
         for (int frame = 0; frame < 8192; frame++) program.CaptureFrameInputs(api, tile);
         const int iterations = 2048;
@@ -93,32 +96,37 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
             output.WriteLine($"frame-capture mode={mode} lights={lights} spheres={spheres} sample={sample} iterations={iterations} bytes={bytes} elapsedMs={elapsed * 1000.0 / System.Diagnostics.Stopwatch.Frequency:R}");
         }
         var frameBytes = ((ILiquidShaderProgramBindings)program).FrameParameters.Bytes;
-        Assert.Equal(new Vector4(2, 3, 0, 4), MemoryMarshal.Read<Vector4>(frameBytes.Slice(192, 16)));
-        Assert.Equal(new Vector4(156, 157, 158, 159), MemoryMarshal.Read<Vector4>(frameBytes.Slice(1024, 16)));
-        Assert.Equal(Matrix4x4.Identity, MemoryMarshal.Read<Matrix4x4>(frameBytes.Slice(4640, 64)));
+        Assert.Equal(new Vector4(2, 3, 0, 4), MemoryMarshal.Read<Vector4>(frameBytes.Slice(128, 16)));
+        Assert.Equal(new Vector4(156, 157, 158, 159), MemoryMarshal.Read<Vector4>(frameBytes.Slice(944, 16)));
+        Assert.Same(sharedCamera, ((ILiquidShaderProgramBindings)program).FrameInputs);
+        Assert.Equal(Matrix4x4.Identity, MemoryMarshal.Read<Matrix4x4>(sharedCamera.Bytes.Slice(128, 64)));
     }
 
-    /// <summary>Projection changes publish a coherent GPU matrix pair and reject singular updates atomically.</summary>
+    /// <summary>Projection changes publish a coherent shared GPU matrix pair for liquid consumers.</summary>
     [Fact]
     public void ProjectionUpdatesPublishMatchingInverseForAsymmetricCamera()
     {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
-        AssignTextures(program, texture, atmosphere);
-        Matrix4x4 lastProjection = default;
-        Matrix4x4 lastInverse = default;
+        AssignTextures(program, texture, atmosphere, sharedCamera);
         foreach (float shift in new[] { .23f, -.17f })
         {
             var projection = Matrix4x4.CreatePerspectiveFieldOfView(shift > 0 ? .8f : 1.3f, 1.7f, .1f, 100);
             projection.M33 = -100.1f / 99.9f; projection.M43 = -20f / 99.9f;
             projection.M31 = shift; projection.M32 = -.11f;
-            program.ProjectionMatrix = MemoryMarshal.Cast<Matrix4x4, float>(new[] { projection }).ToArray();
+            Assert.True(Matrix4x4.Invert(projection, out var inverse));
+            float[] projected = MemoryMarshal.Cast<Matrix4x4, float>(new[] { projection }).ToArray();
+            float[] inverseProjected = MemoryMarshal.Cast<Matrix4x4, float>(new[] { inverse }).ToArray();
+            float[] identity = Mat4f.Create();
+            sharedCamera.Capture(projected, identity, inverseProjected, identity, projected, projected,
+                new(512, 512), 0, 0, Vector3.Zero, Vector3.Zero, 0, new(.1f, 100));
             var pair = ReadPair();
             Assert.Equal(projection, pair.Projection);
             // Project independent view-space points, then use the GPU-published
@@ -130,12 +138,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
                 reconstructed /= reconstructed.W;
                 Assert.InRange(Vector4.Distance(point, reconstructed), 0, .0002f);
             }
-            lastProjection = pair.Projection; lastInverse = pair.Inverse;
         }
-        Assert.Throws<ArgumentException>(() => program.ProjectionMatrix = new float[16]);
-        var retained = ReadPair();
-        Assert.Equal(lastProjection, retained.Projection);
-        Assert.Equal(lastInverse, retained.Inverse);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 
         /// <summary>Reads the production uniform block after normal shader activation publishes frame inputs.</summary>
@@ -144,11 +147,11 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
             using var activation = program.UseScope();
             GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
             GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
-            byte[] bytes = new byte[LiquidFrameParamsUbo.BlockSize];
+            byte[] bytes = new byte[VgeFrameUniformBuffer.PackedSize];
             using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
             GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
             return (MemoryMarshal.Read<Matrix4x4>(bytes.AsSpan(0, 64)),
-                MemoryMarshal.Read<Matrix4x4>(bytes.AsSpan(4640, 64)));
+                MemoryMarshal.Read<Matrix4x4>(bytes.AsSpan(128, 64)));
         }
     }
 
@@ -159,6 +162,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         var surface = Assert.IsType<LiquidShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "pbr_liquid"));
         var volume = Assert.IsType<LiquidShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
@@ -171,8 +175,8 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
-        AssignTextures(surface, texture, atmosphere);
-        AssignTextures(volume, texture, atmosphere);
+        AssignTextures(surface, texture, atmosphere, sharedCamera);
+        AssignTextures(volume, texture, atmosphere, sharedCamera);
         var uniforms = new DefaultShaderUniforms { ColorMapRects4 = new float[160] };
         float[] projection = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         var captureApi = CreateFrameCaptureApi(uniforms, projection);
@@ -242,28 +246,28 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
             program.ModelViewMatrix = projection;
             program.Origin = new(value, value + 1, value + 2);
             program.WaveFrame = new(new Vector4(value), .5f);
-            byte[] retainedArrays = ((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(1040, 3584).ToArray();
+            byte[] retainedArrays = ((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(960, 3584).ToArray();
             program.CaptureFrameInputs(captureApi, new Vec2f(.125f, .125f));
             Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
             using var activation = program.UseScope();
-            GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
-            GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
+            GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.ShaderInputs, out int buffer);
+            GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.ShaderInputs, out int offset);
             byte[] bytes = new byte[LiquidFrameParamsUbo.BlockSize];
             using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
             GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
             bool boundary = program.CaptureMode == 3;
-            Assert.Equal(boundary ? 0 : lights, MemoryMarshal.Read<int>(bytes.AsSpan(352)));
-            Assert.Equal(boundary ? 0 : spheres, MemoryMarshal.Read<int>(bytes.AsSpan(356)));
-            Assert.Equal(value + 3, MemoryMarshal.Read<float>(bytes.AsSpan(400)));
-            Assert.Equal(value + 4, MemoryMarshal.Read<float>(bytes.AsSpan(192)));
-            Assert.Equal(Matrix4x4.Identity, MemoryMarshal.Read<Matrix4x4>(bytes.AsSpan(4640, 64)));
-            if (boundary) Assert.Equal(retainedArrays, bytes.AsSpan(1040, 3584).ToArray());
+            Assert.Equal(boundary ? 0 : lights, MemoryMarshal.Read<int>(bytes.AsSpan(272)));
+            Assert.Equal(boundary ? 0 : spheres, MemoryMarshal.Read<int>(bytes.AsSpan(276)));
+            Assert.Equal(value + 3, MemoryMarshal.Read<float>(bytes.AsSpan(320)));
+            Assert.Equal(value + 4, MemoryMarshal.Read<float>(bytes.AsSpan(128)));
+            Assert.Same(sharedCamera, ((ILiquidShaderProgramBindings)program).FrameInputs);
+            if (boundary) Assert.Equal(retainedArrays, bytes.AsSpan(960, 3584).ToArray());
             if (!boundary && lights > 0)
             {
-                Assert.Equal(value, MemoryMarshal.Read<float>(bytes.AsSpan(1040 + (lights - 1) * 16)));
-                Assert.Equal(value + 1, MemoryMarshal.Read<float>(bytes.AsSpan(2640 + (lights - 1) * 16)));
+                Assert.Equal(value, MemoryMarshal.Read<float>(bytes.AsSpan(960 + (lights - 1) * 16)));
+                Assert.Equal(value + 1, MemoryMarshal.Read<float>(bytes.AsSpan(2560 + (lights - 1) * 16)));
             }
-            if (!boundary && spheres > 0) Assert.Equal(value + 2, MemoryMarshal.Read<float>(bytes.AsSpan(4240 + (spheres * 8 - 1) * 16)));
+            if (!boundary && spheres > 0) Assert.Equal(value + 2, MemoryMarshal.Read<float>(bytes.AsSpan(4160 + (spheres * 8 - 1) * 16)));
             Assert.Equal(new Vector4(value), MemoryMarshal.Read<Vector4>(((ILiquidShaderProgramBindings)program).WaveParameters.Bytes));
             float[] draw = ReadDraw(out _, out _);
             Assert.Equal(projection, draw.AsSpan(0, 16).ToArray());
@@ -280,6 +284,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.Equal(3, program.RefractionQuality);
         Assert.Equal(2, program.RefractionBackgroundScale);
@@ -346,12 +351,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var volume = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
-        AssignTextures(program, texture, volume);
+        AssignTextures(program, texture, volume, sharedCamera);
         using var activation = program.UseScope();
         Assert.Same(program, Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
         IShaderProgram engine = (IShaderProgram)Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram;
@@ -404,6 +410,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
@@ -436,6 +443,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
             program.AerialRadianceTexture = radiance;
             program.AerialAttenuationTexture = attenuation;
         }
+        program.FrameInputs = sharedCamera;
         using var activation = program.UseScope();
         int[] images = [terrain.TextureId, depth.TextureId, material.TextureId, near.TextureId, far.TextureId, radiance.TextureId, attenuation.TextureId];
         int[] samplers = [0, GpuSamplers.NearestClamp.SamplerId, GpuSamplers.NearestClamp.SamplerId,
@@ -463,27 +471,28 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var volume = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
-        AssignTextures(program, texture, volume);
+        AssignTextures(program, texture, volume, sharedCamera);
         program.Animation = new(1, 2, 3, 4);
         program.SetCounts(2, 1);
         program.SetPointLightPosition(1, new(5, 6, 7));
         program.SetFogSphereComponent(23, .75f);
         using var activation = program.UseScope();
-        GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
-        GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
+        GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.ShaderInputs, out int buffer);
+        GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.ShaderInputs, out int offset);
         Assert.NotEqual(0, buffer);
         byte[] bytes = new byte[LiquidFrameParamsUbo.BlockSize];
         using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
-        Assert.Equal(new float[] { 1, 2, 3, 4 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(bytes.AsSpan(192, 16)).ToArray());
-        Assert.Equal(new int[] { 2, 1, 0, 0 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(bytes.AsSpan(352, 16)).ToArray());
-        Assert.Equal(new float[] { 5, 6, 7 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(bytes.AsSpan(1056, 12)).ToArray());
-        Assert.Equal(.75f, System.Runtime.InteropServices.MemoryMarshal.Read<float>(bytes.AsSpan(4608)));
+        Assert.Equal(new float[] { 1, 2, 3, 4 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(bytes.AsSpan(128, 16)).ToArray());
+        Assert.Equal(new int[] { 2, 1, 0, 0 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(bytes.AsSpan(272, 16)).ToArray());
+        Assert.Equal(new float[] { 5, 6, 7 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(bytes.AsSpan(976, 12)).ToArray());
+        Assert.Equal(.75f, System.Runtime.InteropServices.MemoryMarshal.Read<float>(bytes.AsSpan(4528)));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -530,8 +539,9 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
 
 
     /// <summary>Supplies required borrowed textures for buffer-only tests that issue no draw.</summary>
-    private static void AssignTextures(LiquidShaderProgram program, Texture2D texture, DynamicTexture3D volume)
+    private static void AssignTextures(LiquidShaderProgram program, Texture2D texture, DynamicTexture3D volume, VgeFrameUniformBuffer camera)
     {
+        program.FrameInputs = camera;
         program.TerrainTexture = texture.TextureId;
         program.DepthTexture = texture.TextureId;
         program.MaterialParamsTexture = texture;

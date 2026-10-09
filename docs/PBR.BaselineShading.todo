@@ -926,7 +926,7 @@ Tasks
       - Document the contract in docs/PBR.Postprocessing.md. Run focused subagent tests for corners,
         contact detail, flat surfaces, thin geometry, foliage, motion, resolution changes and lifecycle;
         measure GPU/storage costs and obtain user-run visual acceptance before completion.
-      ☐ Unify camera and frame data across all shaders through VgeFrameUBO.
+      ☑ Unify camera and frame data across all shaders through VgeFrameUBO.
         - Make the existing universal definition the single camera/frame contract for all VGE
           shaders that consume these values, including PBR, AO, atmosphere, liquids, postprocessing,
           LumOn, debug and test shaders. Remove duplicated fields and uploads from effect-specific
@@ -948,6 +948,9 @@ Tasks
           superseded common fields in LumOnFrameUBO. Preserve resize, reload, camera cuts, world
           teardown and both lighting modes. Validate layouts, publication order, view isolation
           and removal of redundant uploads through focused subagent-run shader/GPU tests.
+        - Completed shared publication, consumer/fixture migration and source review. Focused
+          validation passed batches of 21, 86, 35 and 88 tests; the final incremental build reused
+          all 438 production and 507 test variants. Contract and receipts: docs/ShaderAuthoring.md.
       ☐ Unify shared light data across shaders through VgeLightsUBO.
         - Inventory light-data producers and consumers, then make VgeLightsUBO the shared contract
           for shaders using the same light list. Remove duplicated arrays, counts and uploads from
@@ -966,6 +969,8 @@ Tasks
           explicit mip-level sampling. Extract the existing LumOn HZB allocation, generation and
           shader contracts into a shared rendering owner independent of LumOn; migrate AO and
           LumOn consumers to its published texture rather than building duplicate hierarchies.
+          Bind one hierarchy sampler and select levels explicitly; keep the shared owner available
+          when LumOn is disabled, with allocation/lifetime managed through GpuResourceCollection.
         - Reconcile the existing R32F minimum-depth pyramid with AO's current min/max rejection
           scheme as part of direct hierarchical horizon sampling. Preserve the corrected receiver
           depth source and publish before the earliest consumer; build only when required by an
@@ -973,6 +978,8 @@ Tasks
         - Validate complete coverage for odd dimensions and one-pixel mip tails, conservative
           depth reduction, and feedback-safe source/destination mip access through existing GPU
           abstractions. Update typed bindings/tests and retire AO's separate depth allocations.
+          Replace the existing fixed 2x2 reduction where needed so odd source edges and dimensions
+          that have already reached one texel remain represented throughout the mip chain.
         - Use bounded projected radii, approximately evenly spaced paired searches, stable spatial
           direction/start-offset variation and footprint-appropriate hierarchical depth samples.
           Reconcile distance falloff, horizon representation and integral normalization together;

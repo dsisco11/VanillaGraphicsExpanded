@@ -26,6 +26,7 @@ public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : R
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         try
         {
@@ -33,6 +34,11 @@ public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : R
                 ? GpuShaderPrograms.Get<LiquidDepthShaderProgram>(assets.Api, "pbr_liquid_depth")!
                 : GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api,
                     route == "surface" ? "pbr_liquid" : LiquidShaderProgram.VolumePassName)!;
+            if (shader is LiquidDepthShaderProgram depthShader) depthShader.FrameInputs = frameCamera;
+            else ((LiquidShaderProgram)shader).FrameInputs = frameCamera;
+            Assert.Equal(12, GpuShaderContracts.Create(route == "depth" ? "pbr_liquid_depth"
+                : "pbr_liquid")
+                .UniformBlocks["VgeFrameUBO"].Slot);
             Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
             using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent24);
             // These are the final installed engine OIT formats after its BeforeOIT attachment replacement.

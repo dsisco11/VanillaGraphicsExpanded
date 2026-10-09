@@ -7,7 +7,7 @@
 
 @import "./vge_ubo_layout.glsl"
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnUpsampleParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnUpsampleParamsUBO
 {
     // upsampleDepthSigma.x, upsampleNormalSigma.y, upsampleSpatialSigma.z, holeFillMinConfidence.w
     vec4 upsampleFloats0;

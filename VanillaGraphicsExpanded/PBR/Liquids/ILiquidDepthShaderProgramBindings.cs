@@ -9,9 +9,9 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal interface ILiquidDepthShaderProgramBindings
 {
     #region Public API
-    /// <summary>Declares the VgeLiquidDepthFrameParams UniformBlock slot.</summary>
-    [ShaderBinding("VgeLiquidDepthFrameParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    CpuUniformBuffer FrameParameters { get; }
+    /// <summary>Declares the universal camera snapshot used by both liquid passes.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the VgeLiquidDrawParams UniformBlock slot.</summary>
     [ShaderBinding("VgeLiquidDrawParams", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer DrawParameters { get; }

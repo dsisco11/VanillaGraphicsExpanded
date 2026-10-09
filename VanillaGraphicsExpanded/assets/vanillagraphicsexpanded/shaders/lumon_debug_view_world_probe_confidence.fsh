@@ -24,8 +24,8 @@ vec4 renderWorldProbeConfidenceDebug()
 #if !VGE_LUMON_WORLDPROBE_ENABLED
     return lumonWorldProbeDebugDisabledColor();
 #else
-    vec3 posVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
-    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 posVS = lumonReconstructViewPos(uv, depth, vgeFrame.invProjectionMatrix);
+    vec3 posWS = (vgeFrame.invViewMatrix * vec4(posVS, 1.0)).xyz;
     vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
 
     LumOnWorldProbeSample wp = lumonWorldProbeSampleClipmapBound(posWS, normalWS);
@@ -37,7 +37,7 @@ vec4 renderWorldProbeConfidenceDebug()
 /** Renders only the WorldProbeConfidence view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderWorldProbeConfidenceDebug();
 }

@@ -5,18 +5,13 @@
 #ifndef PBR_COMPOSITE_PARAMS_UBO_GLSL
 #define PBR_COMPOSITE_PARAMS_UBO_GLSL
 
-@import "./vge_ubo_layout.glsl"
+@import "./vge_frame_ubo.glsl"
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
 {
-    mat4 invProjectionMatrix;
-    mat4 viewMatrix;
 
-    // rgbaFogIn
-    vec4 fogColor;
-
-    // fogDensityIn.x, fogMinIn.y, underwater.z, optional refraction publication.w
-    vec4 fogFloats0;
+    // underwater.x, optional refraction publication.y, reserved.zw
+    vec4 mediumFlags;
 
     // indirectTint.xyz, indirectIntensity.w
     vec4 indirectTint_intensity;
@@ -31,12 +26,12 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
 } vgePbrCompositeParams;
 
 // Matrices
-#define invProjectionMatrix (vgePbrCompositeParams.invProjectionMatrix)
-#define viewMatrix (vgePbrCompositeParams.viewMatrix)
+#define invProjectionMatrix (vgeFrame.invProjectionMatrix)
+#define viewMatrix (vgeFrame.viewMatrix)
 
-#define rgbaFogIn (vgePbrCompositeParams.fogColor)
-#define fogDensityIn (vgePbrCompositeParams.fogFloats0.x)
-#define fogMinIn (vgePbrCompositeParams.fogFloats0.y)
+#define rgbaFogIn (vgeFrame.fog0)
+#define fogDensityIn (vgeFrame.fog0.w)
+#define fogMinIn (vgeFrame.fogMinimum)
 
 #define indirectTint (vgePbrCompositeParams.indirectTint_intensity.xyz)
 #define indirectIntensity (vgePbrCompositeParams.indirectTint_intensity.w)

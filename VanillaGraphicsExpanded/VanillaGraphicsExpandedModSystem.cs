@@ -22,6 +22,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
+    private VgeFrameRenderer? frameRenderer;
     private HarmonyLib.Harmony? harmony;
 
     private TerrainReliefConfiguration? lastSurfaceDetail;
@@ -47,6 +48,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         // Atlas binding is injected by the renderer transpiler; retain frame-level mapping refresh.
         TerrainLumonSceneChunkSlotUniformBindingHook.ApplyPatches(harmony, api.Logger.Notification);
+        FrameShaderBindingHook.ApplyPatches(harmony, api.Logger.Notification);
 
         // Preload OpenGL extension strings as early as possible (best-effort; requires a current GL context).
         api.Event.EnqueueMainThreadTask(
@@ -78,6 +80,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
+        frameRenderer = new VgeFrameRenderer(api);
 
         // Single, always-available debug view entry point.
         api.Input.RegisterHotKey(
@@ -193,6 +196,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
         TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
         TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
+        FrameShaderBindingHook.ClearUniformCache();
         if (!memoryShaderRegistrationQueued)
         {
             memoryShaderRegistrationQueued = true;
@@ -236,6 +240,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
                 pendingShaderReload = false;
                 TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
                 TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
+                FrameShaderBindingHook.ClearUniformCache();
 
                 bool ok = capi.Shader.ReloadShaders();
                 if (ok)
@@ -268,6 +273,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             gpuProfilerRenderer?.Dispose();
             gpuProfilerRenderer = null;
+            frameRenderer?.Dispose();
+            frameRenderer = null;
 
             GlGpuProfiler.Instance.Dispose();
 

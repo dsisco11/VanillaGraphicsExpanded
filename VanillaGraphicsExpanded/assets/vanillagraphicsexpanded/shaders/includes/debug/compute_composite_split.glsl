@@ -52,7 +52,7 @@ void computeCompositeSplit(
     return;
 #else
 
-    vec3 viewPosVS = lumonReconstructViewPos(uv, depth, invProjectionMatrix);
+    vec3 viewPosVS = lumonReconstructViewPos(uv, depth, vgeFrame.invProjectionMatrix);
     vec3 viewDirVS = normalize(-viewPosVS);
 
     vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);

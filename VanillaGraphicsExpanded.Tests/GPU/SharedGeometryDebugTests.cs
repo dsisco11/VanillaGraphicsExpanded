@@ -87,7 +87,7 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             // Surface queries land at y=32.5 after the frame bridge; rays face -Z from that same camera.
             float[] projection = [0,0,0,0, 0,0,0,0, 0,0,0,0, x,.5f-cameraY,-5,1];
             float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,cameraY,0,1];
-            var bridge = LumOnFrameWorldSpaceBridge.Compute(anchor, 32, 0);
+            var bridge = FrameWorldSpaceBridge.Compute(anchor, 32, 0);
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: projection, invViewMatrix: view,
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
             program.DebugMode = mode;

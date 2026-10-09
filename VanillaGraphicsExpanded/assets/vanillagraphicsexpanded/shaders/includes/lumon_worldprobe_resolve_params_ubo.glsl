@@ -7,7 +7,7 @@
 
 @import "./vge_ubo_layout.glsl"
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnWorldProbeResolveParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnWorldProbeResolveParamsUBO
 {
     // atlasSize.xy, reserved.zw
     vec4 atlasSize0;

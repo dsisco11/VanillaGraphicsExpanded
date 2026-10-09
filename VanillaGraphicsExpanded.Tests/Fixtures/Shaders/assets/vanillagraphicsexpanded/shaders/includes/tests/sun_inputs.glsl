@@ -5,5 +5,4 @@ layout(std140, binding = 28) uniform SunInputs
     int vge_pbrRoute;
     vec4 vge_atmosphereSun;
     vec4 vge_atmosphereDisk;
-    vec3 camera;
 };

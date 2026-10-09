@@ -41,7 +41,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
             Assert.NotEqual(first, program.ProgramId);
             Assert.False(GL.IsProgram(first));
             Assert.Same(firstLayout, program.ResourceBindings);
-            program.FogDensityIn = 0.125f;
+            program.SetUnderwater(true);
             int installed = program.ProgramId;
             ulong installedRevision = program.ExecutableRevision;
             var installedInterface = program.GraphicsInterface;

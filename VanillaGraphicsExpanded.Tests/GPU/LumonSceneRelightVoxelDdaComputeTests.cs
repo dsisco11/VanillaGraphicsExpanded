@@ -29,6 +29,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
         using var computeProgram = computeProgramOwner!;
+        using var camera = TestFrameCamera.CreateIdentity(1,1);
+        computeProgram.FrameInputs = camera;
 
         const int tileSize = 8;
         const int tilesPerAxis = 1;
@@ -97,7 +99,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, (uint)0);
-        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 16u, 0u != 0);
+        computeProgram.SetRelightParams((uint)(tileSize * tileSize), 1u, 16u, 0u != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
@@ -123,6 +125,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
         using var computeProgram = computeProgramOwner!;
+        using var camera = TestFrameCamera.CreateIdentity(1,1);
+        computeProgram.FrameInputs = camera;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -180,7 +184,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
-        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 16u, 1u != 0);
+        computeProgram.SetRelightParams((uint)(tileSize * tileSize), 1u, 16u, 1u != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
@@ -207,6 +211,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
         using var computeProgram = computeProgramOwner!;
+        using var camera = TestFrameCamera.CreateIdentity(1,1);
+        computeProgram.FrameInputs = camera;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -257,7 +263,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
-        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 8u, 0u != 0);
+        computeProgram.SetRelightParams((uint)(tileSize * tileSize), 1u, 8u, 0u != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
@@ -285,6 +291,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
         using var computeProgram = computeProgramOwner!;
+        using var camera = TestFrameCamera.CreateIdentity(1,1);
+        computeProgram.FrameInputs = camera;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -351,7 +359,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         // Frame 0
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
-        computeProgram.SetRelightParams(0, commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
+        computeProgram.SetRelightParams(commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
         computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -360,7 +368,9 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         // Frame 1
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
-        computeProgram.SetRelightParams(1, commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
+        using var nextCamera = TestFrameCamera.CreateIdentity(1,1,frameIndex:1);
+        computeProgram.FrameInputs = nextCamera;
+        computeProgram.SetRelightParams(commonTexelsPerFrame, commonRaysPerTexel, commonMaxDdaSteps, commonDebugCountersEnabled != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
         computeProgram.Dispatch(gx, gy, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
@@ -384,6 +394,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
         using var computeProgram = computeProgramOwner!;
+        using var camera = TestFrameCamera.CreateIdentity(1,1);
+        computeProgram.FrameInputs = camera;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -447,7 +459,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
-        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 8u, 1u != 0);
+        computeProgram.SetRelightParams((uint)(tileSize * tileSize), 1u, 8u, 1u != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;
@@ -479,6 +491,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var computeProgramOwner, out string computeProgramLog), computeProgramLog);
         using var computeProgram = computeProgramOwner!;
+        using var camera = TestFrameCamera.CreateIdentity(1,1);
+        computeProgram.FrameInputs = camera;
 
         const int tileSize = 8;
         const int atlasCount = 1;
@@ -532,7 +546,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
         computeProgram.SetAtlasLayout((uint)tileSize, (uint)1, (uint)1, (uint)0);
-        computeProgram.SetRelightParams(0, (uint)(tileSize * tileSize), 1u, 8u, 0u != 0);
+        computeProgram.SetRelightParams((uint)(tileSize * tileSize), 1u, 8u, 0u != 0);
         computeProgram.SetOccupancyMapping(0, 0, 0, 0, 0, 0, occRes);
 
         int gx = (tileSize + 7) / 8;

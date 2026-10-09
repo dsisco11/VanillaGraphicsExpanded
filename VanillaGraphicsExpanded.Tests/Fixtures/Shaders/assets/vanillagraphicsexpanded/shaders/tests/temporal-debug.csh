@@ -1,14 +1,6 @@
 #version 430
-layout(std140, binding = 28) uniform TemporalDebugInputs
-{
-    mat4 prevViewProjMatrix;
-    int probeSpacing;
-    int debugMode;
-    vec2 probeGridSize;
-    float depthRejectThreshold;
-    float normalRejectThreshold;
-    float temporalAlpha;
-};
+#extension GL_ARB_shading_language_420pack : require
+@import "../includes/vge_frame_ubo.glsl"
 layout(local_size_x=1) in;
 layout(std430,binding=0) buffer Result { vec2 result; };
 

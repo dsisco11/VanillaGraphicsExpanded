@@ -315,6 +315,8 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
     #endregion
     #region Binding sources
     /// <summary>Supplies shared lighting storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnScreenProbeAtlasTraceShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnScreenProbeAtlasTraceShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies shared lighting storage through the binding contract.</summary>
     GpuUniformBuffer? ILumOnScreenProbeAtlasTraceShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

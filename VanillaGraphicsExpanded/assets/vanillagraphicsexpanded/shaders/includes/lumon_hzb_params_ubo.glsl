@@ -7,7 +7,7 @@
 
 @import "./vge_ubo_layout.glsl"
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnHzbDownsampleParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnHzbDownsampleParamsUBO
 {
     // srcMip.x, reserved.yzw
     ivec4 ints0;

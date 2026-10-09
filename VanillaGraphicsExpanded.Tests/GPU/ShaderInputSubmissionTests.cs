@@ -196,7 +196,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var firstTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var secondTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var frame = GpuUniformBuffer.Create();
-        frame.Allocate(544);
+        frame.Allocate(112);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
@@ -204,8 +205,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         {
             var first = programs.Create<LumOnUpsampleShaderProgram>();
             var second = programs.Create<LumOnUpsampleShaderProgram>();
-            using var firstSurface = AssignResources(first, firstTexture, frame, 0.25f);
-            using var secondSurface = AssignResources(second, secondTexture, frame, 0.75f);
+            using var firstSurface = AssignResources(first, firstTexture, frame, frameCamera, 0.25f);
+            using var secondSurface = AssignResources(second, secondTexture, frame, frameCamera, 0.75f);
             using (first.UseScope())
             {
                 Assert.Equal(firstTexture.TextureId, BoundTextures()[0]);
@@ -224,7 +225,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 Assert.Equal(0f, SubmittedDepthSigma(8));
                 Assert.Equal(0f, SubmittedDepthSigma(16));
             }
-            Assert.Equal(2, ring.AllocationsWritten);
+            Assert.Equal(3, ring.AllocationsWritten);
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }
@@ -239,7 +240,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var programs = new ComponentShaderPrograms();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var frame = GpuUniformBuffer.Create();
-        frame.Allocate(544);
+        frame.Allocate(112);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         GpuSupport.Initialize();
         Assert.True(GpuSupport.IsInitializedForCurrentContext);
         using var ring = new GpuUniformRingBuffer(4096, 1, persistent);
@@ -252,6 +254,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             var shader = programs.Create<LumOnUpsampleShaderProgram>();
             int[] priorTextures = BoundTextures();
             shader.FrameUniformBuffer = frame;
+            ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
             shader.IndirectHalf = texture;
             shader.PrimaryDepth = texture.TextureId;
             using var surfaceInput1 = LayeredTestTexture.Create(texture, null, null);
@@ -271,19 +274,19 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
             GpuUniformRingSystem.SetCurrent(ring);
             ((Vintagestory.API.Client.IShaderProgram)shader).Use();
-            Assert.Equal(1, ring.AllocationsWritten);
+            Assert.Equal(2, ring.AllocationsWritten);
             shader.Stop();
             shader.UpsampleDepthSigma = 0.75f;
-            Assert.Equal(1, ring.AllocationsWritten);
+            Assert.Equal(2, ring.AllocationsWritten);
             Assert.Equal(12f, UboPacking.ReadFloat(Parameters(shader).Bytes, 4));
             shader.Use();
-            Assert.Equal(2, ring.AllocationsWritten);
+            Assert.Equal(3, ring.AllocationsWritten);
             // The retained resource set remains usable after program replacement and page reuse.
             shader.InvalidateAssets();
             GL.Finish();
             ring.BeginFrame(1);
             shader.Use();
-            Assert.Equal(3, ring.AllocationsWritten);
+            Assert.Equal(5, ring.AllocationsWritten);
             Assert.Equal(0.75f, SubmittedDepthSigma());
             Assert.Equal(shader.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(0.75f, UboPacking.ReadFloat(Parameters(shader).Bytes, 0));
@@ -301,7 +304,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var programs = new ComponentShaderPrograms();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var frame = GpuUniformBuffer.Create();
-        frame.Allocate(544);
+        frame.Allocate(112);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
@@ -310,6 +314,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             var shader = programs.Create<LumOnProbeAnchorShaderProgram>();
             int[] priorTextures = BoundTextures();
             shader.FrameUniformBuffer = frame;
+            ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
             shader.PrimaryDepth = texture.TextureId;
             using var surfaceInput2 = LayeredTestTexture.Create(texture, null, null);
             shader.GBufferSurface = surfaceInput2;
@@ -319,10 +324,10 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(0, ring.AllocationsWritten);
             Assert.Equal(priorTextures, BoundTextures());
             shader.Use();
-            Assert.Equal(1, ring.AllocationsWritten);
+            Assert.Equal(2, ring.AllocationsWritten);
             Assert.Equal(0.75f, SubmittedDepthSigma(48));
             shader.Use();
-            Assert.Equal(1, ring.AllocationsWritten);
+            Assert.Equal(2, ring.AllocationsWritten);
             Assert.Equal(0.75f, SubmittedDepthSigma(48));
             shader.Stop();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -335,12 +340,14 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<LumOnUpsampleShaderProgram>();
+            ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
             Assert.False(shader.TryUse());
             Assert.Equal(0, ring.AllocationsWritten);
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
@@ -356,7 +363,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var programs = new ComponentShaderPrograms();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var frame = GpuUniformBuffer.Create();
-        frame.Allocate(544);
+        frame.Allocate(112);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
@@ -372,11 +380,13 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(GpuProgramLayout.ResolutionState.Missing,
                 shader.ProgramLayout.ResolveUniformBlockActive(shader.ProgramId, LumOnUpsampleParamsUbo.BlockName).State);
             shader.FrameUniformBuffer = frame;
+            ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
             shader.IndirectHalf = texture;
             shader.PrimaryDepth = texture.TextureId;
 
             shader.Use();
-            Assert.Equal(0, ring.AllocationsWritten);
+            Assert.Equal(1, ring.AllocationsWritten);
+            Assert.Equal(VgeFrameUniformBuffer.PackedSize, ring.BytesWritten);
             shader.Stop();
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
@@ -385,9 +395,10 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 
     #region Private
     /// <summary>Supplies required borrowed inputs while giving each owner distinct parameter bytes.</summary>
-    private static Texture3D AssignResources(LumOnUpsampleShaderProgram shader, GpuTexture texture, GpuUniformBuffer frame, float sigma)
+    private static Texture3D AssignResources(LumOnUpsampleShaderProgram shader, GpuTexture texture, GpuUniformBuffer frame, VgeFrameUniformBuffer frameCamera, float sigma)
     {
         shader.FrameUniformBuffer = frame;
+            ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
         shader.IndirectHalf = texture;
         shader.PrimaryDepth = texture.TextureId;
         var surfaceInput3 = LayeredTestTexture.Create(texture, null, null);

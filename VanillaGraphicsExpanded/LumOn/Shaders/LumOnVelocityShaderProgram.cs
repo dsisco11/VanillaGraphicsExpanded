@@ -56,6 +56,8 @@ public partial class LumOnVelocityShaderProgram : LumOnShaderProgram, ILumOnVelo
     // Per-frame state (screen size, invCurrViewProj, prevViewProj, historyValid) is provided via LumOnFrameUBO.
     #region Binding sources
     /// <summary>Supplies current frame storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnVelocityShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnVelocityShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
     GpuUniformBuffer? ILumOnVelocityShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

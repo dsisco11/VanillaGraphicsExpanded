@@ -30,7 +30,7 @@ vec4 renderLumonSceneMaterialAtlasAllDebug()
     int gridX = int(ceil(sqrt(float(layers))));
     int gridY = int(ceil(float(layers) / float(max(1, gridX))));
 
-    vec2 uv01 = gl_FragCoord.xy / screenSize;
+    vec2 uv01 = gl_FragCoord.xy / vgeFrame.screenSize;
 
     int cx = int(floor(uv01.x * float(gridX)));
     int cy = int(floor(uv01.y * float(gridY)));
@@ -49,8 +49,8 @@ vec4 renderLumonSceneMaterialAtlasAllDebug()
     vec2 cellUv = fract(vec2(uv01.x * float(gridX), uv01.y * float(gridY)));
 
     // Draw a subtle grid border.
-    float px = 1.0 / max(1.0, screenSize.x);
-    float py = 1.0 / max(1.0, screenSize.y);
+    float px = 1.0 / max(1.0, vgeFrame.screenSize.x);
+    float py = 1.0 / max(1.0, vgeFrame.screenSize.y);
     if (cellUv.x < px || cellUv.y < py || (1.0 - cellUv.x) < px || (1.0 - cellUv.y) < py)
     {
         return vec4(0.0, 0.0, 0.0, 1.0);
@@ -66,7 +66,7 @@ vec4 renderLumonSceneMaterialAtlasAllDebug()
 /** Renders only the LumonSceneMaterialAtlasAll view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderLumonSceneMaterialAtlasAllDebug();
 }

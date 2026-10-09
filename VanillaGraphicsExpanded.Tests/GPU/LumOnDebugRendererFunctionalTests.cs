@@ -65,6 +65,8 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         config.WorldProbeClipmap.ClipmapResolution = 4;
         config.WorldProbeClipmap.ClipmapLevels = 1;
         var world = new Mock<IClientWorldAccessor>();
+        world.SetupGet(value => value.Player).Returns(RuntimeEngineServices.CameraPlayer(() => new LumOnCameraState(0, 0, 0, 0, 0, 0, 0)));
+        world.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
         float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, -.5f,-.5f,0,1];
         float[] inverseProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         inverseProjection[0] *= .01f; inverseProjection[5] *= .01f;
@@ -85,6 +87,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
             drawing.RenderQuad(programs[LumOnDebugShaderProgramFamily.GetProgramName(config.LumOn.DebugMode)].ProgramId);
         });
         var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, shaderApi.Object);
+        using var frameCamera = new VgeFrameRenderer(api);
         using var buffers = new LumOnBufferManager(api, config);
         buffers.EnsureBuffers(2, 2);
         Assert.True(buffers.IsInitialized);
@@ -121,6 +124,8 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
             {
                 TestUniformRing.BeginFrame();
                 terrain.Output.BindWithViewport();
+                events.Render(EnumRenderStage.Before);
+                events.Render(EnumRenderStage.Opaque);
                 events.Render(EnumRenderStage.AfterBlit);
             }
             if (selectedFailure)
@@ -165,7 +170,9 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
                     {
                         TestUniformRing.BeginFrame();
                         terrain.Output.BindWithViewport();
-                        events.Render(EnumRenderStage.AfterBlit);
+                        events.Render(EnumRenderStage.Before);
+                events.Render(EnumRenderStage.Opaque);
+                events.Render(EnumRenderStage.AfterBlit);
                     }
                     Assert.True(draws >= before + 2, $"{mode} produced {draws - before} draws across eight callbacks.\n{string.Join("\n", assets.Logs)}");
                     Assert.Empty(events.MainThreadTasks);

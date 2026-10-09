@@ -1,11 +1,9 @@
 using System;
 using System.Buffers.Binary;
 using System.Numerics;
-using System.Runtime.InteropServices;
 
 using Vintagestory.API.MathTools;
 
-using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.LumOn;
@@ -18,12 +16,12 @@ internal sealed class LumOnUniformBuffers : IDisposable
     public const string FrameBlockName = "LumOnFrameUBO";
     public const string WorldProbeBlockName = "LumOnWorldProbeUBO";
 
-    public const int FrameBinding = GpuBindingRegistry.Ubo.Frame;
+    public const int FrameBinding = GpuBindingRegistry.Ubo.LumOnFrame;
     public const int WorldProbeBinding = GpuBindingRegistry.Ubo.WorldProbe;
 
     private const int WorldProbeMaxLevels = 8;
 
-    private const int FrameUboSizeBytes = 544;
+    private const int FrameUboSizeBytes = 112;
     private const int WorldProbeUboSizeBytes = 288;
 
     private readonly byte[] frameBytes = new byte[FrameUboSizeBytes];
@@ -40,6 +38,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
 
     public GpuUniformBuffer? WorldProbeUboOrNull => HasWorldProbeUbo ? worldProbeUbo : null;
 
+    /// <summary>Creates the effect-control buffer without allocating any camera storage.</summary>
     public void EnsureCreated()
     {
         if (frameUbo is null || frameUbo.BufferId == 0)
@@ -49,6 +48,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         }
     }
 
+    /// <summary>Creates storage for the independently owned world-probe clipmap controls.</summary>
     public void EnsureWorldProbeCreated()
     {
         if (worldProbeUbo is null || worldProbeUbo.BufferId == 0)
@@ -58,23 +58,13 @@ internal sealed class LumOnUniformBuffers : IDisposable
         }
     }
 
+    /// <summary>Publishes LumOn-specific target dimensions, history controls and environment lighting.</summary>
     public void UpdateFrame(
-        ReadOnlySpan<float> invProjectionMatrix,
-        ReadOnlySpan<float> projectionMatrix,
-        ReadOnlySpan<float> viewMatrix,
-        ReadOnlySpan<float> invViewMatrix,
-        ReadOnlySpan<float> prevViewProjMatrix,
-        ReadOnlySpan<float> invCurrViewProjMatrix,
-        float screenWidth,
-        float screenHeight,
         float halfResWidth,
         float halfResHeight,
         float probeGridWidth,
         float probeGridHeight,
-        float zNear,
-        float zFar,
         int probeSpacing,
-        int frameIndex,
         int historyValid,
         int anchorJitterEnabled,
         int pmjCycleLength,
@@ -83,32 +73,14 @@ internal sealed class LumOnUniformBuffers : IDisposable
         float velocityRejectThreshold,
         Vec3f sunPosition,
         Vec3f sunColor,
-        Vec3f ambientColor,
-        VectorInt3 matrixSpaceWorldChunkCoordOffset,
-        Vector3d matrixSpaceWorldBlockOffsetRem)
+        Vec3f ambientColor)
     {
         EnsureCreated();
 
-        ValidateMat4(invProjectionMatrix, nameof(invProjectionMatrix));
-        ValidateMat4(projectionMatrix, nameof(projectionMatrix));
-        ValidateMat4(viewMatrix, nameof(viewMatrix));
-        ValidateMat4(invViewMatrix, nameof(invViewMatrix));
-        ValidateMat4(prevViewProjMatrix, nameof(prevViewProjMatrix));
-        ValidateMat4(invCurrViewProjMatrix, nameof(invCurrViewProjMatrix));
-
         int offset = 0;
 
-        WriteMat4(frameBytes, offset, invProjectionMatrix); offset += 64;
-        WriteMat4(frameBytes, offset, projectionMatrix); offset += 64;
-        WriteMat4(frameBytes, offset, viewMatrix); offset += 64;
-        WriteMat4(frameBytes, offset, invViewMatrix); offset += 64;
-        WriteMat4(frameBytes, offset, prevViewProjMatrix); offset += 64;
-        WriteMat4(frameBytes, offset, invCurrViewProjMatrix); offset += 64;
-
-        WriteVec4(frameBytes, offset, screenWidth, screenHeight, halfResWidth, halfResHeight); offset += 16;
-        WriteVec4(frameBytes, offset, probeGridWidth, probeGridHeight, zNear, zFar); offset += 16;
-
-        WriteIvec4(frameBytes, offset, probeSpacing, frameIndex, historyValid, anchorJitterEnabled); offset += 16;
+        WriteVec4(frameBytes, offset, halfResWidth, halfResHeight, probeGridWidth, probeGridHeight); offset += 16;
+        WriteIvec4(frameBytes, offset, probeSpacing, 0, historyValid, anchorJitterEnabled); offset += 16;
         WriteIvec4(frameBytes, offset, pmjCycleLength, enableVelocityReprojection, 0, 0); offset += 16;
 
         WriteVec4(frameBytes, offset, anchorJitterScale, velocityRejectThreshold, 0f, 0f); offset += 16;
@@ -118,8 +90,6 @@ internal sealed class LumOnUniformBuffers : IDisposable
             atmosphere?.Sun.Z ?? sunPosition.Z, 0f); offset += 16;
         WriteVec4(frameBytes, offset, atmosphere?.Solar.X ?? sunColor.X, atmosphere?.Solar.Y ?? sunColor.Y, atmosphere?.Solar.Z ?? sunColor.Z, 0f); offset += 16;
         WriteVec4(frameBytes, offset, atmosphere?.Environment.X ?? ambientColor.X, atmosphere?.Environment.Y ?? ambientColor.Y, atmosphere?.Environment.Z ?? ambientColor.Z, 0f); offset += 16;
-        WriteIvec4(frameBytes, offset, matrixSpaceWorldChunkCoordOffset.X, matrixSpaceWorldChunkCoordOffset.Y, matrixSpaceWorldChunkCoordOffset.Z, 0); offset += 16;
-        WriteVec4(frameBytes, offset, (float)matrixSpaceWorldBlockOffsetRem.X, (float)matrixSpaceWorldBlockOffsetRem.Y, (float)matrixSpaceWorldBlockOffsetRem.Z, 0f); offset += 16;
 
         if (offset != FrameUboSizeBytes)
         {
@@ -129,6 +99,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         FrameUbo.UploadOrResize(frameBytes, FrameUboSizeBytes, growExponentially: false);
     }
 
+    /// <summary>Publishes clipmap placement and fallback lighting independently of camera matrices.</summary>
     public void UpdateWorldProbe(
         Vec3f skyTint,
         Vector3 cameraPosWS,
@@ -177,6 +148,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         WorldProbeUbo.UploadOrResize(worldProbeBytes, WorldProbeUboSizeBytes, growExponentially: false);
     }
 
+    /// <summary>Retires effect and clipmap storage when their lighting owner is disposed.</summary>
     public void Dispose()
     {
         frameUbo?.Dispose();
@@ -185,33 +157,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         worldProbeUbo = null;
     }
 
-    private static void ValidateMat4(ReadOnlySpan<float> m, string paramName)
-    {
-        if (m.Length < 16)
-        {
-            throw new ArgumentException("Expected at least 16 elements.", paramName);
-        }
-    }
-
-    private static void WriteMat4(byte[] dst, int byteOffset, ReadOnlySpan<float> m)
-    {
-        if (m.Length < 16)
-        {
-            throw new ArgumentException("Expected at least 16 elements.", nameof(m));
-        }
-
-        if (!BitConverter.IsLittleEndian)
-        {
-            for (int i = 0; i < 16; i++)
-            {
-                WriteFloat(dst, byteOffset + i * 4, m[i]);
-            }
-            return;
-        }
-
-        MemoryMarshal.AsBytes(m.Slice(0, 16)).CopyTo(dst.AsSpan(byteOffset, 64));
-    }
-
+    /// <summary>Packs one std140 floating-point vector in little-endian order.</summary>
     private static void WriteVec4(byte[] dst, int byteOffset, float x, float y, float z, float w)
     {
         if (!BitConverter.IsLittleEndian)
@@ -230,6 +176,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         BinaryPrimitives.WriteSingleLittleEndian(b.Slice(12, 4), w);
     }
 
+    /// <summary>Packs one std140 integer vector without floating-point conversion.</summary>
     private static void WriteIvec4(byte[] dst, int byteOffset, int x, int y, int z, int w)
     {
         Span<byte> b = dst.AsSpan(byteOffset, 16);
@@ -239,13 +186,10 @@ internal sealed class LumOnUniformBuffers : IDisposable
         BinaryPrimitives.WriteInt32LittleEndian(b.Slice(12, 4), w);
     }
 
+    /// <summary>Packs a scalar for vector components on alternate host byte orders.</summary>
     private static void WriteFloat(byte[] dst, int byteOffset, float v)
     {
         BinaryPrimitives.WriteSingleLittleEndian(dst.AsSpan(byteOffset, 4), v);
     }
 
-    private static void WriteInt(byte[] dst, int byteOffset, int v)
-    {
-        BinaryPrimitives.WriteInt32LittleEndian(dst.AsSpan(byteOffset, 4), v);
-    }
 }

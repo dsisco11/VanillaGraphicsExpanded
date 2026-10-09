@@ -7,7 +7,7 @@
 
 @import "./vge_ubo_layout.glsl"
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnCombineParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnCombineParamsUBO
 {
     // indirectTint.xyz, indirectIntensity.w
     vec4 indirectTint_intensity;

@@ -7,7 +7,7 @@
 
 @import "./vge_ubo_layout.glsl"
 
-VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgeLumOnDebugParamsUBO
+layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgeLumOnDebugParamsUBO
 {
     // x=enabled, y=tileSizeTexels, z=tilesPerAxis, w=tilesPerAtlas
     ivec4 lumonSceneInts0;

@@ -72,8 +72,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-        using var inputs = new PackedUniformBuffer(64);
-        byte[] inputBytes = new byte[64];
+        using var inputs = new PackedUniformBuffer(48);
+        byte[] inputBytes = new byte[48];
         UboPacking.WriteInt32(inputBytes, 4, displayTransfer ? 0 : 1);
         UboPacking.WriteVec4(inputBytes, 32, 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);
         float[]? baseline = null;
@@ -82,7 +82,10 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             target.BindWithViewport();
             GL.ClearColor(0, 0, 0, 0); GL.ClearDepth(iteration == 3 ? .5 : 1);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            UboPacking.WriteVec3(inputBytes, 48, iteration * 37f, iteration * -19f, iteration * 123f);
+            float[] view = Vintagestory.API.MathTools.Mat4f.Create();
+            view[12] = iteration * 37f; view[13] = iteration * -19f; view[14] = iteration * 123f;
+            using var camera = TestFrameCamera.CreateSolar(64,64,view);
+            Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             UboPacking.WriteVec4(inputBytes, 16, 0f, 0f, -1f, iteration == 2 ? 0f : -1f);
             inputs.SetBytes(inputBytes);
             Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));

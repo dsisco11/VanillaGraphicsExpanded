@@ -178,7 +178,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             var position = camera ?? new Vector3(0.5f, 0.5f, 0);
             float[] inverseView = [1,0,0,0, 0,1,0,0, 0,0,1,0, position.X,position.Y,position.Z,1];
             var origin = playerOrigin ?? new Vector3d();
-            var bridge = LumOnFrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
+            var bridge = FrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
             UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: inverseProjection, invViewMatrix: inverseView,
                 matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
             program.DebugMode = legacySelector;

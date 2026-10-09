@@ -2,16 +2,15 @@
 #define VGE_LIQUID_PARAMS
 #define DYNLIGHTS 100
 #define SHADOWQUALITY 2
-layout(std140, binding = 12) uniform VgeLiquidFrameParams
+@import "../vge_frame_ubo.glsl"
+layout(std140, binding = 28) uniform VgeLiquidFrameParams
 {
-    mat4 projectionMatrix;
     mat4 toShadowMapSpaceMatrixNear;
     mat4 toShadowMapSpaceMatrixFar;
     vec4 liquidAnimation;
     vec4 liquidShadowRanges;
     vec4 liquidPlayer;
     vec4 liquidAtlas;
-    vec4 liquidDepth;
     vec4 liquidSeason;
     vec4 liquidSun;
     vec4 liquidSolar;
@@ -25,13 +24,16 @@ layout(std140, binding = 12) uniform VgeLiquidFrameParams
     vec3 pointLightColors[100];
     float fogSpheres[24];
     vec4 liquidMediumControl; // material lookup, composed volume, immutable refraction source, scene-linear output
-    mat4 inverseProjectionMatrix;
 };
 layout(std140, binding = 14) uniform VgeLiquidDrawParams
 {
-    mat4 modelViewMatrix;
+    mat4 modelMatrix;
     vec4 liquidOrigin;
 };
+// Camera data is shared; this block stores only the per-pool object transform.
+#define modelViewMatrix (vgeFrame.viewMatrix * modelMatrix)
+#define projectionMatrix (vgeFrame.projectionMatrix)
+#define inverseProjectionMatrix (vgeFrame.invProjectionMatrix)
 #define origin liquidOrigin.xyz
 #define forcedTransparency liquidOrigin.w
 #define waterStillCounter liquidAnimation.x
@@ -42,9 +44,9 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 #define playerpos liquidPlayer.xyz
 #define blockTextureSize liquidAtlas.xy
 #define textureAtlasSize liquidAtlas.zw
-#define zNear liquidDepth.x
-#define zFar liquidDepth.y
-#define frameSize liquidDepth.zw
+#define zNear vgeFrame.clipPlanes.x
+#define zFar vgeFrame.clipPlanes.y
+#define frameSize vgeFrame.screenSize
 #define seasonRel liquidSeason.x
 #define seaLevel liquidSeason.y
 #define atlasHeight liquidSeason.z

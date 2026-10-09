@@ -40,7 +40,7 @@ vec4 renderProbeDepthDebug(vec2 screenPos)
 /** Renders only the ProbeDepth view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderProbeDepthDebug(screenPos);
 }

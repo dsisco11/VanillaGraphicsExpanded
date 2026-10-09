@@ -17,7 +17,7 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProg
 
 
 
-    private readonly LiquidDepthFrameParamsUbo frame = new();
+    private VgeFrameUniformBuffer? frameInputs;
     private readonly LiquidWaveParamsUbo wave = new();
     private readonly LiquidDrawParamsUbo draw = new();
 
@@ -25,14 +25,25 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProg
     internal override GpuShaderContract ProgramContract => Contract;
 
     #region Public API
-    /// <summary>Stages the same projection used by the visible liquid pass.</summary>
-    internal ReadOnlySpan<float> ProjectionMatrix { set => frame.ProjectionMatrix = value; }
+    /// <summary>Supplies an alternate camera snapshot without duplicating common transforms.</summary>
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
 
     /// <summary>Stages the shared wave snapshot before the depth draw.</summary>
     internal LiquidWaveFrame WaveFrame { set { wave.Phases = value.Phases; wave.Wind = value.Wind; } }
 
-    /// <summary>Stages the engine's pool transform.</summary>
-    internal float[] ModelViewMatrix { set { draw.SetModelView(value); } }
+    /// <summary>Adapts the engine combined pool transform without repeating camera storage.</summary>
+    internal float[] ModelViewMatrix { set { draw.SetModelView(value, frameInputs ?? VgeFrameRenderer.Current); } }
+
+    /// <summary>Starts ordinary pool rendering with the shared camera and no object transform.</summary>
+    internal void ResetModelTransform()
+    {
+        RequireInputMutation();
+        draw.ResetModelTransform();
+    }
 
     /// <summary>Stages the engine's pool origin.</summary>
     internal Vector3 Origin { set { draw.SetOrigin(value); } }
@@ -78,12 +89,11 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProg
     /// <summary>Attaches mutation guards to all retained blocks.</summary>
     public LiquidDepthShaderProgram()
     {
-        frame.SetWriteGuard(RequireInputMutation);
         draw.SetWriteGuard(RequireInputMutation);
         wave.SetWriteGuard(RequireInputMutation);
     }
-    /// <summary>Supplies retained frame inputs.</summary>
-    CpuUniformBuffer ILiquidDepthShaderProgramBindings.FrameParameters => frame;
+    /// <summary>Shares the same current world camera as the visible liquid pass.</summary>
+    CpuUniformBuffer ILiquidDepthShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Supplies retained draw inputs.</summary>
     CpuUniformBuffer ILiquidDepthShaderProgramBindings.DrawParameters => draw;
     /// <summary>Supplies retained wave inputs.</summary>

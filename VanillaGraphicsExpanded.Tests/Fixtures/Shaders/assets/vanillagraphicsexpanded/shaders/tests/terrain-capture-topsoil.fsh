@@ -1,6 +1,7 @@
 #version 330 core
+#extension GL_ARB_shading_language_420pack : require
 @import "../includes/pbr_color.glsl"
-layout(std140) uniform TerrainCaptureInputs { vec4 material; vec4 controls; };
+layout(std140, binding = 28) uniform TerrainCaptureInputs { vec4 material; vec4 controls; };
 layout(location=0) out vec4 outColor;
 #define NORMALVIEW 0
 // The independent main retains the engine capture boundary and cutout-before-publication ordering.

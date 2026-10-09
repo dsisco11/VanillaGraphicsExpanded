@@ -28,6 +28,8 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         var program = CreateConsumer(programs, consumer);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
+        ((ILumOnFrameShader)program).FrameInputs = frameCamera;
         using var frame = GpuUniformBuffer.Create();
         using var world = GpuUniformBuffer.Create();
         using var replacement = GpuUniformBuffer.Create();
@@ -39,14 +41,16 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         replacement.UploadOrResize(new byte[16]);
         ((ILumOnFrameShader)program).FrameUniformBuffer = frame;
         ((ILumOnWorldProbeShader)program).WorldProbeUniformBuffer = world;
+        bool consumesEffectFrame = program.ProgramLayout.BinaryInterface!.GetUniformBlockIndex(LumOnUniformBuffers.FrameBlockName) >= 0;
+        int previousFrameBinding = BoundBuffer(LumOnUniformBuffers.FrameBinding);
         using (program.UseScope())
         {
-            Assert.Equal(frame.BufferId, BoundBuffer(LumOnUniformBuffers.FrameBinding));
+            Assert.Equal(consumesEffectFrame ? frame.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
             Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
             ((ILumOnFrameShader)program).FrameUniformBuffer = replacement;
-            Assert.Equal(frame.BufferId, BoundBuffer(LumOnUniformBuffers.FrameBinding));
+            Assert.Equal(consumesEffectFrame ? frame.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
             program.Use();
-            Assert.Equal(replacement.BufferId, BoundBuffer(LumOnUniformBuffers.FrameBinding));
+            Assert.Equal(consumesEffectFrame ? replacement.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
             Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
         }
         program.Dispose();
@@ -88,9 +92,11 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         var program = CreateConsumer(programs, consumer);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
+        ((ILumOnFrameShader)program).FrameInputs = frameCamera;
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var frame = GpuUniformBuffer.Create();
-        frame.Allocate(544);
+        frame.Allocate(112);
         program.FrameUniformBuffer = frame;
         AssignRequiredTextures(program, texture);
         using var scene = new TraceGeometryGpuScene(32);

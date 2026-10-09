@@ -7,15 +7,16 @@ internal sealed partial class WaterRefractionDiagnosticShaderProgram
 {
     private readonly WaterRefractionDiagnosticUniformBuffer inputs;
 
+    private VgeFrameUniformBuffer? frameInputs;
+
     #region Public API
+    /// <summary>Retains the shared camera used to author this optical fixture.</summary>
+    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
     /// <summary>Attaches input lifetime and mutation validation to the shader owner.</summary>
     public WaterRefractionDiagnosticShaderProgram() => inputs = OwnUniformBuffer(new WaterRefractionDiagnosticUniformBuffer());
 
     /// <summary>Selects the independently authored optical geometry.</summary>
     public int Scenario { get => inputs.Scenario; set => inputs.Scenario = value; }
-
-    /// <summary>Supplies full-frame projection dimensions.</summary>
-    public Vector2 FrameSize { get => inputs.FrameSize; set => inputs.FrameSize = value; }
 
     /// <summary>Supplies an optional independently reconstructed surface for diagnostic scenario twelve.</summary>
     public Vector3 Surface { get => inputs.Surface; set => inputs.Surface = value; }
@@ -35,14 +36,11 @@ internal sealed partial class WaterRefractionDiagnosticShaderProgram
     /// <summary>Selects an underwater exit for custom optical geometry.</summary>
     public int Underwater { get => inputs.Underwater; set => inputs.Underwater = value; }
 
-    /// <summary>Supplies the CPU-authored projection used to generate the receiver depths.</summary>
-    public Matrix4x4 Projection { get => inputs.Projection; set => inputs.Projection = value; }
-
-    /// <summary>Supplies its CPU inverse for production receiver reconstruction.</summary>
-    public Matrix4x4 InverseProjection { get => inputs.InverseProjection; set => inputs.InverseProjection = value; }
     #endregion
 
     #region Binding sources
+    /// <summary>Supplies the explicit fixture snapshot or current world camera.</summary>
+    CpuUniformBuffer IWaterRefractionDiagnosticBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Supplies the owned block to generated prepared submission.</summary>
     CpuUniformBuffer IWaterRefractionDiagnosticBindings.Inputs => inputs;
     #endregion

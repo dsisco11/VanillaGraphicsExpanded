@@ -1,5 +1,5 @@
 // ============================================================================
-// LumOn UBO Contracts (Phase 23)
+// LumOn UBO Contracts
 //
 // This file declares the shared uniform blocks used by LumOn to reduce per-pass
 // uniform churn. Blocks are std140 and use fixed binding points.
@@ -11,8 +11,10 @@
 
 // Binding points (choose values unlikely to collide with engine defaults).
 // Note: GLSL 330 does not support `layout(binding=...)` for uniform blocks without 420pack.
-// We keep these constants as the contract and assign bindings from C# via glUniformBlockBinding.
-#define LUMON_UBO_FRAME_BINDING     12
+// All consumers require 420pack and declare their binding points explicitly.
+@import "./vge_ubo_layout.glsl"
+@import "./vge_frame_ubo.glsl"
+#define LUMON_UBO_FRAME_BINDING     17
 #define LUMON_UBO_WORLDPROBE_BINDING 13
 
 // Expected maximum levels (matches config clamp).
@@ -24,28 +26,13 @@
 // Per-frame shared state (stable within a frame)
 // ---------------------------------------------------------------------------
 
-layout(std140) uniform LumOnFrameUBO
+layout(std140, binding = LUMON_UBO_FRAME_BINDING) uniform LumOnFrameUBO
 {
-    // Matrices
-    mat4 invProjectionMatrix;
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    mat4 invViewMatrix;
-
-    // Temporal / velocity
-    // Previous projection/view composed with T(currentRenderOrigin - previousRenderOrigin).
-    mat4 prevViewProjMatrix;
-    mat4 invCurrViewProjMatrix;
-
-    // Sizes and grid:
-    // - screenSize.xy, halfResSize.zw
-    vec4 screenSize_halfResSize;
-
-    // - probeGridSize.xy, zNear.z, zFar.w
-    vec4 probeGridSize_zNear_zFar;
+    // Reduced target and probe-grid dimensions are specific to this effect.
+    vec4 halfResSize_probeGridSize;
 
     // Integers:
-    // - x=probeSpacing, y=frameIndex, z=historyValid, w=anchorJitterEnabled
+    // - x=probeSpacing, y=reserved, z=historyValid, w=anchorJitterEnabled
     ivec4 frameInts0;
 
     // - x=pmjCycleLength, y=enableVelocityReprojection, z/w reserved
@@ -60,16 +47,13 @@ layout(std140) uniform LumOnFrameUBO
     vec4 sunColor;      // xyz, w reserved
     vec4 ambientColor;  // xyz, w reserved
 
-    // Matrix-space to absolute-world bridge for LumOn fullscreen passes.
-    ivec4 matrixSpaceWorldChunkCoordOffset;
-    vec4 matrixSpaceWorldBlockOffsetRem;
 } lumonFrame;
 
 // ---------------------------------------------------------------------------
 // World-probe clipmap params (stable within a frame)
 // ---------------------------------------------------------------------------
 
-layout(std140) uniform LumOnWorldProbeUBO
+layout(std140, binding = LUMON_UBO_WORLDPROBE_BINDING) uniform LumOnWorldProbeUBO
 {
     vec4 worldProbeSkyTint;      // xyz tint, w reserved
     vec4 worldProbePlayerOriginWorld; // xyz origin used for relative clipmap coordinates, w reserved
@@ -84,26 +68,12 @@ layout(std140) uniform LumOnWorldProbeUBO
 // The old standalone `uniform ...;` declarations should not exist anymore.
 // ---------------------------------------------------------------------------
 
-// Matrices
-#define invProjectionMatrix   (lumonFrame.invProjectionMatrix)
-#define projectionMatrix      (lumonFrame.projectionMatrix)
-#define viewMatrix            (lumonFrame.viewMatrix)
-#define invViewMatrix         (lumonFrame.invViewMatrix)
-#define prevViewProjMatrix    (lumonFrame.prevViewProjMatrix)
-#define invCurrViewProjMatrix (lumonFrame.invCurrViewProjMatrix)
-
-// Sizes
-#define screenSize    (lumonFrame.screenSize_halfResSize.xy)
-#define halfResSize   (lumonFrame.screenSize_halfResSize.zw)
-#define probeGridSize (lumonFrame.probeGridSize_zNear_zFar.xy)
-
-// Z-planes
-#define zNear (lumonFrame.probeGridSize_zNear_zFar.z)
-#define zFar  (lumonFrame.probeGridSize_zNear_zFar.w)
+// Sizes remain effect-specific; full-view dimensions come from VgeFrameUBO.
+#define halfResSize   (lumonFrame.halfResSize_probeGridSize.xy)
+#define probeGridSize (lumonFrame.halfResSize_probeGridSize.zw)
 
 // Frame ints
 #define probeSpacing         (lumonFrame.frameInts0.x)
-#define frameIndex           (lumonFrame.frameInts0.y)
 #define historyValid         (lumonFrame.frameInts0.z)
 #define anchorJitterEnabled  (lumonFrame.frameInts0.w)
 #define pmjCycleLength       (lumonFrame.frameInts1.x)
@@ -118,7 +88,5 @@ layout(std140) uniform LumOnWorldProbeUBO
 #define sunColor    (lumonFrame.sunColor.xyz)
 #define ambientColor (lumonFrame.ambientColor.xyz)
 
-#define matrixSpaceWorldChunkCoordOffset (lumonFrame.matrixSpaceWorldChunkCoordOffset.xyz)
-#define matrixSpaceWorldBlockOffsetRem (lumonFrame.matrixSpaceWorldBlockOffsetRem.xyz)
 
 #endif // LUMON_UBOS_GLSL

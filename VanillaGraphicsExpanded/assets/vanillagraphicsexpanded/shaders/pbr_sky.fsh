@@ -52,21 +52,21 @@ vec3 skyRadiance(vec3 direction)
 /** Uses the engine normalized linear-depth convention for the three shoreline samples. */
 float skyLiquidDistance(float offset)
 {
-    float depth = texture(liquidDepth,(gl_FragCoord.xy+vec2(0,offset))/skyDepthFrame.zw).r;
-    return 2 * skyDepthFrame.x / (skyDepthFrame.y + skyDepthFrame.x
-        - (2*depth-1) * (skyDepthFrame.y-skyDepthFrame.x));
+    float depth = texture(liquidDepth,(gl_FragCoord.xy+vec2(0,offset))/vgeFrame.screenSize).r;
+    return 2 * vgeFrame.clipPlanes.x / (vgeFrame.clipPlanes.y + vgeFrame.clipPlanes.x
+        - (2*depth-1) * (vgeFrame.clipPlanes.y-vgeFrame.clipPlanes.x));
 }
 /** Emits one chosen color convention; alpha and glow never undergo transfer. */
 void main()
 {
     // Unproject two finite depths so perspective and orthographic views share a ray contract.
-    vec2 ndc = gl_FragCoord.xy / skyDepthFrame.zw * 2.0 - 1.0;
-    vec4 nearPoint = skyInverseViewProjection * vec4(ndc, -1, 1);
-    vec4 middlePoint = skyInverseViewProjection * vec4(ndc, 0, 1);
+    vec2 ndc = gl_FragCoord.xy / vgeFrame.screenSize * 2.0 - 1.0;
+    vec4 nearPoint = vgeFrame.invCurrViewProjMatrix * vec4(ndc, -1, 1);
+    vec4 middlePoint = vgeFrame.invCurrViewProjMatrix * vec4(ndc, 0, 1);
     vec3 direction = normalize(middlePoint.xyz / middlePoint.w - nearPoint.xyz / nearPoint.w);
     // Legacy spatial effects retain their 250-unit scale without a tessellated dome.
     vec3 skyPosition = direction * 250.0;
-    vec4 effectClip = skyViewProjection * vec4(skyPosition, 1);
+    vec4 effectClip = vgeFrame.projectionMatrix * vec4(mat3(vgeFrame.viewMatrix) * skyPosition, 1);
     float compatibilityDepth = abs(effectClip.w) > 0.000001
         ? clamp(effectClip.z / effectClip.w * .5 + .5, 0.0, 1.0) : 1.0;
     bool linearScene = skyEffects.w != 0;

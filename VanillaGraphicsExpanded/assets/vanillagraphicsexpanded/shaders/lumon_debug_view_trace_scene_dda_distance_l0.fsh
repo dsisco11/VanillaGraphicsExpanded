@@ -12,7 +12,7 @@ out vec4 outColor;
 @import "./includes/squirrel3.glsl"
 @import "./includes/lumon_near_field_scene.glsl"
 @import "./includes/lumon_trace_scene_trace.glsl"
-@import "./includes/lumon_frame_worldspace_bridge.glsl"
+@import "./includes/vge_frame_worldspace.glsl"
 @import "./includes/lumon_debug_uniforms.glsl"
 @import "./includes/debug/trace_scene_status_color.glsl"
 
@@ -20,12 +20,12 @@ out vec4 outColor;
 vec4 RenderDebug_TraceScene(vec2 screenPos)
 {
     if (traceSurfaceMin.w == 0) return traceSceneStatusColor(TRACE_SCENE_OUTSIDE);
-    vec3 camera = (invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz + matrixSpaceWorldBlockOffsetRem;
-    ivec3 originCell = ivec3(floor(camera)) + matrixSpaceWorldChunkCoordOffset * 32;
+    vec3 camera = (vgeFrame.invViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz + vgeFrame.renderOriginBlockRemainder.xyz;
+    ivec3 originCell = ivec3(floor(camera)) + vgeFrame.renderOriginChunkCoord.xyz * 32;
     vec3 local = vec3(originCell - traceSurfaceMin.xyz) + fract(camera);
     vec3 extent = vec3(traceSurfaceMax.xyz - traceSurfaceMin.xyz);
-    vec3 view = lumonReconstructViewPos(screenPos / screenSize, 0.5, invProjectionMatrix);
-    vec3 direction = normalize((invViewMatrix * vec4(normalize(view), 0.0)).xyz);
+    vec3 view = lumonReconstructViewPos(screenPos / vgeFrame.screenSize, 0.5, vgeFrame.invProjectionMatrix);
+    vec3 direction = normalize((vgeFrame.invViewMatrix * vec4(normalize(view), 0.0)).xyz);
     float enter = 0.0, leave = 1e30;
     for (int axis = 0; axis < 3; axis++)
     {
@@ -52,7 +52,7 @@ vec4 RenderDebug_TraceScene(vec2 screenPos)
 /** Renders only the TraceSceneDdaDistanceL0 view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = RenderDebug_TraceScene(screenPos);
 }

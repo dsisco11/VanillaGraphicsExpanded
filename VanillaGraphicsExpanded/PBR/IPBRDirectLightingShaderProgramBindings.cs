@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.PBR;
 internal interface IPBRDirectLightingShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies the shared camera snapshot.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the VgePbrDirectLightingParamsUBO UniformBlock slot.</summary>
     [ShaderBinding("VgePbrDirectLightingParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer Parameters { get; }

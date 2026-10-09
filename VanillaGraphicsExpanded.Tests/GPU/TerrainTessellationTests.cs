@@ -267,6 +267,8 @@ public sealed class TerrainTessellationTests : RenderTestBase
             Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, TerrainTessellationTestAssets.Generate(shaders.Source(vertex)), TerrainTessellationPatches.EnabledDefine, out tessellated, out string error), error);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba32f, 2);
+            using var camera = TestFrameCamera.CreateIdentity(16,16);
+            Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             target.BindWithViewport();
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             StateCache.Current.BindVertexArray(vao);

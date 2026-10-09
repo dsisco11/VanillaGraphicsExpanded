@@ -6,6 +6,9 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal interface IFinalDisplayShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies the shared frame dimensions.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies the captured display parameters.</summary>
     [ShaderBinding("FinalDisplayInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }

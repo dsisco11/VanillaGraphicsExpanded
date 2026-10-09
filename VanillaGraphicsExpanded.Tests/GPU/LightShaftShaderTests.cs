@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     private PostprocessDraw? draw;
+    private VgeFrameUniformBuffer? camera;
 
     #region Public API
     /// <summary>Exposed peak limits preserve HDR source color and manual or automatic camera exposure.</summary>
@@ -31,7 +32,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var history=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[ev]);
         using var target=TestFramework.CreateTestGBuffer(65,33,PixelInternalFormat.Rgba32f);
         shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureImage=history;
-        shader.Capture(new(-1.002f,-.2002f,0,automatic?1:0),new(1,2,.5f,automatic?-ev:ev),new(.5f,.5f,1,65f/33),new(1,1,1,10));
+        shader.Capture(new(0,0,0,automatic?1:0),new(1,2,.5f,automatic?-ev:ev),new(.5f,.5f,1,65f/33),new(1,1,1,10));
         Draw(shader,target);
         float[] actual=target[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();float expected=MathF.Pow(2,-ev);
         Assert.InRange(actual[0],expected-.0001f,expected+.0001f);
@@ -56,7 +57,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var visibility=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureImage=depth;
         var sun=new Vector4(.5f,.5f,daylight,65f/33);
-        shader.Capture(new(-1.002f,-.2002f,0,0),new(1,2,.5f,0),sun,new(1,1,1,10));Draw(shader,extracted);
+        shader.Capture(new(0,0,0,0),new(1,2,.5f,0),sun,new(1,1,1,10));Draw(shader,extracted);
         float[] source=extracted[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();
         if(depthValue==1&&daylight==1)Assert.True(source[0]>.9f);
         if(daylight==0)Assert.Equal(0,source[0]);
@@ -143,7 +144,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         for(int sample=-1;sample<5;sample++)
         {
             using var timer=GpuTimerQuery.Create();timer.Begin();
-            shader.SourceImage=source;shader.Capture(new(-1.002f,-.2002f,0,0),new(1,2,.5f,0),sun,solar);Draw(shader,a);
+            shader.SourceImage=source;shader.Capture(new(0,0,0,0),new(1,2,.5f,0),sun,solar);Draw(shader,a);
             shader.SourceImage=a[0];shader.Capture(new(0,0,1,16),new(.12f,0,0,0),sun,solar);Draw(shader,b);
             shader.SourceImage=b[0];shader.Capture(new(0,0,1,16),new(.36f,0,0,0),sun,solar);Draw(shader,a);
             shader.SourceImage=a[0];shader.Capture(new(0,0,2,0),Vector4.Zero,sun,solar);Draw(shader,published);
@@ -156,6 +157,13 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     /// <summary>Submits a production procedural triangle with deterministic state after readback.</summary>
     private void Draw(LightShaftShaderProgram shader,GpuFramebuffer target)
     {
+        if (camera is null)
+        {
+            float[] projection = Vintagestory.API.MathTools.Mat4f.Create();
+            projection[10] = -1.002f; projection[14] = -.2002f; projection[11] = -1; projection[15] = 0;
+            camera = TestFrameCamera.CreateFromProjection(projection, target.Width, target.Height, .1f, 100);
+        }
+        shader.FrameInputs = camera;
         draw??=new PostprocessDraw();
         var pipeline=draw.Prepare(shader,target);
         Assert.True(GraphicsCommandContext.TryRun("Tests.Postprocess",[pipeline],true,
@@ -168,7 +176,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     /// <summary>Retires the retained graphics pipeline and geometry before the test shader owners.</summary>
     protected override void Dispose(bool disposing)
     {
-        if(disposing){draw?.Dispose();draw=null;}
+        if(disposing){draw?.Dispose();draw=null;camera?.Dispose();camera=null;}
         base.Dispose(disposing);
     }
     #endregion

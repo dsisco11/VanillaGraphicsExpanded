@@ -16,7 +16,7 @@ The existing ring/frame controller owns both allocators. Transient epochs retain
 persistent size-class pages hold independently owned versions. Slots are rounded from the native
 alignment, pages hold at least eight slots and normally 64 KiB, and retained storage has an 8 MiB
 budget per allocator. Exhaustion fails publication; it never overwrites a live range. Pages remain
-resident for reuse until owner teardown. These choices cover inventoried 16–4704 byte typed blocks
+resident for reuse until owner teardown. These choices cover inventoried 16–4560 byte typed blocks
 without a native object per activation and remain internal policy, not shader layout contracts.
 
 Every successful logical bind records latest use, even when StateCache suppresses the native bind.
@@ -52,7 +52,7 @@ the command stream and reject failed fences rather than treating failure as comp
 | Data family | Writes and owner | Selected policy |
 | --- | --- | --- |
 | LiquidDrawParamsUbo, 80 bytes | Per terrain-pool draw; each liquid shader owns an independent instance | Explicit SingleFrame; SingleDraw awaits a one-draw owned execution contract. |
-| LiquidFrameParamsUbo, 4704 bytes | Camera, atmosphere, medium, lighting and frame inputs; independent surface/volume instances | Explicit SingleFrame. |
+| LiquidFrameParamsUbo, 4560 bytes | Atmosphere, medium, lighting and liquid effect inputs; independent surface/volume instances | Explicit SingleFrame. |
 | LiquidWaveParamsUbo, 32 bytes; LiquidDepthFrameParamsUbo, 64 bytes | Frame-varying phases/weather and depth projection | Explicit SingleFrame. |
 | LumOnWorldProbeResolveParamsUbo, 16 bytes | Atlas dimensions change with resource size; each resolve shader explicitly owns its block | MultiFrame; two resolve shaders register terminal ownership. |
 | PBR direct lighting/composite, 3552/272 bytes | Camera/light/transport and pass publication inputs | SingleFrame compatibility. No persistent-policy benefit inferred from shader longevity. |

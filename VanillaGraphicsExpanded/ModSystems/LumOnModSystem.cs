@@ -46,7 +46,6 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
     private LumonSceneFeedbackUpdateRenderer? lumonSceneFeedbackUpdateRenderer;
     private TraceGeometryRenderer? traceGeometryRenderer;
     private LumonSceneRelightUpdateRenderer? lumonSceneRelightUpdateRenderer;
-    private LumOnTerrainBridgeUpdateRenderer? lumOnTerrainBridgeUpdateRenderer;
 
     private HudLumOnStatsPanel? lumOnStatsPanel;
 
@@ -446,8 +445,6 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumonSceneRelightUpdateRenderer?.Dispose();
         lumonSceneRelightUpdateRenderer = null;
 
-        lumOnTerrainBridgeUpdateRenderer?.Dispose();
-        lumOnTerrainBridgeUpdateRenderer = null;
 
 
 
@@ -534,10 +531,6 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         lumOnDebugRenderer?.SetNearFieldSceneProvider(traceGeometryRenderer);
         lumonSceneFeedbackUpdateRenderer?.SetTraceGeometryRenderer(traceGeometryRenderer);
 
-        if (lumOnTerrainBridgeUpdateRenderer is null && readConfig().LumOn.LumonScene.Enabled)
-        {
-            lumOnTerrainBridgeUpdateRenderer = new LumOnTerrainBridgeUpdateRenderer(capi, readConfig());
-        }
 
         if (lumonSceneRelightUpdateRenderer is null
             && readConfig().LumOn.LumonScene.Enabled

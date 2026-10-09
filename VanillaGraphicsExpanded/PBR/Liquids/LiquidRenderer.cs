@@ -112,7 +112,7 @@ internal sealed class LiquidRenderer : IRenderer
             program.RefractionColorTexture = refraction?.Published == true ? refraction.Color : null;
             program.RefractionDepthTexture = refraction?.Published == true ? refraction.Depth : null;
             program.WaveFrame = waves;
-            program.ModelViewMatrix = render.CameraMatrixOriginf;
+            program.ResetModelTransform();
             program.ForcedTransparency = 0;
             program.DepthTexture = buffers[(int)EnumFrameBuffer.Primary].DepthTextureId;
             program.ShadowMapNear = buffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;

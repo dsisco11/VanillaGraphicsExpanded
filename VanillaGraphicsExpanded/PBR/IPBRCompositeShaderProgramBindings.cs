@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.PBR;
 internal interface IPBRCompositeShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies the shared camera snapshot.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies the diffuse, specular and emissive radiance array.</summary>
     [ShaderBinding("directLighting", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? DirectLighting { set; }

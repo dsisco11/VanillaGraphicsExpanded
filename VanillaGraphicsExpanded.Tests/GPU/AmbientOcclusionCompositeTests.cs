@@ -49,8 +49,10 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
         using var pass = new RenderPassTargets(passDescription);
         shader.DirectLighting=lighting;shader.IndirectDiffuse=indirect;shader.GBufferAlbedo=albedo.TextureId;
         shader.GBufferSurface=surface;shader.GBufferPosition=position.TextureId;shader.PrimaryDepth=depth.TextureId;
-        shader.InvProjectionMatrix=[1,0,0,0,0,1,0,0,0,0,-4,0,0,0,0,1];
-        shader.ViewMatrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+        using var frameCamera = TestFrameCamera.Create([1,0,0,0,0,1,0,0,0,0,-4,0,0,0,0,1],
+            [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+        shader.FrameInputs = frameCamera;
+
         shader.IndirectTint=new(1,1,1);shader.IndirectIntensity=1;shader.DiffuseAOStrength=1;shader.SpecularAOStrength=1;
         shader.SetAtmosphere(null);shader.SetWaterVolume(null);shader.SetUnderwater(false);
         using var pipeline = new GraphicsPipeline(lifetime,new(shader.GraphicsIdentity!,EngineFullscreenGeometry.Layout,pass.Signature,DynamicPipelineState.Viewport),shader);

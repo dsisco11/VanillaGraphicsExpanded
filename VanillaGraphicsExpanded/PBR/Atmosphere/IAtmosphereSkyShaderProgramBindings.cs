@@ -8,6 +8,9 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 internal interface IAtmosphereSkyShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies the shared camera and frame dimensions.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies view-ray transforms, atmospheric direction and engine spatial effects.</summary>
     [ShaderBinding("SkyInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }

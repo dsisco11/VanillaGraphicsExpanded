@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class SharedSurfacePageFixture : IDisposable
 {
     private const int Size = 8;
+    private readonly VgeFrameUniformBuffer frame = TestFrameCamera.CreateIdentity(Size,Size);
     private readonly BinaryShaderApiFixture assets = new();
     private readonly LumonSceneCaptureVoxelComputeShader capture;
     private readonly LumonSceneRelightVoxelDdaComputeShader relight;
@@ -32,6 +33,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         capture = captureOwner!;
         Assert.True(LumonSceneRelightVoxelDdaComputeShader.TryCreate(assets.Api, out var relightOwner, out string relightLog), relightLog);
         relight = relightOwner!;
+        relight.FrameInputs = frame;
         captureWork = Buffer<LumonSceneCaptureWorkGpu>([new(1, 0, 1, 0)]);
         relightWork = Buffer<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)]);
         metadata = Buffer<LumonScenePatchMetadataGpu>(new LumonScenePatchMetadataGpu[2]);
@@ -89,7 +91,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         relight.BindSurfaceLut(scene.Surfaces.TextureId);
         relight.BindIrradianceAtlasImage(irradiance);
         relight.SetAtlasLayout(Size, 1, 1, 0);
-        relight.SetRelightParams(0, Size * Size, rays, steps, false);
+        relight.SetRelightParams(Size * Size, rays, steps, false);
         relight.SetOccupancyMapping(0, 0, 0, 0, 0, 0, scene.Resolution);
         Dispatch(() => relight.Dispatch(1, 1, 1));
         using var read = relightWork.MapRange<LumonSceneRelightWorkGpu>(0, 1, MapBufferAccessMask.MapReadBit);
@@ -154,7 +156,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Releases the page and its programs on the owning context.</summary>
     public void Dispose()
     {
-        capture.Dispose(); relight.Dispose();
+        capture.Dispose(); relight.Dispose(); frame.Dispose();
         captureWork.Dispose(); relightWork.Dispose(); metadata.Dispose(); slots.Dispose();
         textures.Dispose(); assets.Dispose();
     }

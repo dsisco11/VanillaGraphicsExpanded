@@ -23,12 +23,17 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
     private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
     private uint maxRequests;
-    private uint frameIndex;
     private uint sampleCount;
     private uint screenWidth;
     private uint screenHeight;
 
+    private VgeFrameUniformBuffer? frameInputs;
+
     #region Public API
+    /// <summary>Retains an explicit view snapshot for isolated dispatches.</summary>
+    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
+    /// <summary>Uses the shared publication unless this dispatch owns an alternate view.</summary>
+    CpuUniformBuffer ILumonSceneFeedbackGatherComputeShaderBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Creates the executable before adopting its retained input owner.</summary>
     public static bool TryCreate(
         ICoreAPI api,
@@ -87,16 +92,6 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
         }
     }
 
-    public uint FrameIndex
-    {
-        set
-        {
-            RequireInputMutation();
-            frameIndex = value;
-            StageParameters();
-        }
-    }
-
     /// <summary>Stages ScreenSize without uploading partial parameters.</summary>
     public void SetScreenSize(uint width, uint height)
     {
@@ -130,7 +125,7 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
     /// <summary>Packs retained values for one complete publication at dispatch.</summary>
     private void StageParameters()
     {
-        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, frameIndex, sampleCount, 0u);
+        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, 0u, sampleCount, 0u);
         UboPacking.WriteUVec4(paramsBytes, 16, screenWidth, screenHeight, 0u, 0u);
         parameters.SetBytes(paramsBytes);
     }

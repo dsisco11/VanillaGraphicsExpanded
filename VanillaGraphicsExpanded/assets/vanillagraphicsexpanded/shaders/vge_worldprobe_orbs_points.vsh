@@ -10,12 +10,13 @@ layout(location = 2) in vec2 atlasCoord;
 out vec4 vColor;
 out vec2 vAtlasCoord;
 
+/** Projects camera-relative debug geometry using the universal frame snapshot. */
 void main(void)
 {
     vColor = color;
     vAtlasCoord = atlasCoord;
     vec3 pos = vertex + worldOffset;
-    vec4 clip = modelViewProjectionMatrix * vec4(pos, 1.0);
+    vec4 clip = vgeFrame.currViewProjMatrix * vec4(pos, 1.0);
     gl_Position = clip;
 
     // Use view-axis depth (≈ -viewSpaceZ) instead of Euclidean distance so points don't

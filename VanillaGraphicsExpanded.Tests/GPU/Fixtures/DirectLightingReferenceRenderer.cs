@@ -158,14 +158,11 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         if (shadowFarFb != null) shader.ShadowMapFar = shadowFarFb.DepthTextureId;
 
         // Matrices
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.InvModelViewMatrix = invModelViewMatrix;
+        using var frameCamera = TestFrameCamera.CreateFromInverseView(invProjectionMatrix, invModelViewMatrix, target.Width, target.Height,
+            capi.Render.ShaderUniforms.ZNear, capi.Render.ShaderUniforms.ZFar);
+        shader.FrameInputs = frameCamera;
         shader.ToShadowMapSpaceMatrixNear = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixNear;
         shader.ToShadowMapSpaceMatrixFar = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixFar;
-
-        // Z planes
-        shader.ZNear = capi.Render.ShaderUniforms.ZNear;
-        shader.ZFar = capi.Render.ShaderUniforms.ZFar;
 
         // Lighting
         shader.RgbaAmbientIn = capi.Render.AmbientColor;

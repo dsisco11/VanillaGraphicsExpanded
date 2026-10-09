@@ -56,8 +56,6 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     /// <summary>Pre-display lighting retained by this renderer; sky pixels retain the engine's color convention.</summary>
     internal GpuTexture? SceneLinearColor => compositeColorTex;
 
-    private readonly float[] invProjectionMatrix = new float[16];
-    private readonly float[] viewMatrix = new float[16];
 
     public double RenderOrder => RenderOrderValue;
 
@@ -206,8 +204,6 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
             || (capture is null && (display is null || display.RequiresPreparation || display.IsRetired))) return;
 
         // Matrices for optional PBR composite mode
-        MatrixHelper.Invert(capi.Render.CurrentProjectionMatrix, invProjectionMatrix);
-        Array.Copy(capi.Render.CameraMatrixOriginf, viewMatrix, 16);
 
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
@@ -241,9 +237,6 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         // Only ordinary color consumes atmospheric, fog and signed-volume transport.
         if (capture is null)
         {
-            shader.RgbaFogIn = capi.Render.FogColor;
-            shader.FogDensityIn = capi.Render.FogDensity;
-            shader.FogMinIn = capi.Render.FogMin;
             shader.SetAtmosphere(AtmosphereModSystem.Lighting);
             shader.SetUnderwater(capi.Render.ShaderUniforms.CameraUnderwater > .7f);
             shader.SetWaterVolume(Liquids.WaterVolumeRenderer.TryGetFrame(capi, out var waterFrame) ? waterFrame : null);
@@ -256,9 +249,6 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
 
         shader.DiffuseAOStrength = Math.Clamp(lumOnConfig?.LumOn.DiffuseAOStrength ?? 1.0f, 0f, 1f);
         shader.SpecularAOStrength = Math.Clamp(lumOnConfig?.LumOn.SpecularAOStrength ?? 1.0f, 0f, 1f);
-
-        shader.InvProjectionMatrix = invProjectionMatrix;
-        shader.ViewMatrix = viewMatrix;
         shader.PreOverlaySourceEnabled = cleanSource is not null;
 
         using var cpuScope = Profiler.BeginScope("PBR.Composite", "Render");

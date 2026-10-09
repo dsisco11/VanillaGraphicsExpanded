@@ -32,6 +32,13 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, 
     [ShaderOption("VGE_WATER_BACKGROUND_RESOLUTION", 2, Domain = new object[] { 1, 2 })]
     internal partial int RefractionBackgroundScale { get; set; }
     #endregion
+    private VgeFrameUniformBuffer? frameInputs;
+    /// <summary>Overrides the world snapshot for an explicitly owned alternate view.</summary>
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
     private readonly LiquidDrawParamsUbo draw = new();
     private readonly LiquidFrameParamsUbo frame = new();
     private readonly LiquidWaveParamsUbo wave = new();
@@ -58,7 +65,9 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, 
         draw.SetWriteGuard(RequireInputMutation);
         wave.SetWriteGuard(RequireInputMutation);
     }
-    /// <summary>Supplies retained frame inputs.</summary>
+    /// <summary>Reuses the current world or explicitly supplied view snapshot.</summary>
+    CpuUniformBuffer ILiquidShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
+    /// <summary>Supplies retained liquid effect inputs.</summary>
     CpuUniformBuffer ILiquidShaderProgramBindings.FrameParameters => frame;
     /// <summary>Supplies retained draw inputs.</summary>
     CpuUniformBuffer ILiquidShaderProgramBindings.DrawParameters => draw;

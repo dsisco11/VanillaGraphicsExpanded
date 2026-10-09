@@ -75,20 +75,20 @@ uniform sampler2D pmjJitter;
 
 vec2 computeProbeScreenUv(ivec2 probeCoord, ivec2 probeGridSizeI)
 {
-    vec2 baseUV = lumonProbeToScreenUV(probeCoord, float(probeSpacing), screenSize);
+    vec2 baseUV = lumonProbeToScreenUV(probeCoord, float(probeSpacing), vgeFrame.screenSize);
 
     // Apply the same deterministic jitter sequence used by the probe-anchor pass.
     if (anchorJitterEnabled != 0 && anchorJitterScale > 0.0 && pmjCycleLength > 0)
     {
         int probeIndex = probeCoord.x + probeCoord.y * probeGridSizeI.x;
-        int idx = (frameIndex + probeIndex) % pmjCycleLength;
+        int idx = int((vgeFrame.frameIndex + uint(probeIndex)) % uint(pmjCycleLength));
         vec2 u = texelFetch(pmjJitter, ivec2(idx, 0), 0).rg;
         vec2 jitter = u - vec2(0.5);
 
         float maxOffsetPx = float(probeSpacing) * anchorJitterScale;
-        vec2 jitterUV = (jitter * maxOffsetPx) / screenSize;
+        vec2 jitterUV = (jitter * maxOffsetPx) / vgeFrame.screenSize;
 
-        vec2 uvPad = vec2(0.5) / screenSize;
+        vec2 uvPad = vec2(0.5) / vgeFrame.screenSize;
         baseUV = clamp(baseUV + jitterUV, uvPad, vec2(1.0) - uvPad);
     }
 
@@ -153,7 +153,7 @@ void computeHistoryAtlasCoord(
     }
 
     // Map the reprojected UV back into a probe cell.
-    ivec2 prevPx = ivec2(prevUv * screenSize);
+    ivec2 prevPx = ivec2(prevUv * vgeFrame.screenSize);
     ivec2 prevProbeCoord = prevPx / max(probeSpacing, 1);
     prevProbeCoord = clamp(prevProbeCoord, ivec2(0), probeGridSizeI - 1);
 
@@ -178,7 +178,7 @@ bool legacyWasTracedThisFrame(ivec2 octTexel, int probeIndex) {
     int batch = texelIndex / VGE_LUMON_ATLAS_TEXELS_PER_FRAME;
 
     // Per-probe jitter to avoid all probes tracing same texels
-    int jitteredFrame = (frameIndex + probeIndex) % numBatches;
+    int jitteredFrame = int((vgeFrame.frameIndex + uint(probeIndex)) % uint(numBatches));
 
     return batch == jitteredFrame;
 }

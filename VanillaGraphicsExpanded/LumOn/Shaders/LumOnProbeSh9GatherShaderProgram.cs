@@ -198,6 +198,8 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
     #endregion
     #region Binding sources
     /// <summary>Supplies current frame storage through the binding contract.</summary>
+    /// <summary>Reuses the shared camera snapshot rather than the effect-specific lighting buffer.</summary>
+    CpuUniformBuffer ILumOnProbeSh9GatherShaderProgramBindings.FrameInputs => SharedCamera;
     GpuUniformBuffer? ILumOnProbeSh9GatherShaderProgramBindings.LumOnFrame => RetainedFrame;
     /// <summary>Supplies retained world-probe storage when the installed variant consumes it.</summary>
     GpuUniformBuffer? ILumOnProbeSh9GatherShaderProgramBindings.LumOnWorldProbe => RetainedWorldProbe;

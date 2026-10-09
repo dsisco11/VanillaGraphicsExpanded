@@ -8,6 +8,9 @@ namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 internal interface ICameraAdaptShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies the shared frame duration for temporal adaptation.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies metering and adaptation parameters.</summary>
     [ShaderBinding("CameraExposureInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }

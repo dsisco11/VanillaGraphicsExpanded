@@ -53,8 +53,8 @@ uniform sampler2D pmjJitter;
  * @return True if significant depth discontinuity exists
  */
 bool hasDepthDiscontinuity(vec2 centerUV, float centerDepth) {
-    ivec2 maxFull = ivec2(screenSize) - 1;
-    ivec2 centerPx = clamp(ivec2(centerUV * screenSize), ivec2(0), maxFull);
+    ivec2 maxFull = ivec2(vgeFrame.screenSize) - 1;
+    ivec2 centerPx = clamp(ivec2(centerUV * vgeFrame.screenSize), ivec2(0), maxFull);
 
     // Sample 4 neighbors (nearest) to avoid bilinear mixing at silhouettes
     float depthL = texelFetch(primaryDepth, clamp(centerPx + ivec2(-1, 0), ivec2(0), maxFull), 0).r;
@@ -63,11 +63,11 @@ bool hasDepthDiscontinuity(vec2 centerUV, float centerDepth) {
     float depthD = texelFetch(primaryDepth, clamp(centerPx + ivec2(0, -1), ivec2(0), maxFull), 0).r;
 
     // Linearize for proper comparison (non-linear depth distorts distances)
-    float linCenter = lumonLinearizeDepth(centerDepth, zNear, zFar);
-    float linL = lumonLinearizeDepth(depthL, zNear, zFar);
-    float linR = lumonLinearizeDepth(depthR, zNear, zFar);
-    float linU = lumonLinearizeDepth(depthU, zNear, zFar);
-    float linD = lumonLinearizeDepth(depthD, zNear, zFar);
+    float linCenter = lumonLinearizeDepth(centerDepth, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
+    float linL = lumonLinearizeDepth(depthL, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
+    float linR = lumonLinearizeDepth(depthR, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
+    float linU = lumonLinearizeDepth(depthU, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
+    float linD = lumonLinearizeDepth(depthD, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
 
     // Check for large depth jumps (relative threshold based on center distance)
     float threshold = linCenter * depthDiscontinuityThreshold;
@@ -88,7 +88,7 @@ void main(void)
     ivec2 probeCoord = ivec2(gl_FragCoord.xy);
 
     // Calculate the screen UV this probe samples (center of probe cell)
-    vec2 baseUV = lumonProbeToScreenUV(probeCoord, float(probeSpacing), screenSize);
+    vec2 baseUV = lumonProbeToScreenUV(probeCoord, float(probeSpacing), vgeFrame.screenSize);
 
     // Check if probe is within screen bounds
     if (baseUV.x >= 1.0 || baseUV.y >= 1.0 || baseUV.x < 0.0 || baseUV.y < 0.0)
@@ -104,21 +104,21 @@ void main(void)
     vec2 screenUV = baseUV;
     if (anchorJitterEnabled != 0 && anchorJitterScale > 0.0 && pmjCycleLength > 0) {
         int probeIndex = probeCoord.x + probeCoord.y * int(probeGridSize.x);
-        int idx = (frameIndex + probeIndex) % pmjCycleLength;
+        int idx = int((vgeFrame.frameIndex + uint(probeIndex)) % uint(pmjCycleLength));
         vec2 u = texelFetch(pmjJitter, ivec2(idx, 0), 0).rg;
         vec2 jitter = u - vec2(0.5);
 
         float maxOffsetPx = float(probeSpacing) * anchorJitterScale;
-        vec2 jitterUV = (jitter * maxOffsetPx) / screenSize;
+        vec2 jitterUV = (jitter * maxOffsetPx) / vgeFrame.screenSize;
 
         // Clamp to valid sampling region (half-texel padding) to avoid sampling outside textures.
-        vec2 uvPad = vec2(0.5) / screenSize;
+        vec2 uvPad = vec2(0.5) / vgeFrame.screenSize;
         screenUV = clamp(screenUV + jitterUV, uvPad, vec2(1.0) - uvPad);
     }
 
     // Sample depth at probe position
-    ivec2 maxFull = ivec2(screenSize) - 1;
-    ivec2 centerPx = clamp(ivec2(screenUV * screenSize), ivec2(0), maxFull);
+    ivec2 maxFull = ivec2(vgeFrame.screenSize) - 1;
+    ivec2 centerPx = clamp(ivec2(screenUV * vgeFrame.screenSize), ivec2(0), maxFull);
     float depth = texelFetch(primaryDepth, centerPx, 0).r;
 
     // ========================================================================
@@ -143,8 +143,8 @@ void main(void)
     }
 
     // Reconstruct view-space position, then transform to world-space
-    vec3 posVS = lumonReconstructViewPos(screenUV, depth, invProjectionMatrix);
-    vec3 posWS = (invViewMatrix * vec4(posVS, 1.0)).xyz;
+    vec3 posVS = lumonReconstructViewPos(screenUV, depth, vgeFrame.invProjectionMatrix);
+    vec3 posWS = (vgeFrame.invViewMatrix * vec4(posVS, 1.0)).xyz;
 
     // Sample and decode world-space normal from G-buffer (already world-space)
     vec3 normalRaw = texelFetch(gBufferSurface, ivec3(centerPx, VGE_SURFACE_NORMAL), 0).xyz;

@@ -25,7 +25,7 @@ vec4 renderSceneDepthDebug()
         return vec4(0.0, 0.0, 0.0, 1.0);
     }
 
-    float linearDepth = lumonLinearizeDepth(depth, zNear, zFar);
+    float linearDepth = lumonLinearizeDepth(depth, vgeFrame.clipPlanes.x, vgeFrame.clipPlanes.y);
     float normalizedDepth = linearDepth / 100.0;  // Normalize to ~100m
 
     return vec4(heatmap(normalizedDepth), 1.0);
@@ -34,7 +34,7 @@ vec4 renderSceneDepthDebug()
 /** Renders only the SceneDepth view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderSceneDepthDebug();
 }

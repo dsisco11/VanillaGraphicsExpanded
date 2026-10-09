@@ -123,6 +123,23 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         AssertClose(-3, rig.Adapt(settings with { MinEV = -3 }, 0, 0, true));
     }
 
+    /// <summary>One production program consumes independent shared camera durations without mutating either view snapshot.</summary>
+    [Fact]
+    public void AlternateSharedFramesKeepIndependentAdaptationTime()
+    {
+        EnsureShaderTestAvailable();
+        using var rig = CreateRig();
+        using var first = TestFrameCamera.CreateIdentity(1920, 1080, .5f);
+        using var second = TestFrameCamera.CreateIdentity(640, 360, .2f);
+        byte[] firstBytes = first.Bytes.ToArray(), secondBytes = second.Bytes.ToArray();
+        rig.PublishTarget(2);
+        AssertClose(.5f, rig.Adapt(Settings(), 0, 0, false, first));
+        AssertClose(.2f, rig.Adapt(Settings(), 0, 0, false, second));
+        AssertClose(.5f, rig.Adapt(Settings(), 0, 0, false, first));
+        Assert.Equal(firstBytes, first.Bytes.ToArray());
+        Assert.Equal(secondBytes, second.Bytes.ToArray());
+    }
+
     /// <summary>Manual mode, empty input, reset and invalid history produce finite coherent exposure.</summary>
     [Fact]
     public void ManualResetAndEmptyHistogramHaveDefinedHistory()
@@ -186,7 +203,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         /// <summary>Runs fixed-grid scene metering without modifying its source image.</summary>
         internal void Meter(GpuTexture texture, CameraExposureParameters settings)
         {
-            meter.SceneRadiance = texture; meter.Capture(settings, 0, false);
+            meter.SceneRadiance = texture; meter.Capture(settings, false);
             Histogram.BindWithViewport(); ConfigureDraw();
             using (meter.UseScope()) using (vao.BindScope()) GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             histogramTexture = Histogram[0];
@@ -204,10 +221,13 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             histogramTexture = framework.CreateTexture(64, 1, PixelInternalFormat.Rg32f, new float[128]);
         }
         /// <summary>Runs one production adaptation step with explicit previous EV, frame time and reset semantics.</summary>
-        internal float Adapt(CameraExposureParameters settings, float previous, float dt, bool reset)
+        internal float Adapt(CameraExposureParameters settings, float previous, float dt, bool reset, VgeFrameUniformBuffer? sharedFrame = null)
         {
             using var history = framework.CreateTexture(1, 1, PixelInternalFormat.R32f, [previous]);
-            adapt.Histogram = histogramTexture; adapt.PreviousExposure = history; adapt.Capture(settings, dt, reset);
+            // The world publisher normalizes negative elapsed time before the shared snapshot is captured.
+            using var camera = sharedFrame is null ? TestFrameCamera.CreateIdentity(1, 1, Math.Max(dt, 0)) : null;
+            adapt.FrameInputs = sharedFrame ?? camera!;
+            adapt.Histogram = histogramTexture; adapt.PreviousExposure = history; adapt.Capture(settings, reset);
             output.BindWithViewport(); ConfigureDraw();
             using (adapt.UseScope()) using (vao.BindScope()) GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

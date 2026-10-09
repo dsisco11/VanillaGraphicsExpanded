@@ -41,7 +41,7 @@ public sealed class TraceSceneDebugShaderCoordSpaceTests
             "includes", "debug", "trace_scene_debug_surface_cell.glsl"));
 
 
-        Assert.Contains("LumonFrameMatrixSpacePosToWorldCell", src, StringComparison.Ordinal);
+        Assert.Contains("VgeFrameMatrixSpaceToWorldCell", src, StringComparison.Ordinal);
     }
 
     [Fact]

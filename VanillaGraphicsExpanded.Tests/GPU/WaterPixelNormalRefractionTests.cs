@@ -139,10 +139,11 @@ public sealed class WaterPixelNormalRefractionTests(HeadlessGLFixture fixture) :
         }
         var program = Programs.Create<WaterPixelNormalRefractionShaderProgram>();
         var inputs = (IWaterPixelNormalRefractionBindings)program;
-        inputs.BaseNormal = baseNormal ?? Vector3.UnitZ; inputs.Surface = surface; inputs.Normal = normal; inputs.Projection = projection;
+        inputs.BaseNormal = baseNormal ?? Vector3.UnitZ; inputs.Surface = surface; inputs.Normal = normal; 
         Assert.True(Matrix4x4.Invert(projection, out var inverse));
-        inputs.InverseProjection = inverse;
-        inputs.FrameSize = new(Width,Height); inputs.Underwater = underwater ? 1 : 0;
+        using var frameCamera = TestFrameCamera.CreateFromProjection(projection, Width, Height);
+        program.FrameInputs = frameCamera;
+        inputs.Underwater = underwater ? 1 : 0;
         inputs.Color = reducedColor ?? color; inputs.Depth = reducedDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);

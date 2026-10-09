@@ -37,10 +37,10 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
-        SetProjection(inputs);
+        using var frameCamera = CreateCamera(program);
         inputs.Scenario=12; inputs.Budget=1<<quality; inputs.Quality=quality;
         float seedU=tiny?.9999f:.99f;
-        inputs.FrameSize=new(Size); inputs.Surface=AtDepth(new(seedU,.5f),2);
+        inputs.Surface=AtDepth(new(seedU,.5f),2);
         Vector3 direction=Vector3.Normalize(new Vector3(.9f,0,-.435f));
         inputs.Normal=Vector3.Normalize(Vector3.Normalize(inputs.Surface)/1.333f-direction);
         if(tiny)
@@ -146,9 +146,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         }
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
-        SetProjection(inputs);
+        using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Quality = 1; inputs.SelectReceiver = 1;
-        inputs.FrameSize = new(Size); inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
+        inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
@@ -244,9 +244,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         Vector3 normal = Vector3.Normalize(Vector3.Normalize(surface) / 1.333f - direction);
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
-        SetProjection(inputs);
+        using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Surface = surface; inputs.Normal = normal;
-        inputs.FrameSize = new(Size); inputs.Color = color; inputs.Depth = depth;
+        inputs.Color = color; inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
@@ -276,9 +276,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         depth.UploadDataImmediate(Enumerable.Repeat(1f,Size * Size).ToArray());
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
-        SetProjection(inputs);
+        using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 1 << quality; inputs.Quality = quality; inputs.SelectReceiver = 1;
-        inputs.Surface = new(0,0,-2); inputs.FrameSize = new(Size); inputs.Underwater = tir ? 1 : 0;
+        inputs.Surface = new(0,0,-2); inputs.Underwater = tir ? 1 : 0;
         inputs.Normal = tir ? Vector3.Normalize(new Vector3(.9f,0,.3f)) : Vector3.UnitZ;
         inputs.Color = color; inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
@@ -309,9 +309,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
-        SetProjection(inputs);
+        using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 1 << quality; inputs.Quality = quality;
-        inputs.FrameSize = new(Size); inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
+        inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
@@ -405,9 +405,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
-        SetProjection(inputs);
+        using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = budget; inputs.Quality = quality; inputs.SelectReceiver = 1;
-        inputs.FrameSize = new(Size); inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
+        inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
@@ -493,12 +493,14 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
 
     #region Private
     /// <summary>Supplies the conventional OpenGL camera and its CPU inverse for authored depth fields.</summary>
-    private static void SetProjection(IWaterRefractionDiagnosticBindings inputs)
+    private static VgeFrameUniformBuffer CreateCamera(WaterRefractionDiagnosticShaderProgram program)
     {
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, .1f, 100);
         projection.M33 = -100.1f / 99.9f; projection.M43 = -20f / 99.9f;
         Assert.True(Matrix4x4.Invert(projection, out var inverse));
-        inputs.Projection = projection; inputs.InverseProjection = inverse;
+        var camera = TestFrameCamera.CreateFromProjection(projection, Size, Size);
+        program.FrameInputs = camera;
+        return camera;
     }
     /// <summary>Authors depth from visible axial planes, including coverage absent from the immutable snapshot.</summary>
     private static void FillScene(DynamicTexture2D color, DynamicTexture2D depth, string scene)

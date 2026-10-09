@@ -6,6 +6,9 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal interface IAmbientOcclusionFilterShaderProgramBindings
 {
     #region Public API
+    /// <summary>Borrows the shared world/view camera block.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
+    CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies the coherent draw parameter block.</summary>
     [ShaderBinding("AmbientOcclusionInputs", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
@@ -26,15 +27,16 @@ public sealed class LumOnTemporalDebugShaderTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             float[] matrix = [2,0,0,0, 0,3,0,0, 0,0,-1.02f,-1, 0,0,-.202f,0];
-            var history = new LumOnTemporalReprojection();
+            var history = new FrameCameraHistory();
             history.Capture(matrix, 16777216.25, 32, -16777216.25); history.Commit();
             history.Capture(matrix, 16777216.375, 32.0625, -16777216.125);
             GL.UseProgram(program);
-            using var inputs = new PackedUniformBuffer(96);
-            byte[] inputBytes = new byte[96];
-            System.Runtime.InteropServices.MemoryMarshal.AsBytes(history.PreviousViewProjection.AsSpan()).CopyTo(inputBytes);
-            inputs.SetBytes(inputBytes);
-            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
+            using var inputs = new VgeFrameUniformBuffer();
+            float[] identity = LumOnTestInputFactory.CreateIdentityMatrix();
+            inputs.Capture(identity, identity, identity, identity, history.PreviousViewProjection, identity,
+                new System.Numerics.Vector2(1, 1), 0, 1, System.Numerics.Vector3.Zero,
+                System.Numerics.Vector3.Zero, 0);
+            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, output);
             GL.BufferData(BufferTarget.ShaderStorageBuffer, 8, IntPtr.Zero, BufferUsageHint.DynamicRead);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, output);

@@ -24,7 +24,7 @@ internal static class TerrainDisplacementPatches
             uniform sampler2D vge_displacementTex;
             uniform sampler2D vge_displacementRecords;
             uniform sampler2D vge_normalDepthTex;
-            uniform vec4 vge_tessellationPixels;
+            uniform vec2 vge_tessellationPixels;
             uniform vec2 vge_tessellationDistance;
             uniform float vge_tessellationFocalPixels;
             uniform int vge_displacementEnabled;

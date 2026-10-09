@@ -78,7 +78,7 @@ vec4 renderTemporalRejectionDebug(vec2 screenPos)
 /** Renders only the TemporalRejection view; mode selection occurs before program loading. */
 void main()
 {
-    uv = gl_FragCoord.xy / screenSize;
-    vec2 screenPos = uv * screenSize;
+    uv = gl_FragCoord.xy / vgeFrame.screenSize;
+    vec2 screenPos = uv * vgeFrame.screenSize;
     outColor = renderTemporalRejectionDebug(screenPos);
 }
