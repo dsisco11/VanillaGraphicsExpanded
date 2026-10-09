@@ -151,7 +151,11 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 pbrDirectProg.RgbaLightIn = new(0.35f, 0.55f, 0.75f);
                 pbrDirectProg.RgbaAmbientIn = new(0,0,0);
 
-                pbrDirectProg.SetPointLights(0, null, null);
+                using var sharedLights = new VgeLightsUniformBuffer();
+
+                sharedLights.Capture(0, [], []);
+
+                pbrDirectProg.LightsInputs = sharedLights;
             }
 
             pbrDirectProg.PrimaryScene = primaryScene.TextureId;

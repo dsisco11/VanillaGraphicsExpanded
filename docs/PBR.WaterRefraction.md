@@ -407,7 +407,7 @@ does not establish live appearance or GPU cost; no game was launched.
 The shared camera owner computes the inverse projection once for each view snapshot.
 Liquid surface, volume and depth programs reuse VgeFrameUBO rather than packing their own
 projection or inverse. The universal block stores column-major projection at byte offset 0
-and inverse projection at 128; liquid-specific inputs occupy a separate 4560-byte block.
+and inverse projection at 128; liquid-specific inputs occupy a separate 1360-byte block. Dynamic point lights come from the shared VgeLightsUBO snapshot.
 Ray traversal, UV distortion and its fallback use this supplied inverse for receiver
 reconstruction rather than inverting the projection per fragment. Diagnostic shaders receive
 the same projection/inverse pair through typed fixture inputs. This changes where the matrix

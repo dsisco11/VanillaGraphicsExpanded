@@ -16,7 +16,7 @@ The existing ring/frame controller owns both allocators. Transient epochs retain
 persistent size-class pages hold independently owned versions. Slots are rounded from the native
 alignment, pages hold at least eight slots and normally 64 KiB, and retained storage has an 8 MiB
 budget per allocator. Exhaustion fails publication; it never overwrites a live range. Pages remain
-resident for reuse until owner teardown. These choices cover inventoried 16–4560 byte typed blocks
+resident for reuse until owner teardown. These choices cover the inventoried typed blocks
 without a native object per activation and remain internal policy, not shader layout contracts.
 
 Every successful logical bind records latest use, even when StateCache suppresses the native bind.
@@ -52,10 +52,12 @@ the command stream and reject failed fences rather than treating failure as comp
 | Data family | Writes and owner | Selected policy |
 | --- | --- | --- |
 | LiquidDrawParamsUbo, 80 bytes | Per terrain-pool draw; each liquid shader owns an independent instance | Explicit SingleFrame; SingleDraw awaits a one-draw owned execution contract. |
-| LiquidFrameParamsUbo, 4560 bytes | Atmosphere, medium, lighting and liquid effect inputs; independent surface/volume instances | Explicit SingleFrame. |
-| LiquidWaveParamsUbo, 32 bytes; LiquidDepthFrameParamsUbo, 64 bytes | Frame-varying phases/weather and depth projection | Explicit SingleFrame. |
+| LiquidFrameParamsUbo, 1360 bytes | Atmosphere, medium and liquid effect inputs; independent surface/volume instances | Explicit SingleFrame. |
+| VgeLightsUniformBuffer, 3216 bytes | One completed engine point-light snapshot owned independently of LumOn; shared by deferred, forward and liquid shading | SingleFrame; unchanged consumers reuse the same immutable publication. |
+| LiquidWaveParamsUbo, 32 bytes | Frame-varying phases/weather shared by liquid surface and depth programs | Explicit SingleFrame. |
+| VgeFrameUniformBuffer, 544 bytes | One world camera/frame snapshot plus explicitly owned alternate views | SingleFrame; shared immutable publication. |
 | LumOnWorldProbeResolveParamsUbo, 16 bytes | Atlas dimensions change with resource size; each resolve shader explicitly owns its block | MultiFrame; two resolve shaders register terminal ownership. |
-| PBR direct lighting/composite, 3552/272 bytes | Camera/light/transport and pass publication inputs | SingleFrame compatibility. No persistent-policy benefit inferred from shader longevity. |
+| PBR direct lighting/composite, 208/128 bytes | Solar/shadow/transport and pass inputs; camera and dynamic lights use shared owners | SingleFrame compatibility. No persistent-policy benefit inferred from shader longevity. |
 | Height bake, 528 bytes | Per tile/pass/solver iteration; shared intentionally by bake orchestration | SingleFrame compatibility. |
 | LumOn probe/near-field/combine/upsample/HZB/debug; debug line/orb blocks | Per probe/pass/camera/debug draw | SingleFrame compatibility; later tuning requires measured stable writes. |
 | SurfaceLightingParamsUbo, 144 bytes | Domain snapshots, owned by query/trace batches or screen-probe shader | SingleFrame compatibility pending workload benefit and all owners' disposal migration. |

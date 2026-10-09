@@ -204,27 +204,6 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
         }
     }
 
-    public int PointLightsCount
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.SetPointLights(value, null, null);
-        }
-    }
-
-    /// <summary>
-    /// Uploads point light arrays and count to the currently-bound program.
-    /// Expects GLSL uniforms:
-    /// - int pointLightsCount
-    /// - vec3 pointLights3[100]
-    /// - vec3 pointLightColors3[100]
-    /// </summary>
-    public void SetPointLights(int count, float[]? pointLights3, float[]? pointLightColors3)
-    {
-        Params.SetPointLights(count, pointLights3, pointLightColors3);
-    }
-
     #endregion
 
     #region Shadows
@@ -260,10 +239,20 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     }
 
     #endregion
+    private VgeLightsUniformBuffer? lightsInputs;
+    /// <summary>Borrows a caller-owned light snapshot for explicit alternate views.</summary>
+    internal VgeLightsUniformBuffer? LightsInputs
+    {
+        get => lightsInputs;
+        set { RequireInputMutation(); lightsInputs = value; }
+    }
+
     #region Binding sources
     /// <summary>Supplies packed parameters for one publication per use.</summary>
     CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.Parameters => Params;
     /// <summary>Reuses the published camera block across direct and composite passes.</summary>
     CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.FrameInputs => FrameInputs ?? VgeFrameRenderer.Current;
+    /// <summary>Reuses the same shared engine list as forward and liquid shading.</summary>
+    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.LightsInputs => LightsInputs ?? VgeLightsRenderer.Current;
     #endregion
 }

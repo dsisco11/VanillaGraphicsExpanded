@@ -172,7 +172,8 @@ animation, atlas metadata and solar/environment inputs keep their common capture
 and draw transforms retain their existing caller-owned staging. Surface capture refreshes its
 active point-light/fog prefixes and counts, including after a mode change. The production
 volume and surface programs retain independent frame storage. Submission still uploads the
-complete 4560-byte liquid effect block; this optimization reduces CPU preparation, not upload bandwidth.
+complete 1360-byte liquid effect block. Dynamic lights are shared through VgeLightsUBO rather than
+republished by either liquid program; skipping unrelated capture inputs reduces CPU preparation.
 The capture owner caches its mode classification against the existing immutable requested
 settings snapshot. Real settings changes refresh it before capture; unchanged batches and
 shader reload retain the same valid classification. This avoids the generated option getter's

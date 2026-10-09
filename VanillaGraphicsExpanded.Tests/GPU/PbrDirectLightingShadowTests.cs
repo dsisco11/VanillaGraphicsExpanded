@@ -213,7 +213,9 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         program.LightDirection = upward ? new(0f, 1f, 0f) : new(0f, 0f, 1f);
         program.RgbaLightIn = new(sunlight, sunlight, sunlight);
         program.RgbaAmbientIn = new(0f, 0f, 0f);
-        program.SetPointLights(pointLight ? 1 : 0, pointLight ? [0f, 0f, 0f] : null, pointLight ? [1f, 1f, 1f] : null);
+        using var sharedLights = new VgeLightsUniformBuffer();
+        sharedLights.Capture(pointLight ? 1 : 0, pointLight ? [0f, 0f, 0f] : [], pointLight ? [1f, 1f, 1f] : []);
+        program.LightsInputs = sharedLights;
         output.BindWithViewport();
         TestFramework.RenderQuadTo(program, output);
 

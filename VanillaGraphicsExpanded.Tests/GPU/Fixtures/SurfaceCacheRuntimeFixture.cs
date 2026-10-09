@@ -25,6 +25,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     private readonly DebugViewController? controller;
     private readonly bool productionOwned;
     private readonly VgeFrameRenderer? frameCamera;
+    private readonly VgeLightsRenderer? lights;
     private readonly bool enclosure, exposedWall;
     private readonly uint[] feedbackPatches;
     private readonly SpatialLightingScene? spatial;
@@ -153,6 +154,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         Assert.True(Buffers.EnsureBuffers(edge, edge));
         if (productionOwned) return;
         frameCamera = new VgeFrameRenderer(api);
+        lights = new VgeLightsRenderer(api);
         LumOnDebugShaderProgramFamily.Register(api);
         Geometry = new(api, Config, partitions, CreateSource, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
@@ -335,7 +337,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Disposes production owners before their mocked engine and material dependencies.</summary>
     public void Dispose()
     {
-        controller?.Dispose(); debug?.Dispose(); frameCamera?.Dispose();
+        controller?.Dispose(); debug?.Dispose(); frameCamera?.Dispose(); lights?.Dispose();
         if (!productionOwned) { relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); }
         partitions.Dispose();
         if (!productionOwned)

@@ -69,6 +69,36 @@ with no world-frame binding and both lighting modes. Receipts are in
 and 507 test shader variants with no compiler invocations. These are headless functional
 checks; they do not establish in-game visual acceptance or GPU frame cost.
 
+Dynamic point-light consumers import `includes/vge_lights_ubo.glsl` and bind the same
+`VgeLightsUBO` snapshot at `GpuBindingRegistry.Ubo.Lights` (16). Its fixed std140 contract
+supports the engine's complete 100-light list: an unsigned light count at 0 with alignment padding, padded view-space
+positions at 16 and padded colors at 1616, for 3216 bytes. Positions retain the collector's
+world-to-view conversion and colors retain its HSV conversion and intensity calibration.
+The shader's inverse-square attenuation and surface response remain unchanged; there is no
+additional intensity multiplier or coordinate conversion in the buffer.
+
+`VgeLightsRenderer` withdraws the snapshot at Before and captures once at early Opaque,
+after engine collection at Before 0.1 and held attachment resolution at Before 0.45. It is
+owned independently of LumOn. Deferred, forward and liquid shading reuse the same immutable
+publication; their effect blocks no longer contain light arrays or light counts. The native
+shader-use hook restores both shared slots for world consumers and preserves GUI/offscreen
+route gating. Explicit alternate views supply their own light snapshot in the receiver's view
+space through typed `LightsInputs`; they never mutate the world publication.
+Solar irradiance/direction, block-light color lookup tables, probe irradiance and surface-cache
+lighting parameters represent different sources and retain their own contracts. Debug and test
+consumers use the same shared light schema instead of duplicating it. The engine collector
+and its native GUI/offscreen shading retain their original APIs; VGE world shading does not
+read or republish those standalone light uniforms.
+
+Shared-light migration validation on 2026-10-09 passed 106 packing, lifecycle, direct/forward,
+liquid and held-light checks plus 137 water, native-binding and registered lighting-path checks.
+Coverage includes all 100 supported lights, alternate-view/world-origin invariance, both lighting
+modes, no additional upload on repeated activation and old GPU slices surviving new publication.
+Receipts are `artifacts/lights-ubo-validation/focused-shared-lights.log` and
+`artifacts/lights-ubo-validation/runtime-water-shared-lights-final.log`. The final incremental build
+reused all 438 production and 507 test shader variants. These headless checks do not establish
+in-game visual acceptance or GPU frame cost.
+
 The approved engine GLSL compatibility exceptions retain their existing numeric APIs and activation
 behavior, including VGE-added atmosphere, scene-color and terrain inputs. They do not extend the
 world-frame publication epoch. See the [migration inventory](Rendering.AuthoritativePipelineState.md#standalone-numeric-input-migration-inventory)

@@ -3,6 +3,7 @@
 #define DYNLIGHTS 100
 #define SHADOWQUALITY 2
 @import "../vge_frame_ubo.glsl"
+@import "../vge_lights_ubo.glsl"
 layout(std140, binding = 28) uniform VgeLiquidFrameParams
 {
     mat4 toShadowMapSpaceMatrixNear;
@@ -20,8 +21,6 @@ layout(std140, binding = 28) uniform VgeLiquidFrameParams
     vec4 liquidPerception;
     vec4 liquidPerceptionPosition;
     vec4 colorMapRects[40];
-    vec3 pointLights[100];
-    vec3 pointLightColors[100];
     float fogSpheres[24];
     vec4 liquidMediumControl; // material lookup, composed volume, immutable refraction source, scene-linear output
 };
@@ -56,7 +55,7 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 #define vge_atmosphereEnvironment liquidEnvironment.xyz
 #define vge_atmosphereAerialParams liquidAerial.xyz
 #define cameraUnderwater liquidAerial.z
-#define pointLightQuantity liquidCounts.x
+#define pointLightQuantity int(vgeLights.lightCount)
 #define fogSphereQuantity liquidCounts.y
 #define psychedelicStrength liquidPerception.y
 #define perceptionWorldOffset liquidPerceptionPosition.xyz

@@ -40,6 +40,8 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             };
         }
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram { CaptureMode = 3 });
+        using var sharedLights = new VgeLightsUniformBuffer();
+        program.LightsInputs = sharedLights;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         if (!string.IsNullOrEmpty(measuredBinary))
         {
@@ -82,7 +84,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         program.EnvironmentIrradiance = new(12.56637061436f, 12.56637061436f, 12.56637061436f, 0);
 
         program.AtlasMetrics = Vector4.One;
-        program.SetCounts(0, 0);
+        program.SetFogSphereCount(0);
         program.MediumLookupEnabled = scenario >= 6;
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, near, far);
         projection.M33 = -(far + near) / (far - near);

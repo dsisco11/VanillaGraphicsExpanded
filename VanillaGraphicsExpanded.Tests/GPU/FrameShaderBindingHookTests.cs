@@ -37,12 +37,17 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         Mock.Get(render).SetupGet(value => value.CurrentFrameBuffer).Returns(offscreen ? new FrameBufferRef { FboId=999 } : buffers[(int)EnumFrameBuffer.Primary]);
         var api = RuntimeEngineServices.Client(assets.Api,events.Api,world.Object,render,assets.Api.Shader);
         using var publisher = new VgeFrameRenderer(api);
+        using var lightsPublisher = new VgeLightsRenderer(api);
+        render.ShaderUniforms.PointLightsCount = 1;
+        render.ShaderUniforms.PointLightColors3[0] = .25f;
         using var shaders = new TerrainShaderTestFixture();
         string directory = Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
         string schema = File.ReadAllText(Path.Combine(directory,"vge_frame_ubo.glsl"))
             .Replace("@import \"./vge_ubo_bindings.glsl\"",File.ReadAllText(Path.Combine(directory,"vge_ubo_bindings.glsl")));
         int vertex = shaders.Compile(ShaderType.VertexShader,"#version 430 core\n" + schema + "\nlayout(location=0) in vec2 position; uniform int vge_pbrRoute; void main(){vec4 clip=vec4(position,0,1); gl_Position=vge_pbrRoute==0 ? clip : vgeFrame.currViewProjMatrix*clip;}");
-        int fragment = shaders.Compile(ShaderType.FragmentShader,"#version 430 core\nout vec4 color; void main(){color=vec4(1);}");
+        string lightSchema = File.ReadAllText(Path.Combine(directory,"vge_lights_ubo.glsl"))
+            .Replace("@import \"./vge_ubo_bindings.glsl\"",File.ReadAllText(Path.Combine(directory,"vge_ubo_bindings.glsl")));
+        int fragment = shaders.Compile(ShaderType.FragmentShader,"#version 430 core\n" + lightSchema + "\nuniform int vge_pbrRoute; out vec4 color; void main(){color=vge_pbrRoute==0 ? vec4(1) : vec4(vgeLights.colors[0].rgb,float(vgeLights.lightCount));}");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
         var engine = new FrameConsumerProgram(program.ProgramId);
         var harmony = new Harmony("tests.frame-native."+Guid.NewGuid());
@@ -53,9 +58,12 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         {
             // Native GUI/offscreen routes must draw before world publication with no camera range inherited.
             StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
+            StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Lights,0);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             engine.Use();
             Assert.Equal(0,Binding().Buffer);
+            GL.GetInteger(GetIndexedPName.UniformBufferBinding,GpuBindingRegistry.Ubo.Lights,out int absentLights);
+            Assert.Equal(0,absentLights);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(2,2,PixelInternalFormat.Rgba32f);
             framework.RenderQuadTo(program.ProgramId,target);
@@ -84,15 +92,31 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
                 var selected = Binding();
                 Assert.NotEqual(unrelated,selected);
                 Assert.Equal(expected,ReadSnapshot(selected));
+                GL.GetInteger(GetIndexedPName.UniformBufferBinding,GpuBindingRegistry.Ubo.Lights,out int lightBuffer);
+                Assert.NotEqual(0,lightBuffer);
+                var firstLights = Binding(GpuBindingRegistry.Ubo.Lights);
+                byte[] expectedLights = VgeLightsRenderer.Current.Bytes.ToArray();
+                Assert.Equal(expectedLights,ReadSnapshot(firstLights));
+                Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+                long lightCopies = ring.AllocationsWritten;
+                engine.Use();
+                Assert.Equal(lightCopies,ring.AllocationsWritten);
                 // Resizing captures a fresh generation; the previously submitted ring slice stays immutable.
                 identity[0]=2;
                 Mock.Get(render).SetupGet(value => value.FrameWidth).Returns(32);
                 Mock.Get(render).SetupGet(value => value.FrameHeight).Returns(16);
+                render.ShaderUniforms.PointLightColors3[0] = .5f;
+                lightsPublisher.OnRenderFrame(.032f,EnumRenderStage.Before);
                 publisher.OnRenderFrame(.032f,EnumRenderStage.Before);
                 publisher.OnRenderFrame(.032f,EnumRenderStage.Opaque);
+                lightsPublisher.OnRenderFrame(.032f,EnumRenderStage.Opaque);
                 FrameShaderBindingHook.ClearUniformCache();
                 engine.Use();
                 var resized = Binding();
+                var newLights = Binding(GpuBindingRegistry.Ubo.Lights);
+                Assert.NotEqual(firstLights,newLights);
+                Assert.Equal(expectedLights,ReadSnapshot(firstLights));
+                Assert.Equal(VgeLightsRenderer.Current.Bytes.ToArray(),ReadSnapshot(newLights));
                 byte[] resizedBytes = VgeFrameRenderer.Current.Bytes.ToArray();
                 Assert.NotEqual(selected,resized);
                 Assert.Equal(expected,ReadSnapshot(selected));
@@ -117,19 +141,19 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
     }
     #endregion
     #region Private
-    /// <summary>Reads the actual retained slice selected at the universal camera slot.</summary>
-    private static (int Buffer,int Offset,int Size) Binding()
+    /// <summary>Reads the actual retained slice selected at a shared frame or light slot.</summary>
+    private static (int Buffer,int Offset,int Size) Binding(int slot = GpuBindingRegistry.Ubo.Frame)
     {
-        GL.GetInteger(GetIndexedPName.UniformBufferBinding,GpuBindingRegistry.Ubo.Frame,out int buffer);
-        GL.GetInteger(GetIndexedPName.UniformBufferStart,GpuBindingRegistry.Ubo.Frame,out int offset);
-        GL.GetInteger(GetIndexedPName.UniformBufferSize,GpuBindingRegistry.Ubo.Frame,out int size);
+        GL.GetInteger(GetIndexedPName.UniformBufferBinding,slot,out int buffer);
+        GL.GetInteger(GetIndexedPName.UniformBufferStart,slot,out int offset);
+        GL.GetInteger(GetIndexedPName.UniformBufferSize,slot,out int size);
         return (buffer,offset,size);
     }
     /// <summary>Inspects a retained GPU snapshot without changing its owning publication or camera state.</summary>
     private static byte[] ReadSnapshot((int Buffer,int Offset,int Size) selected)
     {
         using var scope = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer,selected.Buffer);
-        byte[] bytes = new byte[VgeFrameUniformBuffer.PackedSize];
+        byte[] bytes = new byte[selected.Size];
         GL.GetBufferSubData(BufferTarget.UniformBuffer,(IntPtr)selected.Offset,bytes.Length,bytes);
         return bytes;
     }

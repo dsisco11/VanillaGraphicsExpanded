@@ -951,7 +951,7 @@ Tasks
         - Completed shared publication, consumer/fixture migration and source review. Focused
           validation passed batches of 21, 86, 35 and 88 tests; the final incremental build reused
           all 438 production and 507 test variants. Contract and receipts: docs/ShaderAuthoring.md.
-      ☐ Unify shared light data across shaders through VgeLightsUBO.
+      ☑ Unify shared light data across shaders through VgeLightsUBO.
         - Inventory light-data producers and consumers, then make VgeLightsUBO the shared contract
           for shaders using the same light list. Remove duplicated arrays, counts and uploads from
           effect-specific blocks and standalone uniforms, including debug and test consumers.
@@ -964,6 +964,10 @@ Tasks
         - Use explicit std140 bindings and the required extension contract. Validate CPU/shader
           packing, capacity boundaries, view-space conversion, both lighting modes and unchanged
           lighting through focused subagent-run tests; verify redundant publications are removed.
+        - Completed the 100-light shared contract, independent publication owner, consumer/fixture
+          migration and source review. Focused validation passed batches of 106 and 137 tests,
+          including both lighting modes, alternate views and immutable GPU light snapshots.
+          Contract and receipts: docs/ShaderAuthoring.md.
       ☐ Refine paired horizon sampling and analytic integration.
         - Replace AO's three separate reduced-depth textures with a single mipmapped HZB and
           explicit mip-level sampling. Extract the existing LumOn HZB allocation, generation and

@@ -114,8 +114,8 @@ void main()
     int count = clamp(pointLightsCount, 0, 100);
     for (int i = 0; i < count; i++)
     {
-        vec3 lp = VgePbrPointLightPos(i);
-        vec3 lc = VgePbrPointLightColor(i);
+        vec3 lp = vgeLights.positions[i].xyz;
+        vec3 lc = vgeLights.colors[i].xyz;
 
         vec3 toLightVS = lp - viewPos;
         float distSq = max(dot(toLightVS, toLightVS), 0.0001);

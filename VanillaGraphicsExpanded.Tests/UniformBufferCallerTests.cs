@@ -16,17 +16,17 @@ public sealed class UniformBufferCallerTests
     [Fact]
     public void PointLightArraysDetectChangesAcrossBothArrays()
     {
-        using var buffer = new PbrDirectLightingParamsUbo();
+        using var buffer = new VgeLightsUniformBuffer();
         float[] positions = [1, 2, 3, 4, 5, 6];
         float[] colors = [7, 8, 9, 10, 11, 12];
-        buffer.SetPointLights(2, positions, colors);
+        buffer.Capture(2, positions, colors);
         ResetDirty(buffer);
-        buffer.SetPointLights(2, positions, colors);
+        buffer.Capture(2, positions, colors);
         Assert.False(buffer.IsDirty);
         colors[5] = 13;
-        buffer.SetPointLights(2, positions, colors);
+        buffer.Capture(2, positions, colors);
         Assert.True(buffer.IsDirty);
-        Assert.Equal(13f, UboPacking.ReadFloat(buffer.Bytes, 1824 + 16 + 8));
+        Assert.Equal(13f, UboPacking.ReadFloat(buffer.Bytes, 1616 + 16 + 8));
     }
 
     /// <summary>Changes confined to the second atmosphere vector cannot be short-circuited.</summary>

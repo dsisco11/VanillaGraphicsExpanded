@@ -53,11 +53,13 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.AtlasMetrics = new(1, 1, 1, 1);
 
         program.WaveFrame = new(Vector4.Zero, 1);
-        program.SetCounts(0, 0);
+        program.SetFogSphereCount(0);
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, .1f, 100);
         projection.M33 = -(100 + .1f) / (100 - .1f);
         projection.M43 = -2 * 100 * .1f / (100 - .1f);
         using var frameCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), size, size, .1f, 100);
+        using var sharedLights = new VgeLightsUniformBuffer();
+        program.LightsInputs = sharedLights;
         program.FrameInputs = frameCamera;
         var view = Matrix4x4.CreateRotationX(18 * MathF.PI / 180);
         program.ModelViewMatrix = Flatten(view);

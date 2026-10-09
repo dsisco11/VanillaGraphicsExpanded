@@ -44,6 +44,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             .Replace("@import \"./common_constants.glsl\"", File.ReadAllText(Path.Combine(directory, "common_constants.glsl")));
         string header = """
             #version 330 core
+            #extension GL_ARB_shading_language_420pack : require
             uniform int vge_pbrRoute;
             #define SHADOWQUALITY 1
             #define DYNLIGHTS 1
@@ -76,7 +77,10 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
         string source = header + "\n" + aerial + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl")).Replace("@import \"./pbr_transmission.glsl\"", File.ReadAllText(Path.Combine(directory, "pbr_transmission.glsl"))) + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_environment.glsl")).Replace("@import \"./pbr_common.glsl\"", "") + "\n"
-            + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl")).Replace("@import \"./pbr_environment.glsl\"", "").Replace("@import \"./atmosphere_aerial.glsl\"", "")
+            + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl"))
+            .Replace("@import \"./vge_lights_ubo.glsl\"", File.ReadAllText(Path.Combine(directory, "vge_lights_ubo.glsl")).Replace("@import \"./vge_ubo_bindings.glsl\"", File.ReadAllText(Path.Combine(directory, "vge_ubo_bindings.glsl"))))
+            .Replace("@import \"./pbr_environment.glsl\"", "")
+            .Replace("@import \"./atmosphere_aerial.glsl\"", "")
             + $"\nvoid main() {{ outColor = vec4(VgeForwardSurface(vec3(0.2,0.4,0.6), {(scenario == 3 ? "vec3(1,0,0)" : "vec3(0,0,1)")}, vec3(0.5,0,{(scenario is 1 or 9 or 15 ? "2.0" : "0.0")}), 0.0), 0.37); }}";
         int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
         int fragment = Compile(ShaderType.FragmentShader, source);
@@ -92,9 +96,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             float[] view = scenario == 3 ? [0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1] : [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
             inputs.Matrix(0, view);
             inputs.Publish();
-            GL.Uniform1(GL.GetUniformLocation(program, "pointLightQuantity"), scenario is 2 or 3 or 8 or 14 ? 1 : 0);
-            GL.Uniform3(GL.GetUniformLocation(program, "pointLights[0]"), 0f, 0f, 0f);
-            GL.Uniform3(GL.GetUniformLocation(program, "pointLightColors[0]"), 1f, 1f, 1f);
+            using var lights = new VgeLightsUniformBuffer();
+            lights.Capture(scenario is 2 or 3 or 8 or 14 ? 1 : 0, [0, 0, 0], [1, 1, 1]);
+            Assert.True(lights.TryBindToSlot(GpuBindingRegistry.Ubo.Lights));
             GL.Uniform1(GL.GetUniformLocation(program, "shadowMapFar"), 0);
             using var atmosphereOwner = new AtmosphereModSystem();
             float[] scatter = scenario is 12 or 13 ? [.04f,.09f,.16f,1f] : [0f,0f,0f,1f];

@@ -51,21 +51,7 @@ layout(std140, binding = VGE_UBO_MATERIAL_BINDING) uniform VgeMaterialUBO
 // Lights block (dynamic light lists)
 // ---------------------------------------------------------------------------
 
-#ifndef VGE_MAX_LIGHTS
-  #define VGE_MAX_LIGHTS 64
-#endif
-
-layout(std140, binding = VGE_UBO_LIGHTS_BINDING) uniform VgeLightsUBO
-{
-    // x = lightCount
-    ivec4 lights0;
-
-    // posWS.xyz, intensity.w
-    vec4 lightPosIntensity[VGE_MAX_LIGHTS];
-
-    // color.rgb, reserved.w
-    vec4 lightColor[VGE_MAX_LIGHTS];
-} vgeLights;
+@import "./vge_lights_ubo.glsl"
 
 
 

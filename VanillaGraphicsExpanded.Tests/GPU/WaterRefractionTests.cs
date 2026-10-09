@@ -138,6 +138,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             };
         }
         var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        using var sharedLights = new VgeLightsUniformBuffer();
+        program.LightsInputs = sharedLights;
         program.ConfigureOptions(() =>
         {
             program.RefractionQuality = refractionQuality;
@@ -195,11 +197,11 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         program.EnvironmentIrradiance = Vector4.Zero;
 
         program.AtlasMetrics = Vector4.One;
-        program.SetCounts(0, 0);
+        program.SetFogSphereCount(0);
         if (compatibility == FogCase)
         {
             // A camera-centred sphere covers the whole visible segment with saturated fog.
-            program.SetCounts(0, 1);
+            program.SetFogSphereCount(1);
             float[] sphere = [0, 0, 0, 10, 1, .5f, .25f, .125f];
             for (int index = 0; index < sphere.Length; index++) program.SetFogSphereComponent(index, sphere[index]);
         }
@@ -223,9 +225,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         }
         if (scatteringSource == 2)
         {
-            program.SetCounts(1, 0);
-            program.SetPointLightPosition(0, new(0, 0, -12));
-            program.SetPointLightColor(0, new(10000));
+            program.SetFogSphereCount(0);
+            sharedLights.Capture(1, [0, 0, -12], [10000, 10000, 10000]);
         }
         program.MediumLookupEnabled = scenario == 9 || scenario >= 14;
         program.AerialParameters = new(0, 0, scenario is >= 6 and <= 8 ? 1 : 0, 0);
@@ -337,7 +338,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         var edgeBaseline = target[1].ReadPixelsRegion(8, 0, 1, 8);
         if (compatibility == FlowCase) program.Animation = new(0, 1, 0, 0);
         program.RefractionEnabled = true;
-        Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(4552, 4)));
+        Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(1352, 4)));
         target.Clear(0, 0, 0, 0);
         DrawBoundary(2, true);
         var actual = target[1].ReadPixelsRegion(center, center, 1, 1);
@@ -482,9 +483,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                         mediumRecord.UploadDataImmediate([.1f, .2f, .3f, anisotropy, .2f, .3f, .4f, 0]);
                         program.SunDirection = new(0, 0, -1, 0);
                         program.SolarIrradiance = light == 1 ? new(100, 100, 100, 0) : Vector4.Zero;
-                        program.SetCounts(light == 2 ? 1 : 0, 0);
-                        program.SetPointLightPosition(0, new(0, 0, -12));
-                        program.SetPointLightColor(0, new(10000));
+                        program.SetFogSphereCount(0);
+                        sharedLights.Capture(light == 2 ? 1 : 0, [0, 0, -12], [10000, 10000, 10000]);
                         program.RefractionEnabled = enabled;
                         target.Clear(0, 0, 0, 0); DrawBoundary(2, true);
                         for (int attachment = 0; attachment < 6; attachment++)
@@ -512,8 +512,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             program.MediumLookupEnabled = true;
             program.SolarIrradiance = new(10, 10, 10, 0);
             program.EnvironmentIrradiance = new(2, 2, 2, 0);
-            program.SetCounts(1, 0);
-            program.SetPointLightPosition(0, new(0, 0, -12)); program.SetPointLightColor(0, new(100));
+            program.SetFogSphereCount(0);
+            sharedLights.Capture(1, [0, 0, -12], [100, 100, 100]);
             program.AerialParameters = new(100, 100, 0, 0);
             aerial.UploadDataImmediate([.05f, .05f, .05f, .1f], 0, 0, 0, 1, 1, 1, 0);
             float[]? isotropicPixels = null, anisotropicPixels = null;

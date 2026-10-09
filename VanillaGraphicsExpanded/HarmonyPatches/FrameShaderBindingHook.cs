@@ -7,19 +7,19 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
-/// <summary>Restores the universal frame publication for engine-owned programs importing VGE camera data.</summary>
+/// <summary>Restores the universal frame and light publications for engine-owned programs importing VGE shared data.</summary>
 internal static class FrameShaderBindingHook
 {
-    private static readonly Dictionary<int, bool> consumers = new();
+    private static readonly Dictionary<int, (bool Frame, bool Lights)> consumers = new();
 
     #region Public API
-    /// <summary>Routes engine program use through the shared snapshot without making camera ownership effect-specific.</summary>
+    /// <summary>Routes engine program use through the shared snapshots without making ownership effect-specific.</summary>
     internal static void ApplyPatches(Harmony harmony, Action<string> log)
     {
         var use = AccessTools.Method(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Use))
             ?? throw new MissingMethodException(typeof(ShaderProgramBase).FullName, nameof(ShaderProgramBase.Use));
         harmony.Patch(use, postfix: new HarmonyMethod(typeof(FrameShaderBindingHook), nameof(UsePostfix)));
-        log("[VGE] Patched engine shader use for the shared frame publication.");
+        log("[VGE] Patched engine shader use for shared frame and light publications.");
     }
 
     /// <summary>Withdraws reflected membership when engine program handles are recreated or retired.</summary>
@@ -27,21 +27,22 @@ internal static class FrameShaderBindingHook
     #endregion
 
     #region Private
-    /// <summary>Binds the retained immutable frame slice for camera consumers on every program use.</summary>
+    /// <summary>Binds retained immutable camera and light slices for their consumers on every program use.</summary>
     private static void UsePostfix(ShaderProgramBase __instance)
     {
         int program = __instance.ProgramId;
         if (program == 0) return;
         // Program membership is stable between reloads; global buffer bindings are not.
-        if (!consumers.TryGetValue(program, out bool consumesFrame))
+        if (!consumers.TryGetValue(program, out var membership))
         {
-            consumesFrame = GL.GetUniformBlockIndex(program, "VgeFrameUBO") >= 0;
-            consumers.Add(program, consumesFrame);
+            membership = (GL.GetUniformBlockIndex(program, "VgeFrameUBO") >= 0,
+                GL.GetUniformBlockIndex(program, "VgeLightsUBO") >= 0);
+            consumers.Add(program, membership);
         }
-        if (!consumesFrame) return;
+        if (!membership.Frame && !membership.Lights) return;
         if (__instance.HasUniform("vge_pbrRoute") && !AtmosphereSunDrawHook.Active)
         {
-            // GUI and native offscreen routes do not execute the VGE world-camera branches.
+            // GUI and native offscreen routes do not execute the VGE world-shading branches.
             // Use the existing framebuffer/stage contract instead of identifying particular callers.
             var api = VgeFrameRenderer.ActiveApi;
             if (api is null) return;
@@ -52,8 +53,10 @@ internal static class FrameShaderBindingHook
                 buffers.Count > (int)Vintagestory.API.Client.EnumFrameBuffer.Transparent ? buffers[(int)Vintagestory.API.Client.EnumFrameBuffer.Transparent] : null);
             if (route == 0) return;
         }
-        if (!VgeFrameRenderer.Current.TryBindToSlot(GpuBindingRegistry.Ubo.Frame))
+        if (membership.Frame && !VgeFrameRenderer.Current.TryBindToSlot(GpuBindingRegistry.Ubo.Frame))
             throw new InvalidOperationException("The engine camera consumer could not bind its shared frame snapshot.");
+        if (membership.Lights && !VgeLightsRenderer.Current.TryBindToSlot(GpuBindingRegistry.Ubo.Lights))
+            throw new InvalidOperationException("The engine light consumer could not bind its shared light snapshot.");
     }
     #endregion
 }

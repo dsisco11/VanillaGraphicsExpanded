@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.PBR;
 internal interface IPBRDirectLightingShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies the shared dynamic-light list without effect-specific copies.</summary>
+    [ShaderBinding("VgeLightsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Lights, ShaderStageKind.Fragment)]
+    CpuUniformBuffer LightsInputs { get; }
     /// <summary>Supplies the shared camera snapshot.</summary>
     [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
     CpuUniformBuffer FrameInputs { get; }

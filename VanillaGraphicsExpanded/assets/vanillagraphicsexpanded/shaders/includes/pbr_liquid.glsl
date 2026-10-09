@@ -95,10 +95,10 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
 #if DYNLIGHTS > 0
     for (int i = 0; i < min(pointLightQuantity, DYNLIGHTS); ++i)
     {
-        vec3 delta = pointLights[i] - vge_viewPosition;
+        vec3 delta = vgeLights.positions[i].xyz - vge_viewPosition;
         float d2 = max(dot(delta, delta), .0001);
         vec3 direction = normalize(toWorld * delta);
-        vec3 light = pointLightColors[i] * min(1.0 / d2, 1.0);
+        vec3 light = vgeLights.colors[i].xyz * min(1.0 / d2, 1.0);
         // Local lights retain the existing unshadowed engine approximation.
         if (fallbackSourceNeeded)
             mediumSource += max(light, vec3(0)) * VgeWaterPhase(-direction, V, medium.anisotropy);

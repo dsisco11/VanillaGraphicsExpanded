@@ -23,6 +23,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private GBufferManager? gBufferManager;
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
     private VgeFrameRenderer? frameRenderer;
+    private VgeLightsRenderer? lightsRenderer;
     private HarmonyLib.Harmony? harmony;
 
     private TerrainReliefConfiguration? lastSurfaceDetail;
@@ -81,6 +82,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         GlGpuProfiler.Instance.Initialize(api);
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
         frameRenderer = new VgeFrameRenderer(api);
+        lightsRenderer = new VgeLightsRenderer(api);
 
         // Single, always-available debug view entry point.
         api.Input.RegisterHotKey(
@@ -273,6 +275,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             gpuProfilerRenderer?.Dispose();
             gpuProfilerRenderer = null;
+            lightsRenderer?.Dispose();
+            lightsRenderer = null;
             frameRenderer?.Dispose();
             frameRenderer = null;
 

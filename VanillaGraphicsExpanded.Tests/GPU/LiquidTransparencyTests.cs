@@ -67,12 +67,14 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         program.EnvironmentIrradiance = Vector4.Zero;
         program.AtlasMetrics = new(1, 1, 1, 1);
 
-        program.SetCounts(0, 0);
+        program.SetFogSphereCount(0);
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, .1f, 100);
         // Numerics uses zero-to-one depth; explicitly select OpenGL's minus-one-to-one depth.
         projection.M33 = -(100 + .1f) / (100 - .1f);
         projection.M43 = -2 * 100 * .1f / (100 - .1f);
         using var frameCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), size, size, .1f, 100);
+        using var sharedLights = new VgeLightsUniformBuffer();
+        program.LightsInputs = sharedLights;
         program.FrameInputs = frameCamera;
         var state = StateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);

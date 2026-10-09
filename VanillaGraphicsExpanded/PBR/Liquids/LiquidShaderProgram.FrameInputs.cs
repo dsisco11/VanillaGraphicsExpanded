@@ -41,19 +41,14 @@ internal sealed partial class LiquidShaderProgram
     internal Vector4 Perception { set => frame.Perception = value; }
     /// <summary>Stages perception world offset in XYZ; W is reserved; Use submits the completed frame.</summary>
     internal Vector4 PerceptionPosition { set => frame.PerceptionPosition = value; }
-    /// <summary>Stages the active point-light and fog-sphere counts.</summary>
-    internal void SetCounts(int lights, int spheres)
+    /// <summary>Stages the active fog-sphere count independently of shared lighting.</summary>
+    internal void SetFogSphereCount(int spheres)
     {
-        if ((uint)lights > 100) throw new ArgumentOutOfRangeException(nameof(lights));
         if ((uint)spheres > 3) throw new ArgumentOutOfRangeException(nameof(spheres));
-        frame.SetCounts(lights, spheres);
+        frame.SetFogSphereCount(spheres);
     }
     /// <summary>Stages one ColorMapRect array element.</summary>
     internal void SetColorMapRect(int index, Vector4 value) => frame.SetColorMapRect(index, value);
-    /// <summary>Stages one PointLightPosition array element.</summary>
-    internal void SetPointLightPosition(int index, Vector3 value) => frame.SetPointLightPosition(index, value);
-    /// <summary>Stages one PointLightColor array element.</summary>
-    internal void SetPointLightColor(int index, Vector3 value) => frame.SetPointLightColor(index, value);
     /// <summary>Stages one FogSphereComponent array element.</summary>
     internal void SetFogSphereComponent(int index, float value) => frame.SetFogSphereComponent(index, value);
     /// <summary>Copies the selected liquid pass's coherent frame inputs; arrays use std140 sixteen-byte strides.</summary>
@@ -74,8 +69,8 @@ internal sealed partial class LiquidShaderProgram
         SolarIrradiance = new(atmosphere?.Solar ?? Vector3.Zero, 0);
         EnvironmentIrradiance = new(atmosphere?.Environment ?? Vector3.Zero, 0);
         AerialParameters = new(atmosphere?.Altitude ?? 0, atmosphere?.HorizonElevation ?? 0, u.CameraUnderwater, 0);
-        // Boundary capture consumes neither array in either stage. Keep zero counts so retained
-        // array bytes are never advertised as current; surface recapture refreshes its active prefix.
+        // Boundary capture consumes no fog spheres. Keep its count zero so retained fog bytes
+        // are never advertised as current; surface recapture refreshes the active prefix.
         var settings = RequestedSettings;
         if (!ReferenceEquals(frameCaptureSettings, settings))
         {
@@ -84,19 +79,13 @@ internal sealed partial class LiquidShaderProgram
             boundaryCapture = ShaderOptionAccess.Get(settings, CaptureModeOption) == 3;
             frameCaptureSettings = settings;
         }
-        int lights = boundaryCapture ? 0 : Math.Clamp(u.PointLightsCount, 0, Math.Min(100, Math.Min(u.PointLights3.Length, u.PointLightColors3.Length) / 3));
         int spheres = boundaryCapture ? 0 : Math.Clamp(u.FogSphereQuantity, 0, Math.Min(3, u.FogSpheres.Length / 8));
-        SetCounts(lights, spheres);
+        SetFogSphereCount(spheres);
         Perception = new(0, u.PsychedelicStrength, 0, 0);
         PerceptionPosition = new(u.PlayerPosForFoam.X, u.PlayerPosForFoam.Y, u.PlayerPosForFoam.Z, 0);
         // The shared vertex executable still evaluates climate/season coordinates in every mode.
         for (int i = 0; i < 40; i++)
             SetColorMapRect(i, new(u.ColorMapRects4[i * 4], u.ColorMapRects4[i * 4 + 1], u.ColorMapRects4[i * 4 + 2], u.ColorMapRects4[i * 4 + 3]));
-        for (int i = 0; i < lights; i++)
-        {
-            SetPointLightPosition(i, new(u.PointLights3[i * 3], u.PointLights3[i * 3 + 1], u.PointLights3[i * 3 + 2]));
-            SetPointLightColor(i, new(u.PointLightColors3[i * 3], u.PointLightColors3[i * 3 + 1], u.PointLightColors3[i * 3 + 2]));
-        }
         for (int i = 0; i < spheres * 8; i++) SetFogSphereComponent(i, u.FogSpheres[i]);
     }
     #endregion

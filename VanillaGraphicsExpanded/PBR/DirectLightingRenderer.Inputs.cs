@@ -34,12 +34,6 @@ public sealed partial class DirectLightingRenderer
         shader.SetSolarLighting(atmosphere?.Sun ?? System.Numerics.Vector3.UnitY,
             atmosphere?.Solar ?? System.Numerics.Vector3.Zero);
 
-        // Vanilla supplies view-space point lights; the shader compares them with view-space receivers.
-        shader.SetPointLights(
-            capi.Render.ShaderUniforms.PointLightsCount,
-            capi.Render.ShaderUniforms.PointLights3,
-            capi.Render.ShaderUniforms.PointLightColors3);
-
         // Shadow params
         shader.ShadowRangeNear = capi.Render.ShaderUniforms.ShadowRangeNear;
         shader.ShadowRangeFar = capi.Render.ShaderUniforms.ShadowRangeFar;

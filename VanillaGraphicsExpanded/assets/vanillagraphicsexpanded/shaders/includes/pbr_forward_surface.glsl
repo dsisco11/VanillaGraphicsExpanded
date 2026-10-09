@@ -6,11 +6,7 @@
 #endif
 
 
-#if DYNLIGHTS > 0
-uniform vec3 pointLights[DYNLIGHTS];
-uniform vec3 pointLightColors[DYNLIGHTS];
-uniform int pointLightQuantity;
-#endif
+@import "./vge_lights_ubo.glsl"
 
 /** Samples engine-provided cascade coordinates without the vanilla ambient brightness floor. */
 float VgeForwardOcclusion(sampler2DShadow map, vec4 coords, float bias)
@@ -47,13 +43,13 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
     diffuse += VgeTransmission(baseColor, N, V, normalize(vge_atmosphereSunDirection),
         vge_atmosphereSolar * vge_skyVisibility, metallic, transmission, clamp(1.0 - occlusion, 0.0, 1.0));
     #if DYNLIGHTS > 0
-    for (int i = 0; i < min(pointLightQuantity, DYNLIGHTS); ++i)
+    for (int i = 0; i < min(int(vgeLights.lightCount), DYNLIGHTS); ++i)
     {
-        vec3 delta = pointLights[i] - vge_viewPosition;
+        vec3 delta = vgeLights.positions[i].xyz - vge_viewPosition;
         float distanceSquared = max(dot(delta, delta), 0.0001);
         vec3 direction = toWorld * delta;
         direction *= inversesqrt(max(dot(direction, direction), 0.0001));
-        addDirectLight(baseColor, N, V, direction, pointLightColors[i] * min(1.0 / distanceSquared, 1.0),
+        addDirectLight(baseColor, N, V, direction, vgeLights.colors[i].xyz * min(1.0 / distanceSquared, 1.0),
             roughness, metallic, diffuse, specular);
     }
     #endif

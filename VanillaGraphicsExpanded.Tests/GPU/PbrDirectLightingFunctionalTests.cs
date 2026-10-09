@@ -183,6 +183,32 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
     }
 
+    /// <summary>The hundredth light contributes exactly like a single calibrated source, including under alternate views.</summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(.7f)]
+    public void LastSupportedPointLightPreservesRadiance(float inverseViewYaw)
+    {
+        EnsureShaderTestAvailable();
+        var program = CompilePbrDirectLightingProgram();
+        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.75f, .25f, .125f, 1f]);
+        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
+        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
+        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
+        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [1f]);
+        RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
+            (0, 0, 1), (0, 0, 0), 1, (0, 0, 0), (2, 3, 4), inverseViewYaw: inverseViewYaw);
+        var diffuse = ReadPixelFromAttachment(output, 0);
+        var specular = ReadPixelFromAttachment(output, 1);
+        Assert.True(diffuse.R + specular.R > .001f);
+        RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
+            (0, 0, 1), (0, 0, 0), 100, (0, 0, 0), (2, 3, 4), inverseViewYaw: inverseViewYaw);
+        Assert.Equal(diffuse, ReadPixelFromAttachment(output, 0));
+        Assert.Equal(specular, ReadPixelFromAttachment(output, 1));
+    }
+
     #region Specular regression coverage
 
     /// <summary>Checks absolute GGX radiance with terrain's metallic-valued alpha and one Fresnel factor.</summary>
@@ -490,8 +516,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         float[]? pointLightColors3 = null;
         if (pointLightCount > 0)
         {
-            pointLightPositions3 = [pointLightPos0.x, pointLightPos0.y, pointLightPos0.z];
-            pointLightColors3 = [pointLightColor0.r, pointLightColor0.g, pointLightColor0.b];
+            pointLightPositions3 = new float[pointLightCount * 3];
+            pointLightColors3 = new float[pointLightCount * 3];
+            // Put the only emitting entry at the end to expose accidental placeholder-capacity truncation.
+            int last = (pointLightCount - 1) * 3;
+            pointLightPositions3[last] = pointLightPos0.x; pointLightPositions3[last + 1] = pointLightPos0.y; pointLightPositions3[last + 2] = pointLightPos0.z;
+            pointLightColors3[last] = pointLightColor0.r; pointLightColors3[last + 1] = pointLightColor0.g; pointLightColors3[last + 2] = pointLightColor0.b;
         }
         using var frameCamera = TestFrameCamera.CreateFromInverseView(identity, inverseView);
         programId.FrameInputs = frameCamera;
@@ -502,7 +532,9 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         programId.LightDirection = new(lightDirection.x, lightDirection.y, lightDirection.z);
         programId.SetSolarIrradiance(new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b));
         programId.RgbaAmbientIn = new(0,0,0);
-        programId.SetPointLights(pointLightCount, pointLightPositions3, pointLightColors3);
+        using var sharedLights = new VgeLightsUniformBuffer();
+        sharedLights.Capture(pointLightCount, pointLightPositions3, pointLightColors3);
+        programId.LightsInputs = sharedLights;
 
         // Draw
         GL.Disable(EnableCap.DepthTest);

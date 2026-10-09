@@ -171,10 +171,12 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
             atmosphere?.Solar ?? System.Numerics.Vector3.Zero);
 
         // Vanilla supplies view-space point lights; the shader compares them with view-space receivers.
-        shader.SetPointLights(
+        using var sharedLights = new VgeLightsUniformBuffer();
+        sharedLights.Capture(
             capi.Render.ShaderUniforms.PointLightsCount,
             capi.Render.ShaderUniforms.PointLights3,
             capi.Render.ShaderUniforms.PointLightColors3);
+        shader.LightsInputs = sharedLights;
 
         // Shadow params
         shader.ShadowRangeNear = capi.Render.ShaderUniforms.ShadowRangeNear;

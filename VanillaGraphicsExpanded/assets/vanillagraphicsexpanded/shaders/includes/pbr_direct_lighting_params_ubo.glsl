@@ -7,9 +7,7 @@
 
 @import "./vge_frame_ubo.glsl"
 
-#ifndef VGE_PBR_MAX_POINT_LIGHTS
-  #define VGE_PBR_MAX_POINT_LIGHTS 100
-#endif
+@import "./vge_lights_ubo.glsl"
 
 layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingParamsUBO
 {
@@ -31,14 +29,6 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingPar
     // Solar irradiance in xyz; w reserved
     vec4 light0;
 
-    // pointLightsCount.x, reserved.yzw
-    ivec4 pointLightsInts0;
-
-    // View-space pointLight positions from the engine (xyz), w reserved
-    vec4 pointLightPos[VGE_PBR_MAX_POINT_LIGHTS];
-
-    // pointLight colors (rgb), w reserved
-    vec4 pointLightColor[VGE_PBR_MAX_POINT_LIGHTS];
 } vgePbrDirect;
 
 // Matrices
@@ -62,9 +52,8 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrDirectLightingPar
 #define rgbaAmbientIn (vgePbrDirect.ambient0.xyz)
 #define rgbaLightIn (vgePbrDirect.light0.xyz)
 
-#define pointLightsCount (vgePbrDirect.pointLightsInts0.x)
+#define pointLightsCount (int(vgeLights.lightCount))
 
-vec3 VgePbrPointLightPos(int i) { return vgePbrDirect.pointLightPos[i].xyz; }
-vec3 VgePbrPointLightColor(int i) { return vgePbrDirect.pointLightColor[i].xyz; }
+// Point-light positions and colors come from the universal light snapshot.
 
 #endif // PBR_DIRECT_LIGHTING_PARAMS_UBO_GLSL

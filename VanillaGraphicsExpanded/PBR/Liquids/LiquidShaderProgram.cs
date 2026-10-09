@@ -39,6 +39,13 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, 
         get => frameInputs;
         set { RequireInputMutation(); frameInputs = value; }
     }
+    private VgeLightsUniformBuffer? lightsInputs;
+    /// <summary>Borrows an explicit alternate-view light snapshot without changing its ownership.</summary>
+    internal VgeLightsUniformBuffer? LightsInputs
+    {
+        get => lightsInputs;
+        set { RequireInputMutation(); lightsInputs = value; }
+    }
     private readonly LiquidDrawParamsUbo draw = new();
     private readonly LiquidFrameParamsUbo frame = new();
     private readonly LiquidWaveParamsUbo wave = new();
@@ -67,6 +74,8 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, IShaderProgram, 
     }
     /// <summary>Reuses the current world or explicitly supplied view snapshot.</summary>
     CpuUniformBuffer ILiquidShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
+    /// <summary>Reuses the current world light publication or an explicit alternate-view snapshot.</summary>
+    CpuUniformBuffer ILiquidShaderProgramBindings.LightsInputs => LightsInputs ?? VgeLightsRenderer.Current;
     /// <summary>Supplies retained liquid effect inputs.</summary>
     CpuUniformBuffer ILiquidShaderProgramBindings.FrameParameters => frame;
     /// <summary>Supplies retained draw inputs.</summary>

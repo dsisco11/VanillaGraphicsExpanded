@@ -9,6 +9,9 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal interface ILiquidShaderProgramBindings
 {
     #region Public API
+    /// <summary>Supplies the shared dynamic lights; boundary-only variants do not consume this block.</summary>
+    [ShaderBinding("VgeLightsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Lights, ShaderStageKind.Fragment, Required = false)]
+    CpuUniformBuffer LightsInputs { get; }
     /// <summary>Supplies current-frame occlusion for atmospheric in-scattering only.</summary>
     [ShaderBinding("vge_lightShaftOcclusion", ShaderBindingKind.Sampler, 11, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp, Required = false)]
     GpuTexture? LightShaftOcclusion { set; }
