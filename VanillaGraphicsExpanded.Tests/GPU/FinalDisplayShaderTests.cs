@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>Occlusion affects scene radiance before additive effects, then one exposure and display transform are applied.</summary>
+    /// <summary>Already lit scene radiance receives additive effects, then one exposure and display transform.</summary>
     [Theory]
     [InlineData(0, -2f, false)]
     [InlineData(1, 0f, false)]
@@ -24,14 +24,13 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var scene = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,4f,4f,.37f]);
         using var bloom = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[1f,1f,1f,1f]);
         using var shafts = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[2f,2f,2f,1f]);
-        using var ao = TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[.25f]);
         using var history = TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[ev]);
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         shader.SceneImage=scene; shader.BloomImage=bloom; shader.ShaftImage=shafts;
-        shader.OcclusionImage=ao; shader.ExposureImage=history;
+        shader.ExposureImage=history;
         shader.Capture(new(1,1,0,quality),new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),new(automatic?-ev:ev,automatic?1:0,0,0));
         Draw(shader,target);
-        float radiance=((quality==0?4f:1f)+3f)*MathF.Pow(2,ev);
+        float radiance=(4f+3f)*MathF.Pow(2,ev);
         float expected=Display(radiance);
         float[] actual=target[0].ReadPixels();
         for(int i=0;i<3;i++) Assert.InRange(actual[i],expected-.00001f,expected+.00001f);
@@ -50,7 +49,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,2f,1f,.5f]);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(width,height,PixelInternalFormat.Rgba16f);
-        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.OcclusionImage=zero;shader.ExposureImage=zero;
+        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
         shader.Capture(new(1f/width,1f/height,1,0),new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         Draw(shader,target);
         var samples=new List<double>();
@@ -73,7 +72,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,.3f]);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(17,9,PixelInternalFormat.Rgba32f);
-        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.OcclusionImage=zero;shader.ExposureImage=zero;
+        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
         shader.Capture(new(1f/17,1f/9,0,0),new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);Draw(shader,target);
         float[] baseline=target[0].ReadPixels();
         var controls=treatment==0?new FinalDisplayParameters(new(2,1,1,0),Vector4.Zero,Vector4.Zero):
@@ -104,12 +103,10 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     /// <summary>Draws the production procedural triangle after readback with deterministic raster state.</summary>
     private static void Draw(FinalDisplayShaderProgram shader,GpuFramebuffer target)
     {
-        target.BindWithViewport();
-        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-        GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.FramebufferSrgb); GL.ColorMask(true,true,true,true);
-        StateCache.Current.InvalidateAll();
-        using var vao=GpuVao.Create();
-        using(shader.UseScope()) using(vao.BindScope()) GL.DrawArrays(PrimitiveType.Triangles,0,3);
+        using var draw = new PostprocessDraw();
+        var pipeline = draw.Prepare(shader, target);
+        Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.FinalDisplay", [pipeline], true,
+            commands => draw.Submit(commands, pipeline, target)));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

@@ -112,7 +112,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
             if (type is not (ActiveUniformType.Sampler2D or ActiveUniformType.Sampler3D or ActiveUniformType.Sampler2DArray)) continue;
             samplers += size;
             Assert.True(shader.ProgramLayout.TryGetContractSamplerUnit(name, out int unit));
-            Assert.InRange(unit, 0, 11);
+            Assert.InRange(unit, 0, 12);
             Assert.True(units.Add(unit));
             int location = shader.ProgramLayout.BinaryInterface!.GetUniformLocation(name);
             GL.GetUniform(shader.ProgramId, location, out int actualUnit);
@@ -123,9 +123,9 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         output.WriteLine($"Device array layers={GpuSupport.MaxArrayTextureLayers}; color attachments={GpuSupport.MaxColorAttachments}; draw buffers={GpuSupport.MaxDrawBuffers}.");
         Assert.True(GpuSupport.MaxArrayTextureLayers >= 7);
         Assert.True(GpuSupport.MaxColorAttachments >= 8);
-        Assert.Equal(12, samplers);
+        Assert.Equal(13, samplers);
         Assert.InRange(samplers, 0, driverLimit);
-        Assert.Equal(Enumerable.Range(0, 12), units.Order());
+        Assert.Equal(Enumerable.Range(0, 13), units.Order());
     }
     /// <summary>Measures a bounded four-pass shaft extraction/filter/publication workload without bloom or live-frame claims.</summary>
     [Fact]

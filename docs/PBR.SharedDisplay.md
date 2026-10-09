@@ -22,10 +22,12 @@ separately; native HDR presentation remains outside its contract.
 ## Owned scene postprocessing
 
 [PBR.Postprocessing.md](PBR.Postprocessing.md) defines the VGE-owned replacement for the complete
-HDR scene postprocess pass: camera exposure, bloom, solar shafts, neutral AO placeholder,
+HDR scene postprocess pass: camera exposure, bloom, solar shafts,
 luma preparation and final composition. Engine final/glare/luma/SSAO shaders and intermediate
 allocations described in historical receipts below are no longer scene dependencies. The engine
-overlay scheduling and presentation blit remain unchanged.
+overlay scheduling and presentation blit remain unchanged. Horizon-integrated ambient occlusion
+runs before deferred composition and attenuates only ambient/indirect light; it is not a final
+whole-scene multiplier. Its native settings, spatial filter and lifecycle are documented there.
 
 ## Runtime scene handoff
 
@@ -67,7 +69,7 @@ artifacts/SceneHdrRuntime/allocation-metadata-tests.trx.
 | Cube particles | Isolated radiance/depth capture; compose after material lighting |
 | Bloom and luma | Float intermediates; perceptual luma retains linear RGB |
 | Light shafts | Owned bounded solar-visibility glare in scene-linear RGB |
-| Owned final composition | Original edge smoothing, neutral AO, additive glare, one display conversion, original grading/vignettes and final dither |
+| Owned final composition | Original edge smoothing, additive glare, one display conversion, original grading/vignettes and final dither |
 
 Surface shaders use vge_pbrRoute as their single selector: zero retains offscreen/UI
 shading, one captures material data, and two emits forward HDR radiance. The atmospheric
@@ -98,7 +100,7 @@ destination are borrowed. Framebuffer publication/reload retires the owned inter
 borrowed references coherently. The original engine postprocess binding transpiler and final
 shader patches are no longer registered or present in production. Copied display helpers and
 SSAO/filter algorithms were removed; native controls now drive original display code, with
-neutral AO pending its separate algorithm task. No native visual-equivalence claim is made.
+horizon-integrated AO applied to deferred ambient/indirect light before atmospheric transport. No native visual-equivalence claim is made.
 
 Third-party scene contributors must honor the HDR target contract. Merely registering an
 unclassified program does not affect VGE ownership, including programs used only for UI.

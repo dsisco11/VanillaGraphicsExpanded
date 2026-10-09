@@ -900,6 +900,11 @@ Tasks
         Parent remains open for user-run halo/temporal and matched-scene performance acceptance.
 
     ☐ Implement horizon-integrated ambient occlusion and its spatial filter.
+      - Implemented the owned pre-lighting horizon pass, min/max depth hierarchy, spatial filter
+        and joint reconstruction. Native SSAO settings control bounded quality; only ambient/indirect
+        lighting consumes visibility, using current corrected material depth and typed resources.
+        No temporal history or final whole-scene AO multiplier remains. Contract: docs/PBR.Postprocessing.md.
+        User-run visual and matched-scene performance acceptance remain required before completion.
       - Use the shared fully VGE-owned postprocessing and final-composition task above for target
         ownership, scheduling and integration; preserve the baseline SSAO target-format fix.
       - Replace the neutral AO placeholder with depth-reconstructed view positions,
@@ -910,9 +915,9 @@ Tasks
         material/transparency attenuation and a documented occlusion response. Define screen-edge,
         background, thin-surface and disocclusion behavior without hiding errors through global clamps.
       - Refactor filtering into depth/normal-aware spatial denoising and reconstruction from reduced
-        resolution. Add optional temporal accumulation only with validated reprojection, history
-        rejection/clamping and camera-cut/reset inputs; define the spatial-only path when unavailable.
-      - Own AO, filtering, history and depth-hierarchy resources through existing resource owners;
+        resolution. Keep sampling stable across frames; temporal filtering, frame-varying jitter
+        and history resources are outside this task.
+      - Own AO, filtering and depth-hierarchy resources through existing resource owners;
         reuse a compatible existing depth hierarchy where available. Use sized formats matching shader
         outputs and preserve GLSL 330 support.
       - Map native SSAO disable/quality settings to bounded sampling and resolution policies, with
@@ -920,7 +925,81 @@ Tasks
         at the owned composition boundary so emission and generated glare are not incorrectly darkened.
       - Document the contract in docs/PBR.Postprocessing.md. Run focused subagent tests for corners,
         contact detail, flat surfaces, thin geometry, foliage, motion, resolution changes and lifecycle;
-        measure GPU/history costs and obtain user-run visual acceptance before completion.
+        measure GPU/storage costs and obtain user-run visual acceptance before completion.
+      ☐ Unify camera and frame data across all shaders through VgeFrameUBO.
+        - Make the existing universal definition the single camera/frame contract for all VGE
+          shaders that consume these values, including PBR, AO, atmosphere, liquids, postprocessing,
+          LumOn, debug and test shaders. Remove duplicated fields and uploads from effect-specific
+          blocks and standalone uniforms; retain only effect-specific parameters in those blocks.
+        - Replace frame0 with vec2 screenSize; float timeSeconds; uint frameIndex; and update
+          std140 CPU packing, typed bindings and shader consumers consistently, preserving the
+          integer frame index without a float conversion.
+        - Remove VGE_UBO_LAYOUT and its version-dependent binding omission. Explicitly require
+          GL_ARB_shading_language_420pack for GLSL 330 consumers and declare uniform blocks with
+          layout(std140, binding = ...) directly. Place extension directives before shader code
+          through the existing source pipeline; validate explicit bindings across shader variants.
+        - Publish through one shared owner independent of LumOn, before the earliest consumer;
+          compute and upload common transforms once per distinct frame/view snapshot, then reuse
+          the same buffer binding across passes. Reuse existing GPU buffer and lifetime APIs.
+        - Define camera-relative origins, current/previous transforms and screenSize semantics;
+          keep reduced-resolution target sizes effect-specific. Preserve alternate views and
+          offscreen rendering without overwriting data still referenced by earlier submissions.
+        - Migrate every consumer and fixture, reconcile binding-slot conflicts and retire the
+          superseded common fields in LumOnFrameUBO. Preserve resize, reload, camera cuts, world
+          teardown and both lighting modes. Validate layouts, publication order, view isolation
+          and removal of redundant uploads through focused subagent-run shader/GPU tests.
+      ☐ Unify shared light data across shaders through VgeLightsUBO.
+        - Inventory light-data producers and consumers, then make VgeLightsUBO the shared contract
+          for shaders using the same light list. Remove duplicated arrays, counts and uploads from
+          effect-specific blocks and standalone uniforms, including debug and test consumers.
+        - Reconcile the schema with existing lighting requirements before migration: preserve
+          supported light counts, position coordinate spaces, color/intensity units and attenuation.
+          Do not truncate existing lists to the placeholder capacity or conflate distinct light sets.
+        - Publish each shared light snapshot once through an owner independent of LumOn and reuse
+          its binding across passes. Preserve alternate-view transforms, update ordering and GPU
+          lifetime through existing resource APIs; keep unrelated effect parameters separate.
+        - Use explicit std140 bindings and the required extension contract. Validate CPU/shader
+          packing, capacity boundaries, view-space conversion, both lighting modes and unchanged
+          lighting through focused subagent-run tests; verify redundant publications are removed.
+      ☐ Refine paired horizon sampling and analytic integration.
+        - Replace AO's three separate reduced-depth textures with a single mipmapped HZB and
+          explicit mip-level sampling. Extract the existing LumOn HZB allocation, generation and
+          shader contracts into a shared rendering owner independent of LumOn; migrate AO and
+          LumOn consumers to its published texture rather than building duplicate hierarchies.
+        - Reconcile the existing R32F minimum-depth pyramid with AO's current min/max rejection
+          scheme as part of direct hierarchical horizon sampling. Preserve the corrected receiver
+          depth source and publish before the earliest consumer; build only when required by an
+          enabled consumer. Define shared view/generation identity and resize/reload/retirement.
+        - Validate complete coverage for odd dimensions and one-pixel mip tails, conservative
+          depth reduction, and feedback-safe source/destination mip access through existing GPU
+          abstractions. Update typed bindings/tests and retire AO's separate depth allocations.
+        - Use bounded projected radii, approximately evenly spaced paired searches, stable spatial
+          direction/start-offset variation and footprint-appropriate hierarchical depth samples.
+          Reconcile distance falloff, horizon representation and integral normalization together;
+          preserve native quality controls, receiver identity and material/transparency handling.
+      ☐ Replace neighbor-based thickness attenuation with running-horizon relaxation.
+        - Raise each horizon for stronger occluders and relax it toward subsequent lower-angle
+          evidence using a bounded thickness weight. Define the parameter's meaning independently
+          of world-space thickness; preserve continuous walls while limiting thin-object halos.
+      ☐ Separate ambient diffuse and specular occlusion.
+        - Split the environment response before composition. Apply scalar visibility to diffuse
+          lighting and derive indirect specular visibility from AO, roughness and normal/view angle.
+          Reconcile standalone and LumOn consumers without double attenuation; reuse existing
+          inputs, leave direct lighting unchanged and keep bent-normal generation out of scope.
+      ☐ Validate horizon behavior and the final lighting contribution.
+        - Use existing GPU abstractions for flat-plane, corner, thin-occluder, screen-edge,
+          distance/FOV and roughness/view-angle checks, including spatial filter/reconstruction.
+          Compare indoor and sunlit direct, ambient diffuse and indirect specular contributions
+          before exposure; distinguish weak ambient lighting from weak or rejected AO visibility.
+          Run focused tests through subagents, document results in docs/PBR.Postprocessing.md,
+          and retain user-run visual acceptance and matched-workload performance checks.
+
+  ☐ Refactor PBR pipeline FBOs diffuse color buffer to drop alpha channel from the texture, as diffuse color doesnt need alpha handling and the OIT passes are responsible for actual alpha blending.
+        - This will also require updating the shaders to drop alpha consideration for the diffuse color buffer.
+        - The diffuse color texture will need to be seperated from the combined G-Buffer surface texture array group.
+        - Afterwards, the G-Buffer surface texture-array can possibly be refactored to use RGB8 format?
+        
+  ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.
 
   ☐ Refactor camera exposure to use compute shaders and GPU buffer storage.
     - Replace the raster histogram and one-pixel adaptation passes with independently authored
@@ -968,7 +1047,8 @@ Tasks
   ☐ Review and approve the unified material-property UBO and material-ID atlas proposal.
     - Review docs/PBR.MaterialPropertyTable.Proposal.md against the current material registry,
       atlas pipeline and all production property consumers, including liquids, water, displacement
-      and LumOn. Confirm one shared UBO and the R32UI lookup contract across multiple atlas pages.
+      and LumOn. Confirm shared lookup/material UBOs, packed-UV cell indexing, multi-page identity
+      and the compact deferred material-ID contract.
     - Resolve record layout and capacity, production-shader noise evaluation, authored spatial
       override representation, filtering, cache migration and coherent publication/retirement.
       Noise must be evaluated in production shaders rather than baked into property textures.

@@ -111,6 +111,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var camera = new CameraExposureRenderer(api.Object);
         using var post = new PostprocessPipeline(api.Object);
         using var shaftOcclusion = new LightShaftOcclusionRenderer(api.Object);
+        using var ambientOcclusion = new AmbientOcclusionRenderer(api.Object, gbuffer);
+        api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(ssaoQuality);
         api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
         Vintagestory.Client.ScreenManager.Platform.DoPostProcessingEffects = true;
         var harmony = new Harmony("VGE.Tests.SceneColorRuntime");
@@ -141,6 +143,19 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(shaftOcclusion.RenderOrder < composite.RenderOrder);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int earlyOcclusion = LightShaftOcclusionRenderer.Texture!.TextureId;
+            ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.Null(AmbientOcclusionRenderer.Texture);
+            Assert.True(ambientOcclusion.RenderOrder < composite.RenderOrder);
+            ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            Assert.Equal(ssaoQuality > 0, AmbientOcclusionRenderer.Texture is not null);
+            ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.Null(AmbientOcclusionRenderer.Texture);
+            ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(0);
+            ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            Assert.Null(AmbientOcclusionRenderer.Texture);
+            api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(ssaoQuality);
+
             Assert.Equal(2, LightShaftOcclusionRenderer.Texture.Width);
             Assert.Equal(2, LightShaftOcclusionRenderer.Texture.Height);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Before);

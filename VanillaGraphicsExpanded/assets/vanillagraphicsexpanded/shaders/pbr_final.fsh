@@ -8,7 +8,6 @@ layout(std140) uniform FinalDisplayInputs {
 uniform sampler2D sceneImage;
 uniform sampler2D bloomImage;
 uniform sampler2D shaftImage;
-uniform sampler2D occlusionImage;
 uniform sampler2D exposureImage;
 in vec2 uv;
 layout(location=0) out vec4 outColor;
@@ -16,7 +15,6 @@ layout(location=0) out vec4 outColor;
 void main()
 {
     vec3 radiance=frame.z>.5?VgeFilterDisplayEdge(sceneImage,uv,frame.xy).rgb:texture(sceneImage,uv).rgb;
-    if(frame.w>0.0) radiance*=clamp(texture(occlusionImage,uv).r,0.0,1.0);
     radiance+=texture(bloomImage,uv).rgb+texture(shaftImage,uv).rgb;
     float ev=exposure.y>.5?texelFetch(exposureImage,ivec2(0),0).r:exposure.x;
     vec3 display=VgeResolveDisplay(radiance*exp2(ev));

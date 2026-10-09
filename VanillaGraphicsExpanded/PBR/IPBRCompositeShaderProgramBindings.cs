@@ -55,5 +55,8 @@ internal interface IPBRCompositeShaderProgramBindings
     /// <summary>Declares the vge_atmosphereAerialAttenuation Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 11, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Required = false)]
     DynamicTexture3D? AtmosphereAerialAttenuation { set; }
+    /// <summary>Supplies current opaque ambient visibility and matching receiver depth.</summary>
+    [ShaderBinding("ambientOcclusion", ShaderBindingKind.Sampler, 12, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
+    GpuTexture? AmbientOcclusion { set; }
     #endregion
 }

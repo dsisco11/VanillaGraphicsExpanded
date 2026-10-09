@@ -21,7 +21,7 @@ VGE_UBO_LAYOUT(VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
     // indirectTint.xyz, indirectIntensity.w
     vec4 indirectTint_intensity;
 
-    // diffuseAOStrength.x, specularAOStrength.y, current-frame pre-overlay source.z, reserved.w
+    // diffuseAOStrength.x, specularAOStrength.y, current-frame pre-overlay source.z, current-frame ambient visibility.w
     vec4 aoStrengths;
     vec4 atmosphereAerial; // admitted altitude (km), horizon elevation, reserved.zw
     vec4 atmosphereSun; // admitted solar direction, reserved.w

@@ -231,6 +231,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
 
         if (lumOnEnabled) shader.IndirectDiffuse = indirectTex;
         shader.GBufferSurface = gBufferManager.SurfaceTexture;
+        shader.SetAmbientOcclusion(Postprocessing.AmbientOcclusionRenderer.Texture);
 
         // GBuffer inputs
         shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];

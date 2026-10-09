@@ -16,10 +16,11 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     private const int OffsetFogColor = 128;          // vec4 at 128
     private const int OffsetFogFloats = 144;         // vec4 at 144 (fogDensity, fogMin, 0, 0)
     private const int OffsetIndirectTintIntensity = 160; // vec4 at 160 (tint.rgb, intensity)
-    private const int OffsetAOStrengths = 176;       // vec4 at 176 (diffuseAO, specularAO, 0, 0)
+    private const int OffsetAOStrengths = 176;       // vec4 at 176 (diffuseAO, specularAO, preOverlaySource, ambientOcclusion)
     private bool underwater;
     private bool refractionSource;
     private bool preOverlaySource;
+    private bool ambientOcclusion;
     // Total: 192 bytes
 
     public PbrCompositeParamsUbo() : base(272)
@@ -113,11 +114,17 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 
     #region AO Strengths
 
+    /// <summary>Enables only a current-frame ambient visibility publication.</summary>
+    internal bool AmbientOcclusionEnabled
+    {
+        set { ambientOcclusion = value; WriteFloat(OffsetAOStrengths + 12, value ? 1 : 0); }
+    }
+
     public (float diffuse, float specular) AOStrengths
     {
         set
         {
-            WriteVector4(OffsetAOStrengths, new(value.diffuse, value.specular, preOverlaySource ? 1f : 0f, 0f));
+            WriteVector4(OffsetAOStrengths, new(value.diffuse, value.specular, preOverlaySource ? 1f : 0f, ambientOcclusion ? 1f : 0f));
         }
     }
 

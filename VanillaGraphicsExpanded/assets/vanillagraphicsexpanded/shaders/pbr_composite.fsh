@@ -47,6 +47,7 @@ uniform sampler2DArray gBufferSurface;
 // G-Buffer
 uniform sampler2D gBufferAlbedo;
 uniform sampler2D primaryDepth;
+uniform sampler2D ambientOcclusion;
 uniform sampler2D gBufferPosition;
 uniform sampler2D preOverlayColor;
 uniform sampler2D preOverlayDepth;
@@ -126,6 +127,15 @@ void main(void)
     }
 #endif
 
+    // Visibility belongs to the captured world receiver, never an unrelated first-person proxy.
+    float ambientVisibility = 1.0;
+    if (vgePbrCompositeParams.aoStrengths.w > .5 && texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a >= 0.0)
+    {
+        vec2 visibility = texture(ambientOcclusion, uv).rg;
+        if (visibility.y > 0.0 && abs(visibility.y + receiverVS.z) < .05 + .01 * abs(receiverVS.z))
+            ambientVisibility = visibility.x;
+    }
+
 #if VGE_LUMON_ENABLED
     vec3 indirect = indirectIntensity > 0.0 ? texture(indirectDiffuse, uv).rgb : vec3(0.0);
 
@@ -140,7 +150,7 @@ void main(void)
         indirect *= indirectTint;
 
 #if !VGE_LUMON_PBR_COMPOSITE
-        vec3 combined = lumonCombineLighting(directLight, indirect, albedo, metallic, 1.0, vec3(1.0));
+        vec3 combined = lumonCombineLighting(directLight, indirect, albedo, metallic, ambientVisibility, vec3(1.0));
         finalColor = combined + emissiveLight;
 #else
         vec3 viewPosVS = receiverVS;
@@ -149,17 +159,11 @@ void main(void)
         vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
         vec3 normalVS = normalize((viewMatrix * vec4(normalWS, 0.0)).xyz);
 
-        // AO is intentionally a no-op for now.
-        // In Vintage Story content, gBufferMaterial.a is transmission (not AO), so using it
-        // as an occlusion term can incorrectly attenuate/wipe indirect lighting.
-        // TODO: When LumOn provides a dedicated short-range AO signal, wire it here.
-        float ao = 1.0;
+        // The dedicated current-frame signal is distinct from material transmission.
+        float ao = ambientVisibility;
 
         vec3 shortRangeAoDirVS = normalVS;
-    #if VGE_LUMON_ENABLE_SHORT_RANGE_AO
-        float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-        shortRangeAoDirVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
-#endif
+        // Scalar visibility does not define a bent normal; retain the actual receiver normal.
 
             vec3 indirectDiffuseContrib;
             vec3 indirectSpecularContrib;
@@ -184,7 +188,7 @@ void main(void)
     vec4 material = texture(gBufferSurface, vec3(uv, VGE_SURFACE_MATERIAL));
     vec3 normalVS = normalize(mat3(viewMatrix) * lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz));
     vec3 toEye = normalize(-receiverVS);
-    finalColor += VgeEnvironmentResponse(texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).rgb,
+    finalColor += ambientVisibility * VgeEnvironmentResponse(texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).rgb,
         albedo, material.g, material.r, dot(normalVS, toEye));
 #endif // VGE_LUMON_ENABLED
 

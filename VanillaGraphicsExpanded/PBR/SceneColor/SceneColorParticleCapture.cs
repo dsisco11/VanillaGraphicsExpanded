@@ -118,8 +118,12 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
 
     /// <summary>Selects corrected material depth only after current-frame receiver separation has completed.</summary>
     internal static int ReceiverDepth(ICoreClientAPI api, int visibilityDepth)
+        => ReceiverDepthTexture(api)?.TextureId ?? visibilityDepth;
+
+    /// <summary>Lends the existing corrected material-depth texture after current-frame receiver separation.</summary>
+    internal static GpuTexture? ReceiverDepthTexture(ICoreClientAPI api)
         => active is { published: true, targets: { IsCurrent: true } } capture && ReferenceEquals(capture.api, api)
-            ? capture.targets.ResolveTarget.GetColorTextureId(0) : visibilityDepth;
+            ? capture.targets.ResolveTarget[0] : null;
 
     /// <summary>Lends the completed current-frame particle layer to the opaque HDR handoff.</summary>
     internal static DynamicTexture2D? Layer(ICoreClientAPI api)

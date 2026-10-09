@@ -19,26 +19,27 @@ Before deferred composition, LightShaftOcclusionRenderer runs at Opaque order 8.
 opaque receivers and before direct lighting (9), water transport (10.5), and final PBR composition
 (11). It publishes current-frame depth-distance occlusion for aerial in-scattering. Its Before
 callback withdraws the previous frame, so forward draws preceding publication see neutral occlusion.
+AmbientOcclusionRenderer follows at Opaque order 8.8 and publishes spatial visibility for deferred
+ambient/indirect lighting. It does not attenuate direct lighting or atmospheric scattering.
 
 PostprocessPipeline coordinates separate algorithm owners:
 
 1. CameraExposureRenderer meters the completed unexposed scene and publishes temporal EV.
 2. BloomRenderer extracts and filters scene-linear HDR bloom.
 3. LightShaftRenderer extracts and radially filters exposure-relative HDR light-shaft bloom.
-4. RetainedPostprocessRenderer supplies a neutral AO placeholder and prepares owned RGBA16F
+4. RetainedPostprocessRenderer prepares owned RGBA16F
    scene/luminance output for antialiasing (or copies scene RGBA when disabled).
-5. The owned final shader applies optional edge smoothing, then AO to scene RGB, adds owned glare, applies camera
+5. The owned final shader applies optional edge smoothing, adds owned glare, applies camera
    exposure and the shared tone curve once, then retains grading, vignettes and dithering.
 
 All scene postprocess draws use typed VGE programs, GLSL 330, PSOs, render passes and one
 restoring GraphicsCommandContext boundary. Camera metering and final composition each have
 their own restoring boundary before and after the effects. No original engine findbright, blur, light-shaft, SSAO, bilateral or luma
 shader is invoked by the replaced HDR pass. The copied SSAO implementation and its kernel
-adapter have been removed. SSAO intentionally outputs visibility one until the planned
-horizon-integrated algorithm is implemented. The unused bilateral entry point is removed;
-filtering remains part of that later task. No temporary AO algorithm or filtering chain is being implemented or qualified.
+adapter have been removed. The owned horizon integration and joint spatial filter described below
+replace the earlier neutral placeholder.
 
-Final composition binds typed owned scene/luma, bloom, shaft, AO and exposure inputs directly.
+Final composition binds typed owned scene/luma, bloom, shaft and exposure inputs directly.
 It writes only primary color through a private framebuffer borrowing the presentation image;
 no sampled texture aliases that output. The engine framebuffer table and overlay/presentation
 schedule are unchanged. Final grading, luminance-guided edge smoothing and screen effects are independently authored
@@ -49,7 +50,7 @@ The native FXAA switch selects this edge filter; the filter is not the FXAA algo
 Publication is atomic across effects and retained operations; missing, stale or failed publication
 raises an error. Final consumption is allowed once and the handoff ends scene publication even
 on failure. Disabled glare publishes one persistent black image and releases effect storage;
-disabled AO skips the placeholder submission and retires its storage. Manual camera exposure is independent.
+disabled AO withdraws its current-frame publication and retires its hierarchy/filter storage. Manual camera exposure is independent.
 SceneColorPostprocessBindingHook, PbrFinalDisplayPatches and the old exposure texture-unit scope
 are removed. Copied display helpers and obsolete reference-patch fixtures have been removed.
 
@@ -59,8 +60,102 @@ No base-game shader implementation is copied into the owned final path. Gamma/br
 controls drive an independently authored display transform. Native gamma 3 maps to neutral
 grading after the single sRGB transfer; changing the slider applies a relative adjustment.
 Grading is followed by luminance-based warm tinting and procedural damage/frost/glitch treatments. The edge filter uses the owned perceptual
-alpha metric and bounded neighboring samples. Bloom uses the independently authored multiscale Gaussian pipeline below. Light shafts now use the independent radial algorithm below. AO is neutral
-by explicit user direction, not a fallback to engine rendering.
+alpha metric and bounded neighboring samples. Bloom uses the independently authored multiscale Gaussian pipeline below. Light shafts now use the independent radial algorithm below. AO uses the independently authored horizon integration and spatial reconstruction below.
+
+## Horizon-integrated ambient visibility
+
+AmbientOcclusionRenderer runs at Opaque order 8.8 from completed material receiver depth and
+owned surface-array normals/materials. When particle separation publishes corrected receiver depth,
+AO consumes that existing typed texture directly, matching deferred lighting; otherwise it uses
+primary hardware depth. Native ssaoQuality zero, or the native postprocessing gate,
+disables it; quality 1 uses three slices with four samples on each side, quality 2 and above uses
+six slices with six samples on each side. Both evaluate ceil-half resolution and reconstruct to
+full resolution. These are bounded 24/72 horizon candidates per reduced pixel. No second AO enable
+setting, engine sample kernel or engine intermediate is used.
+
+The independently authored shader reconstructs view positions with the inverse projection and
+transforms encoded world normals with the current view rotation. Each 2x2 receiver footprint selects
+its nearest real depth. Paired directional searches use a projected 1.25-block radius and squared
+radial spacing for contact detail. Deterministic pixel-dependent slice rotation distributes sampling
+without frame-varying noise. Samples outside the viewport or with background depth contribute no
+occlusion. Coplanar/below-surface samples are rejected with a normal-direction bias of 0.02.
+
+For each view-space slice, project the normal into the slice, then integrate the cosine-weighted
+visible interval between the two horizons analytically. Divide the summed projected-normal-weighted
+visible integrals by the matching unobstructed integrals. This keeps an unobstructed tilted plane
+neutral despite finite angular sampling; there is no artistic contrast exponent or global darkness
+clamp concealing invalid geometry. The mathematical approach is described by
+[Jimenez et al., Practical Realtime Strategies for Accurate Indirect Occlusion](https://www.activision.com/cdn/research/PracticalRealtimeStrategiesTRfinal.pdf).
+This implementation does not import a reference implementation or another renderer's shader source.
+
+Samples fade by squared world distance within the radius. A 0.25-block thickness scale attenuates
+isolated foreground samples whose two slice neighbours both lie farther away. Continuous walls
+retain their horizon evidence; isolated spikes have uncertain solid-volume thickness. This adds
+at most two full-resolution depth reads for each surviving horizon candidate.
+This is a conservative single-depth-layer approximation, not a recovered backside thickness.
+Occluder material transmission reduces horizon evidence; receiver transmission attenuates the
+reconstructed occlusion once. Alpha-tested foliage contributes only where depth survives coverage;
+its material transmission remains meaningful. Transparent OIT surfaces are not opaque AO receivers
+or depth occluders. Visibility fades to neutral between 64 and 96 view-space blocks.
+
+Three separate RG32F images hold min/max hardware depth for ceil-half, ceil-quarter and ceil-eighth
+footprints. Their reductions include every valid texel of odd-sized inputs. Horizon searches select
+hierarchical intervals according to sample spacing to reject empty/out-of-radius footprints, then
+reconstruct actual hits from exact full-resolution depth and texel centers. Coarse minimum depth
+must not fabricate an occluding position on a tilted plane. LumOn's conditional hierarchy is built
+at order 10, after this pass, and uses a different contract; it cannot supply this always-available
+pre-lighting min/max hierarchy. Separate image objects avoid sampled/attached feedback.
+
+Raw visibility stores (visibility, positive view depth, octahedral normal XY) in RGBA16F. A 3x3
+spatial filter rejects depth/normal disagreement; a second 3x3 joint reconstruction compares those
+samples against the full-resolution receiver. Depth weights use a 0.02 + 0.01*depth scale, a hard
+three-scale rejection, and normal-dot raised to 32. Unmatched thin receivers and background remain
+neutral instead of inheriting a neighboring wall's occlusion. Current-frame-only processing needs
+no motion vectors, history, camera-cut heuristic or rejection cache. Disocclusions cannot retain
+previous-frame AO, but screen-space sampling may still change during camera movement and lacks
+off-screen/hidden geometry. Temporal accumulation is deliberately not enabled without the required
+reprojection and history validation.
+
+PBR composition consumes visibility with its matching receiver depth at sampler unit 12. The
+current-frame validity flag and depth agreement prevent stale or unrelated sampling; first-person
+visibility proxies bypass world AO as both receivers and occluders. Clean refraction captures made
+before AO publication remain neutral; they never sample the previous frame. Standalone environment response is attenuated, while LumOn's
+indirect response uses its existing diffuse/specular AO strengths. The scalar signal does not invent
+a bent normal. Direct sun, point lights, emission, sky, water/aerial transport and generated glare
+are not multiplied by AO. Final composition has four samplers and no AO input.
+
+The existing GpuResourceCollection owns all six textures and their framebuffer attachments.
+Stable frames reuse storage; resize, reload, world teardown and disabling withdraw publication and
+retire it. Half-resolution raw/filtered images and full-resolution visibility each use eight bytes
+per texel, as do hierarchy min/max texels. Total logical storage is
+8*(WH + 2*ceil(W/2)*ceil(H/2) + sum of three hierarchy areas), about 28.92 MiB at 1920x1080.
+There are six fullscreen draws: three reductions, horizon integration, spatial filtering and full
+reconstruction. There are no history images or per-frame GPU allocations. The sampler and storage
+counts are analytical; focused validation and synthetic timings are recorded below separately from
+user-run visual and matched-scene performance acceptance.
+
+Focused validation passed **35 unique checks**, with no skips: flat/tilted planes, a perpendicular
+corner, contact detail, cutout gaps, material transmission, first-person exclusion, far fade,
+current-frame motion, odd sizes, reuse/resize/disposal, native quality/disable, corrected particle
+receiver depth, final display and all three deferred lighting modes. Composite checks preserve
+direct light and emission and exercise the existing roughness-dependent indirect specular AO
+response. The shader-enabled build compiled 438 production and 507 fixture variants with zero
+errors (114 existing warnings). Receipts: `artifacts/SceneHdrRuntime/ambient-occlusion-build4.log`,
+`ambient-occlusion-final32.trx`, `ambient-occlusion-composite-passed.trx` and
+`ambient-occlusion-managed-final.log` in the same directory.
+
+On the validation RTX 4090, five warmed GPU timer samples of the complete six-draw synthetic
+1280x720 contact scene measured quality 1 median **0.1188 ms** (0.1178–0.1229 ms), quality 2
+median **0.2161 ms** (0.2068–0.2335 ms). Logical owned storage was **13,478,400 bytes**.
+These exclude allocation/readback and are not live frame cost, physical bandwidth or visual
+acceptance. User-run motion/foliage/contact appearance and matched-scene performance remain open.
+
+Follow-up visibility diagnostics passed 16 AO geometry/lifecycle checks, including six 1280x720
+contact/corner cases at view depths 3, 10 and 20. Minimum contact visibility was 0.542/0.643/0.740;
+perpendicular-corner visibility was 0.564/0.778/0.981. These synthetic fixtures establish a
+non-neutral signal, not that the effect reaches a particular live frame. The distant grazing
+corner is weak before filtering. Receipt: `artifacts/SceneHdrRuntime/ambient-occlusion-realistic-final.trx`.
+The reported in-game absence remains unconfirmed pending a frame capture.
 
 ## Bloom
 
@@ -124,7 +219,7 @@ The solar disk contributes through its actual attenuated, coverage-blended scene
 HDR solar outGlow.r stays zero; no display-derived marker or extra solar/Mie multiplier enters
 bloom. Geometry, water, cloud and transparency occlusion already affect the sampled scene. Material
 emission enters that scene once. UI and the later overlay stages are excluded. Bloom is added
-after scene SSAO and before the single final exposure, tone-map, transfer and dither boundary.
+after ambient visibility has been applied in lighting and before the single final exposure, tone-map, transfer and dither boundary.
 The same HDR publication can feed a future HDR-monitor output transform without changing bloom.
 Bloom and final light-shaft images remain separate: native shaft quality can select quarter
 resolution or disable shafts entirely, whereas bloom reconstructs at half resolution. Sharing
@@ -179,10 +274,10 @@ added by this effect; ordinary bloom and directional shaft bloom are distinct bo
 not replacement solar lighting or compensation for missing bloom. Their configurable strengths
 are artistic contributions, not an energy-conserving lens simulation.
 
-The fully featured composite now has 17 active fragment samplers; shader linking requires
-that capacity (the validation device exposes 32). GLSL source remains version 330, but this
-exceeds the OpenGL 3.3 minimum of 16 fragment samplers. Unsupported linking is an explicit
-readiness failure, not a legacy rendering fallback.
+The fully featured composite uses 13 active fragment samplers after surface-array consolidation
+and ambient-visibility integration, within the OpenGL 3.3 minimum of 16 fragment samplers.
+GLSL source remains version 330. Unsupported linking is an explicit readiness failure,
+not a legacy rendering fallback.
 
 Native quality 1 uses quarter-resolution filtering, two passes and at most 16 taps per pass;
 quality 2 uses half resolution, three passes and at most 32 taps; quality 3 uses half resolution,
@@ -205,7 +300,7 @@ history on camera cuts, teleportation, resizing, reload and world transitions.
 
 Bloom owns half-resolution and progressively reduced RGBA16F images, plus separate upsample
 images to prevent feedback. Light shafts own two reduced-resolution ping-pong images and one bloom output for the late path;
-the early path owns two reduced-resolution ping-pong images and one full-resolution occlusion output. The AO placeholder owns one 1x1 RGBA16F target when enabled; there are no bilateral targets.
+the early path owns two reduced-resolution ping-pong images and one full-resolution occlusion output. Ambient visibility owns the bounded hierarchy and spatial targets described above.
 Luma owns full-resolution RGBA16F storage. Sized formats match the vec4 shader outputs,
 removing dependence on unsized engine RGB AO storage. Sampler contracts receive typed textures; external
 upstream engine handles are wrapped by BorrowedTexture without allocating or owning native storage.
@@ -247,7 +342,7 @@ Focused validation passed 67 unique checks. The six runtime cases cover both Lum
 native SSAO qualities 0/1/2 without engine final shaders or legacy intermediate outputs.
 Receipts: artifacts/SceneHdrRuntime/owned-final-independent.trx and owned-final-runtime.trx;
 build: owned-final-independent-build4.log. These checks cover implemented behavior and ownership,
-not a temporary AO algorithm. Real-game halo appearance, shafts through
+not the subsequent horizon AO implementation. Real-game halo appearance, shafts through
 clouds/transparency, underwater transitions, temporal stability and representative GPU cost
 still require user-run visual/performance acceptance. The implementation does not establish
 native HDR monitor presentation.
@@ -311,7 +406,7 @@ precision reduction, padding or mandatory allocation of disabled features is ass
 | [CameraExposureTargets](../VanillaGraphicsExpanded/PBR/CameraExposure/CameraExposureTargets.cs) | Histogram: 64×1 RG32F; two EV histories: 1×1 R32F, N | Meter → adapt(previous EV) → current EV/final and glare thresholds. Keep histogram and histories separate. Histories match physically but only one is sampled per adaptation draw, so one array adds feedback handling without sampler savings. Auto-exposure owns reset/cut/enable lifetime. |
 | [BloomRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/BloomRenderer.cs) | Two RGBA16F images per Gaussian scale; start ceil half-size, clamp each dimension to 1; 3–6 levels | Extract/downsample → horizontal/vertical Gaussian → weighted additive reconstruction → final. Different scales cannot be different layers without padding. Same-size scale/scratch images alternate read/write roles and remain separate objects to avoid feedback. |
 | [LightShaftRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/LightShaftRenderer.cs) | Two RGBA16F reduced ping-pong images per early/late instance; early output W×H RGBA16F; late output ceil(W/d)×ceil(H/d) RGBA16F, d=4 or 2 | Depth/radiance extraction → radial passes → early aerial occlusion or late final glare. Keep each ping-pong pair separate by default: each pass samples one while writing the other, and currently uses only one working-image sampler. Grouping them saves allocations, not sampler inputs, and adds feedback requirements. Early/late scratch reuse is a separate lifetime optimization, not array consolidation. |
-| [RetainedPostprocessRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/RetainedPostprocessRenderer.cs), [PostprocessPipeline](../VanillaGraphicsExpanded/PBR/Postprocessing/PostprocessPipeline.cs) | Full-size RGBA16F luma/scene; enabled neutral AO 1×1 RGBA16F; persistent black glare 1×1 RGBA16F | Completed scene → luma → final. AO is a placeholder, black is a disabled-effect identity. Do not allocate full-size layers for neutral images. Planned horizon AO needs its own quality-sized visibility/filter/history/depth resources; do not lock its layout to this placeholder. |
+| [RetainedPostprocessRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/RetainedPostprocessRenderer.cs), [PostprocessPipeline](../VanillaGraphicsExpanded/PBR/Postprocessing/PostprocessPipeline.cs) | Full-size RGBA16F luma/scene; persistent black glare 1×1 RGBA16F | Completed scene → luma → final. Black is a disabled-effect identity. Horizon AO has a separate pre-lighting owner and separate hierarchy/filter allocations, as documented above. |
 
 The primary color/depth/glow, native SSAO attachments, terrain color atlases, shadow maps,
 OIT engine images and native menu postprocess images remain **external storage**, even where
@@ -470,7 +565,8 @@ images retain their dimensions, formats and sampling policy; there are no per-fr
 Owners retire and recreate whole arrays at their existing rebuild boundaries. Layer attachments
 borrow those owners and cannot resize independently. Temporal/history textures remain separate.
 
-The composite binding contract now declares twelve densely numbered sampler units (0 through 11).
+Array consolidation reduced the composite contract to twelve densely numbered sampler units
+(0 through 11). Ambient visibility subsequently adds unit 12, for thirteen current inputs.
 SH9 gather uses one coefficient sampler and one anchor sampler. Debug views and tracing/gather
 consumers use array samplers with explicit layer selection. Together these groups replace
 seventeen texture objects with five; framebuffer output counts remain unchanged. These are interface/allocation-count reductions, not claims of reduced texel
@@ -478,8 +574,8 @@ storage, fetch count or measured GPU time. Both shader catalogs compile (434 pro
 501 test variants), and the managed build passes. Focused GPU validation confirms twelve active composite samplers, numerical HDR/water
 composition, both probe gather paths, grouped owner replacement/disposal, fixture isolation
 and direct water-layer rasterization. Across the focused runs, 320 distinct cases pass and
-three preexisting cases are skipped; no failures remain. Linked composite units are exactly
-0 through 11. The validation device exposes 32 fragment units, 2048 array layers, and eight
+three preexisting cases are skipped; no failures remain. At that array-consolidation receipt, linked composite units were exactly
+0 through 11; the ambient-visibility tests cover the additional unit 12. The validation device exposes 32 fragment units, 2048 array layers, and eight
 color attachments/draw buffers. SH9 gather binds its coefficient array at unit 0 and its
 separate anchor array at unit 1.
 

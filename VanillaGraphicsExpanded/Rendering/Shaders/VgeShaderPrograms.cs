@@ -29,6 +29,8 @@ internal static class VgeShaderPrograms
             new PBR.Postprocessing.LightShaftShaderProgram(),
             new PBR.Postprocessing.PostLumaShaderProgram(),
             new PBR.Postprocessing.PostSsaoShaderProgram(),
+            new PBR.Postprocessing.AmbientOcclusionDepthShaderProgram(),
+            new PBR.Postprocessing.AmbientOcclusionFilterShaderProgram(),
             new PBR.Liquids.LiquidShaderProgram(),
             // Keep both liquid executables resident; changing a compile-time mode replaces an executable.
             new PBR.Liquids.LiquidShaderProgram { PassName = PBR.Liquids.LiquidShaderProgram.VolumePassName, CaptureMode = 3 },

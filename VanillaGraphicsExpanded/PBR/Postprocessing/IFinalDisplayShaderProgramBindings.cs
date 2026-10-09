@@ -18,11 +18,8 @@ internal interface IFinalDisplayShaderProgramBindings
     /// <summary>Supplies the ShaftImage texture without transferring ownership.</summary>
     [ShaderBinding("shaftImage", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? ShaftImage { set; }
-    /// <summary>Supplies the OcclusionImage texture without transferring ownership.</summary>
-    [ShaderBinding("occlusionImage", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? OcclusionImage { set; }
     /// <summary>Supplies the ExposureImage texture without transferring ownership.</summary>
-    [ShaderBinding("exposureImage", ShaderBindingKind.Sampler, 4, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    [ShaderBinding("exposureImage", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? ExposureImage { set; }
     #endregion
 }

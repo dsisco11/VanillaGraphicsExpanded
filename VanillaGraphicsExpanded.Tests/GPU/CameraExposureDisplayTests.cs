@@ -30,7 +30,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var draw=new PostprocessDraw();
-        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.OcclusionImage=zero;shader.ExposureImage=zero;
+        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
         var pipeline=draw.Prepare(shader,target);
         shader.Capture(new(1,1,0,0),new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureNeutral",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
@@ -84,7 +84,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         var final=Programs.Create<FinalDisplayShaderProgram>();
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var display=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-        final.SceneImage=source;final.BloomImage=zero;final.ShaftImage=zero;final.OcclusionImage=zero;final.ExposureImage=result[0];
+        final.SceneImage=source;final.BloomImage=zero;final.ShaftImage=zero;final.ExposureImage=result[0];
         var finalPipeline=draw.Prepare(final,display);
         var api=new Mock<ICoreClientAPI>{DefaultValue=DefaultValue.Mock};
         api.SetupGet(value=>value.Render.ShaderUniforms).Returns(new DefaultShaderUniforms {DropShadowIntensity=0});

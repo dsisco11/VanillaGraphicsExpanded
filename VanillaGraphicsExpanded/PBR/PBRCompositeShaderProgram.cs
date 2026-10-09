@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.PBR;
 /// Shader program for final compositing of PBR direct buffers + optional indirect lighting,
 /// applying fog once and writing scene-linear lighting for the separate display resolve.
 /// </summary>
-[ShaderProgram("Contract", "pbr_composite", 16)]
+[ShaderProgram("Contract", "pbr_composite", 17)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_composite.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_composite.fsh")]
 [ShaderAcceptGroup("Contract", typeof(LumOnShaderGroups), "Lighting")]
@@ -78,6 +78,16 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
 
     /// <summary>Supplies the current atmospheric visibility image.</summary>
     public partial GpuTexture? LightShaftOcclusion { set; }
+
+    /// <summary>Supplies visibility for indirect/environment lighting without attenuating direct light.</summary>
+    public partial GpuTexture? AmbientOcclusion { set; }
+
+    /// <summary>Publishes visibility and its validity flag from one coherent owner result.</summary>
+    internal void SetAmbientOcclusion(GpuTexture? texture)
+    {
+        AmbientOcclusion = texture;
+        Params.AmbientOcclusionEnabled = texture is not null;
+    }
 
     public partial GpuTexture? IndirectDiffuse { set; }
 

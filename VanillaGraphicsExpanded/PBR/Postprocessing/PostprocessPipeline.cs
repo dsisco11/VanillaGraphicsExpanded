@@ -98,17 +98,16 @@ internal sealed class PostprocessPipeline : IRenderer
         }
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
-        shader.OcclusionImage=retained.Occlusion??neutral!.Texture;
         shader.ExposureImage=exposure.Texture??neutral!.Texture;
         shader.Capture(new(1f/finalTarget.Width,1f/finalTarget.Height,frameEffects.Fxaa?1:0,
-            frameEffects.Ssao?frameEffects.SsaoQuality:0),display,new(exposure.ManualEV,exposure.Texture is null?0:1,0,0));
+            0),display,new(exposure.ManualEV,exposure.Texture is null?0:1,0,0));
         var pipeline=draw!.Prepare(shader,finalTarget);
         if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
             commands=>draw.Submit(commands,pipeline,finalTarget)))
             throw new InvalidOperationException("VGE final composition graphics boundary was rejected.");
         published=captured=false;
     }
-    /// <summary>Executes owned algorithms and SSAO/luma responsibilities, publishing only after complete success.</summary>
+    /// <summary>Executes owned glare and luminance preparation, publishing only after complete success.</summary>
     internal void Render(float[] projection,EnginePostprocessInputs engine)
     {
         if(published) return;
@@ -126,7 +125,7 @@ internal sealed class PostprocessPipeline : IRenderer
         scene??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[0]));
         if(useRays) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         if(useRays) glow??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[1]));
-        pipelines.AddRange(retained.Prepare(api,draw,engine.Ssao));
+        pipelines.AddRange(retained.Prepare(api,draw));
         if(!GraphicsCommandContext.TryRun("Postprocess.Scene",pipelines,true,commands=>{
             // Metering precedes generated glare; glare cannot feed back into the camera.
             if(useBloom) bloom.Render(commands,draw,scene,exposure,settings);
