@@ -34,6 +34,22 @@ internal sealed class ShaderExpandedSourceCache(string outputRoot)
     internal bool TryRead(string assetsRoot, string root, string preprocessing, ShaderFileHashIndex hashes,
         out ShaderExpandedSource source, Action<string>? miss = null)
     {
+        if (!TryLoadSnapshot(assetsRoot, root, preprocessing, out source, miss)) return false;
+        try
+        {
+            foreach (var input in source.Inputs)
+                if (Convert.ToHexString(hashes.GetHash(input.Path)) != input.Hash)
+                    throw new InvalidDataException("Shader dependency changed: " + input.Resource);
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or ArgumentException or UnauthorizedAccessException)
+        { source = null!; miss?.Invoke("expanded source miss: " + ex.Message); return false; }
+    }
+
+    /// <summary>Loads validated historical topology for planning; callers must verify inputs before reuse.</summary>
+    internal bool TryLoadSnapshot(string assetsRoot, string root, string preprocessing,
+        out ShaderExpandedSource source, Action<string>? miss = null)
+    {
         source = null!;
         if (!heads.TryRead<Head>(Key(assetsRoot, root, preprocessing), out var head, miss)) return false;
         if (head.Version != 1 || !records.TryRead<Record>(head.Record, out var record, miss))
@@ -47,9 +63,6 @@ internal sealed class ShaderExpandedSourceCache(string outputRoot)
             ShaderExpandedSource.Validate(record.Source);
             if (ShaderRecordStore.Digest(Encoding.UTF8.GetBytes(record.Source.Text)) != record.TextDigest)
                 throw new InvalidDataException("Expanded text digest mismatch.");
-            foreach (var input in record.Source.Inputs)
-                if (Convert.ToHexString(hashes.GetHash(input.Path)) != input.Hash)
-                    throw new InvalidDataException("Shader dependency changed: " + input.Resource);
             source = record.Source;
             return true;
         }

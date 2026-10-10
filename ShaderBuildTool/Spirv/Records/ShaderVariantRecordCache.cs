@@ -78,7 +78,7 @@ internal sealed class ShaderVariantRecordCache(string outputRoot)
 
     /// <summary>Derives the artifact reference from the same compiler input policy used by normal builds.</summary>
     private static string CompilerKey(ShaderVariantRecordInputs inputs, ShaderStageSelection selection, string source, ShaderVariantCache compiler) =>
-        compiler.Key(source, Program.StageFromExtension(Path.GetExtension(selection.Stage.Source).TrimStart('.')), selection.Stage.EntryPoint,
+        compiler.Key(source, ShaderCompilerStage.Name(selection.Stage.Kind), selection.Stage.EntryPoint,
             inputs.InputPath, inputs.WorkingDirectory);
     #endregion
 }

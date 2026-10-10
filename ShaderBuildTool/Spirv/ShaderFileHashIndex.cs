@@ -9,6 +9,7 @@ internal sealed class ShaderFileHashIndex
     private readonly string path;
     private readonly bool verifyContents;
     private readonly Dictionary<string, Entry> previous;
+    private readonly Dictionary<string, Entry> current = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Entry> visited = new(StringComparer.Ordinal);
     internal int ReusedFiles { get; private set; }
     internal int HashedFiles { get; private set; }
@@ -18,6 +19,7 @@ internal sealed class ShaderFileHashIndex
     /// <summary>Versions the single index format independently of compiler result caches.</summary>
     internal sealed record Index(int Version, Dictionary<string, Entry> Files);
 
+    #region Public API
     #region Index lifetime
     /// <summary>Loads one index for the entire invocation; malformed metadata simply loses the shortcut.</summary>
     internal ShaderFileHashIndex(string outputRoot, bool verifyContents = false)
@@ -50,17 +52,20 @@ internal sealed class ShaderFileHashIndex
     #endregion
 
     #region Input hashing
+    /// <summary>Starts a new verification boundary, forcing strict mode to reread each unique input.</summary>
+    internal void BeginVerification() => current.Clear();
+
     /// <summary>Reuses stable metadata matches unless strict verification is requested, otherwise hashes the file stream.</summary>
     internal byte[] GetHash(string file)
     {
         string fullPath = Path.GetFullPath(file);
         var info = new FileInfo(fullPath);
         long length = info.Length, modified = info.LastWriteTimeUtc.Ticks, created = info.CreationTimeUtc.Ticks;
-        if (!verifyContents && previous.TryGetValue(fullPath, out var entry) && entry is not null
+        if ((current.TryGetValue(fullPath, out var entry) || (!verifyContents && previous.TryGetValue(fullPath, out entry))) && entry is not null
             && entry.Length == length && entry.Modified == modified && entry.Created == created
             && entry.Hash is { Length: 64 } && entry.Hash.All(Uri.IsHexDigit))
         {
-            visited[fullPath] = entry;
+            visited[fullPath] = current[fullPath] = entry;
             ReusedFiles++;
             return Convert.FromHexString(entry.Hash);
         }
@@ -71,9 +76,10 @@ internal sealed class ShaderFileHashIndex
         info.Refresh();
         if (length != info.Length || modified != info.LastWriteTimeUtc.Ticks || created != info.CreationTimeUtc.Ticks)
             throw new IOException("Shader build input changed while hashing: " + fullPath);
-        visited[fullPath] = new(length, modified, created, Convert.ToHexString(hash));
+        visited[fullPath] = current[fullPath] = new(length, modified, created, Convert.ToHexString(hash));
         HashedFiles++;
         return hash;
     }
+    #endregion
     #endregion
 }

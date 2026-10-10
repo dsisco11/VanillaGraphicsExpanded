@@ -8,52 +8,7 @@ namespace ShaderBuildTool.Generation;
 /// <summary>Generates fixed 8x8 octahedral cell integrals using the real basis in lumon_sh9_common.glsl.</summary>
 internal static class LumonOctahedralShWeights
 {
-    #region Spherical moment integration
-    /// <summary>Decodes a UV coordinate in double precision, including the lower octahedron fold.</summary>
-    private static double[] Direction(double u, double v)
-    {
-        double x = u * 2 - 1, y = v * 2 - 1, z = 1 - Math.Abs(x) - Math.Abs(y);
-        if (z < 0) { double oldX = x; x = (1 - Math.Abs(y)) * (x < 0 ? -1 : 1); y = (1 - Math.Abs(oldX)) * (y < 0 ? -1 : 1); }
-        double inverse = 1 / Math.Sqrt(x * x + y * y + z * z);
-        return new[] { x * inverse, y * inverse, z * inverse };
-    }
-
-    /// <summary>Returns the oriented normal used by spherical triangle boundaries.</summary>
-    private static double[] Cross(double[] a, double[] b) => new[] { a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0] };
-
-    /// <summary>Returns the scalar product in double precision.</summary>
-    private static double Dot(double[] a, double[] b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-
-    /// <summary>Accumulates solid angle, first moment and the row-major second moment using spherical boundary integrals.</summary>
-    private static void Triangle(double[] a, double[] b, double[] c, double[] m)
-    {
-        double determinant = Dot(a, Cross(b, c));
-        if (Math.Abs(determinant) < 1e-15) return;
-        if (determinant < 0) { var swap = b; b = c; c = swap; determinant = -determinant; }
-        double area = 2 * Math.Atan2(determinant, 1 + Dot(a,b) + Dot(b,c) + Dot(c,a));
-        m[0] += area;
-        for (int i = 0; i < 3; i++) m[4 + i*3 + i] += area / 3;
-        var vertices = new[] { a, b, c };
-        for (int edge = 0; edge < 3; edge++)
-        {
-            var start = vertices[edge]; var end = vertices[(edge+1)%3];
-            var normal = Cross(start,end);
-            double length = Math.Sqrt(Dot(normal,normal));
-            if (length < 1e-15) continue;
-            double angle = Math.Atan2(length,Dot(start,end));
-            for (int i = 0; i < 3; i++) normal[i] /= length;
-            // Boundary normals point inward. Integrating the spherical Laplacians
-            // of n_i and n_i*n_j gives these exact first/second moments.
-            var boundary = new double[3];
-            for (int i = 0; i < 3; i++) { m[1+i] += normal[i]*angle/2; boundary[i] = (start[i]+end[i])*Math.Tan(angle/2); }
-            for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++)
-                m[4+i*3+j] += (normal[i]*boundary[j]+normal[j]*boundary[i])/6;
-        }
-    }
-
-    #endregion
-
-    #region Table generation
+    #region Public API
     /// <summary>Writes geometric SH cell integrals after verifying that the cells partition the sphere.</summary>
     public static void Generate(string shadersRoot)
     {
@@ -98,14 +53,71 @@ internal static class LumonOctahedralShWeights
         text.Append("#endif\n");
         // Publish a complete include atomically. Keep the temporary file outside the shader
         // input tree so concurrent builds never fingerprint or parse an incomplete table.
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        string temporary = Path.Combine(Directory.GetParent(shadersRoot)!.FullName, ".lumon-sh-" + Guid.NewGuid().ToString("N") + ".tmp");
+        // Separate configurations may generate into the same source tree. Serialize the comparison
+        // and atomic replacement so identical writers preserve metadata as well as content.
+        string identity = ShaderBuildTool.Spirv.ShaderCacheKey.Create(Path.GetFullPath(path).ToUpperInvariant());
+        using var mutex = new System.Threading.Mutex(false, "VGE_ShaderInclude_" + identity);
+        try { mutex.WaitOne(); } catch (System.Threading.AbandonedMutexException) { }
         try
         {
-            File.WriteAllText(temporary, text.ToString(), new UTF8Encoding(false));
-            File.Move(temporary, path, overwrite: true);
+            byte[] bytes = new UTF8Encoding(false).GetBytes(text.ToString());
+            if (File.Exists(path) && File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes)) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            string temporary = Path.Combine(Directory.GetParent(shadersRoot)!.FullName, ".lumon-sh-" + Guid.NewGuid().ToString("N") + ".tmp");
+            try
+            {
+                File.WriteAllBytes(temporary, bytes);
+                File.Move(temporary, path, overwrite: true);
+            }
+            finally { File.Delete(temporary); }
         }
-        finally { File.Delete(temporary); }
+        finally { mutex.ReleaseMutex(); }
     }
     #endregion
+
+    #region Private
+    /// <summary>Decodes a UV coordinate in double precision, including the lower octahedron fold.</summary>
+    private static double[] Direction(double u, double v)
+    {
+        double x = u * 2 - 1, y = v * 2 - 1, z = 1 - Math.Abs(x) - Math.Abs(y);
+        if (z < 0) { double oldX = x; x = (1 - Math.Abs(y)) * (x < 0 ? -1 : 1); y = (1 - Math.Abs(oldX)) * (y < 0 ? -1 : 1); }
+        double inverse = 1 / Math.Sqrt(x * x + y * y + z * z);
+        return new[] { x * inverse, y * inverse, z * inverse };
+    }
+
+    /// <summary>Returns the oriented normal used by spherical triangle boundaries.</summary>
+    private static double[] Cross(double[] a, double[] b) => new[] { a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0] };
+
+    /// <summary>Returns the scalar product in double precision.</summary>
+    private static double Dot(double[] a, double[] b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+
+    /// <summary>Accumulates solid angle, first moment and the row-major second moment using spherical boundary integrals.</summary>
+    private static void Triangle(double[] a, double[] b, double[] c, double[] m)
+    {
+        double determinant = Dot(a, Cross(b, c));
+        if (Math.Abs(determinant) < 1e-15) return;
+        if (determinant < 0) { var swap = b; b = c; c = swap; determinant = -determinant; }
+        double area = 2 * Math.Atan2(determinant, 1 + Dot(a,b) + Dot(b,c) + Dot(c,a));
+        m[0] += area;
+        for (int i = 0; i < 3; i++) m[4 + i*3 + i] += area / 3;
+        var vertices = new[] { a, b, c };
+        for (int edge = 0; edge < 3; edge++)
+        {
+            var start = vertices[edge]; var end = vertices[(edge+1)%3];
+            var normal = Cross(start,end);
+            double length = Math.Sqrt(Dot(normal,normal));
+            if (length < 1e-15) continue;
+            double angle = Math.Atan2(length,Dot(start,end));
+            for (int i = 0; i < 3; i++) normal[i] /= length;
+            // Boundary normals point inward. Integrating the spherical Laplacians
+            // of n_i and n_i*n_j gives these exact first/second moments.
+            var boundary = new double[3];
+            for (int i = 0; i < 3; i++) { m[1+i] += normal[i]*angle/2; boundary[i] = (start[i]+end[i])*Math.Tan(angle/2); }
+            for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++)
+                m[4+i*3+j] += (normal[i]*boundary[j]+normal[j]*boundary[i])/6;
+        }
+    }
+
+    #endregion
+
 }

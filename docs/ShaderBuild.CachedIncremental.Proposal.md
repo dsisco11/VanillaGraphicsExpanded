@@ -1,6 +1,6 @@
 # Cached incremental SPIR-V builds
 
-Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Recoverable generation publication is implemented and verified; selective orchestration remains proposed.
+Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Recoverable generation publication is implemented and verified; selective orchestration is implemented and verified by focused integration tests and an independent completion audit. Migration/package qualification and matched production measurements remain pending.
 
 ## Intent
 
@@ -10,9 +10,9 @@ The existing compiler-result cache remains useful. This proposal adds dependency
 
 ## Current behavior and measured baseline
 
-[ShaderBuild.Incremental.md](ShaderBuild.Incremental.md) documents the current implementation. An unchanged catalogue takes a receipt shortcut. Any shader input change invalidates that receipt and enters [ShaderVariantBuild](../ShaderBuildTool/Spirv/ShaderVariantBuild.cs), which expands every distinct source, emits every variant, checks the compiler-result cache, extracts interfaces even for cache hits, and submits the complete catalogue to publication. Publication now reuses verified unchanged binary files and skips replacement of an identical generation.
+[ShaderBuild.Incremental.md](ShaderBuild.Incremental.md) documents the current implementation. The investigation baseline below predates selective processing. At that baseline, an unchanged catalogue took a receipt shortcut. Any shader input change invalidated that receipt and entered ShaderVariantBuild, which expanded every distinct source, emitted every variant, checked the compiler-result cache, extracted interfaces even for cache hits, and submitted the complete catalogue to publication. The implemented selective loop now checks source, variant and interface records first; publication reuses verified unchanged binary files and skips replacement of an identical generation.
 
-The progress counter in [ShaderCompilationBatch](../ShaderBuildTool/Spirv/ShaderCompilationBatch.cs) counts processed variants, including cache hits. It does not count compiler invocations.
+At the baseline, the progress counter in [ShaderCompilationBatch](../ShaderBuildTool/Spirv/ShaderCompilationBatch.cs) counted processed variants across the full catalogue, including cache hits. It now counts selected emission jobs; separate counters report actual compiler invocations.
 
 An investigation using the existing Debug tool, copied production assets, and isolated outputs measured:
 
@@ -24,7 +24,7 @@ An investigation using the existing Debug tool, copied production assets, and is
 
 The edit changed one numeric threshold from 0.02 to 0.021. All 436 variants were processed. Expansion took 3.709 s; compiler work took 0.310 s. Emission work totaled 75.197 s across concurrent workers, and interface extraction totaled 3.714 s across workers; these work totals are not additive wall timings. The cold run reused equivalent inputs encountered within the same invocation.
 
-Local evidence: [single-edit log](../artifacts/investigation/incremental-shaders/tool-single-shader-edit.log), [unchanged log](../artifacts/investigation/incremental-shaders/tool-unchanged.log), and [baseline log](../artifacts/investigation/incremental-shaders/tool-baseline.log). These investigation artifacts may be cleaned independently of this proposal. The measurements establish the current bottleneck; they do not predict a completed implementation's speed.
+Local evidence: [single-edit log](../artifacts/investigation/incremental-shaders/tool-single-shader-edit.log), [unchanged log](../artifacts/investigation/incremental-shaders/tool-unchanged.log), and [baseline log](../artifacts/investigation/incremental-shaders/tool-baseline.log). These investigation artifacts may be cleaned independently of this proposal. The measurements establish the original bottleneck; they do not predict a completed implementation's speed.
 
 ## Required behavior
 
@@ -87,7 +87,7 @@ Compiler-result keys continue to identify final emitted source, compiler policy,
 
 Store a versioned record containing the qualified root source identity, preprocessing identity, a serializable snapshot of the library dependency graph, root and transitive dependency content hashes, expanded-text digest, and a reference to the cached expanded text. Persist resource identities and dependency relationships as data, not live ASTs or the library object representation. Retain per-root provenance so replacing one root record removes its obsolete relationships without deleting relationships still required by another root.
 
-The existing ShaderSyntaxTreePreprocessor already returns PreprocessResult<SyntaxTree>. ShaderSourcePreprocessor now retains immutable DependencyGraph and ProcessedResources snapshots alongside expanded text after successful preprocessing. Its text-only caller remains compatible while selective record reuse is integrated separately. TinyPreprocessor.Graph.ResourceDependencyGraph already exposes GetAllResources, GetDependencies, GetDependents, GetProcessingOrder, and cycle detection. Use these APIs rather than implementing another import scanner, dependency resolver, or graph algorithm.
+The existing ShaderSyntaxTreePreprocessor already returns PreprocessResult<SyntaxTree>. ShaderSourcePreprocessor now retains immutable DependencyGraph and ProcessedResources snapshots alongside expanded text after successful preprocessing. Selective source planning consumes these snapshots before expansion and emission. TinyPreprocessor.Graph.ResourceDependencyGraph already exposes GetAllResources, GetDependencies, GetDependents, GetProcessingOrder, and cycle detection. Use these APIs rather than implementing another import scanner, dependency resolver, or graph algorithm.
 
 Capture the graph produced by the library during actual expansion. Associate its canonical resource IDs with physical files and hashes through the existing resolver callback, and explicitly record the root input supplied directly to preprocessing. Treat ResourceId as an opaque identity supplied by the resolver; do not reconstruct paths or edges from import strings. Every graph resource must have a validated input association before its record can be reused. Cross-domain imports are dependencies too; the receipt shortcut must include them even if they lie outside the current single-domain enumeration.
 
@@ -178,7 +178,7 @@ Performance acceptance is elimination of unrelated expensive operations and a me
 
 ## Resolved implementation contracts
 
-These decisions govern the implementation. Graph semantics are qualified by the focused fixture described below. Assembly separation and identity APIs are implemented; persistent cache integration and publication recovery remain work in the linked checklist.
+These decisions govern the implementation. Graph semantics are qualified by the focused fixture described below. Assembly separation, identity APIs, persistent cache integration and publication recovery are implemented. The linked checklist retains migration/package qualification and matched production measurements.
 
 ### Project and declaration boundary
 

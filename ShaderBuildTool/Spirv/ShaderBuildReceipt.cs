@@ -8,7 +8,7 @@ namespace ShaderBuildTool.Spirv;
 internal static class ShaderBuildReceipt
 {
     /// <summary>Content hashes of all published files; temporary compiler inputs are excluded.</summary>
-    private sealed record Receipt(string Inputs, Dictionary<string, string> Outputs, Dictionary<string, string>? InputDetails = null);
+    private sealed record Receipt(int Version, string Inputs, Dictionary<string, string> Outputs, Dictionary<string, string>? InputDetails = null);
 
     #region Public API
     /// <summary>Hashes source paths and contents against the invocation's compiler identity, including removed inputs.</summary>
@@ -35,16 +35,7 @@ internal static class ShaderBuildReceipt
     public static string CompilerFingerprint(string workingDirectory, string target, bool warnings, ShaderFileHashIndex? index = null,
         Dictionary<string, string>? details = null)
     {
-        string toolManifest = Path.Combine(workingDirectory, ".config", "dotnet-tools.json");
-        using var configuration = JsonDocument.Parse(File.ReadAllText(toolManifest));
-        string version = configuration.RootElement.GetProperty("tools").GetProperty("dotnet-shaderc").GetProperty("version").GetString()!;
-        string packageRoot = Environment.GetEnvironmentVariable("NUGET_PACKAGES")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
-        string compilerRoot = Path.Combine(packageRoot, "dotnet-shaderc", version, "tools");
-        if (!Directory.Exists(compilerRoot)) throw new DirectoryNotFoundException("Restore the pinned shader compiler before building: " + compilerRoot);
-        // Include managed and native compiler contents, not just its version label: replacing either invalidates the receipt.
-        var inputs = Directory.EnumerateFiles(compilerRoot, "*", SearchOption.AllDirectories)
-            .Append(toolManifest).Select(Path.GetFullPath).Order(StringComparer.Ordinal);
+        var inputs = CompilerInputs(workingDirectory);
         string policy = JsonSerializer.Serialize(ShaderCompilerProcess.PolicyArguments("<stage>", target, warnings, "<entry-point>"));
         var identity = new List<string> { "compiler-identity-v2", policy };
         if (details is not null) details["compiler policy"] = policy;
@@ -57,6 +48,21 @@ internal static class ShaderBuildReceipt
         return ShaderBuildIdentities.Hash(identity.ToArray());
     }
 
+    /// <summary>Enumerates the pinned compiler package and manifest without recomputing their identity.</summary>
+    internal static IEnumerable<string> CompilerInputs(string workingDirectory)
+    {
+        string toolManifest = Path.Combine(workingDirectory, ".config", "dotnet-tools.json");
+        using var configuration = JsonDocument.Parse(File.ReadAllText(toolManifest));
+        string version = configuration.RootElement.GetProperty("tools").GetProperty("dotnet-shaderc").GetProperty("version").GetString()!;
+        string packageRoot = Environment.GetEnvironmentVariable("NUGET_PACKAGES")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+        string compilerRoot = Path.Combine(packageRoot, "dotnet-shaderc", version, "tools");
+        if (!Directory.Exists(compilerRoot)) throw new DirectoryNotFoundException("Restore the pinned shader compiler before building: " + compilerRoot);
+        // Include managed and native compiler contents, not just its version label: replacing either invalidates the receipt.
+        return Directory.EnumerateFiles(compilerRoot, "*", SearchOption.AllDirectories)
+            .Append(toolManifest).Select(Path.GetFullPath).Order(StringComparer.Ordinal);
+    }
+
     /// <summary>Accepts only a complete previous success whose binaries and sidecars still match their recorded content.</summary>
     public static bool IsCurrent(string outputRoot, string fingerprint, Dictionary<string, string>? details = null,
         Action<string>? report = null)
@@ -66,7 +72,7 @@ internal static class ShaderBuildReceipt
         try
         {
             var receipt = JsonSerializer.Deserialize<Receipt>(File.ReadAllText(path));
-            if (receipt is null || receipt.Outputs is not { Count: > 0 })
+            if (receipt is null || receipt.Version != 2 || receipt.Outputs is not { Count: > 0 })
             {
                 report?.Invoke("Build receipt is empty or incomplete: " + path);
                 return false;
@@ -120,7 +126,7 @@ internal static class ShaderBuildReceipt
         Directory.CreateDirectory(Path.GetDirectoryName(pending)!);
         try
         {
-            File.WriteAllText(pending, JsonSerializer.Serialize(new Receipt(fingerprint, outputs, details)));
+            File.WriteAllText(pending, JsonSerializer.Serialize(new Receipt(2, fingerprint, outputs, details)));
             File.Move(pending, Path.Combine(outputRoot, "build-receipt.json"), overwrite: true);
         }
         finally { File.Delete(pending); }

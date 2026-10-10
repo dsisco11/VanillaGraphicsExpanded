@@ -55,6 +55,29 @@ public sealed class ShaderFileHashIndexTests
     #endregion
 
     #region Verification and persistence
+    /// <summary>Strict shared-input memoization expires at commit verification even when file metadata stays unchanged.</summary>
+    [Fact]
+    public void VerificationEpochRehashesPreservedMetadataEdits()
+    {
+        using var fixture = new ShaderBuildFixture();
+        string path = Path.Combine(fixture.Shaders, "fixture.inc");
+        var index = new ShaderFileHashIndex(fixture.Output, verifyContents: true);
+        byte[] before = index.GetHash(path);
+        Assert.Equal(before, index.GetHash(path));
+        Assert.Equal(1, index.HashedFiles);
+        DateTime write = File.GetLastWriteTimeUtc(path), creation = File.GetCreationTimeUtc(path);
+        File.WriteAllText(path, File.ReadAllText(path).Replace("0.5", "0.7"));
+        File.SetLastWriteTimeUtc(path, write);
+        File.SetCreationTimeUtc(path, creation);
+        index.BeginVerification();
+        byte[] after = index.GetHash(path);
+        Assert.False(before.SequenceEqual(after));
+        Assert.Equal(SHA256.HashData(File.ReadAllBytes(path)), after);
+        Assert.Equal(2, index.HashedFiles);
+        Assert.Equal(after, index.GetHash(path));
+        Assert.Equal(2, index.HashedFiles);
+    }
+
     /// <summary>Strict verification detects content edits even when size and timestamps are preserved.</summary>
     [Fact]
     public void VerificationDetectsPreservedMetadataEdit()

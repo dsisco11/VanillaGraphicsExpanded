@@ -3,7 +3,7 @@ Cached incremental SPIR-V builds
 
 Source proposal: ShaderBuild.CachedIncremental.Proposal.md
 Current behavior: ShaderBuild.Incremental.md
-Status: Phases 1–4 complete; Phases 5–7 pending.
+Status: Phases 1–5 complete; Phases 6–7 pending.
 
 Goal and shared contracts
   Make expensive build work proportional to changed inputs and their dependents. Unchanged
@@ -279,45 +279,79 @@ Phase 5: Integrate selective processing and truthful work counters
   Depends on: Phases 2–4.
   Proposal: Build algorithm; Required behavior; Diagnostics.
 
-  ☐ Integrate selection into the existing owning pipeline with thin Program orchestration.
-    ☐ Recover under the lease, generate deterministic shared inputs, resolve registry, and validate
+  ☑ Integrate selection into the existing owning pipeline with thin Program orchestration.
+    ☑ Recover under the lease, generate deterministic shared inputs, resolve registry, and validate
       source coverage. Do not replace generated includes when bytes are unchanged; retain atomic
       generation for concurrent configurations.
-    ☐ Compute hashes/identities once through ShaderFileHashIndex; include recorded cross-domain
+    ☑ Compute hashes/identities once through ShaderFileHashIndex; include recorded cross-domain
       dependencies. Preserve metadata-assisted mode and strict verifyContents semantics.
-    ☐ Accept the complete receipt shortcut only with compatible schema, membership, inputs, and
+    ☑ Accept the complete receipt shortcut only with compatible schema, membership, inputs, and
       verified published outputs. Old receipts cannot bypass establishing new records.
-    ☐ Select valid records before expansion/emission. Expand only invalid roots, once per equivalent
+    ☑ Select valid records before expansion/emission. Expand only invalid roots, once per equivalent
       shared source input; independently select variants with changed contracts/identities.
-    ☐ Emit selected variants, reuse verified compiler results, compile misses with bounded concurrency,
+    ☑ Emit selected variants, reuse verified compiler results, compile misses with bounded concurrency,
       and reuse valid interface metadata. Restore binaries or metadata locally where possible.
-    ☐ Validate the complete manifest assembled from reused/new records and exact membership;
+    ☑ Validate the complete manifest assembled from reused/new records and exact membership;
       check consumed input/contract snapshots before committing through Phase 4 publication.
-    ☐ Abort or retry inconsistent snapshots; preserve successful immutable cache entries after
+    ☑ Abort or retry inconsistent snapshots; preserve successful immutable cache entries after
       other failures without retaining a current success marker.
-  ☐ Add operation counters at the owning operations and meaningful progress output.
-    ☐ Count roots reused/expanded, variants reused/emitted, compiler reuse/actual invocations,
+  ☑ Add operation counters at the owning operations and meaningful progress output.
+    ☑ Count roots reused/expanded, variants reused/emitted, compiler reuse/actual invocations,
       interfaces reused/extracted, and outputs retained/replaced/repaired/removed.
-    ☐ Distinguish variants from unique compiler jobs and account for equivalent-input aliases.
+    ☑ Distinguish variants from unique compiler jobs and account for equivalent-input aliases.
       Report immediate reuse and progress over selected work; skipped variants are not compilations.
-    ☐ Retain compiler failure diagnostics and reasons; report dependency/schema/identity misses.
+    ☑ Retain compiler failure diagnostics and reasons; report dependency/schema/identity misses.
       Preserve summary compatibility or document exact replacement semantics.
-    ☐ Separate input-check, selected-processing, and publication wall times from accumulated
+    ☑ Separate input-check, selected-processing, and publication wall times from accumulated
       concurrent work. Include fallback publication costs without dumping unchanged records.
-  ☐ Verify end-to-end selection with focused fixtures and operation counts.
-    ☐ Warm unchanged: zero expansions, emissions, compilations, and extractions.
-    ☐ Root/direct/nested/shared/cross-domain/import-topology edits: only affected roots and variants
+  ☑ Verify end-to-end selection with focused fixtures and operation counts.
+    ☑ Warm unchanged: zero expansions, emissions, compilations, and extractions.
+    ☑ Root/direct/nested/shared/cross-domain/import-topology edits: only affected roots and variants
       processed; unrelated records and timestamps retained. Missing imports fail safely.
-    ☐ Contract-only, binding, specialization, structural/fixed define, entry-point, stage, policy,
+    ☑ Contract-only, binding, specialization, structural/fixed define, entry-point, stage, policy,
       and configuration changes: all required work selected with unrelated work skipped.
-    ☐ Extractor-only change: refresh interfaces using verified binaries. Equivalent source and
+    ☑ Extractor-only change: refresh interfaces using verified binaries. Equivalent source and
       reverted edits: compiler cache reuse where valid.
-    ☐ Added/removed roots, stages, variants, and registry scopes: exact membership and pruning;
+    ☑ Added/removed roots, stages, variants, and registry scopes: exact membership and pruning;
       unregistered owned roots still fail coverage checks.
-    ☐ Inputs changed during processing and timestamp-preserving edits under strict verification:
+    ☑ Inputs changed during processing and timestamp-preserving edits under strict verification:
       no receipt may claim a snapshot different from the processed input.
-  ☐ Completion gate: selected processing and counters prove actual skipped work, with output
+  ☑ Completion gate: selected processing and counters prove actual skipped work, with output
     equivalence and failure guarantees preserved through the integrated path.
+
+  Evidence (second review and independent completion audit passed)
+    - Proposal Build algorithm / Required behavior / Diagnostics -> ShaderBuildInvocation owns
+      leased recovery, registry resolution, shared identity/hash capture and receipt-last publication.
+      ShaderSourcePlan uses persisted TinyPreprocessor graphs to select affected roots; source and
+      variant records are checked before AST work. ShaderVariantProcessor deduplicates compiler
+      jobs by emitted input and reuses independently validated interface records.
+    - Compatible version-2 receipts require complete reusable processing records, exact current
+      generation membership and verified outputs. Consumed cross-domain inputs participate in
+      fingerprints. Captured source/catalogue/implementation inputs are checked at commit boundaries;
+      strict hash epochs reread each distinct input. Identical generated include bytes preserve
+      timestamps under a cross-process mutex and atomic replacement.
+    - Counters distinguish source/variant/interface work, actual compiler invocations and aliases,
+      and retained/replaced/repaired/removed binaries. Progress covers selected emission jobs.
+      Current-behavior documentation specifies compatibility-summary semantics and wall versus
+      accumulated work timing. Compiler stage mapping follows declared kind, not asset suffix.
+    - Full ShaderBuildTool.Tests passed Debug 222/222 and Release 222/222. Final focused Debug
+      selective/identity/record/hash checks passed 72/72 after compiler-stage ownership cleanup.
+      All final runs reported zero warnings/errors. Commands: dotnet test
+      ShaderBuildTool.Tests/ShaderBuildTool.Tests.csproj [-c Release] --no-restore
+      -p:UseSharedCompilation=false -nr:false -m:1 --tl:off -v:minimal.
+      Logs: artifacts/investigation/phase5/tests-debug.log, tests-release.log and final-debug.log.
+    - Focused real-compiler fixtures establish warm zero-work counts, root/direct/nested/shared/
+      cross-domain and added/removed-import selection, contract changes, source reversion, clean
+      output equivalence, alias counts, extractor-only repair, membership pruning, entry/stage
+      rejection, supported target-policy changes, strict preserved-metadata edits and commit
+      verification epochs. Registry-resolution and missing-input failures invalidate success
+      while preserving the prior generation. The independent audit found no remaining discrepancy.
+    - Actual policy testing exposed a pre-existing pinned dotnet-shaderc 1.2.2 limitation:
+      warnings-as-errors is unsupported and successful warnings are omitted by the CLI. The
+      unsupported flag now fails explicitly before processing; failure preservation is tested.
+      No compiler upgrade or unsafe diagnostic-based emulation was introduced.
+    - Migration/package qualification and matched production timing remain the subsequent gates;
+      these focused receipts do not claim production latency or in-game effects.
 
 Phase 6: Qualify migration, repair, packaging, and compatibility
   Outcome: existing users and all supported build configurations can safely use the new pipeline.

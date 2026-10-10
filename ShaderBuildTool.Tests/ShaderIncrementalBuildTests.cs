@@ -36,6 +36,27 @@ public sealed class ShaderIncrementalBuildTests
     #endregion
 
     #region Incremental publication
+    /// <summary>Recorded cross-domain inputs participate in normal receipt validation and rebuild their consumers.</summary>
+    [Fact]
+    public void CrossDomainDependencyInvalidatesNormalReceipt()
+    {
+        using var fixture = new ShaderBuildFixture();
+        string directory = Path.Combine(fixture.Assets, "other", "shaders");
+        Directory.CreateDirectory(directory);
+        string include = Path.Combine(directory, "factor.inc");
+        File.WriteAllText(include, "#define FACTOR 0.5\n");
+        File.WriteAllText(Path.Combine(fixture.Shaders, "fixture.inc"), "@import \"other:shaders/factor.inc\"\n");
+        Assert.Equal(0, fixture.Build(2));
+        string binary = Path.Combine(fixture.Output, "vanillagraphicsexpanded", "shaders", "fixture.fsh.spv");
+        byte[] original = File.ReadAllBytes(binary);
+        Assert.Equal(0, fixture.Build(2, clean: false, incremental: true));
+        File.WriteAllText(include, "#define FACTOR 0.7\n");
+        Assert.Equal(0, fixture.Build(2, clean: false, incremental: true));
+        Assert.False(original.SequenceEqual(File.ReadAllBytes(binary)));
+        Assert.Contains(Path.GetFullPath(include).Replace("\\", "\\\\"),
+            File.ReadAllText(Path.Combine(fixture.Output, "build-receipt.json")));
+    }
+
     /// <summary>Explicit content verification recompiles an edited include whose metadata was preserved.</summary>
     [Fact]
     public void StrictVerificationDetectsPreservedMetadataEdit()

@@ -1,133 +1,91 @@
 using System.Collections.Immutable;
-using VanillaGraphicsExpanded.Rendering.Spirv;
 using System.Diagnostics;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 
 namespace ShaderBuildTool.Spirv;
 
-/// <summary>Compiles deduplicated program projections directly to runtime SPIR-V assets.</summary>
+/// <summary>Plans selective source and variant processing before publishing a complete runtime generation.</summary>
 internal static class ShaderVariantBuild
 {
     #region Public API
-    /// <summary>Publishes compiler output unchanged; program assignments and shared stages come from the resolver.</summary>
-    public static async Task RunAsync(string assetsRoot, string outputRoot, string domain, string workingDirectory,
+    /// <summary>Reuses verified records before scheduling expensive work and returns actual work counters.</summary>
+    public static async Task<ShaderBuildStatistics> RunAsync(string assetsRoot, string outputRoot, string domain, string workingDirectory,
         string target, bool warningsAsErrors, ShaderVariantResolver registry, int concurrency, CancellationToken cancellationToken,
-        bool incremental = false, string? compilerIdentity = null, Action<ShaderBuildGeneration>? publish = null)
+        bool incremental = false, string? compilerIdentity = null, Action<ShaderBuildGeneration>? publish = null,
+        ShaderBuildExecution? execution = null)
     {
-        var elapsed = Stopwatch.StartNew();
+        Directory.CreateDirectory(outputRoot);
+        var timer = Stopwatch.StartNew();
         var publication = new ShaderPublication(outputRoot, domain, report: message => Console.WriteLine("[SPIR-V] " + message));
         publication.Recover();
-        File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
-        string manifestPath = Path.Combine(outputRoot, domain, "shaders", ShaderBinaryDigest.FileName);
-
-        var digests = new System.Collections.Concurrent.ConcurrentDictionary<string, ShaderBinaryDigest.Entry>(StringComparer.Ordinal);
-        var binaries = new System.Collections.Concurrent.ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
-        ValidateSources(Path.Combine(assetsRoot, domain, "shaders"), registry);
-        var sources = new ShaderSourcePreprocessor(assetsRoot, domain);
-        var observedInputs = new Dictionary<string, ShaderInputObservation>(StringComparer.Ordinal);
-        var cache = new ShaderVariantCache(outputRoot, compilerIdentity
-            ?? ShaderBuildReceipt.CompilerFingerprint(workingDirectory, target, warningsAsErrors));
-        int hits = 0, misses = 0;
-        var missReasons = new System.Collections.Concurrent.ConcurrentDictionary<string, int>(StringComparer.Ordinal);
-        var expanded = new Dictionary<string, string>(StringComparer.Ordinal);
-        Console.WriteLine($"[SPIR-V] Programs: {registry.Programs.Count} programs, {registry.Programs.Values.Sum(p => p.Assignments.Count)} combinations");
-        // Expand each source once; workers share only immutable text, never editable syntax trees.
-        Console.WriteLine("[SPIR-V] Expanding shader sources...");
-        foreach (string source in registry.Binaries.Select(selection => selection.Stage.Source).Distinct(StringComparer.Ordinal))
+        var statistics = new ShaderBuildStatistics();
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var processed = sources.Expand(source);
-            expanded.Add(source, processed.Text);
-            foreach (var inputObservation in processed.Inputs)
-            {
-                if (observedInputs.TryGetValue(inputObservation.Path, out var earlier) && earlier.Hash != inputObservation.Hash)
-                    throw new IOException("Shader input changed between roots: " + inputObservation.Path);
-                observedInputs[inputObservation.Path] = inputObservation;
-            }
-        }
-        double expansionMilliseconds = elapsed.Elapsed.TotalMilliseconds;
-        long emissionTicks = 0, compilerTicks = 0, interfaceTicks = 0;
-        var jobs = new List<ShaderCompilationJob>();
-        var outputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var selection in registry.Binaries)
-        {
-            var stage = selection.Stage;
-            string binary = Path.Combine(outputRoot, domain, "shaders", selection.BinaryPath);
-            if (!outputs.Add(Path.GetFullPath(binary)))
-                throw new InvalidOperationException("Duplicate shader binary output: " + binary);
-            string hash = ShaderVariantIdentifier.Create(selection.Key);
-            string input = Path.Combine(outputRoot, "_tmp", stage.Identity + "." + hash + ".glsl");
-            string extension = StageExtension(stage.Kind);
-            jobs.Add(new ShaderCompilationJob($"stage '{stage.Identity}', source '{stage.Source}', configuration '{selection.Key}'", CompileVariantAsync));
-
-            /// <summary>Emits, compiles and publishes this variant while recording work and removing partial output.</summary>
-            async Task<ShaderCompilerResult> CompileVariantAsync(CancellationToken token)
-            {
-                string pending = input + ".spv";
-                Directory.CreateDirectory(Path.GetDirectoryName(input)!);
-
-                File.Delete(pending);
-                try
+            ValidateSources(Path.Combine(assetsRoot, domain, "shaders"), registry);
+            byte[] contracts = ShaderContractProjection.Membership(registry, "selection");
+            var hashes = execution?.Hashes ?? new ShaderFileHashIndex(outputRoot);
+            var identities = execution?.Identities ?? ShaderBuildIdentities.Capture(workingDirectory, target, warningsAsErrors, hashes);
+            var compiler = new ShaderVariantCache(outputRoot, compilerIdentity ?? identities.Compiler);
+            var reasons = new System.Collections.Concurrent.ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+            /// <summary>Collects cache miss diagnostics from planning and concurrent processing.</summary>
+            void Miss(string reason) => reasons.AddOrUpdate(reason, 1, (_, count) => count + 1);
+            var expanded = ShaderSourcePlan.Create(assetsRoot, domain, outputRoot,
+                registry.Binaries.Select(selection => selection.Stage.Source), identities.Preprocessing, hashes,
+                incremental, statistics, Miss, cancellationToken);
+            var observed = new Dictionary<string, ShaderInputObservation>(StringComparer.Ordinal);
+            foreach (var source in expanded.Values)
+                foreach (var input in source.Inputs)
                 {
-                    var timer = Stopwatch.StartNew();
-                    var emitter = new ShaderVariantSource(assetsRoot, domain);
-                    string source = ShaderSourceLayout.Apply(emitter.Emit(expanded[stage.Source], selection), extension, stage.Bindings);
-                    string key = cache.Key(source, Program.StageFromExtension(extension), stage.EntryPoint, input, workingDirectory);
-                    if (incremental && cache.TryRead(key, out var cachedBytes, out var cachedDigest,
-                        reason => missReasons.AddOrUpdate(reason, 1, (_, count) => count + 1)))
-                    {
-                        Interlocked.Add(ref emissionTicks, timer.ElapsedTicks);
-                        long interfaceStart = Stopwatch.GetTimestamp();
-                        var metadata = ShaderInterfaceExtraction.Extract(cachedBytes, selection);
-                        Interlocked.Add(ref interfaceTicks, Stopwatch.GetTimestamp() - interfaceStart);
-                        binaries[selection.BinaryPath] = cachedBytes;
-                        digests[selection.BinaryPath] = cachedDigest with { Interface = metadata };
-                        Interlocked.Increment(ref hits);
-                        return new ShaderCompilerResult(0, "", "");
-                    }
-                    Interlocked.Increment(ref misses);
-                    if (!incremental) missReasons.AddOrUpdate("incremental cache reuse disabled", 1, (_, count) => count + 1);
-                    File.WriteAllText(input, source);
-                    Interlocked.Add(ref emissionTicks, timer.ElapsedTicks);
-                    token.ThrowIfCancellationRequested();
-                    timer.Restart();
-                    var result = await ShaderCompilerProcess.CompileAsync(workingDirectory, input, pending,
-                        Program.StageFromExtension(extension), target, warningsAsErrors, stage.EntryPoint, token);
-                    Interlocked.Add(ref compilerTicks, timer.ElapsedTicks);
-                    token.ThrowIfCancellationRequested();
-                    // Compiler failure can leave a partial file; publish only a successful invocation's output.
-                    if (result.ExitCode == 0)
-                    {
-                        byte[] bytes = File.ReadAllBytes(pending);
-                        var digest = ShaderVariantCache.Digest(bytes);
-                        long interfaceStart = Stopwatch.GetTimestamp();
-                        var metadata = ShaderInterfaceExtraction.Extract(bytes, selection);
-                        Interlocked.Add(ref interfaceTicks, Stopwatch.GetTimestamp() - interfaceStart);
-                        cache.Store(key, bytes, digest);
-                        binaries[selection.BinaryPath] = bytes;
-                        digests[selection.BinaryPath] = digest with { Interface = metadata };
-                    }
-                    return result;
+                    if (observed.TryGetValue(input.Path, out var earlier) && earlier.Hash != input.Hash)
+                        throw new IOException("Shader input changed between roots: " + input.Path);
+                    observed[input.Path] = input;
                 }
-                finally { File.Delete(pending); }
+            var processor = new ShaderVariantProcessor(assetsRoot, domain, outputRoot, workingDirectory, target,
+                warningsAsErrors, incremental, identities, compiler, statistics, Miss);
+            var selected = new List<ShaderCompilationJob>();
+            var outputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var selection in registry.Binaries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!outputs.Add(selection.BinaryPath)) throw new InvalidOperationException("Duplicate shader binary output: " + selection.BinaryPath);
+                var job = processor.Select(selection, expanded[selection.Stage.Source]);
+                if (job is not null) selected.Add(job);
             }
+            double plannedWorkMs = (statistics.ExpansionTicks + statistics.InterfaceTicks) * 1000.0 / Stopwatch.Frequency;
+            double inputCheckMs = Math.Max(0, timer.Elapsed.TotalMilliseconds - plannedWorkMs);
+            timer.Restart();
+            Console.WriteLine($"[SPIR-V] Reused {statistics.RootsReused} roots and {statistics.VariantsReused} variant records before scheduling.");
+            Console.WriteLine($"[SPIR-V] Selected {selected.Count}/{registry.Binaries.Count} variants for emission; concurrency={concurrency}.");
+            await ShaderCompilationBatch.RunAsync(selected, concurrency, Console.Out, Console.Error, cancellationToken);
+            if (processor.Binaries.Count != registry.Binaries.Count || processor.Digests.Count != registry.Binaries.Count)
+                throw new InvalidDataException("Selected processing did not produce complete catalogue membership.");
+            var generation = new ShaderBuildGeneration(processor.Binaries,
+                ShaderBinaryDigest.Encode(processor.Digests.ToDictionary(pair => pair.Key, pair => pair.Value)),
+                observed.Values.OrderBy(input => input.Path, StringComparer.Ordinal).ToImmutableArray());
+            double processingMs = timer.Elapsed.TotalMilliseconds + plannedWorkMs;
+            timer.Restart();
+            if (!contracts.AsSpan().SequenceEqual(ShaderContractProjection.Membership(registry, "selection")))
+                throw new IOException("Shader contracts changed during processing; rerun the build.");
+            ShaderOutputStatistics.Capture(outputRoot, domain, generation, statistics);
+            // A receipt may skip publication only after every required processing record was checked.
+            if (incremental && statistics.RootsExpanded == 0 && statistics.VariantsEmitted == 0 && statistics.InterfacesExtracted == 0
+                && execution?.TryReceipt?.Invoke(generation) == true)
+                statistics.ReceiptReused = true;
+            else if (publish is not null) publish(generation);
+            else publication.Publish(generation.Binaries, generation.Manifest,
+                validateInputs: () => generation.ValidateInputs(new ShaderFileHashIndex(outputRoot, true)), cancellationToken: cancellationToken);
+            hashes.Save();
+            statistics.Report(inputCheckMs, processingMs, timer.Elapsed.TotalMilliseconds);
+            foreach (var reason in reasons.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+                Console.WriteLine($"[SPIR-V] Cache miss reason: {reason.Key}; occurrences={reason.Value}");
+            return statistics;
         }
-        Console.WriteLine($"[SPIR-V] Processing {jobs.Count} variants (emission, cache verification, compilation on cache misses); concurrency={concurrency}...");
-        await ShaderCompilationBatch.RunAsync(jobs, concurrency, Console.Out, Console.Error, cancellationToken);
-        Console.WriteLine("[SPIR-V] Pruning obsolete outputs and publishing binary digests...");
-        // Keep the previous coherent generation intact until every compiler and extractor succeeds.
-        var generation = new ShaderBuildGeneration(binaries,
-            ShaderBinaryDigest.Encode(digests.ToDictionary(pair => pair.Key, pair => pair.Value)), observedInputs.Values.ToImmutableArray());
-        if (publish is not null) publish(generation);
-        else publication.Publish(generation.Binaries, generation.Manifest, validateInputs: () => generation.ValidateInputs(new ShaderFileHashIndex(outputRoot, true)), cancellationToken: cancellationToken);
-        Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Interface extraction: workMs={interfaceTicks * 1000.0 / Stopwatch.Frequency:F1}; manifestBytes={new FileInfo(manifestPath).Length}"));
-        foreach (var stage in registry.Binaries.GroupBy(s => s.Stage.Identity))
-            Console.WriteLine($"[SPIR-V] {stage.Key}: {stage.Count()} structural variants");
-        Console.WriteLine($"[SPIR-V] Stages: {registry.Stages.Count} stages, {registry.Binaries.Count} variants");
-        Console.WriteLine($"[SPIR-V] Cache hits={hits}; misses={misses}; shadersRecompiled={misses}; compilerInvocations={misses}");
-        foreach (var reason in missReasons.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-            Console.WriteLine($"[SPIR-V] Cache miss reason: {reason.Key}; variants={reason.Value}");
-        Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Timing: concurrency={concurrency}; expansionMs={expansionMilliseconds:F1}; emissionWorkMs={emissionTicks * 1000.0 / Stopwatch.Frequency:F1}; compilerWorkMs={compilerTicks * 1000.0 / Stopwatch.Frequency:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}"));
+        catch
+        {
+            File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
+            throw;
+        }
     }
 
     /// <summary>Checks owned entry-point coverage without inferring contracts or assuming source names are identities.</summary>
@@ -145,15 +103,5 @@ internal static class ShaderVariantBuild
             throw new InvalidOperationException($"Shader source coverage failed. Unregistered owned entry points: [{string.Join(", ", unknown)}]. Missing registered sources: [{string.Join(", ", missing)}].");
     }
 
-    #endregion
-
-    #region Private
-    /// <summary>Maps the declared stage kind to the layout and compiler vocabulary, independently of asset naming.</summary>
-    private static string StageExtension(ShaderStageKind kind) => kind switch
-    {
-        ShaderStageKind.Vertex => "vsh", ShaderStageKind.Fragment => "fsh", ShaderStageKind.Geometry => "gsh",
-        ShaderStageKind.TessellationControl => "tcsh", ShaderStageKind.TessellationEvaluation => "tesh",
-        ShaderStageKind.Compute => "csh", _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
     #endregion
 }

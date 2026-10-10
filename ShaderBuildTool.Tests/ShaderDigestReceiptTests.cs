@@ -8,6 +8,24 @@ namespace ShaderBuildTool.Tests;
 public sealed class ShaderDigestReceiptTests
 {
     #region Receipt integrity
+    /// <summary>Legacy and unknown receipt schemas cannot bypass establishing current processing records.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IncompatibleReceiptSchemaIsRejected(bool unknown)
+    {
+        using var fixture = new ShaderBuildFixture();
+        Directory.CreateDirectory(fixture.Output);
+        File.WriteAllBytes(Path.Combine(fixture.Output, "fixture.spv"), [1, 2, 3]);
+        ShaderBuildReceipt.Publish(fixture.Output, "fixture");
+        string path = Path.Combine(fixture.Output, "build-receipt.json");
+        var receipt = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        if (unknown) receipt["Version"] = int.MaxValue;
+        else receipt.Remove("Version");
+        File.WriteAllText(path, receipt.ToJsonString());
+        Assert.False(ShaderBuildReceipt.IsCurrent(fixture.Output, "fixture"));
+    }
+
     /// <summary>Deleting or corrupting a published digest forces regeneration instead of preserving an incomplete package.</summary>
     [Theory]
     [InlineData(false)]
@@ -71,8 +89,12 @@ public sealed class ShaderDigestReceiptTests
     {
         using var fixture = new ShaderBuildFixture();
         Directory.CreateDirectory(fixture.Output);
-        File.WriteAllText(Path.Combine(fixture.Output, "build-receipt.json"),
-            System.Text.Json.JsonSerializer.Serialize(new { Inputs = "fixture", Outputs = new Dictionary<string, string> { ["bad\0.spv"] = "digest" } }));
+        File.WriteAllBytes(Path.Combine(fixture.Output, "fixture.spv"), [1, 2, 3]);
+        ShaderBuildReceipt.Publish(fixture.Output, "fixture");
+        string path = Path.Combine(fixture.Output, "build-receipt.json");
+        var receipt = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        receipt["Outputs"] = System.Text.Json.JsonSerializer.SerializeToNode(new Dictionary<string, string> { ["bad\0.spv"] = "digest" });
+        File.WriteAllText(path, receipt.ToJsonString());
         Assert.False(ShaderBuildReceipt.IsCurrent(fixture.Output, "fixture"));
     }
 

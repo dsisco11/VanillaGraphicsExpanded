@@ -16,8 +16,9 @@ path collisions with a case-insensitive comparison. Cache filenames encode all 2
 characters. Binary and payload integrity digests retain their hexadecimal representation. Old variant filenames
 are pruned by the normal successful catalog build and asset-copy cleanup.
 
-An unchanged catalog uses the success receipt with content-verified outputs and runs
-no shader compiler processes. Receipt enumeration skips private cache/work trees
+An unchanged catalog checks source, variant and interface records before accepting the
+success receipt with content-verified outputs. It performs zero import expansions, AST
+emissions, compiler invocations or interface extractions. Receipt enumeration skips private cache/work trees
 before descending into them, so historical cache entries do not add directory
 traversal work. Source, include and compiler/tool hashes share a single
 `_cache/file-hashes.json` index per output directory. Normal builds reuse hashes
@@ -31,16 +32,19 @@ back to hashing file contents.
 `--clean` also rehashes inputs. This detects edits that preserve size and timestamps,
 which ordinary metadata-assisted builds can miss. Published output and compiler
 result integrity checks still hash their actual bytes. Logs report input hashes
-reused versus files read. The generated SH include is regenerated each invocation,
-so its changed timestamp normally requires rehashing that one input.
+reused versus files read. The generated SH include is computed each invocation but replaced only when its bytes
+change. A named mutex serializes comparison and atomic replacement across configurations.
+Strict mode reads each distinct input once per verification boundary; repeated references
+share that result. Commit boundaries start fresh verification epochs.
 
 Compiler and processing identities are computed once per invocation. Compiler-result
 keys contain compiler package contents and the effective invocation policy, while the
 catalogue receipt additionally includes processing implementation identities and resolved
 contract/output membership. Offline declarations live in ShaderBuildCatalog; shared model
 types live in ShaderBuildModel. Catalogue assembly contents are excluded from processing
-implementation hashes, so a declaration edit does not invalidate unrelated compiler results. A receipt miss expands source imports and emits
-each variant through the existing TinyAst and layout pipeline. Its cache key
+implementation hashes, so a declaration edit does not invalidate unrelated compiler results. A receipt miss checks persisted TinyPreprocessor dependency snapshots and expands only
+invalid roots. Variant records select emission independently using expanded content and
+effective contracts. The compiler cache key
 includes the final emitted source (including defines, specialization declarations
 and binding layouts), stage, entry point, compiler contents, target,
 optimization, warning policy and debug-information policy.
@@ -64,29 +68,37 @@ Failure removes the old success receipt and cannot claim a complete build. A suc
 catalog build removes obsolete runtime outputs; the mod copy target also removes
 obsolete deployed SPIR-V files. Cache and temporary files are not packaged.
 
-Logs report cache hits, misses, compiler invocations and elapsed time.
+Logs report roots reused/expanded, variants reused/emitted, interfaces reused/extracted,
+and binary outputs retained/replaced/repaired/removed. Replaced includes new binaries;
+repaired means a previously declared binary was missing or failed its previous digest.
+Removed includes obsolete declared or physical binary paths. Counts exclude the manifest.
 The IDE build task uses `--tl:off -v:minimal` so successful tool output remains
 visible; the terminal logger (`--tl:on`) suppresses even high-importance success
 messages. Command-line builds should also use `--tl:off` to see these messages.
 Both successful paths print a dedicated `Cache hits=...; misses=...;
 shadersRecompiled=...; compilerInvocations=...` summary; an unchanged receipt
-reports zero recompilations. Counts refer to shader binary variants.
+reports zero recompilations. Hits count variant uses satisfied without their own compiler
+invocation, including aliases. Misses, shadersRecompiled and compilerInvocations count
+actual unique compiler processes. Equivalent emitted inputs share a compiler job; Debug
+source-path policy can keep otherwise equivalent variants distinct.
 Receipt invalidation reports missing/malformed receipts, exact missing or modified
 outputs, and unexpected published files. Successful receipts retain per-input
 content identities; fingerprint changes report added, removed or changed shader,
-compiler/tool and policy inputs with their old/new values. Older receipts remain
-valid but cannot identify individual changed inputs until a successful rebuild
-records this information. Variant builds also report cache-miss categories and
+compiler/tool and policy inputs with their old/new values. Receipts require schema version 2. Missing, older or unknown versions cannot skip
+record population; verified compiler results remain independently reusable. Consumed
+cross-domain resources are included in the complete receipt fingerprint. Variant builds also report cache-miss categories and
 counts (missing metadata/binary, invalid digest, malformed metadata or unreadable
 entries), separately from the receipt reason. Processing assembly changes
 invalidate the whole-build shortcut without changing compiler identity. Contract changes
 are represented by deterministic effective-contract projections in catalogue membership.
 Startup messages identify
 tool restoration, fingerprint checks and receipt/output verification before any
-variant work begins. Catalog rebuilds report source expansion and variant progress
+variant work begins. Builds report immediate record reuse and progress over selected emission jobs
 (at most once every five seconds as jobs finish, plus the final count), followed
-by output publication. Input-check and total timings help distinguish validation
-cost from compiler work; processing a variant can be a cache hit without compiling.
+by output publication. Input-check, selected-processing and publication timings describe
+wall time; selected processing includes source expansion and interface repair performed
+during planning. Emission/compiler/interface work timings accumulate concurrent work and
+are not elapsed time. Publication separately reports link/copy/write and fallback cost.
 Failed jobs emit recognized `SPIRV002` build errors with their stage, source and
 configuration. Compiler failures include decimal/hex exit codes and both captured
 diagnostic streams; worker exceptions retain their original stack and inner causes.
@@ -96,6 +108,12 @@ summary remains useful even when earlier ordinary log lines are hidden.
 Explicit `--clean` overrides `--incremental`, discards outputs/cache and forces compilation.
 The cache retains historical successful variants to support reverting changes;
 explicit clean is currently the mechanism for reclaiming that storage.
+
+The pinned dotnet-shaderc 1.2.2 CLI does not support warnings-as-errors.
+`--warningsAsErrors` now fails explicitly before processing with that limitation;
+previously the unsupported `-Werror` argument was treated as another input filename.
+Successful warning diagnostics are also omitted by that CLI, so scanning its output
+cannot safely emulate the policy.
 
 Reusable processing record APIs live under `ShaderBuildTool/Spirv/Records`. Successful
 preprocessing now retains immutable TinyPreprocessor resource/edge snapshots, processed
@@ -110,8 +128,11 @@ artifacts. Interface records independently validate binary, contract, implementa
 configuration and runtime schema; missing or corrupt interfaces can be extracted from
 verified binaries without compilation. All new record families use digest-only references
 and atomic, integrity-checked envelopes under `_cache`. They confer no catalogue success.
-These APIs are tested independently; the normal catalogue loop still processes every
-variant after a receipt miss until selective orchestration is integrated.
+The normal catalogue loop uses these records before scheduling expensive work. The
+source planner restores library graphs, checks recorded physical inputs, and follows
+changed resource dependents. It replaces only affected successful root snapshots.
+The variant processor schedules selected work with bounded concurrency, retains compiler
+diagnostics, and assembles the complete current manifest from reused and new records.
 
 Compiler and processing record filenames use the same Base32 alphabet as runtime variant
 identifiers, retaining the complete SHA-256 digest rather than truncating it. Old hexadecimal

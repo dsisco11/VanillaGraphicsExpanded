@@ -13,6 +13,7 @@ internal static class Program
 {
     private const string DefaultDomain = "vanillagraphicsexpanded";
 
+    #region Public API
     /// <summary>Validates inputs, regenerates stale artifacts and publishes a success receipt last.</summary>
     public static int Main(string[] args)
     {
@@ -39,14 +40,8 @@ internal static class Program
 
             // We assume dotnet tool restore has run (MSBuild target does this).
 
-            string domainShadersRoot = Path.Combine(assetsRoot, domain, "shaders");
-            if (!Directory.Exists(domainShadersRoot))
-            {
-                throw new DirectoryNotFoundException("Shader input directory is missing: " + domainShadersRoot);
-            }
-
             Console.WriteLine($"[SPIR-V] Starting shader build: incremental={options.Incremental}; clean={options.Clean}; verifyContents={options.VerifyContents}; output='{outputRoot}'.");
-            ShaderVariantResolver registry = options.RegistryScope switch
+            Func<ShaderVariantResolver> resolveRegistry = () => options.RegistryScope switch
             {
                 "production" => new ShaderVariantResolver(GpuShaderContracts.Registry.Programs.Values.Where(program => !program.Identity.StartsWith("tests/", StringComparison.Ordinal))),
                 "tests" => TestShaderPrograms.Create(),
@@ -54,79 +49,19 @@ internal static class Program
                 "build-validation-graphics" => BuildValidationShaderPrograms.Create(includeCompute: false),
                 _ => throw new OptionsException("Unknown registry scope: " + options.RegistryScope)
             };
-            using var outputLease = ShaderOutputLease.Acquire(outputRoot);
-            var publication = new ShaderPublication(outputRoot, domain, report: message => Console.WriteLine("[SPIR-V] " + message));
+            using var cancellation = new CancellationTokenSource();
+            ConsoleCancelEventHandler cancel = (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
+            Console.CancelKeyPress += cancel;
             try
             {
-                publication.Recover();
-                Console.WriteLine("[SPIR-V] Generating shared shader constants and checking input/compiler fingerprints...");
-                var checkTimer = System.Diagnostics.Stopwatch.StartNew();
-                LumonOctahedralShWeights.Generate(domainShadersRoot);
-                var fileHashes = new ShaderFileHashIndex(outputRoot, options.VerifyContents || options.Clean);
-                var inputDetails = new Dictionary<string, string>(StringComparer.Ordinal) { ["registry scope"] = options.RegistryScope };
-                var identities = ShaderBuildIdentities.Capture(
-                    options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes, inputDetails);
-                string compilerIdentity = identities.Compiler;
-                inputDetails["preprocessing identity"] = identities.Preprocessing;
-                inputDetails["emission identity"] = identities.Emission;
-                inputDetails["interface identity"] = identities.Interface;
-                string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, identities.Receipt(registry, options.RegistryScope, inputDetails), fileHashes, inputDetails);
-                var snapshot = new ShaderBuildInputSnapshot(assetsRoot, domain, options.WorkingDirectory ?? Directory.GetCurrentDirectory(),
-                    options.TargetEnv, options.WarningsAsErrors, registry, options.RegistryScope, fingerprint, options.VerifyContents || options.Clean);
-                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}; elapsedMs={checkTimer.Elapsed.TotalMilliseconds:F1}"));
-                Console.WriteLine("[SPIR-V] Checking incremental receipt and verifying published binary contents...");
-                checkTimer.Restart();
-                if (options.Clean) Console.WriteLine("[SPIR-V] Rebuild reason: --clean explicitly discards outputs and cache.");
-                else if (!options.Incremental) Console.WriteLine("[SPIR-V] Rebuild reason: --incremental was not enabled.");
-                if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint, inputDetails,
-                    reason => Console.WriteLine("[SPIR-V] Rebuild reason: " + reason)))
-                {
-                    fileHashes.Save();
-                    Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current; receiptCheckMs={checkTimer.Elapsed.TotalMilliseconds:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
-                    Console.WriteLine($"[SPIR-V] Cache hits={registry.Binaries.Count}; misses=0; shadersRecompiled=0; compilerInvocations=0");
-                    return 0;
-                }
-                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Catalog rebuild required (receipt missing/stale, outputs invalid, or rebuild requested); checkMs={checkTimer.Elapsed.TotalMilliseconds:F1}. Per-variant cache reuse={options.Incremental && !options.Clean}."));
-                if (options.Clean && Directory.Exists(outputRoot))
-                {
-                    Directory.Delete(outputRoot, recursive: true);
-                }
-
-                Directory.CreateDirectory(outputRoot);
-
-                // Invalidate the old success marker even for non-clean rebuilds before scheduling any work.
-                File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
-                using var cancellation = new CancellationTokenSource();
-                ConsoleCancelEventHandler cancel = (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
-                Console.CancelKeyPress += cancel;
-                try
-                {
-                    ShaderVariantBuild.RunAsync(assetsRoot, outputRoot, domain,
-                        options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv,
-                        options.WarningsAsErrors, registry, options.Concurrency, cancellation.Token, options.Incremental,
-                        compilerIdentity, generation =>
-                        {
-                            publication.Publish(generation.Binaries, generation.Manifest, fingerprint,
-                                publishReceipt: () =>
-                                {
-                                    fileHashes.Save();
-                                    Console.WriteLine("[SPIR-V] Publishing verified build receipt...");
-                                    ShaderBuildReceipt.Publish(outputRoot, fingerprint, inputDetails);
-                                },
-                                validateInputs: () => snapshot.Validate(outputRoot, generation), cancellationToken: cancellation.Token);
-                        }).GetAwaiter().GetResult();
-                }
-                finally { Console.CancelKeyPress -= cancel; }
-
-                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Build complete; totalElapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
-                return 0;
+                ShaderBuildInvocation.RunAsync(assetsRoot, outputRoot, domain,
+                    options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv,
+                    options.WarningsAsErrors, resolveRegistry, options.RegistryScope, options.Concurrency,
+                    options.Incremental, options.Clean, options.VerifyContents, cancellation.Token).GetAwaiter().GetResult();
             }
-            catch
-            {
-                // Invalidate while the writer lease is still held, including failures before selected work.
-                File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
-                throw;
-            }
+            finally { Console.CancelKeyPress -= cancel; }
+            Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Build complete; totalElapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
+            return 0;
         }
         catch (OptionsException ex)
         {
@@ -142,21 +77,9 @@ internal static class Program
         }
     }
 
-    /// <summary>Maps every supported shader suffix to its compiler stage.</summary>
-    internal static string StageFromExtension(string stageExtension)
-    {
-        return stageExtension switch
-        {
-            "csh" => "compute",
-            "vsh" => "vertex",
-            "fsh" => "fragment",
-            "gsh" => "geometry",
-            "tcsh" => "tesscontrol",
-            "tesh" => "tesseval",
-            _ => throw new NotSupportedException("Unknown shader stage: " + stageExtension)
-        };
-    }
+    #endregion
 
+    #region Private
     /// <summary>Distinguishes command-line usage failures from compiler failures.</summary>
     private sealed class OptionsException : Exception
     {
@@ -277,12 +200,13 @@ internal static class Program
             Console.WriteLine("  --registry <scope>   production, build-validation, build-validation-graphics, or tests");
             Console.WriteLine("  --domain <name>       Asset domain (default: vanillagraphicsexpanded)");
             Console.WriteLine("  --targetEnv <env>     shaderc target env (default: opengl4.5)");
-            Console.WriteLine("  --warningsAsErrors    Pass -Werror to compiler");
-            Console.WriteLine("  --incremental         Reuse verified per-variant compiler results; skip the catalog when its receipt is current");
+            Console.WriteLine("  --warningsAsErrors    Unsupported by pinned dotnet-shaderc 1.2.2; fails explicitly");
+            Console.WriteLine("  --incremental         Reuse verified source, variant and interface records; check the complete receipt before publication");
             Console.WriteLine("  --clean               Delete outputRoot before building");
             Console.WriteLine("  --verifyContents      Rehash every input instead of trusting unchanged file metadata");
             Console.WriteLine("  --workingDir <path>   Working directory (should contain .config/dotnet-tools.json)");
         }
         #endregion
     }
+    #endregion
 }

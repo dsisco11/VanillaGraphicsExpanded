@@ -19,10 +19,12 @@ internal static class ShaderCompilerProcess
     /// <summary>Supplies the exact compiler policy shared by invocation and cache identity.</summary>
     internal static string[] PolicyArguments(string stage, string target, bool warnings, string entryPoint)
     {
+        // The pinned CLI does not expose shaderc's warnings-as-errors option and also drops
+        // warnings from successful invocations. Never pretend to enforce it by scanning output.
+        if (warnings) throw new NotSupportedException("--warningsAsErrors is not supported by pinned dotnet-shaderc 1.2.2.");
         var arguments = new List<string> { "tool", "run", "dotnet-shaderc", "--", "--shader-stage=" + stage,
             "--entry-point=" + entryPoint, "--target-env=" + target, OptimizationArgument, "-x=glsl" };
         if (GenerateDebugInfo) arguments.Add("-g");
-        if (warnings) arguments.Add("-Werror");
         return arguments.ToArray();
     }
 

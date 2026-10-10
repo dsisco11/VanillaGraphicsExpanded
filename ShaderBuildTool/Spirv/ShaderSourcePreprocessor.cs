@@ -20,17 +20,24 @@ internal sealed class ShaderSourcePreprocessor
         domain = assetDomain;
     }
 
-    /// <summary>Expands syntax imports using library-owned dependency ordering and source attribution.</summary>
-    public ShaderExpandedSource Expand(string relative)
+    /// <summary>Returns the same canonical resource identity used when processing a root.</summary>
+    internal string RootId(string relative)
     {
-
         string sourceRoot = Path.Combine(root, domain, "shaders");
         string path = Path.GetFullPath(Path.Combine(sourceRoot, relative));
         if (!path.StartsWith(sourceRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Shader source escaped its asset directory: " + relative);
-        relative = Path.GetRelativePath(sourceRoot, path).Replace(Path.DirectorySeparatorChar, '/');
+        return $"{domain}:shaders/{Path.GetRelativePath(sourceRoot, path).Replace('\\', '/')}";
+    }
+
+    /// <summary>Expands syntax imports using library-owned dependency ordering and source attribution.</summary>
+    public ShaderExpandedSource Expand(string relative)
+    {
+
+        var id = new ResourceId(RootId(relative));
+        string path = Path.GetFullPath(Path.Combine(root, domain, "shaders", relative));
+        relative = Path.GetRelativePath(Path.Combine(root, domain, "shaders"), path).Replace('\\', '/');
         var sources = new Dictionary<ResourceId, SyntaxTree>();
-        var id = new ResourceId($"{domain}:shaders/{relative.Replace('\\', '/')}");
         var (raw, rootInput) = ShaderInputObservation.Read(id.Path, path);
         var inputs = new Dictionary<string, ShaderInputObservation>(StringComparer.Ordinal) { [id.Path] = rootInput };
         var parsed = SyntaxTree.Parse(raw, GlslSchema.Instance);

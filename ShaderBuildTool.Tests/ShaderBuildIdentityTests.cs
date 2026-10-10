@@ -153,9 +153,10 @@ public sealed class ShaderBuildIdentityTests
     [Fact]
     public void CompilerPolicyAndPathContextAreExplicit()
     {
-        string[] policy = ShaderCompilerProcess.PolicyArguments("fragment", "opengl4.5", true, "main");
+        string[] policy = ShaderCompilerProcess.PolicyArguments("fragment", "opengl4.5", false, "main");
         Assert.Contains("--shader-stage=fragment", policy); Assert.Contains("--entry-point=main", policy);
-        Assert.Contains("--target-env=opengl4.5", policy); Assert.Contains("-Werror", policy);
+        Assert.Contains("--target-env=opengl4.5", policy);
+        Assert.Throws<NotSupportedException>(() => ShaderCompilerProcess.PolicyArguments("fragment", "opengl4.5", true, "main"));
         Assert.Contains(ShaderCompilerProcess.OptimizationArgument, policy);
         Assert.Equal(ShaderCompilerProcess.GenerateDebugInfo, policy.Contains("-g"));
         Assert.DoesNotContain("-Werror", ShaderCompilerProcess.PolicyArguments("fragment", "opengl4.5", false, "main"));

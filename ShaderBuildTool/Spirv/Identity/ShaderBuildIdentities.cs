@@ -18,14 +18,19 @@ internal sealed record ShaderBuildIdentities(string Preprocessing, string Emissi
         string[] managed = ImplementationFiles().ToArray();
         string implementation = Files("processing-implementation-v1", managed, index, details);
         // Native reflection is shipped alongside the tool, and must participate even before it is loaded.
-        string runtimeRoot = Path.Combine(AppContext.BaseDirectory, "runtimes");
-        var native = Directory.Exists(runtimeRoot) ? Directory.EnumerateFiles(runtimeRoot, "*", SearchOption.AllDirectories)
-            .Where(p => Path.GetFileName(p).Contains("spirv-cross", StringComparison.OrdinalIgnoreCase)) : [];
-        string reflection = Files("reflection-native-v1", native, index, details);
+        string reflection = Files("reflection-native-v1", ReflectionFiles(), index, details);
         return new(Hash("preprocessing-v1", implementation), Hash("emission-v1", implementation),
             ShaderBuildReceipt.CompilerFingerprint(workingDirectory, target, warnings, index, details),
             Hash("interface-v1", implementation, reflection, ShaderInterfaceExtraction.ExtractorIdentity,
                 PackagedShaderInterface.CurrentVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    /// <summary>Enumerates native extraction dependencies even before the library has loaded them.</summary>
+    internal static IEnumerable<string> ReflectionFiles()
+    {
+        string runtimeRoot = Path.Combine(AppContext.BaseDirectory, "runtimes");
+        return Directory.Exists(runtimeRoot) ? Directory.EnumerateFiles(runtimeRoot, "*", SearchOption.AllDirectories)
+            .Where(p => Path.GetFileName(p).Contains("spirv-cross", StringComparison.OrdinalIgnoreCase)) : [];
     }
 
     /// <summary>Includes processing changes and resolved catalogue membership in the whole-build shortcut only.</summary>
